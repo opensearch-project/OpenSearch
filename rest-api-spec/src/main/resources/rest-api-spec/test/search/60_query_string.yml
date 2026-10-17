@@ -61,3 +61,42 @@
         lenient: true
 
   - match: {hits.total: 0}
+
+---
+"search with query_string consisting only of ideographic spaces":
+  - skip:
+      version: " - 3.9.99"
+      reason: "Fixed in 3.10.0"
+
+  - do:
+      index:
+          index:  test
+          id:     1
+          body:   { field: foo bar }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            query_string:
+              query: "\u3000"
+
+  - match: {hits.total: 0}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            query_string:
+              query: "\u3000foo\u3000"
+              default_field: field
+
+  - match: {hits.total: 1}

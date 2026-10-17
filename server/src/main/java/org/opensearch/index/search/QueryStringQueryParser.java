@@ -873,7 +873,7 @@ public class QueryStringQueryParser extends XQueryParser {
 
     @Override
     public Query parse(String query) throws ParseException {
-        if (query.trim().isEmpty()) {
+        if (isBlank(query)) {
             return Queries.newMatchNoDocsQuery("Matching no documents because no terms present");
         }
         // Check parenthesis nesting depth before delegating to Lucene's recursive-descent parser.
@@ -910,6 +910,14 @@ public class QueryStringQueryParser extends XQueryParser {
             }
         }
         return super.parse(query);
+    }
+
+    /**
+     * Returns true if the query has no terms: every character is one that {@link String#trim()} removes, or U+3000
+     * (ideographic space), which Lucene's query parser grammar also treats as whitespace but {@code trim()} does not.
+     */
+    private static boolean isBlank(String query) {
+        return query.chars().allMatch(c -> c <= ' ' || c == '\u3000');
     }
 
     /**

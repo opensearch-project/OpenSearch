@@ -594,6 +594,15 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
     }
 
+    public void testBlankQueryRewritesToMatchNoDocs() throws Exception {
+        QueryStringQueryParser queryParser = new QueryStringQueryParser(createShardContext(), TEXT_FIELD_NAME);
+        // U+3000 (ideographic space) is whitespace in Lucene's query parser grammar but is not removed by String#trim()
+        for (String query : List.of("", " ", "\t\n\r", "\u3000", "\u3000\u3000", " \u3000 ")) {
+            assertThat(queryParser.parse(query), instanceOf(MatchNoDocsQuery.class));
+        }
+        assertThat(queryParser.parse("\u3000foo\u3000"), equalTo(new TermQuery(new Term(TEXT_FIELD_NAME, "foo"))));
+    }
+
     public void testToQueryWildcardWithIndexedPrefixes() throws Exception {
         QueryStringQueryParser queryParser = new QueryStringQueryParser(createShardContext(), "prefix_field");
         queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
