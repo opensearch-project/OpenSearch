@@ -46,6 +46,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.threadpool.ThreadPool;
@@ -125,6 +126,22 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     @Override
     public long readBlobPreferredLength() {
         return blobStore.getReadBlobPreferredLength();
+    }
+
+    @Override
+    public boolean isConditionalWriteSupported() {
+        return true;
+    }
+
+    @Override
+    public VersionedBlob readBlobWithVersion(String blobName) throws IOException {
+        return blobStore.readBlobWithVersion(buildKey(blobName));
+    }
+
+    @Override
+    public String writeBlobConditionally(String blobName, InputStream inputStream, long blobSize, @Nullable String expectedVersionToken)
+        throws IOException {
+        return blobStore.writeBlobConditionally(buildKey(blobName), inputStream, blobSize, expectedVersionToken);
     }
 
     @Override
