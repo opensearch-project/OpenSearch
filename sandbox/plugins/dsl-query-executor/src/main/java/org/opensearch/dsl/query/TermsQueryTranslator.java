@@ -13,7 +13,6 @@ import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexNode;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
-import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 
@@ -44,12 +43,7 @@ public class TermsQueryTranslator implements QueryTranslator {
         if (termsQuery.termsLookup() != null) {
             throw new ConversionException("Terms query does not support terms lookup");
         }
-        if (termsQuery.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            throw new ConversionException("Terms query does not support non-default boost");
-        }
-        if (termsQuery.queryName() != null) {
-            throw new ConversionException("Terms query does not support _name");
-        }
+        rejectScoringParams(termsQuery, "Terms");
         if (termsQuery.valueType() != TermsQueryBuilder.ValueType.DEFAULT) {
             throw new ConversionException("Terms query does not support non-default value_type");
         }
