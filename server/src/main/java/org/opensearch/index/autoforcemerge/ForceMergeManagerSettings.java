@@ -93,6 +93,7 @@ public class ForceMergeManagerSettings {
 
     /**
      * Setting for cpu threshold. (default: 75)
+     * The gate uses a strict greater-than comparison, so setting this to 100 (the maximum) disables the CPU check.
      */
     public static final Setting<Double> CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE = Setting.doubleSetting(
         "node.auto_force_merge.cpu.threshold",
@@ -105,6 +106,7 @@ public class ForceMergeManagerSettings {
 
     /**
      * Setting for disk threshold. (default: 85)
+     * The gate uses a strict greater-than comparison, so setting this to 100 (the maximum) disables the disk check.
      */
     public static final Setting<Double> DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE = Setting.doubleSetting(
         "node.auto_force_merge.disk.threshold",
@@ -117,6 +119,7 @@ public class ForceMergeManagerSettings {
 
     /**
      * Setting for jvm threshold. (default: 75)
+     * The gate uses a strict greater-than comparison, so setting this to 100 (the maximum) disables the JVM check.
      */
     public static final Setting<Double> JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE = Setting.doubleSetting(
         "node.auto_force_merge.jvm.threshold",

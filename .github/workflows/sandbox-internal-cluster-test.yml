@@ -1,0 +1,92 @@
+# This workflow exists because the sandbox plugin stack is only wired into the
+# server:internalClusterTest source set when -Dsandbox.enabled=true. settings.gradle
+# only includes the sandbox projects under that flag, and server/build.gradle only
+# adds the sandbox plugins to internalClusterTestImplementation (compiled at JDK 25)
+# under the same flag. The normal "Gradle Check (Jenkins)" workflow never sets
+# sandbox.enabled, and "Sandbox Check" only runs `./gradlew check -p sandbox` for
+# sandbox/** changes -- neither executes :server:internalClusterTest with the gate on.
+# This job is the only CI that exercises the gated internalClusterTest path.
+name: Sandbox Internal Cluster Test
+on:
+  # Mirror sandbox-check.yml which also triggers on push (path-filtered).
+  push:
+    paths:
+      - 'sandbox/**'
+      - 'server/build.gradle'
+      - 'settings.gradle'
+      - 'gradle/**'
+      - 'buildSrc/**'
+      - 'test/framework/**'
+      - 'server/src/internalClusterTest/**'
+      - 'server/src/main/java/org/opensearch/plugins/**'
+      - '.github/workflows/sandbox-internal-cluster-test.yml'
+  pull_request:
+    paths:
+      - 'sandbox/**'
+      - 'server/build.gradle'
+      - 'settings.gradle'
+      - 'gradle/**'
+      - 'buildSrc/**'
+      - 'test/framework/**'
+      - 'server/src/internalClusterTest/**'
+      - 'server/src/main/java/org/opensearch/plugins/**'
+      - '.github/workflows/sandbox-internal-cluster-test.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  sandbox-internal-cluster-test:
+    if: github.repository == 'opensearch-project/OpenSearch'
+    runs-on: ubuntu-latest
+    # The gated :server:internalClusterTest suite takes ~25 min on a 32-core desktop
+    # and runs much slower on a shared GitHub-hosted runner, plus it has to build the
+    # Rust DataFusion native library first. 240 minutes leaves generous headroom so a
+    # slow-but-healthy run is not killed by the default 360-minute cap or a tighter one.
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Remove unnecessary files
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+      - name: Set up JDK 25
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          java-version: 25
+          distribution: temurin
+          cache: gradle
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          components: rustfmt
+      - name: Install protobuf compiler
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Cache Cargo registry
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            sandbox/libs/dataformat-native/rust/build/downloads
+          key: ${{ runner.os }}-cargo-${{ hashFiles('sandbox/**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      - name: Set Cargo build jobs
+        run: echo "CARGO_BUILD_JOBS=$(nproc)" >> $GITHUB_ENV
+      - name: Run server internalClusterTest with sandbox enabled
+        run: ./gradlew :server:internalClusterTest -Dsandbox.enabled=true -PrustDebug
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sandbox-internal-cluster-test-results
+          path: |
+            server/build/reports/tests/internalClusterTest/
+            server/build/test-results/internalClusterTest/*.xml
+          retention-days: 7
