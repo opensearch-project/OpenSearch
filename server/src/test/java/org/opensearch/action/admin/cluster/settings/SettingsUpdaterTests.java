@@ -36,9 +36,13 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.ClusterSettingsValidatorRegistry;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.script.ScriptMetadata;
+import org.opensearch.script.ScriptService;
+import org.opensearch.script.StoredScriptSource;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -48,7 +52,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -67,7 +73,7 @@ public class SettingsUpdaterTests extends OpenSearchTestCase {
         ClusterSettings settingsService = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         settingsService.addSettingsUpdateConsumer(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING, index::set);
         settingsService.addSettingsUpdateConsumer(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING, shard::set);
-        SettingsUpdater updater = new SettingsUpdater(settingsService);
+        SettingsUpdater updater = createSettingsUpdater(settingsService);
         Metadata.Builder metadata = Metadata.builder()
             .persistentSettings(
                 Settings.builder()
@@ -130,7 +136,7 @@ public class SettingsUpdaterTests extends OpenSearchTestCase {
         AtomicReference<Float> shard = new AtomicReference<>();
         settingsService.addSettingsUpdateConsumer(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING, index::set);
         settingsService.addSettingsUpdateConsumer(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING, shard::set);
-        SettingsUpdater updater = new SettingsUpdater(settingsService);
+        SettingsUpdater updater = createSettingsUpdater(settingsService);
         Metadata.Builder metadata = Metadata.builder()
             .persistentSettings(
                 Settings.builder()
@@ -172,7 +178,7 @@ public class SettingsUpdaterTests extends OpenSearchTestCase {
         AtomicReference<Float> shard = new AtomicReference<>();
         settingsService.addSettingsUpdateConsumer(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING, index::set);
         settingsService.addSettingsUpdateConsumer(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING, shard::set);
-        SettingsUpdater updater = new SettingsUpdater(settingsService);
+        SettingsUpdater updater = createSettingsUpdater(settingsService);
         Metadata.Builder metadata = Metadata.builder()
             .persistentSettings(
                 Settings.builder()
@@ -241,7 +247,7 @@ public class SettingsUpdaterTests extends OpenSearchTestCase {
             .collect(Collectors.toSet());
         final ClusterSettings clusterSettings = new ClusterSettings(settings, settingsSet);
         clusterSettings.addSettingsUpdateConsumer(deprecatedSetting, s -> {});
-        final SettingsUpdater settingsUpdater = new SettingsUpdater(clusterSettings);
+        final SettingsUpdater settingsUpdater = createSettingsUpdater(clusterSettings);
         final ClusterState clusterState = ClusterState.builder(new ClusterName("foo"))
             .metadata(Metadata.builder().persistentSettings(settings).build())
             .build();
@@ -317,7 +323,7 @@ public class SettingsUpdaterTests extends OpenSearchTestCase {
         for (final Setting<String> dynamicSetting : dynamicSettings) {
             clusterSettings.addSettingsUpdateConsumer(dynamicSetting, s -> {});
         }
-        final SettingsUpdater settingsUpdater = new SettingsUpdater(clusterSettings);
+        final SettingsUpdater settingsUpdater = createSettingsUpdater(clusterSettings);
         final Metadata.Builder metadataBuilder = Metadata.builder()
             .persistentSettings(existingPersistentSettings.build())
             .transientSettings(existingTransientSettings.build());
@@ -468,7 +474,7 @@ public class SettingsUpdaterTests extends OpenSearchTestCase {
             Stream.concat(archivedSettings.stream(), invalidSettings.stream())
         ).collect(Collectors.toSet());
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, knownSettings);
-        final SettingsUpdater settingsUpdater = new SettingsUpdater(clusterSettings);
+        final SettingsUpdater settingsUpdater = createSettingsUpdater(clusterSettings);
         final Metadata.Builder metadataBuilder = Metadata.builder()
             .persistentSettings(existingPersistentSettings.build())
             .transientSettings(existingTransientSettings.build());
@@ -641,7 +647,7 @@ public class SettingsUpdaterTests extends OpenSearchTestCase {
 
     public void testUpdateOfValidationDependentSettings() {
         final ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(asList(SETTING_FOO_LOW, SETTING_FOO_HIGH)));
-        final SettingsUpdater updater = new SettingsUpdater(settings);
+        final SettingsUpdater updater = createSettingsUpdater(settings);
         final Metadata.Builder metadata = Metadata.builder().persistentSettings(Settings.EMPTY).transientSettings(Settings.EMPTY);
 
         ClusterState cluster = ClusterState.builder(new ClusterName("cluster")).metadata(metadata).build();
@@ -680,7 +686,7 @@ public class SettingsUpdaterTests extends OpenSearchTestCase {
         final Set<Setting<?>> settingsSet = Stream.concat(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(), Stream.of(sensitiveSetting))
             .collect(Collectors.toSet());
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
-        SettingsUpdater updater = new SettingsUpdater(clusterSettings);
+        SettingsUpdater updater = createSettingsUpdater(clusterSettings);
         ClusterState state = ClusterState.builder(new ClusterName("foo")).metadata(Metadata.builder().build()).build();
 
         IllegalArgumentException ex = expectThrows(
@@ -688,6 +694,248 @@ public class SettingsUpdaterTests extends OpenSearchTestCase {
             () -> updater.updateSettings(state, Settings.builder().put("sensitive.setting", "value").build(), Settings.EMPTY, logger)
         );
         assertThat(ex.getMessage(), equalTo("sensitive setting [sensitive.setting] must be updated using persistent settings"));
+    }
+
+    public void testRejectPersistentScriptLimitBelowStoredScriptSize() {
+        assertScriptLimitRejected(Settings.EMPTY, scriptLimit(2));
+    }
+
+    public void testRejectTransientScriptLimitBelowStoredScriptSize() {
+        assertScriptLimitRejected(scriptLimit(2), Settings.EMPTY);
+    }
+
+    private void assertScriptLimitRejected(Settings transientUpdates, Settings persistentUpdates) {
+        ClusterState state = scriptState("abc", scriptLimit(4), Settings.EMPTY);
+        SettingsUpdater updater = createSettingsUpdater(Settings.EMPTY, Collections.emptyMap());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> updater.updateSettings(state, transientUpdates, persistentUpdates, logger)
+        );
+        assertEquals(
+            "script.max_size_in_bytes cannot be set to [2], stored script [test] exceeds the new value with a size of [3]",
+            e.getMessage()
+        );
+        assertEquals(4, (int) ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.get(state.metadata().persistentSettings()));
+    }
+
+    public void testScriptLimitUsesUtf8Size() {
+        ClusterState state = scriptState("é", scriptLimit(2), Settings.EMPTY);
+        SettingsUpdater updater = createSettingsUpdater(Settings.EMPTY, Collections.emptyMap());
+        expectThrows(IllegalArgumentException.class, () -> updater.updateSettings(state, Settings.EMPTY, scriptLimit(1), logger));
+        assertSame(state, updater.updateSettings(state, Settings.EMPTY, scriptLimit(2), logger));
+    }
+
+    public void testScriptLimitUsesPostUpdateTransientOverride() {
+        ClusterState state = scriptState("abc", scriptLimit(4), Settings.EMPTY);
+        SettingsUpdater updater = createSettingsUpdater(scriptLimit(1), Collections.emptyMap());
+        ClusterState updatedState = updater.updateSettings(state, scriptLimit(3), scriptLimit(2), logger);
+        assertEquals(3, (int) ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.get(updatedState.metadata().settings()));
+    }
+
+    public void testResetTransientScriptLimitValidatesPersistentValue() {
+        ClusterState state = scriptState("abc", scriptLimit(2), scriptLimit(4));
+        SettingsUpdater updater = createSettingsUpdater(Settings.EMPTY, Collections.emptyMap());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> updater.updateSettings(
+                state,
+                Settings.builder().putNull(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey()).build(),
+                Settings.EMPTY,
+                logger
+            )
+        );
+    }
+
+    public void testResetPersistentScriptLimitPreservesTransientOverride() {
+        ClusterState state = scriptState("abc", scriptLimit(4), scriptLimit(3));
+        SettingsUpdater updater = createSettingsUpdater(scriptLimit(1), Collections.emptyMap());
+        ClusterState updatedState = updater.updateSettings(
+            state,
+            Settings.EMPTY,
+            Settings.builder().putNull(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey()).build(),
+            logger
+        );
+        assertEquals(3, (int) ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.get(updatedState.metadata().settings()));
+    }
+
+    public void testResetScriptLimitValidatesNodeValue() {
+        ClusterState state = scriptState("abc", scriptLimit(4), Settings.EMPTY);
+        SettingsUpdater updater = createSettingsUpdater(scriptLimit(2), Collections.emptyMap());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> updater.updateSettings(
+                state,
+                Settings.EMPTY,
+                Settings.builder().putNull(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey()).build(),
+                logger
+            )
+        );
+    }
+
+    public void testResetMissingScriptLimitStillValidates() {
+        ClusterState state = scriptState("abc", Settings.EMPTY, Settings.EMPTY);
+        SettingsUpdater updater = createSettingsUpdater(scriptLimit(2), Collections.emptyMap());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> updater.updateSettings(
+                state,
+                Settings.EMPTY,
+                Settings.builder().putNull(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey()).build(),
+                logger
+            )
+        );
+    }
+
+    public void testResetScriptLimitRejectsDefaultBelowStoredScriptSize() {
+        assertScriptLimitResetRejected(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey());
+    }
+
+    public void testWildcardScriptLimitResetRejectsDefaultBelowStoredScriptSize() {
+        assertScriptLimitResetRejected("script.*");
+    }
+
+    private void assertScriptLimitResetRejected(String resetKey) {
+        int scriptSize = ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.get(Settings.EMPTY) + 1;
+        ClusterState state = scriptState("a".repeat(scriptSize), scriptLimit(scriptSize), Settings.EMPTY);
+        SettingsUpdater updater = createSettingsUpdater(Settings.EMPTY, Collections.emptyMap());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> updater.updateSettings(state, Settings.EMPTY, Settings.builder().putNull(resetKey).build(), logger)
+        );
+    }
+
+    public void testResetScriptLimitResolvesNodeValueAboveDefault() {
+        int scriptSize = ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.get(Settings.EMPTY) + 1;
+        ClusterState state = scriptState("a".repeat(scriptSize), scriptLimit(scriptSize + 1), Settings.EMPTY);
+        SettingsUpdater updater = createSettingsUpdater(scriptLimit(scriptSize), Collections.emptyMap());
+        ClusterState updatedState = updater.updateSettings(
+            state,
+            Settings.EMPTY,
+            Settings.builder().putNull(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey()).build(),
+            logger
+        );
+        assertFalse(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.exists(updatedState.metadata().settings()));
+    }
+
+    public void testUnrelatedUpdateDoesNotValidateStoredScriptSize() {
+        ClusterState state = scriptState("abc", scriptLimit(2), Settings.EMPTY);
+        SettingsUpdater updater = createSettingsUpdater(Settings.EMPTY, Collections.emptyMap());
+        ClusterState updatedState = updater.updateSettings(
+            state,
+            Settings.EMPTY,
+            Settings.builder().put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.5).build(),
+            logger
+        );
+        assertEquals(2, (int) ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.get(updatedState.metadata().settings()));
+    }
+
+    public void testPluginValidatorRejectsProposedStateBeforeReturningIt() {
+        Setting<Boolean> allowScripts = Setting.boolSetting("plugin.allow_scripts", true, Property.Dynamic, Property.NodeScope);
+        SettingsUpdater updater = createSettingsUpdater(Settings.EMPTY, Map.of(allowScripts, (effectiveSettings, proposedState) -> {
+            assertFalse(allowScripts.get(effectiveSettings));
+            assertFalse(allowScripts.get(proposedState.metadata().settings()));
+            ScriptMetadata scripts = proposedState.metadata().custom(ScriptMetadata.TYPE);
+            if (scripts != null && allowScripts.get(effectiveSettings) == false) {
+                throw new IllegalArgumentException("stored scripts are present");
+            }
+        }));
+        ClusterState state = scriptState("abc", Settings.builder().put(allowScripts.getKey(), true).build(), Settings.EMPTY);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> updater.updateSettings(state, Settings.EMPTY, Settings.builder().put(allowScripts.getKey(), false).build(), logger)
+        );
+        assertEquals("stored scripts are present", e.getMessage());
+        assertTrue(allowScripts.get(state.metadata().settings()));
+    }
+
+    public void testValidatorRunsOnceWhenBothScopesTouchSameSetting() {
+        Setting<Integer> setting = Setting.intSetting("plugin.limit", 2, Property.Dynamic, Property.NodeScope);
+        AtomicInteger validations = new AtomicInteger();
+        SettingsUpdater updater = createSettingsUpdater(Settings.EMPTY, Map.of(setting, (effectiveSettings, proposedState) -> {
+            assertEquals(3, (int) setting.get(effectiveSettings));
+            validations.incrementAndGet();
+        }));
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
+        updater.updateSettings(
+            state,
+            Settings.builder().put(setting.getKey(), 3).build(),
+            Settings.builder().put(setting.getKey(), 1).build(),
+            logger
+        );
+        assertEquals(1, validations.get());
+    }
+
+    public void testUnchangedRequestedSettingStillValidated() {
+        Setting<Integer> setting = Setting.intSetting("plugin.limit", 2, Property.Dynamic, Property.NodeScope);
+        AtomicInteger validations = new AtomicInteger();
+        SettingsUpdater updater = createSettingsUpdater(
+            Settings.EMPTY,
+            Map.of(setting, (effectiveSettings, proposedState) -> validations.incrementAndGet())
+        );
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().persistentSettings(Settings.builder().put(setting.getKey(), 2).build()))
+            .build();
+        assertSame(state, updater.updateSettings(state, Settings.EMPTY, Settings.builder().put(setting.getKey(), 2).build(), logger));
+        assertEquals(1, validations.get());
+    }
+
+    public void testWildcardResetValidatesAffixSetting() {
+        Setting.AffixSetting<Integer> setting = Setting.affixKeySetting(
+            "plugin.",
+            "limit",
+            key -> Setting.intSetting(key, 2, Property.Dynamic, Property.NodeScope)
+        );
+        AtomicInteger validations = new AtomicInteger();
+        SettingsUpdater updater = createSettingsUpdater(Settings.EMPTY, Map.of(setting, (effectiveSettings, proposedState) -> {
+            assertEquals(2, (int) setting.getConcreteSetting("plugin.group.limit").get(effectiveSettings));
+            validations.incrementAndGet();
+        }));
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().persistentSettings(Settings.builder().put("plugin.group.limit", 3).build()))
+            .build();
+        ClusterState updatedState = updater.updateSettings(
+            state,
+            Settings.EMPTY,
+            Settings.builder().putNull("plugin.group.*").build(),
+            logger
+        );
+        assertFalse(updatedState.metadata().persistentSettings().hasValue("plugin.group.limit"));
+        assertEquals(1, validations.get());
+    }
+
+    private static SettingsUpdater createSettingsUpdater(ClusterSettings clusterSettings) {
+        return new SettingsUpdater(clusterSettings, new ClusterSettingsValidatorRegistry(Settings.EMPTY, Collections.emptyMap()));
+    }
+
+    private static SettingsUpdater createSettingsUpdater(
+        Settings nodeSettings,
+        Map<Setting<?>, BiConsumer<Settings, ClusterState>> validators
+    ) {
+        Set<Setting<?>> settings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settings.addAll(validators.keySet());
+        return new SettingsUpdater(
+            new ClusterSettings(nodeSettings, settings),
+            new ClusterSettingsValidatorRegistry(nodeSettings, validators)
+        );
+    }
+
+    private static Settings scriptLimit(int value) {
+        return Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), value).build();
+    }
+
+    private static ClusterState scriptState(String source, Settings persistentSettings, Settings transientSettings) {
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .persistentSettings(persistentSettings)
+                    .transientSettings(transientSettings)
+                    .putCustom(
+                        ScriptMetadata.TYPE,
+                        new ScriptMetadata.Builder(null).storeScript("test", new StoredScriptSource("test", source, Collections.emptyMap()))
+                            .build()
+                    )
+            )
+            .build();
     }
 
 }

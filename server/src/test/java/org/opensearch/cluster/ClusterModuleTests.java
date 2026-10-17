@@ -69,6 +69,7 @@ import org.opensearch.cluster.routing.allocation.decider.WarmDiskThresholdDecide
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.ModuleTestCase;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.ClusterSettingsValidatorRegistry;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -90,6 +91,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 public class ClusterModuleTests extends ModuleTestCase {
@@ -421,6 +423,80 @@ public class ClusterModuleTests extends ModuleTestCase {
                         && entry.name.getPreferredName().equals(WorkloadGroupMetadata.TYPE)
                 )
         );
+    }
+
+    public void testRejectsDuplicatePluginSettingsValidators() {
+        Setting<Integer> setting = Setting.intSetting("plugin.limit", 2, Property.Dynamic, Property.NodeScope);
+        ClusterPlugin plugin = settingsValidatorPlugin(setting, (settings, state) -> {});
+        ClusterPlugin otherPlugin = settingsValidatorPlugin(
+            Setting.intSetting("plugin.limit", 3, Property.Dynamic, Property.NodeScope),
+            (settings, state) -> {}
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ClusterModule.createClusterSettingsValidatorRegistry(Settings.EMPTY, Arrays.asList(plugin, otherPlugin))
+        );
+        assertEquals("Cluster settings validator for [plugin.limit] is already registered", e.getMessage());
+    }
+
+    public void testRejectsNullPluginValidatorBeforeMerging() {
+        Setting<Integer> setting = Setting.intSetting("plugin.limit", 2, Property.Dynamic, Property.NodeScope);
+        ClusterPlugin plugin = settingsValidatorPlugin(setting, null);
+        ClusterPlugin otherPlugin = settingsValidatorPlugin(setting, (settings, state) -> {});
+        NullPointerException e = expectThrows(
+            NullPointerException.class,
+            () -> ClusterModule.createClusterSettingsValidatorRegistry(Settings.EMPTY, Arrays.asList(plugin, otherPlugin))
+        );
+        assertEquals("cluster settings validator", e.getMessage());
+    }
+
+    public void testPluginCannotReplaceBuiltInSettingsValidator() {
+        ClusterPlugin plugin = settingsValidatorPlugin(
+            ShardsLimitAllocationDecider.CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING,
+            (settings, state) -> {}
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ClusterModule.createClusterSettingsValidatorRegistry(Settings.EMPTY, Collections.singletonList(plugin))
+        );
+    }
+
+    public void testBindsPluginSettingsValidator() {
+        Setting<Integer> setting = Setting.intSetting("plugin.limit", 2, Property.Dynamic, Property.NodeScope);
+        ClusterPlugin plugin = settingsValidatorPlugin(setting, (settings, state) -> {
+            assertEquals(1, (int) setting.get(settings));
+            assertEquals(1, (int) setting.get(state.metadata().settings()));
+            throw new IllegalArgumentException("rejected by plugin");
+        });
+        ClusterModule module = new ClusterModule(
+            Settings.EMPTY,
+            clusterService,
+            Collections.singletonList(plugin),
+            clusterInfoService,
+            null,
+            threadContext,
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE),
+            ShardStateAction.class
+        );
+        Settings updates = Settings.builder().put(setting.getKey(), 1).build();
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT).build();
+        ClusterState updatedState = ClusterState.builder(currentState).metadata(Metadata.builder().persistentSettings(updates)).build();
+        assertInstanceBinding(module, ClusterSettingsValidatorRegistry.class, registry -> {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> registry.validate(Settings.EMPTY, updates, currentState, updatedState)
+            );
+            return e.getMessage().equals("rejected by plugin");
+        });
+    }
+
+    private static ClusterPlugin settingsValidatorPlugin(Setting<?> setting, BiConsumer<Settings, ClusterState> validator) {
+        return new ClusterPlugin() {
+            @Override
+            public Map<Setting<?>, BiConsumer<Settings, ClusterState>> getClusterSettingsValidators() {
+                return Collections.singletonMap(setting, validator);
+            }
+        };
     }
 
     public void testRerouteServiceSetForBalancedShardsAllocator() {
