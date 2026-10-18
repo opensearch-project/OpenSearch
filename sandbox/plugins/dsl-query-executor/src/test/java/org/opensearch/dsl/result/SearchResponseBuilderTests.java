@@ -522,6 +522,15 @@ public class SearchResponseBuilderTests extends OpenSearchTestCase {
             String fileName = file.getFileName().toString();
             try {
                 GoldenTestCase tc = GoldenFileLoader.load(fileName);
+
+                // Fixtures marked planShapeOnly serve only as plan-shape proof and are
+                // not tested for response generation (see testGoldenFileRelNodeGeneration).
+                // The response driver feeds mock rows to only the FIRST matching plan, so
+                // multi-plan fixtures (e.g. sibling filter aggs) cannot be response-tested here.
+                if (tc.isPlanShapeOnly()) {
+                    continue;
+                }
+
                 CalciteTestInfra.InfraResult infra = CalciteTestInfra.buildFromMapping(tc.getIndexName(), tc.getIndexMapping());
 
                 // Build QueryPlan via forward path (needed to construct ExecutionResult)

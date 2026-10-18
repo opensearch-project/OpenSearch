@@ -11,11 +11,13 @@ package org.opensearch.dsl.aggregation.bucket;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
 import org.opensearch.dsl.aggregation.GroupingInfo;
 import org.opensearch.dsl.result.BucketEntry;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 
 import java.util.Collection;
+import java.util.Optional;
 
 /**
  * Translates a bucket aggregation (terms, multi_terms, etc.) to a {@link GroupingInfo}
@@ -57,4 +59,14 @@ public interface BucketTranslator<T extends AggregationBuilder> extends Aggregat
      * @return the InternalAggregation
      */
     InternalAggregation toBucketAggregation(T agg, Iterable<BucketEntry> buckets);
+
+    /**
+     * Returns the inner filter query for bucket aggregations that scope by a predicate.
+     *
+     * @param agg the bucket aggregation builder
+     * @return the filter query, or empty for non-filtering bucket types
+     */
+    default Optional<QueryBuilder> getFilterQuery(T agg) {
+        return Optional.empty();
+    }
 }

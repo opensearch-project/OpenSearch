@@ -17,6 +17,7 @@ import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalOrder;
 
@@ -45,9 +46,11 @@ public class AggregationMetadataBuilder {
     private final List<AggregateCall> aggregateCalls = new ArrayList<>();
     private final List<String> aggregateFieldNames = new ArrayList<>();
     private final List<BucketOrder> bucketOrders = new ArrayList<>();
+    private final List<AncestorFilter> ancestorFilters = new ArrayList<>();
     private Integer definingSize;
     private Long definingMinDocCount;
     private boolean implicitCountRequested = false;
+    private QueryBuilder filterQuery;
 
     /** Creates a builder for the global (no defining aggregation) metrics plan. */
     public AggregationMetadataBuilder() {
@@ -72,6 +75,23 @@ public class AggregationMetadataBuilder {
     public void addGrouping(GroupingInfo grouping) {
         groupings.add(grouping);
         missingValues.putAll(grouping.getMissingByField());
+    }
+
+    /**
+     * Records an ancestor filter predicate contributed by an enclosing bucket aggregation.
+     * Ancestor filters accumulate alongside groupings so that descendant plans compute over
+     * only the ancestor-filtered document set — without this, nested bucket sub-aggregations
+     * would aggregate over the full corpus while only the immediate parent's filter applies.
+     *
+     * @param aggName the defining aggregation name (for error reporting if untranslatable)
+     * @param query the ancestor's filter query
+     */
+    public void addAncestorFilter(String aggName, QueryBuilder query) {
+        ancestorFilters.add(new AncestorFilter(aggName, query));
+    }
+
+    /** An ancestor filter predicate with its source aggregation name for error attribution. */
+    public record AncestorFilter(String aggName, QueryBuilder query) {
     }
 
     /**
@@ -110,6 +130,13 @@ public class AggregationMetadataBuilder {
      */
     public void requestImplicitCount() {
         this.implicitCountRequested = true;
+    }
+
+    /**
+     * Sets the filter query for per-aggregation predicate injection.
+     */
+    public void setFilterQuery(QueryBuilder query) {
+        this.filterQuery = query;
     }
 
     /** Returns true if this builder has at least one aggregate call or implicit count. */
@@ -202,9 +229,14 @@ public class AggregationMetadataBuilder {
         Long havingMinDocCount = definingMinDocCount != null && definingMinDocCount > 1 ? definingMinDocCount : null;
         Integer fetch = null;
         Integer perParentFetch = null;
-        boolean singleFieldGroupings = groupings.stream().allMatch(g -> g.getFieldNames().size() == 1);
+        // Zero-field groupings (e.g. filter buckets) contribute no GROUP BY column and must not
+        // prevent the bounded-plan path from being selected for sized child aggregations.
+        long fieldBearingGroupingCount = groupings.stream().filter(g -> !g.getFieldNames().isEmpty()).count();
+        boolean singleFieldGroupings = groupings.stream()
+            .filter(g -> !g.getFieldNames().isEmpty())
+            .allMatch(g -> g.getFieldNames().size() == 1);
         if (definingSize != null && singleFieldGroupings) {
-            if (groupings.size() == 1) {
+            if (fieldBearingGroupingCount == 1) {
                 fetch = definingSize;
             } else {
                 // Nested level: the bound is per parent, not global — a flat LIMIT would keep
@@ -223,7 +255,9 @@ public class AggregationMetadataBuilder {
             fetch,
             perParentFetch,
             havingMinDocCount,
-            missingValues
+            missingValues,
+            filterQuery,
+            List.copyOf(ancestorFilters)
         );
     }
 
