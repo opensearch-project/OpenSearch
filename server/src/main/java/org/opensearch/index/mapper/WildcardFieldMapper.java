@@ -1123,12 +1123,12 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
         private final String fieldName;
         private final Set<String> requiredTerms;
-        private final boolean caseIntensitive;
+        private final boolean caseInsensitive;
 
-        public RequiredTermsQuery(String fieldName, Set<String> requiredTerms, boolean caseIntensitive) {
+        public RequiredTermsQuery(String fieldName, Set<String> requiredTerms, boolean caseInsensitive) {
             this.fieldName = fieldName;
             this.requiredTerms = requiredTerms;
-            this.caseIntensitive = caseIntensitive;
+            this.caseInsensitive = caseInsensitive;
 
             if (this.requiredTerms == null || this.requiredTerms.isEmpty()) {
                 throw new IllegalArgumentException("RequiredTermsQuery needs at least one term");
@@ -1149,7 +1149,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             IndexReader indexReader = indexSearcher.getIndexReader();
             int limit = Math.min(MAX_REQUIRED_TERMS, IndexSearcher.getMaxClauseCount());
             List<Terms> segmentTerms = new ArrayList<>();
-            if (caseIntensitive) {
+            if (caseInsensitive) {
                 for (LeafReaderContext leaf : indexReader.leaves()) {
                     Terms terms = leaf.reader().terms(fieldName);
                     if (terms != null) {
@@ -1160,7 +1160,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             PriorityQueue<Candidate> queue = new PriorityQueue<>(limit, BEST_FIRST.reversed());
             for (String requiredTerm : requiredTerms) {
                 long maxFrequency = queue.size() < limit ? Long.MAX_VALUE : queue.peek().frequency;
-                long frequency = caseIntensitive
+                long frequency = caseInsensitive
                     ? caseInsensitiveFrequency(segmentTerms, requiredTerm, maxFrequency)
                     : indexReader.docFreq(new Term(fieldName, requiredTerm));
                 if (frequency > maxFrequency) continue;
@@ -1192,12 +1192,12 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             RequiredTermsQuery that = (RequiredTermsQuery) o;
             return fieldName.equals(that.fieldName)
                 && requiredTerms.equals(that.requiredTerms)
-                && Objects.equals(caseIntensitive, that.caseIntensitive);
+                && Objects.equals(caseInsensitive, that.caseInsensitive);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(classHash(), fieldName, requiredTerms, caseIntensitive);
+            return Objects.hash(classHash(), fieldName, requiredTerms, caseInsensitive);
         }
 
         private Query buildQuery(PriorityQueue<Candidate> queue) {
@@ -1207,9 +1207,9 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 Term term = new Term(fieldName, candidate.text);
                 Query query;
                 if (candidate.text.length() < NGRAM_SIZE) {
-                    query = caseIntensitive ? AutomatonQueries.caseInsensitivePrefixQuery(term) : new PrefixQuery(term);
+                    query = caseInsensitive ? AutomatonQueries.caseInsensitivePrefixQuery(term) : new PrefixQuery(term);
                 } else {
-                    query = caseIntensitive ? AutomatonQueries.caseInsensitiveTermQuery(term) : new TermQuery(term);
+                    query = caseInsensitive ? AutomatonQueries.caseInsensitiveTermQuery(term) : new TermQuery(term);
                 }
                 builder.add(query, BooleanClause.Occur.FILTER);
             }
