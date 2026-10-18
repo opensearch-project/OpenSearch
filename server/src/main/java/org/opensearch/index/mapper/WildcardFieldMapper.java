@@ -17,6 +17,8 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreScorer;
@@ -489,7 +491,12 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                     return existsQuery(context);
                 }
             } else {
-                approximation = matchAllTermsQuery(name(), requiredNGrams, caseInsensitive);
+                // Use a bounded approximation when there are many required n-grams
+                if (RequiredTermsQuery.isConditionRequiredTermsQuery(requiredNGrams.size())) {
+                    approximation = new RequiredTermsQuery(name(), requiredNGrams, caseInsensitive);
+                } else {
+                    approximation = matchAllTermsQuery(name(), requiredNGrams, caseInsensitive);
+                }
             }
             return new WildcardMatchingQuery(
                 name(),
@@ -736,8 +743,13 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 }
                 query = builder.build();
             } else if (regExp.kind == RegExp.Kind.REGEXP_STRING) {
+                Set<String> requiredNGrams = getRequiredNGrams("*" + regExp.s + "*", true);
+                // Defer required-terms selection to rewrite time to limit the number of approximation clauses.
+                if (RequiredTermsQuery.isConditionRequiredTermsQuery(requiredNGrams.size())) {
+                    return new RequiredTermsQuery(fieldName, requiredNGrams, caseInsensitive);
+                }
                 BooleanQuery.Builder builder = new BooleanQuery.Builder();
-                for (String string : getRequiredNGrams("*" + regExp.s + "*", true)) {
+                for (String string : requiredNGrams) {
                     if (string.length() == NGRAM_SIZE) {
                         final Query subQuery;
                         if (caseInsensitive) {
@@ -1100,7 +1112,8 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
     }
 
     /**
-     * Query for long wild card query
+     * An approximation query for wildcard and regular expression patterns
+     * that selects a bounded set of required terms during rewriting
      */
     static final class RequiredTermsQuery extends Query {
 
@@ -1109,10 +1122,10 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             .thenComparing(candidate -> candidate.text);
 
         private final String fieldName;
-        private final List<String> requiredTerms;
+        private final Set<String> requiredTerms;
         private final boolean caseIntensitive;
 
-        public RequiredTermsQuery(String fieldName, List<String> requiredTerms, boolean caseIntensitive) {
+        public RequiredTermsQuery(String fieldName, Set<String> requiredTerms, boolean caseIntensitive) {
             this.fieldName = fieldName;
             this.requiredTerms = requiredTerms;
             this.caseIntensitive = caseIntensitive;
@@ -1122,31 +1135,41 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
+        static boolean isConditionRequiredTermsQuery(int size) {
+            return Math.min(MAX_REQUIRED_TERMS, IndexSearcher.getMaxClauseCount()) <= size;
+        }
+
         @Override
         public String toString(String field) {
             return "RequiredTermsQuery(" + fieldName + ":" + requiredTerms + ")";
         }
 
-        /**
-         * limit the 3-gram term query size based on their doc frequencies.
-         * default limit size is 16.
-         * @param indexSearcher
-         * @return boolean term query
-         * @throws IOException
-         */
         @Override
         public Query rewrite(IndexSearcher indexSearcher) throws IOException {
             IndexReader indexReader = indexSearcher.getIndexReader();
             int limit = Math.min(MAX_REQUIRED_TERMS, IndexSearcher.getMaxClauseCount());
-            PriorityQueue<Candidate> queue = new PriorityQueue<>(limit, BEST_FIRST.reversed());
-
-            for (String requiredTerm : requiredTerms) {
-                long frequency = frequency(indexReader, fieldName, requiredTerm, caseIntensitive);
-                // if there is not exist in the docs, we can skip logic for specific 3-gram.
-                if (frequency == 0) {
-                    continue;
+            List<Terms> segmentTerms = new ArrayList<>();
+            if (caseIntensitive) {
+                for (LeafReaderContext leaf : indexReader.leaves()) {
+                    Terms terms = leaf.reader().terms(fieldName);
+                    if (terms != null) {
+                        segmentTerms.add(terms);
+                    }
                 }
+            }
+            PriorityQueue<Candidate> queue = new PriorityQueue<>(limit, BEST_FIRST.reversed());
+            for (String requiredTerm : requiredTerms) {
+                long maxFrequency = queue.size() < limit ? Long.MAX_VALUE : queue.peek().frequency;
+                long frequency = caseIntensitive
+                    ? caseInsensitiveFrequency(segmentTerms, requiredTerm, maxFrequency)
+                    : indexReader.docFreq(new Term(fieldName, requiredTerm));
+                if (frequency > maxFrequency) continue;
                 Candidate candidate = new Candidate(requiredTerm, frequency);
+                if (frequency == 0) {
+                    queue.clear();
+                    queue.add(candidate);
+                    return buildQuery(queue);
+                }
                 if (queue.size() < limit) {
                     queue.add(candidate);
                 } else if (BEST_FIRST.compare(candidate, queue.peek()) < 0) {
@@ -1154,16 +1177,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                     queue.add(candidate);
                 }
             }
-
-            BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            while (!queue.isEmpty()) {
-                Candidate candidate = queue.peek();
-                Term term = new Term(candidate.text, fieldName);
-                // instead of creating all of their caseInsensitiveTermQuery, just create the automaton query.
-                Query query = caseIntensitive ? AutomatonQueries.caseInsensitiveTermQuery(term) : new TermQuery(term);
-                builder.add(query, BooleanClause.Occur.FILTER);
-            }
-            return builder.build();
+            return buildQuery(queue);
         }
 
         @Override
@@ -1186,48 +1200,38 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             return Objects.hash(classHash(), fieldName, requiredTerms, caseIntensitive);
         }
 
-        private static long frequency(IndexReader indexReader, String fieldName, String text, boolean caseIntensitive) throws IOException {
-            if (text.length() == NGRAM_SIZE) {
-                return Long.MAX_VALUE;
+        private Query buildQuery(PriorityQueue<Candidate> queue) {
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            while (!queue.isEmpty()) {
+                Candidate candidate = queue.poll();
+                Term term = new Term(fieldName, candidate.text);
+                Query query;
+                if (candidate.text.length() < NGRAM_SIZE) {
+                    query = caseIntensitive ? AutomatonQueries.caseInsensitivePrefixQuery(term) : new PrefixQuery(term);
+                } else {
+                    query = caseIntensitive ? AutomatonQueries.caseInsensitiveTermQuery(term) : new TermQuery(term);
+                }
+                builder.add(query, BooleanClause.Occur.FILTER);
             }
-
-            if (!caseIntensitive) {
-                return indexReader.docFreq(new Term(fieldName, text));
-            }
-
-            return caseIntensitiveFrequency(indexReader, fieldName, text.toCharArray(), 0);
+            return builder.build();
         }
 
-        private static long caseIntensitiveFrequency(IndexReader reader, String fieldName, char[] chars, int position) throws IOException {
-            if (position == chars.length) {
-                return reader.docFreq(new Term(fieldName, new String(chars)));
-            }
-
-            char cur = chars[position];
-            long frequency = caseIntensitiveFrequency(reader, fieldName, chars, position + 1);
-            if (cur <= 128) {
-                char replace = Character.isLowerCase(cur) ? Character.toUpperCase(cur) : Character.toLowerCase(cur);
-                if (replace != cur) {
-                    chars[position] = replace;
-                    frequency += caseIntensitiveFrequency(reader, fieldName, chars, position);
-                    chars[position] = cur;
+        static long caseInsensitiveFrequency(List<Terms> segmentTerms, String text, long maxFrequency) throws IOException {
+            CompiledAutomaton compiledAutomaton = new CompiledAutomaton(AutomatonQueries.toCaseInsensitiveString(text));
+            long frequency = 0;
+            for (Terms segmentTerm : segmentTerms) {
+                TermsEnum matchedTermEnum = compiledAutomaton.getTermsEnum(segmentTerm);
+                while (matchedTermEnum.next() != null) {
+                    frequency += matchedTermEnum.docFreq();
+                    if (frequency > maxFrequency) {
+                        return frequency;
+                    }
                 }
             }
             return frequency;
         }
 
-        private static final class Candidate {
-            private final String text;
-            private final long frequency;
-
-            private Candidate(String text, long frequency) {
-                this.text = text;
-                this.frequency = frequency;
-            }
-
-            public String getText() {
-                return this.text;
-            }
+        private record Candidate(String text, long frequency) {
         }
     }
 }
