@@ -1141,7 +1141,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public String toString(String field) {
-            return "RequiredTermsQuery(" + fieldName + ":" + requiredTerms + ")";
+            return "RequiredTermsQuery(" + fieldName + ":\"" + requiredTerms + "\")";
         }
 
         @Override
@@ -1223,6 +1223,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 TermsEnum matchedTermEnum = compiledAutomaton.getTermsEnum(segmentTerm);
                 while (matchedTermEnum.next() != null) {
                     frequency += matchedTermEnum.docFreq();
+                    // This candidate can no longer improve the selected set.
                     if (frequency > maxFrequency) {
                         return frequency;
                     }
