@@ -72,6 +72,15 @@ public class RestTable {
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {
         RestRequest request = channel.request();
+        // Non-consuming read: buildDisplayHeaders later calls request.param("h") to mark it
+        // consumed. Accessing the raw map here avoids reordering param-consumption semantics.
+        String hParam = request.params().get("h");
+        // Grouping/aggregation is inferred from h=: if any h= token is an aggregation function
+        // (e.g. sum(docs)), summarize the table; bare tokens are treated as GROUP BY keys. Plain
+        // h= listings (no functions) are returned unchanged by TableSummarizer.summarize.
+        if (TableSummarizer.hasAggregation(hParam)) {
+            table = TableSummarizer.summarize(table, hParam);
+        }
         MediaType mediaType = getXContentType(request);
         if (mediaType != null) {
             return buildXContentBuilder(table, channel);
@@ -204,6 +213,22 @@ public class RestTable {
                 }
             }
             Collections.sort(rowOrder, new TableIndexComparator(table, ordering));
+        }
+
+        // Apply the limit parameter (if positive). Applied after sort so `?s=field:desc&limit=N`
+        // yields the top-N rows by the sort key. This also caps unsummarized responses.
+        //
+        // Scope: only for NON-paginated responses. On paginated _list/* endpoints the response is a
+        // single page and carries a next_token cursor that already advances by the full page size;
+        // truncating the rendered rows here would silently drop the rows between `limit` and the page
+        // boundary while the cursor skips right over them (unrecoverable data loss across pages), and
+        // the sort would only be a within-page sort rather than a true global top-N. So when the table
+        // is paginated we leave `limit` unapplied and let pagination (size / next_token) govern.
+        if (table.getPageToken() == null) {
+            int limit = request.paramAsInt("limit", -1);
+            if (limit > 0 && rowOrder.size() > limit) {
+                rowOrder = new ArrayList<>(rowOrder.subList(0, limit));
+            }
         }
         return rowOrder;
     }
@@ -391,7 +416,8 @@ public class RestTable {
         }
     }
 
-    private static String renderValue(RestRequest request, Object value) {
+    // package-private for testing
+    static String renderValue(RestRequest request, Object value) {
         if (value == null) {
             return null;
         }
