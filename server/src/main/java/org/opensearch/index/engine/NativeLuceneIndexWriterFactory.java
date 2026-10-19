@@ -192,7 +192,7 @@ public class NativeLuceneIndexWriterFactory implements IndexWriterFactory {
                 iwc.setMaxFullFlushMergeWaitMillis(0);
             }
             iwc.setCheckPendingFlushUpdate(engineConfig.getIndexSettings().isCheckPendingFlushEnabled());
-            iwc.setMergePolicy(new OpenSearchMergePolicy(mergePolicy));
+            iwc.setMergePolicy(new OpenSearchMergePolicy(mergePolicy, engineConfig.getCodec(), engineConfig.getCodecCompressionMode()));
             iwc.setSimilarity(engineConfig.getSimilarity());
             iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
             // We are setting the codec here rather than in the CodecService because each CriteriaBasedCodec requires

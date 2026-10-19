@@ -33,6 +33,7 @@ package org.opensearch.index.engine;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergePolicy;
@@ -422,6 +423,22 @@ public final class EngineConfig {
      */
     public Codec getCodec() {
         return codecService.codec(codecName);
+    }
+
+    /**
+     * Returns the stored fields compression mode for the {@code default}, {@code lz4}, {@code best_compression}, and {@code zlib} settings.
+     * These setting aliases also apply to composite and context-aware codec wrappers.
+     * <p>
+     * Returns null for other settings, including {@code lucene_default} and SPI codec names, whose mode is not exposed through Lucene's
+     * public API. Upgrades still check codec names and Lucene versions, but skip compression-mode comparison when the mode is unknown.
+     */
+    @Nullable
+    Lucene90StoredFieldsFormat.Mode getCodecCompressionMode() {
+        return switch (codecName) {
+            case CodecService.DEFAULT_CODEC, CodecService.LZ4 -> Lucene90StoredFieldsFormat.Mode.BEST_SPEED;
+            case CodecService.BEST_COMPRESSION_CODEC, CodecService.ZLIB -> Lucene90StoredFieldsFormat.Mode.BEST_COMPRESSION;
+            default -> null;
+        };
     }
 
     /**
