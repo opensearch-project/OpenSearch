@@ -33,6 +33,7 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.KeywordField;
@@ -59,11 +60,14 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.RangeFieldMapper;
 import org.opensearch.index.mapper.RangeType;
+import org.opensearch.index.mapper.WildcardFieldMapper;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorTestCase;
@@ -76,6 +80,7 @@ import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -418,6 +423,37 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             fieldType,
             100,
             (collectCount) -> assertEquals(3, (int) collectCount)
+        );
+    }
+
+    public void testDynamicPruningDocValuesMismatchGuard() throws IOException {
+        final String fieldName = "testField";
+
+        // Every 5-character string over {a, b}: all 32 values are distinct
+        List<String> values = new ArrayList<>();
+        for (int i = 0; i < 32; i++) {
+            StringBuilder value = new StringBuilder();
+            for (int bit = 4; bit >= 0; bit--) {
+                value.append(((i >> bit) & 1) == 0 ? 'a' : 'b');
+            }
+            values.add(value.toString());
+        }
+
+        MappedFieldType fieldType = new WildcardFieldMapper.Builder(fieldName).docValues(true)
+            .build(new Mapper.BuilderContext(createIndexSettings().getSettings(), new ContentPath(1)))
+            .fieldType();
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
+        testDynamicPruning(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            for (String value : values) {
+                Document document = new Document();
+                ADD_WILDCARD_FIELD_INDEXED.apply(document, fieldName, value);
+                iw.addDocument(document);
+            }
+        },
+            card -> { assertEquals(values.size(), card.getValue(), 0); },
+            fieldType,
+            100,
+            (collectCount) -> assertEquals(values.size(), (int) collectCount)
         );
     }
 
