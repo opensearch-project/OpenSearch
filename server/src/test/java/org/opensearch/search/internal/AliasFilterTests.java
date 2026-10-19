@@ -37,6 +37,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.index.query.BaseQueryRewriteContext;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.TermQueryBuilder;
@@ -47,6 +48,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -145,4 +147,48 @@ public class AliasFilterTests extends OpenSearchTestCase {
         assertNotEquals(post, pre);
         assertNotEquals(post.hashCode(), pre.hashCode());
     }
+
+    public void testEnforcementFromString() {
+        for (AliasFilter.Enforcement e : AliasFilter.Enforcement.values()) {
+            assertSame(e, AliasFilter.Enforcement.fromString(e.value()));
+        }
+        assertSame(
+            "an alias without a mode keeps the historical behaviour",
+            AliasFilter.Enforcement.POST_FILTER,
+            AliasFilter.Enforcement.fromString(null)
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> AliasFilter.Enforcement.fromString("filter_stats"));
+        assertThat(e.getMessage(), containsString("unknown alias enforcement [filter_stats]"));
+    }
+
+    public void testEnforcementRoundTrip() throws Exception {
+        for (AliasFilter.Enforcement e : AliasFilter.Enforcement.values()) {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                e.writeTo(out);
+                assertSame(e, AliasFilter.Enforcement.readFrom(out.bytes().streamInput()));
+            }
+        }
+    }
+
+    public void testEnforcementIsPartOfIdentityAndSurvivesRewrite() throws Exception {
+        AliasFilter post = new AliasFilter(QueryBuilders.termQuery("f", "v"), AliasFilter.Enforcement.POST_FILTER, "a");
+        AliasFilter stats = new AliasFilter(QueryBuilders.termQuery("f", "v"), AliasFilter.Enforcement.FILTERED_STATS, "a");
+        assertNotEquals(post, stats);
+        assertNotEquals(post.hashCode(), stats.hashCode());
+        assertThat(stats.toString(), containsString("enforcement=FILTERED_STATS"));
+        assertSame(
+            AliasFilter.Enforcement.POST_FILTER,
+            new AliasFilter(QueryBuilders.termQuery("f", "v"), (AliasFilter.Enforcement) null, "a").getEnforcement()
+        );
+
+        // A rewrite that changes the query must keep the mode, or a rewritten alias would score over the whole shard.
+        AliasFilter rewritable = new AliasFilter(
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("f", "v")),
+            AliasFilter.Enforcement.FILTERED_STATS,
+            "a"
+        );
+        AliasFilter rewritten = rewritable.rewrite(new BaseQueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> 0L));
+        assertSame(AliasFilter.Enforcement.FILTERED_STATS, rewritten.getEnforcement());
+    }
+
 }

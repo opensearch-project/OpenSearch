@@ -68,6 +68,14 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
         assertThat(after, equalTo(before));
     }
 
+    public void testEnforcementIsPartOfIdentity() {
+        AliasMetadata with = AliasMetadata.builder("alias").enforcement("filtered_stats").build();
+        AliasMetadata without = AliasMetadata.builder("alias").build();
+        assertNotEquals(with, without);
+        assertNotEquals(with.hashCode(), without.hashCode());
+        assertEquals(with, AliasMetadata.newAliasMetadata(with, "alias"));
+    }
+
     public void testEnforcementRoundTripsOnCurrentVersion() throws IOException {
         final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").enforcement("filtered_stats").build();
         final BytesStreamOutput out = new BytesStreamOutput();
@@ -99,6 +107,7 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
                 .searchRouting(expectedInstance.searchRouting())
                 .writeIndex(randomBoolean() ? null : randomBoolean())
                 .isHidden(randomBoolean() ? null : randomBoolean())
+                .enforcement(expectedInstance.enforcement())
                 .build();
         }
         assertEquals(expectedInstance, newInstance);
@@ -150,6 +159,9 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
 
         if (randomBoolean()) {
             builder.isHidden(randomBoolean());
+        }
+        if (randomBoolean()) {
+            builder.enforcement(randomFrom("post_filter", "pre_filter", "filtered_stats"));
         }
         return builder.build();
     }
