@@ -16,10 +16,9 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.threadpool.ScalingExecutorBuilder;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -268,15 +267,13 @@ public class ServerConfig {
      * @param settings The OpenSearch settings to initialize the server with
      */
     @SuppressForbidden(reason = "required for arrow allocator")
-    @SuppressWarnings("removal")
     public static void init(Settings settings) {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+        AccessController.doPrivileged(() -> {
             System.setProperty("arrow.allocation.manager.type", ARROW_ALLOCATION_MANAGER_TYPE.get(settings));
             System.setProperty("arrow.enable_null_check_for_get", Boolean.toString(ARROW_ENABLE_NULL_CHECK_FOR_GET.get(settings)));
             System.setProperty("arrow.enable_unsafe_memory_access", Boolean.toString(ARROW_ENABLE_UNSAFE_MEMORY_ACCESS.get(settings)));
             System.setProperty("arrow.memory.debug.allocator", Boolean.toString(ARROW_ENABLE_DEBUG_ALLOCATOR.get(settings)));
             Netty4Configs.init(settings);
-            return null;
         });
         enableSsl = ARROW_SSL_ENABLE.get(settings);
         threadPoolMin = FLIGHT_THREAD_POOL_MIN_SIZE.get(settings);

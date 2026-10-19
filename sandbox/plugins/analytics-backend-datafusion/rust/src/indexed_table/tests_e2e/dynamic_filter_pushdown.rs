@@ -32,6 +32,7 @@ use super::super::index::RowGroupDocsCollector;
 use super::super::page_pruner::PagePruner;
 use super::super::stream::{FilterStrategy, RowGroupInfo};
 use super::super::table_provider::{IndexedTableConfig, IndexedTableProvider, SegmentFileInfo};
+use crate::indexed_table::index::CollectDocsResult;
 
 /// 16 rows, `price` = 15..0 **descending** in file order, 4 rows per row group →
 /// RG ranges (by row position) [15..12], [11..8], [7..4], [3..0]. The scan reads
@@ -78,13 +79,17 @@ fn write_fixture() -> (NamedTempFile, SchemaRef) {
 struct MatchAllCollector;
 
 impl RowGroupDocsCollector for MatchAllCollector {
-    fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
+    fn collect_packed_u64_bitset(
+        &self,
+        min_doc: i32,
+        max_doc: i32,
+    ) -> Result<CollectDocsResult, String> {
         let span = (max_doc - min_doc).max(0) as usize;
         let mut out = vec![0u64; span.div_ceil(64)];
         for rel in 0..span {
             out[rel / 64] |= 1u64 << (rel % 64);
         }
-        Ok(out)
+        Ok(out.into())
     }
 }
 

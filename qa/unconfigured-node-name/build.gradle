@@ -33,9 +33,11 @@ import org.opensearch.gradle.OS
 apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.standalone-rest-test'
 apply plugin: 'opensearch.rest-test'
+apply from: "$rootDir/gradle/sandbox-testclusters.gradle"
 
 testClusters.integTest {
   nameCustomization = { null }
+  installSandboxStack(delegate)
 }
 
 integTest {

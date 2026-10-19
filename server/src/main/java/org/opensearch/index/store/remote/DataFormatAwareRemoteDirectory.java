@@ -144,6 +144,15 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
     }
 
     /**
+     * Routes a plain blob key to the container of its data format so that format-agnostic
+     * readers in the base class (e.g. multi-part parallel downloads) hit the right store.
+     */
+    @Override
+    protected BlobContainer getBlobContainerForBlob(String name) {
+        return getBlobContainerForFormat(resolveFormat(name));
+    }
+
+    /**
      * Returns the {@link FormatBlobRouter} for direct access by callers that need
      * format-aware blob operations (e.g., listing all blobs across formats).
      *

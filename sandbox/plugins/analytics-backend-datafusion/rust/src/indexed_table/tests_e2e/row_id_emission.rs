@@ -79,9 +79,9 @@ async fn run_tree_row_ids(tree: BoolNode) -> Vec<i64> {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
                 leaves: Arc::new(
-                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps {
-                        ffm_collector_calls: _stream_metrics.ffm_collector_calls.clone(),
-                    },
+                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps::new(
+                        _stream_metrics.ffm_collector_calls.clone(),
+                    ),
                 ),
                 page_pruner: pruner,
                 cost_predicate: 1,
@@ -256,9 +256,9 @@ async fn run_tree_row_ids_with_global_base(tree: BoolNode, global_base: u64) -> 
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
                 leaves: Arc::new(
-                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps {
-                        ffm_collector_calls: _stream_metrics.ffm_collector_calls.clone(),
-                    },
+                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps::new(
+                        _stream_metrics.ffm_collector_calls.clone(),
+                    ),
                 ),
                 page_pruner: pruner,
                 cost_predicate: 1,
@@ -543,9 +543,9 @@ async fn test_row_id_with_data_columns() {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
                 leaves: Arc::new(
-                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps {
-                        ffm_collector_calls: _stream_metrics.ffm_collector_calls.clone(),
-                    },
+                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps::new(
+                        _stream_metrics.ffm_collector_calls.clone(),
+                    ),
                 ),
                 page_pruner: pruner,
                 cost_predicate: 1,
@@ -815,9 +815,9 @@ async fn run_two_segments_row_ids(tree: BoolNode) -> Vec<i64> {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
                 leaves: Arc::new(
-                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps {
-                        ffm_collector_calls: _stream_metrics.ffm_collector_calls.clone(),
-                    },
+                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps::new(
+                        _stream_metrics.ffm_collector_calls.clone(),
+                    ),
                 ),
                 page_pruner: pruner,
                 cost_predicate: 1,

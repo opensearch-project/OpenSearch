@@ -107,24 +107,10 @@ distribution_archives {
     }
   }
 
-  darwinTar {
-    archiveClassifier = 'darwin-x64'
-    content {
-      archiveFiles(modulesFiles('darwin-x64'), 'tar', 'darwin', 'x64', JavaPackageType.JDK)
-    }
-  }
-
   darwinArm64Tar {
     archiveClassifier = 'darwin-arm64'
     content {
       archiveFiles(modulesFiles('darwin-arm64'), 'tar', 'darwin', 'arm64', JavaPackageType.JDK)
-    }
-  }
-
-  noJdkDarwinTar {
-    archiveClassifier = 'no-jdk-darwin-x64'
-    content {
-      archiveFiles(modulesFiles('darwin-x64'), 'tar', 'darwin', 'x64', JavaPackageType.NONE)
     }
   }
 

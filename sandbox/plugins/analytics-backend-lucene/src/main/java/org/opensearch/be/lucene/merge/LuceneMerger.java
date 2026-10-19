@@ -10,16 +10,15 @@ package org.opensearch.be.lucene.merge;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergeIndexWriter;
-import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.PreparableOneMerge;
 import org.apache.lucene.index.SegmentCommitInfo;
-import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
-import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.LiveDocs;
 import org.opensearch.index.engine.dataformat.MergeInput;
+import org.opensearch.index.engine.dataformat.MergePreparation;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
@@ -27,7 +26,6 @@ import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -41,6 +39,9 @@ import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTR
 /**
  * Lucene-specific {@link Merger} that merges segments using Lucene's internal
  * {@code merge(OneMerge)} path with IndexSort-based document reordering.
+ *
+ * <p>Supports the two-phase prepare/execute flow so a primary-format merger can read
+ * Lucene's frozen live-docs snapshot before {@code mergeMiddle} runs.
  *
  * <h2>How it works</h2>
  *
@@ -64,19 +65,6 @@ public class LuceneMerger implements Merger {
 
     private static final Logger logger = LogManager.getLogger(LuceneMerger.class);
 
-    private static final Field SEGMENT_INFOS_FIELD = initSegmentInfosField();
-
-    @SuppressForbidden(reason = "Need live SegmentInfos reference for post-merge segment removal; cloneSegmentInfos() returns a copy")
-    private static Field initSegmentInfosField() {
-        try {
-            Field field = IndexWriter.class.getDeclaredField("segmentInfos");
-            field.setAccessible(true);
-            return field;
-        } catch (NoSuchFieldException e) {
-            throw new ExceptionInInitializerError(e);
-        }
-    }
-
     private final MergeIndexWriter indexWriter;
     private final DataFormat dataFormat;
     private final Path storeDirectory;
@@ -96,6 +84,65 @@ public class LuceneMerger implements Merger {
     }
 
     @Override
+    public boolean providesMergeLiveDocs() {
+        return true;
+    }
+
+    @Override
+    public MergePreparation prepareMerge(MergeInput mergeInput) throws IOException {
+        List<Segment> segments = mergeInput.segments();
+        if (segments.isEmpty()) {
+            return MergePreparation.EMPTY;
+        }
+        Set<Long> generationsToMerge = new HashSet<>();
+        for (Segment segment : segments) {
+            generationsToMerge.add(segment.generation());
+        }
+
+        List<SegmentCommitInfo> liveSegments = indexWriter.liveSegmentCommitInfos();
+        if (liveSegments.isEmpty()) {
+            return MergePreparation.EMPTY;
+        }
+        List<SegmentCommitInfo> matchingSegments = findMatchingSegments(liveSegments, generationsToMerge);
+        if (matchingSegments.isEmpty()) {
+            return MergePreparation.EMPTY;
+        }
+
+        // Build with null mapping; merge() sets it once the primary has produced it.
+        long generation = mergeInput.newWriterGeneration();
+        PreparableOneMerge oneMerge = strategy.createOneMerge(matchingSegments, null, generation);
+        indexWriter.prepareMerge(oneMerge, generation);
+
+        return new PreparedLuceneMerge(LiveDocs.fromPackedBits(packLiveDocsFromMergeReaders(oneMerge)), generation);
+    }
+
+    /**
+     * Owns the reader-pool and deleter references {@link MergeIndexWriter#prepareMerge} pinned.
+     * {@link #close()} delegates to {@link MergeIndexWriter#abortPreparedMerge}, which is a no-op
+     * once {@link #merge} has taken the prepared state — so holding this in a try-with-resources
+     * around the merge releases the pins only on the path where the merge never ran.
+     */
+    private final class PreparedLuceneMerge implements MergePreparation {
+        private final LiveDocs liveDocs;
+        private final long generation;
+
+        PreparedLuceneMerge(LiveDocs liveDocs, long generation) {
+            this.liveDocs = liveDocs;
+            this.generation = generation;
+        }
+
+        @Override
+        public LiveDocs liveDocs() {
+            return liveDocs;
+        }
+
+        @Override
+        public void close() throws IOException {
+            indexWriter.abortPreparedMerge(generation);
+        }
+    }
+
+    @Override
     public MergeResult merge(MergeInput mergeInput) throws IOException {
         long start = System.nanoTime();
         try {
@@ -111,14 +158,9 @@ public class LuceneMerger implements Merger {
                 generationsToMerge.add(segment.generation());
             }
 
-            SegmentInfos segmentInfos;
-            try {
-                segmentInfos = (SegmentInfos) SEGMENT_INFOS_FIELD.get(indexWriter);
-            } catch (IllegalAccessException e) {
-                throw new IOException("Failed to access IndexWriter segmentInfos via reflection", e);
-            }
+            List<SegmentCommitInfo> liveSegments = indexWriter.liveSegmentCommitInfos();
 
-            if (segmentInfos.size() == 0) {
+            if (liveSegments.isEmpty()) {
                 throw new IOException(
                     "IndexWriter has no segments — cannot proceed with Lucene merge for generations "
                         + generationsToMerge
@@ -126,7 +168,7 @@ public class LuceneMerger implements Merger {
                 );
             }
 
-            List<SegmentCommitInfo> matchingSegments = findMatchingSegments(segmentInfos, generationsToMerge);
+            List<SegmentCommitInfo> matchingSegments = findMatchingSegments(liveSegments, generationsToMerge);
 
             if (matchingSegments.isEmpty()) {
                 throw new IOException(
@@ -158,16 +200,48 @@ public class LuceneMerger implements Merger {
                 generationsToMerge
             );
 
-            // Delegate OneMerge creation to the strategy (primary vs secondary behavior).
-            // For the secondary path, the returned RowIdRemappingOneMerge stamps the
-            // writer_generation attribute onto the merged SegmentInfo via setMergeInfo, which
-            // Lucene invokes immediately before codec.segmentInfoFormat().write(...) — so the
-            // attribute is persisted to the .si file and survives a writer reopen.
-            MergePolicy.OneMerge oneMerge = strategy.createOneMerge(matchingSegments, rowIdMapping, mergeInput.newWriterGeneration());
+            // Prefer the prepared OneMerge from prepareMerge (its snapshot is what the primary's
+            // bitmap was derived from). A fresh OneMerge is only acceptable when no bitmap is in
+            // play: a Lucene-only engine calls merge() directly with ALL_ALIVE and there is no
+            // second format to diverge from. If a bitmap IS present, some primary already dropped
+            // rows against a snapshot we no longer hold — re-snapshotting here would filter against
+            // a later view, and a delete landing in between silently misaligns the two formats
+            // (same row count or not). Fail loudly instead. For the secondary path, the returned
+            // RowIdRemappingOneMerge stamps the writer_generation attribute onto the merged
+            // SegmentInfo via setMergeInfo, which Lucene invokes immediately before
+            // codec.segmentInfoFormat().write(...) — so the attribute is persisted to the .si
+            // file and survives a writer reopen.
+            PreparableOneMerge prepared = indexWriter.takePreparedMerge(mergeInput.newWriterGeneration());
+            PreparableOneMerge oneMerge;
+            if (prepared != null) {
+                if (prepared instanceof RowIdRemappingOneMerge rowIdMerge) {
+                    rowIdMerge.setRowIdMapping(rowIdMapping);
+                }
+                oneMerge = prepared;
+            } else {
+                if (mergeInput.liveDocs().allAlive() == false) {
+                    throw new IllegalStateException(
+                        "LuceneMerger.merge for generation "
+                            + mergeInput.newWriterGeneration()
+                            + " received a live-docs bitmap but no merge was prepared via prepareMerge. "
+                            + "Re-snapshotting live docs now would filter against a different view than the "
+                            + "primary format used; callers must go through prepareMerge first."
+                    );
+                }
+                oneMerge = strategy.createOneMerge(matchingSegments, rowIdMapping, mergeInput.newWriterGeneration());
+            }
             indexWriter.executeMerge(oneMerge, mergeInput.newWriterGeneration());
 
             // Build the merged WriterFileSet from the output segment info
             SegmentCommitInfo mergedInfo = oneMerge.getMergeInfo();
+
+            // If carryOverHardDeletes produced in-memory deletes for the merged segment
+            // (concurrent deletes that arrived during the merge), force the .liv file to be
+            // written now so mergedInfo.files() includes it. Otherwise the catalog records
+            // a file set without .liv, but a later flush writes the .liv onto disk — and
+            // the next refresh fails with "Catalog segment ... has no matching Lucene leaf".
+            indexWriter.flushLiveDocsForMergedSegment(mergedInfo);
+
             WriterFileSet mergedFileSet = buildMergedFileSet(mergedInfo, mergeInput.newWriterGeneration());
 
             // Delegate RowIdMapping production to the strategy
@@ -192,11 +266,24 @@ public class LuceneMerger implements Merger {
     }
 
     /**
-     * Finds segments in the IndexWriter whose writer generation matches the requested generations.
+     * Builds the per-segment live-docs map from a {@link PreparableOneMerge} whose merge
+     * readers have been populated by {@link org.apache.lucene.index.MergeIndexWriter#prepareMerge}.
+     * Reads the frozen {@code hardLiveDocs} via {@link PreparableOneMerge#packLiveDocsByGeneration}
+     * so the bitmap matches the snapshot Lucene's {@code mergeMiddle} will use for physical drops.
      */
-    private List<SegmentCommitInfo> findMatchingSegments(SegmentInfos segmentInfos, Set<Long> generations) {
+    private static Map<Long, long[]> packLiveDocsFromMergeReaders(PreparableOneMerge oneMerge) {
+        return oneMerge.packLiveDocsByGeneration(sci -> {
+            String genAttr = sci.info.getAttribute(WRITER_GENERATION_ATTRIBUTE);
+            return genAttr == null ? -1L : Long.parseLong(genAttr);
+        });
+    }
+
+    /**
+     * Finds segments in the given snapshot whose writer generation matches the requested generations.
+     */
+    private List<SegmentCommitInfo> findMatchingSegments(List<SegmentCommitInfo> liveSegments, Set<Long> generations) {
         List<SegmentCommitInfo> matching = new ArrayList<>();
-        for (SegmentCommitInfo sci : segmentInfos) {
+        for (SegmentCommitInfo sci : liveSegments) {
             String genAttr = sci.info.getAttribute(WRITER_GENERATION_ATTRIBUTE);
             if (genAttr != null && generations.contains(Long.parseLong(genAttr))) {
                 matching.add(sci);

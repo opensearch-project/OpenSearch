@@ -1,0 +1,63 @@
+{
+  "testName": "terms_numeric_keys_aggregation",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "by_price": {
+        "terms": {
+          "field": "price"
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalSort(sort0=[$1], sort1=[$0], dir0=[DESC], dir1=[ASC], fetch=[10])",
+    "  LogicalAggregate(group=[{1}], _count=[COUNT()])",
+    "    LogicalFilter(condition=[IS NOT NULL($1)])",
+    "      LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["price", "_count"],
+  "mockResultRows": [
+    [100, 3],
+    [200, 2]
+  ],
+  "mockCountRow": {
+    "_total": 5,
+    "_eligible$by_price": 5
+  },
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 5,
+        "relation": "eq"
+      },
+      "max_score": null,
+      "hits": []
+    },
+    "aggregations": {
+      "by_price": {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": [
+          {
+            "key": 100,
+            "doc_count": 3
+          },
+          {
+            "key": 200,
+            "doc_count": 2
+          }
+        ]
+      }
+    }
+  }
+}

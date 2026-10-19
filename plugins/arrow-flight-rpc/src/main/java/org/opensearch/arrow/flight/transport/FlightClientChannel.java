@@ -14,6 +14,7 @@ import org.apache.arrow.flight.Ticket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.arrow.flight.stats.FlightCallTracker;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -43,6 +44,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 
 /**
  * TcpChannel implementation for Flight client with async response handling.
@@ -61,6 +63,7 @@ class FlightClientChannel implements TcpChannel {
     private final CompletableFuture<Void> closeFuture;
     private final List<ActionListener<Void>> connectListeners;
     private final List<ActionListener<Void>> closeListeners;
+    private final List<BiConsumer<Void, ? super Exception>> removableCloseListeners;
     private final ChannelStats stats;
     private final Transport.ResponseHandlers responseHandlers;
     private final ThreadPool threadPool;
@@ -127,6 +130,7 @@ class FlightClientChannel implements TcpChannel {
         this.closeFuture = new CompletableFuture<>();
         this.connectListeners = new CopyOnWriteArrayList<>();
         this.closeListeners = new CopyOnWriteArrayList<>();
+        this.removableCloseListeners = new CopyOnWriteArrayList<>();
         this.stats = new ChannelStats();
         this.isClosed = false;
         // Initialize with timestamp + global counter to ensure uniqueness with multiple channels
@@ -183,6 +187,9 @@ class FlightClientChannel implements TcpChannel {
 
         closeFuture.complete(null);
         notifyListeners(closeListeners, closeFuture);
+        for (BiConsumer<Void, ? super Exception> listener : removableCloseListeners) {
+            notifyRemovableListener(listener);
+        }
         try {
             client.close();
         } catch (Exception e) {
@@ -268,6 +275,21 @@ class FlightClientChannel implements TcpChannel {
         if (closeFuture.isDone()) {
             notifyListener(listener, closeFuture);
         }
+    }
+
+    @Override
+    public void addCloseListener(BiConsumer<Void, ? super Exception> listener) {
+        // added before the check on purpose: close() walks the list once, so a listener added after that walk is
+        // notified here, one added before it is notified by close(), and remove() decides which of the two does it
+        removableCloseListeners.add(listener);
+        if (closeFuture.isDone()) {
+            notifyRemovableListener(listener);
+        }
+    }
+
+    @Override
+    public void removeCloseListener(BiConsumer<Void, ? super Exception> listener) {
+        removableCloseListeners.remove(listener);
     }
 
     @Override
@@ -397,7 +419,12 @@ class FlightClientChannel implements TcpChannel {
                 try (var dispatchMark = streamResponse.markDispatchThread()) {
                     try (var ignored = threadContext.stashContext()) {
                         if (header == null) {
+                            // Must return: handleStreamException does not throw, so falling through here
+                            // would NPE on getHeaders() below and mask the real failure. A null header is
+                            // reachable whenever the middleware never stored one (HeaderContext.getHeader
+                            // is a plain map remove), e.g. a call closed before its headers arrived.
                             handleStreamException(streamResponse, new StreamException(StreamErrorCode.INTERNAL, "Header is null"));
+                            return;
                         }
                         threadContext.setHeaders(header.getHeaders());
                         handler.handleStreamResponse(streamResponse);
@@ -420,12 +447,12 @@ class FlightClientChannel implements TcpChannel {
         try {
             streamResponse.close();
         } catch (IOException e) {
-            logger.error("Failed to close stream response", e);
+            logFailure("Failed to close stream response", e);
         }
     }
 
     private void handleStreamException(FlightTransportResponse<?> streamResponse, Exception exception) {
-        logger.error("Exception while handling stream response", exception);
+        logFailure("Exception while handling stream response for correlationId [" + streamResponse.getCorrelationId() + "]", exception);
         try {
             cancelStream(streamResponse, exception);
             TransportResponseHandler<?> handler = streamResponse.getHandler();
@@ -439,7 +466,41 @@ class FlightClientChannel implements TcpChannel {
         try {
             streamResponse.cancel("Client-side exception: " + cause.getMessage(), cause);
         } catch (Exception cancelEx) {
-            logger.warn("Failed to cancel stream after exception", cancelEx);
+            logFailure("Failed to cancel stream after exception", cancelEx);
+        }
+    }
+
+    /**
+     * Logs a per-stream failure as a one-line summary at ERROR, with the full stack trace available
+     * only at TRACE.
+     *
+     * <p><b>Never hand a throwable to log4j from these paths.</b> They run on the per-stream prefetch
+     * virtual thread started by {@link FlightTransportResponse#openAndPrefetchAsync}, and letting log4j
+     * render a stack trace there can wedge the whole node:
+     *
+     * <ol>
+     *   <li>OpenSearch's JSON layout always appends {@code %exceptionAsJson}, so a logged throwable reaches
+     *       log4j's <em>extended</em> stack-trace renderer, which annotates every frame with its source JAR.</li>
+     *   <li>To do that it resolves each frame's declaring class via {@code Class.forName}. The resulting
+     *       {@code forName0} <em>native</em> frame sits on the stack while the classloader monitor is
+     *       contended, and a continuation carrying a native frame cannot be unmounted. So the virtual thread
+     *       pins its carrier instead of yielding it, even on JDK 25 where JEP 491 lets {@code synchronized}
+     *       blocking unmount.</li>
+     *   <li>The scheduler's carrier count defaults to {@code availableProcessors}. A mass stream failure
+     *       (for example every stream reconnecting at once after a network partition heals) can therefore pin
+     *       every carrier, while the thread holding the classloader lock is itself unmounted and can never be
+     *       rescheduled to release it. That circular wait does not resolve: the node keeps reporting healthy
+     *       while making no progress.</li>
+     * </ol>
+     *
+     * <p>The TRACE line is safe for the same reason: it passes a pre-rendered string, so log4j never sees a
+     * throwable and the extended renderer never runs. {@link ExceptionsHelper#stackTrace} only formats frames
+     * that were captured when the throwable was constructed, resolving no classes and taking no lock.
+     */
+    private void logFailure(String message, Throwable cause) {
+        logger.error("{}: {}", message, FlightUtils.causeSummary(cause));
+        if (logger.isTraceEnabled()) {
+            logger.trace("{}: {}", message, ExceptionsHelper.stackTrace(cause));
         }
     }
 
@@ -464,13 +525,28 @@ class FlightClientChannel implements TcpChannel {
         try {
             handler.handleException(exception);
         } catch (Exception handlerEx) {
-            logger.error("Handler failed to process exception", handlerEx);
+            // Runs on the prefetch virtual thread when the handler declares the SAME executor.
+            logFailure("Handler failed to process exception", handlerEx);
         }
     }
 
     private void notifyListeners(List<ActionListener<Void>> listeners, CompletableFuture<Void> future) {
         for (ActionListener<Void> listener : listeners) {
             notifyListener(listener, future);
+        }
+    }
+
+    private void notifyRemovableListener(BiConsumer<Void, ? super Exception> listener) {
+        // taking the listener out of the list claims it, so a listener that is removed while the channel is
+        // closing is notified exactly once, or not at all once removeCloseListener has taken it
+        if (removableCloseListeners.remove(listener) == false) {
+            return;
+        }
+        if (closeFuture.isCompletedExceptionally()) {
+            final Throwable ex = closeFuture.exceptionNow();
+            listener.accept(null, ex instanceof Exception exception ? exception : new Exception(ex));
+        } else {
+            listener.accept(closeFuture.resultNow(), null);
         }
     }
 

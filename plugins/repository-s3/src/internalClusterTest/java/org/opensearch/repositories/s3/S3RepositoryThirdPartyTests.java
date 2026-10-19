@@ -56,7 +56,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 
-@ThreadLeakFilters(filters = EventLoopThreadFilter.class)
+@ThreadLeakFilters(filters = { EventLoopThreadFilter.class, ResponseInputStreamTimeoutThreadFilter.class })
 public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
 
     @Override

@@ -42,7 +42,9 @@ dependencies {
   api('com.maxmind.geoip2:geoip2:4.4.0')
   // geoip2 dependencies:
   api('com.maxmind.db:maxmind-db:3.2.0')
+  // required by geoip2
   api(libs.jackson.annotation)
+  api(libs.jackson.core)
   api(libs.jackson.databind)
   api(libs.jackson.datatype.jsr310)
 
@@ -74,4 +76,8 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     // See https://github.com/maxmind/MaxMind-DB-Reader-java#file-lock-on-windows for more information
     systemProperty 'opensearch.geoip.load_db_on_heap', 'true'
   }
+}
+
+tasks.named("dependencyLicenses").configure {
+    mapping from: /jackson-.*/, to: 'jackson'
 }

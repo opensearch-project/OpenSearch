@@ -21,22 +21,46 @@
     }
   },
   "expectedRelNodePlan": [
-    "LogicalFilter(condition=[AND(>=($4, 2024-01-01 00:00:00), <=($4, 2024-12-31 23:59:59.999))])",
-    "  LogicalTableScan(table=[[test-index]])"
+    "LogicalSort(fetch=[10])",
+    "  LogicalFilter(condition=[AND(>=($4, 2024-01-01 00:00:00), <=($4, 2024-12-31 23:59:59.999))])",
+    "    LogicalTableScan(table=[[test-index]])"
   ],
-  "mockResultFieldNames": ["name", "price", "brand", "rating", "created_at"],
+  "mockResultFieldNames": [
+    "name",
+    "price",
+    "brand",
+    "rating",
+    "created_at"
+  ],
   "mockResultRows": [
-    ["laptop", 999, "BrandA", 4.5, "2024-06-15T10:30:00.000Z"]
+    [
+      "laptop",
+      999,
+      "BrandA",
+      4.5,
+      "2024-06-15T10:30:00.000Z"
+    ]
   ],
   "expectedOutputDsl": {
     "num_reduce_phases": 0,
     "hits": {
       "total": {
-        "value": 0,
+        "value": 1,
         "relation": "eq"
       },
-      "max_score": 0.0,
-      "hits": []
+      "max_score": null,
+      "hits": [
+        {
+          "_score": null,
+          "_source": {
+            "name": "laptop",
+            "price": 999,
+            "brand": "BrandA",
+            "rating": 4.5,
+            "created_at": "2024-06-15T10:30:00.000Z"
+          }
+        }
+      ]
     }
   }
 }

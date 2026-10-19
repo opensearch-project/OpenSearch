@@ -54,6 +54,11 @@ pub struct SessionContextHandle {
     pub sort_orders: Vec<String>,
     pub query_context: QueryTrackingContext,
     pub table_name: String,
+    /// When true, the shard has deleted docs: the indexed executor ANDs a synthetic match-all
+    /// Collector leaf (reserved annotation id) into the decoded filter tree so deleted rows are
+    /// excluded via the ordinary Lucene collector machinery. Sourced from the Java per-shard
+    /// hasDeletions probe; false on shards without deletions (zero overhead).
+    pub deleted_doc_filtering_required: bool,
     /// When set, indicates this session uses the indexed execution path with filter delegation.
     pub indexed_config: Option<IndexedExecutionConfig>,
     /// Per-query tuning knobs (batch size, partitions, filter strategies, etc.)
@@ -142,7 +147,7 @@ pub(crate) fn widen_schema_from_plan(
         .parquet
         .schema_force_view_types;
     let expected = if force_view {
-        datafusion::datasource::file_format::parquet::transform_schema_to_view(&expected)
+        crate::schema_coerce::transform_schema_to_view_recursive(&expected)
     } else {
         expected
     };
@@ -176,6 +181,7 @@ pub async unsafe fn create_session_context(
     shard_view_ptr: i64,
     table_name: &str,
     context_id: i64,
+    deleted_doc_filtering_required: bool,
     has_partial_aggregate: bool,
     query_config: DatafusionQueryConfig,
     plan_bytes: &[u8],
@@ -350,9 +356,10 @@ pub async unsafe fn create_session_context(
                 error!("create_session_context: failed to infer schema: {}", e);
                 e
             })?;
-        // Substrait's type system is narrower than Arrow's; normalize the inferred
-        // schema to forms the Substrait consumer can bind against. See crate::schema_coerce.
-        crate::schema_coerce::coerce_inferred_schema(inferred)
+        // DataFusion rewrites top-level strings to view types but not LIST children. Apply the
+        // recursive form so predefined ARRAY<VARCHAR> fields bind as List<Utf8View>.
+        let inferred = crate::schema_coerce::transform_schema_to_view_recursive(inferred.as_ref());
+        crate::schema_coerce::coerce_inferred_schema(Arc::new(inferred))
     };
     // Pre-widening field count — compared below to detect whether widening added columns.
     let inferred_field_count = inferred.fields().len();
@@ -420,6 +427,7 @@ pub async unsafe fn create_session_context(
         sort_orders: shard_view.sort_orders.clone(),
         query_context,
         table_name: table_name.to_string(),
+        deleted_doc_filtering_required,
         indexed_config: None,
         query_config,
         io_handle: tokio::runtime::Handle::current(),
@@ -507,6 +515,7 @@ pub async unsafe fn create_worker_session_context(
         sort_fields: Vec::new(),
         sort_orders: Vec::new(),
         table_name: String::new(),
+        deleted_doc_filtering_required: false,
         indexed_config: None,
         query_config,
         aggregate_mode: crate::agg_mode::Mode::Default,
@@ -541,6 +550,7 @@ pub async unsafe fn create_session_context_indexed(
     tree_shape: i32,
     delegated_predicate_count: i32,
     requests_row_ids: bool,
+    deleted_doc_filtering_required: bool,
     has_partial_aggregate: bool,
     query_config: DatafusionQueryConfig,
     plan_bytes: &[u8],
@@ -550,6 +560,7 @@ pub async unsafe fn create_session_context_indexed(
         shard_view_ptr,
         table_name,
         context_id,
+        deleted_doc_filtering_required,
         has_partial_aggregate,
         query_config,
         plan_bytes,
@@ -578,7 +589,6 @@ pub async fn prepare_partial_plan(
     handle: &mut SessionContextHandle,
     substrait_bytes: &[u8],
 ) -> Result<(), datafusion::common::DataFusionError> {
-    use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
     use prost::Message;
     use substrait::proto::Plan;
 
@@ -590,7 +600,8 @@ pub async fn prepare_partial_plan(
             e
         ))
     })?;
-    let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
+    let logical_plan =
+        crate::substrait_consumer::from_substrait_plan(&handle.ctx.state(), &plan).await?;
     let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
 
@@ -904,6 +915,7 @@ mod tests {
             sort_orders: vec![],
             query_context,
             table_name: "t".to_string(),
+            deleted_doc_filtering_required: false,
             indexed_config: None,
             query_config: crate::datafusion_query_config::DatafusionQueryConfig::test_default(),
             io_handle: tokio::runtime::Handle::current(),

@@ -10,13 +10,16 @@ package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.mapper.ParametrizedFieldMapper;
 
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -56,6 +59,26 @@ public interface DataFormatPlugin {
     IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings);
 
     /**
+     * Returns the mapping parameters this plugin contributes to the core field mapper of the given content type
+     * (e.g. {@code keyword}, {@code text}), as {@link ParametrizedFieldMapper.Parameter} instances; empty by default.
+     *
+     * <p>Contribution is scoped to the format(s) the index actually uses: the registry resolves the index's active
+     * data format from {@code indexSettings} and only calls the applicable plugin. Composite plugins override this to
+     * fan out to their primary and secondary formats via {@code dataFormatRegistry}.
+     *
+     * @param contentType        the core field content type (e.g. {@code keyword}, {@code text})
+     * @param indexSettings      the index settings, used to resolve the active data format(s)
+     * @param dataFormatRegistry the registry, used by composite plugins to resolve sub-format plugins
+     */
+    default List<ParametrizedFieldMapper.Parameter<?>> getPluginMappingParameters(
+        String contentType,
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry
+    ) {
+        return List.of();
+    }
+
+    /**
      * Returns format descriptor suppliers for this plugin, filtered by the
      * given index settings. Each entry maps a format name to a
      * {@link Supplier} of its {@link DataFormatDescriptor}, deferring
@@ -85,6 +108,27 @@ public interface DataFormatPlugin {
      * @throws MapperParsingException if the field type's requested capabilities cannot be fully covered
      */
     default void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+        assignCapabilities(fieldType, indexSettings, dataFormatRegistry, FieldScope.ROOT);
+    }
+
+    /**
+     * Assigns the capability map on the given field type, additionally indicating whether the field is
+     * declared directly inside a {@code nested} object's scope. Only matters to a plugin that combines
+     * multiple sub-formats and must restrict which of them may claim capabilities there (e.g. the
+     * composite plugin); a plugin backing a single format has nothing to restrict.
+     *
+     * @param fieldType the field type to assign capabilities to
+     * @param indexSettings the index settings
+     * @param dataFormatRegistry the registry, used by composite plugins to resolve sub-format plugins
+     * @param fieldScope the field's mapping scope
+     * @throws MapperParsingException if the field type's requested capabilities cannot be fully covered
+     */
+    default void assignCapabilities(
+        MappedFieldType fieldType,
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry,
+        FieldScope fieldScope
+    ) {
         Set<FieldTypeCapabilities.Capability> requested = fieldType.requestedCapabilities();
         if (requested.isEmpty()) {
             fieldType.setCapabilityMap(Map.of());

@@ -99,6 +99,31 @@ public class IndexShardRoutingTableTests extends OpenSearchTestCase {
         assertEquals(checksumOut.getChecksum(), checksumOut2.getChecksum());
     }
 
+    public void testWriteVerifiableToWithoutPrimary() throws IOException {
+        // A shard can end up with no primary. For example, after the finalize step
+        // of `POST /{index}/_scale {"search_only": true}`, only search-only replicas
+        // remain, and search-only replicas have primary()==false, so primaryShard()
+        // returns null.
+        Index index = new Index("a", "b");
+        ShardId shardId = new ShardId(index, 1);
+        ShardRouting searchOnlyReplica = TestShardRouting.newShardRouting(
+            shardId,
+            null,
+            null,
+            false,
+            true,
+            ShardRoutingState.UNASSIGNED,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+        );
+        IndexShardRoutingTable table = new IndexShardRoutingTable(shardId, List.of(searchOnlyReplica));
+        assertNull("Precondition: this state has no primary", table.primaryShard());
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        BufferedChecksumStreamOutput checksumOut = new BufferedChecksumStreamOutput(out);
+        // Must not throw NullPointerException.
+        IndexShardRoutingTable.Builder.writeVerifiableTo(table, checksumOut);
+    }
+
     public void testShardsMatchingPredicate() {
         ShardId shardId = new ShardId(new Index("a", UUID.randomUUID().toString()), 0);
         ShardRouting primary = TestShardRouting.newShardRouting(shardId, "node-1", true, ShardRoutingState.STARTED);

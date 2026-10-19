@@ -95,10 +95,8 @@ import org.opensearch.search.streaming.FlushMode;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -631,13 +629,14 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     private static class MutableQueryTimeout implements ExitableDirectoryReader.QueryCancellation, QueryTimeout {
 
-        private final Set<Runnable> runnables = new HashSet<>();
+        private final ArrayList<Runnable> runnables = new ArrayList<>();
 
         private Runnable add(Runnable action) {
             Objects.requireNonNull(action, "cancellation runnable should not be null");
-            if (runnables.add(action) == false) {
+            if (runnables.contains(action)) {
                 throw new IllegalArgumentException("Cancellation runnable already added");
             }
+            runnables.add(action);
             return action;
         }
 
@@ -647,8 +646,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
         @Override
         public void checkCancelled() {
-            for (Runnable timeout : runnables) {
-                timeout.run();
+            // Checks are frequent; avoid allocating an iterator for this small callback list.
+            for (int i = 0; i < runnables.size(); i++) {
+                runnables.get(i).run();
             }
         }
 

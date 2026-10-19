@@ -115,8 +115,36 @@ public final class AnalyticsQuerySettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Maximum number of leaf predicates allowed in a single filter condition. A leaf predicate is
+     * any comparison or function call that is not a boolean connective (AND/OR/NOT). Queries
+     * exceeding this limit are rejected with HTTP 400 during planning.
+     *
+     * <p>Note that comparisons against the same field connected by OR (e.g. {@code x=1 OR x=2 OR
+     * x=3}, or {@code x IN (1,2,3)}) are folded by Calcite into a single {@code SEARCH(x, Sarg[...])}
+     * predicate before this guard runs, so they count as one predicate regardless of value count.
+     * The guard therefore targets fan-out across <em>distinct</em> fields, which cannot be folded
+     * and stays as N separate leaves — the shape that actually multiplies per-predicate planning and
+     * execution cost.
+     *
+     * <p>Default 500. Set to 0 to disable the guard.
+     */
+    public static final Setting<Integer> MAX_FILTER_PREDICATE_COUNT = Setting.intSetting(
+        "analytics.query.max_filter_predicate_count",
+        500,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> all() {
-        return List.of(DELEGATION_BLOCKED_PREDICATES, MAX_SHARDS_PER_QUERY, PRE_FILTER_SHARD_SIZE, MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE);
+        return List.of(
+            DELEGATION_BLOCKED_PREDICATES,
+            MAX_SHARDS_PER_QUERY,
+            PRE_FILTER_SHARD_SIZE,
+            MAX_CONCURRENT_SHARD_REQUESTS_PER_NODE,
+            MAX_FILTER_PREDICATE_COUNT
+        );
     }
 
     private AnalyticsQuerySettings() {}

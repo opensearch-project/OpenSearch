@@ -63,6 +63,17 @@ public class ArrowCalciteTypesTests extends OpenSearchTestCase {
         assertEquals(new ArrowType.Int(64, true), ArrowCalciteTypes.toArrow(type(SqlTypeName.BIGINT)));
     }
 
+    public void testArrayMapsToListWithUtf8ViewChild() {
+        RelDataType array = TYPE_FACTORY.createArrayType(type(SqlTypeName.VARCHAR), -1);
+        assertEquals(ArrowType.List.INSTANCE, ArrowCalciteTypes.toArrow(array));
+
+        org.apache.arrow.vector.types.pojo.Field field = ArrowCalciteTypes.toArrowField("tags", array);
+        assertEquals(ArrowType.List.INSTANCE, field.getType());
+        assertEquals(1, field.getChildren().size());
+        assertEquals("element", field.getChildren().get(0).getName());
+        assertEquals(ArrowType.Utf8View.INSTANCE, field.getChildren().get(0).getType());
+    }
+
     /** date ⇒ TIMESTAMP(3) ⇒ MILLISECOND. */
     public void testTimestampPrecision3MapsToMillisecond() {
         assertEquals(new ArrowType.Timestamp(TimeUnit.MILLISECOND, null), ArrowCalciteTypes.toArrow(timestamp(3)));

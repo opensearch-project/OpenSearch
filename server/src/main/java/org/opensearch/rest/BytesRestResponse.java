@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.util.UnicodeUtil;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
@@ -79,14 +80,29 @@ public class BytesRestResponse extends RestResponse {
      * Creates a new plain text response.
      */
     public BytesRestResponse(RestStatus status, String content) {
-        this(status, TEXT_CONTENT_TYPE, new BytesArray(content));
+        this(status, TEXT_CONTENT_TYPE, content);
     }
 
     /**
      * Creates a new plain text response.
      */
     public BytesRestResponse(RestStatus status, String contentType, String content) {
-        this(status, contentType, new BytesArray(content));
+        this(status, contentType, toBytesArray(content));
+    }
+
+    private static BytesArray toBytesArray(String content) {
+        try {
+            return new BytesArray(content);
+        } catch (IllegalArgumentException e) {
+            if ((long) content.length() * UnicodeUtil.MAX_UTF8_BYTES_PER_CHAR <= Integer.MAX_VALUE) {
+                throw e;
+            }
+            throw overflowGuardFailureToRequestEntityTooLarge(e);
+        }
+    }
+
+    private static OpenSearchStatusException overflowGuardFailureToRequestEntityTooLarge(IllegalArgumentException e) {
+        return new OpenSearchStatusException(e.getMessage(), RestStatus.REQUEST_ENTITY_TOO_LARGE, e);
     }
 
     /**

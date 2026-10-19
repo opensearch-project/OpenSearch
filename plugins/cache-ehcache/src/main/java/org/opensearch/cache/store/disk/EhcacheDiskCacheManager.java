@@ -17,14 +17,13 @@ import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -111,7 +110,6 @@ public class EhcacheDiskCacheManager {
      * @param <K> key type
      * @param <V> value type
      */
-    @SuppressWarnings({ "removal" })
     public static <K, V> Cache<K, V> createCache(
         CacheType cacheType,
         String diskCacheAlias,
@@ -133,7 +131,7 @@ public class EhcacheDiskCacheManager {
             throw new IllegalArgumentException(CACHE_MANAGER_DOES_NOT_EXIST_EXCEPTION_MSG + cacheType);
         }
         // Creating the cache requires permissions specified in plugin-security.policy
-        return AccessController.doPrivileged((PrivilegedAction<Cache<K, V>>) () -> {
+        return AccessController.doPrivileged(() -> {
             try {
                 lock.lock();
                 // Check again for null cache manager, in case it got removed by another thread in below closeCache()
@@ -219,7 +217,6 @@ public class EhcacheDiskCacheManager {
         }
     }
 
-    @SuppressWarnings("removal")
     @SuppressForbidden(reason = "Ehcache uses File.io")
     private static PersistentCacheManager createCacheManager(
         CacheType cacheType,
@@ -229,7 +226,7 @@ public class EhcacheDiskCacheManager {
     ) {
 
         return AccessController.doPrivileged(
-            (PrivilegedAction<PersistentCacheManager>) () -> CacheManagerBuilder.newCacheManagerBuilder()
+            () -> CacheManagerBuilder.newCacheManagerBuilder()
                 .with(CacheManagerBuilder.persistence(new File(storagePath)))
 
                 .using(

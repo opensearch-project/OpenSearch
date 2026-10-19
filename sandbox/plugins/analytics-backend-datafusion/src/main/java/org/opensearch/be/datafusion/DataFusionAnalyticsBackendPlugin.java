@@ -16,7 +16,6 @@ import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.exec.shuffle.ShuffleCompression;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
@@ -81,7 +80,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
     private static final Logger LOGGER = LogManager.getLogger(DataFusionAnalyticsBackendPlugin.class);
 
-    private static final Set<EngineCapability> ENGINE_CAPS = Set.of(EngineCapability.SORT, EngineCapability.UNION, EngineCapability.VALUES);
+    private static final Set<EngineCapability> ENGINE_CAPS = Set.of(
+        EngineCapability.SORT,
+        EngineCapability.UNION,
+        EngineCapability.VALUES,
+        EngineCapability.MULTI_VALUE_EXPAND
+    );
 
     private static final Set<FieldType> SUPPORTED_FIELD_TYPES = new HashSet<>();
     static {
@@ -1055,14 +1059,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         BackendExecutionContext backendContext
     ) {
         FilterTreeCallbacks.register(contextId, handle, tracker);
-        return () -> {
-            FilterTreeCallbacks.unregister(contextId);
-            try {
-                handle.close();
-            } catch (Exception e) {
-                LOGGER.warn(new ParameterizedMessage("FilterDelegationHandle.close() failed for contextId={}", contextId), e);
-            }
-        };
+        // requestClose owns handle.close(): late release upcalls from partially-consumed
+        // native streams must still find the binding, so closing here would race them.
+        return () -> FilterTreeCallbacks.requestClose(contextId);
     }
 
     @Override
@@ -1079,7 +1078,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         BigIntVector rowIdVector,
         String[] columns,
         BufferAllocator allocator,
-        long contextId
+        long contextId,
+        BufferAllocator importStagingAllocator
     ) {
         DataFusionService dataFusionService = plugin.getDataFusionService();
         if (dataFusionService == null) {
@@ -1115,7 +1115,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             throw new IllegalStateException("BigIntVector buffer address is 0 or count is 0");
         }
         StreamHandle streamHandle = new StreamHandle(streamPtr, dataFusionService.getNativeRuntime());
-        return new DatafusionResultStream(streamHandle, allocator);
+        return new DatafusionResultStream(streamHandle, allocator, importStagingAllocator);
     }
 
     @Override

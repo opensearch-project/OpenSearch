@@ -93,6 +93,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -152,8 +153,10 @@ import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
@@ -196,6 +199,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongFunction;
@@ -736,6 +740,184 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(TestTranslog.getCurrentTerm(getTranslog(indexShard)), equalTo(newPrimaryTerm));
 
         closeShards(indexShard);
+    }
+
+    /**
+     * A promoted primary must reject relocation hand-off for as long as its primary-replica resync is pending.
+     */
+    public void testPrimaryRelocationBlockedWhilePrimaryReplicaResyncIsPending() throws Exception {
+        // The timeout is far longer than this test runs, so nothing can clear the flag while the test checks it.
+        final IndexShard indexShard = newStartedReplicaWithResyncTimeout(TimeValue.timeValueHours(1));
+        final ShardRouting primaryRouting = promoteReplicaWithPendingResync(indexShard);
+        final ShardRouting relocatingRouting = ShardRoutingHelper.relocate(primaryRouting, "other_node");
+        IndexShardTestCase.updateRoutingEntry(indexShard, relocatingRouting);
+        final String targetAllocationId = relocatingRouting.getTargetRelocatingShard().allocationId().getId();
+
+        assertTrue(indexShard.isPrimaryReplicaResyncInProgress());
+        final IllegalIndexShardStateException e = expectThrows(
+            IllegalIndexShardStateException.class,
+            () -> indexShard.relocated(targetAllocationId, primaryContext -> {}, () -> {})
+        );
+        assertThat(e.getMessage(), containsString("primary relocation is forbidden while primary-replica resync is in progress"));
+        closeShards(indexShard);
+    }
+
+    /**
+     * If the primary-replica resync never completes, the resync timeout clears the in-progress flag so the promoted primary can
+     * relocate, and it does so without failing the shard.
+     */
+    public void testPrimaryReplicaResyncTimeoutUnblocksPrimaryRelocation() throws Exception {
+        // 10s is the shortest timeout the setting accepts.
+        final IndexShard indexShard = newStartedReplicaWithResyncTimeout(TimeValue.timeValueSeconds(10));
+        final ShardRouting primaryRouting = promoteReplicaWithPendingResync(indexShard);
+
+        // The resync never completes, so only the timeout can clear the flag. Wait well past the 10s timeout.
+        assertBusy(() -> assertFalse(indexShard.isPrimaryReplicaResyncInProgress()), 30, TimeUnit.SECONDS);
+
+        // The timeout must only clear the flag: the promoted primary still accepts writes and can now relocate.
+        indexDoc(indexShard, "_doc", "0");
+        final ShardRouting relocatingRouting = ShardRoutingHelper.relocate(primaryRouting, "other_node");
+        IndexShardTestCase.updateRoutingEntry(indexShard, relocatingRouting);
+        indexShard.relocated(relocatingRouting.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {}, () -> {});
+        assertTrue(indexShard.isRelocatedPrimary());
+        closeShards(indexShard);
+    }
+
+    /**
+     * Creates a started replica whose recovery settings use the given primary-replica resync timeout.
+     */
+    private IndexShard newStartedReplicaWithResyncTimeout(TimeValue resyncTimeout) throws IOException {
+        final RecoverySettings recoverySettings = new RecoverySettings(
+            Settings.builder().put(RecoverySettings.INDICES_PRIMARY_RESYNC_TIMEOUT_SETTING.getKey(), resyncTimeout).build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        final ShardRouting replicaRouting = TestShardRouting.newShardRouting(
+            new ShardId("index", "_na_", 0),
+            randomAlphaOfLength(10),
+            false,
+            ShardRoutingState.INITIALIZING,
+            RecoverySource.PeerRecoverySource.INSTANCE
+        );
+        final IndexMetadata indexMetadata = IndexMetadata.builder(replicaRouting.getIndexName())
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            )
+            .primaryTerm(0, primaryTerm)
+            .putMapping("{ \"properties\": {} }")
+            .build();
+        final IndexShard replica = newShard(
+            replicaRouting,
+            indexMetadata,
+            null,
+            new EngineBackedIndexerFactory(new InternalEngineFactory()),
+            () -> {},
+            RetentionLeaseSyncer.EMPTY,
+            recoverySettings,
+            null,
+            MergedSegmentPublisher.EMPTY
+        );
+        recoveryEmptyReplica(replica, true);
+        return replica;
+    }
+
+    /**
+     * When the primary-replica resync completes successfully, its onResponse must clear the in-progress flag so the promoted
+     * primary can relocate, and it must not fail the shard.
+     */
+    public void testPrimaryReplicaResyncOnResponseUnblocksPrimaryRelocation() throws Exception {
+        // The timeout is far longer than this test runs, so only the resync completing can clear the flag.
+        final IndexShard indexShard = newStartedReplicaWithResyncTimeout(TimeValue.timeValueHours(1));
+        final AtomicBoolean shardFailed = new AtomicBoolean(false);
+        indexShard.addShardFailureCallback(ig -> shardFailed.set(true));
+
+        // The syncer immediately completes the resync listener successfully.
+        final ShardRouting primaryRouting = promoteReplicaWithResyncSyncer(
+            indexShard,
+            (shard, resyncListener) -> resyncListener.onResponse(newResyncTask())
+        );
+
+        // onResponse must have cleared the flag without failing the shard.
+        assertFalse(indexShard.isPrimaryReplicaResyncInProgress());
+        assertFalse("a successful resync must not fail the shard", shardFailed.get());
+
+        // The promoted primary can now relocate.
+        indexDoc(indexShard, "_doc", "0");
+        final ShardRouting relocatingRouting = ShardRoutingHelper.relocate(primaryRouting, "other_node");
+        IndexShardTestCase.updateRoutingEntry(indexShard, relocatingRouting);
+        indexShard.relocated(relocatingRouting.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {}, () -> {});
+        assertTrue(indexShard.isRelocatedPrimary());
+        closeShards(indexShard);
+    }
+
+    /**
+     * When the primary-replica resync fails, its onFailure must clear the in-progress flag and fail the shard (since the shard is
+     * not closed), rather than silently leaving the shard running.
+     */
+    public void testPrimaryReplicaResyncOnFailureClearsFlagAndFailsShard() throws Exception {
+        // Failing the shard is the behaviour under test, so allow it rather than letting the harness treat it as an error.
+        allowShardFailures();
+        // The timeout is far longer than this test runs, so only the resync failing can clear the flag.
+        final IndexShard indexShard = newStartedReplicaWithResyncTimeout(TimeValue.timeValueHours(1));
+        final AtomicBoolean shardFailed = new AtomicBoolean(false);
+        indexShard.addShardFailureCallback(ig -> shardFailed.set(true));
+
+        // Capture the resync listener during promotion but fail it only afterwards: the real onFailure path fails the shard,
+        // which it must only do once the shard has finished transitioning to primary (otherwise state is still CLOSED and the
+        // failure is skipped as "shutting down").
+        final AtomicReference<ActionListener<PrimaryReplicaSyncer.ResyncTask>> capturedListener = new AtomicReference<>();
+        promoteReplicaWithResyncSyncer(indexShard, (shard, resyncListener) -> capturedListener.set(resyncListener));
+        assertTrue(indexShard.isPrimaryReplicaResyncInProgress());
+
+        capturedListener.get().onFailure(new RuntimeException("simulated resync failure"));
+
+        // onFailure must clear the flag and, because the shard is not closed, fail the shard.
+        assertFalse(indexShard.isPrimaryReplicaResyncInProgress());
+        assertBusy(() -> assertTrue("a failed resync must fail the shard", shardFailed.get()));
+        // The engine was intentionally failed, so skip the translog/Lucene consistency assertion on close.
+        closeShard(indexShard, false);
+    }
+
+    private static PrimaryReplicaSyncer.ResyncTask newResyncTask() {
+        return new PrimaryReplicaSyncer.ResyncTask(0, "type", "action", "description", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+    }
+
+    /**
+     * Promotes a started replica to primary with a primary-replica resync whose listener never completes, which is what happens
+     * when the resync response is lost. Waits until the resync has been handed to the syncer and returns the new primary routing.
+     */
+    private ShardRouting promoteReplicaWithPendingResync(IndexShard replica) throws Exception {
+        // The stub never completes the resync listener, so the resync stays pending.
+        return promoteReplicaWithResyncSyncer(replica, (shard, resyncListener) -> {});
+    }
+
+    /**
+     * Promotes a started replica to primary, driving the primary-replica resync through the supplied syncer. The syncer receives
+     * the shard and the wrapped resync listener and decides whether to leave it pending, complete it, or fail it. Waits until the
+     * resync has been handed to the syncer and returns the new primary routing.
+     */
+    private ShardRouting promoteReplicaWithResyncSyncer(
+        IndexShard replica,
+        BiConsumer<IndexShard, ActionListener<PrimaryReplicaSyncer.ResyncTask>> syncer
+    ) throws Exception {
+        final ShardRouting primaryRouting = replica.routingEntry().moveActiveReplicaToPrimary();
+        final CountDownLatch resyncDispatched = new CountDownLatch(1);
+        replica.updateShardState(primaryRouting, replica.getPendingPrimaryTerm() + 1, (shard, resyncListener) -> {
+            try {
+                syncer.accept(shard, resyncListener);
+            } finally {
+                resyncDispatched.countDown();
+            }
+        },
+            currentClusterStateVersion.incrementAndGet(),
+            Collections.singleton(primaryRouting.allocationId().getId()),
+            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build(),
+            IndexShardTestUtils.getFakeDiscoveryNodes(primaryRouting)
+        );
+        resyncDispatched.await();
+        return primaryRouting;
     }
 
     public void testOperationPermitsOnPrimaryShards() throws Exception {
@@ -5520,6 +5702,140 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
+    public void testPeriodicFlushTaskStartedOnDynamicEnable() throws Exception {
+        // Regular index: periodic flush disabled by default, so no task is started with the engine.
+        IndexShard primary = newStartedShard(true);
+        assertNull(primary.getPeriodicFlushTask());
+
+        updatePeriodicFlushInterval(primary, "1m");
+
+        IndexShard.AsyncShardFlushTask flushTask = primary.getPeriodicFlushTask();
+        assertNotNull("enabling index.periodic_flush_interval on a live shard should start the task", flushTask);
+        assertEquals(TimeValue.timeValueMinutes(1), flushTask.getInterval());
+        assertFalse(flushTask.isClosed());
+        assertTrue(flushTask.isScheduled());
+
+        closeShards(primary);
+        assertTrue(flushTask.isClosed());
+    }
+
+    public void testPeriodicFlushTaskRescheduledOnIntervalChange() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "1m")
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+
+        IndexShard.AsyncShardFlushTask flushTask = primary.getPeriodicFlushTask();
+        assertNotNull(flushTask);
+        assertEquals(TimeValue.timeValueMinutes(1), flushTask.getInterval());
+
+        updatePeriodicFlushInterval(primary, "30s");
+
+        // The same task is kept and rescheduled with the new interval.
+        assertSame(flushTask, primary.getPeriodicFlushTask());
+        assertEquals(TimeValue.timeValueSeconds(30), flushTask.getInterval());
+        assertFalse(flushTask.isClosed());
+        assertTrue(flushTask.isScheduled());
+
+        // An unchanged value is a no-op.
+        updatePeriodicFlushInterval(primary, "30s");
+        assertSame(flushTask, primary.getPeriodicFlushTask());
+        assertEquals(TimeValue.timeValueSeconds(30), flushTask.getInterval());
+
+        closeShards(primary);
+    }
+
+    public void testPeriodicFlushTaskStoppedOnDynamicDisable() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "1m")
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+
+        IndexShard.AsyncShardFlushTask flushTask = primary.getPeriodicFlushTask();
+        assertNotNull(flushTask);
+
+        updatePeriodicFlushInterval(primary, "-1");
+
+        assertTrue("disabling index.periodic_flush_interval should close the running task", flushTask.isClosed());
+        assertFalse(flushTask.isScheduled());
+        assertNull(primary.getPeriodicFlushTask());
+
+        // Re-enabling starts a fresh task.
+        updatePeriodicFlushInterval(primary, "2m");
+        IndexShard.AsyncShardFlushTask restarted = primary.getPeriodicFlushTask();
+        assertNotNull(restarted);
+        assertNotSame(flushTask, restarted);
+        assertEquals(TimeValue.timeValueMinutes(2), restarted.getInterval());
+
+        closeShards(primary);
+    }
+
+    public void testPeriodicFlushTaskDeferredUntilEngineExists() throws Exception {
+        // Setting is enabled at creation, but the shard has no engine yet. A settings change in this
+        // state must defer the task (there is nothing to flush) rather than start it.
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "1m")
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+
+        // No engine yet: onSettingsChanged must not start the task.
+        primary.onSettingsChanged();
+        assertNull("periodic flush task must not start before an engine exists", primary.getPeriodicFlushTask());
+
+        // Once the engine is created during recovery, the task starts with the configured interval.
+        recoverShardFromStore(primary);
+        IndexShard.AsyncShardFlushTask flushTask = primary.getPeriodicFlushTask();
+        assertNotNull("task should start once an engine is available", flushTask);
+        assertEquals(TimeValue.timeValueMinutes(1), flushTask.getInterval());
+        assertTrue(flushTask.isScheduled());
+
+        closeShards(primary);
+    }
+
+    /**
+     * Applies a dynamic update of {@code index.periodic_flush_interval} to the shard the same way
+     * {@code IndexService#updateMetadata} does: update the index settings, then notify the shard.
+     */
+    private static void updatePeriodicFlushInterval(IndexShard shard, String interval) {
+        IndexMetadata current = shard.indexSettings().getIndexMetadata();
+        Settings newSettings = Settings.builder()
+            .put(current.getSettings())
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), interval)
+            .build();
+        IndexMetadata updated = IndexMetadata.builder(current)
+            .settings(newSettings)
+            .settingsVersion(current.getSettingsVersion() + 1)
+            .build();
+        shard.indexSettings().updateIndexMetadata(updated);
+        shard.onSettingsChanged();
+    }
+
     /**
      * Verifies that {@code isRemoteSegmentStoreInSync} uses {@code getCatalogSnapshot()} (the unified
      * catalog API) rather than the legacy {@code getSegmentInfosSnapshot()}. After indexing and refreshing,
@@ -5741,5 +6057,62 @@ public class IndexShardTests extends IndexShardTestCase {
         } finally {
             closeShards(shard);
         }
+    }
+
+    /**
+     * The predicate that decides whether a shard's translog lives in the remote store drives both the recovery-time
+     * download (which may reuse local generations) and the discard of a local copy proven corrupt. The two must agree:
+     * a remote-store index always; a migrating docrep shard only once a remote source has seeded it, since an unseeded
+     * one still owns the only copy of its translog and a docrep shard has no remote copy at all.
+     */
+    public void testTranslogBackedByRemoteStoreMatchesHydrationCondition() {
+        final IndexSettings remoteStoreIndex = new IndexSettings(
+            IndexMetadata.builder("remote")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                        .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                        .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "seg-repo")
+                        .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "tlog-repo")
+                )
+                .build(),
+            Settings.EMPTY
+        );
+        final IndexSettings docrepIndex = new IndexSettings(
+            IndexMetadata.builder("docrep")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .build(),
+            Settings.EMPTY
+        );
+        assertTrue(remoteStoreIndex.isRemoteTranslogStoreEnabled());
+        assertFalse(docrepIndex.isRemoteTranslogStoreEnabled());
+
+        for (IndexShard.ShardMigrationState state : IndexShard.ShardMigrationState.values()) {
+            assertTrue(
+                "a remote-store index is remote-backed in state " + state,
+                IndexShard.isTranslogBackedByRemoteStore(remoteStoreIndex, state)
+            );
+        }
+        assertTrue(
+            "a seeded migrating shard downloaded its translog from the remote store",
+            IndexShard.isTranslogBackedByRemoteStore(docrepIndex, IndexShard.ShardMigrationState.REMOTE_MIGRATING_SEEDED)
+        );
+        assertFalse(
+            "an unseeded migrating shard still owns the only copy of its translog",
+            IndexShard.isTranslogBackedByRemoteStore(docrepIndex, IndexShard.ShardMigrationState.REMOTE_MIGRATING_UNSEEDED)
+        );
+        assertFalse(
+            "a docrep shard has no remote translog",
+            IndexShard.isTranslogBackedByRemoteStore(docrepIndex, IndexShard.ShardMigrationState.DOCREP_NON_MIGRATING)
+        );
+        assertFalse(IndexShard.isTranslogBackedByRemoteStore(docrepIndex, IndexShard.ShardMigrationState.REMOTE_NON_MIGRATING));
     }
 }
