@@ -58,6 +58,7 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.search.internal.AliasFilter;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -507,6 +508,10 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         }
 
         public AliasActions enforcement(String enforcement) {
+            if (enforcement != null) {
+                // Rejected here, because a misspelled mode would otherwise be stored and silently treated as post_filter.
+                AliasFilter.Enforcement.fromString(enforcement);
+            }
             this.enforcement = enforcement;
             return this;
         }
