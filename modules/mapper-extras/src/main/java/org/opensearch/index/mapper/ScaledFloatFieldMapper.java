@@ -156,7 +156,9 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, meta, scalingFactor, coerce, nullValue, skiplist);
+            return withMultiValueParameter(
+                Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, meta, scalingFactor, coerce, nullValue, skiplist)
+            );
         }
 
         @Override
@@ -171,6 +173,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                 scalingFactor.getValue(),
                 nullValue.getValue()
             );
+            applyMultiValueParameter(type);
             return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
 
@@ -491,7 +494,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         if (scaledValue == null) {
             return;
         }
-        context.documentInput().addField(fieldType(), scaledValue);
+        addFieldForPluggableFormat(context, scaledValue);
     }
 
     private Long parseScaledValue(ParseContext context) throws IOException {

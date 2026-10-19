@@ -183,12 +183,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, stored, skiplist, ignoreMalformed, coerce, nullValue, meta);
+            return withMultiValueParameter(
+                Arrays.asList(indexed, hasDocValues, stored, skiplist, ignoreMalformed, coerce, nullValue, meta)
+            );
         }
 
         @Override
         public NumberFieldMapper build(BuilderContext context) {
             MappedFieldType ft = new NumberFieldType(buildFullName(context), this);
+            applyMultiValueParameter(ft);
             return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
 
@@ -2194,7 +2197,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         if (numericValue == null) {
             return;
         }
-        context.documentInput().addField(fieldType(), numericValue);
+        addFieldForPluggableFormat(context, numericValue);
     }
 
     @Override
