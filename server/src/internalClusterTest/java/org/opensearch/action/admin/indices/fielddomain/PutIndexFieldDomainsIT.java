@@ -9,6 +9,7 @@
 package org.opensearch.action.admin.indices.fielddomain;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.fielddomain.DateRangeFieldDomain;
 import org.opensearch.index.fielddomain.IndexFieldDomainMetadata;
@@ -37,6 +38,25 @@ public class PutIndexFieldDomainsIT extends OpenSearchIntegTestCase {
 
         assertAcked(client().execute(PutIndexFieldDomainsAction.INSTANCE, request).actionGet());
 
+        assertBusy(() -> {
+            for (ClusterService clusterService : internalCluster().getInstances(ClusterService.class)) {
+                assertNotNull(clusterService.state().metadata().index(indexName).getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY));
+            }
+        });
+
+        assertNull(
+            client().admin()
+                .cluster()
+                .prepareState()
+                .clear()
+                .setMetadata(true)
+                .get()
+                .getState()
+                .metadata()
+                .index(indexName)
+                .getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY)
+        );
+
         Map<String, String> customData = indexMetadata(indexName).getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY);
         assertThat(customData, notNullValue());
         assertThat(customData.get("fields.@timestamp.type"), equalTo("date_range"));
@@ -52,6 +72,6 @@ public class PutIndexFieldDomainsIT extends OpenSearchIntegTestCase {
     }
 
     private IndexMetadata indexMetadata(String indexName) {
-        return client().admin().cluster().prepareState().clear().setMetadata(true).get().getState().metadata().index(indexName);
+        return internalCluster().clusterService(internalCluster().getClusterManagerName()).state().metadata().index(indexName);
     }
 }
