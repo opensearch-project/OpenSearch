@@ -131,20 +131,21 @@ public class AggregateSplitCostTests extends PlanShapeTestBase {
     }
 
     /**
-     * {@code where <4 eq-preds> | stats count() by status_code}, multi-shard — the PARTIAL must
-     * stay below the Exchange. Two ingredients make the bad coordinator-PARTIAL look cheaper, so
-     * this exercises the gate that forbids it:
-     * <ul>
-     *   <li>Row count 100 + 4 {@code =} conjuncts: default 0.25 selectivity floors the estimate to
-     *       1.0 row, erasing the coordinator-PARTIAL's cost margin over the shard-PARTIAL+ER.</li>
-     *   <li>Narrowing Project (status_code only): the projected row is narrower than the PARTIAL
-     *       state (key + count), so shipping rows below a coordinator-PARTIAL beats shipping the
-     *       partial state above a shard-PARTIAL.</li>
-     * </ul>
-     * Comment out the gate in {@code OpenSearchAggregate.computeSelfCost} and this fails with the
-     * FINAL → coordinator-PARTIAL → ER bad shape.
+     * {@code where <4 eq-preds> | stats count() by status_code}, multi-shard, with the row-count estimate
+     * driven to the 1.0 floor (100 rows × 4 {@code =} conjuncts at Calcite's 0.25 default selectivity).
+     *
+     * <p>At a 1-row estimate a single-stage {@code SINGLE} over a gather is genuinely the cheaper plan —
+     * two-phase aggregation is pure overhead for one row — and that is what CBO now picks. This test used to
+     * assert the two-phase shape instead, because a {@code makeInfiniteCost()} branch in
+     * {@code OpenSearchAggregate.computeSelfCost} forced it; the aggregate's requirement is now DECLARED via
+     * {@code passThroughTraits}, so placement follows from cost rather than from a priced-out shape.
+     *
+     * <p>The invariant worth guarding is unchanged and still holds: the BAD shape
+     * ({@code FINAL → coordinator-PARTIAL → ER}, a PARTIAL above the gather) is not constructible, because a
+     * PARTIAL declines a SINGLETON demand in {@code passThroughTraits} and is priced at infinity over
+     * singleton input. What changed is only which of the two CORRECT shapes wins at a 1-row estimate.
      */
-    public void testFourPredicateFilterBelowCountByKey_2shard_partialStaysBelowExchange() {
+    public void testFourPredicateFilterBelowCountByKey_2shard_oneRowEstimatePicksSingleStage() {
         // HTTP-access-log shape: count() by status_code, filtered on 4 fields.
         Map<String, Map<String, Object>> fields = new LinkedHashMap<>();
         for (String name : List.of("status_code", "size", "region_id", "endpoint_id")) {
@@ -174,26 +175,24 @@ public class AggregateSplitCostTests extends PlanShapeTestBase {
         RelNode result = runPlanner(plan, context);
         assertPlanShape(
             """
-                OpenSearchAggregate(group=[{0}], cnt=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
                   OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
-                    OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
-                      OpenSearchProject(status_code=[$0], viableBackends=[[mock-parquet]])
-                        OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[mock-lucene, mock-parquet], =($0, 200)), ANNOTATED_PREDICATE(id=1, backends=[mock-lucene, mock-parquet], =($1, 1024)), ANNOTATED_PREDICATE(id=2, backends=[mock-lucene, mock-parquet], =($2, 3)), ANNOTATED_PREDICATE(id=3, backends=[mock-lucene, mock-parquet], =($3, 5)))], viableBackends=[[mock-parquet]])
-                          OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                    OpenSearchProject(status_code=[$0], viableBackends=[[mock-parquet]])
+                      OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[mock-lucene, mock-parquet], =($0, 200)), ANNOTATED_PREDICATE(id=1, backends=[mock-lucene, mock-parquet], =($1, 1024)), ANNOTATED_PREDICATE(id=2, backends=[mock-lucene, mock-parquet], =($2, 3)), ANNOTATED_PREDICATE(id=3, backends=[mock-lucene, mock-parquet], =($3, 5)))], viableBackends=[[mock-parquet]])
+                        OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );
     }
 
     /**
-     * Same invariant for an aggregate whose PARTIAL state genuinely differs from its output —
-     * {@code avg(size) by status_code} decomposes to SUM + COUNT primitives at the shard, reduced
-     * additively at the coordinator. 7 {@code =} conjuncts drive the row-count estimate to the 1.0
-     * floor; the narrowing Project (status_code, size) keeps the shipped row narrower than the
-     * 3-column PARTIAL state, so without the gate the coordinator-PARTIAL wins on cost. The gate
-     * keeps the SUM/COUNT PARTIAL below the Exchange.
+     * Same situation as the sibling test, for an aggregate whose PARTIAL state genuinely differs from its
+     * output: {@code avg(size) by status_code} decomposes to SUM + COUNT primitives. 7 {@code =} conjuncts
+     * drive the row-count estimate to the 1.0 floor, where single-stage over a gather is the cheaper plan and
+     * CBO picks it. The bad shape (a PARTIAL ABOVE the gather) remains unconstructible — see the sibling
+     * test's javadoc for why that is now a trait-level answer rather than an infinite-cost branch.
      */
-    public void testSevenPredicateFilterBelowAvgByKey_2shard_partialStaysBelowExchange() {
+    public void testSevenPredicateFilterBelowAvgByKey_2shard_oneRowEstimatePicksSingleStage() {
         Map<String, Map<String, Object>> fields = new LinkedHashMap<>();
         for (String name : List.of("status_code", "size", "region_id", "endpoint_id", "user_id", "method_id", "cache_hit")) {
             fields.put(name, Map.of("type", "integer"));
@@ -226,12 +225,11 @@ public class AggregateSplitCostTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchProject(status_code=[$0], avg_size=[ANNOTATED_PROJECT_EXPR(id=10, backends=[mock-parquet], CAST(ANNOTATED_PROJECT_EXPR(id=9, backends=[mock-parquet], /($1, $2))):INTEGER NOT NULL)], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{0}], $f1=[SUM($1)], $f2=[SUM($2)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], agg#0=[SUM($1)], agg#1=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
-                      OpenSearchAggregate(group=[{0}], agg#0=[SUM($1)], agg#1=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
-                        OpenSearchProject(status_code=[$0], size=[$1], viableBackends=[[mock-parquet]])
-                          OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[mock-lucene, mock-parquet], =($0, 200)), ANNOTATED_PREDICATE(id=1, backends=[mock-lucene, mock-parquet], =($1, 1024)), ANNOTATED_PREDICATE(id=2, backends=[mock-lucene, mock-parquet], =($2, 3)), ANNOTATED_PREDICATE(id=3, backends=[mock-lucene, mock-parquet], =($3, 5)), ANNOTATED_PREDICATE(id=4, backends=[mock-lucene, mock-parquet], =($4, 7)), ANNOTATED_PREDICATE(id=5, backends=[mock-lucene, mock-parquet], =($5, 1)), ANNOTATED_PREDICATE(id=6, backends=[mock-lucene, mock-parquet], =($6, 1)))], viableBackends=[[mock-parquet]])
-                            OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                      OpenSearchProject(status_code=[$0], size=[$1], viableBackends=[[mock-parquet]])
+                        OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[mock-lucene, mock-parquet], =($0, 200)), ANNOTATED_PREDICATE(id=1, backends=[mock-lucene, mock-parquet], =($1, 1024)), ANNOTATED_PREDICATE(id=2, backends=[mock-lucene, mock-parquet], =($2, 3)), ANNOTATED_PREDICATE(id=3, backends=[mock-lucene, mock-parquet], =($3, 5)), ANNOTATED_PREDICATE(id=4, backends=[mock-lucene, mock-parquet], =($4, 7)), ANNOTATED_PREDICATE(id=5, backends=[mock-lucene, mock-parquet], =($5, 1)), ANNOTATED_PREDICATE(id=6, backends=[mock-lucene, mock-parquet], =($6, 1)))], viableBackends=[[mock-parquet]])
+                          OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
         );

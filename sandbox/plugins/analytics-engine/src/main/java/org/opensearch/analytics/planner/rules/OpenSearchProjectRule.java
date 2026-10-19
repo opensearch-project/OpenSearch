@@ -99,10 +99,15 @@ public class OpenSearchProjectRule extends RelOptRule {
             throw new UnsupportedFunctionException(funcNames.toString(), "in combination in this query");
         }
 
+        // Seed UNRESOLVED, for the same reason OpenSearchAggregateRule does: this rule runs in HEP, where
+        // convert() is a no-op, so a window / pinned Project cannot demand the gathered input it requires —
+        // and it must therefore not claim a placement either. OpenSearchProject.passThroughTraits and
+        // OpenSearchWindowProjectGatherRule state the requirement instead, and no parent may consume an
+        // unresolved input (see OpenSearchRelNode.hasUnresolvedInput).
         call.transformTo(
             new OpenSearchProject(
                 project.getCluster(),
-                child.getTraitSet(),
+                child.getTraitSet().replace(context.getDistributionTraitDef().any()),
                 RelNodeUtils.unwrapHep(project.getInput()),
                 annotatedExprs,
                 project.getRowType(),

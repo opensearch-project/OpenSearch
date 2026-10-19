@@ -42,9 +42,11 @@ public abstract class BasePplIT extends AnalyticsRestTestCase {
     }
 
     protected void runPplQueries() throws Exception {
+        String only = System.getProperty("tests.ppl.only"); // optional comma-separated subset, for single-query debugging
         List<Integer> queryNumbers = DatasetQueryRunner.discoverQueryNumbers(getDataset(), "ppl")
             .stream()
             .filter(n -> !getSkipQueries().contains(n))
+            .filter(n -> only == null || only.isBlank() || java.util.Arrays.asList(only.split(",")).contains(String.valueOf(n)))
             .toList();
         assertFalse("No PPL queries discovered", queryNumbers.isEmpty());
         logger.info("Running {} {} PPL queries: {}", queryNumbers.size(), getDataset().name, queryNumbers);
