@@ -44,7 +44,10 @@ public class FilteredStatsCacheTests extends OpenSearchTestCase {
 
     private FilteredStatsCache newCache() {
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("idx", Settings.EMPTY);
-        return new FilteredStatsCache(indexSettings, new NoopCircuitBreaker(CircuitBreaker.FIELDDATA));
+        return new FilteredStatsCache(
+            indexSettings,
+            new IndicesFilteredStatsCache(Settings.EMPTY, new NoopCircuitBreaker(CircuitBreaker.FIELDDATA))
+        );
     }
 
     private static Directory writeSingleSegment() throws IOException {

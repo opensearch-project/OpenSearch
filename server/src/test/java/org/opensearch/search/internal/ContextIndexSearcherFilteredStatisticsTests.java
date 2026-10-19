@@ -28,6 +28,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.index.cache.filteredstats.FilteredStatsCache;
+import org.opensearch.index.cache.filteredstats.IndicesFilteredStatsCache;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.search.dfs.AggregatedDfs;
@@ -112,7 +113,7 @@ public class ContextIndexSearcherFilteredStatisticsTests extends OpenSearchTestC
     public void testScopedStatisticsMatchThroughTheCache() throws IOException {
         FilteredStatsCache cache = new FilteredStatsCache(
             IndexSettingsModule.newIndexSettings("idx", Settings.EMPTY),
-            new NoopCircuitBreaker(CircuitBreaker.FIELDDATA)
+            new IndicesFilteredStatsCache(Settings.EMPTY, new NoopCircuitBreaker(CircuitBreaker.FIELDDATA))
         );
         // The second searcher reads what the first one stored, so both the fill and the hit are checked.
         assertMatchesReference(searcher(contextScopedTo(VISIBLE, cache)));

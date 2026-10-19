@@ -60,7 +60,6 @@ import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.Assertions;
-import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
@@ -75,6 +74,7 @@ import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.cache.filteredstats.FilteredStatsCache;
 import org.opensearch.index.cache.filteredstats.FilteredStatsWarmer;
+import org.opensearch.index.cache.filteredstats.IndicesFilteredStatsCache;
 import org.opensearch.index.cache.query.QueryCache;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.Engine;
@@ -277,7 +277,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
         DataFormatRegistry dataFormatRegistry,
         DataFormatAwareStoreDirectoryFactory dataFormatAwareStoreDirectoryFactory,
-        NodeCacheService nodeCacheService
+        NodeCacheService nodeCacheService,
+        IndicesFilteredStatsCache indicesFilteredStatsCache
     ) {
         super(indexSettings);
         this.storeFactory = storeFactory;
@@ -329,10 +330,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 return shard == null ? IndicesFieldDataCache.Key.NO_SHARD_IDENTITY : System.identityHashCode(shard);
             });
             this.bitsetFilterCache = new BitsetFilterCache(indexSettings, indicesBitsetFilterCache, new BitsetCacheListener(this));
-            FilteredStatsCache filteredStatsCache = new FilteredStatsCache(
-                indexSettings,
-                circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA)
-            );
+            FilteredStatsCache filteredStatsCache = indicesFilteredStatsCache == null
+                ? null
+                : new FilteredStatsCache(indexSettings, indicesFilteredStatsCache);
             this.warmer = new IndexWarmer(
                 threadPool,
                 indexFieldData,
@@ -495,6 +495,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             (shardId) -> ReplicationStats.empty(),
             clusterDefaultMaxMergeAtOnce,
             clusterMergeSchedulerConfig,
+            null,
             null,
             null,
             null

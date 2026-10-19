@@ -116,6 +116,7 @@ import org.opensearch.index.IngestionPayloadDecoderFactory;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.analysis.AnalysisRegistry;
+import org.opensearch.index.cache.filteredstats.IndicesFilteredStatsCache;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.CommitStats;
@@ -437,6 +438,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesFieldDataCache indicesFieldDataCache;
     private final IndicesBitsetFilterCache indicesBitsetFilterCache;
+    private final IndicesFilteredStatsCache indicesFilteredStatsCache;
     private final CacheCleaner cacheCleaner;
     private final ThreadPool threadPool;
     private final CircuitBreakerService circuitBreakerService;
@@ -592,6 +594,10 @@ public class IndicesService extends AbstractLifecycleComponent
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, logger, threadPool, this.cleanInterval);
         this.indicesBitsetFilterCache = new IndicesBitsetFilterCache(settings);
+        this.indicesFilteredStatsCache = new IndicesFilteredStatsCache(
+            settings,
+            circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA)
+        );
         this.metaStateService = metaStateService;
         this.engineFactoryProviders = engineFactoryProviders;
 
@@ -619,6 +625,7 @@ public class IndicesService extends AbstractLifecycleComponent
                         cacheCleaner,
                         indicesRequestCache,
                         indicesQueryCache,
+                        indicesFilteredStatsCache,
                         ingestionPayloadDecoderRegistry
                     );
                 } catch (IOException e) {
@@ -1202,6 +1209,8 @@ public class IndicesService extends AbstractLifecycleComponent
             indexModule.addIndexOperationListener(operationListener);
         }
         pluginsService.onIndexModule(indexModule);
+        // After the plugins, so the node cache is the one every index uses.
+        indexModule.setIndicesFilteredStatsCache(indicesFilteredStatsCache);
         // Add tiered storage search listeners
         if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
             indexModule.addSearchOperationListener(new TieredStorageSearchSlowLog(idxSettings));

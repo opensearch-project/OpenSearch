@@ -14,6 +14,7 @@ import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.cache.filteredstats.FilteredStatsCache;
+import org.opensearch.index.cache.filteredstats.IndicesFilteredStatsCache;
 import org.opensearch.index.cache.query.QueryCache;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -26,7 +27,10 @@ public class IndexCacheFilteredStatsTests extends OpenSearchTestCase {
 
     public void testExposesClearsAndClosesTheFilteredStatsCache() throws Exception {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("idx", Settings.EMPTY);
-        FilteredStatsCache filteredStats = new FilteredStatsCache(indexSettings, new NoopCircuitBreaker(CircuitBreaker.FIELDDATA));
+        FilteredStatsCache filteredStats = new FilteredStatsCache(
+            indexSettings,
+            new IndicesFilteredStatsCache(Settings.EMPTY, new NoopCircuitBreaker(CircuitBreaker.FIELDDATA))
+        );
         QueryCache queryCache = mock(QueryCache.class);
         BitsetFilterCache bitsetCache = new BitsetFilterCache(indexSettings, mock(BitsetFilterCache.Listener.class));
         IndexCache cache = new IndexCache(indexSettings, queryCache, bitsetCache, filteredStats);

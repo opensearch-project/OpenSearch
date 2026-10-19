@@ -756,6 +756,14 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    public void testEveryIndexStoresFilteredStatisticsInTheNodeCache() {
+        IndexService first = createIndex("filtered_stats_first");
+        IndexService second = createIndex("filtered_stats_second");
+        assertNotNull(first.cache().filteredStatsCache());
+        assertNotNull(second.cache().filteredStatsCache());
+        assertNotSame(first.cache().filteredStatsCache(), second.cache().filteredStatsCache());
+    }
+
     public void testAliasFilterTakesTheStrongestEnforcementOfItsAliases() {
         createIndex("enforcement_idx");
         client().admin()

@@ -8,7 +8,6 @@
 
 package org.opensearch.index.cache.filteredstats;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PostingsEnum;
@@ -26,36 +25,32 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SmallFloat;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.index.AbstractIndexComponent;
 import org.opensearch.index.IndexSettings;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.ToLongFunction;
 
 /**
- * Per-index cache of the visible-subset statistics used by the filter-aware-alias {@code filtered_stats} path.
+ * One index's view of the visible-subset statistics used when relevance statistics are scoped to a filter.
  * <p>
- * When a search runs {@code filtered_stats}, BM25 collection/term statistics are recomputed over only the documents
- * that match the alias filter. That recomputation is O(total corpus) per query: it builds a per-segment "visible"
- * bitset from the filter and then walks postings intersected with that bitset. Because Lucene segments are immutable
- * and the alias filter is stable for a given view, the result is identical across every query hitting the same
- * (segment, filter) pair -- so it is cached here and only computed on the first query per segment.
+ * Scoped statistics are computed over only the documents a filter admits: a per-segment bitset of those documents,
+ * then per-field and per-term counts over it. Segments are immutable and a view's filter is stable, so the result is
+ * the same for every query on the same (segment, filter) pair, and it is cached after the first.
  * <p>
- * Entries are keyed by the segment core {@link IndexReader.CacheKey} and evicted via a
- * {@link IndexReader.CacheHelper#addClosedListener close listener}: when a segment is replaced on refresh or merge its
- * core closes, its entry drops, and the next query recomputes against the new segment. This gives correct freshness
- * with no explicit invalidation.
- * <p>
- * Cached bytes are reported to the fielddata circuit breaker with {@link CircuitBreaker#addWithoutBreaking}
- * (accounting only -- this cache never rejects), and returned on eviction.
+ * Entries live in the node-level {@link IndicesFilteredStatsCache}, which bounds them in bytes across all indices and
+ * drops a segment's entries when the segment closes. This class tracks what one index holds there, and which filters
+ * and fields it uses so {@link FilteredStatsWarmer} can pre-populate new segments.
  *
  * @opensearch.experimental
  */
@@ -90,148 +85,68 @@ public final class FilteredStatsCache extends AbstractIndexComponent implements 
         T compute() throws IOException;
     }
 
-    /** Sentinel {@code long[]} stored for a (segment, filter, term) that has no visible occurrences, so the "absent" answer is cached too. */
+    /** Stored for a (segment, filter, term) with no visible occurrences, so the absent answer is cached too. */
     private static final long[] TERM_ABSENT = new long[0];
 
-    /**
-     * Sentinel stored for a (segment, filter) with no visible docs. {@link ConcurrentHashMap} forbids {@code null}
-     * values, so we cache this identity and translate it back to {@code null} on read (the "no visible docs" contract).
-     */
+    /** Stored for a (segment, filter) with no visible documents, and returned to callers as {@code null}. */
     private static final BitSet NO_VISIBLE_DOCS = new FixedBitSet(1);
 
-    /** Per-segment cached statistics for the visible subset, sub-keyed by the alias filter query. */
-    private static final class SegmentEntry {
-        // filter -> visible-doc bitset for this segment (may be null when no visible docs match in this segment).
-        private final Map<Query, BitSet> visibleBitSets = new ConcurrentHashMap<>();
-        // filter -> field -> [docCount, sumTotalTermFreq, sumDocFreq] over the visible subset.
-        private final Map<Query, Map<String, long[]>> fieldContrib = new ConcurrentHashMap<>();
-        // filter -> term -> [docFreq, totalTermFreq] over the visible subset (TERM_ABSENT when none).
-        private final Map<Query, Map<Term, long[]>> termContrib = new ConcurrentHashMap<>();
-        // approximate bytes this entry has reported to the breaker, returned when the segment closes.
-        private final AtomicLong bytes = new AtomicLong();
-    }
-
-    private final ConcurrentHashMap<IndexReader.CacheKey, SegmentEntry> entries = new ConcurrentHashMap<>();
-    private final CircuitBreaker accountingBreaker;
-
-    public FilteredStatsCache(IndexSettings indexSettings, CircuitBreaker accountingBreaker) {
-        super(indexSettings);
-        this.accountingBreaker = accountingBreaker;
-    }
+    private final IndicesFilteredStatsCache nodeCache;
+    // Bytes this index holds in the node-level cache.
+    private final AtomicLong bytes = new AtomicLong();
 
     /**
-     * Returns the visible-doc bitset for {@code ctx} under {@code filter}, computing and caching it on first access.
-     * A cached {@code null} (no visible docs in this segment) is preserved and returned as {@code null}.
+     * Creates the view of one index into the node-level cache.
+     *
+     * @param indexSettings settings of the index
+     * @param nodeCache the node-level cache entries are stored in
      */
+    public FilteredStatsCache(IndexSettings indexSettings, IndicesFilteredStatsCache nodeCache) {
+        super(indexSettings);
+        this.nodeCache = Objects.requireNonNull(nodeCache);
+    }
+
+    /** Returns the visible-doc bitset for {@code ctx} under {@code filter}, or {@code null} when no doc is visible. */
     public BitSet getOrComputeVisibleBitSet(LeafReaderContext ctx, Query filter, Computation<BitSet> compute) throws IOException {
         track(filter, null);
-        final SegmentEntry entry = entryFor(ctx);
-        if (entry == null) {
-            return compute.compute();
-        }
-        final BitSet cached = entry.visibleBitSets.get(filter);
-        if (cached != null) {
-            return cached == NO_VISIBLE_DOCS ? null : cached;
-        }
-        final BitSet bitSet = compute.compute();
-        entry.visibleBitSets.put(filter, bitSet == null ? NO_VISIBLE_DOCS : bitSet);
-        if (bitSet != null) {
-            account(entry, bitSet.ramBytesUsed());
-        }
-        return bitSet;
+        return cached(ctx, filter, null, null, compute, NO_VISIBLE_DOCS, BitSet::ramBytesUsed);
     }
 
-    /**
-     * Returns the visible-subset field contribution {@code [docCount, sumTotalTermFreq, sumDocFreq]} for
-     * {@code (ctx, filter, field)}, computing and caching it on first access.
-     */
+    /** Returns the visible-subset {@code [docCount, sumTotalTermFreq, sumDocFreq]} for {@code (ctx, filter, field)}. */
     public long[] getOrComputeFieldContribution(LeafReaderContext ctx, Query filter, String field, Computation<long[]> compute)
         throws IOException {
         track(filter, field);
-        final SegmentEntry entry = entryFor(ctx);
-        if (entry == null) {
-            return compute.compute();
-        }
-        final Map<String, long[]> byField = entry.fieldContrib.computeIfAbsent(filter, f -> new ConcurrentHashMap<>());
-        long[] contribution = byField.get(field);
-        if (contribution == null) {
-            contribution = compute.compute();
-            byField.put(field, contribution);
-            account(entry, (long) contribution.length * Long.BYTES);
-        }
-        return contribution;
+        return cached(ctx, filter, field, null, compute, null, RamUsageEstimator::sizeOf);
     }
 
     /**
-     * Returns the visible-subset term contribution {@code [docFreq, totalTermFreq]} for {@code (ctx, filter, term)},
-     * or {@code null} when the term has no visible occurrences. Computed and cached on first access; the "absent"
-     * answer is cached as well so repeated probes of a filtered-out term stay cheap.
+     * Returns the visible-subset {@code [docFreq, totalTermFreq]} for {@code (ctx, filter, term)}, or {@code null} when
+     * no visible doc contains the term; that answer is cached too.
      */
     public long[] getOrComputeTermContribution(LeafReaderContext ctx, Query filter, Term term, Computation<long[]> compute)
         throws IOException {
-        final SegmentEntry entry = entryFor(ctx);
-        if (entry == null) {
-            return compute.compute();
-        }
-        final Map<Term, long[]> byTerm = entry.termContrib.computeIfAbsent(filter, f -> new ConcurrentHashMap<>());
-        long[] contribution = byTerm.get(term);
-        if (contribution == null) {
-            contribution = compute.compute();
-            final long[] toStore = contribution == null ? TERM_ABSENT : contribution;
-            // Deliberately get-then-putIfAbsent rather than computeIfAbsent. Concurrent requests can miss the
-            // same cold (segment, filter, term) and each build it. The values are identical, so either is
-            // correct, and putIfAbsent keeps a single instance. computeIfAbsent would make the build run once,
-            // but it holds the map's bin lock for the duration of the mapping function, and that function is a
-            // postings intersection that can run for hundreds of milliseconds on a large merged segment, which
-            // would block unrelated keys in the same bin exactly when load is highest.
-            // Measured: duplicate builds are 0.07% of builds on a realistic query mix, and 4% to 7% in an
-            // adversarial one (3-term queries drawn from a 20-term head pool, 16 concurrent clients, force-merge
-            // of a 266-segment shard mid-flight). If a workload is ever found where the duplicate rate matters,
-            // the fix is memoizing a future per key so waiters block on the future rather than on a map bin.
-            final long[] winner = byTerm.putIfAbsent(term, toStore);
-            if (winner != null) {
-                contribution = winner;
-            } else {
-                account(entry, (long) toStore.length * Long.BYTES);
-            }
-        }
-        return contribution == TERM_ABSENT ? null : contribution;
+        return cached(ctx, filter, null, term, compute, TERM_ABSENT, RamUsageEstimator::sizeOf);
     }
 
-    /**
-     * Returns the cache entry for a segment, creating it (and registering the eviction listener) on first use.
-     * Returns {@code null} when the segment exposes no core cache helper, so the caller falls back to inline compute.
-     */
-    private SegmentEntry entryFor(LeafReaderContext ctx) {
-        final IndexReader.CacheHelper cacheHelper = ctx.reader().getCoreCacheHelper();
-        if (cacheHelper == null) {
-            return null;
-        }
-        final IndexReader.CacheKey key = cacheHelper.getKey();
-        return entries.computeIfAbsent(key, k -> {
-            cacheHelper.addClosedListener(this::onSegmentClose);
-            return new SegmentEntry();
-        });
+    // Stores a null result as the absent sentinel, which the node cache cannot hold as null, and maps it back.
+    private <T> T cached(
+        LeafReaderContext ctx,
+        Query filter,
+        String field,
+        Term term,
+        Computation<T> compute,
+        T absent,
+        ToLongFunction<T> weigher
+    ) throws IOException {
+        final T value = nodeCache.getOrCompute(this, ctx, filter, field, term, () -> {
+            final T computed = compute.compute();
+            return computed == null ? absent : computed;
+        }, weigher);
+        return value == absent ? null : value;
     }
 
-    private void onSegmentClose(IndexReader.CacheKey key) {
-        final SegmentEntry removed = entries.remove(key);
-        if (removed != null && accountingBreaker != null) {
-            final long bytes = removed.bytes.getAndSet(0);
-            if (bytes != 0) {
-                accountingBreaker.addWithoutBreaking(-bytes);
-            }
-        }
-    }
-
-    private void account(SegmentEntry entry, long bytes) {
-        if (bytes <= 0) {
-            return;
-        }
-        entry.bytes.addAndGet(bytes);
-        if (accountingBreaker != null) {
-            accountingBreaker.addWithoutBreaking(bytes);
-        }
+    void addBytes(long delta) {
+        bytes.addAndGet(delta);
     }
 
     /**
@@ -376,24 +291,22 @@ public final class FilteredStatsCache extends AbstractIndexComponent implements 
         return new long[] { docsWithField.cardinality(), sumTotalTermFreq, sumDocFreq };
     }
 
-    /** Total bytes this cache is currently accounting for -- for tests and stats. */
+    /** Bytes this index currently holds in the node-level cache. */
     public long ramBytesUsed() {
-        long total = 0;
-        for (SegmentEntry entry : entries.values()) {
-            total += entry.bytes.get();
-        }
-        return total;
+        return bytes.get();
     }
 
+    /**
+     * Drops every entry cached for this index.
+     *
+     * @param reason why the cache is cleared, for the log
+     */
     public void clear(String reason) {
         logger.debug("clearing filtered-stats cache because [{}]", reason);
-        for (IndexReader.CacheKey key : entries.keySet()) {
-            onSegmentClose(key);
-        }
+        nodeCache.clear(this);
     }
 
+    /** Entries are invalidated as the index's segments close, so closing the index has nothing left to do. */
     @Override
-    public void close() {
-        clear("close");
-    }
+    public void close() {}
 }
