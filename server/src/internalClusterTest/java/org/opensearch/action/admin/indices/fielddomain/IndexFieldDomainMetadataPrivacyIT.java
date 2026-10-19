@@ -8,10 +8,13 @@
 
 package org.opensearch.action.admin.indices.fielddomain;
 
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.fielddomain.ClusterStateFieldDomainProvider;
 import org.opensearch.index.fielddomain.DateRangeFieldDomain;
+import org.opensearch.index.fielddomain.FieldDomain;
 import org.opensearch.index.fielddomain.IndexFieldDomainMetadata;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -20,6 +23,7 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -105,14 +109,13 @@ public class IndexFieldDomainMetadataPrivacyIT extends OpenSearchIntegTestCase {
     private void assertDomainsAreInternal(String indexName, Map<String, String> domains) throws Exception {
         assertBusy(() -> {
             for (ClusterService service : internalCluster().getInstances(ClusterService.class)) {
-                assertEquals(domains, service.state().metadata().index(indexName).getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY));
-                assertEquals(
-                    domains,
-                    IndexFieldDomainMetadata.getInstance()
-                        .toCustomData(
-                            new ClusterStateFieldDomainProvider().getDomain(service.state(), indexName, "@timestamp").orElseThrow()
-                        )
-                );
+                ClusterState state = service.state();
+                IndexMetadata indexMetadata = state.metadata().index(indexName);
+                assertNotNull("index metadata has not been applied for [" + indexName + "]", indexMetadata);
+                assertEquals(domains, indexMetadata.getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY));
+                Optional<FieldDomain> domain = new ClusterStateFieldDomainProvider().getDomain(state, indexName, "@timestamp");
+                assertTrue("field domain is missing for [" + indexName + "]", domain.isPresent());
+                assertEquals(domains, IndexFieldDomainMetadata.getInstance().toCustomData(domain.get()));
             }
         });
         for (String node : internalCluster().getNodeNames()) {
