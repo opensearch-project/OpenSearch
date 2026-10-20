@@ -221,7 +221,7 @@ public interface RestHandler {
         /**
          * Properties that describe how a route should be handled.
          */
-        @PublicApi(since = "3.9.0")
+        @PublicApi(since = "3.10.0")
         public enum Property {
             /**
              * Indicates that the route performs an administrative operation. Authorization plugins may apply additional restrictions to
