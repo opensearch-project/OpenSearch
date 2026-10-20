@@ -47,6 +47,9 @@ public class ExecutionResultTests extends OpenSearchTestCase {
             ),
             result.getFieldNames()
         );
+        assertEquals(result.getFieldNames().size(), result.getFieldTypes().size());
+        assertEquals("VARCHAR", result.getFieldTypes().get(0).getSqlTypeName().getName());
+        assertEquals("INTEGER", result.getFieldTypes().get(1).getSqlTypeName().getName());
     }
 
     public void testRejectsNullArguments() {
