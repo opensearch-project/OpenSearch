@@ -116,6 +116,7 @@ import org.opensearch.index.IngestionPayloadDecoderFactory;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.analysis.AnalysisRegistry;
+import org.opensearch.index.cache.filteredstats.FilteredStatsCacheStats;
 import org.opensearch.index.cache.filteredstats.IndicesFilteredStatsCache;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
@@ -901,6 +902,11 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {
         return closeLatch.await(timeout, timeUnit);
+    }
+
+    /** Returns the size and activity of the node-level filtered statistics cache. */
+    public FilteredStatsCacheStats filteredStatsCacheStats() {
+        return indicesFilteredStatsCache.stats();
     }
 
     public NodeIndicesStats stats(CommonStatsFlags flags) {

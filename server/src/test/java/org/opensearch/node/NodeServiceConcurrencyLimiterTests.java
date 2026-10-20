@@ -116,7 +116,8 @@ public class NodeServiceConcurrencyLimiterTests extends OpenSearchTestCase {
             false, // cacheService
             false, // remoteStoreNodeStats
             false, // nativeMemory
-            concurrencyLimiter
+            concurrencyLimiter,
+            false
         );
     }
 
