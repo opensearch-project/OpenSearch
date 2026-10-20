@@ -696,6 +696,26 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    public void testCanCacheRequestCacheDisabled() {
+        final IndexService indexService = createIndex("test");
+        IndicesService indicesService = getIndicesService();
+        TestSearchContext context = getTestContext(indexService, 0);
+        setupMocksForCanCache(context, mock(DelegatingCacheHelper.class));
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
+        try {
+            for (Boolean requestCacheParam : new Boolean[] { null, true }) {
+                when(request.requestCache()).thenReturn(requestCacheParam);
+                assertTrue(indicesService.canCache(request, context));
+                // the node-wide switch overrides both the index setting and the request parameter
+                indicesService.setRequestCacheEnabled(false);
+                assertFalse(indicesService.canCache(request, context));
+                indicesService.setRequestCacheEnabled(true);
+            }
+        } finally {
+            indicesService.setRequestCacheEnabled(true);
+        }
+    }
+
     private void setupMocksForCanCache(TestSearchContext context, IndexReader.CacheHelper cacheHelper) {
         ContextIndexSearcher searcher = mock(ContextIndexSearcher.class);
         context.setSearcher(searcher);
