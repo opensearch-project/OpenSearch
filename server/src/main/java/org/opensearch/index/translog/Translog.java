@@ -1921,11 +1921,21 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
     }
 
     /**
-     * Roll the current translog generation into a new generation if it's not empty. This does not commit the translog.
+     * Roll the current translog generation into a new generation if it's not empty.
      *
      * @throws IOException if an I/O exception occurred during any file operations
      */
     public void rollGeneration() throws IOException {
+        rollGeneration(true);
+    }
+
+    /**
+     * Roll the current translog generation into a new generation if it's not empty.
+     *
+     * @param sync whether to upload the generation for remote translogs
+     * @throws IOException if an I/O exception occurred during any file operations
+     */
+    public void rollGeneration(boolean sync) throws IOException {
         syncBeforeRollGeneration();
         if (current.totalOperations() == 0 && primaryTermSupplier.getAsLong() == current.getPrimaryTerm()) {
             return;
