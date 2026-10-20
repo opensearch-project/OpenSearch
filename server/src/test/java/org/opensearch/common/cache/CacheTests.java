@@ -705,6 +705,27 @@ public class CacheTests extends OpenSearchTestCase {
         }
     }
 
+    public void testErrorFromLoaderDoesNotBlockTheKey() throws Exception {
+        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+        final AssertionError error = new AssertionError("loader failed");
+        assertSame(error, expectThrows(AssertionError.class, () -> cache.computeIfAbsent(1, k -> { throw error; })));
+
+        final AtomicReference<String> loaded = new AtomicReference<>();
+        final Thread later = new Thread(() -> {
+            cache.invalidate(1);
+            try {
+                loaded.set(cache.computeIfAbsent(1, k -> "value"));
+            } catch (ExecutionException e) {
+                throw new AssertionError(e);
+            }
+        });
+        later.start();
+        later.join(10_000);
+        assertFalse("invalidating and loading the key must not wait on the failed load", later.isAlive());
+        assertEquals("value", loaded.get());
+        assertEquals("value", cache.get(1));
+    }
+
     public void testDependentKeyDeadlock() throws BrokenBarrierException, InterruptedException {
         class Key {
             private final int key;

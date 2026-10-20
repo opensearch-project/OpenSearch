@@ -497,6 +497,10 @@ public class Cache<K, V> {
             } catch (Exception e) {
                 future.completeExceptionally(e);
                 throw new ExecutionException(e);
+            } catch (Error e) {
+                // Complete the future as well, or later callers of this key and its invalidation would wait forever.
+                future.completeExceptionally(e);
+                throw e;
             }
             if (loaded == null) {
                 NullPointerException npe = new NullPointerException("loader returned a null value");
