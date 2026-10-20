@@ -73,6 +73,7 @@ public class TieredSpilloverCachePlugin extends Plugin implements CachePlugin {
             settingList.add(
                 TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_SIZE.getConcreteSettingForNamespace(cacheType.getSettingPrefix())
             );
+            settingList.add(TieredSpilloverCacheSettings.DISK_ADMISSION_MIN_FREQUENCY_SETTING_MAP.get(cacheType));
         }
         return settingList;
     }
