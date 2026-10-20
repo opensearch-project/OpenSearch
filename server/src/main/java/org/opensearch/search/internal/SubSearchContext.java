@@ -377,4 +377,35 @@ public class SubSearchContext extends FilteredSearchContext {
     public long getRelativeTimeInMillis() {
         throw new UnsupportedOperationException("Not supported");
     }
+
+    /**
+     * Copies the fetch configuration of this context onto {@code target}, which must be a
+     * freshly constructed {@link SubSearchContext} of the same concrete type. Result holders
+     * ({@link #fetchSearchResult}, {@link #querySearchResult}) and per-fetch state
+     * (doc IDs to load) are intentionally not copied: every fetch gets its own fresh
+     * instances so that concurrent segment search slice threads never share mutable state.
+     */
+    protected void copyFetchStateTo(SubSearchContext target) {
+        target.from = from;
+        target.size = size;
+        target.sort = sort;
+        target.parsedQuery = parsedQuery;
+        target.query = query;
+        target.storedFields = storedFields;
+        if (scriptFields != null) {
+            for (ScriptFieldsContext.ScriptField field : scriptFields.fields()) {
+                target.scriptFields().add(field);
+            }
+        }
+        target.fetchSourceContext = fetchSourceContext;
+        target.docValuesContext = docValuesContext;
+        target.fetchFieldsContext = fetchFieldsContext;
+        target.highlight = highlight;
+        target.explain = explain;
+        target.trackScores = trackScores;
+        target.includeNamedQueriesScore = includeNamedQueriesScore;
+        target.version = version;
+        target.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
+    }
 }
+
