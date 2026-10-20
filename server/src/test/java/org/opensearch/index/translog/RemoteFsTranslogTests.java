@@ -1691,7 +1691,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             primaryTerm.get()
         );
 
+        // Keep the auxiliary writer's uploads separate from the fixture translog for the same shard.
         try (
+            BlobStoreRepository writerRepository = createRepository();
             Translog translog = new RemoteFsTranslog(
                 config,
                 translogUUID,
@@ -1699,7 +1701,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 persistedSeqNos::add,
-                repository,
+                writerRepository,
                 threadPool,
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
@@ -1799,7 +1801,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             primaryTerm.get()
         );
 
+        // Keep the auxiliary writer's uploads separate from the fixture translog for the same shard.
         try (
+            BlobStoreRepository writerRepository = createRepository();
             Translog translog = new RemoteFsTranslog(
                 config,
                 translogUUID,
@@ -1807,7 +1811,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 persistedSeqNos::add,
-                repository,
+                writerRepository,
                 threadPool,
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
@@ -2715,6 +2719,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 throw new IOException("blob container throwing error");
             }
             if (slowDown.getSleepSeconds() > 0) {
+                slowRemoteOperationStarted.countDown();
                 try {
                     Thread.sleep(slowDown.getSleepSeconds() * 1000L);
                 } catch (InterruptedException e) {

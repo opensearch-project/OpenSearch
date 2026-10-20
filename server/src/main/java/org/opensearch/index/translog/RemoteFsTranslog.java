@@ -33,6 +33,7 @@ import org.opensearch.index.translog.transfer.TranslogCheckpointTransferSnapshot
 import org.opensearch.index.translog.transfer.TranslogFencedException;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
+import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.Repository;
@@ -45,6 +46,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -574,11 +576,11 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
     @Override
     public boolean ensureSynced(Location location) throws IOException {
         assert location.generation <= current.getGeneration();
-        if (location.generation == current.getGeneration()) {
-            ensureOpen();
-            return prepareAndUpload(primaryTermSupplier.getAsLong(), location.generation);
+        if (location.generation <= maxRemoteTranslogGenerationUploaded) {
+            return false;
         }
-        return false;
+        ensureOpen();
+        return prepareAndUpload(primaryTermSupplier.getAsLong(), location.generation);
     }
 
     @Override
@@ -588,6 +590,42 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
             return;
         }
         prepareAndUpload(primaryTermSupplier.getAsLong(), null);
+    }
+
+    @Override
+    public void rollGeneration(boolean sync) throws IOException {
+        if (sync) {
+            rollGeneration();
+            return;
+        }
+        rollGenerationLocally();
+    }
+
+    /**
+     * Closes the current writer into an immutable reader and creates the next local generation.
+     * {@link TranslogWriter#closeIntoReader()} performs the local fsync required to close the writer safely.
+     * Remote upload coordination is deliberately excluded from this method.
+     */
+    private void rollGenerationLocally() throws IOException {
+        try (Releasable ignored = writeLock.acquire()) {
+            if (current.totalOperations() == 0 && primaryTermSupplier.getAsLong() == current.getPrimaryTerm()) {
+                return;
+            }
+            try {
+                final long closingGeneration = current.getGeneration();
+                final TranslogReader reader = current.closeIntoReader();
+                readers.add(reader);
+                copyCheckpointTo(location.resolve(getCommitCheckpointFileName(closingGeneration)));
+                if (closed.get() == false) {
+                    logger.trace("Creating new writer for generation: [{}]", closingGeneration + 1);
+                    current = createWriter(closingGeneration + 1);
+                }
+            } catch (final Exception e) {
+                tragedy.setTragicException(e);
+                closeOnTragicEvent(e);
+                throw e;
+            }
+        }
     }
 
     protected boolean prepareAndUpload(Long primaryTerm, Long generation) throws IOException {
@@ -602,89 +640,94 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
             return false;
         }
         long maxSeqNo = -1;
-        try (Releasable ignored = writeLock.acquire()) {
-            if (generation == null || generation == current.getGeneration()) {
-                try {
-                    if (closed.get() == false) {
-                        maxSeqNo = getMaxSeqNo();
+        try {
+            final Releasable retentionLock;
+            try (Releasable ignored = writeLock.acquire()) {
+                if (generation == null || generation == current.getGeneration()) {
+                    try {
+                        if (closed.get() == false) {
+                            maxSeqNo = getMaxSeqNo();
+                        }
+                        generation = current.getGeneration();
+                        final TranslogReader reader = current.closeIntoReader();
+                        readers.add(reader);
+                        copyCheckpointTo(location.resolve(getCommitCheckpointFileName(current.getGeneration())));
+                        if (closed.get() == false) {
+                            logger.trace("Creating new writer for gen: [{}]", current.getGeneration() + 1);
+                            current = createWriter(current.getGeneration() + 1);
+                        }
+                    } catch (final Exception e) {
+                        tragedy.setTragicException(e);
+                        closeOnTragicEvent(e);
+                        throw e;
                     }
-                    final TranslogReader reader = current.closeIntoReader();
-                    readers.add(reader);
-                    copyCheckpointTo(location.resolve(getCommitCheckpointFileName(current.getGeneration())));
-                    if (closed.get() == false) {
-                        logger.trace("Creating new writer for gen: [{}]", current.getGeneration() + 1);
-                        current = createWriter(current.getGeneration() + 1);
-                    }
-                    assert writeLock.isHeldByCurrentThread() : "Write lock must be held before we acquire the read lock";
-                    // Here we are downgrading the write lock by acquiring the read lock and releasing the write lock
-                    // This ensures that other threads can still acquire the read locks while also protecting the
-                    // readers and writer to not be mutated any further.
-                    readLock.acquire();
-                } catch (final Exception e) {
-                    tragedy.setTragicException(e);
-                    closeOnTragicEvent(e);
-                    throw e;
+                } else if (generation <= maxRemoteTranslogGenerationUploaded) {
+                    return false;
                 }
-            } else if (generation < current.getGeneration()) {
-                return false;
+                // Protect the upload readers before releasing the write lock and allowing concurrent trim.
+                retentionLock = deletionPolicy.acquireTranslogGen(getMinFileGeneration());
             }
-        }
-
-        assert readLock.isHeldByCurrentThread() == true;
-        try (Releasable ignored = readLock; Releasable ignoredGenLock = deletionPolicy.acquireTranslogGen(getMinFileGeneration())) {
-            // Do we need remote writes in sync fashion ?
-            // If we don't , we should swallow FileAlreadyExistsException while writing to remote store
-            // and also verify for same during primary-primary relocation
-            // Writing remote in sync fashion doesn't hurt as global ckp update
-            // is not updated in remote translog except in primary to primary recovery.
-            if (generation == null) {
-                if (closed.get() == false) {
-                    return upload(primaryTerm, current.getGeneration() - 1, maxSeqNo);
-                } else {
-                    return upload(primaryTerm, current.getGeneration(), maxSeqNo);
-                }
-            } else {
+            try (retentionLock) {
                 return upload(primaryTerm, generation, maxSeqNo);
+            } finally {
+                // The upload may outlive close(), so finish deferred cleanup after releasing its retention reference.
+                closeFilesIfNoPendingRetentionLocks();
             }
         } catch (TranslogFencedException ex) {
-            // The tragic exception is set by upload(); close here, where the resources of the try-with-resources above
-            // (notably the read lock) have already been released - closeOnTragicEvent acquires the write lock.
+            // The tragic exception is set by upload(); close here, after the transfer snapshot and upload
+            // retention reference have already been released - closeOnTragicEvent acquires the write lock.
             closeOnTragicEvent(ex);
             throw ex;
+        } finally {
+            syncPermit.release(SYNC_PERMIT);
         }
     }
 
     protected boolean upload(long primaryTerm, long generation, long maxSeqNo) throws IOException {
         logger.trace("uploading translog for primary term {} generation {}", primaryTerm, generation);
-        try (
-            TranslogCheckpointTransferSnapshot transferSnapshotProvider = new TranslogCheckpointTransferSnapshot.Builder(
+        final TranslogCheckpointTransferSnapshot transferSnapshot;
+        final long globalCheckpoint;
+        try (ReleasableLock ignored = readLock.acquire()) {
+            int targetReaderIndex = -1;
+            for (int i = readers.size() - 1; i >= 0; i--) {
+                if (readers.get(i).getGeneration() == generation) {
+                    targetReaderIndex = i;
+                    break;
+                }
+            }
+            if (targetReaderIndex == -1) {
+                throw new TranslogUploadFailedException(
+                    "Required translog generation [" + generation + "] is not available among the closed generations"
+                );
+            }
+            final TranslogReader targetReader = readers.get(targetReaderIndex);
+            final List<TranslogReader> readersToUpload = readers.subList(0, targetReaderIndex + 1);
+
+            transferSnapshot = new TranslogCheckpointTransferSnapshot.Builder(
                 primaryTerm,
                 generation,
                 location,
-                readers,
+                readersToUpload,
                 Translog::getCommitCheckpointFileName,
                 config.getNodeId()
-            ).build()
-        ) {
-            Checkpoint checkpoint = current.getLastSyncedCheckpoint();
+            ).build();
+            final Checkpoint checkpoint = targetReader.getCheckpoint();
+            globalCheckpoint = checkpoint.globalCheckpoint;
+        }
 
-            // resolve Index-level cryptoMetadata
-            CryptoMetadata cryptoMetadata = resolveCryptoMetadata();
+        try (transferSnapshot) {
+            final CryptoMetadata cryptoMetadata = resolveCryptoMetadata();
             return translogTransferManager.transferSnapshot(
-                transferSnapshotProvider,
-                new RemoteFsTranslogTransferListener(generation, primaryTerm, maxSeqNo, checkpoint.globalCheckpoint),
+                transferSnapshot,
+                new RemoteFsTranslogTransferListener(generation, primaryTerm, maxSeqNo, globalCheckpoint),
                 cryptoMetadata
             );
         } catch (TranslogFencedException ex) {
             // Another shard copy owns the fence: this copy must never acknowledge another write. Treat as tragic so
-            // the engine fails the shard instead of retrying the upload. The translog is closed by the caller, once
-            // the read lock held around this call has been released.
+            // the engine fails the shard instead of retrying the upload.
             tragedy.setTragicException(ex);
             throw ex;
-        } finally {
-            syncPermit.release(SYNC_PERMIT);
         }
-
     }
 
     // Visible for testing
@@ -713,10 +756,12 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
      */
     public boolean syncNeeded() {
         try (ReleasableLock lock = readLock.acquire()) {
-            return current.syncNeeded()
-                || (maxRemoteTranslogGenerationUploaded + 1 < this.currentFileGeneration() && current.totalOperations() == 0)
-                // The below condition on GCP exists to handle global checkpoint updates during close index.
-                // Refer issue - https://github.com/opensearch-project/OpenSearch/issues/15989
+            // Local rollover and fsync can complete while another upload holds the sync permit. Those operations still
+            // need remote publication, even though the translog writer itself no longer reports pending local work.
+            final long lastGenerationToUpload = current.getGeneration() - (current.totalOperations() == 0 ? 1 : 0);
+            return current.syncNeeded() || maxRemoteTranslogGenerationUploaded < lastGenerationToUpload
+            // The below condition on GCP exists to handle global checkpoint updates during close index.
+            // Refer issue - https://github.com/opensearch-project/OpenSearch/issues/15989
                 || (current.getLastSyncedCheckpoint().globalCheckpoint > globalCheckpointSynced);
         }
     }

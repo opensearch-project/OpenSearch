@@ -5768,7 +5768,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 @Override
                 protected void doRun() throws Exception {
-                    getEngine().translogManager().rollTranslogGeneration(false);
+                    getIndexer().translogManager().rollTranslogGeneration(false);
                 }
 
                 @Override
@@ -7013,7 +7013,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     // Visible for testing
     boolean isFlushOrRollRunning() {
-        return flushOrRollRunning.get();
+        return flushRunning.get() || rollRunning.get();
     }
 
     /**
@@ -7042,13 +7042,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         @Override
         protected void runInternal() {
-            // Only execute if no other flush/roll is running to prevent concurrent flushes
-            if (indexShard.flushOrRollRunning.compareAndSet(false, true)) {
+            // Serialize flushes while allowing local translog rolls to proceed independently.
+            if (indexShard.flushRunning.compareAndSet(false, true)) {
                 try {
                     indexShard.flush(new FlushRequest());
                     indexShard.periodicFlushMetric.inc();
                 } finally {
-                    indexShard.flushOrRollRunning.set(false);
+                    indexShard.flushRunning.set(false);
                 }
             }
         }
