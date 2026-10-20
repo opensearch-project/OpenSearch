@@ -9,7 +9,7 @@
 package org.opensearch.action.admin.cluster.settings;
 
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -28,10 +28,12 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.HashMap;
 
-/** Resolves definitions using the elected cluster-manager's setting registry.
+/** Resolves definitions using the setting registry. Extends the read action so any node can serve
+ * the request (offloading the elected cluster-manager); the response is static settings-registry
+ * metadata, so the possible stale read of the Read action does not affect correctness.
  * @opensearch.internal
  */
-public class TransportClusterDescribeSettingsAction extends TransportClusterManagerNodeAction<
+public class TransportClusterDescribeSettingsAction extends TransportClusterManagerNodeReadAction<
     ClusterDescribeSettingsRequest,
     ClusterDescribeSettingsResponse> {
     private final SettingsFilter settingsFilter;
@@ -52,7 +54,8 @@ public class TransportClusterDescribeSettingsAction extends TransportClusterMana
             threadPool,
             actionFilters,
             ClusterDescribeSettingsRequest::new,
-            resolver
+            resolver,
+            true
         );
         this.settingsFilter = settingsFilter;
     }

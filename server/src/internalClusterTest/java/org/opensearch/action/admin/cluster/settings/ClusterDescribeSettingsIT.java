@@ -26,30 +26,33 @@ public class ClusterDescribeSettingsIT extends OpenSearchIntegTestCase {
     public void testDescribeFromNonClusterManagerNode() {
         ensureStableCluster(internalCluster().size());
         var request = new ClusterDescribeSettingsRequest(
-            "description.dynamic",
-            "description.static",
-            "description.secret",
-            "description.filtered",
-            "description.unknown"
+            "plugin.example.dynamic_setting",
+            "plugin.example.static_setting",
+            "plugin.example.secret_setting",
+            "plugin.example.filtered_setting",
+            "plugin.example.unknown_setting"
         );
         var response = internalCluster().nonClusterManagerClient().execute(ClusterDescribeSettingsAction.INSTANCE, request).actionGet();
-        assertEquals(Map.of("description.dynamic", true, "description.static", false), response.settings());
+        assertEquals(
+            Map.of("plugin.example.dynamic_setting", true, "plugin.example.static_setting", false),
+            response.settings()
+        );
     }
 
     public static class DescriptionTestPlugin extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {
             return List.of(
-                Setting.boolSetting("description.dynamic", false, Setting.Property.Dynamic, Setting.Property.NodeScope),
-                Setting.boolSetting("description.static", false, Setting.Property.NodeScope),
-                Setting.simpleString("description.secret", Setting.Property.NodeScope, Setting.Property.Filtered),
-                Setting.simpleString("description.filtered", Setting.Property.NodeScope)
+                Setting.boolSetting("plugin.example.dynamic_setting", false, Setting.Property.Dynamic, Setting.Property.NodeScope),
+                Setting.boolSetting("plugin.example.static_setting", false, Setting.Property.NodeScope),
+                Setting.simpleString("plugin.example.secret_setting", Setting.Property.NodeScope, Setting.Property.Filtered),
+                Setting.simpleString("plugin.example.filtered_setting", Setting.Property.NodeScope)
             );
         }
 
         @Override
         public List<String> getSettingsFilter() {
-            return List.of("description.filtered");
+            return List.of("plugin.example.filtered_setting");
         }
     }
 }
