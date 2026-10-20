@@ -145,6 +145,16 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertNotSame(deserializedRequest, searchRequest);
     }
 
+    public void testNodeLevelQueryFanoutSerialization() throws Exception {
+        SearchRequest searchRequest = new SearchRequest().nodeLevelQueryFanout(true);
+
+        SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, Version.CURRENT);
+        assertEquals(Boolean.TRUE, deserializedRequest.nodeLevelQueryFanout());
+
+        SearchRequest oldVersionRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, Version.V_3_7_1);
+        assertNull(oldVersionRequest.nodeLevelQueryFanout());
+    }
+
     public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         Version version = VersionUtils.randomVersion(random());
@@ -406,6 +416,22 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertEquals("Unsupported search type [query_and_fetch]", exception.getMessage());
     }
 
+    public void testParseSearchRequestWithNodeLevelQueryFanout() throws IOException {
+        RestRequest restRequest = new FakeRestRequest();
+        SearchRequest searchRequest = new SearchRequest();
+        restRequest.params().put(RestSearchAction.NODE_LEVEL_QUERY_FANOUT_PARAM, "true");
+
+        RestSearchAction.parseSearchRequest(
+            searchRequest,
+            restRequest,
+            null,
+            namedWriteableRegistry,
+            size -> searchRequest.source().size(size)
+        );
+
+        assertEquals(Boolean.TRUE, searchRequest.nodeLevelQueryFanout());
+    }
+
     public void testEqualsAndHashcode() throws IOException {
         checkEqualsAndHashCode(createSearchRequest(), SearchRequest::new, this::mutate);
     }
@@ -439,6 +465,11 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation.setCcsMinimizeRoundtrips(searchRequest.isCcsMinimizeRoundtrips() == false));
         mutators.add(
             () -> mutation.setPhaseTook(searchRequest.isPhaseTook() == null ? randomBoolean() : searchRequest.isPhaseTook() == false)
+        );
+        mutators.add(
+            () -> mutation.nodeLevelQueryFanout(
+                randomValueOtherThan(searchRequest.nodeLevelQueryFanout(), OpenSearchTestCase::randomBoolean)
+            )
         );
         mutators.add(
             () -> mutation.setCancelAfterTimeInterval(
