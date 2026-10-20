@@ -1,0 +1,49 @@
+{
+  "schema": [
+    {
+      "name": "unique_users",
+      "type": "bigint"
+    },
+    {
+      "name": "realm",
+      "type": "string"
+    },
+    {
+      "name": "monitor_calls",
+      "type": "bigint"
+    },
+    {
+      "name": "r.realm",
+      "type": "string"
+    },
+    {
+      "name": "user_to_monitor_ratio",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      2,
+      "realm-a",
+      1,
+      "realm-a",
+      2.0
+    ],
+    [
+      2,
+      "realm-b",
+      1,
+      "realm-b",
+      2.0
+    ],
+    [
+      1,
+      "realm-c",
+      1,
+      "realm-c",
+      1.0
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

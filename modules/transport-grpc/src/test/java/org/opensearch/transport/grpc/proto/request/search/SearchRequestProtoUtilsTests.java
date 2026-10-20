@@ -23,8 +23,10 @@ import org.opensearch.search.suggest.term.TermSuggestionBuilder;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.Client;
+import org.opensearch.transport.grpc.proto.request.search.aggregation.AggregationBuilderProtoConverterRegistryImpl;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoTestUtils;
+import org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverterRegistry;
 
 import java.io.IOException;
 
@@ -35,6 +37,7 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;
     private Client mockClient;
     private AbstractQueryBuilderProtoUtils queryUtils;
+    private AggregationBuilderProtoConverterRegistry aggregationRegistry;
 
     @Override
     public void setUp() throws Exception {
@@ -42,6 +45,7 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
         namedWriteableRegistry = mock(NamedWriteableRegistry.class);
         mockClient = mock(Client.class);
         queryUtils = QueryBuilderProtoTestUtils.createQueryUtils();
+        aggregationRegistry = new AggregationBuilderProtoConverterRegistryImpl();
     }
 
     public void testParseSearchRequestWithBasicFields() throws IOException {
@@ -68,7 +72,14 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
         SearchRequest searchRequest = new SearchRequest();
 
         // Call the method under test
-        SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils);
+        SearchRequestProtoUtils.parseSearchRequest(
+            searchRequest,
+            protoRequest,
+            namedWriteableRegistry,
+            size -> {},
+            queryUtils,
+            aggregationRegistry
+        );
 
         // Verify the result
         assertNotNull("SearchRequest should not be null", searchRequest);
@@ -115,7 +126,14 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
         SearchRequest searchRequest = new SearchRequest();
 
         // Call the method under test
-        SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils);
+        SearchRequestProtoUtils.parseSearchRequest(
+            searchRequest,
+            protoRequest,
+            namedWriteableRegistry,
+            size -> {},
+            queryUtils,
+            aggregationRegistry
+        );
 
         // Verify the result
         assertNotNull("SearchRequest should not be null", searchRequest);
@@ -148,7 +166,14 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
         SearchRequest searchRequest = new SearchRequest();
 
         // Call the method under test
-        SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils);
+        SearchRequestProtoUtils.parseSearchRequest(
+            searchRequest,
+            protoRequest,
+            namedWriteableRegistry,
+            size -> {},
+            queryUtils,
+            aggregationRegistry
+        );
 
         // Verify the result
         assertNotNull("SearchRequest should not be null", searchRequest);
@@ -219,7 +244,14 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
         SearchRequest searchRequest = new SearchRequest();
 
         // Call the method under test
-        SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils);
+        SearchRequestProtoUtils.parseSearchRequest(
+            searchRequest,
+            protoRequest,
+            namedWriteableRegistry,
+            size -> {},
+            queryUtils,
+            aggregationRegistry
+        );
 
         // Verify the result
         assertNotNull("SearchRequest should not be null", searchRequest);
@@ -242,7 +274,14 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
         SearchRequest searchRequest = new SearchRequest();
 
         // Call the method under test
-        SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils);
+        SearchRequestProtoUtils.parseSearchRequest(
+            searchRequest,
+            protoRequest,
+            namedWriteableRegistry,
+            size -> {},
+            queryUtils,
+            aggregationRegistry
+        );
 
         // Verify the result
         assertNotNull("SearchRequest should not be null", searchRequest);
@@ -263,7 +302,14 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
         SearchRequest searchRequest = new SearchRequest();
 
         // Call the method under test
-        SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils);
+        SearchRequestProtoUtils.parseSearchRequest(
+            searchRequest,
+            protoRequest,
+            namedWriteableRegistry,
+            size -> {},
+            queryUtils,
+            aggregationRegistry
+        );
 
         // Verify the result
         assertNotNull("SearchRequest should not be null", searchRequest);
@@ -379,7 +425,14 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
         // Call the method under test, should throw IllegalArgumentException
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils)
+            () -> SearchRequestProtoUtils.parseSearchRequest(
+                searchRequest,
+                protoRequest,
+                namedWriteableRegistry,
+                size -> {},
+                queryUtils,
+                aggregationRegistry
+            )
         );
 
         assertTrue(
@@ -400,7 +453,14 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
         // Call the method under test, should throw UnsupportedOperationException
         UnsupportedOperationException exception = expectThrows(
             UnsupportedOperationException.class,
-            () -> SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils)
+            () -> SearchRequestProtoUtils.parseSearchRequest(
+                searchRequest,
+                protoRequest,
+                namedWriteableRegistry,
+                size -> {},
+                queryUtils,
+                aggregationRegistry
+            )
         );
 
         assertEquals("typed_keys param is not supported yet", exception.getMessage());
@@ -418,7 +478,14 @@ public class SearchRequestProtoUtilsTests extends OpenSearchTestCase {
         // Call the method under test, should throw UnsupportedOperationException
         UnsupportedOperationException exception = expectThrows(
             UnsupportedOperationException.class,
-            () -> SearchRequestProtoUtils.parseSearchRequest(searchRequest, protoRequest, namedWriteableRegistry, size -> {}, queryUtils)
+            () -> SearchRequestProtoUtils.parseSearchRequest(
+                searchRequest,
+                protoRequest,
+                namedWriteableRegistry,
+                size -> {},
+                queryUtils,
+                aggregationRegistry
+            )
         );
 
         assertEquals("global_params param is not supported yet", exception.getMessage());

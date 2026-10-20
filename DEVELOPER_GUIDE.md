@@ -181,6 +181,18 @@ Run OpenSearch using `gradlew run`.
 ./gradlew run
 ```
 
+A cluster of several nodes may be run by passing `-PnumNodes`. Every node stops when any of them does, so to be able
+to stop some nodes and keep the rest, start them from a second terminal, numbered from `-PstartNode`. Its nodes join
+the running cluster, and each build stops only its own:
+
+```bash
+./gradlew run -PnumNodes=2                # runTask-0 and runTask-1, on ports 9200/9300 and 9201/9301
+./gradlew run -PnumNodes=2 -PstartNode=2  # in another terminal: runTask-2 and runTask-3, on 9202/9302 and 9203/9303
+```
+
+Stopping nodes that are eligible to be cluster manager can leave the rest without a quorum. To be able to stop the second
+build's nodes without that, make them data-only: `-Dtests.opensearch.node.roles=data`.
+
 [Plugins](plugins/) may be installed by passing a `-PinstalledPlugins` property:
 
 ```bash
@@ -191,6 +203,12 @@ External plugins may also be fetched and installed from maven snapshots:
 
 ```bash
 ./gradlew run -PinstalledPlugins="['opensearch-job-scheduler', 'opensearch-sql-plugin']"
+```
+
+In case when `opensearch-security` is required, provide the `crypto.standard` property explicitly:
+
+```bash
+./gradlew run -PinstalledPlugins="['opensearch-security']" -Pcrypto.standard=FIPS-140-3
 ```
 
 You can specify a plugin version to pull to test a specific version in the org.opensearch.plugin groupId:
@@ -216,7 +234,7 @@ It's typically easier to wait until the console stops scrolling, and then run `c
 ```bash
 curl localhost:9200
 ```
-The expected reponse should be
+The expected response should be
 ```
 {
   "name" : "runTask-0",
@@ -313,11 +331,11 @@ Another example is the `discovery-gce` plugin. It is *vital* to folks running in
 
 ### `sandbox`
 
-This is where the community can add experimental features in to OpenSearch. There are three directories inside the sandbox - `libs`, `modules` and `plugins` - which mirror the subdirectories in the project root and have the same guidelines for deciding on where a new feature goes. The artifacts from `libs` and `modules` will be automatically included in the **snapshot** distributions. Once a certain feature is deemed worthy to be included in the OpenSearch release, it will be promoted to the corresponding subdirectory in the project root. **Note**: The sandbox code do not have any other guarantees such as backwards compatibility or long term support and can be removed at any time.
+This is where the community can add experimental features in to OpenSearch. There are three directories inside the sandbox - `libs`, `modules` and `plugins` - which mirror the subdirectories in the project root and have the same guidelines for deciding on where a new feature goes. The artifacts from `libs` and `modules` can be included in the **snapshot** distributions when sandbox is enabled. Once a certain feature is deemed worthy to be included in the OpenSearch release, it will be promoted to the corresponding subdirectory in the project root. **Note**: The sandbox code do not have any other guarantees such as backwards compatibility or long term support and can be removed at any time.
 
-To exclude the modules from snapshot distributions, use the `sandbox.enabled` system property.
+To include sandbox modules in snapshot distributions, use the `sandbox.enabled` system property.
 
-    ./gradlew assemble -Dsandbox.enabled=false
+    ./gradlew assemble -Dsandbox.enabled=true
 
 ### `qa`
 
@@ -440,7 +458,7 @@ A fat-JAR (or an uber-JAR) is the JAR, which contains classes from all the libra
 
 There might be cases where a developer would like to add some custom logic to the code of a module (or multiple modules) and generate a fat-JAR that can be directly used by the dependency management tool. For example, in [#3665](https://github.com/opensearch-project/OpenSearch/pull/3665) a developer wanted to provide a tentative patch as a fat-JAR to a consumer for changes made in the high level REST client.
 
-Use [Gradle Shadow plugin](https://imperceptiblethoughts.com/shadow/).
+Use [Gradle Shadow plugin](https://gradleup.com/shadow/).
 Add the following to the `build.gradle` file of the module for which you want to create the fat-JAR, e.g. `client/rest-high-level/build.gradle`:
 
 ```
@@ -454,7 +472,7 @@ Run the `shadowJar` command using:
 
 This will generate a fat-JAR in the `build/distributions` folder of the module, e.g. .`/client/rest-high-level/build/distributions/opensearch-rest-high-level-client-1.4.0-SNAPSHOT.jar`.
 
-You can further customize your fat-JAR by customising the plugin, More information about shadow plugin can be found [here](https://imperceptiblethoughts.com/shadow/).
+You can further customize your fat-JAR by customising the plugin, More information about shadow plugin can be found [here](https://gradleup.com/shadow/).
 
 To use the generated JAR, install the JAR locally, e.g.
 ```
@@ -608,9 +626,9 @@ annotation. The presence of this annotation signals that API may change at any t
 
 #### User API
 
-The User API consists of integration specifications (e.g., [Query Domain Specific Language](https://opensearch.org/docs/latest/opensearch/query-dsl/index/),
-[field mappings](https://opensearch.org/docs/latest/opensearch/mappings/)) and endpoints (e.g., [`_search`](https://opensearch.org/docs/latest/api-reference/search/),
-[`_cat`](https://opensearch.org/docs/latest/api-reference/cat/index/)) users rely on to integrate and use OpenSearch. Backwards compatibility is critical to the
+The User API consists of integration specifications (e.g., [Query Domain Specific Language](https://docs.opensearch.org/latest/query-dsl/),
+[field mappings](https://docs.opensearch.org/latest/mappings/)) and endpoints (e.g., [`_search`](https://docs.opensearch.org/latest/api-reference/search-apis/search/),
+[`_cat`](https://docs.opensearch.org/latest/api-reference/cat/index/)) users rely on to integrate and use OpenSearch. Backwards compatibility is critical to the
 User API, therefore OpenSearch commits to using [semantic versioning](https://opensearch.org/blog/what-is-semver/) for all User facing APIs. To support this
 developers must leverage `Version` checks for any user facing endpoints or API specifications that change across minor versions. Developers must also inform
 users of any changes by adding the `>breaking` label on Pull Requests and a log message to the OpenSearch deprecation log files using the `DeprecationLogger`.

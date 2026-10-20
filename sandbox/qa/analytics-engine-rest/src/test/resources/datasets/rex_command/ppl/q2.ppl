@@ -1,0 +1,1 @@
+source=rex_command | rex field=message "service=(?<svc>\w+) latency=(?<lat>\d+)" | where lat > 1000 | fields svc, lat

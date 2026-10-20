@@ -8,45 +8,78 @@
 
 package org.opensearch.storage.indexinput;
 
+import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
+import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.utils.TransferManager;
+import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
+import org.opensearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
+
+import static org.opensearch.storage.utils.DirectoryUtils.getFilePath;
+import static org.opensearch.storage.utils.DirectoryUtils.getFilePathSwitchable;
 
 /**
- * CachedIndexInput implementation that wraps a SwitchableIndexInput for use with FileCache.
- * Constructor will accept FileCache, fileName, localDirectory, remoteDirectory, transferManager,
- * cacheFromRemote flag, threadPool, and tieredStoragePrefetchSettingsSupplier.
- * getIndexInput, length, isClosed, and close will be added in the implementation PR.
+ * A {@link CachedIndexInput} implementation that wraps a {@link SwitchableIndexInput} for use with the file cache.
  */
 public class CachedSwitchableIndexInput implements CachedIndexInput {
 
     private final SwitchableIndexInput switchableIndexInput;
     private final AtomicBoolean isClosed;
 
-    // Placeholder constructor. Real constructor will be added in the implementation PR.
-    CachedSwitchableIndexInput() {
-        this.switchableIndexInput = null;
-        this.isClosed = new AtomicBoolean(false);
+    public CachedSwitchableIndexInput(
+        FileCache fileCache,
+        String fileName,
+        FSDirectory localDirectory,
+        RemoteSegmentStoreDirectory remoteDirectory,
+        TransferManager transferManager,
+        boolean cacheFromRemote,
+        ThreadPool threadPool,
+        Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier
+    ) throws IOException {
+        isClosed = new AtomicBoolean(false);
+        String resourceDescription = "SwitchableIndexInput (path=" + getFilePath(localDirectory, fileName) + ")";
+        switchableIndexInput = new SwitchableIndexInput(
+            resourceDescription,
+            fileName,
+            getFilePath(localDirectory, fileName),
+            getFilePathSwitchable(localDirectory, fileName),
+            fileCache,
+            localDirectory,
+            remoteDirectory,
+            transferManager,
+            cacheFromRemote,
+            threadPool,
+            tieredStoragePrefetchSettingsSupplier
+        );
     }
 
     @Override
     public IndexInput getIndexInput() {
-        throw new UnsupportedOperationException("Not yet implemented");
+        if (isClosed.get()) throw new AlreadyClosedException("Index input is already closed");
+        return switchableIndexInput;
     }
 
     @Override
     public long length() {
-        throw new UnsupportedOperationException("Not yet implemented");
+        return 0;
     }
 
     @Override
     public boolean isClosed() {
-        throw new UnsupportedOperationException("Not yet implemented");
+        return isClosed.get();
     }
 
     @Override
-    public void close() {
-        throw new UnsupportedOperationException("Not yet implemented");
+    public void close() throws Exception {
+        if (!isClosed.getAndSet(true)) {
+            switchableIndexInput.close();
+        }
     }
 }

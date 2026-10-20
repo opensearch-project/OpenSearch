@@ -15,10 +15,16 @@ import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Schema;
-import org.opensearch.be.datafusion.jni.NativeBridge;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
+import org.opensearch.be.datafusion.nativelib.ReaderHandle;
+import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.engine.exec.MonoFileWriterSet;
+import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -34,31 +40,52 @@ import static org.apache.arrow.c.Data.importField;
  */
 public class DataFusionQueryExecutionTests extends OpenSearchTestCase {
 
-    private long runtimePtr;
-    private long readerPtr;
-
-    private static boolean runtimeInitialized = false;
+    private NativeRuntimeHandle runtimeHandle;
+    private ReaderHandle readerHandle;
+    private Arena configArena;
+    private long queryConfigPtr;
+    private long tieredStorePtr;
+    private NativeStoreHandle storeHandle;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        if (runtimeInitialized == false) {
-            NativeBridge.initTokioRuntimeManager(2);
-            runtimeInitialized = true;
-        }
+        NativeBridge.initTokioRuntimeManager(2);
         Path spillDir = createTempDir("datafusion-spill");
-        runtimePtr = NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir.toString(), 64 * 1024 * 1024);
+        runtimeHandle = new NativeRuntimeHandle(
+            NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir.toString(), 64 * 1024 * 1024)
+        );
+
+        // Create a real TieredObjectStore (local-only) and wrap in NativeStoreHandle
+        tieredStorePtr = NativeStoreTestHelper.createTieredObjectStore(0L, 0L);
+        long boxPtr = NativeStoreTestHelper.getObjectStoreBoxPtr(tieredStorePtr);
+        storeHandle = new NativeStoreHandle(boxPtr, NativeStoreTestHelper::destroyObjectStoreBoxPtr);
 
         Path dataDir = createTempDir("datafusion-data");
         Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
         Files.copy(testParquet, dataDir.resolve("test.parquet"));
-        readerPtr = NativeBridge.createDatafusionReader(dataDir.toString(), new String[] { "test.parquet" });
+        readerHandle = new ReaderHandle(
+            dataDir.toString(),
+            List.of(MonoFileWriterSet.of(".", 0L, "test.parquet", 0L)),
+            storeHandle,
+            List.of(),
+            List.of()
+        );
+
+        configArena = Arena.ofConfined();
+        MemorySegment configSegment = configArena.allocate(WireConfigSnapshot.BYTE_SIZE);
+        WireConfigSnapshot.builder().build().writeTo(configSegment);
+        queryConfigPtr = configSegment.address();
     }
 
     @Override
     public void tearDown() throws Exception {
-        NativeBridge.closeDatafusionReader(readerPtr);
-        NativeBridge.closeGlobalRuntime(runtimePtr);
+        configArena.close();
+        readerHandle.close();
+        storeHandle.close();
+        NativeStoreTestHelper.destroyTieredObjectStore(tieredStorePtr);
+        runtimeHandle.close();
+        NativeBridge.shutdownTokioRuntimeManager();
         super.tearDown();
     }
 
@@ -92,29 +119,38 @@ public class DataFusionQueryExecutionTests extends OpenSearchTestCase {
      */
     private List<Object[]> executeQuery(String sql) {
         // Step 1: SQL → Substrait (test helper)
-        byte[] substraitBytes = NativeBridge.sqlToSubstrait(readerPtr, "test_table", sql, runtimePtr);
+        byte[] substraitBytes = NativeBridge.sqlToSubstrait(readerHandle.getPointer(), "test_table", sql, runtimeHandle.get());
         assertNotNull(substraitBytes);
         assertTrue(substraitBytes.length > 0);
 
         // Step 2: executeQueryAsync (production path)
         long streamPtr = asyncCall(
-            listener -> NativeBridge.executeQueryAsync(readerPtr, "test_table", substraitBytes, runtimePtr, listener)
+            listener -> NativeBridge.executeQueryAsync(
+                readerHandle.getPointer(),
+                "test_table",
+                substraitBytes,
+                runtimeHandle.get(),
+                0L,
+                queryConfigPtr,
+                listener
+            )
         );
         assertTrue(streamPtr != 0);
 
         // Step 3: Read results via Arrow C Data
         try (
+            StreamHandle streamHandle = new StreamHandle(streamPtr, runtimeHandle);
             RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
             CDataDictionaryProvider dictProvider = new CDataDictionaryProvider()
         ) {
 
-            long schemaAddr = asyncCall(listener -> NativeBridge.streamGetSchema(streamPtr, listener));
+            long schemaAddr = asyncCall(listener -> NativeBridge.streamGetSchema(streamHandle.getPointer(), listener));
             Schema schema = new Schema(importField(allocator, ArrowSchema.wrap(schemaAddr), dictProvider).getChildren(), null);
             VectorSchemaRoot root = VectorSchemaRoot.create(schema, allocator);
             List<Object[]> rows = new ArrayList<>();
 
             while (true) {
-                long arrayAddr = asyncCall(listener -> NativeBridge.streamNext(runtimePtr, streamPtr, listener));
+                long arrayAddr = asyncCall(listener -> NativeBridge.streamNext(runtimeHandle.get(), streamHandle.getPointer(), listener));
                 if (arrayAddr == 0) break;
                 Data.importIntoVectorSchemaRoot(allocator, ArrowArray.wrap(arrayAddr), root, dictProvider);
                 int cols = root.getFieldVectors().size();
@@ -127,7 +163,6 @@ public class DataFusionQueryExecutionTests extends OpenSearchTestCase {
                 }
             }
             root.close();
-            NativeBridge.streamClose(streamPtr);
             return rows;
         }
     }

@@ -15,7 +15,6 @@ import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
-import org.apache.lucene.util.BytesRef;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.vsr.ManagedVSR;
@@ -51,7 +50,7 @@ public class MetadataParquetFieldTests extends OpenSearchTestCase {
         IdParquetField field = new IdParquetField();
         MappedFieldType ft = mockFieldType("_id");
         ManagedVSR vsr = createVSR("id-test", field, "_id");
-        BytesRef ref = new BytesRef("doc-id-1");
+        byte[] ref = "doc-id-1".getBytes(StandardCharsets.UTF_8);
         field.createField(ft, vsr, ref);
         vsr.setRowCount(1);
         byte[] result = ((VarBinaryVector) vsr.getVector("_id")).get(0);
@@ -76,13 +75,6 @@ public class MetadataParquetFieldTests extends OpenSearchTestCase {
 
     public void testIgnoredFieldArrowType() {
         assertTrue(new IgnoredParquetField().getArrowType() instanceof ArrowType.Utf8);
-    }
-
-    public void testSizeFieldArrowType() {
-        SizeParquetField field = new SizeParquetField();
-        ArrowType.Int type = (ArrowType.Int) field.getArrowType();
-        assertEquals(32, type.getBitWidth());
-        assertTrue(type.getIsSigned());
     }
 
     private MappedFieldType mockFieldType(String name) {

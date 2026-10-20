@@ -40,4 +40,13 @@ public class FileTypeUtils {
     public static boolean isSegmentsFile(String name) {
         return name.startsWith("segments_");
     }
+
+    /**
+     * Checks if the file is a corrupted marker file.
+     * @param name the file name
+     * @return true if the file is a corrupted marker file
+     */
+    public static boolean isCorruptedFile(String name) {
+        return name.startsWith("corrupted_");
+    }
 }

@@ -42,6 +42,7 @@ import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
+import org.opensearch.common.annotation.DeprecatedApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.Assertions;
@@ -174,6 +175,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 }
             }
         }
+        assert nodesToShards.values().stream().allMatch(RoutingNode::invariant);
     }
 
     private void addRecovery(ShardRouting routing) {
@@ -412,9 +414,16 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * no active replica is found.
      * <p>
      * Since replicas could possibly be on nodes with an older version of OpenSearch than
-     * the primary is, this will return replicas on the highest version of OpenSearch when document
-     * replication is enabled.
+     * the primary is, this will return replicas on the highest version of OpenSearch.
+     *
+     * @deprecated no longer used for primary promotion. Promoting the highest-version replica
+     * raises the primary's version, after which
+     * {@link org.opensearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider}
+     * refuses to allocate that shard's replicas onto any not-yet-upgraded node. Both replication
+     * types now promote via {@link #activeReplicaWithOldestVersion(ShardId)}.
      */
+    @Deprecated
+    @DeprecatedApi(since = "3.9.0", forRemoval = "4.0.0")
     public ShardRouting activeReplicaWithHighestVersion(ShardId shardId) {
         // It's possible for replicaNodeVersion to be null, when disassociating dead nodes
         // that have been removed, the shards are failed, and part of the shard failing
@@ -438,9 +447,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * no active replica is found.
      * <p>
      * Since replicas could possibly be on nodes with a higher version of OpenSearch than
-     * the primary is, this will return replicas on the oldest version of OpenSearch when segment
-     * replication is enabled to allow for replica to read segments from primary.
-     *
+     * the primary is, this will return replicas on the oldest version of OpenSearch so that
+     * remaining nodes (including not-yet-upgraded ones) are able to read/replicate the
+     * promoted primary's segments and remain eligible allocation targets.
      */
     public ShardRouting activeReplicaWithOldestVersion(ShardId shardId) {
         // It's possible for replicaNodeVersion to be null. Therefore, we need to protect against the version being null
@@ -563,6 +572,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         assert unassignedShard.unassigned() : "expected an unassigned shard " + unassignedShard;
         ShardRouting initializedShard = unassignedShard.initialize(nodeId, existingAllocationId, expectedSize);
         node(nodeId).add(initializedShard);
+        assert node(nodeId).invariant();
         inactiveShardCount++;
         if (initializedShard.primary()) {
             inactivePrimaryCount++;
@@ -591,6 +601,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         ShardRouting target = source.getTargetRelocatingShard();
         updateAssigned(startedShard, source);
         node(target.currentNodeId()).add(target);
+        assert node(target.currentNodeId()).invariant();
         assignedShardsAdd(target);
         addRecovery(target);
         changes.relocationStarted(startedShard, target);
@@ -794,11 +805,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             activeReplica = activeReplicaOnRemoteNode(failedShard.shardId());
         }
         if (activeReplica == null) {
-            if (metadata.isSegmentReplicationEnabled(failedShard.getIndexName())) {
-                activeReplica = activeReplicaWithOldestVersion(failedShard.shardId());
-            } else {
-                activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
-            }
+            // Promote the oldest-version in-sync replica for both document and segment replication so the
+            // new primary stays at the minimum version present, keeping it a valid recovery source/target for
+            // any not-yet-upgraded node during a rolling upgrade.
+            activeReplica = activeReplicaWithOldestVersion(failedShard.shardId());
         }
         if (activeReplica == null) {
             moveToUnassigned(failedShard, unassignedInfo);
@@ -872,6 +882,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private void remove(ShardRouting shard) {
         assert shard.unassigned() == false : "only assigned shards can be removed here (" + shard + ")";
         node(shard.currentNodeId()).remove(shard);
+        assert node(shard.currentNodeId()).invariant();
         if (shard.initializing() && shard.relocatingNodeId() == null) {
             inactiveShardCount--;
             assert inactiveShardCount >= 0;
@@ -951,6 +962,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             + " by shard assigned to same node but was "
             + newShard;
         node(oldShard.currentNodeId()).update(oldShard, newShard);
+        assert node(oldShard.currentNodeId()).invariant();
         List<ShardRouting> shardsWithMatchingShardId = assignedShards.computeIfAbsent(oldShard.shardId(), k -> new ArrayList<>());
         int previousShardIndex = shardsWithMatchingShardId.indexOf(oldShard);
         assert previousShardIndex >= 0 : "shard to update " + oldShard + " does not exist in list of assigned shards";

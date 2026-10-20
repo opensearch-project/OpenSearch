@@ -418,13 +418,16 @@ final class StoreRecovery {
                     threadPool,
                     segmentsPathFixedPrefix
                 );
+                // Pass IndexSettings so DFA indices route to DataFormatAwareRemoteDirectory; Lucene-only falls through unchanged.
                 RemoteSegmentStoreDirectory sourceRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
                     remoteStoreRepository,
                     indexUUID,
                     shardId,
                     shallowCopyShardMetadata.getRemoteStorePathStrategy(),
                     null,
-                    RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexShard.indexSettings.getIndexMetadata())
+                    RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexShard.indexSettings.getIndexMetadata()),
+                    false,
+                    indexShard.indexSettings
                 );
                 RemoteSegmentMetadata remoteSegmentMetadata = sourceRemoteDirectory.initializeToSpecificCommit(
                     primaryTerm,
@@ -507,7 +510,9 @@ final class StoreRecovery {
                         shardId,
                         remoteStorePathStrategy,
                         null,
-                        RemoteStoreUtils.isServerSideEncryptionEnabledIndex(prevIndexMetadata)
+                        RemoteStoreUtils.isServerSideEncryptionEnabledIndex(prevIndexMetadata),
+                        false,
+                        indexShard.indexSettings
                     );
                     RemoteSegmentMetadata remoteSegmentMetadata = sourceRemoteDirectory.initializeToSpecificTimestamp(
                         recoverySource.pinnedTimestamp()

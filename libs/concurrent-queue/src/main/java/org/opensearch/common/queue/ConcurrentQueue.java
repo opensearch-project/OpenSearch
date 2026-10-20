@@ -31,7 +31,6 @@ public final class ConcurrentQueue<T> {
     private final int concurrency;
     private final Lock[] locks;
     private final Queue<T>[] queues;
-    private final Supplier<Queue<T>> queueSupplier;
 
     ConcurrentQueue(Supplier<Queue<T>> queueSupplier, int concurrency) {
         if (concurrency < MIN_CONCURRENCY || concurrency > MAX_CONCURRENCY) {
@@ -40,7 +39,6 @@ public final class ConcurrentQueue<T> {
             );
         }
         this.concurrency = concurrency;
-        this.queueSupplier = queueSupplier;
         locks = new Lock[concurrency];
         @SuppressWarnings({ "rawtypes", "unchecked" })
         Queue<T>[] queues = new Queue[concurrency];
@@ -81,6 +79,10 @@ public final class ConcurrentQueue<T> {
     }
 
     T poll(Predicate<T> predicate) {
+        return pollAndDropIncompatible(e -> true, predicate);
+    }
+
+    T pollAndDropIncompatible(Predicate<T> isCompatible, Predicate<T> predicate) {
         final int threadHash = Thread.currentThread().hashCode() & 0xFFFF;
         for (int i = 0; i < concurrency; ++i) {
             final int index = (threadHash + i) % concurrency;
@@ -88,14 +90,8 @@ public final class ConcurrentQueue<T> {
             final Queue<T> queue = queues[index];
             if (lock.tryLock()) {
                 try {
-                    Iterator<T> it = queue.iterator();
-                    while (it.hasNext()) {
-                        T entry = it.next();
-                        if (predicate.test(entry)) {
-                            it.remove();
-                            return entry;
-                        }
-                    }
+                    T matched = scanAndDropIncompatible(queue, isCompatible, predicate);
+                    if (matched != null) return matched;
                 } finally {
                     lock.unlock();
                 }
@@ -107,14 +103,8 @@ public final class ConcurrentQueue<T> {
             final Queue<T> queue = queues[index];
             lock.lock();
             try {
-                Iterator<T> it = queue.iterator();
-                while (it.hasNext()) {
-                    T entry = it.next();
-                    if (predicate.test(entry)) {
-                        it.remove();
-                        return entry;
-                    }
-                }
+                T matched = scanAndDropIncompatible(queue, isCompatible, predicate);
+                if (matched != null) return matched;
             } finally {
                 lock.unlock();
             }
@@ -136,5 +126,19 @@ public final class ConcurrentQueue<T> {
             }
         }
         return false;
+    }
+
+    private T scanAndDropIncompatible(Queue<T> queue, Predicate<T> isCompatible, Predicate<T> predicate) {
+        Iterator<T> it = queue.iterator();
+        while (it.hasNext()) {
+            T entry = it.next();
+            if (isCompatible.test(entry) == false) {
+                it.remove();
+            } else if (predicate.test(entry)) {
+                it.remove();
+                return entry;
+            }
+        }
+        return null;
     }
 }

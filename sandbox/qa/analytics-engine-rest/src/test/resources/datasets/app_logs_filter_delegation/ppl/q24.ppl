@@ -1,0 +1,1 @@
+source = app_logs_filter_delegation | where status = 500 OR bytes_sent > 1000 OR status = 200 | stats count() as cnt

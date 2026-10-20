@@ -1,0 +1,34 @@
+{
+  "rows": [
+    [
+      25.0,
+      31,
+      "https://example.com/page1",
+      "example.com"
+    ],
+    [
+      24.654545454545456,
+      55,
+      "https://news.net/article",
+      "news.net"
+    ],
+    [
+      23.0,
+      16,
+      "https://shop.io/product",
+      "shop.io"
+    ],
+    [
+      21.0,
+      16,
+      "https://test.org/home",
+      "test.org"
+    ],
+    [
+      16.0,
+      12,
+      "https://news.net",
+      "https://news.net"
+    ]
+  ]
+}

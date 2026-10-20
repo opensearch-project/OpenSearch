@@ -10,13 +10,14 @@ package org.opensearch.be.datafusion;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.analytics.backend.EngineResultStream;
-import org.opensearch.analytics.backend.ExecutionContext;
 import org.opensearch.analytics.backend.SearchExecEngine;
-import org.opensearch.be.datafusion.jni.StreamHandle;
+import org.opensearch.analytics.backend.ShardScanExecutionContext;
+import org.opensearch.analytics.exec.task.AnalyticsShardTask;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
+import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 /**
  * DataFusion-backed search execution engine.
@@ -26,35 +27,49 @@ import java.util.function.Supplier;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class DatafusionSearchExecEngine implements SearchExecEngine<ExecutionContext, EngineResultStream> {
+public class DatafusionSearchExecEngine implements SearchExecEngine<ShardScanExecutionContext, EngineResultStream> {
 
     private final DatafusionContext datafusionContext;
-    private final Supplier<BufferAllocator> allocatorFactory;
 
-    /**
-     * Creates an execution engine backed by the given DataFusion context.
-     * @param datafusionContext the DataFusion execution context
-     * @param allocatorFactory factory for creating a child allocator for result stream memory
-     */
-    public DatafusionSearchExecEngine(DatafusionContext datafusionContext, Supplier<BufferAllocator> allocatorFactory) {
+    public DatafusionSearchExecEngine(DatafusionContext datafusionContext) {
         this.datafusionContext = datafusionContext;
-        this.allocatorFactory = allocatorFactory;
     }
 
     @Override
-    public void prepare(ExecutionContext requestContext) {
-        // TODO: wire Substrait conversion (RelNode → Substrait bytes)
-        byte[] substraitBytes = null;
-        datafusionContext.setDatafusionQuery(new DatafusionQuery(requestContext.getTableName(), substraitBytes));
+    public void prepare(ShardScanExecutionContext requestContext) {
+        byte[] substraitBytes = requestContext.getFragmentBytes();
+        long contextId = datafusionContext.task() != null ? datafusionContext.task().getNativeTaskId() : 0L;
+        datafusionContext.setDatafusionQuery(new DatafusionQuery(requestContext.getTableName(), substraitBytes, contextId));
     }
 
     @Override
-    public EngineResultStream execute(ExecutionContext requestContext) throws IOException {
+    public EngineResultStream execute(ShardScanExecutionContext requestContext) throws IOException {
+        BufferAllocator allocator = requestContext.getAllocator();
+        if (allocator == null) {
+            throw new IllegalStateException("ExecutionContext.allocator must be set by the caller before execute()");
+        }
+        // Node-scoped and unbounded — batches are imported onto it and the Flight transport keeps charging it
+        // after this stream closes, so it must be supplied rather than minted per stream.
+        BufferAllocator stagingAllocator = requestContext.getImportStagingAllocator();
+        if (stagingAllocator == null) {
+            throw new IllegalStateException("ExecutionContext.importStagingAllocator must be set by the caller before execute()");
+        }
+
+        // Register cancellation hook so HTTP disconnect / _tasks/_cancel / timeout
+        // immediately fires the Rust CancellationToken.
+        long contextId = datafusionContext.getContextId();
+        AnalyticsShardTask shardTask = datafusionContext.task();
+        if (shardTask != null) {
+            // Additive: a worker fragment also registers a shuffle-buffer-cleanup cancel hook on this
+            // same task. setCancellationListener is single-slot and would let one overwrite the other;
+            // addCancellationListener composes so both native-cancel and buffer cleanup fire.
+            shardTask.addCancellationListener(() -> NativeBridge.cancelQuery(contextId));
+        }
+
         DatafusionSearcher searcher = datafusionContext.getSearcher();
         searcher.search(datafusionContext);
         StreamHandle handle = datafusionContext.takeStreamHandle();
-        BufferAllocator allocator = allocatorFactory.get();
-        return new DatafusionResultStream(handle, allocator);
+        return new DatafusionResultStream(handle, allocator, stagingAllocator);
     }
 
     @Override

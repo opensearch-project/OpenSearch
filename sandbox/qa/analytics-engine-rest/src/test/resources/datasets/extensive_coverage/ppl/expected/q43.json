@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "text",
+      "type": "string"
+    },
+    {
+      "name": "reversed",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "hello world test",
+      "tset dlrow olleh"
+    ],
+    [
+      "sample data entry",
+      "yrtne atad elpmas"
+    ],
+    [
+      "test example record",
+      "drocer elpmaxe tset"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

@@ -39,6 +39,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.unit.TimeValue;
@@ -647,6 +648,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public int getMaxConcurrentShardRequests() {
         return maxConcurrentShardRequests == 0 ? 5 : maxConcurrentShardRequests;
+    }
+
+    /**
+     * Returns the raw value of maxConcurrentShardRequests without applying the default.
+     * A value of {@code 0} means the user has not explicitly set this parameter.
+     */
+    @ExperimentalApi
+    public int getMaxConcurrentShardRequestsRaw() {
+        return maxConcurrentShardRequests;
     }
 
     /**

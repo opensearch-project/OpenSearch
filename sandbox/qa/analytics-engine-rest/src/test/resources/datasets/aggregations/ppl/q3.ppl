@@ -1,0 +1,1 @@
+source=aggregation_tests | stats max(response_time) as max_time, max(score) as max_score by user | sort - max_time

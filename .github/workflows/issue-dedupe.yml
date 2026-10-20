@@ -1,0 +1,40 @@
+---
+name: Issue Dedupe Main
+on:
+  issues:
+    types: [opened]
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to check for duplicates'
+        required: true
+        type: string
+
+jobs:
+  detect-issue:
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       github.repository == 'opensearch-project/OpenSearch') ||
+      (github.event_name == 'issues' &&
+       github.event.issue.user.type != 'Bot' &&
+       github.repository == 'opensearch-project/OpenSearch')
+    uses: opensearch-project/opensearch-build/.github/workflows/issue-dedupe-detect.yml@main
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    secrets:
+      BEDROCK_ACCESS_ROLE_ISSUE_DEDUPE: ${{ secrets.BEDROCK_ACCESS_ROLE_ISSUE_DEDUPE }}
+    with:
+      issue_number: ${{ inputs.issue_number || '' }}
+      grace_days: ${{ vars.DUPLICATE_GRACE_DAYS || '7' }}
+
+  auto-close-issue:
+    if: github.event_name == 'schedule' && github.repository == 'opensearch-project/OpenSearch'
+    uses: opensearch-project/opensearch-build/.github/workflows/issue-dedupe-autoclose.yml@main
+    permissions:
+      issues: write
+    with:
+      grace_days: ${{ vars.DUPLICATE_GRACE_DAYS || '7' }}

@@ -29,12 +29,17 @@ import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.index.store.remote.filecache.FileCacheTests;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.node.Node;
+import org.opensearch.plugins.BlockCache;
+import org.opensearch.plugins.BlockCacheRegistry;
+import org.opensearch.plugins.BlockCacheStats;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -47,6 +52,7 @@ public class TransportClearIndicesCacheActionTests extends OpenSearchTestCase {
         mock(TransportService.class),
         mock(IndicesService.class),
         testNode,
+        null,
         mock(ActionFilters.class),
         mock(IndexNameExpressionResolver.class)
     );
@@ -104,6 +110,141 @@ public class TransportClearIndicesCacheActionTests extends OpenSearchTestCase {
                 action.shardOperation(clearIndicesCacheRequest, shardRouting)
             );
             assertNull(fileCache.get(cacheEntryPath));
+        }
+    }
+
+    public void testBlockCacheEvictedOnFileCacheClear() throws IOException {
+        final String indexName = "test";
+        final Settings settings = buildEnvSettings(Settings.EMPTY);
+        final Environment environment = TestEnvironment.newEnvironment(settings);
+        try (final NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, environment)) {
+            final ShardId shardId = new ShardId(indexName, indexName, 1);
+            final ShardRouting shardRouting = mock(ShardRouting.class);
+            when(shardRouting.shardId()).thenReturn(shardId);
+            final ShardPath shardPath = ShardPath.loadFileCachePath(nodeEnvironment, shardId);
+
+            when(testNode.getNodeEnvironment()).thenReturn(nodeEnvironment);
+            when(testNode.fileCache()).thenReturn(null);
+
+            // Set up a mock BlockCache that records the evictPrefix call
+            AtomicReference<String> evictedPrefix = new AtomicReference<>();
+            BlockCache mockCache = new BlockCache() {
+                @Override
+                public String cacheName() {
+                    return "disk";
+                }
+
+                @Override
+                public BlockCacheStats stats() {
+                    return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                }
+
+                @Override
+                public boolean clear() {
+                    return true;
+                }
+
+                @Override
+                public void evictPrefix(String prefix) {
+                    evictedPrefix.set(prefix);
+                }
+
+                @Override
+                public void close() {}
+            };
+            BlockCacheRegistry registry = new BlockCacheRegistry() {
+                @Override
+                public java.util.Optional<BlockCache> get(String name) {
+                    return java.util.Optional.of(mockCache);
+                }
+
+                @Override
+                public List<BlockCache> all() {
+                    return List.of(mockCache);
+                }
+            };
+
+            TransportClearIndicesCacheAction actionWithRegistry = new TransportClearIndicesCacheAction(
+                mock(ClusterService.class),
+                mock(TransportService.class),
+                mock(IndicesService.class),
+                testNode,
+                registry,
+                mock(ActionFilters.class),
+                mock(IndexNameExpressionResolver.class)
+            );
+
+            ClearIndicesCacheRequest request = new ClearIndicesCacheRequest();
+            request.fileCache(true);
+            actionWithRegistry.shardOperation(request, shardRouting);
+
+            assertEquals(shardPath.getDataPath().toString(), evictedPrefix.get());
+        }
+    }
+
+    public void testBlockCacheNotEvictedWhenFileCacheFalse() throws IOException {
+        final String indexName = "test";
+        final Settings settings = buildEnvSettings(Settings.EMPTY);
+        final Environment environment = TestEnvironment.newEnvironment(settings);
+        try (final NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, environment)) {
+            final ShardId shardId = new ShardId(indexName, indexName, 1);
+            final ShardRouting shardRouting = mock(ShardRouting.class);
+            when(shardRouting.shardId()).thenReturn(shardId);
+            when(testNode.getNodeEnvironment()).thenReturn(nodeEnvironment);
+            when(testNode.fileCache()).thenReturn(null);
+
+            AtomicReference<String> evictedPrefix = new AtomicReference<>();
+            BlockCache mockCache = new BlockCache() {
+                @Override
+                public String cacheName() {
+                    return "disk";
+                }
+
+                @Override
+                public BlockCacheStats stats() {
+                    return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                }
+
+                @Override
+                public boolean clear() {
+                    return true;
+                }
+
+                @Override
+                public void evictPrefix(String prefix) {
+                    evictedPrefix.set(prefix);
+                }
+
+                @Override
+                public void close() {}
+            };
+            BlockCacheRegistry registry = new BlockCacheRegistry() {
+                @Override
+                public java.util.Optional<BlockCache> get(String name) {
+                    return java.util.Optional.of(mockCache);
+                }
+
+                @Override
+                public List<BlockCache> all() {
+                    return List.of(mockCache);
+                }
+            };
+
+            TransportClearIndicesCacheAction actionWithRegistry = new TransportClearIndicesCacheAction(
+                mock(ClusterService.class),
+                mock(TransportService.class),
+                mock(IndicesService.class),
+                testNode,
+                registry,
+                mock(ActionFilters.class),
+                mock(IndexNameExpressionResolver.class)
+            );
+
+            ClearIndicesCacheRequest request = new ClearIndicesCacheRequest();
+            request.fileCache(false);
+            actionWithRegistry.shardOperation(request, shardRouting);
+
+            assertNull("evictPrefix should not be called when fileCache=false", evictedPrefix.get());
         }
     }
 

@@ -13,6 +13,7 @@ import org.opensearch.action.ingest.GetPipelineRequest;
 import org.opensearch.action.ingest.GetPipelineResponse;
 import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -77,6 +78,15 @@ public class IngestPipelineFromKafkaIT extends KafkaIngestionBaseIT {
             Map<String, Object> source2 = response.getHits().getHits()[1].getSourceAsMap();
             return Boolean.TRUE.equals(source1.get("processed")) && Boolean.TRUE.equals(source2.get("processed"));
         });
+
+        // Verify pipeline execution stats
+        PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertNotNull(stats.getPipelineStats());
+        assertTrue(stats.getPipelineStats().totalExecutionCount() >= 2);
+        assertTrue(stats.getPipelineStats().totalExecutionTimeInMillis() >= 0);
+        assertEquals(0, stats.getPipelineStats().totalFailedCount());
+        assertEquals(0, stats.getPipelineStats().totalDroppedCount());
     }
 
     /**
@@ -100,6 +110,13 @@ public class IngestPipelineFromKafkaIT extends KafkaIngestionBaseIT {
         refresh(indexName);
         SearchResponse response = client().prepareSearch(indexName).get();
         assertThat(response.getHits().getTotalHits().value(), is(0L));
+
+        // Verify pipeline drop stats
+        PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertTrue(stats.getPipelineStats().totalExecutionCount() >= 2);
+        assertTrue(stats.getPipelineStats().totalDroppedCount() >= 2);
+        assertEquals(0, stats.getPipelineStats().totalFailedCount());
     }
 
     /**
@@ -124,6 +141,13 @@ public class IngestPipelineFromKafkaIT extends KafkaIngestionBaseIT {
             Map<String, Object> source = response.getHits().getHits()[i].getSourceAsMap();
             assertFalse("Document should not have 'processed' field", source.containsKey("processed"));
         }
+
+        // Verify zero pipeline stats when no pipeline configured
+        PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertEquals(0, stats.getPipelineStats().totalExecutionCount());
+        assertEquals(0, stats.getPipelineStats().totalDroppedCount());
+        assertEquals(0, stats.getPipelineStats().totalFailedCount());
     }
 
     /**
@@ -842,10 +866,11 @@ public class IngestPipelineFromKafkaIT extends KafkaIngestionBaseIT {
     // --- Helper methods ---
 
     private void createPipeline(String pipelineId, String pipelineJson) {
-        client().admin()
+        AcknowledgedResponse response = client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest(pipelineId, new BytesArray(pipelineJson), MediaTypeRegistry.JSON))
             .actionGet();
+        assertAcked(response);
     }
 
     private void createIndexWithPipeline(String pipelineId, int numShards, int numReplicas) {

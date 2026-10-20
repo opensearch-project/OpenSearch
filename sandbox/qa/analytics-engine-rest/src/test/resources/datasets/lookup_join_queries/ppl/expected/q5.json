@@ -1,0 +1,60 @@
+{
+  "schema": [
+    {
+      "name": "user",
+      "type": "string"
+    },
+    {
+      "name": "full_name",
+      "type": "string"
+    },
+    {
+      "name": "manager",
+      "type": "string"
+    },
+    {
+      "name": "total_sales",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      "diana",
+      "Diana Prince",
+      "eve",
+      104406.75
+    ],
+    [
+      "charlie",
+      "Charlie Brown",
+      "diana",
+      86411.25
+    ],
+    [
+      "eve",
+      "Eve Adams",
+      "frank",
+      83706.75
+    ],
+    [
+      "bob",
+      "Bob Smith",
+      "charlie",
+      60313.5
+    ],
+    [
+      "alice",
+      "Alice Johnson",
+      "bob",
+      47171.25
+    ],
+    [
+      "frank",
+      "Frank Miller",
+      "grace",
+      24300.0
+    ]
+  ],
+  "total": 6,
+  "size": 6
+}

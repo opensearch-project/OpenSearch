@@ -1,0 +1,19 @@
+{
+  "schema": [
+    {
+      "name": "total",
+      "type": "bigint"
+    },
+    {
+      "name": "unique_hosts",
+      "type": "bigint"
+    },
+    {
+      "name": "time_bucket",
+      "type": "timestamp"
+    }
+  ],
+  "datarows": [],
+  "total": 0,
+  "size": 0
+}

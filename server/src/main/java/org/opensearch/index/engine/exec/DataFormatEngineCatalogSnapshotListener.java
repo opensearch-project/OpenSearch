@@ -13,16 +13,14 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Map;
 
 /**
- * Routes {@link CatalogSnapshotLifecycleListener} events through the
- * {@link IndexFileDeleter} and then fans out to the per-format
+ * Routes {@link CatalogSnapshotLifecycleListener} events to the per-format
  * {@link EngineReaderManager}s.
  * <p>
- * Keeps lifecycle orchestration separate from the engine's component
- * registry responsibilities.
+ * File lifecycle management (ref counting, deletion) is now handled by
+ * {@link org.opensearch.index.engine.exec.coord.IndexFileDeleter} inside {@link org.opensearch.index.engine.exec.coord.CatalogSnapshotManager}.
  *
  * @opensearch.experimental
  */
@@ -30,14 +28,9 @@ import java.util.Map;
 public class DataFormatEngineCatalogSnapshotListener implements CatalogSnapshotLifecycleListener {
 
     private final Map<DataFormat, EngineReaderManager<?>> readerManagers;
-    private final IndexFileDeleter indexFileDeleter;
 
-    public DataFormatEngineCatalogSnapshotListener(
-        Map<DataFormat, EngineReaderManager<?>> readerManagers,
-        IndexFileDeleter indexFileDeleter
-    ) {
+    public DataFormatEngineCatalogSnapshotListener(Map<DataFormat, EngineReaderManager<?>> readerManagers) {
         this.readerManagers = readerManagers;
-        this.indexFileDeleter = indexFileDeleter;
     }
 
     @Override
@@ -49,10 +42,6 @@ public class DataFormatEngineCatalogSnapshotListener implements CatalogSnapshotL
 
     @Override
     public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
-        Map<DataFormat, Collection<String>> newFiles = indexFileDeleter.addFileReferences(catalogSnapshot);
-        if (newFiles.isEmpty() == false) {
-            notifyFilesAdded(newFiles);
-        }
         for (CatalogSnapshotLifecycleListener listener : readerManagers.values()) {
             listener.afterRefresh(didRefresh, catalogSnapshot);
         }
@@ -60,30 +49,8 @@ public class DataFormatEngineCatalogSnapshotListener implements CatalogSnapshotL
 
     @Override
     public void onDeleted(CatalogSnapshot catalogSnapshot) throws IOException {
-        Map<DataFormat, Collection<String>> deletedFiles = indexFileDeleter.removeFileReferences(catalogSnapshot);
-        if (deletedFiles.isEmpty() == false) {
-            notifyFilesDeleted(deletedFiles);
-        }
         for (CatalogSnapshotLifecycleListener listener : readerManagers.values()) {
             listener.onDeleted(catalogSnapshot);
-        }
-    }
-
-    private void notifyFilesAdded(Map<DataFormat, Collection<String>> filesByFormat) throws IOException {
-        for (Map.Entry<DataFormat, Collection<String>> entry : filesByFormat.entrySet()) {
-            EngineReaderManager<?> rm = readerManagers.get(entry.getKey());
-            if (rm != null) {
-                rm.onFilesAdded(entry.getValue());
-            }
-        }
-    }
-
-    private void notifyFilesDeleted(Map<DataFormat, Collection<String>> filesByFormat) throws IOException {
-        for (Map.Entry<DataFormat, Collection<String>> entry : filesByFormat.entrySet()) {
-            EngineReaderManager<?> rm = readerManagers.get(entry.getKey());
-            if (rm != null) {
-                rm.onFilesDeleted(entry.getValue());
-            }
         }
     }
 }

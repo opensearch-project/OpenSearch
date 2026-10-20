@@ -10,6 +10,7 @@ package org.opensearch.indices.pollingingest;
 
 import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.IngestionPayloadDecoderFactory;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineFactory;
@@ -27,10 +28,16 @@ public class IngestionEngineFactory implements EngineFactory {
 
     private final IngestionConsumerFactory ingestionConsumerFactory;
     private final Supplier<IngestService> ingestServiceSupplier;
+    private final IngestionPayloadDecoderFactory payloadDecoderFactory;
 
-    public IngestionEngineFactory(IngestionConsumerFactory ingestionConsumerFactory, Supplier<IngestService> ingestServiceSupplier) {
+    public IngestionEngineFactory(
+        IngestionConsumerFactory ingestionConsumerFactory,
+        Supplier<IngestService> ingestServiceSupplier,
+        IngestionPayloadDecoderFactory payloadDecoderFactory
+    ) {
         this.ingestionConsumerFactory = Objects.requireNonNull(ingestionConsumerFactory);
         this.ingestServiceSupplier = Objects.requireNonNull(ingestServiceSupplier);
+        this.payloadDecoderFactory = Objects.requireNonNull(payloadDecoderFactory);
     }
 
     /**
@@ -48,7 +55,7 @@ public class IngestionEngineFactory implements EngineFactory {
 
         if (isAllActiveIngestion) {
             // use ingestion engine on both primary and replica in all-active mode
-            IngestionEngine ingestionEngine = new IngestionEngine(config, ingestionConsumerFactory, ingestService);
+            IngestionEngine ingestionEngine = new IngestionEngine(config, ingestionConsumerFactory, ingestService, payloadDecoderFactory);
             ingestionEngine.start();
             return ingestionEngine;
         }
@@ -59,7 +66,7 @@ public class IngestionEngineFactory implements EngineFactory {
             return new NRTReplicationEngine(config);
         }
 
-        IngestionEngine ingestionEngine = new IngestionEngine(config, ingestionConsumerFactory, ingestService);
+        IngestionEngine ingestionEngine = new IngestionEngine(config, ingestionConsumerFactory, ingestService, payloadDecoderFactory);
         ingestionEngine.start();
         return ingestionEngine;
     }

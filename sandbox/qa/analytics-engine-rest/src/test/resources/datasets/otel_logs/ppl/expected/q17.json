@@ -1,0 +1,15 @@
+{
+  "schema": [
+    {"name": "c", "type": "bigint"},
+    {"name": "avg_sev", "type": "double"},
+    {"name": "resource.telemetry.sdk.language", "type": "string"}
+  ],
+  "datarows": [
+    [40, 13.5, "java"],
+    [30, 9.0, "go"],
+    [20, 9.0, "python"],
+    [10, 9.0, "nodejs"]
+  ],
+  "total": 4,
+  "size": 4
+}

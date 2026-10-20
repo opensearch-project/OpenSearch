@@ -1,0 +1,30 @@
+{
+  "schema": [
+    {
+      "name": "level1",
+      "type": "string"
+    },
+    {
+      "name": "level2",
+      "type": "string"
+    },
+    {
+      "name": "service",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "INFO",
+      "WARN",
+      "api"
+    ],
+    [
+      "ERROR",
+      "CRITICAL",
+      "db"
+    ]
+  ],
+  "total": 2,
+  "size": 2
+}

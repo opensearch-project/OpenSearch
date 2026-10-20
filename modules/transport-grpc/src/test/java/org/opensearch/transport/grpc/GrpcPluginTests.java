@@ -17,13 +17,18 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.env.Environment;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
+import org.opensearch.protobufs.AggregationContainer;
 import org.opensearch.protobufs.QueryContainer;
+import org.opensearch.search.aggregations.metrics.InternalMax;
+import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.grpc.interceptor.GrpcInterceptorChain;
+import org.opensearch.transport.grpc.spi.AggregateProtoConverter;
+import org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverter;
 import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider;
 import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider.OrderedGrpcInterceptor;
 import org.opensearch.transport.grpc.spi.GrpcServiceFactory;
@@ -430,6 +435,118 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         // 1. In createComponents() when processing external converters
         // 2. In updateRegistryOnAllConverters() to ensure all converters have the complete registry
         Mockito.verify(mockConverter, Mockito.times(2)).setRegistry(Mockito.any());
+    }
+
+    public void testCreateComponentsWithExternalAggregationConverters() {
+        GrpcPlugin newPlugin = new GrpcPlugin();
+
+        AggregationBuilderProtoConverter mockConverter = Mockito.mock(AggregationBuilderProtoConverter.class);
+        when(mockConverter.getHandledAggregationCase()).thenReturn(AggregationContainer.AggregationContainerCase.MIN);
+        when(mockConverter.fromProto(Mockito.anyString(), Mockito.any())).thenReturn(new MinAggregationBuilder("external_min"));
+
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+        when(mockLoader.loadExtensions(AggregationBuilderProtoConverter.class)).thenReturn(List.of(mockConverter));
+
+        newPlugin.loadExtensions(mockLoader);
+
+        ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        newPlugin.createComponents(client, null, mockThreadPool, null, null, null, null, null, null, null, null);
+
+        assertNotNull("QueryUtils should be initialized", newPlugin.getQueryUtils());
+
+        // getHandledAggregationCase() called in: loadExtensions logging, createComponents logging, SPI registerConverter
+        Mockito.verify(mockConverter, Mockito.times(3)).getHandledAggregationCase();
+
+        // setRegistry called in: createComponents manual injection, registerConverter, updateRegistryOnAllConverters
+        Mockito.verify(mockConverter, Mockito.times(3)).setRegistry(Mockito.any());
+    }
+
+    public void testCreateComponentsWithExternalAggregateConverters() {
+        GrpcPlugin newPlugin = new GrpcPlugin();
+
+        AggregateProtoConverter mockConverter = Mockito.mock(AggregateProtoConverter.class);
+        Mockito.doReturn(InternalMax.class).when(mockConverter).getHandledAggregationType();
+
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+        when(mockLoader.loadExtensions(AggregateProtoConverter.class)).thenReturn(List.of(mockConverter));
+
+        newPlugin.loadExtensions(mockLoader);
+
+        ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        newPlugin.createComponents(client, null, mockThreadPool, null, null, null, null, null, null, null, null);
+
+        assertNotNull("QueryUtils should be initialized", newPlugin.getQueryUtils());
+
+        // getHandledAggregationType() called in: loadExtensions logging, createComponents logging
+        Mockito.verify(mockConverter, Mockito.atLeast(2)).getHandledAggregationType();
+
+        // setRegistry called in: registerConverter, updateRegistryOnAllConverters
+        Mockito.verify(mockConverter, Mockito.times(2)).setRegistry(Mockito.any());
+    }
+
+    public void testLoadExtensionsWithAggregationConverters() {
+        GrpcPlugin newPlugin = new GrpcPlugin();
+
+        AggregationBuilderProtoConverter mockAggConverter = Mockito.mock(AggregationBuilderProtoConverter.class);
+        when(mockAggConverter.getHandledAggregationCase()).thenReturn(AggregationContainer.AggregationContainerCase.MIN);
+
+        AggregateProtoConverter mockAggregateConverter = Mockito.mock(AggregateProtoConverter.class);
+        Mockito.doReturn(InternalMax.class).when(mockAggregateConverter).getHandledAggregationType();
+
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+        when(mockLoader.loadExtensions(AggregationBuilderProtoConverter.class)).thenReturn(List.of(mockAggConverter));
+        when(mockLoader.loadExtensions(AggregateProtoConverter.class)).thenReturn(List.of(mockAggregateConverter));
+
+        newPlugin.loadExtensions(mockLoader);
+
+        // Verify converters were discovered during loadExtensions
+        Mockito.verify(mockAggConverter).getHandledAggregationCase();
+        Mockito.verify(mockAggregateConverter).getHandledAggregationType();
+    }
+
+    public void testCreateComponentsWithBothExternalConverters() {
+        GrpcPlugin newPlugin = new GrpcPlugin();
+
+        AggregationBuilderProtoConverter mockAggConverter = Mockito.mock(AggregationBuilderProtoConverter.class);
+        when(mockAggConverter.getHandledAggregationCase()).thenReturn(AggregationContainer.AggregationContainerCase.MIN);
+        when(mockAggConverter.fromProto(Mockito.anyString(), Mockito.any())).thenReturn(new MinAggregationBuilder("ext_min"));
+
+        AggregateProtoConverter mockAggregateConverter = Mockito.mock(AggregateProtoConverter.class);
+        Mockito.doReturn(InternalMax.class).when(mockAggregateConverter).getHandledAggregationType();
+
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+        when(mockLoader.loadExtensions(AggregationBuilderProtoConverter.class)).thenReturn(List.of(mockAggConverter));
+        when(mockLoader.loadExtensions(AggregateProtoConverter.class)).thenReturn(List.of(mockAggregateConverter));
+
+        newPlugin.loadExtensions(mockLoader);
+
+        ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        newPlugin.createComponents(client, null, mockThreadPool, null, null, null, null, null, null, null, null);
+
+        assertNotNull("QueryUtils should be initialized", newPlugin.getQueryUtils());
+
+        // Request-side: setRegistry (manual + registerConverter + updateRegistryOnAllConverters)
+        Mockito.verify(mockAggConverter, Mockito.times(3)).setRegistry(Mockito.any());
+        // Response-side: setRegistry (registerConverter + updateRegistryOnAllConverters)
+        Mockito.verify(mockAggregateConverter, Mockito.times(2)).setRegistry(Mockito.any());
+    }
+
+    public void testLoadExtensionsWithNullAggregationConverters() {
+        GrpcPlugin newPlugin = new GrpcPlugin();
+
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+        when(mockLoader.loadExtensions(AggregationBuilderProtoConverter.class)).thenReturn(null);
+        when(mockLoader.loadExtensions(AggregateProtoConverter.class)).thenReturn(null);
+
+        newPlugin.loadExtensions(mockLoader);
+
+        // Should not throw — null extensions are handled gracefully
     }
 
     // Test cases for gRPC interceptor functionality

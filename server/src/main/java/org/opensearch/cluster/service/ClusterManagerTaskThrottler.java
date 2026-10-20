@@ -181,7 +181,23 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         }
         for (String key : groups.keySet()) {
             if (!THROTTLING_TASK_KEYS.containsKey(key)) {
-                throw new IllegalArgumentException("Cluster manager task throttling is not configured for given task type: " + key);
+                // If the key exists in the ClusterManagerTask enum, it was previously a valid registered task
+                // whose registration was removed during a refactor. Persisted cluster state from prior versions
+                // may still contain throttling thresholds for this key. Log a warning and skip validation
+                // instead of throwing a fatal exception that would prevent node startup during upgrades.
+                try {
+                    ClusterManagerTask.fromKey(key);
+                    logger.warn(
+                        "Throttling key [{}] exists in ClusterManagerTask enum but is not registered. "
+                            + "Skipping validation for this persisted setting. "
+                            + "This may indicate a missing registerClusterManagerTask() call.",
+                        key
+                    );
+                    continue;
+                } catch (IllegalArgumentException e) {
+                    // Key is not in the enum either — this is a genuinely unknown task type
+                    throw new IllegalArgumentException("Cluster manager task throttling is not configured for given task type: " + key);
+                }
             }
             if (!THROTTLING_TASK_KEYS.get(key).isThrottlingEnabled()) {
                 throw new IllegalArgumentException("Throttling is not enabled for given task type: " + key);

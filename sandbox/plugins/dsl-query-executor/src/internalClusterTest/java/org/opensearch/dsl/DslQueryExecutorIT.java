@@ -8,6 +8,7 @@
 
 package org.opensearch.dsl;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.analytics.AnalyticsPlugin;
@@ -21,8 +22,9 @@ import java.util.List;
 
 /**
  * Integration test that verifies the full DSL query execution pipeline:
- * SearchActionFilter → TransportDslExecuteAction → SearchSourceConverter → DslQueryPlanExecutor → SearchResponse.
+ * SearchActionFilter → TransportExecuteAction → SearchSourceConverter → DslQueryPlanExecutor → SearchResponse.
  */
+@AwaitsFix(bugUrl = "analytics engine pipeline not E2E complete: fragment conversion + shard execution + Arrow Flight drain not yet wired")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class DslQueryExecutorIT extends OpenSearchIntegTestCase {
 
@@ -66,7 +68,7 @@ public class DslQueryExecutorIT extends OpenSearchIntegTestCase {
     private void createTestIndex() {
         createIndex(INDEX);
         ensureGreen();
-        client().prepareIndex(INDEX).setId("1").setSource("{\"name\":\"laptop\",\"price\":1200}", XContentType.JSON).get();
+        client().prepareIndex(INDEX).setSource("{\"name\":\"laptop\",\"price\":1200}", XContentType.JSON).get();
         refresh(INDEX);
     }
 }

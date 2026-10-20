@@ -1,0 +1,1 @@
+source=otel_logs | stats sum(severityNumber) as sum_sev by serviceName | sort - sum_sev

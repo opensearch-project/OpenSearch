@@ -1,0 +1,1 @@
+source=app_logs | sort service, timestamp desc | streamstats count() as rn by service | where rn <= 3 | fields service, timestamp, message, rn | sort service, rn

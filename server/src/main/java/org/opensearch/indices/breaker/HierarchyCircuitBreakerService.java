@@ -66,6 +66,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.opensearch.indices.breaker.BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING;
@@ -85,6 +86,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private static final MemoryMXBean MEMORY_MX_BEAN = ManagementFactory.getMemoryMXBean();
 
     private final Map<String, CircuitBreaker> breakers;
+    private final Map<String, Supplier<CircuitBreakerStats>> statsSuppliers;
 
     public static final Setting<Boolean> USE_REAL_MEMORY_USAGE_SETTING = Setting.boolSetting(
         "indices.breaker.total.use_real_memory",
@@ -224,6 +226,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 )
             )
         );
+        Map<String, Supplier<CircuitBreakerStats>> suppliers = new HashMap<>();
         for (BreakerSettings breakerSettings : customBreakers) {
             if (childCircuitBreakers.containsKey(breakerSettings.getName())) {
                 throw new IllegalArgumentException(
@@ -233,8 +236,12 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 );
             }
             childCircuitBreakers.put(breakerSettings.getName(), validateAndCreateBreaker(breakerSettings));
+            if (breakerSettings.getStatsSupplier() != null) {
+                suppliers.put(breakerSettings.getName(), breakerSettings.getStatsSupplier());
+            }
         }
         this.breakers = Collections.unmodifiableMap(childCircuitBreakers);
+        this.statsSuppliers = Collections.unmodifiableMap(suppliers);
         this.parentSettings = new BreakerSettings(
             CircuitBreaker.PARENT,
             TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -337,6 +344,10 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     @Override
     public CircuitBreakerStats stats(String name) {
+        Supplier<CircuitBreakerStats> supplier = statsSuppliers.get(name);
+        if (supplier != null) {
+            return supplier.get();
+        }
         CircuitBreaker breaker = this.breakers.get(name);
         return new CircuitBreakerStats(
             breaker.getName(),

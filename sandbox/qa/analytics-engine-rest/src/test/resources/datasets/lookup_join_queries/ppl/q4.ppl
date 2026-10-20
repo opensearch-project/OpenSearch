@@ -1,0 +1,1 @@
+source=sales_data | fillnull value='N/A' region | fillnull value=0 sales_amount | where status='completed' | stats avg(sales_amount) as avg_sales, count() as count by region | sort - avg_sales

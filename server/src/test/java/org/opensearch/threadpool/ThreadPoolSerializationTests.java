@@ -42,6 +42,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -101,8 +102,8 @@ public class ThreadPoolSerializationTests extends OpenSearchTestCase {
         Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
         assertThat(map, hasKey("foo"));
         map = (Map<String, Object>) map.get("foo");
-        if (threadPoolType == ThreadPool.ThreadPoolType.FORK_JOIN) {
-            // ForkJoinPool does not write queue_size field at all
+        if (threadPoolType == ThreadPool.ThreadPoolType.FORK_JOIN || threadPoolType == ThreadPool.ThreadPoolType.VIRTUAL) {
+            // neither a ForkJoinPool nor an unbounded virtual thread-per-task pool writes a queue_size field
             assertThat(map.containsKey("queue_size"), is(false));
         } else {
             assertThat(map, hasKey("queue_size"));
@@ -134,8 +135,8 @@ public class ThreadPoolSerializationTests extends OpenSearchTestCase {
         Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
         assertThat(map, hasKey("foo"));
         map = (Map<String, Object>) map.get("foo");
-        if (threadPoolType == ThreadPool.ThreadPoolType.FORK_JOIN) {
-            // ForkJoinPool does not write queue_size field at all
+        if (threadPoolType == ThreadPool.ThreadPoolType.FORK_JOIN || threadPoolType == ThreadPool.ThreadPoolType.VIRTUAL) {
+            // neither a ForkJoinPool nor an unbounded virtual thread-per-task pool writes a queue_size field
             assertThat(map.containsKey("queue_size"), is(false));
         } else {
             assertThat(map, hasKey("queue_size"));
@@ -155,5 +156,17 @@ public class ThreadPoolSerializationTests extends OpenSearchTestCase {
          * the same conversion in test to maintain parity.
          */
         assertThat(newInfo.getThreadPoolType(), is(threadPoolType));
+    }
+
+    public void testThatVirtualThreadPoolTypeIsSerializedAsScalingForOlderVersions() throws IOException {
+        ThreadPool.Info info = new ThreadPool.Info("foo", ThreadPool.ThreadPoolType.VIRTUAL);
+        output.setVersion(VersionUtils.getPreviousVersion(Version.V_3_8_0));
+        info.writeTo(output);
+
+        StreamInput input = output.bytes().streamInput();
+        ThreadPool.Info newInfo = new ThreadPool.Info(input);
+
+        // Nodes older than 3.8.0 do not know about the "virtual" type, so it is written as "scaling"
+        assertThat(newInfo.getThreadPoolType(), is(ThreadPool.ThreadPoolType.SCALING));
     }
 }

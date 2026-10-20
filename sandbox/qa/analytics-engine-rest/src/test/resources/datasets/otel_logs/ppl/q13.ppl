@@ -1,0 +1,1 @@
+source=otel_logs | stats count() by span(time, 10000) | sort + `span(time,10000)`

@@ -1,0 +1,1 @@
+source=rex_command | rex field=raw_log "(?<method>GET|POST|PUT|DELETE|PATCH) (?<path>/\S+) (?<status>\d+)" | fields method, path, status | head 10

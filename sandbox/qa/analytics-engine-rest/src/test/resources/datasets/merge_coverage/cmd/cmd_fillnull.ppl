@@ -1,0 +1,1 @@
+source=%INDEX% | fillnull value=0 opt | sort id | head 6 | fields id, opt

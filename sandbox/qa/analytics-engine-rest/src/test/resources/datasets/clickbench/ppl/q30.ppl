@@ -1,0 +1,1 @@
+source = clickbench | stats sum(ResolutionWidth), sum(ResolutionWidth+1), sum(ResolutionWidth+2), sum(ResolutionWidth+3), sum(ResolutionWidth+4), sum(ResolutionWidth+5), sum(ResolutionWidth+6), sum(ResolutionWidth+7), sum(ResolutionWidth+8), sum(ResolutionWidth+9)

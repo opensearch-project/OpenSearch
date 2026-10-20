@@ -790,5 +790,4 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             }
         };
     }
-
 }

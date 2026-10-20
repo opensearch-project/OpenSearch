@@ -1,0 +1,1 @@
+source=%INDEX% | where amount in (1, 5, 11) | sort id | fields id, amount

@@ -677,6 +677,68 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
         verifyNoInteractions(listenerslatencyHistogram);
     }
 
+    // testing for application duration tracking
+
+    public void testGetCurrentApplicationDurationMsReturnsZeroWhenIdle() {
+        // No task running → should return 0
+        assertEquals(0, clusterApplierService.getCurrentApplicationDurationMs());
+    }
+
+    public void testGetCurrentApplicationDurationMsDuringApplication() throws Exception {
+
+        CountDownLatch taskStarted = new CountDownLatch(1);
+        CountDownLatch taskCanFinish = new CountDownLatch(1);
+        CountDownLatch taskDone = new CountDownLatch(1);
+
+        clusterApplierService.onNewClusterState("test", () -> {
+            taskStarted.countDown();
+            try {
+                taskCanFinish.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return ClusterState.builder(clusterApplierService.state()).build();
+        }, new ClusterApplier.ClusterApplyListener() {
+            @Override
+            public void onSuccess(String source) {
+                taskDone.countDown();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                taskDone.countDown();
+            }
+        });
+
+        taskStarted.await();  // Wait for task to start
+        long duration = clusterApplierService.getCurrentApplicationDurationMs();
+        assertTrue("Duration should be >= 0 during application, got: " + duration, duration >= 0);
+        taskCanFinish.countDown();  // Let task finish
+        taskDone.await();  // Wait for task to fully complete to avoid interference with other tests
+    }
+
+    public void testGetCurrentApplicationDurationMsResetsAfterCompletion() throws Exception {
+        CountDownLatch taskDone = new CountDownLatch(1);
+
+        clusterApplierService.onNewClusterState(
+            "test",
+            () -> ClusterState.builder(clusterApplierService.state()).build(),
+            new ClusterApplier.ClusterApplyListener() {
+                @Override
+                public void onSuccess(String source) {
+                    taskDone.countDown();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    taskDone.countDown();
+                }
+            }
+        );
+        taskDone.await();
+        assertEquals(0, clusterApplierService.getCurrentApplicationDurationMs());
+    }
+
     static class TimedClusterApplierService extends ClusterApplierService {
 
         final ClusterSettings clusterSettings;

@@ -1,0 +1,45 @@
+{
+  "schema": [
+    {
+      "name": "avg_sales",
+      "type": "float"
+    },
+    {
+      "name": "count",
+      "type": "bigint"
+    },
+    {
+      "name": "region",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      4180.3,
+      45,
+      "West"
+    ],
+    [
+      2700.0,
+      9,
+      "N/A"
+    ],
+    [
+      2400.3125,
+      36,
+      "East"
+    ],
+    [
+      1675.375,
+      36,
+      "South"
+    ],
+    [
+      1048.25,
+      45,
+      "North"
+    ]
+  ],
+  "total": 5,
+  "size": 5
+}

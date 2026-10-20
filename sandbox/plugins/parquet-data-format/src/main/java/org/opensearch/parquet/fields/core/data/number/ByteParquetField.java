@@ -12,20 +12,19 @@ import org.apache.arrow.vector.TinyIntVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.vsr.ManagedVSR;
 
 /**
  * Parquet field for 8-bit signed byte values using {@link TinyIntVector}.
  */
-public class ByteParquetField extends ParquetField {
+public class ByteParquetField extends NumericParquetField {
 
     /** Creates a new ByteParquetField. */
     public ByteParquetField() {}
 
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        ((TinyIntVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (Byte) parseValue);
+        ((TinyIntVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), ((Number) parseValue).byteValue());
     }
 
     @Override

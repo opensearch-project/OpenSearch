@@ -59,6 +59,7 @@ public final class MappingLookup implements Iterable<Mapper> {
     private final Map<String, Mapper> fieldMappers;
     private final Map<String, ObjectMapper> objectMappers;
     private final boolean hasNested;
+    private final boolean rootDisableObjects;
     private final FieldTypeLookup fieldTypeLookup;
     private final int metadataFieldCount;
     private final FieldNameAnalyzer indexAnalyzer;
@@ -70,7 +71,12 @@ public final class MappingLookup implements Iterable<Mapper> {
         analyzers.put(key, value);
     }
 
-    public static MappingLookup fromMapping(Mapping mapping, Analyzer defaultIndex) {
+    /**
+     * Builds a lookup from a mapping, resolving dynamic_property patterns for {@link MappedFieldType} when needed.
+     * Fields resolved only via dynamic_property patterns are not added to the serialized mapping; see
+     * {@link DynamicProperty} for implications on hooks tied to mapping updates.
+     */
+    public static MappingLookup fromMapping(Mapping mapping, Analyzer defaultIndex, DocumentMapperParser documentMapperParser) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -80,7 +86,23 @@ public final class MappingLookup implements Iterable<Mapper> {
             }
         }
         collect(mapping.root, newObjectMappers, newFieldMappers, newFieldAliasMappers);
-        return new MappingLookup(newFieldMappers, newObjectMappers, newFieldAliasMappers, mapping.metadataMappers.length, defaultIndex);
+        DynamicPropertyFieldTypeResolver dynamicResolver = null;
+        if (documentMapperParser != null && mapping.root().dynamicProperties().length > 0) {
+            dynamicResolver = new DynamicPropertyFieldTypeResolver(mapping.root(), documentMapperParser);
+        }
+        return new MappingLookup(
+            newFieldMappers,
+            newObjectMappers,
+            newFieldAliasMappers,
+            mapping.metadataMappers.length,
+            defaultIndex,
+            dynamicResolver,
+            mapping.root().disableObjects()
+        );
+    }
+
+    public static MappingLookup fromMapping(Mapping mapping, Analyzer defaultIndex) {
+        return fromMapping(mapping, defaultIndex, null);
     }
 
     private static void collect(
@@ -113,6 +135,18 @@ public final class MappingLookup implements Iterable<Mapper> {
         int metadataFieldCount,
         Analyzer defaultIndex
     ) {
+        this(mappers, objectMappers, aliasMappers, metadataFieldCount, defaultIndex, null, false);
+    }
+
+    MappingLookup(
+        Collection<FieldMapper> mappers,
+        Collection<ObjectMapper> objectMappers,
+        Collection<FieldAliasMapper> aliasMappers,
+        int metadataFieldCount,
+        Analyzer defaultIndex,
+        DynamicPropertyFieldTypeResolver dynamicPropertyFieldTypes,
+        boolean rootDisableObjects
+    ) {
         Map<String, Mapper> fieldMappers = new HashMap<>();
         Map<String, Analyzer> indexAnalyzers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
@@ -127,6 +161,7 @@ public final class MappingLookup implements Iterable<Mapper> {
             }
         }
         this.hasNested = hasNested;
+        this.rootDisableObjects = rootDisableObjects;
 
         for (FieldMapper mapper : mappers) {
             if (objects.containsKey(mapper.name())) {
@@ -149,7 +184,7 @@ public final class MappingLookup implements Iterable<Mapper> {
             }
         }
 
-        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers);
+        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, dynamicPropertyFieldTypes);
 
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.indexAnalyzer = new FieldNameAnalyzer(indexAnalyzers);
@@ -247,7 +282,21 @@ public final class MappingLookup implements Iterable<Mapper> {
 
     public boolean isMultiField(String field) {
         String sourceParent = parentObject(field);
-        return sourceParent != null && fieldMappers.containsKey(sourceParent);
+        if (sourceParent == null || !fieldMappers.containsKey(sourceParent)) {
+            return false;
+        }
+        // When disable_objects is true, dotted fields are independent flat fields, not multi-fields.
+        // Check if the root or any ancestor ObjectMapper has disable_objects enabled.
+        if (rootDisableObjects) {
+            return false;
+        }
+        for (String ancestor = parentObject(field); ancestor != null; ancestor = parentObject(ancestor)) {
+            ObjectMapper objectMapper = objectMappers.get(ancestor);
+            if (objectMapper != null && objectMapper.disableObjects()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public boolean isObjectField(String field) {

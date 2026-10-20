@@ -1,0 +1,30 @@
+{
+  "schema": [
+    {
+      "name": "success_count",
+      "type": "bigint"
+    },
+    {
+      "name": "user",
+      "type": "string"
+    },
+    {
+      "name": "source_ip",
+      "type": "ip"
+    }
+  ],
+  "datarows": [
+    [
+      12,
+      "admin",
+      "10.0.0.50"
+    ],
+    [
+      12,
+      "jdoe",
+      "10.0.0.50"
+    ]
+  ],
+  "total": 2,
+  "size": 2
+}

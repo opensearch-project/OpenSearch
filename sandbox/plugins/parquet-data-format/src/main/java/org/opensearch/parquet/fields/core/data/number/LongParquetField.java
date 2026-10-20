@@ -12,16 +12,23 @@ import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.vsr.ManagedVSR;
 
 /**
  * Parquet field for 64-bit signed long values using {@link BigIntVector}.
  */
-public class LongParquetField extends ParquetField {
+public class LongParquetField extends NumericParquetField {
+
+    private final boolean nullable;
 
     /** Creates a new LongParquetField. */
-    public LongParquetField() {}
+    public LongParquetField() {
+        this(true);
+    }
+
+    public LongParquetField(boolean nullable) {
+        this.nullable = nullable;
+    }
 
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
@@ -35,6 +42,6 @@ public class LongParquetField extends ParquetField {
 
     @Override
     public FieldType getFieldType() {
-        return FieldType.nullable(getArrowType());
+        return nullable ? FieldType.nullable(getArrowType()) : FieldType.notNullable(getArrowType());
     }
 }

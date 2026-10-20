@@ -8,18 +8,13 @@
 
 package org.opensearch.plugin.kinesis;
 
-import org.opensearch.cluster.metadata.IngestionSource;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.index.IngestionConsumerFactory;
 
 /**
- * Factory for creating Kinesis consumers
+ * Factory for creating Kinesis consumers.
  */
 public class KinesisConsumerFactory implements IngestionConsumerFactory<KinesisShardConsumer, SequenceNumber> {
-
-    /**
-     * Configuration for the Kinesis source
-     */
-    protected KinesisSourceConfig config;
 
     /**
      * Constructor.
@@ -27,14 +22,9 @@ public class KinesisConsumerFactory implements IngestionConsumerFactory<KinesisS
     public KinesisConsumerFactory() {}
 
     @Override
-    public void initialize(IngestionSource ingestionSource) {
-        config = new KinesisSourceConfig(ingestionSource.params());
-    }
-
-    @Override
-    public KinesisShardConsumer createShardConsumer(String clientId, int shardId) {
-        assert config != null;
-        return new KinesisShardConsumer(clientId, config, shardId);
+    public KinesisShardConsumer createShardConsumer(String clientId, int shardId, IndexMetadata indexMetadata) {
+        KinesisSourceConfig localConfig = new KinesisSourceConfig(indexMetadata.getIngestionSource().params());
+        return new KinesisShardConsumer(clientId, localConfig, shardId);
     }
 
     @Override

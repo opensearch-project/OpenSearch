@@ -1,0 +1,1 @@
+source=%INDEX% | eval r = isnotnull(opt_ts) | sort id | fields id, r

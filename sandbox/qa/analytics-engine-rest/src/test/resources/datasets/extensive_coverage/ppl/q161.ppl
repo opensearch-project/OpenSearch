@@ -1,0 +1,1 @@
+source=test_data | eval arr_len = json_array_length('[1,2,3,4,5]') | fields id, arr_len | head 1

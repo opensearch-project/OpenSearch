@@ -189,7 +189,7 @@ public class SimpleMgetIT extends ParameterizedStaticSettingsOpenSearchIntegTest
                 );
             } else {
                 request.add(
-                    new MultiGetRequest.Item(indexOrAlias(), Integer.toString(i)).fetchSourceContext(new FetchSourceContext(false))
+                    new MultiGetRequest.Item(indexOrAlias(), Integer.toString(i)).fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE)
                 );
             }
         }

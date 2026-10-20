@@ -415,7 +415,11 @@ class S3AsyncService implements Closeable {
             builder = builder.scheduledExecutorService(clientExecutorService);
         }
 
-        return builder.retryPolicy(retryPolicy).apiCallAttemptTimeout(Duration.ofMillis(clientSettings.requestTimeoutMillis)).build();
+        builder.retryPolicy(retryPolicy).apiCallAttemptTimeout(Duration.ofMillis(clientSettings.requestTimeoutMillis));
+        if (clientSettings.apiCallTimeoutMillis > 0) {
+            builder.apiCallTimeout(Duration.ofMillis(clientSettings.apiCallTimeoutMillis));
+        }
+        return builder.build();
     }
 
     // pkg private for tests

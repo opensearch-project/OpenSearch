@@ -51,6 +51,7 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.ReloadableCustomAnalyzer;
 import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -66,8 +67,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -101,7 +104,14 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testGetMetadataFieldsReturnsExpectedSet() throws Throwable {
         final MapperService mapperService = createIndex("test1").mapperService();
-        assertEquals(mapperService.getMetadataFields(), IndicesModule.getBuiltInMetadataFields());
+        // Metadata fields are the built-ins plus the system-managed row-id field (DocumentInput.ROW_ID_FIELD) that the
+        // composite-engine plugin registers node-wide as a metadata field, so it is expected on every index when the
+        // sandbox stack is installed.
+        final Set<String> expected = new HashSet<>(IndicesModule.getBuiltInMetadataFields());
+        if (shouldInstallSandboxStack()) {
+            expected.add(DocumentInput.ROW_ID_FIELD);
+        }
+        assertEquals(expected, mapperService.getMetadataFields());
     }
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {
@@ -190,8 +200,11 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         assertThat(
             ex.getMessage(),
             is(
-                "The provided value 1001 of the index setting 'index.mapping.depth.limit' exceeds per-JVM configured limit of 1000. "
-                    + "Please change the setting value or increase per-JVM limit using 'opensearch.xcontent.depth.max' system property."
+                "The provided value "
+                    + (XContentConstraints.DEFAULT_MAX_DEPTH + 1)
+                    + " of the index setting 'index.mapping.depth.limit' exceeds per-JVM configured limit of "
+                    + XContentConstraints.DEFAULT_MAX_DEPTH
+                    + ". Please change the setting value or increase per-JVM limit using 'opensearch.xcontent.depth.max' system property."
             )
         );
     }
@@ -615,6 +628,41 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         );
     }
 
+    public void testReloadSearchAnalyzersWithReloadCachedResources() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
+            .put("index.analysis.analyzer.reloadableAnalyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.reloadableAnalyzer.filter", "myReloadableFilter")
+            .build();
+
+        MapperService mapperService = createIndex("test_index", settings).mapperService();
+        CompressedXContent mapping = new CompressedXContent(
+            BytesReference.bytes(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field")
+                    .field("type", "text")
+                    .field("analyzer", "simple")
+                    .field("search_analyzer", "reloadableAnalyzer")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+
+        mapperService.merge("_doc", mapping, MergeReason.MAPPING_UPDATE);
+
+        // Call with reloadCachedResources=true — exercises the reload loop and no-op default
+        List<String> reloaded = mapperService.reloadSearchAnalyzers(getInstanceFromNode(AnalysisRegistry.class), true);
+        assertEquals(1, reloaded.size());
+        assertEquals("reloadableAnalyzer", reloaded.get(0));
+    }
+
     public void testMapperDynamicAllowedIgnored() {
         final List<Function<Settings.Builder, Settings.Builder>> scenarios = List.of(
             (builder) -> builder.putNull(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey()),
@@ -685,6 +733,16 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
                 }
             });
         }
+    }
+
+    /** Validates that {@code index.mapping.dynamic_properties.lucene_field.limit} is a recognized index setting. */
+    public void testDynamicPropertiesLuceneFieldLimitSettingRecognized() throws IOException {
+        long customLimit = 5_000L;
+        MapperService mapperService = createIndex(
+            "test",
+            Settings.builder().put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), customLimit).build()
+        ).mapperService();
+        assertEquals(customLimit, mapperService.getIndexSettings().getMappingDynamicPropertiesLuceneFieldLimit());
     }
 
 }

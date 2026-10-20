@@ -1,0 +1,109 @@
+{
+  "from": 0,
+  "size": 0,
+  "timeout": "1m",
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "exists": {
+            "field": "Referer",
+            "boost": 1.0
+          }
+        }
+      ],
+      "must_not": [
+        {
+          "term": {
+            "Referer": {
+              "value": "",
+              "boost": 1.0
+            }
+          }
+        }
+      ],
+      "adjust_pure_negative": true,
+      "boost": 1.0
+    }
+  },
+  "_source": {
+    "includes": [
+      "Referer"
+    ],
+    "excludes": []
+  },
+  "aggregations": {
+    "composite_buckets": {
+      "composite": {
+        "size": 10000,
+        "sources": [
+          {
+            "k": {
+              "terms": {
+                "script": {
+                  "source": "{\"langType\":\"calcite\",\"script\":\"rO0ABXQCGXsKICAib3AiOiB7CiAgICAibmFtZSI6ICJSRUdFWFBfUkVQTEFDRSIsCiAgICAia2luZCI6ICJPVEhFUl9GVU5DVElPTiIsCiAgICAic3ludGF4IjogIkZVTkNUSU9OIgogIH0sCiAgIm9wZXJhbmRzIjogWwogICAgewogICAgICAiZHluYW1pY1BhcmFtIjogMCwKICAgICAgInR5cGUiOiB7CiAgICAgICAgInR5cGUiOiAiVkFSQ0hBUiIsCiAgICAgICAgIm51bGxhYmxlIjogdHJ1ZSwKICAgICAgICAicHJlY2lzaW9uIjogLTEKICAgICAgfQogICAgfSwKICAgIHsKICAgICAgImR5bmFtaWNQYXJhbSI6IDEsCiAgICAgICJ0eXBlIjogewogICAgICAgICJ0eXBlIjogIlZBUkNIQVIiLAogICAgICAgICJudWxsYWJsZSI6IGZhbHNlLAogICAgICAgICJwcmVjaXNpb24iOiAtMQogICAgICB9CiAgICB9LAogICAgewogICAgICAiZHluYW1pY1BhcmFtIjogMiwKICAgICAgInR5cGUiOiB7CiAgICAgICAgInR5cGUiOiAiQ0hBUiIsCiAgICAgICAgIm51bGxhYmxlIjogZmFsc2UsCiAgICAgICAgInByZWNpc2lvbiI6IDIKICAgICAgfQogICAgfQogIF0KfQ==\"}",
+                  "lang": "opensearch_compounded_script",
+                  "params": {
+                    "utcTimestamp": 1765261854612898000,
+                    "SOURCES": [
+                      0,
+                      2,
+                      2
+                    ],
+                    "DIGESTS": [
+                      "Referer",
+                      "^https?://(?:www\\.)?([^/]+)/.*$",
+                      "$1"
+                    ]
+                  }
+                },
+                "missing_bucket": false,
+                "order": "asc"
+              }
+            }
+          }
+        ]
+      },
+      "aggregations": {
+        "l": {
+          "avg": {
+            "script": {
+              "source": "{\"langType\":\"calcite\",\"script\":\"rO0ABXQA/3sKICAib3AiOiB7CiAgICAibmFtZSI6ICJDSEFSX0xFTkdUSCIsCiAgICAia2luZCI6ICJDSEFSX0xFTkdUSCIsCiAgICAic3ludGF4IjogIkZVTkNUSU9OIgogIH0sCiAgIm9wZXJhbmRzIjogWwogICAgewogICAgICAiZHluYW1pY1BhcmFtIjogMCwKICAgICAgInR5cGUiOiB7CiAgICAgICAgInR5cGUiOiAiVkFSQ0hBUiIsCiAgICAgICAgIm51bGxhYmxlIjogdHJ1ZSwKICAgICAgICAicHJlY2lzaW9uIjogLTEKICAgICAgfQogICAgfQogIF0KfQ==\"}",
+              "lang": "opensearch_compounded_script",
+              "params": {
+                "utcTimestamp": 1765261854612898000,
+                "SOURCES": [
+                  0
+                ],
+                "DIGESTS": [
+                  "Referer"
+                ]
+              }
+            }
+          }
+        },
+        "min(Referer)": {
+          "top_hits": {
+            "from": 0,
+            "size": 1,
+            "version": false,
+            "seq_no_primary_term": false,
+            "explain": false,
+            "fields": [
+              {
+                "field": "Referer"
+              }
+            ],
+            "sort": [
+              {
+                "Referer": {
+                  "order": "asc"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

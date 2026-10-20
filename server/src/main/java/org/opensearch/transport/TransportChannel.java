@@ -75,12 +75,46 @@ public interface TransportChannel {
     }
 
     /**
+     * Sends a batch of responses, optionally blocking the caller until the batch has been handed off to
+     * the transport. Defaults to the asynchronous behaviour of {@link #sendResponseBatch(TransportResponse)}
+     * when {@code sync == false}.
+     *
+     * <p>With {@code sync == true} the caller blocks until the batch has been written to the transport's
+     * outbound buffer, so it cannot queue the next batch ahead of this one — a bound on outstanding
+     * batches (useful when the batch holds large buffers that must not accumulate). This does not wait
+     * for the bytes to leave the machine; if the outbound buffer is full the transport's own readiness
+     * back-pressure gates the send. The send itself still runs on the channel's send executor; only the
+     * caller is made to wait. A caller that requests this MUST drive a single stream from a single thread
+     * and MUST NOT call from the channel's send-executor thread.
+     *
+     * @param response the batch of responses to send
+     * @param sync     {@code true} to block the caller until the batch is handed to the transport; {@code false} for async dispatch
+     * @throws StreamException with {@link StreamErrorCode#CANCELLED} if the stream has been canceled.
+     */
+    @ExperimentalApi
+    default void sendResponseBatch(TransportResponse response, boolean sync) {
+        sendResponseBatch(response);
+    }
+
+    /**
      * Call this method on a successful completion the streaming response.
      * Note: not calling this method on success will result in a memory leak
      */
     @ExperimentalApi
     default void completeStream() {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Whether the stream has been cancelled (by the consumer, or due to a transport error) without
+     * waiting for the next {@link #sendResponseBatch(TransportResponse)} to throw. A long-lived sender
+     * that parks between sends can poll this to exit promptly when the consumer goes away, instead of
+     * leaking until its next send throws or a keepalive timeout fires. Default {@code false} for
+     * channels without a cancellation signal.
+     */
+    @ExperimentalApi
+    default boolean isCancelled() {
+        return false;
     }
 
     void sendResponse(TransportResponse response) throws IOException;

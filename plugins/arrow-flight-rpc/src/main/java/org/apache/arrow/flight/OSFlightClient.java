@@ -8,6 +8,7 @@
 
 package org.apache.arrow.flight;
 
+import io.grpc.ClientInterceptor;
 import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NettyChannelBuilder;
 import io.netty.channel.EventLoopGroup;
@@ -41,6 +42,7 @@ public class OSFlightClient {
         private InputStream clientKey = null;
         private String overrideHostname = null;
         private List<FlightClientMiddleware.Factory> middleware = new ArrayList<>();
+        private List<ClientInterceptor> grpcInterceptors = new ArrayList<>();
         private boolean verifyServer = true;
 
         private EventLoopGroup workerELG;
@@ -101,6 +103,12 @@ public class OSFlightClient {
 
         public Builder intercept(FlightClientMiddleware.Factory factory) {
             middleware.add(factory);
+            return this;
+        }
+
+        /** Register a gRPC {@link ClientInterceptor} on the underlying channel. */
+        public Builder grpcIntercept(ClientInterceptor interceptor) {
+            grpcInterceptors.add(Preconditions.checkNotNull(interceptor));
             return this;
         }
 
@@ -219,7 +227,11 @@ public class OSFlightClient {
             if (workerELG != null) {
                 builder.eventLoopGroup(workerELG);
             }
- 
+
+            if (!grpcInterceptors.isEmpty()) {
+                builder.intercept(grpcInterceptors);
+            }
+
             return new FlightClient(allocator, builder.build(), middleware);
         }
 

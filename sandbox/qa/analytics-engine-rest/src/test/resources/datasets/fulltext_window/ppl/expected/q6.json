@@ -1,0 +1,78 @@
+{
+  "schema": [
+    {
+      "name": "service",
+      "type": "string"
+    },
+    {
+      "name": "timestamp",
+      "type": "timestamp"
+    },
+    {
+      "name": "message",
+      "type": "string"
+    },
+    {
+      "name": "rn",
+      "type": "bigint"
+    }
+  ],
+  "datarows": [
+    [
+      "auth",
+      "2026-05-20 10:00:37",
+      "Suspicious activity detected",
+      1
+    ],
+    [
+      "auth",
+      "2026-05-20 10:00:34",
+      "User profile updated",
+      2
+    ],
+    [
+      "auth",
+      "2026-05-20 10:00:31",
+      "Session store connection refused",
+      3
+    ],
+    [
+      "order",
+      "2026-05-20 10:00:39",
+      "Warehouse system connection timeout",
+      1
+    ],
+    [
+      "order",
+      "2026-05-20 10:00:36",
+      "Return initiated",
+      2
+    ],
+    [
+      "order",
+      "2026-05-20 10:00:33",
+      "Delayed order processing",
+      3
+    ],
+    [
+      "payment",
+      "2026-05-20 10:00:38",
+      "Invoice generated",
+      1
+    ],
+    [
+      "payment",
+      "2026-05-20 10:00:35",
+      "Currency conversion service timeout",
+      2
+    ],
+    [
+      "payment",
+      "2026-05-20 10:00:32",
+      "Payment processor API timeout",
+      3
+    ]
+  ],
+  "total": 9,
+  "size": 9
+}

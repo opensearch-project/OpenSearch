@@ -1,0 +1,1 @@
+source = clickbench | where like(Title, '%Google%') and not like(URL, '%.google.%') and SearchPhrase != '' | stats count() as c, dc(UserID) by SearchPhrase | sort - c | head 10

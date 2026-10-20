@@ -19,10 +19,12 @@ import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.RemoteSyncListener;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -37,12 +39,44 @@ public class RemoteStoreUploaderService implements RemoteStoreUploader {
     private final IndexShard indexShard;
     private final Directory storeDirectory;
     private final RemoteSegmentStoreDirectory remoteDirectory;
+    private final List<RemoteSyncListener> syncListeners = new ArrayList<>();
 
     public RemoteStoreUploaderService(IndexShard indexShard, Directory storeDirectory, RemoteSegmentStoreDirectory remoteDirectory) {
         logger = Loggers.getLogger(getClass(), indexShard.shardId());
         this.indexShard = indexShard;
         this.storeDirectory = storeDirectory;
         this.remoteDirectory = remoteDirectory;
+        // One-time chain walk at construction — register the sync listener from the directory stack
+        registerSyncListenersFromDirectory(storeDirectory);
+    }
+
+    /**
+     * Registers a listener to be notified after each file is synced to remote.
+     *
+     * @param listener the listener to register
+     */
+    public void addSyncListener(RemoteSyncListener listener) {
+        if (listener != null) {
+            syncListeners.add(listener);
+        }
+    }
+
+    /**
+     * Walks the directory chain once to find and register the first {@link RemoteSyncListener}.
+     */
+    private void registerSyncListenersFromDirectory(Directory dir) {
+        Directory current = dir;
+        while (current != null) {
+            if (current instanceof RemoteSyncListener) {
+                syncListeners.add((RemoteSyncListener) current);
+                return;
+            }
+            if (current instanceof FilterDirectory) {
+                current = ((FilterDirectory) current).getDelegate();
+            } else {
+                break;
+            }
+        }
     }
 
     @Override
@@ -63,7 +97,6 @@ public class RemoteStoreUploaderService implements RemoteStoreUploader {
         logger.debug("Effective new segments files to upload {}", localSegments);
         ActionListener<Collection<Void>> mappedListener = ActionListener.map(listener, resp -> null);
         GroupedActionListener<Void> batchUploadListener = new GroupedActionListener<>(mappedListener, localSegments.size());
-        Directory directory = ((FilterDirectory) (((FilterDirectory) storeDirectory).getDelegate())).getDelegate();
 
         for (String localSegment : localSegments) {
             // Initializing listener here to ensure that the stats increment operations are thread-safe
@@ -72,9 +105,7 @@ public class RemoteStoreUploaderService implements RemoteStoreUploader {
                 statsListener.onSuccess(localSegment);
                 batchUploadListener.onResponse(resp);
                 // Once uploaded to Remote, local files become eligible for eviction from FileCache
-                if (directory instanceof CompositeDirectory compositeDirectory) {
-                    compositeDirectory.afterSyncToRemote(localSegment);
-                }
+                notifyAfterSyncToRemote(localSegment);
             }, ex -> {
                 logger.warn(() -> new ParameterizedMessage("Exception: [{}] while uploading segment files", ex), ex);
                 if (ex instanceof CorruptIndexException) {
@@ -92,6 +123,12 @@ public class RemoteStoreUploaderService implements RemoteStoreUploader {
                 isLowPriorityUpload,
                 cryptoMetadata
             );
+        }
+    }
+
+    private void notifyAfterSyncToRemote(String file) {
+        for (RemoteSyncListener listener : syncListeners) {
+            listener.afterSyncToRemote(file);
         }
     }
 }

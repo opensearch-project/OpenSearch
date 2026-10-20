@@ -50,6 +50,7 @@ import com.azure.storage.blob.specialized.BlockBlobAsyncClient;
 import com.azure.storage.common.implementation.connectionstring.StorageEndpoint;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
@@ -149,7 +150,7 @@ public class AzureStorageService implements AutoCloseable {
 
     /**
      * Obtains a {@code BlobServiceClient} on each invocation using the current client
-     * settings. BlobServiceClient is thread safe and and could be cached but the settings
+     * settings. BlobServiceClient is thread safe and could be cached but the settings
      * can change, therefore the instance might be recreated from scratch.
      *
      * @param clientName client name
@@ -162,7 +163,7 @@ public class AzureStorageService implements AutoCloseable {
 
     /**
      * Obtains a {@code BlobServiceClient} on each invocation using the current client
-     * settings. BlobServiceClient is thread safe and and could be cached but the settings
+     * settings. BlobServiceClient is thread safe and could be cached but the settings
      * can change, therefore the instance might be recreated from scratch.
 
      * @param clientName client name
@@ -170,10 +171,7 @@ public class AzureStorageService implements AutoCloseable {
      * @return the {@code BlobServiceClient} instance and context
      */
     public Tuple<BlobServiceClient, Supplier<Context>> client(String clientName, BiConsumer<HttpRequest, HttpResponse> statsCollector) {
-        final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
-        if (azureStorageSettings == null) {
-            throw new SettingsException("Unable to find client with name [" + clientName + "]");
-        }
+        final AzureStorageSettings azureStorageSettings = getStorageSettings(clientName);
 
         // New Azure storage clients are thread-safe and do not hold any state so could be cached, see please:
         // https://github.com/Azure/azure-storage-java/blob/master/V12%20Upgrade%20Story.md#v12-the-best-of-both-worlds
@@ -337,10 +335,7 @@ public class AzureStorageService implements AutoCloseable {
     }
 
     public Duration getBlobRequestTimeout(String clientName) {
-        final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
-        if (azureStorageSettings == null) {
-            throw new SettingsException("Unable to find client with name [" + clientName + "]");
-        }
+        final AzureStorageSettings azureStorageSettings = getStorageSettings(clientName);
 
         // Set timeout option if the user sets cloud.azure.storage.timeout or
         // cloud.azure.storage.xxx.timeout (it's negative by default)
@@ -357,8 +352,42 @@ public class AzureStorageService implements AutoCloseable {
         return null;
     }
 
-    ParallelTransferOptions getBlobRequestOptionsForWriteBlob() {
-        return null;
+    @Nullable
+    Integer getReadBlockSize(String clientName) {
+        final long readBlockSize = getStorageSettings(clientName).getReadBlockSize().getBytes();
+        return readBlockSize < 0L ? null : Math.toIntExact(readBlockSize);
+    }
+
+    @Nullable
+    ParallelTransferOptions getBlobRequestOptionsForWriteBlob(String clientName) {
+        final AzureStorageSettings settings = getStorageSettings(clientName);
+        final long writeBlockSize = settings.getWriteBlockSize().getBytes();
+        final long maxSingleUploadSize = settings.getMaxSingleUploadSize().getBytes();
+        final int writeConcurrency = settings.getWriteConcurrency();
+
+        if (writeBlockSize < 0L && maxSingleUploadSize < 0L && writeConcurrency < 0) {
+            return null;
+        }
+
+        final ParallelTransferOptions options = new ParallelTransferOptions();
+        if (writeBlockSize >= 0L) {
+            options.setBlockSizeLong(writeBlockSize);
+        }
+        if (maxSingleUploadSize >= 0L) {
+            options.setMaxSingleUploadSizeLong(maxSingleUploadSize);
+        }
+        if (writeConcurrency >= 0) {
+            options.setMaxConcurrency(writeConcurrency);
+        }
+        return options;
+    }
+
+    private AzureStorageSettings getStorageSettings(String clientName) {
+        final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
+        if (azureStorageSettings == null) {
+            throw new SettingsException("Unable to find client with name [" + clientName + "]");
+        }
+        return azureStorageSettings;
     }
 
     private void closeInternally(ClientState state) {

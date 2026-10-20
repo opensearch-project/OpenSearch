@@ -1,0 +1,8 @@
+{"index":{}}
+{"processor_type":"processor_success","filter_in_count":1000,"cluster_name":"cluster-a"}
+{"index":{}}
+{"processor_type":"processor_success","filter_in_count":1500,"cluster_name":"cluster-b"}
+{"index":{}}
+{"processor_type":"processor_success","filter_in_count":2000,"cluster_name":"cluster-c"}
+{"index":{}}
+{"processor_type":"processor_failure","filter_in_count":500,"cluster_name":"cluster-a"}

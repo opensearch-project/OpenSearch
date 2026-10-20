@@ -1,0 +1,56 @@
+{
+  "schema": [
+    {
+      "name": "unique_codes",
+      "type": "bigint"
+    },
+    {
+      "name": "min_score",
+      "type": "float"
+    },
+    {
+      "name": "max_score",
+      "type": "float"
+    },
+    {
+      "name": "p90_score",
+      "type": "float"
+    },
+    {
+      "name": "region",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      3,
+      3.0,
+      100.0,
+      91.0,
+      "East"
+    ],
+    [
+      3,
+      0.0,
+      100.0,
+      89.0,
+      "North"
+    ],
+    [
+      3,
+      1.0,
+      97.0,
+      86.0,
+      "South"
+    ],
+    [
+      3,
+      0.0,
+      98.0,
+      83.0,
+      "West"
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

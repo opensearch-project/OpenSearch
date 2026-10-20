@@ -1,0 +1,1 @@
+source=test_data | eval local_t = localtime() | fields id, local_t | head 1

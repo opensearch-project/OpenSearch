@@ -1,0 +1,42 @@
+{
+  "schema": [
+    {
+      "name": "text",
+      "type": "string"
+    },
+    {
+      "name": "text_lower",
+      "type": "string"
+    },
+    {
+      "name": "text_upper",
+      "type": "string"
+    },
+    {
+      "name": "text_len",
+      "type": "int"
+    }
+  ],
+  "datarows": [
+    [
+      "hello world test",
+      "hello world test",
+      "HELLO WORLD TEST",
+      16
+    ],
+    [
+      "sample data entry",
+      "sample data entry",
+      "SAMPLE DATA ENTRY",
+      17
+    ],
+    [
+      "test example record",
+      "test example record",
+      "TEST EXAMPLE RECORD",
+      19
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

@@ -1,0 +1,18 @@
+{
+  "schema": [
+    {"name": "c", "type": "bigint"},
+    {"name": "avg_sev", "type": "double"},
+    {"name": "max_sev", "type": "bigint"},
+    {"name": "min_sev", "type": "bigint"},
+    {"name": "serviceName", "type": "string"}
+  ],
+  "datarows": [
+    [30, 9.0, 9, 9, "cart"],
+    [25, 9.32, 13, 9, "checkout"],
+    [20, 13.4, 17, 13, "payment"],
+    [15, 15.4, 17, 5, "search"],
+    [10, 7.8, 9, 5, "recommendation"]
+  ],
+  "total": 5,
+  "size": 5
+}

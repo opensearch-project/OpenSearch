@@ -1,0 +1,45 @@
+{
+  "schema": [
+    {
+      "name": "threat_count",
+      "type": "bigint"
+    },
+    {
+      "name": "unique_ips",
+      "type": "bigint"
+    },
+    {
+      "name": "event_type",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      79,
+      40,
+      "authentication_failure"
+    ],
+    [
+      75,
+      28,
+      "access_denied"
+    ],
+    [
+      59,
+      13,
+      "login_attempt"
+    ],
+    [
+      42,
+      28,
+      "privilege_escalation"
+    ],
+    [
+      38,
+      19,
+      "suspicious_activity"
+    ]
+  ],
+  "total": 5,
+  "size": 5
+}

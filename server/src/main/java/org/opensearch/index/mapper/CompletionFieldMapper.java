@@ -653,6 +653,11 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        // no-op
+    }
+
+    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

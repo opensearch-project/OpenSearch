@@ -1,0 +1,1 @@
+source=%INDEX% | eval r = coalesce(client_ip, "0.0.0.0") | sort id | fields id, r

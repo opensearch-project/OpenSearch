@@ -16,17 +16,20 @@ import java.nio.file.Path;
 
 /**
  * Class to represent a fetch request for a block of a file.
- * Field names: directory, fileName, blockFileName, blockStart, blockSize, filePath.
- * Builder pattern and getters will be added in the implementation PR.
  */
 @ExperimentalApi
 public class BlockFetchRequest {
 
     private final Directory directory;
+
     private final String fileName;
+
     private final String blockFileName;
+
     private final long blockStart;
+
     private final long blockSize;
+
     private final Path filePath;
 
     private BlockFetchRequest(Builder builder) {
@@ -38,65 +41,57 @@ public class BlockFetchRequest {
         this.blockStart = builder.blockStart;
     }
 
-    /**
-     * Creates a new Builder.
-     * @return a new Builder
-     */
     public static Builder builder() {
         return new Builder();
     }
 
-    /**
-     * Returns the file path.
-     * @return the file path
-     */
     public Path getFilePath() {
         return filePath;
     }
 
-    /**
-     * Returns the directory.
-     * @return the directory
-     */
     public Directory getDirectory() {
         return directory;
     }
 
-    /**
-     * Returns the file name.
-     * @return the file name
-     */
     public String getFileName() {
         return fileName;
     }
 
-    /**
-     * Returns the block file name.
-     * @return the block file name
-     */
     public String getBlockFileName() {
         return blockFileName;
     }
 
-    /**
-     * Returns the block size.
-     * @return the block size
-     */
     public long getBlockSize() {
         return blockSize;
     }
 
-    /**
-     * Returns the block start.
-     * @return the block start
-     */
     public long getBlockStart() {
         return blockStart;
     }
 
+    @Override
+    public String toString() {
+        return "BlockFetchRequest{"
+            + "filePath="
+            + filePath.toString()
+            + ", directory="
+            + directory.toString()
+            + ", fileName='"
+            + fileName
+            + ", blockFileName='"
+            + blockFileName
+            + ", blockStart="
+            + blockStart
+            + ", blockSize="
+            + blockSize
+            + ", filePath="
+            + filePath
+            + '}';
+    }
+
     /**
-    * Builder for BlobFetchRequest
-    */
+     * Builder for BlobFetchRequest
+     */
     @ExperimentalApi
     public static final class Builder {
         private FSDirectory directory;
@@ -157,7 +152,6 @@ public class BlockFetchRequest {
             return this;
         }
 
-        /** Builds the BlockFetchRequest. @return the built request */
         public BlockFetchRequest build() {
             return new BlockFetchRequest(this);
         }

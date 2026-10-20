@@ -1,0 +1,84 @@
+{
+  "from": 0,
+  "size": 0,
+  "timeout": "1m",
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "term": {
+            "CounterID": {
+              "value": 62,
+              "boost": 1.0
+            }
+          }
+        },
+        {
+          "range": {
+            "EventDate": {
+              "from": "2013-07-01T00:00:00.000Z",
+              "to": "2013-07-15T00:00:00.000Z",
+              "include_lower": true,
+              "include_upper": true,
+              "format": "date_time",
+              "boost": 1.0
+            }
+          }
+        },
+        {
+          "term": {
+            "IsRefresh": {
+              "value": 0,
+              "boost": 1.0
+            }
+          }
+        },
+        {
+          "term": {
+            "DontCountHits": {
+              "value": 0,
+              "boost": 1.0
+            }
+          }
+        },
+        {
+          "exists": {
+            "field": "EventTime",
+            "boost": 1.0
+          }
+        }
+      ],
+      "adjust_pure_negative": true,
+      "boost": 1.0
+    }
+  },
+  "_source": {
+    "includes": [
+      "EventDate",
+      "EventTime",
+      "DontCountHits",
+      "IsRefresh",
+      "CounterID"
+    ],
+    "excludes": []
+  },
+  "aggregations": {
+    "composite_buckets": {
+      "composite": {
+        "size": 1010,
+        "sources": [
+          {
+            "M": {
+              "date_histogram": {
+                "field": "EventTime",
+                "missing_bucket": false,
+                "order": "asc",
+                "fixed_interval": "1m"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

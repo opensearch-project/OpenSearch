@@ -12,12 +12,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.ingest.IngestService;
 
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -40,6 +43,11 @@ public class IngestPipelineExecutor {
     private final IngestService ingestService;
     private final String index;
     private volatile String resolvedFinalPipeline;
+
+    // Pipeline execution metrics
+    private final MeanMetric executionTime = new MeanMetric();
+    private final CounterMetric failedCount = new CounterMetric();
+    private final CounterMetric droppedCount = new CounterMetric();
 
     /**
      * Creates an IngestPipelineExecutor for the given index.
@@ -96,6 +104,8 @@ public class IngestPipelineExecutor {
             return sourceMap;
         }
 
+        long startTimeNanos = System.nanoTime();
+
         // Build IndexRequest to carry the document through the pipeline
         IndexRequest indexRequest = new IndexRequest(index);
         indexRequest.id(id);
@@ -120,11 +130,15 @@ public class IngestPipelineExecutor {
             }
         }, slot -> dropped.set(true));
 
+        executionTime.inc(System.nanoTime() - startTimeNanos);
+
         if (failureRef.get() != null) {
+            failedCount.inc();
             throw failureRef.get();
         }
 
         if (dropped.get()) {
+            droppedCount.inc();
             return null;
         }
 
@@ -147,5 +161,17 @@ public class IngestPipelineExecutor {
         // _index change is already blocked by final_pipeline semantics in IngestService
 
         return indexRequest.sourceAsMap();
+    }
+
+    /**
+     * Returns pipeline execution metrics.
+     */
+    public PollingIngestStats.PipelineStats getMetrics() {
+        return new PollingIngestStats.PipelineStats(
+            executionTime.count(),
+            TimeUnit.NANOSECONDS.toMillis(executionTime.sum()),
+            failedCount.count(),
+            droppedCount.count()
+        );
     }
 }

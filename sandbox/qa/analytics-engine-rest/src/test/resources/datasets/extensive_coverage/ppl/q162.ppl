@@ -1,0 +1,1 @@
+source=test_data | eval deleted = json_delete(json_data, '$.price') | fields json_data, deleted | head 3

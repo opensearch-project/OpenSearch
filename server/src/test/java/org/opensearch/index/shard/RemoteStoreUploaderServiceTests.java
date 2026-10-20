@@ -19,6 +19,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.RemoteDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.RemoteSyncListener;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -484,6 +485,196 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
          */
         public TestFilterDirectory(Directory in) {
             super(in);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // RemoteSyncListener registration tests
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Uploader auto-discovers RemoteSyncListener from directory chain at construction time.
+     */
+    public void testSyncListenerAutoRegisteredFromDirectoryChain() throws Exception {
+        IndexShard freshMockShard = mock(IndexShard.class);
+        ShardId shardId = new ShardId(new Index("test", "test"), 1);
+        when(freshMockShard.shardId()).thenReturn(shardId);
+        when(freshMockShard.state()).thenReturn(IndexShardState.STARTED);
+
+        // Create a concrete RemoteSyncListener directory that tracks afterSyncToRemote calls
+        Directory innerMockDelegate = mock(Directory.class);
+        TrackingSyncListenerDirectory listenerDir = new TrackingSyncListenerDirectory(innerMockDelegate);
+        TestFilterDirectory outerDir = new TestFilterDirectory(listenerDir);
+
+        RemoteDirectory remoteDataDirectory = mock(RemoteDirectory.class);
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
+            remoteDataDirectory,
+            mock(RemoteDirectory.class),
+            mock(RemoteStoreLockManager.class),
+            freshMockShard.getThreadPool(),
+            freshMockShard.shardId(),
+            new HashMap<>()
+        );
+
+        RemoteStoreUploaderService testUploaderService = new RemoteStoreUploaderService(
+            freshMockShard,
+            outerDir,
+            remoteSegmentStoreDirectory
+        );
+
+        doAnswer(invocation -> {
+            ActionListener<Void> callback = invocation.getArgument(5);
+            callback.onResponse(null);
+            return true;
+        }).when(remoteDataDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class), any());
+
+        CountDownLatch latch = new CountDownLatch(1);
+        testUploaderService.uploadSegments(
+            Collections.singletonList("seg1"),
+            Map.of("seg1", 100L),
+            ActionListener.wrap(r -> latch.countDown(), e -> fail("Should not fail")),
+            mockUploadListenerFunction,
+            false,
+            null
+        );
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertEquals("afterSyncToRemote should be called once", 1, listenerDir.syncCount);
+        assertEquals("seg1", listenerDir.lastFile);
+    }
+
+    /**
+     * When no RemoteSyncListener in directory chain, upload still succeeds (no-op notification).
+     */
+    public void testNoSyncListenerInChainStillWorks() throws Exception {
+        IndexShard freshMockShard = mock(IndexShard.class);
+        ShardId shardId = new ShardId(new Index("test", "test"), 1);
+        when(freshMockShard.shardId()).thenReturn(shardId);
+        when(freshMockShard.state()).thenReturn(IndexShardState.STARTED);
+
+        // Plain FilterDirectory — no RemoteSyncListener
+        Directory innerDir = mock(Directory.class);
+        TestFilterDirectory outerDir = new TestFilterDirectory(new TestFilterDirectory(innerDir));
+
+        RemoteDirectory remoteDataDirectory = mock(RemoteDirectory.class);
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
+            remoteDataDirectory,
+            mock(RemoteDirectory.class),
+            mock(RemoteStoreLockManager.class),
+            freshMockShard.getThreadPool(),
+            freshMockShard.shardId(),
+            new HashMap<>()
+        );
+
+        RemoteStoreUploaderService testUploaderService = new RemoteStoreUploaderService(
+            freshMockShard,
+            outerDir,
+            remoteSegmentStoreDirectory
+        );
+
+        doAnswer(invocation -> {
+            ActionListener<Void> callback = invocation.getArgument(5);
+            callback.onResponse(null);
+            return true;
+        }).when(remoteDataDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class), any());
+
+        CountDownLatch latch = new CountDownLatch(1);
+        testUploaderService.uploadSegments(
+            Collections.singletonList("seg1"),
+            Map.of("seg1", 100L),
+            ActionListener.wrap(r -> latch.countDown(), e -> fail("Should not fail")),
+            mockUploadListenerFunction,
+            false,
+            null
+        );
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        // No exception = pass. No listener to call.
+    }
+
+    /**
+     * addSyncListener allows manually adding extra listeners beyond auto-discovery.
+     */
+    public void testAddSyncListenerManually() throws Exception {
+        IndexShard freshMockShard = mock(IndexShard.class);
+        ShardId shardId = new ShardId(new Index("test", "test"), 1);
+        when(freshMockShard.shardId()).thenReturn(shardId);
+        when(freshMockShard.state()).thenReturn(IndexShardState.STARTED);
+
+        Directory innerDir = mock(Directory.class);
+        TestFilterDirectory outerDir = new TestFilterDirectory(new TestFilterDirectory(innerDir));
+
+        RemoteDirectory remoteDataDirectory = mock(RemoteDirectory.class);
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
+            remoteDataDirectory,
+            mock(RemoteDirectory.class),
+            mock(RemoteStoreLockManager.class),
+            freshMockShard.getThreadPool(),
+            freshMockShard.shardId(),
+            new HashMap<>()
+        );
+
+        RemoteStoreUploaderService testUploaderService = new RemoteStoreUploaderService(
+            freshMockShard,
+            outerDir,
+            remoteSegmentStoreDirectory
+        );
+
+        RemoteSyncListener manualListener = mock(RemoteSyncListener.class);
+        testUploaderService.addSyncListener(manualListener);
+
+        doAnswer(invocation -> {
+            ActionListener<Void> callback = invocation.getArgument(5);
+            callback.onResponse(null);
+            return true;
+        }).when(remoteDataDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class), any());
+
+        CountDownLatch latch = new CountDownLatch(1);
+        testUploaderService.uploadSegments(
+            Collections.singletonList("seg1"),
+            Map.of("seg1", 100L),
+            ActionListener.wrap(r -> latch.countDown(), e -> fail("Should not fail")),
+            mockUploadListenerFunction,
+            false,
+            null
+        );
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        verify(manualListener).afterSyncToRemote("seg1");
+    }
+
+    /**
+     * addSyncListener with null is a no-op (no NPE).
+     */
+    public void testAddSyncListenerNullIsNoOp() throws Exception {
+        RemoteDirectory remoteDataDirectory = mock(RemoteDirectory.class);
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = createMockRemoteDirectory(remoteDataDirectory);
+
+        RemoteStoreUploaderService testUploaderService = new RemoteStoreUploaderService(
+            mockIndexShard,
+            mock(Directory.class),
+            remoteSegmentStoreDirectory
+        );
+
+        // Should not throw
+        testUploaderService.addSyncListener(null);
+    }
+
+    /**
+     * Concrete FilterDirectory that implements RemoteSyncListener and tracks calls.
+     */
+    static class TrackingSyncListenerDirectory extends FilterDirectory implements RemoteSyncListener {
+        volatile int syncCount = 0;
+        volatile String lastFile = null;
+
+        TrackingSyncListenerDirectory(Directory in) {
+            super(in);
+        }
+
+        @Override
+        public void afterSyncToRemote(String file) {
+            syncCount++;
+            lastFile = file;
         }
     }
 }

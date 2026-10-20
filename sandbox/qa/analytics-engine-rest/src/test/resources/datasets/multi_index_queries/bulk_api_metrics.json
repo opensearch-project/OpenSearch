@@ -1,0 +1,401 @@
+{"index": {}}
+{"@timestamp": "2026-05-14T03:11:34.938905", "endpoint": "/api/payments", "url": "/SCS/Retail/v1/orders", "method": "PUT", "status": 503, "status_code": 503, "latency_ms": 1517, "response_time_ms": 1517, "cluster": "webactivity", "host": "host1", "flow_direction": "OUT", "user_id": "user1"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:12:34.938905", "endpoint": "/api/payments", "url": "/api/payments", "method": "DELETE", "status": 500, "status_code": 500, "latency_ms": 1597, "response_time_ms": 1597, "cluster": "staging", "host": "host1", "flow_direction": "IN", "user_id": "user17"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:13:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/products", "method": "GET", "status": 200, "status_code": 200, "latency_ms": 560, "response_time_ms": 560, "cluster": "staging", "host": "host1", "flow_direction": "IN", "user_id": "user8", "request_mediation_latency": 448}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:14:34.938905", "endpoint": "/api/orders", "url": "/SCS/Retail/v1/orders", "method": "PUT", "status": 503, "status_code": 503, "latency_ms": 492, "response_time_ms": 492, "cluster": "production", "host": "host2", "flow_direction": "IN", "user_id": "user7"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:15:34.938905", "endpoint": "/api/payments", "url": "/api/users", "method": "DELETE", "status": 500, "status_code": 500, "latency_ms": 541, "response_time_ms": 541, "cluster": "production", "host": "host2", "flow_direction": "IN", "user_id": "user18"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:16:34.938905", "endpoint": "/api/orders", "url": "/api/orders", "method": "DELETE", "status": 200, "status_code": 200, "latency_ms": 784, "response_time_ms": 784, "cluster": "webactivity", "host": "host2", "flow_direction": "IN", "user_id": "user7", "request_mediation_latency": 627}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:17:34.938905", "endpoint": "/api/products", "url": "/api/payments", "method": "PUT", "status": 400, "status_code": 400, "latency_ms": 1796, "response_time_ms": 1796, "cluster": "production", "host": "host1", "flow_direction": "OUT", "user_id": "user4"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:18:34.938905", "endpoint": "/api/orders", "url": "/api/payments", "method": "POST", "status": 500, "status_code": 500, "latency_ms": 1467, "response_time_ms": 1467, "cluster": "staging", "host": "host1", "flow_direction": "IN", "user_id": "user12"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:19:34.938905", "endpoint": "/api/products", "url": "/api/payments", "method": "DELETE", "status": 201, "status_code": 201, "latency_ms": 1512, "response_time_ms": 1512, "cluster": "webactivity", "host": "host3", "flow_direction": "IN", "user_id": "user16", "request_mediation_latency": 1209}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:20:34.938905", "endpoint": "/api/payments", "url": "/api/products", "method": "GET", "status": 201, "status_code": 201, "latency_ms": 293, "response_time_ms": 293, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user15"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:21:34.938905", "endpoint": "/api/products", "url": "/api/payments", "method": "POST", "status": 400, "status_code": 400, "latency_ms": 349, "response_time_ms": 349, "cluster": "staging", "host": "host2", "flow_direction": "IN", "user_id": "user11"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:22:34.938905", "endpoint": "/api/orders", "url": "/api/products", "method": "PUT", "status": 503, "status_code": 503, "latency_ms": 707, "response_time_ms": 707, "cluster": "production", "host": "host3", "flow_direction": "IN", "user_id": "user14", "request_mediation_latency": 565}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:23:34.938905", "endpoint": "/api/users", "url": "/api/products", "method": "DELETE", "status": 201, "status_code": 201, "latency_ms": 222, "response_time_ms": 222, "cluster": "production", "host": "host1", "flow_direction": "IN", "user_id": "user5"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:24:34.938905", "endpoint": "/api/payments", "url": "/api/products", "method": "GET", "status": 400, "status_code": 400, "latency_ms": 272, "response_time_ms": 272, "cluster": "staging", "host": "host1", "flow_direction": "IN", "user_id": "user18"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:25:34.938905", "endpoint": "/api/orders", "url": "/api/payments", "method": "DELETE", "status": 200, "status_code": 200, "latency_ms": 744, "response_time_ms": 744, "cluster": "webactivity", "host": "host3", "flow_direction": "OUT", "user_id": "user6", "request_mediation_latency": 595}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:26:34.938905", "endpoint": "/api/products", "url": "/api/orders", "method": "PUT", "status": 404, "status_code": 404, "latency_ms": 1839, "response_time_ms": 1839, "cluster": "production", "host": "host2", "flow_direction": "IN", "user_id": "user2"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:27:34.938905", "endpoint": "/api/orders", "url": "/SCS/Retail/v1/orders", "method": "POST", "status": 404, "status_code": 404, "latency_ms": 856, "response_time_ms": 856, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user15"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:28:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/products", "method": "DELETE", "status": 201, "status_code": 201, "latency_ms": 178, "response_time_ms": 178, "cluster": "webactivity", "host": "host3", "flow_direction": "OUT", "user_id": "user8", "request_mediation_latency": 142}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:29:34.938905", "endpoint": "/api/users", "url": "/api/orders", "method": "PUT", "status": 400, "status_code": 400, "latency_ms": 431, "response_time_ms": 431, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user3"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:30:34.938905", "endpoint": "/api/users", "url": "/SCS/Retail/v1/orders", "method": "DELETE", "status": 200, "status_code": 200, "latency_ms": 1690, "response_time_ms": 1690, "cluster": "webactivity", "host": "host3", "flow_direction": "OUT", "user_id": "user10"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:31:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/orders", "method": "POST", "status": 201, "status_code": 201, "latency_ms": 55, "response_time_ms": 55, "cluster": "webactivity", "host": "host1", "flow_direction": "OUT", "user_id": "user3", "request_mediation_latency": 44}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:32:34.938905", "endpoint": "/api/users", "url": "/api/products", "method": "GET", "status": 200, "status_code": 200, "latency_ms": 237, "response_time_ms": 237, "cluster": "webactivity", "host": "host1", "flow_direction": "OUT", "user_id": "user7"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:33:34.938905", "endpoint": "/api/users", "url": "/SCS/Retail/v1/orders", "method": "DELETE", "status": 500, "status_code": 500, "latency_ms": 1492, "response_time_ms": 1492, "cluster": "staging", "host": "host1", "flow_direction": "IN", "user_id": "user11"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:34:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/orders", "method": "PUT", "status": 404, "status_code": 404, "latency_ms": 225, "response_time_ms": 225, "cluster": "production", "host": "host1", "flow_direction": "OUT", "user_id": "user11", "request_mediation_latency": 180}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:35:34.938905", "endpoint": "/api/users", "url": "/SCS/Retail/v1/orders", "method": "GET", "status": 400, "status_code": 400, "latency_ms": 1579, "response_time_ms": 1579, "cluster": "production", "host": "host2", "flow_direction": "OUT", "user_id": "user1"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:36:34.938905", "endpoint": "/api/users", "url": "/api/payments", "method": "GET", "status": 500, "status_code": 500, "latency_ms": 946, "response_time_ms": 946, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user9"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:37:34.938905", "endpoint": "/api/users", "url": "/api/payments", "method": "PUT", "status": 404, "status_code": 404, "latency_ms": 555, "response_time_ms": 555, "cluster": "production", "host": "host3", "flow_direction": "OUT", "user_id": "user9", "request_mediation_latency": 444}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:38:34.938905", "endpoint": "/api/products", "url": "/api/orders", "method": "PUT", "status": 503, "status_code": 503, "latency_ms": 1633, "response_time_ms": 1633, "cluster": "production", "host": "host1", "flow_direction": "IN", "user_id": "user2"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:39:34.938905", "endpoint": "/api/users", "url": "/api/users", "method": "PUT", "status": 500, "status_code": 500, "latency_ms": 369, "response_time_ms": 369, "cluster": "production", "host": "host3", "flow_direction": "OUT", "user_id": "user6"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:40:34.938905", "endpoint": "/api/users", "url": "/api/users", "method": "POST", "status": 201, "status_code": 201, "latency_ms": 377, "response_time_ms": 377, "cluster": "webactivity", "host": "host2", "flow_direction": "OUT", "user_id": "user11", "request_mediation_latency": 301}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:41:34.938905", "endpoint": "/api/payments", "url": "/api/orders", "method": "DELETE", "status": 400, "status_code": 400, "latency_ms": 662, "response_time_ms": 662, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user3"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:42:34.938905", "endpoint": "/api/payments", "url": "/api/orders", "method": "POST", "status": 500, "status_code": 500, "latency_ms": 565, "response_time_ms": 565, "cluster": "webactivity", "host": "host1", "flow_direction": "OUT", "user_id": "user8"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:43:34.938905", "endpoint": "/api/orders", "url": "/SCS/Retail/v1/orders", "method": "POST", "status": 500, "status_code": 500, "latency_ms": 1865, "response_time_ms": 1865, "cluster": "staging", "host": "host1", "flow_direction": "IN", "user_id": "user15", "request_mediation_latency": 1492}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:44:34.938905", "endpoint": "/api/users", "url": "/api/orders", "method": "DELETE", "status": 500, "status_code": 500, "latency_ms": 580, "response_time_ms": 580, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user7"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:45:34.938905", "endpoint": "/api/orders", "url": "/api/products", "method": "DELETE", "status": 404, "status_code": 404, "latency_ms": 752, "response_time_ms": 752, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user5"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:46:34.938905", "endpoint": "/api/users", "url": "/SCS/Retail/v1/orders", "method": "PUT", "status": 404, "status_code": 404, "latency_ms": 763, "response_time_ms": 763, "cluster": "staging", "host": "host1", "flow_direction": "IN", "user_id": "user15", "request_mediation_latency": 610}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:47:34.938905", "endpoint": "/api/payments", "url": "/api/orders", "method": "DELETE", "status": 201, "status_code": 201, "latency_ms": 1937, "response_time_ms": 1937, "cluster": "webactivity", "host": "host1", "flow_direction": "OUT", "user_id": "user12"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:48:34.938905", "endpoint": "/api/payments", "url": "/api/payments", "method": "PUT", "status": 400, "status_code": 400, "latency_ms": 505, "response_time_ms": 505, "cluster": "production", "host": "host2", "flow_direction": "IN", "user_id": "user10"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:49:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/payments", "method": "GET", "status": 404, "status_code": 404, "latency_ms": 827, "response_time_ms": 827, "cluster": "staging", "host": "host3", "flow_direction": "OUT", "user_id": "user2", "request_mediation_latency": 661}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:50:34.938905", "endpoint": "/api/orders", "url": "/api/payments", "method": "PUT", "status": 201, "status_code": 201, "latency_ms": 594, "response_time_ms": 594, "cluster": "webactivity", "host": "host2", "flow_direction": "IN", "user_id": "user3"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:51:34.938905", "endpoint": "/api/users", "url": "/SCS/Retail/v1/orders", "method": "PUT", "status": 400, "status_code": 400, "latency_ms": 1791, "response_time_ms": 1791, "cluster": "production", "host": "host1", "flow_direction": "IN", "user_id": "user12"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:52:34.938905", "endpoint": "/api/payments", "url": "/api/orders", "method": "POST", "status": 503, "status_code": 503, "latency_ms": 292, "response_time_ms": 292, "cluster": "staging", "host": "host2", "flow_direction": "OUT", "user_id": "user12", "request_mediation_latency": 233}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:53:34.938905", "endpoint": "/api/payments", "url": "/api/users", "method": "DELETE", "status": 201, "status_code": 201, "latency_ms": 1313, "response_time_ms": 1313, "cluster": "production", "host": "host3", "flow_direction": "OUT", "user_id": "user4"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:54:34.938905", "endpoint": "/api/payments", "url": "/api/payments", "method": "PUT", "status": 404, "status_code": 404, "latency_ms": 1445, "response_time_ms": 1445, "cluster": "staging", "host": "host3", "flow_direction": "IN", "user_id": "user14"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:55:34.938905", "endpoint": "/api/orders", "url": "/api/users", "method": "PUT", "status": 400, "status_code": 400, "latency_ms": 78, "response_time_ms": 78, "cluster": "webactivity", "host": "host2", "flow_direction": "IN", "user_id": "user16", "request_mediation_latency": 62}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:56:34.938905", "endpoint": "/api/orders", "url": "/api/orders", "method": "POST", "status": 500, "status_code": 500, "latency_ms": 456, "response_time_ms": 456, "cluster": "staging", "host": "host2", "flow_direction": "IN", "user_id": "user16"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:57:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/SCS/Retail/v1/orders", "method": "PUT", "status": 500, "status_code": 500, "latency_ms": 317, "response_time_ms": 317, "cluster": "staging", "host": "host3", "flow_direction": "IN", "user_id": "user13"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:58:34.938905", "endpoint": "/api/payments", "url": "/api/users", "method": "GET", "status": 503, "status_code": 503, "latency_ms": 527, "response_time_ms": 527, "cluster": "staging", "host": "host1", "flow_direction": "IN", "user_id": "user17", "request_mediation_latency": 421}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:59:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/SCS/Retail/v1/orders", "method": "DELETE", "status": 200, "status_code": 200, "latency_ms": 1340, "response_time_ms": 1340, "cluster": "webactivity", "host": "host3", "flow_direction": "IN", "user_id": "user1"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:00:34.938905", "endpoint": "/api/users", "url": "/api/products", "method": "GET", "status": 200, "status_code": 200, "latency_ms": 1435, "response_time_ms": 1435, "cluster": "staging", "host": "host2", "flow_direction": "OUT", "user_id": "user4"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:01:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/SCS/Retail/v1/orders", "method": "GET", "status": 503, "status_code": 503, "latency_ms": 1024, "response_time_ms": 1024, "cluster": "production", "host": "host1", "flow_direction": "IN", "user_id": "user16", "request_mediation_latency": 819}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:02:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/orders", "method": "GET", "status": 500, "status_code": 500, "latency_ms": 800, "response_time_ms": 800, "cluster": "production", "host": "host2", "flow_direction": "OUT", "user_id": "user11"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:03:34.938905", "endpoint": "/api/payments", "url": "/api/users", "method": "GET", "status": 201, "status_code": 201, "latency_ms": 598, "response_time_ms": 598, "cluster": "staging", "host": "host3", "flow_direction": "OUT", "user_id": "user15"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:04:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/orders", "method": "POST", "status": 500, "status_code": 500, "latency_ms": 1601, "response_time_ms": 1601, "cluster": "production", "host": "host1", "flow_direction": "IN", "user_id": "user13", "request_mediation_latency": 1280}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:05:34.938905", "endpoint": "/api/orders", "url": "/api/users", "method": "POST", "status": 404, "status_code": 404, "latency_ms": 1985, "response_time_ms": 1985, "cluster": "staging", "host": "host1", "flow_direction": "OUT", "user_id": "user11"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:06:34.938905", "endpoint": "/api/payments", "url": "/api/products", "method": "PUT", "status": 400, "status_code": 400, "latency_ms": 1579, "response_time_ms": 1579, "cluster": "webactivity", "host": "host2", "flow_direction": "OUT", "user_id": "user10"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:07:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/users", "method": "POST", "status": 500, "status_code": 500, "latency_ms": 1062, "response_time_ms": 1062, "cluster": "production", "host": "host3", "flow_direction": "IN", "user_id": "user4", "request_mediation_latency": 849}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:08:34.938905", "endpoint": "/api/payments", "url": "/api/users", "method": "PUT", "status": 500, "status_code": 500, "latency_ms": 308, "response_time_ms": 308, "cluster": "production", "host": "host1", "flow_direction": "OUT", "user_id": "user18"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:09:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/products", "method": "DELETE", "status": 500, "status_code": 500, "latency_ms": 124, "response_time_ms": 124, "cluster": "webactivity", "host": "host2", "flow_direction": "OUT", "user_id": "user9"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:10:34.938905", "endpoint": "/api/products", "url": "/api/orders", "method": "DELETE", "status": 500, "status_code": 500, "latency_ms": 860, "response_time_ms": 860, "cluster": "production", "host": "host2", "flow_direction": "IN", "user_id": "user1", "request_mediation_latency": 688}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:11:34.938905", "endpoint": "/api/payments", "url": "/api/orders", "method": "POST", "status": 200, "status_code": 200, "latency_ms": 1409, "response_time_ms": 1409, "cluster": "webactivity", "host": "host3", "flow_direction": "IN", "user_id": "user14"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:12:34.938905", "endpoint": "/api/users", "url": "/api/payments", "method": "POST", "status": 201, "status_code": 201, "latency_ms": 1623, "response_time_ms": 1623, "cluster": "webactivity", "host": "host2", "flow_direction": "IN", "user_id": "user16"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:13:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/orders", "method": "PUT", "status": 200, "status_code": 200, "latency_ms": 1396, "response_time_ms": 1396, "cluster": "webactivity", "host": "host2", "flow_direction": "IN", "user_id": "user12", "request_mediation_latency": 1116}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:14:34.938905", "endpoint": "/api/products", "url": "/api/products", "method": "POST", "status": 500, "status_code": 500, "latency_ms": 241, "response_time_ms": 241, "cluster": "production", "host": "host2", "flow_direction": "OUT", "user_id": "user5"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:15:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/products", "method": "POST", "status": 400, "status_code": 400, "latency_ms": 338, "response_time_ms": 338, "cluster": "webactivity", "host": "host1", "flow_direction": "OUT", "user_id": "user19"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:16:34.938905", "endpoint": "/api/orders", "url": "/SCS/Retail/v1/orders", "method": "GET", "status": 503, "status_code": 503, "latency_ms": 556, "response_time_ms": 556, "cluster": "staging", "host": "host3", "flow_direction": "IN", "user_id": "user7", "request_mediation_latency": 444}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:17:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/orders", "method": "POST", "status": 400, "status_code": 400, "latency_ms": 769, "response_time_ms": 769, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user9"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:18:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/users", "method": "PUT", "status": 400, "status_code": 400, "latency_ms": 87, "response_time_ms": 87, "cluster": "staging", "host": "host2", "flow_direction": "OUT", "user_id": "user4"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:19:34.938905", "endpoint": "/api/orders", "url": "/api/payments", "method": "POST", "status": 400, "status_code": 400, "latency_ms": 1014, "response_time_ms": 1014, "cluster": "production", "host": "host3", "flow_direction": "IN", "user_id": "user3", "request_mediation_latency": 811}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:20:34.938905", "endpoint": "/api/users", "url": "/api/products", "method": "GET", "status": 400, "status_code": 400, "latency_ms": 1786, "response_time_ms": 1786, "cluster": "staging", "host": "host1", "flow_direction": "OUT", "user_id": "user12"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:21:34.938905", "endpoint": "/api/products", "url": "/api/payments", "method": "POST", "status": 400, "status_code": 400, "latency_ms": 422, "response_time_ms": 422, "cluster": "webactivity", "host": "host3", "flow_direction": "OUT", "user_id": "user9"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:22:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/payments", "method": "POST", "status": 400, "status_code": 400, "latency_ms": 1343, "response_time_ms": 1343, "cluster": "webactivity", "host": "host2", "flow_direction": "OUT", "user_id": "user5", "request_mediation_latency": 1074}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:23:34.938905", "endpoint": "/api/payments", "url": "/SCS/Retail/v1/orders", "method": "DELETE", "status": 201, "status_code": 201, "latency_ms": 1276, "response_time_ms": 1276, "cluster": "production", "host": "host2", "flow_direction": "IN", "user_id": "user16"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:24:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/payments", "method": "GET", "status": 503, "status_code": 503, "latency_ms": 102, "response_time_ms": 102, "cluster": "webactivity", "host": "host3", "flow_direction": "OUT", "user_id": "user7"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:25:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/SCS/Retail/v1/orders", "method": "DELETE", "status": 404, "status_code": 404, "latency_ms": 1341, "response_time_ms": 1341, "cluster": "webactivity", "host": "host1", "flow_direction": "OUT", "user_id": "user17", "request_mediation_latency": 1072}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:26:34.938905", "endpoint": "/api/orders", "url": "/api/users", "method": "POST", "status": 400, "status_code": 400, "latency_ms": 393, "response_time_ms": 393, "cluster": "webactivity", "host": "host2", "flow_direction": "OUT", "user_id": "user16"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:27:34.938905", "endpoint": "/api/payments", "url": "/api/payments", "method": "POST", "status": 400, "status_code": 400, "latency_ms": 749, "response_time_ms": 749, "cluster": "staging", "host": "host1", "flow_direction": "IN", "user_id": "user2"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:28:34.938905", "endpoint": "/api/products", "url": "/api/products", "method": "DELETE", "status": 503, "status_code": 503, "latency_ms": 1602, "response_time_ms": 1602, "cluster": "webactivity", "host": "host2", "flow_direction": "OUT", "user_id": "user1", "request_mediation_latency": 1281}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:29:34.938905", "endpoint": "/api/payments", "url": "/api/products", "method": "POST", "status": 503, "status_code": 503, "latency_ms": 1862, "response_time_ms": 1862, "cluster": "staging", "host": "host1", "flow_direction": "IN", "user_id": "user6"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:30:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/orders", "method": "GET", "status": 200, "status_code": 200, "latency_ms": 1697, "response_time_ms": 1697, "cluster": "staging", "host": "host1", "flow_direction": "IN", "user_id": "user3"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:31:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/payments", "method": "PUT", "status": 200, "status_code": 200, "latency_ms": 1502, "response_time_ms": 1502, "cluster": "staging", "host": "host3", "flow_direction": "OUT", "user_id": "user3", "request_mediation_latency": 1201}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:32:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/SCS/Retail/v1/orders", "method": "DELETE", "status": 400, "status_code": 400, "latency_ms": 909, "response_time_ms": 909, "cluster": "staging", "host": "host3", "flow_direction": "OUT", "user_id": "user9"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:33:34.938905", "endpoint": "/api/orders", "url": "/api/payments", "method": "DELETE", "status": 503, "status_code": 503, "latency_ms": 900, "response_time_ms": 900, "cluster": "production", "host": "host1", "flow_direction": "OUT", "user_id": "user5"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:34:34.938905", "endpoint": "/api/products", "url": "/api/products", "method": "POST", "status": 400, "status_code": 400, "latency_ms": 232, "response_time_ms": 232, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user2", "request_mediation_latency": 185}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:35:34.938905", "endpoint": "/api/users", "url": "/api/orders", "method": "DELETE", "status": 200, "status_code": 200, "latency_ms": 1782, "response_time_ms": 1782, "cluster": "webactivity", "host": "host3", "flow_direction": "OUT", "user_id": "user17"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:36:34.938905", "endpoint": "/api/orders", "url": "/api/payments", "method": "DELETE", "status": 201, "status_code": 201, "latency_ms": 1283, "response_time_ms": 1283, "cluster": "staging", "host": "host1", "flow_direction": "OUT", "user_id": "user20"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:37:34.938905", "endpoint": "/api/users", "url": "/SCS/Retail/v1/orders", "method": "PUT", "status": 201, "status_code": 201, "latency_ms": 1266, "response_time_ms": 1266, "cluster": "webactivity", "host": "host3", "flow_direction": "OUT", "user_id": "user17", "request_mediation_latency": 1012}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:38:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/SCS/Retail/v1/orders", "method": "GET", "status": 400, "status_code": 400, "latency_ms": 1122, "response_time_ms": 1122, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user15"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:39:34.938905", "endpoint": "/api/orders", "url": "/api/payments", "method": "GET", "status": 503, "status_code": 503, "latency_ms": 1319, "response_time_ms": 1319, "cluster": "production", "host": "host3", "flow_direction": "IN", "user_id": "user5"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:40:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/SCS/Retail/v1/orders", "method": "PUT", "status": 503, "status_code": 503, "latency_ms": 868, "response_time_ms": 868, "cluster": "staging", "host": "host1", "flow_direction": "OUT", "user_id": "user11", "request_mediation_latency": 694}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:41:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/SCS/Retail/v1/orders", "method": "DELETE", "status": 400, "status_code": 400, "latency_ms": 950, "response_time_ms": 950, "cluster": "webactivity", "host": "host1", "flow_direction": "OUT", "user_id": "user6"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:42:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/SCS/Retail/v1/orders", "method": "POST", "status": 400, "status_code": 400, "latency_ms": 1835, "response_time_ms": 1835, "cluster": "production", "host": "host3", "flow_direction": "IN", "user_id": "user14"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:43:34.938905", "endpoint": "/api/payments", "url": "/api/payments", "method": "POST", "status": 404, "status_code": 404, "latency_ms": 222, "response_time_ms": 222, "cluster": "staging", "host": "host2", "flow_direction": "IN", "user_id": "user2", "request_mediation_latency": 177}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:44:34.938905", "endpoint": "/api/orders", "url": "/api/payments", "method": "POST", "status": 400, "status_code": 400, "latency_ms": 1998, "response_time_ms": 1998, "cluster": "staging", "host": "host1", "flow_direction": "OUT", "user_id": "user9"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:45:34.938905", "endpoint": "/api/users", "url": "/api/orders", "method": "DELETE", "status": 200, "status_code": 200, "latency_ms": 1739, "response_time_ms": 1739, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user3"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:46:34.938905", "endpoint": "/api/products", "url": "/api/products", "method": "PUT", "status": 200, "status_code": 200, "latency_ms": 1868, "response_time_ms": 1868, "cluster": "webactivity", "host": "host2", "flow_direction": "IN", "user_id": "user6", "request_mediation_latency": 1494}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:47:34.938905", "endpoint": "/api/users", "url": "/api/orders", "method": "GET", "status": 201, "status_code": 201, "latency_ms": 352, "response_time_ms": 352, "cluster": "webactivity", "host": "host3", "flow_direction": "IN", "user_id": "user10"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:48:34.938905", "endpoint": "/api/products", "url": "/api/payments", "method": "PUT", "status": 500, "status_code": 500, "latency_ms": 1848, "response_time_ms": 1848, "cluster": "webactivity", "host": "host3", "flow_direction": "IN", "user_id": "user7"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:49:34.938905", "endpoint": "/api/users", "url": "/SCS/Retail/v1/orders", "method": "GET", "status": 503, "status_code": 503, "latency_ms": 1444, "response_time_ms": 1444, "cluster": "staging", "host": "host3", "flow_direction": "OUT", "user_id": "user15", "request_mediation_latency": 1155}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:50:34.938905", "endpoint": "/api/orders", "url": "/api/payments", "method": "POST", "status": 400, "status_code": 400, "latency_ms": 574, "response_time_ms": 574, "cluster": "webactivity", "host": "host3", "flow_direction": "IN", "user_id": "user12"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:51:34.938905", "endpoint": "/api/payments", "url": "/api/orders", "method": "GET", "status": 400, "status_code": 400, "latency_ms": 71, "response_time_ms": 71, "cluster": "webactivity", "host": "host3", "flow_direction": "IN", "user_id": "user7"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:52:34.938905", "endpoint": "/api/orders", "url": "/SCS/Retail/v1/orders", "method": "POST", "status": 400, "status_code": 400, "latency_ms": 1758, "response_time_ms": 1758, "cluster": "webactivity", "host": "host1", "flow_direction": "OUT", "user_id": "user16", "request_mediation_latency": 1406}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:53:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/users", "method": "GET", "status": 400, "status_code": 400, "latency_ms": 1715, "response_time_ms": 1715, "cluster": "production", "host": "host3", "flow_direction": "IN", "user_id": "user5"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:54:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/users", "method": "DELETE", "status": 201, "status_code": 201, "latency_ms": 1332, "response_time_ms": 1332, "cluster": "production", "host": "host1", "flow_direction": "IN", "user_id": "user13"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:55:34.938905", "endpoint": "/api/orders", "url": "/SCS/Retail/v1/orders", "method": "GET", "status": 404, "status_code": 404, "latency_ms": 899, "response_time_ms": 899, "cluster": "production", "host": "host2", "flow_direction": "OUT", "user_id": "user15", "request_mediation_latency": 719}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:56:34.938905", "endpoint": "/api/orders", "url": "/api/products", "method": "DELETE", "status": 400, "status_code": 400, "latency_ms": 939, "response_time_ms": 939, "cluster": "production", "host": "host1", "flow_direction": "OUT", "user_id": "user8"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:57:34.938905", "endpoint": "/api/users", "url": "/api/users", "method": "DELETE", "status": 400, "status_code": 400, "latency_ms": 1783, "response_time_ms": 1783, "cluster": "staging", "host": "host3", "flow_direction": "OUT", "user_id": "user11"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:58:34.938905", "endpoint": "/api/payments", "url": "/api/products", "method": "DELETE", "status": 200, "status_code": 200, "latency_ms": 602, "response_time_ms": 602, "cluster": "webactivity", "host": "host2", "flow_direction": "OUT", "user_id": "user10", "request_mediation_latency": 481}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:59:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/orders", "method": "GET", "status": 400, "status_code": 400, "latency_ms": 88, "response_time_ms": 88, "cluster": "webactivity", "host": "host1", "flow_direction": "OUT", "user_id": "user10"}
+{"index": {}}
+{"@timestamp": "2026-05-14T05:00:34.938905", "endpoint": "/api/products", "url": "/api/payments", "method": "DELETE", "status": 400, "status_code": 400, "latency_ms": 1440, "response_time_ms": 1440, "cluster": "webactivity", "host": "host1", "flow_direction": "OUT", "user_id": "user2"}
+{"index": {}}
+{"@timestamp": "2026-05-14T05:01:34.938905", "endpoint": "/api/payments", "url": "/api/products", "method": "DELETE", "status": 503, "status_code": 503, "latency_ms": 1731, "response_time_ms": 1731, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user11", "request_mediation_latency": 1384}
+{"index": {}}
+{"@timestamp": "2026-05-14T05:02:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/products", "method": "DELETE", "status": 500, "status_code": 500, "latency_ms": 713, "response_time_ms": 713, "cluster": "production", "host": "host1", "flow_direction": "OUT", "user_id": "user11"}
+{"index": {}}
+{"@timestamp": "2026-05-14T05:03:34.938905", "endpoint": "/api/orders", "url": "/api/orders", "method": "PUT", "status": 404, "status_code": 404, "latency_ms": 1149, "response_time_ms": 1149, "cluster": "staging", "host": "host2", "flow_direction": "IN", "user_id": "user15"}
+{"index": {}}
+{"@timestamp": "2026-05-14T05:04:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/users", "method": "PUT", "status": 404, "status_code": 404, "latency_ms": 331, "response_time_ms": 331, "cluster": "webactivity", "host": "host2", "flow_direction": "OUT", "user_id": "user13", "request_mediation_latency": 264}
+{"index": {}}
+{"@timestamp": "2026-05-14T05:05:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/payments", "method": "GET", "status": 500, "status_code": 500, "latency_ms": 1509, "response_time_ms": 1509, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user5"}
+{"index": {}}
+{"@timestamp": "2026-05-14T05:06:34.938905", "endpoint": "/api/orders", "url": "/SCS/Retail/v1/orders", "method": "PUT", "status": 500, "status_code": 500, "latency_ms": 124, "response_time_ms": 124, "cluster": "staging", "host": "host3", "flow_direction": "OUT", "user_id": "user8"}
+{"index": {}}
+{"@timestamp": "2026-05-14T05:07:34.938905", "endpoint": "/api/users", "url": "/api/products", "method": "PUT", "status": 201, "status_code": 201, "latency_ms": 1618, "response_time_ms": 1618, "cluster": "staging", "host": "host1", "flow_direction": "OUT", "user_id": "user2", "request_mediation_latency": 1294}
+{"index": {}}
+{"@timestamp": "2026-05-14T05:08:34.938905", "endpoint": "/api/orders", "url": "/api/users", "method": "POST", "status": 404, "status_code": 404, "latency_ms": 238, "response_time_ms": 238, "cluster": "production", "host": "host2", "flow_direction": "IN", "user_id": "user9"}
+{"index": {}}
+{"@timestamp": "2026-05-14T05:09:34.938905", "endpoint": "/api/products", "url": "/api/payments", "method": "DELETE", "status": 200, "status_code": 200, "latency_ms": 1501, "response_time_ms": 1501, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user13"}
+{"index": {}}
+{"@timestamp": "2026-05-14T05:10:34.938905", "endpoint": "/api/users", "url": "/api/payments", "method": "DELETE", "status": 201, "status_code": 201, "latency_ms": 1166, "response_time_ms": 1166, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user9", "request_mediation_latency": 932}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:11:34.938905", "endpoint": "/api/payments", "url": "/api/users", "method": "POST", "status": 404, "status_code": 404, "latency_ms": 1567, "response_time_ms": 1567, "cluster": "webactivity", "host": "host3", "flow_direction": "OUT", "user_id": "user5"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:12:34.938905", "endpoint": "/api/products", "url": "/api/orders", "method": "DELETE", "status": 500, "status_code": 500, "latency_ms": 1272, "response_time_ms": 1272, "cluster": "production", "host": "host2", "flow_direction": "IN", "user_id": "user19"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:13:34.938905", "endpoint": "/api/payments", "url": "/api/products", "method": "POST", "status": 500, "status_code": 500, "latency_ms": 1173, "response_time_ms": 1173, "cluster": "webactivity", "host": "host1", "flow_direction": "OUT", "user_id": "user17", "request_mediation_latency": 938}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:14:34.938905", "endpoint": "/api/payments", "url": "/api/products", "method": "POST", "status": 500, "status_code": 500, "latency_ms": 250, "response_time_ms": 250, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user18"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:15:34.938905", "endpoint": "/api/payments", "url": "/api/payments", "method": "GET", "status": 200, "status_code": 200, "latency_ms": 1991, "response_time_ms": 1991, "cluster": "webactivity", "host": "host3", "flow_direction": "IN", "user_id": "user6"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:16:34.938905", "endpoint": "/api/users", "url": "/api/products", "method": "POST", "status": 503, "status_code": 503, "latency_ms": 1871, "response_time_ms": 1871, "cluster": "production", "host": "host2", "flow_direction": "IN", "user_id": "user19", "request_mediation_latency": 1496}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:17:34.938905", "endpoint": "/api/orders", "url": "/api/users", "method": "POST", "status": 404, "status_code": 404, "latency_ms": 633, "response_time_ms": 633, "cluster": "production", "host": "host2", "flow_direction": "IN", "user_id": "user7"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:18:34.938905", "endpoint": "/api/users", "url": "/api/payments", "method": "PUT", "status": 201, "status_code": 201, "latency_ms": 71, "response_time_ms": 71, "cluster": "webactivity", "host": "host2", "flow_direction": "OUT", "user_id": "user20"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:19:34.938905", "endpoint": "/api/payments", "url": "/api/orders", "method": "POST", "status": 503, "status_code": 503, "latency_ms": 1314, "response_time_ms": 1314, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user4", "request_mediation_latency": 1051}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:20:34.938905", "endpoint": "/api/orders", "url": "/api/orders", "method": "PUT", "status": 200, "status_code": 200, "latency_ms": 1963, "response_time_ms": 1963, "cluster": "webactivity", "host": "host2", "flow_direction": "OUT", "user_id": "user5"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:21:34.938905", "endpoint": "/api/products", "url": "/api/payments", "method": "GET", "status": 200, "status_code": 200, "latency_ms": 1583, "response_time_ms": 1583, "cluster": "webactivity", "host": "host3", "flow_direction": "IN", "user_id": "user6"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:22:34.938905", "endpoint": "/api/orders", "url": "/api/products", "method": "POST", "status": 404, "status_code": 404, "latency_ms": 322, "response_time_ms": 322, "cluster": "staging", "host": "host3", "flow_direction": "IN", "user_id": "user20", "request_mediation_latency": 257}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:23:34.938905", "endpoint": "/api/orders", "url": "/api/products", "method": "POST", "status": 404, "status_code": 404, "latency_ms": 796, "response_time_ms": 796, "cluster": "staging", "host": "host1", "flow_direction": "OUT", "user_id": "user1"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:24:34.938905", "endpoint": "/api/users", "url": "/SCS/Retail/v1/orders", "method": "PUT", "status": 503, "status_code": 503, "latency_ms": 1994, "response_time_ms": 1994, "cluster": "webactivity", "host": "host2", "flow_direction": "OUT", "user_id": "user20"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:25:34.938905", "endpoint": "/api/orders", "url": "/api/users", "method": "DELETE", "status": 500, "status_code": 500, "latency_ms": 863, "response_time_ms": 863, "cluster": "webactivity", "host": "host2", "flow_direction": "OUT", "user_id": "user12", "request_mediation_latency": 690}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:26:34.938905", "endpoint": "/api/payments", "url": "/api/users", "method": "GET", "status": 400, "status_code": 400, "latency_ms": 607, "response_time_ms": 607, "cluster": "webactivity", "host": "host2", "flow_direction": "IN", "user_id": "user7"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:27:34.938905", "endpoint": "/api/payments", "url": "/api/orders", "method": "PUT", "status": 404, "status_code": 404, "latency_ms": 1902, "response_time_ms": 1902, "cluster": "staging", "host": "host2", "flow_direction": "IN", "user_id": "user8"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:28:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/payments", "method": "DELETE", "status": 201, "status_code": 201, "latency_ms": 95, "response_time_ms": 95, "cluster": "webactivity", "host": "host3", "flow_direction": "OUT", "user_id": "user16", "request_mediation_latency": 76}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:29:34.938905", "endpoint": "/api/users", "url": "/SCS/Retail/v1/orders", "method": "DELETE", "status": 400, "status_code": 400, "latency_ms": 93, "response_time_ms": 93, "cluster": "webactivity", "host": "host2", "flow_direction": "IN", "user_id": "user4"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:30:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/orders", "method": "PUT", "status": 404, "status_code": 404, "latency_ms": 1868, "response_time_ms": 1868, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user20"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:31:34.938905", "endpoint": "/api/payments", "url": "/api/products", "method": "GET", "status": 503, "status_code": 503, "latency_ms": 1938, "response_time_ms": 1938, "cluster": "production", "host": "host3", "flow_direction": "IN", "user_id": "user18", "request_mediation_latency": 1550}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:32:34.938905", "endpoint": "/api/orders", "url": "/api/orders", "method": "PUT", "status": 503, "status_code": 503, "latency_ms": 1256, "response_time_ms": 1256, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user15"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:33:34.938905", "endpoint": "/api/orders", "url": "/SCS/Retail/v1/orders", "method": "DELETE", "status": 503, "status_code": 503, "latency_ms": 670, "response_time_ms": 670, "cluster": "staging", "host": "host3", "flow_direction": "OUT", "user_id": "user19"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:34:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/products", "method": "GET", "status": 200, "status_code": 200, "latency_ms": 1006, "response_time_ms": 1006, "cluster": "webactivity", "host": "host2", "flow_direction": "OUT", "user_id": "user1", "request_mediation_latency": 804}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:35:34.938905", "endpoint": "/api/products", "url": "/api/users", "method": "GET", "status": 200, "status_code": 200, "latency_ms": 1121, "response_time_ms": 1121, "cluster": "webactivity", "host": "host2", "flow_direction": "IN", "user_id": "user14"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:36:34.938905", "endpoint": "/api/users", "url": "/api/payments", "method": "GET", "status": 503, "status_code": 503, "latency_ms": 619, "response_time_ms": 619, "cluster": "production", "host": "host1", "flow_direction": "IN", "user_id": "user13"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:37:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/orders", "method": "GET", "status": 404, "status_code": 404, "latency_ms": 524, "response_time_ms": 524, "cluster": "webactivity", "host": "host3", "flow_direction": "IN", "user_id": "user17", "request_mediation_latency": 419}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:38:34.938905", "endpoint": "/api/payments", "url": "/SCS/Retail/v1/orders", "method": "PUT", "status": 200, "status_code": 200, "latency_ms": 1977, "response_time_ms": 1977, "cluster": "production", "host": "host2", "flow_direction": "OUT", "user_id": "user15"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:39:34.938905", "endpoint": "/api/products", "url": "/SCS/Retail/v1/orders", "method": "POST", "status": 201, "status_code": 201, "latency_ms": 516, "response_time_ms": 516, "cluster": "production", "host": "host2", "flow_direction": "OUT", "user_id": "user18"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:40:34.938905", "endpoint": "/api/products", "url": "/SCS/Retail/v1/orders", "method": "DELETE", "status": 503, "status_code": 503, "latency_ms": 951, "response_time_ms": 951, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user10", "request_mediation_latency": 760}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:41:34.938905", "endpoint": "/api/payments", "url": "/SCS/Retail/v1/orders", "method": "POST", "status": 201, "status_code": 201, "latency_ms": 1391, "response_time_ms": 1391, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user16"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:42:34.938905", "endpoint": "/api/payments", "url": "/SCS/Retail/v1/orders", "method": "GET", "status": 404, "status_code": 404, "latency_ms": 78, "response_time_ms": 78, "cluster": "production", "host": "host1", "flow_direction": "IN", "user_id": "user17"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:43:34.938905", "endpoint": "/api/payments", "url": "/api/users", "method": "DELETE", "status": 200, "status_code": 200, "latency_ms": 309, "response_time_ms": 309, "cluster": "production", "host": "host2", "flow_direction": "IN", "user_id": "user15", "request_mediation_latency": 247}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:44:34.938905", "endpoint": "/api/orders", "url": "/api/users", "method": "DELETE", "status": 500, "status_code": 500, "latency_ms": 655, "response_time_ms": 655, "cluster": "staging", "host": "host1", "flow_direction": "IN", "user_id": "user11"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:45:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/SCS/Retail/v1/orders", "method": "DELETE", "status": 201, "status_code": 201, "latency_ms": 1964, "response_time_ms": 1964, "cluster": "staging", "host": "host2", "flow_direction": "IN", "user_id": "user4"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:46:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/products", "method": "PUT", "status": 503, "status_code": 503, "latency_ms": 1697, "response_time_ms": 1697, "cluster": "production", "host": "host1", "flow_direction": "IN", "user_id": "user4", "request_mediation_latency": 1357}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:47:34.938905", "endpoint": "/api/products", "url": "/api/products", "method": "PUT", "status": 503, "status_code": 503, "latency_ms": 1164, "response_time_ms": 1164, "cluster": "webactivity", "host": "host1", "flow_direction": "OUT", "user_id": "user14"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:48:34.938905", "endpoint": "/api/payments", "url": "/api/orders", "method": "PUT", "status": 503, "status_code": 503, "latency_ms": 1272, "response_time_ms": 1272, "cluster": "webactivity", "host": "host1", "flow_direction": "OUT", "user_id": "user6"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:49:34.938905", "endpoint": "/api/users", "url": "/api/payments", "method": "PUT", "status": 503, "status_code": 503, "latency_ms": 382, "response_time_ms": 382, "cluster": "production", "host": "host1", "flow_direction": "OUT", "user_id": "user1", "request_mediation_latency": 305}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:50:34.938905", "endpoint": "/api/orders", "url": "/api/users", "method": "POST", "status": 200, "status_code": 200, "latency_ms": 676, "response_time_ms": 676, "cluster": "staging", "host": "host3", "flow_direction": "IN", "user_id": "user16"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:51:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/payments", "method": "GET", "status": 503, "status_code": 503, "latency_ms": 99, "response_time_ms": 99, "cluster": "staging", "host": "host1", "flow_direction": "IN", "user_id": "user7"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:52:34.938905", "endpoint": "/api/orders", "url": "/api/products", "method": "POST", "status": 201, "status_code": 201, "latency_ms": 773, "response_time_ms": 773, "cluster": "webactivity", "host": "host2", "flow_direction": "OUT", "user_id": "user1", "request_mediation_latency": 618}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:53:34.938905", "endpoint": "/api/payments", "url": "/api/orders", "method": "POST", "status": 400, "status_code": 400, "latency_ms": 928, "response_time_ms": 928, "cluster": "production", "host": "host2", "flow_direction": "OUT", "user_id": "user13"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:54:34.938905", "endpoint": "/api/users", "url": "/api/orders", "method": "GET", "status": 404, "status_code": 404, "latency_ms": 767, "response_time_ms": 767, "cluster": "production", "host": "host3", "flow_direction": "OUT", "user_id": "user14"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:55:34.938905", "endpoint": "/api/users", "url": "/api/products", "method": "PUT", "status": 503, "status_code": 503, "latency_ms": 505, "response_time_ms": 505, "cluster": "staging", "host": "host1", "flow_direction": "OUT", "user_id": "user11", "request_mediation_latency": 404}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:56:34.938905", "endpoint": "/api/payments", "url": "/api/payments", "method": "PUT", "status": 404, "status_code": 404, "latency_ms": 808, "response_time_ms": 808, "cluster": "production", "host": "host2", "flow_direction": "IN", "user_id": "user9"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:57:34.938905", "endpoint": "/api/orders", "url": "/api/products", "method": "POST", "status": 500, "status_code": 500, "latency_ms": 1705, "response_time_ms": 1705, "cluster": "staging", "host": "host3", "flow_direction": "OUT", "user_id": "user14"}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:58:34.938905", "endpoint": "/api/users", "url": "/api/products", "method": "DELETE", "status": 400, "status_code": 400, "latency_ms": 467, "response_time_ms": 467, "cluster": "staging", "host": "host2", "flow_direction": "IN", "user_id": "user11", "request_mediation_latency": 373}
+{"index": {}}
+{"@timestamp": "2026-05-14T03:59:34.938905", "endpoint": "/api/products", "url": "/api/orders", "method": "POST", "status": 500, "status_code": 500, "latency_ms": 1329, "response_time_ms": 1329, "cluster": "production", "host": "host3", "flow_direction": "IN", "user_id": "user18"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:00:34.938905", "endpoint": "/api/products", "url": "/api/users", "method": "POST", "status": 500, "status_code": 500, "latency_ms": 1197, "response_time_ms": 1197, "cluster": "production", "host": "host1", "flow_direction": "IN", "user_id": "user13"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:01:34.938905", "endpoint": "/api/products", "url": "/api/users", "method": "DELETE", "status": 404, "status_code": 404, "latency_ms": 76, "response_time_ms": 76, "cluster": "staging", "host": "host1", "flow_direction": "OUT", "user_id": "user17", "request_mediation_latency": 60}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:02:34.938905", "endpoint": "/api/users", "url": "/SCS/Retail/v1/orders", "method": "POST", "status": 400, "status_code": 400, "latency_ms": 1186, "response_time_ms": 1186, "cluster": "production", "host": "host1", "flow_direction": "OUT", "user_id": "user3"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:03:34.938905", "endpoint": "/api/orders", "url": "/api/products", "method": "DELETE", "status": 200, "status_code": 200, "latency_ms": 1672, "response_time_ms": 1672, "cluster": "staging", "host": "host2", "flow_direction": "OUT", "user_id": "user9"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:04:34.938905", "endpoint": "/api/users", "url": "/api/users", "method": "DELETE", "status": 500, "status_code": 500, "latency_ms": 1858, "response_time_ms": 1858, "cluster": "webactivity", "host": "host3", "flow_direction": "OUT", "user_id": "user6", "request_mediation_latency": 1486}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:05:34.938905", "endpoint": "/api/users", "url": "/api/products", "method": "DELETE", "status": 500, "status_code": 500, "latency_ms": 264, "response_time_ms": 264, "cluster": "production", "host": "host1", "flow_direction": "OUT", "user_id": "user1"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:06:34.938905", "endpoint": "/api/users", "url": "/api/payments", "method": "PUT", "status": 201, "status_code": 201, "latency_ms": 115, "response_time_ms": 115, "cluster": "production", "host": "host1", "flow_direction": "IN", "user_id": "user17"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:07:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/products", "method": "POST", "status": 201, "status_code": 201, "latency_ms": 109, "response_time_ms": 109, "cluster": "production", "host": "host1", "flow_direction": "OUT", "user_id": "user10", "request_mediation_latency": 87}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:08:34.938905", "endpoint": "/api/orders", "url": "/api/users", "method": "POST", "status": 201, "status_code": 201, "latency_ms": 633, "response_time_ms": 633, "cluster": "production", "host": "host2", "flow_direction": "OUT", "user_id": "user13"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:09:34.938905", "endpoint": "/api/users", "url": "/api/orders", "method": "PUT", "status": 404, "status_code": 404, "latency_ms": 242, "response_time_ms": 242, "cluster": "staging", "host": "host2", "flow_direction": "OUT", "user_id": "user16"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:10:34.938905", "endpoint": "/api/users", "url": "/api/orders", "method": "DELETE", "status": 201, "status_code": 201, "latency_ms": 1174, "response_time_ms": 1174, "cluster": "production", "host": "host1", "flow_direction": "IN", "user_id": "user16", "request_mediation_latency": 939}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:11:34.938905", "endpoint": "/api/orders", "url": "/api/users", "method": "GET", "status": 201, "status_code": 201, "latency_ms": 1809, "response_time_ms": 1809, "cluster": "staging", "host": "host2", "flow_direction": "OUT", "user_id": "user17"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:12:34.938905", "endpoint": "/api/users", "url": "/api/users", "method": "PUT", "status": 201, "status_code": 201, "latency_ms": 1626, "response_time_ms": 1626, "cluster": "production", "host": "host1", "flow_direction": "OUT", "user_id": "user14"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:13:34.938905", "endpoint": "/api/orders", "url": "/api/users", "method": "GET", "status": 500, "status_code": 500, "latency_ms": 602, "response_time_ms": 602, "cluster": "staging", "host": "host2", "flow_direction": "IN", "user_id": "user7", "request_mediation_latency": 481}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:14:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/SCS/Retail/v1/orders", "method": "PUT", "status": 201, "status_code": 201, "latency_ms": 240, "response_time_ms": 240, "cluster": "staging", "host": "host1", "flow_direction": "IN", "user_id": "user12"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:15:34.938905", "endpoint": "/api/users", "url": "/api/products", "method": "DELETE", "status": 404, "status_code": 404, "latency_ms": 952, "response_time_ms": 952, "cluster": "staging", "host": "host2", "flow_direction": "IN", "user_id": "user15"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:16:34.938905", "endpoint": "/api/users", "url": "/api/products", "method": "POST", "status": 404, "status_code": 404, "latency_ms": 1095, "response_time_ms": 1095, "cluster": "production", "host": "host2", "flow_direction": "IN", "user_id": "user11", "request_mediation_latency": 876}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:17:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/payments", "method": "PUT", "status": 500, "status_code": 500, "latency_ms": 1146, "response_time_ms": 1146, "cluster": "production", "host": "host1", "flow_direction": "OUT", "user_id": "user19"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:18:34.938905", "endpoint": "/api/payments", "url": "/api/payments", "method": "PUT", "status": 200, "status_code": 200, "latency_ms": 278, "response_time_ms": 278, "cluster": "production", "host": "host2", "flow_direction": "IN", "user_id": "user6"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:19:34.938905", "endpoint": "/api/orders", "url": "/api/products", "method": "PUT", "status": 400, "status_code": 400, "latency_ms": 397, "response_time_ms": 397, "cluster": "staging", "host": "host2", "flow_direction": "IN", "user_id": "user15", "request_mediation_latency": 317}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:20:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/payments", "method": "POST", "status": 201, "status_code": 201, "latency_ms": 1412, "response_time_ms": 1412, "cluster": "staging", "host": "host1", "flow_direction": "IN", "user_id": "user2"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:21:34.938905", "endpoint": "/api/users", "url": "/api/orders", "method": "POST", "status": 503, "status_code": 503, "latency_ms": 383, "response_time_ms": 383, "cluster": "webactivity", "host": "host3", "flow_direction": "OUT", "user_id": "user10"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:22:34.938905", "endpoint": "/api/payments", "url": "/api/orders", "method": "DELETE", "status": 201, "status_code": 201, "latency_ms": 102, "response_time_ms": 102, "cluster": "webactivity", "host": "host2", "flow_direction": "IN", "user_id": "user1", "request_mediation_latency": 81}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:23:34.938905", "endpoint": "/api/payments", "url": "/api/orders", "method": "GET", "status": 503, "status_code": 503, "latency_ms": 829, "response_time_ms": 829, "cluster": "staging", "host": "host1", "flow_direction": "OUT", "user_id": "user8"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:24:34.938905", "endpoint": "/api/payments", "url": "/SCS/Retail/v1/orders", "method": "PUT", "status": 503, "status_code": 503, "latency_ms": 607, "response_time_ms": 607, "cluster": "webactivity", "host": "host2", "flow_direction": "OUT", "user_id": "user5"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:25:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/SCS/Retail/v1/orders", "method": "DELETE", "status": 500, "status_code": 500, "latency_ms": 1094, "response_time_ms": 1094, "cluster": "production", "host": "host2", "flow_direction": "IN", "user_id": "user7", "request_mediation_latency": 875}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:26:34.938905", "endpoint": "/api/products", "url": "/api/orders", "method": "PUT", "status": 503, "status_code": 503, "latency_ms": 796, "response_time_ms": 796, "cluster": "production", "host": "host1", "flow_direction": "OUT", "user_id": "user12"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:27:34.938905", "endpoint": "/api/orders", "url": "/api/products", "method": "DELETE", "status": 404, "status_code": 404, "latency_ms": 1722, "response_time_ms": 1722, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user6"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:28:34.938905", "endpoint": "/SCS/Retail/v1/orders", "url": "/api/products", "method": "POST", "status": 200, "status_code": 200, "latency_ms": 798, "response_time_ms": 798, "cluster": "webactivity", "host": "host3", "flow_direction": "OUT", "user_id": "user7", "request_mediation_latency": 638}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:29:34.938905", "endpoint": "/api/products", "url": "/api/payments", "method": "PUT", "status": 500, "status_code": 500, "latency_ms": 1983, "response_time_ms": 1983, "cluster": "webactivity", "host": "host1", "flow_direction": "IN", "user_id": "user20"}
+{"index": {}}
+{"@timestamp": "2026-05-14T04:30:34.938905", "endpoint": "/api/products", "url": "/SCS/Retail/v1/orders", "method": "PUT", "status": 200, "status_code": 200, "latency_ms": 487, "response_time_ms": 487, "cluster": "webactivity", "host": "host1", "flow_direction": "OUT", "user_id": "user1"}
+

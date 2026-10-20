@@ -18,6 +18,8 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.http.AbstractHttpServerTransport;
+import org.opensearch.http.HttpRequest.HttpVersion;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.http.netty4.http3.Http3Utils;
@@ -32,6 +34,7 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -47,6 +50,7 @@ import io.netty.util.ReferenceCounted;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -81,22 +85,25 @@ public class Netty4Http3IT extends OpenSearchNetty4IntegTestCase {
 
         String[] requests = new String[] { "/", "/_nodes/stats", "/", "/_cluster/state", "/" };
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
-        TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();
-        TransportAddress transportAddress = randomFrom(boundAddresses);
+        assertThat(httpServerTransport, instanceOf(Netty4CompositeHttpServerTransport.class));
 
         @SuppressWarnings("unchecked")
-        final Tuple<Netty4HttpClient, String> client = randomFrom(
-            Tuple.tuple(Netty4HttpClient.http3().withLogger(logger), "h2="),
-            Tuple.tuple(Netty4HttpClient.https().withLogger(logger), "h3=")
+        final Tuple<Netty4HttpClient, Tuple<String, HttpVersion>> client = randomFrom(
+            Tuple.tuple(Netty4HttpClient.http3().withLogger(logger), Tuple.tuple("h2=", HttpVersion.HTTP_3_0)),
+            Tuple.tuple(Netty4HttpClient.https().withLogger(logger), Tuple.tuple("h3=", HttpVersion.HTTP_2_0))
         );
 
         try (Netty4HttpClient nettyHttpClient = client.v1()) {
-            Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), randomFrom(requests));
+            final TransportAddress transportAddress = randomFrom(
+                (Netty4CompositeHttpServerTransport) httpServerTransport,
+                client.v2().v2()
+            );
+            final Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), randomFrom(requests));
             try {
                 assertThat(responses, hasSize(1));
 
                 for (HttpResponse response : responses) {
-                    assertThat(response.headers().get("Alt-Svc"), containsString(client.v2()));
+                    assertThat(response.headers().get("Alt-Svc"), containsString(client.v2().v1()));
                 }
 
                 Collection<String> opaqueIds = Netty4HttpClient.returnOpaqueIds(responses);
@@ -115,23 +122,26 @@ public class Netty4Http3IT extends OpenSearchNetty4IntegTestCase {
 
         final List<Tuple<String, CharSequence>> requests = List.of(Tuple.tuple("/_search", "{\"query\":{ \"match_all\":{}}}"));
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
-        TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();
-        TransportAddress transportAddress = randomFrom(boundAddresses);
+        assertThat(httpServerTransport, instanceOf(Netty4CompositeHttpServerTransport.class));
 
         @SuppressWarnings("unchecked")
-        final Tuple<Netty4HttpClient, String> client = randomFrom(
-            Tuple.tuple(Netty4HttpClient.http3().withLogger(logger), "h2="),
-            Tuple.tuple(Netty4HttpClient.https().withLogger(logger), "h3=")
+        final Tuple<Netty4HttpClient, Tuple<String, HttpVersion>> client = randomFrom(
+            Tuple.tuple(Netty4HttpClient.http3().withLogger(logger), Tuple.tuple("h2=", HttpVersion.HTTP_3_0)),
+            Tuple.tuple(Netty4HttpClient.https().withLogger(logger), Tuple.tuple("h3=", HttpVersion.HTTP_2_0))
         );
 
         try (Netty4HttpClient nettyHttpClient = client.v1()) {
-            Collection<FullHttpResponse> responses = nettyHttpClient.post(transportAddress.address(), requests);
+            final TransportAddress transportAddress = randomFrom(
+                (Netty4CompositeHttpServerTransport) httpServerTransport,
+                client.v2().v2()
+            );
+            final Collection<FullHttpResponse> responses = nettyHttpClient.post(transportAddress.address(), requests);
             try {
                 assertThat(responses, hasSize(1));
 
                 for (FullHttpResponse response : responses) {
                     assertThat(response.status(), equalTo(HttpResponseStatus.OK));
-                    assertThat(response.headers().get("Alt-Svc"), containsString(client.v2()));
+                    assertThat(response.headers().get("Alt-Svc"), containsString(client.v2().v1()));
                 }
 
                 Collection<String> opaqueIds = Netty4HttpClient.returnOpaqueIds(responses);
@@ -155,6 +165,19 @@ public class Netty4Http3IT extends OpenSearchNetty4IntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(super.nodePlugins().stream(), Stream.of(SecureSettingsPlugin.class)).toList();
+    }
+
+    private TransportAddress randomFrom(final Netty4CompositeHttpServerTransport transport, HttpVersion protocol) {
+        final AbstractHttpServerTransport httpServerTransport = Arrays.stream(transport.transports()).filter(t -> {
+            if (protocol == HttpVersion.HTTP_3_0) {
+                return t instanceof Netty4Http3ServerTransport;
+            } else {
+                return t instanceof Netty4HttpServerTransport;
+            }
+        }).findAny().orElseThrow();
+
+        TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();
+        return randomFrom(boundAddresses);
     }
 
     private void assertOpaqueIdsInAnyOrder(int expected, Collection<String> opaqueIds) {

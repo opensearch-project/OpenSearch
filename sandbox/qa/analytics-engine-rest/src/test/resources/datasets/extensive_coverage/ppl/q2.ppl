@@ -1,0 +1,1 @@
+source=test_data | eval newval = value * 2 | fields category, value, newval | head 5

@@ -34,11 +34,15 @@ apply plugin: 'opensearch.testclusters'
 
 def numNodes = findProperty('numNodes') as Integer ?: 1
 def numZones = findProperty('numZones') as Integer ?: 1
+// Numbers this build's nodes from startNode, with ports to match, so that a second ./gradlew run adds nodes to the
+// cluster the first one started. Each build runs and stops its own nodes.
+def startNode = findProperty('startNode') as Integer ?: 0
 
 testClusters {
   runTask {
     testDistribution = 'archive'
     if (numZones > 1) numberOfZones = numZones
+    if (startNode > 0) firstNodeIndex = startNode
     if (numNodes > 1) numberOfNodes = numNodes
     if (findProperty("installedPlugins")) {
       installedPlugins = Eval.me(installedPlugins)
@@ -89,6 +93,15 @@ testClusters {
           systemProperty 'io.netty.noUnsafe', 'false'
           systemProperty 'io.netty.tryUnsafe', 'true'
           systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+        }
+        if (p.equals("parquet-data-format") || p.equals("analytics-backend-datafusion")) {
+          // Composite engine / DataFusion requires pluggable dataformat feature flag
+          systemProperty 'opensearch.experimental.feature.pluggable.dataformat.enabled', 'true'
+          // Native lib path for DataFusion FFM bridge
+          def nativeLibDir = new File(project(':sandbox:libs:dataformat-native').projectDir, 'rust/target/release').absolutePath
+          systemProperty 'java.library.path', nativeLibDir
+          jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+          jvmArgs '--enable-native-access=ALL-UNNAMED'
         }
       }
     }

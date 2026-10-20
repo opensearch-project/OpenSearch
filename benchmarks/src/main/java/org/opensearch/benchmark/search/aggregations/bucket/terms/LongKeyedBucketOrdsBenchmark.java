@@ -182,4 +182,17 @@ public class LongKeyedBucketOrdsBenchmark {
             bh.consume(ords);
         }
     }
+
+    @Benchmark
+    public void benchmarkBucketsInOrdAndMaxOwning(Blackhole bh) {
+        try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY)) {
+            for (long i = 0; i < 50_000; i++) {
+                ords.add(i % 100, i % DISTINCT_VALUES);
+            }
+            for (long j = 0; j < 10_000; j++) {
+                bh.consume(ords.bucketsInOrd(j % 100));
+                bh.consume(ords.maxOwningBucketOrd());
+            }
+        }
+    }
 }

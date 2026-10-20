@@ -2262,22 +2262,31 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
-     * A writeable parser for memory size value
+     * A writeable parser for memory size value. Supports resolving percentages against
+     * either JVM heap or available native memory (total physical minus JVM heap).
      */
     public static class MemorySizeValueParser implements Function<String, ByteSizeValue>, Writeable {
         private String key;
+        private boolean useNativeMemory;
 
         public MemorySizeValueParser(String key) {
+            this(key, false);
+        }
+
+        public MemorySizeValueParser(String key, boolean useNativeMemory) {
             this.key = key;
+            this.useNativeMemory = useNativeMemory;
         }
 
         public MemorySizeValueParser(StreamInput in) throws IOException {
             key = in.readString();
+            useNativeMemory = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(key);
+            out.writeBoolean(useNativeMemory);
         }
 
         public String getKey() {
@@ -2286,18 +2295,20 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public ByteSizeValue apply(String s) {
-            return MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key);
+            return useNativeMemory
+                ? MemorySizeValue.parseBytesSizeValueOrNativeMemoryRatio(s, key)
+                : MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key);
         }
 
         public boolean equals(Object obj) {
             if (this == obj) return true;
             if (obj == null || getClass() != obj.getClass()) return false;
             MemorySizeValueParser that = (MemorySizeValueParser) obj;
-            return Objects.equals(key, that.key);
+            return Objects.equals(key, that.key) && useNativeMemory == that.useNativeMemory;
         }
 
         public int hashCode() {
-            return Objects.hash(key);
+            return Objects.hash(key, useNativeMemory);
         }
     }
 
@@ -2313,6 +2324,19 @@ public class Setting<T> implements ToXContentObject {
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, Setting<ByteSizeValue> fallbackSetting, Property... properties) {
         return new Setting<>(key, fallbackSetting, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
+    }
+
+    /**
+     * Creates a setting which specifies a memory size as either an absolute bytes value or
+     * a percentage of available native memory (total physical memory minus JVM heap).
+     *
+     * @param key the key for the setting
+     * @param defaultPercentage the default value of this setting as a percentage of native memory
+     * @param properties properties for this setting like scope, filtering...
+     * @return the setting object
+     */
+    public static Setting<ByteSizeValue> nativeMemorySizeSetting(String key, String defaultPercentage, Property... properties) {
+        return new Setting<>(key, (s) -> defaultPercentage, new MemorySizeValueParser(key, true), properties);
     }
 
     public static <T> Setting<List<T>> listSetting(

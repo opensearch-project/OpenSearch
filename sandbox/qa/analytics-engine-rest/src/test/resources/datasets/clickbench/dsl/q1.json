@@ -1,0 +1,10 @@
+{
+  "size": 0,
+  "aggs": {
+    "count": {
+      "sum": {
+        "field": "GoodEvent"
+      }
+    }
+  }
+}

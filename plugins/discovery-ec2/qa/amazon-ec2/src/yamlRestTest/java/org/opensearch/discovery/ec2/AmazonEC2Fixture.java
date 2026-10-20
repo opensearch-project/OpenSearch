@@ -122,10 +122,12 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
             return new Response(RestStatus.OK.getStatus(), headers, "my_iam_profile".getBytes(UTF_8));
         }
 
-        if (instanceProfile && "/latest/api/token".equals(request.getPath()) && HttpPut.METHOD_NAME.equals(request.getMethod())) {
-            // TODO: Implement IMDSv2 behavior here. For now this just returns a 403 which makes the SDK fall back to IMDSv1
-            // which is implemented in this fixture
-            return new Response(RestStatus.FORBIDDEN.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
+        if ("/latest/api/token".equals(request.getPath()) && HttpPut.METHOD_NAME.equals(request.getMethod())) {
+            // IMDSv2: return a token so Ec2MetadataClient can proceed
+            final String ttl = request.getHeader("x-aws-ec2-metadata-token-ttl-seconds");
+            final Map<String, String> headers = new HashMap<>(TEXT_PLAIN_CONTENT_TYPE);
+            headers.put("x-aws-ec2-metadata-token-ttl-seconds", ttl != null ? ttl : "21600");
+            return new Response(RestStatus.OK.getStatus(), headers, "test-imds-token".getBytes(UTF_8));
         }
 
         if ((containerCredentials

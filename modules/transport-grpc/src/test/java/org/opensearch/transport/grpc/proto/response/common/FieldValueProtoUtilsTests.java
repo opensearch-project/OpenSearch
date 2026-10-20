@@ -9,6 +9,7 @@
 package org.opensearch.transport.grpc.proto.response.common;
 
 import org.opensearch.protobufs.FieldValue;
+import org.opensearch.protobufs.NullValue;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.math.BigInteger;
@@ -16,6 +17,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class FieldValueProtoUtilsTests extends OpenSearchTestCase {
+
+    public void testToProtoWithNull() {
+        FieldValue fieldValue = FieldValueProtoUtils.toProto(null);
+
+        assertNotNull("FieldValue should not be null", fieldValue);
+        assertTrue("FieldValue should have null value", fieldValue.hasNullValue());
+        assertEquals("Null value should match proto enum", NullValue.NULL_VALUE_NULL, fieldValue.getNullValue());
+    }
 
     public void testToProtoWithInteger() {
         Integer intValue = 42;

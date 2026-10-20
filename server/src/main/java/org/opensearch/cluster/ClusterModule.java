@@ -36,6 +36,8 @@ import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.index.NodeMappingRefreshAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
+import org.opensearch.cluster.deployment.DeploymentAllocationDecider;
+import org.opensearch.cluster.deployment.DeploymentMetadata;
 import org.opensearch.cluster.metadata.ComponentTemplateMetadata;
 import org.opensearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.opensearch.cluster.metadata.DataStreamMetadata;
@@ -45,6 +47,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver.ExpressionRes
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
+import org.opensearch.cluster.metadata.MetadataIndexFieldDomainService;
 import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.metadata.MetadataMappingService;
@@ -174,6 +177,7 @@ public class ClusterModule extends AbstractModule {
         this.shardStateActionClass = shardStateActionClass;
     }
 
+    @SuppressWarnings("removal") // ViewMetadata is kept only for rolling upgrades from pre-3.10 nodes
     public static List<Entry> getNamedWriteables() {
         List<Entry> entries = new ArrayList<>();
         // Cluster State
@@ -195,6 +199,7 @@ public class ClusterModule extends AbstractModule {
         registerMetadataCustom(entries, RepositoriesMetadata.TYPE, RepositoriesMetadata::new, RepositoriesMetadata::readDiffFrom);
         registerMetadataCustom(entries, IngestMetadata.TYPE, IngestMetadata::new, IngestMetadata::readDiffFrom);
         registerMetadataCustom(entries, SearchPipelineMetadata.TYPE, SearchPipelineMetadata::new, SearchPipelineMetadata::readDiffFrom);
+        registerMetadataCustom(entries, DeploymentMetadata.TYPE, DeploymentMetadata::new, DeploymentMetadata::readDiffFrom);
         registerMetadataCustom(entries, ScriptMetadata.TYPE, ScriptMetadata::new, ScriptMetadata::readDiffFrom);
         registerMetadataCustom(entries, IndexGraveyard.TYPE, IndexGraveyard::new, IndexGraveyard::readDiffFrom);
         registerMetadataCustom(
@@ -262,6 +267,7 @@ public class ClusterModule extends AbstractModule {
         return builder.metadata(metaBuilder).build();
     }
 
+    @SuppressWarnings("removal") // ViewMetadata is kept only for rolling upgrades from pre-3.10 nodes
     public static List<NamedXContentRegistry.Entry> getNamedXWriteables() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
         // Metadata
@@ -404,6 +410,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new AwarenessAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new NodeLoadAwareAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new TargetPoolAllocationDecider());
+        addAllocationDecider(deciders, new DeploymentAllocationDecider());
         addAllocationDecider(deciders, new RemoteStoreMigrationAllocationDecider(settings, clusterSettings));
 
         clusterPlugins.stream()
@@ -473,6 +480,7 @@ public class ClusterModule extends AbstractModule {
         bind(MetadataIndexStateService.class).asEagerSingleton();
         bind(MetadataMappingService.class).asEagerSingleton();
         bind(MetadataIndexAliasesService.class).asEagerSingleton();
+        bind(MetadataIndexFieldDomainService.class).asEagerSingleton();
         bind(MetadataUpdateSettingsService.class).asEagerSingleton();
         bind(MetadataIndexTemplateService.class).asEagerSingleton();
         bind(IndexNameExpressionResolver.class).toInstance(indexNameExpressionResolver);

@@ -1,0 +1,1 @@
+source=test_data | eval filtered = filter(split(tags, ','), x -> x != 'tag2') | fields tags, filtered | head 3

@@ -82,6 +82,7 @@ flowchart TD
 ### Blocking
 - `sendResponseBatch()` may block if transport buffers are full
 - Server will pause until client consumes data and frees buffer space
+- See [backpressure.md](backpressure.md) for behaviour, settings, and sizing.
 
 ### Cancellation
 - `sendResponseBatch()` throws `StreamException` with `StreamErrorCode.CANCELLED` when client cancels
@@ -92,3 +93,10 @@ flowchart TD
 - Always call either `completeStream()` (success) OR `sendResponse(exception)` (error)
 - Never call both methods
 - Stream must be explicitly completed or terminated
+
+### Trailing / per-batch metadata (native Arrow path)
+For actions whose response extends `ArrowBatchResponse`, opaque application metadata can be
+attached to any batch via `new MyResponse(root, byte[])` and read on the receiver via
+`response.getMetadata()`. Attach to the last batch for stream-terminal payloads
+(profiling counters, summary stats). See
+[native-arrow-transport-design.md](native-arrow-transport-design.md#application-metadata).

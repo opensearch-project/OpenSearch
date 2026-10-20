@@ -1,0 +1,1 @@
+source=function_tests | where amount > 0 and amount < 10 | eval squared = pow(amount, 2) | fields user, amount, squared | head 10

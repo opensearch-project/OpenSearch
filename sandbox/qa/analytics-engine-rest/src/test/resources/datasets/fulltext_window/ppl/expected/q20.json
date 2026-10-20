@@ -1,0 +1,42 @@
+{
+  "schema": [
+    {
+      "name": "userid",
+      "type": "string"
+    },
+    {
+      "name": "product",
+      "type": "string"
+    },
+    {
+      "name": "amount",
+      "type": "double"
+    },
+    {
+      "name": "rn",
+      "type": "bigint"
+    },
+    {
+      "name": "cumamt",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      "user1",
+      "wireless mouse",
+      150.5,
+      1,
+      150.5
+    ],
+    [
+      "user1",
+      "mechanical keyboard",
+      299.0,
+      2,
+      449.5
+    ]
+  ],
+  "total": 2,
+  "size": 2
+}

@@ -13,6 +13,7 @@ import org.opensearch.index.mapper.BooleanFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
+import org.opensearch.index.mapper.MatchOnlyTextFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.parquet.fields.ParquetField;
@@ -81,6 +82,7 @@ public class CoreDataFieldPlugin implements ParquetFieldPlugin {
         fieldMap.put(TextFieldMapper.CONTENT_TYPE, new TextParquetField());
         fieldMap.put(KeywordFieldMapper.CONTENT_TYPE, new KeywordParquetField());
         fieldMap.put(IpFieldMapper.CONTENT_TYPE, new IpParquetField());
+        fieldMap.put(MatchOnlyTextFieldMapper.CONTENT_TYPE, new TextParquetField());
     }
 
     private static void registerBinaryFields(Map<String, ParquetField> fieldMap) {

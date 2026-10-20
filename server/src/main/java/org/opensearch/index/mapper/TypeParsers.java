@@ -64,6 +64,9 @@ public class TypeParsers {
     public static final String INDEX_OPTIONS_FREQS = "freqs";
     public static final String INDEX_OPTIONS_POSITIONS = "positions";
     public static final String INDEX_OPTIONS_OFFSETS = "offsets";
+    public static final int META_MAX_ENTRIES = 100;
+    public static final int META_MAX_KEY_LENGTH = 255;
+    public static final int META_MAX_VALUE_LENGTH = 10_000;
 
     public static void checkNull(String propName, Object propNode) {
         if (false == propName.equals("null_value") && propNode == null) {
@@ -86,26 +89,35 @@ public class TypeParsers {
         }
         @SuppressWarnings("unchecked")
         Map<String, ?> meta = (Map<String, ?>) metaObject;
-        if (meta.size() > 5) {
-            throw new MapperParsingException("[meta] can't have more than 5 entries, but got " + meta.size() + " on field [" + name + "]");
+        if (meta.size() > META_MAX_ENTRIES) {
+            throw new MapperParsingException(
+                "[meta] can't have more than " + META_MAX_ENTRIES + " entries, but got " + meta.size() + " on field [" + name + "]"
+            );
         }
-        for (String key : meta.keySet()) {
-            if (key.codePointCount(0, key.length()) > 20) {
+        for (Map.Entry<String, ?> entry : meta.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            if (key.codePointCount(0, key.length()) > META_MAX_KEY_LENGTH) {
                 throw new MapperParsingException(
-                    "[meta] keys can't be longer than 20 chars, but got [" + key + "] for field [" + name + "]"
+                    "[meta] keys can't be longer than " + META_MAX_KEY_LENGTH + " chars, but got [" + key + "] for field [" + name + "]"
                 );
             }
-        }
-        for (Object value : meta.values()) {
-            if (value instanceof String) {
-                String sValue = (String) value;
-                if (sValue.codePointCount(0, sValue.length()) > 50) {
+
+            if (value == null) {
+                throw new MapperParsingException("[meta] values can't be null (field [" + name + "])");
+            }
+            if (value instanceof String sValue) {
+                if (sValue.codePointCount(0, sValue.length()) > META_MAX_VALUE_LENGTH) {
                     throw new MapperParsingException(
-                        "[meta] values can't be longer than 50 chars, but got [" + value + "] for field [" + name + "]"
+                        "[meta] values can't be longer than "
+                            + META_MAX_VALUE_LENGTH
+                            + " chars, but got ["
+                            + value
+                            + "] for field ["
+                            + name
+                            + "]"
                     );
                 }
-            } else if (value == null) {
-                throw new MapperParsingException("[meta] values can't be null (field [" + name + "])");
             } else {
                 throw new MapperParsingException(
                     "[meta] values can only be strings, but got "

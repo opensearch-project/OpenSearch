@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "logs",
+      "type": "bigint"
+    },
+    {
+      "name": "cluster.region",
+      "type": "string"
+    },
+    {
+      "name": "kubernetes.namespace",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      34,
+      null,
+      "production"
+    ],
+    [
+      33,
+      null,
+      "default"
+    ],
+    [
+      33,
+      null,
+      "staging"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

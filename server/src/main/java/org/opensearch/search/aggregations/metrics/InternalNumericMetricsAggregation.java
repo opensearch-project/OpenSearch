@@ -54,6 +54,15 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
     protected DocValueFormat format = DEFAULT_FORMAT;
 
     /**
+     * Returns the format used for this aggregation.
+     *
+     * @return the DocValueFormat
+     */
+    public DocValueFormat getFormat() {
+        return format;
+    }
+
+    /**
      * A single numeric metric value
      *
      * @opensearch.internal

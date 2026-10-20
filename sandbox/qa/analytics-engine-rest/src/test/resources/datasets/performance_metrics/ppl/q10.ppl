@@ -1,0 +1,1 @@
+source=performance_metrics | where cpu_usage > 90 or memory_usage > 90 | stats count() as critical_alerts, max(cpu_usage) as max_cpu, max(memory_usage) as max_memory by host | sort - critical_alerts

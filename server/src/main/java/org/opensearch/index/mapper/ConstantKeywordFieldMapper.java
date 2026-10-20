@@ -27,6 +27,7 @@ import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
@@ -153,6 +154,11 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        protected FieldTypeCapabilities.Capability searchCapability() {
+            return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
+        }
+
+        @Override
         public Query existsQuery(QueryShardContext context) {
             return new MatchAllDocsQuery();
         }
@@ -252,7 +258,15 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
+        validateConstantValue(context);
+    }
 
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        validateConstantValue(context);
+    }
+
+    private void validateConstantValue(ParseContext context) throws IOException {
         final String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
@@ -266,7 +280,6 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
         if (!value.equals(fieldType().value)) {
             throw new IllegalArgumentException("constant keyword field [" + name() + "] must have a value of [" + this.value + "]");
         }
-
     }
 
     @Override

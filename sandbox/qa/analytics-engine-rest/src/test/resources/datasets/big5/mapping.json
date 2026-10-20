@@ -1,0 +1,74 @@
+{
+  "settings": {
+    "number_of_shards": 2,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "@timestamp": {
+        "type": "date",
+        "format": "yyyy-MM-dd HH:mm:ss||strict_date_optional_time||epoch_millis"
+      },
+      "message": { "type": "text" },
+      "log": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "object",
+            "properties": {
+              "path": { "type": "keyword" }
+            }
+          }
+        }
+      },
+      "process": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "keyword" }
+        }
+      },
+      "cloud": {
+        "type": "object",
+        "properties": {
+          "region": { "type": "keyword" }
+        }
+      },
+      "aws": {
+        "type": "object",
+        "properties": {
+          "cloudwatch": {
+            "type": "object",
+            "properties": {
+              "log_stream": { "type": "keyword" }
+            }
+          }
+        }
+      },
+      "agent": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "keyword" }
+        }
+      },
+      "event": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "keyword" }
+        }
+      },
+      "meta": {
+        "type": "object",
+        "properties": {
+          "file": { "type": "keyword" }
+        }
+      },
+      "metrics": {
+        "type": "object",
+        "properties": {
+          "size": { "type": "long" },
+          "tmin": { "type": "long" }
+        }
+      }
+    }
+  }
+}

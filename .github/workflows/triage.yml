@@ -4,12 +4,15 @@ on:
   issues:
     types: [opened, reopened, transferred]
 
+permissions:
+  issues: write
+
 jobs:
   apply-label:
     if: github.repository == 'opensearch-project/OpenSearch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v8
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const { issue, repository } = context.payload;

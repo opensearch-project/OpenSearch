@@ -1,0 +1,1 @@
+source=test_data | eval casted = cast(value as string) | fields value, casted | head 3

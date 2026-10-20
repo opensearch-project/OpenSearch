@@ -1,0 +1,1 @@
+source=test_data | eval all_positive = forall(split(tags, ','), x -> length(x) > 0) | fields tags, all_positive | head 3

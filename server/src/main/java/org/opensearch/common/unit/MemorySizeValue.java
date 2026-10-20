@@ -36,6 +36,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.monitor.os.OsProbe;
 
 import java.util.Objects;
 
@@ -53,6 +54,30 @@ public enum MemorySizeValue {
      *  {@code 42} (default assumed unit is byte) or {@code 2mb}, or percentages of the heap size: if
      *  the heap is 1G, {@code 10%} will be parsed as {@code 100mb}.  */
     public static ByteSizeValue parseBytesSizeValueOrHeapRatio(String sValue, String settingName) {
+        return parseBytesSizeValueOrRatio(sValue, settingName, JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
+    }
+
+    /** Parse the provided string as a memory size. This method either accepts absolute values such as
+     *  {@code 42} (default assumed unit is byte) or {@code 2mb}, or percentages of available native memory
+     *  (total physical memory minus JVM heap): if the machine has 32G and JVM heap is 8G,
+     *  {@code 5%} will be parsed as {@code 1228mb}. */
+    public static ByteSizeValue parseBytesSizeValueOrNativeMemoryRatio(String sValue, String settingName) {
+        long totalPhysical = OsProbe.getInstance().getTotalPhysicalMemorySize();
+        long jvmHeap = JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
+        long availableNative = totalPhysical - jvmHeap;
+        if (availableNative <= 0) {
+            throw new OpenSearchParseException(
+                "cannot compute native memory percentage for [{}]: total physical memory [{}] minus JVM heap [{}] "
+                    + "is non-positive; use an absolute value instead of a percentage",
+                settingName,
+                totalPhysical,
+                jvmHeap
+            );
+        }
+        return parseBytesSizeValueOrRatio(sValue, settingName, availableNative);
+    }
+
+    private static ByteSizeValue parseBytesSizeValueOrRatio(String sValue, String settingName, long baseBytes) {
         settingName = Objects.requireNonNull(settingName);
         if (sValue != null && sValue.endsWith("%")) {
             final String percentAsString = sValue.substring(0, sValue.length() - 1);
@@ -61,7 +86,7 @@ public enum MemorySizeValue {
                 if (percent < 0 || percent > 100) {
                     throw new OpenSearchParseException("percentage should be in [0-100], got [{}]", percentAsString);
                 }
-                return new ByteSizeValue((long) ((percent / 100) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()), ByteSizeUnit.BYTES);
+                return new ByteSizeValue((long) ((percent / 100) * baseBytes), ByteSizeUnit.BYTES);
             } catch (NumberFormatException e) {
                 throw new OpenSearchParseException("failed to parse [{}] as a double", e, percentAsString);
             }

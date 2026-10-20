@@ -27,8 +27,6 @@ import java.io.IOException;
 @ExperimentalApi
 public interface StreamingTransportChannel extends TransportChannel {
 
-    // TODO: introduce a way to poll for cancellation in addition to current way of detection i.e. depending on channel
-    // throwing StreamException with CANCELLED error code.
     /**
      * Sends a batch of responses to the request that this channel is associated with.
      * Call {@link #completeStream()} on a successful completion.

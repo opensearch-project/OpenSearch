@@ -1,0 +1,25 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "timestamp": {
+        "type": "date"
+      },
+      "host": {
+        "type": "keyword"
+      },
+      "cpu": {
+        "type": "double"
+      },
+      "memory": {
+        "type": "double"
+      },
+      "disk": {
+        "type": "double"
+      }
+    }
+  }
+}

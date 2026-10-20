@@ -97,7 +97,7 @@ public class SystemdIntegTests extends LuceneTestCase {
     public void testReadOnlyPaths() throws IOException, InterruptedException {
         String[] readOnlyPaths = {
             "/etc/os-release", "/usr/lib/os-release", "/etc/system-release",
-            "/proc/self/mountinfo", "/proc/diskstats",
+            "/proc/self/mountinfo", "/proc/diskstats", "/proc/meminfo",
             "/proc/self/cgroup", "/sys/fs/cgroup/cpu", "/sys/fs/cgroup/cpu/-",
             "/sys/fs/cgroup/cpuacct", "/sys/fs/cgroup/cpuacct/-",
             "/sys/fs/cgroup/memory", "/sys/fs/cgroup/memory/-"

@@ -1,0 +1,1 @@
+source = clickbench | where SearchPhrase != '' | stats dc(UserID) as u by SearchPhrase | sort - u | head 10

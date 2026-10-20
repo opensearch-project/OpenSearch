@@ -20,6 +20,7 @@ import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.Store;
@@ -53,7 +54,7 @@ public class RemoteSegmentMetadataHandlerTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
             .build();
 
-        indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
+        indexShard = newStartedShard(false, indexSettings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
         try (Store store = indexShard.store()) {
             segmentInfos = store.readLastCommittedSegmentsInfo();
         }

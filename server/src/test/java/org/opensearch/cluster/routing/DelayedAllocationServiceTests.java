@@ -233,6 +233,79 @@ public class DelayedAllocationServiceTests extends OpenSearchAllocationTestCase 
         verifyNoMoreInteractions(clusterService);
     }
 
+    public void testDelayedUnassignedScheduleRerouteUsesNodeLevelClusterDefault() throws Exception {
+        TimeValue delaySetting = timeValueMillis(100);
+        Settings nodeSettings = Settings.builder()
+            .put(NodeRoles.clusterManagerOnlyNode())
+            .put(UnassignedInfo.CLUSTER_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delaySetting)
+            .build();
+        ClusterService localClusterService = mock(ClusterService.class);
+        MockAllocationService localAllocationService = createAllocationService(nodeSettings, new DelayedShardsMockGatewayAllocator());
+        when(localClusterService.getSettings()).thenReturn(nodeSettings);
+        TestDelayAllocationService localDelayedAllocationService = new TestDelayAllocationService(
+            threadPool,
+            localClusterService,
+            localAllocationService
+        );
+        verify(localClusterService).addListener(localDelayedAllocationService);
+        verify(localClusterService).getSettings();
+
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).localNodeId("node1").clusterManagerNodeId("node1"))
+            .build();
+        final long baseTimestampNanos = System.nanoTime();
+        localAllocationService.setNanoTimeOverride(baseTimestampNanos);
+        clusterState = localAllocationService.reroute(clusterState, "reroute");
+        clusterState = startInitializingShardsAndReroute(localAllocationService, clusterState);
+        clusterState = startInitializingShardsAndReroute(localAllocationService, clusterState);
+
+        String replicaNodeId = null;
+        for (ShardRouting shardRouting : clusterState.getRoutingTable().allShards("test")) {
+            if (shardRouting.primary() == false) {
+                replicaNodeId = shardRouting.currentNodeId();
+                break;
+            }
+        }
+        assertNotNull(replicaNodeId);
+
+        ClusterState beforeNodeLeft = clusterState;
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(replicaNodeId)).build();
+        clusterState = localAllocationService.disassociateDeadNodes(clusterState, true, "reroute");
+        ClusterState stateWithDelayedShard = clusterState;
+        // isDelayed alone cannot distinguish the node-level 100ms setting from the built-in 1m default.
+        // The scheduled nextDelay assertion below is the regression check for the node-level setting path.
+        assertEquals(1, UnassignedInfo.getNumberOfDelayedUnassigned(stateWithDelayedShard));
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<ClusterStateUpdateTask> clusterStateUpdateTask = new AtomicReference<>();
+        doAnswer(invocationOnMock -> {
+            clusterStateUpdateTask.set((ClusterStateUpdateTask) invocationOnMock.getArguments()[1]);
+            latch.countDown();
+            return null;
+        }).when(localClusterService).submitStateUpdateTask(eq(CLUSTER_UPDATE_TASK_SOURCE), any(ClusterStateUpdateTask.class));
+
+        long delayUntilClusterChangeEvent = TimeValue.timeValueNanos(randomInt((int) delaySetting.nanos() - 1)).nanos();
+        long clusterChangeEventTimestampNanos = baseTimestampNanos + delayUntilClusterChangeEvent;
+        localDelayedAllocationService.setNanoTimeOverride(clusterChangeEventTimestampNanos);
+        localDelayedAllocationService.clusterChanged(new ClusterChangedEvent("fake node left", stateWithDelayedShard, beforeNodeLeft));
+
+        DelayedAllocationService.DelayedRerouteTask delayedRerouteTask = localDelayedAllocationService.delayedRerouteTask.get();
+        assertNotNull(delayedRerouteTask);
+        assertFalse(delayedRerouteTask.cancelScheduling.get());
+        assertThat(delayedRerouteTask.baseTimestampNanos, equalTo(clusterChangeEventTimestampNanos));
+        assertThat(
+            delayedRerouteTask.nextDelay.nanos(),
+            equalTo(delaySetting.nanos() - (clusterChangeEventTimestampNanos - baseTimestampNanos))
+        );
+        assertTrue(latch.await(30, TimeUnit.SECONDS));
+        verify(localClusterService).submitStateUpdateTask(eq(CLUSTER_UPDATE_TASK_SOURCE), eq(clusterStateUpdateTask.get()));
+    }
+
     /**
      * This tests that a new delayed reroute is scheduled right after a delayed reroute was run
      */
@@ -342,7 +415,13 @@ public class DelayedAllocationServiceTests extends OpenSearchAllocationTestCase 
         assertThat(firstDelayedRerouteTask.baseTimestampNanos, equalTo(clusterChangeEventTimestampNanos));
         assertThat(
             firstDelayedRerouteTask.nextDelay.nanos(),
-            equalTo(UnassignedInfo.findNextDelayedAllocation(clusterChangeEventTimestampNanos, stateWithDelayedShards))
+            equalTo(
+                UnassignedInfo.findNextDelayedAllocation(
+                    clusterChangeEventTimestampNanos,
+                    stateWithDelayedShards,
+                    stateWithDelayedShards.metadata().settings()
+                )
+            )
         );
         assertThat(
             firstDelayedRerouteTask.nextDelay.nanos(),
@@ -386,7 +465,13 @@ public class DelayedAllocationServiceTests extends OpenSearchAllocationTestCase 
         assertThat(secondDelayedRerouteTask.baseTimestampNanos, equalTo(clusterChangeEventTimestampNanos));
         assertThat(
             secondDelayedRerouteTask.nextDelay.nanos(),
-            equalTo(UnassignedInfo.findNextDelayedAllocation(clusterChangeEventTimestampNanos, stateWithOnlyOneDelayedShard))
+            equalTo(
+                UnassignedInfo.findNextDelayedAllocation(
+                    clusterChangeEventTimestampNanos,
+                    stateWithOnlyOneDelayedShard,
+                    stateWithOnlyOneDelayedShard.metadata().settings()
+                )
+            )
         );
         assertThat(
             secondDelayedRerouteTask.nextDelay.nanos(),

@@ -1,0 +1,1 @@
+source=rex_command | rex field=message "level=(?<loglevel>\w+)" | fields loglevel, service | head 5

@@ -84,6 +84,7 @@ import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexNotFoundException;
@@ -118,6 +119,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
@@ -722,6 +724,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
             final DocStatusStats docStatusStats = new DocStatusStats();
             String nodeId = clusterService.localNode().getId();
+            final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
 
             for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                 final ShardId shardId = entry.getKey();
@@ -737,112 +740,125 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
-                final long startTimeNanos = relativeTime();
+                final long shardStartTimeNanos = relativeTime();
                 final ShardRouting primary = routingTable.shardRoutingTable(shardId).primaryShard();
                 String targetNodeId = primary != null ? primary.currentNodeId() : null;
                 IndexMetadata indexMetaData = clusterState.metadata().index(shardId.getIndexName());
                 boolean bulkAdaptiveShardSelectionEnabled = indexMetaData.isAppendOnlyIndex()
                     && indexMetaData.bulkAdaptiveShardSelectionEnabled();
 
-                // Add the shard level accounting for coordinating and supply the listener
-                final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
-                final Releasable releasable = indexingPressureService.markCoordinatingOperationStarted(
-                    shardId,
-                    bulkShardRequest::ramBytesUsed,
-                    isOnlySystem
-                );
+                final ActionListener<BulkShardResponse> shardListener = new ActionListener<>() {
+                    @Override
+                    public void onResponse(BulkShardResponse bulkShardResponse) {
+                        if (targetNodeId != null && bulkAdaptiveShardSelectionEnabled) {
+                            if (bulkShardResponse.getNodeQueueSize() < 0 || bulkShardResponse.getServiceTimeEWMAInNanos() < 0) {
+                                // The shard already applied these items, so skip the statistics instead of failing the items.
+                                logger.warn(
+                                    "Ignoring invalid node statistics from [{}] for [{}]: queue size [{}], service time EWMA [{}]",
+                                    targetNodeId,
+                                    shardId,
+                                    bulkShardResponse.getNodeQueueSize(),
+                                    bulkShardResponse.getServiceTimeEWMAInNanos()
+                                );
+                            } else {
+                                nodeMetricsCollector.addNodeStatistics(
+                                    targetNodeId,
+                                    bulkShardResponse.getNodeQueueSize(),
+                                    relativeTime() - shardStartTimeNanos,
+                                    bulkShardResponse.getServiceTimeEWMAInNanos()
+                                );
+                            }
+                        }
+                        for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
+                            // we may have no response if item failed
+                            if (bulkItemResponse.getResponse() != null) {
+                                bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+                            }
 
-                final Span span = tracer.startSpan(SpanBuilder.from("bulkShardAction", nodeId, bulkShardRequest));
-                boolean incrementedConnections = false;
-                try (SpanScope spanScope = tracer.withSpanInScope(span)) {
-                    if (targetNodeId != null) {
-                        clientConnections.compute(targetNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
-                        incrementedConnections = true;
+                            docStatusStats.inc(bulkItemResponse.status());
+                            responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
+                        }
+
+                        if (counter.decrementAndGet() == 0) {
+                            finishHim();
+                        }
                     }
-                    shardBulkAction.execute(
-                        bulkShardRequest,
-                        TraceableActionListener.create(
-                            ActionListener.runAfter(ActionListener.runBefore(new ActionListener<BulkShardResponse>() {
-                                @Override
-                                public void onResponse(BulkShardResponse bulkShardResponse) {
-                                    if (targetNodeId != null && bulkAdaptiveShardSelectionEnabled) {
-                                        if (bulkShardResponse.getNodeQueueSize() < 0 || bulkShardResponse.getServiceTimeEWMAInNanos() < 0) {
-                                            throw new IllegalStateException(
-                                                "node queue size and service time ewma must be non-negative, got "
-                                                    + bulkShardResponse.getNodeQueueSize()
-                                                    + " and "
-                                                    + bulkShardResponse.getServiceTimeEWMAInNanos()
-                                            );
-                                        }
-                                        nodeMetricsCollector.addNodeStatistics(
-                                            targetNodeId,
-                                            bulkShardResponse.getNodeQueueSize(),
-                                            relativeTime() - startTimeNanos,
-                                            bulkShardResponse.getServiceTimeEWMAInNanos()
-                                        );
-                                    }
-                                    for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
-                                        // we may have no response if item failed
-                                        if (bulkItemResponse.getResponse() != null) {
-                                            bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
-                                        }
 
-                                        docStatusStats.inc(bulkItemResponse.status());
-                                        responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
-                                    }
+                    @Override
+                    public void onFailure(Exception e) {
+                        // create failures for all relevant requests
+                        for (BulkItemRequest request : requests) {
+                            final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
+                            final DocWriteRequest<?> docWriteRequest = request.request();
+                            final BulkItemResponse bulkItemResponse = new BulkItemResponse(
+                                request.id(),
+                                docWriteRequest.opType(),
+                                new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e)
+                            );
 
-                                    if (counter.decrementAndGet() == 0) {
-                                        finishHim();
-                                    }
-                                }
+                            docStatusStats.inc(bulkItemResponse.status());
+                            responses.set(request.id(), bulkItemResponse);
+                        }
 
-                                @Override
-                                public void onFailure(Exception e) {
-                                    // create failures for all relevant requests
-                                    for (BulkItemRequest request : requests) {
-                                        final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
-                                        final DocWriteRequest<?> docWriteRequest = request.request();
-                                        final BulkItemResponse bulkItemResponse = new BulkItemResponse(
-                                            request.id(),
-                                            docWriteRequest.opType(),
-                                            new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e)
-                                        );
+                        if (counter.decrementAndGet() == 0) {
+                            finishHim();
+                        }
+                    }
 
-                                        docStatusStats.inc(bulkItemResponse.status());
-                                        responses.set(request.id(), bulkItemResponse);
-                                    }
+                    private void finishHim() {
+                        indicesService.addDocStatusStats(docStatusStats);
+                        listener.onResponse(
+                            new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
+                        );
+                    }
+                };
 
-                                    if (counter.decrementAndGet() == 0) {
-                                        finishHim();
-                                    }
-                                }
-
-                                private void finishHim() {
-                                    indicesService.addDocStatusStats(docStatusStats);
-                                    listener.onResponse(
-                                        new BulkResponse(
-                                            responses.toArray(new BulkItemResponse[responses.length()]),
-                                            buildTookInMillis(startTimeNanos)
-                                        )
-                                    );
-                                }
-                            }, releasable::close), () -> {
-                                if (targetNodeId != null) {
-                                    clientConnections.computeIfPresent(targetNodeId, (id, conns) -> conns == 1 ? null : conns - 1);
-                                }
-                            }),
-                            span,
-                            tracer
-                        )
+                // Add the shard level accounting for coordinating and supply the listener
+                final Releasable releasable;
+                try {
+                    releasable = indexingPressureService.markCoordinatingOperationStarted(
+                        shardId,
+                        bulkShardRequest::ramBytesUsed,
+                        isOnlySystem
                     );
                 } catch (Exception e) {
-                    releasable.close();
-                    if (incrementedConnections && targetNodeId != null) {
-                        clientConnections.computeIfPresent(targetNodeId, (id, conns) -> conns == 1 ? null : conns - 1);
+                    if (e instanceof OpenSearchRejectedExecutionException == false) {
+                        logger.warn("Unexpected failure during coordinating admission for [{}]", shardId, e);
                     }
-                    span.setError(e);
-                    span.endSpan();
-                    throw e;
+                    // Other shards may still be using request buffers. Complete this shard, not the entire bulk request.
+                    shardListener.onFailure(e);
+                    continue;
+                }
+
+                final Span span = tracer.startSpan(SpanBuilder.from("bulkShardAction", nodeId, bulkShardRequest));
+                final AtomicBoolean incrementedConnections = new AtomicBoolean();
+                final ActionListener<BulkShardResponse> dispatchListener = ActionListener.notifyOnce(
+                    TraceableActionListener.create(
+                        ActionListener.runAfter(ActionListener.runBefore(shardListener, releasable::close), () -> {
+                            if (targetNodeId != null && incrementedConnections.getAndSet(false)) {
+                                clientConnections.computeIfPresent(targetNodeId, (id, conns) -> conns == 1 ? null : conns - 1);
+                            }
+                        }),
+                        span,
+                        tracer
+                    )
+                );
+                boolean dispatchReturned = false;
+                try {
+                    if (targetNodeId != null) {
+                        clientConnections.compute(targetNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
+                        incrementedConnections.set(true);
+                    }
+                    try (SpanScope spanScope = tracer.withSpanInScope(span)) {
+                        shardBulkAction.execute(bulkShardRequest, dispatchListener);
+                        dispatchReturned = true;
+                    }
+                } catch (Exception e) {
+                    logger.warn("Exception during bulk shard dispatch for [{}]", shardId, e);
+                    if (dispatchReturned == false) {
+                        dispatchListener.onFailure(e);
+                    }
+                    // After dispatch returned, only its actual callback may complete the shard and release its request buffers.
                 }
             }
             bulkRequest = null; // allow memory for bulk request items to be reclaimed before all items have been completed
@@ -1002,7 +1018,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return null;
         }
         if (indexRoutingTable.shards().size() == 1) {
-            return indexRoutingTable.shards().get(0).shardId();
+            ShardRouting primary = indexRoutingTable.iterator().next().primaryShard();
+            return primary != null ? primary.shardId() : null;
         }
 
         // Two-stage selection: first rank nodes by metrics, then randomly pick a shard on the best node
@@ -1031,7 +1048,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Map<String, List<ShardRouting>> node2Shards = new HashMap<>();
         for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable.shards().values()) {
             ShardRouting primary = shardRoutingTable.primaryShard();
-            if (primary.active()) {
+            if (primary != null && primary.active()) {
                 node2Shards.compute(primary.currentNodeId(), (nodeId, shardList) -> {
                     if (shardList == null) {
                         shardList = new ArrayList<>();
@@ -1290,7 +1307,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 e
             );
 
-            // We hit a error during preprocessing a request, so we:
+            // We hit an error during preprocessing a request, so we:
             // 1) Remember the request item slot from the bulk, so that we're done processing all requests we know what failed
             // 2) Add a bulk item failure for this request
             // 3) Continue with the next request in the bulk.

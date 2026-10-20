@@ -1,0 +1,42 @@
+{
+  "schema": [
+    {
+      "name": "category",
+      "type": "string"
+    },
+    {
+      "name": "id",
+      "type": "string"
+    },
+    {
+      "name": "concat_val",
+      "type": "string"
+    },
+    {
+      "name": "concat_ws_val",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "A",
+      "1",
+      "A-1",
+      "A:1"
+    ],
+    [
+      "B",
+      "2",
+      "B-2",
+      "B:2"
+    ],
+    [
+      "A",
+      "3",
+      "A-3",
+      "A:3"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

@@ -1,0 +1,1 @@
+source=test_data | eval woy = week_of_year(timestamp) | fields timestamp, woy | head 3

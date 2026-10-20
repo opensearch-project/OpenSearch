@@ -1,0 +1,1 @@
+source=%INDEX% | eval r = strftime(ts, "%Y-%m-%d") | sort id | fields id, r

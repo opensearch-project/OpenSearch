@@ -22,6 +22,8 @@ JDK 21 is the minimum supported. `JAVA_HOME` must be set.
 ./gradlew assemble          # build all distributions
 ./gradlew localDistro       # build for local platform only
 ./gradlew run               # run OpenSearch from source
+./gradlew run -PnumNodes=3  # run a multi-node cluster
+./gradlew run -PinstalledPlugins='["repository-azure"]'  # run with plugins installed
 ./gradlew generateProto     # regenerate protobuf code (if compilation errors)
 ```
 

@@ -78,33 +78,53 @@ final class PerThreadIDVersionAndSeqNoLookup {
     /** used for assertions to make sure class usage meets assumptions */
     private final Object readerKey;
 
-    /**
-     * Initialize lookup for the provided segment
-     */
+    /** Controls which fields a lookup requires at construction. */
+    enum LookupMode {
+        /** Requires {@code _version} doc values and validates the no-op-segment invariant. */
+        FULL,
+        /** Resolves doc id only; tolerates a missing {@code _version} field and segments without {@code _id} terms. */
+        DOC_ID_ONLY
+    }
+
+    /** Initialize a {@link LookupMode#FULL} lookup for the segment. */
     PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField) throws IOException {
+        this(reader, uidField, LookupMode.FULL);
+    }
+
+    /**
+     * Initialize a lookup for the segment.
+     *
+     * @param mode {@link LookupMode#DOC_ID_ONLY} skips the {@code _version} and no-op-segment checks
+     *             and supports only {@link #getDocID}; {@link #lookupVersion}/{@link #lookupSeqNo}
+     *             require {@link LookupMode#FULL}.
+     */
+    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField, LookupMode mode) throws IOException {
         this.uidField = uidField;
         final Terms terms = reader.terms(uidField);
         if (terms == null) {
-            // If a segment contains only no-ops, it does not have _uid but has both _soft_deletes and _tombstone fields.
-            final NumericDocValues softDeletesDV = reader.getNumericDocValues(Lucene.SOFT_DELETES_FIELD);
-            final NumericDocValues tombstoneDV = reader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
-            // this is a special case when we pruned away all IDs in a segment since all docs are deleted.
-            final boolean allDocsDeleted = (softDeletesDV != null && reader.numDocs() == 0);
-            if ((softDeletesDV == null || tombstoneDV == null) && allDocsDeleted == false) {
-                throw new IllegalArgumentException(
-                    "reader does not have _uid terms but not a no-op segment; "
-                        + "_soft_deletes ["
-                        + softDeletesDV
-                        + "], _tombstone ["
-                        + tombstoneDV
-                        + "]"
-                );
+            if (mode == LookupMode.FULL) {
+                // If a segment contains only no-ops, it does not have _uid but has both _soft_deletes and _tombstone fields.
+                final NumericDocValues softDeletesDV = reader.getNumericDocValues(Lucene.SOFT_DELETES_FIELD);
+                final NumericDocValues tombstoneDV = reader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
+                // this is a special case when we pruned away all IDs in a segment since all docs are deleted.
+                final boolean allDocsDeleted = (softDeletesDV != null && reader.numDocs() == 0);
+                if ((softDeletesDV == null || tombstoneDV == null) && allDocsDeleted == false) {
+                    throw new IllegalArgumentException(
+                        "reader does not have _uid terms but not a no-op segment; "
+                            + "_soft_deletes ["
+                            + softDeletesDV
+                            + "], _tombstone ["
+                            + tombstoneDV
+                            + "]"
+                    );
+                }
             }
             termsEnum = null;
         } else {
             termsEnum = terms.iterator();
         }
-        if (reader.getNumericDocValues(VersionFieldMapper.NAME) == null) {
+        // _version doc values are required for version lookups but not for doc-id-only lookups.
+        if (mode == LookupMode.FULL && reader.getNumericDocValues(VersionFieldMapper.NAME) == null) {
             throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME + "] field; _uid terms [" + terms + "]");
         }
         Object readerKey = null;
@@ -144,7 +164,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * returns the internal lucene doc id for the given id bytes.
      * {@link DocIdSetIterator#NO_MORE_DOCS} is returned if not found
      * */
-    private int getDocID(BytesRef id, LeafReaderContext context) throws IOException {
+    int getDocID(BytesRef id, LeafReaderContext context) throws IOException {
         // termsEnum can possibly be null here if this leaf contains only no-ops.
         if (termsEnum != null && termsEnum.seekExact(id)) {
             final Bits liveDocs = context.reader().getLiveDocs();

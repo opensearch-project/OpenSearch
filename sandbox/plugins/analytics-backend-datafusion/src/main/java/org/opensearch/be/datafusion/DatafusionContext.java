@@ -8,10 +8,11 @@
 
 package org.opensearch.be.datafusion;
 
-import org.opensearch.action.search.SearchShardTask;
-import org.opensearch.be.datafusion.jni.StreamHandle;
+import org.opensearch.analytics.exec.task.AnalyticsShardTask;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
+import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
+import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.engine.IndexFilterTree;
 import org.opensearch.search.SearchExecutionContext;
 
 import java.io.IOException;
@@ -19,8 +20,8 @@ import java.io.IOException;
 /**
  * DataFusion-specific search execution context.
  * <p>
- * Carries the DataFusion query plan, engine searcher, optional {@link IndexFilterTree},
- * and the native result stream handle after execution.
+ * Carries the DataFusion query plan, engine searcher, and the native result
+ * stream handle after execution.
  *
  * @opensearch.experimental
  */
@@ -30,24 +31,32 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
     private final DatafusionSearcher engineSearcher;
     private final NativeRuntimeHandle nativeRuntime;
     private DatafusionQuery datafusionQuery;
-    private IndexFilterTree filterTree;
     private StreamHandle streamHandle;
-    private SearchShardTask task;
+    private final AnalyticsShardTask task;
+    private SessionContextHandle sessionContextHandle;
 
     /**
      * Creates a DataFusion execution context
      * @param task the search shard task
-     * @param reader the DataFusion reader providing index data
+     * @param reader the DataFusion reader providing index data, or {@code null} for fragments
+     *               that have no shard scan (e.g. hash-shuffle worker fragments) and read only
+     *               from named-input sources registered on the session context. The resulting
+     *               searcher's vanilla path is unusable when reader is null — workers must go
+     *               through {@code searchWithSessionContext}.
      * @param nativeRuntime handle to the native DataFusion runtime
      */
-    public DatafusionContext(SearchShardTask task, DatafusionReader reader, NativeRuntimeHandle nativeRuntime) {
+    public DatafusionContext(AnalyticsShardTask task, DatafusionReader reader, NativeRuntimeHandle nativeRuntime) {
         this.task = task;
-        this.engineSearcher = new DatafusionSearcher(reader.getReaderHandle());
+        this.engineSearcher = new DatafusionSearcher(reader == null ? null : reader.getReaderHandle());
         this.nativeRuntime = nativeRuntime;
     }
 
     @Override
     public void close() throws IOException {
+        // Signal cancellation to any in-flight Rust tasks for this query.
+        if (datafusionQuery != null && datafusionQuery.getContextId() != 0) {
+            NativeBridge.cancelQuery(datafusionQuery.getContextId());
+        }
         try {
             if (streamHandle != null) {
                 streamHandle.close();
@@ -55,13 +64,29 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
             }
         } finally {
             try {
-                if (filterTree != null) {
-                    filterTree.close();
+                // Safety net for aborted-search paths: if the SessionContext was created but
+                // executeWithContextAsync never ran (or ran and the context is being closed
+                // without handing off the handle), doClose() calls df_close_session_context.
+                // On the happy path the handle is already marked consumed and this close()
+                // is a no-op.
+                if (sessionContextHandle != null) {
+                    sessionContextHandle.close();
+                    sessionContextHandle = null;
                 }
             } finally {
                 engineSearcher.close();
             }
         }
+    }
+
+    /** Returns true if the underlying task has been cancelled. */
+    public boolean isCancelled() {
+        return task != null && task.isCancelled();
+    }
+
+    /** Returns the context ID for this query, or 0 if not set. */
+    public long getContextId() {
+        return datafusionQuery != null ? datafusionQuery.getContextId() : 0L;
     }
 
     /**
@@ -84,22 +109,7 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
         this.datafusionQuery = query;
     }
 
-    /** Returns the index filter tree, or {@code null} if not set. */
-    public IndexFilterTree getFilterTree() {
-        return filterTree;
-    }
-
-    /**
-     * Sets the index filter tree for indexed query execution.
-     * @param filterTree the index filter tree
-     */
-    public void setFilterTree(IndexFilterTree filterTree) {
-        this.filterTree = filterTree;
-    }
-
-    /**
-     * Returns the native result stream handle, or {@code null} if execution has not completed.
-     */
+    /** Returns the native result stream handle, or {@code null} if execution has not completed. */
     public StreamHandle getStreamHandle() {
         return streamHandle;
     }
@@ -124,12 +134,20 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
     }
 
     @Override
-    public SearchShardTask task() {
+    public AnalyticsShardTask task() {
         return task;
     }
 
     @Override
     public DatafusionSearcher getSearcher() {
         return engineSearcher;
+    }
+
+    public SessionContextHandle getSessionContextHandle() {
+        return sessionContextHandle;
+    }
+
+    public void setSessionContextHandle(SessionContextHandle sessionContextHandle) {
+        this.sessionContextHandle = sessionContextHandle;
     }
 }

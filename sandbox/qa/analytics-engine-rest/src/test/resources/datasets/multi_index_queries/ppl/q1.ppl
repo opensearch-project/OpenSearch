@@ -1,0 +1,1 @@
+source=security_logs | fields user, source_ip, event_type, severity | head 10

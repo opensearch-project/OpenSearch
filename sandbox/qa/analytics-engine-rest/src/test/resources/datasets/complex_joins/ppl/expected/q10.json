@@ -1,0 +1,56 @@
+{
+  "schema": [
+    {
+      "name": "verified_count",
+      "type": "bigint"
+    },
+    {
+      "name": "avg_quality",
+      "type": "float"
+    },
+    {
+      "name": "app_id",
+      "type": "string"
+    },
+    {
+      "name": "failed_count",
+      "type": "bigint"
+    },
+    {
+      "name": "r.app_id",
+      "type": "string"
+    },
+    {
+      "name": "success_rate",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      6,
+      0.77,
+      "APP003",
+      10,
+      "APP003",
+      37.5
+    ],
+    [
+      4,
+      0.755,
+      "APP001",
+      6,
+      "APP001",
+      40.0
+    ],
+    [
+      13,
+      0.82769233,
+      "APP002",
+      10,
+      "APP002",
+      56.52
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

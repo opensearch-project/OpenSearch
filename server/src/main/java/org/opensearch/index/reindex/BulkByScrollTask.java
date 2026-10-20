@@ -174,7 +174,7 @@ public class BulkByScrollTask extends CancellableTask {
     /**
      * Sets this task to be a worker task that performs search requests
      * @param requestsPerSecond How many search requests per second this task should make
-     * @param sliceId If this is is a sliced task, which slice number this task corresponds to. Null if not sliced.
+     * @param sliceId If this is a sliced task, which slice number this task corresponds to. Null if not sliced.
      */
     public void setWorker(float requestsPerSecond, @Nullable Integer sliceId) {
         if (isWorker()) {

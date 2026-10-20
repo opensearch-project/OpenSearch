@@ -1,0 +1,30 @@
+{
+  "schema" : [
+    {
+      "name" : "l_shipmode",
+      "type" : "string"
+    },
+    {
+      "name" : "high_line_count",
+      "type" : "bigint"
+    },
+    {
+      "name" : "low_line_count",
+      "type" : "bigint"
+    }
+  ],
+  "total" : 2,
+  "datarows" : [
+    [
+      "MAIL",
+      5,
+      5
+    ],
+    [
+      "SHIP",
+      5,
+      10
+    ]
+  ],
+  "size" : 2
+}

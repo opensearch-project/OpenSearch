@@ -12,13 +12,12 @@ import org.apache.arrow.vector.SmallIntVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.vsr.ManagedVSR;
 
 /**
  * Parquet field for 16-bit signed short values using {@link SmallIntVector}.
  */
-public class ShortParquetField extends ParquetField {
+public class ShortParquetField extends NumericParquetField {
 
     /** Creates a new ShortParquetField. */
     public ShortParquetField() {}

@@ -81,6 +81,8 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStoreUtils;
+import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndexCreationException;
@@ -159,6 +161,7 @@ import static org.opensearch.cluster.metadata.MetadataCreateIndexService.parseV1
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.common.util.FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES;
+import static org.opensearch.common.util.FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
 import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_MERGE_POLICY;
@@ -983,6 +986,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("1"));
+        assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_REPLICAS), equalTo("1"));
     }
 
     public void testSettingsFromClusterState() {
@@ -999,6 +1003,118 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("15"));
+    }
+
+    public void testDefaultNumberOfReplicasUsesNodeSetting() {
+        Settings nodeSettings = Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 0).build();
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            nodeSettings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_REPLICAS), equalTo("0"));
+    }
+
+    public void testDefaultNumberOfReplicasUsesPersistentSettingOverNodeSetting() {
+        Settings nodeSettings = Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 0).build();
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Metadata metadata = Metadata.builder()
+            .persistentSettings(Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 2).build())
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .build();
+        clusterSettings.applySettings(clusterState.metadata().settings());
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            Settings.EMPTY,
+            null,
+            nodeSettings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_REPLICAS), equalTo("2"));
+    }
+
+    public void testDefaultNumberOfReplicasUsesTransientSettingOverPersistentAndNodeSettings() {
+        Settings nodeSettings = Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 0).build();
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Metadata metadata = Metadata.builder()
+            .persistentSettings(Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 2).build())
+            .transientSettings(Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 3).build())
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .build();
+        clusterSettings.applySettings(clusterState.metadata().settings());
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            Settings.EMPTY,
+            null,
+            nodeSettings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_REPLICAS), equalTo("3"));
+    }
+
+    public void testExplicitNumberOfReplicasOverridesClusterDefault() {
+        Settings nodeSettings = Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 0).build();
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        request.settings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 4).build());
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            nodeSettings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_REPLICAS), equalTo("4"));
+    }
+
+    public void testTemplateNumberOfReplicasOverridesClusterDefault() {
+        Settings nodeSettings = Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 0).build();
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Settings templateSettings = Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 2).build();
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            templateSettings,
+            null,
+            nodeSettings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+
+        assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_REPLICAS), equalTo("2"));
     }
 
     public void testTemplateOrder() throws Exception {
@@ -1274,6 +1390,51 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertThat(validationErrors.size(), is(0));
 
         threadPool.shutdown();
+    }
+
+    public void testValidateIndexSettingsUsesDefaultNumberOfReplicasFromClusterSettings() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(Metadata.builder().build())
+            .build();
+
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        Settings settings = Settings.builder()
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone, rack")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a, b")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "rack.values", "c, d, e")
+            .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
+            .put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 2)
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getSettings()).thenReturn(settings);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+            settings,
+            clusterService,
+            indicesServices,
+            null,
+            null,
+            createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+            new Environment(Settings.builder().put("path.home", "dummy").build(), null),
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            threadPool,
+            null,
+            new SystemIndices(Collections.emptyMap()),
+            true,
+            new AwarenessReplicaBalance(settings, clusterService.getClusterSettings()),
+            DefaultRemoteStoreSettings.INSTANCE,
+            repositoriesServiceSupplier
+        );
+
+        try {
+            List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(settings, false, Optional.empty());
+            assertThat(validationErrors.size(), is(0));
+        } finally {
+            threadPool.shutdown();
+        }
     }
 
     public void testIndexTemplateReplicationType() {
@@ -2184,6 +2345,433 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
     }
 
+    // ---- updatePluggableDataFormatSettings ----
+
+    public void testUpdatePluggableDataFormatSettingsNoopWhenFeatureFlagDisabled() {
+        // Feature flag is off by default in tests; the helper must not contribute either setting,
+        // even when a cluster-scope default is present.
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings.Builder indexSettingsBuilder = Settings.builder();
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs, "test-index");
+
+        Settings out = indexSettingsBuilder.build();
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(out));
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.exists(out));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testUpdatePluggableDataFormatSettingsStampsClusterDefaultsWhenIndexLevelAbsent() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings.Builder indexSettingsBuilder = Settings.builder();
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs, "test-index");
+
+        Settings out = indexSettingsBuilder.build();
+        assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(out));
+        assertEquals("parquet", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(out));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testUpdatePluggableDataFormatSettingsSkipsEnabledWhenAlreadySet() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        // Primary override is preserved; value still stamped from the cluster default.
+        Settings.Builder indexSettingsBuilder = Settings.builder().put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false);
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs, "test-index");
+
+        Settings out = indexSettingsBuilder.build();
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(out));
+        assertEquals("parquet", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(out));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testUpdatePluggableDataFormatSettingsSkipsValueWhenAlreadySet() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings.Builder indexSettingsBuilder = Settings.builder().put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene");
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs, "test-index");
+
+        Settings out = indexSettingsBuilder.build();
+        assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(out));
+        assertEquals("lucene", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(out));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testUpdatePluggableDataFormatSettingsSkipsBothWhenAlreadySet() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings.Builder indexSettingsBuilder = Settings.builder()
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene");
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs, "test-index");
+
+        Settings out = indexSettingsBuilder.build();
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(out));
+        assertEquals("lucene", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(out));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testUpdatePluggableDataFormatSettingsStampsBuiltInDefaultsWhenClusterBagEmpty() {
+        ClusterSettings cs = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings.Builder indexSettingsBuilder = Settings.builder();
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs, "test-index");
+
+        Settings out = indexSettingsBuilder.build();
+        assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(out));
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(out));
+        assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.exists(out));
+        assertEquals("", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(out));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testAggregateIndexSettingsStampsPluggableDataFormatClusterDefaults() {
+        // End-to-end sanity: confirm updatePluggableDataFormatSettings is wired into the create-index
+        // pipeline, so the effective values land in the settings returned by aggregateIndexSettings.
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request.settings(Settings.EMPTY);
+
+        Settings aggregated = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            cs
+        );
+
+        assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(aggregated));
+        assertEquals("parquet", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(aggregated));
+    }
+
+    public void testAggregateIndexSettingsPropagatesIndexCreationExceptionFromProvider() {
+        // Simulates a plugin-supplied IndexSettingProvider (like CompositeDataFormatPlugin) rejecting
+        // a forbidden index-level override by throwing IndexCreationException wrapping a
+        // ValidationException. The exception must propagate out of aggregateIndexSettings unchanged so
+        // the REST layer reports it the same way as the built-in validateErrors path does.
+        final String expectedError = "index setting [index.example] is not allowed to be set as [cluster.test.restrict=true]";
+        IndexSettingProvider throwingProvider = new IndexSettingProvider() {
+            @Override
+            public Settings getAdditionalIndexSettings(String indexName, boolean isDataStreamIndex, Settings templateAndRequestSettings) {
+                ValidationException ve = new ValidationException();
+                ve.addValidationError(expectedError);
+                throw new IndexCreationException(indexName, ve);
+            }
+        };
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request.settings(Settings.EMPTY);
+
+        IndexCreationException thrown = expectThrows(
+            IndexCreationException.class,
+            () -> aggregateIndexSettings(
+                ClusterState.EMPTY_STATE,
+                request,
+                Settings.EMPTY,
+                null,
+                Settings.EMPTY,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                randomShardLimitService(),
+                Collections.singleton(throwingProvider),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            )
+        );
+
+        assertEquals("test", thrown.getIndex().getName());
+        assertTrue(thrown.getCause() instanceof ValidationException);
+        assertTrue(
+            "expected validation error to contain [" + expectedError + "] but was [" + thrown.getCause().getMessage() + "]",
+            thrown.getCause().getMessage().contains(expectedError)
+        );
+    }
+
+    // ---- allowlist tests ----
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testUpdatePluggableDataFormatSettingsSkipsWhenIndexMatchesAllowlist() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST.getKey(), ".system", ".kibana")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings.Builder indexSettingsBuilder = Settings.builder();
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs, ".system-index-1");
+
+        Settings out = indexSettingsBuilder.build();
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(out));
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.exists(out));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testUpdatePluggableDataFormatSettingsStampsWhenIndexDoesNotMatchAllowlist() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST.getKey(), ".system", ".kibana")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings.Builder indexSettingsBuilder = Settings.builder();
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs, "user-index");
+
+        Settings out = indexSettingsBuilder.build();
+        assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(out));
+        assertEquals("parquet", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(out));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testValidatePluggableDataFormatSettingsSkipsWhenIndexMatchesAllowlist() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST.getKey(), ".system")
+            .put(IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey(), true)
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        // Index explicitly sets a different value — normally rejected, but allowlist bypasses it.
+        Settings indexSettings = Settings.builder()
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene")
+            .build();
+
+        Settings.Builder indexSettingsBuilder = Settings.builder().put(indexSettings);
+        MetadataCreateIndexService.updatePluggableDataFormatSettings(indexSettingsBuilder, cs, ".system-test");
+
+        // No exception, no stamping — the index is left alone.
+        Settings out = indexSettingsBuilder.build();
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(out));
+        assertEquals("lucene", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(out));
+    }
+
+    // ---- validatePluggableDataFormatSettings tests ----
+
+    public void testValidatePluggableDataFormatNoopWhenFeatureFlagDisabled() {
+        // Feature flag off — no validation even with restrict=true and mismatching values.
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .put(IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey(), true)
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings mismatch = Settings.builder()
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene")
+            .build();
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request.settings(mismatch);
+
+        // Should NOT throw — feature flag is off by default in tests without @LockFeatureFlag
+        Settings aggregated = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            cs
+        );
+        assertNotNull(aggregated);
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testValidatePluggableDataFormatNoopWhenRestrictDisabled() {
+        // restrict=false — mismatching values are allowed.
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings mismatch = Settings.builder()
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene")
+            .build();
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request.settings(mismatch);
+
+        Settings aggregated = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            cs
+        );
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(aggregated));
+        assertEquals("lucene", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(aggregated));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testValidatePluggableDataFormatRejectsEnabledMismatch() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .put(IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey(), true)
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings mismatch = Settings.builder().put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false).build();
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request.settings(mismatch);
+
+        IndexCreationException exception = expectThrows(
+            IndexCreationException.class,
+            () -> aggregateIndexSettings(
+                ClusterState.EMPTY_STATE,
+                request,
+                Settings.EMPTY,
+                null,
+                Settings.EMPTY,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                randomShardLimitService(),
+                Collections.emptySet(),
+                cs
+            )
+        );
+        assertTrue(exception.getCause().getMessage().contains(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey()));
+        assertTrue(exception.getCause().getMessage().contains("cannot differ from cluster default"));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testValidatePluggableDataFormatRejectsValueMismatch() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .put(IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey(), true)
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings mismatch = Settings.builder().put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene").build();
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request.settings(mismatch);
+
+        IndexCreationException exception = expectThrows(
+            IndexCreationException.class,
+            () -> aggregateIndexSettings(
+                ClusterState.EMPTY_STATE,
+                request,
+                Settings.EMPTY,
+                null,
+                Settings.EMPTY,
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                randomShardLimitService(),
+                Collections.emptySet(),
+                cs
+            )
+        );
+        assertTrue(exception.getCause().getMessage().contains(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey()));
+        assertTrue(exception.getCause().getMessage().contains("cannot differ from cluster default"));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testValidatePluggableDataFormatAllowsMatchingValues() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .put(IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey(), true)
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings matching = Settings.builder()
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .build();
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request.settings(matching);
+
+        Settings aggregated = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            cs
+        );
+        assertTrue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(aggregated));
+        assertEquals("parquet", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(aggregated));
+    }
+
+    @LockFeatureFlag(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testValidatePluggableDataFormatAllowlistBypassesRestrict() {
+        Settings clusterBag = Settings.builder()
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet")
+            .put(IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey(), true)
+            .putList(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST.getKey(), ".system")
+            .build();
+        ClusterSettings cs = new ClusterSettings(clusterBag, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        Settings mismatch = Settings.builder()
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "lucene")
+            .build();
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", ".system-index", ".system-index");
+        request.settings(mismatch);
+
+        // Should NOT throw — index matches allowlist
+        Settings aggregated = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            cs
+        );
+        assertFalse(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(aggregated));
+        assertEquals("lucene", IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(aggregated));
+    }
+
     public void testAnyTranslogDurabilityWhenRestrictSettingFalse() {
         // This checks that aggregateIndexSettings works for the case when the cluster setting
         // cluster.remote_store.index.restrict.async-durability is false or not set, it allows all types of durability modes
@@ -2254,6 +2842,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .build();
         Settings settings = Settings.builder().put(CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey(), true).build();
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        clusterSettings.applySettings(clusterState.metadata().settings());
         Settings aggregatedSettings = aggregateIndexSettings(
             clusterState,
             request,
@@ -2914,6 +3503,110 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         Map<String, String> finalCustomData = imdBuilder.build().getCustomData().get(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
         assertNotNull(finalCustomData);
         assertEquals("false", finalCustomData.get(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY));
+    }
+
+    /**
+     * Node attributes for {@code node.attr.remote_store.mode: segments_only}: a segment repository and neither a
+     * translog nor a cluster state repository.
+     */
+    private static Map<String, String> getSegmentsOnlyNodeAttributes() {
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
+        return attributes;
+    }
+
+    private static ClusterState clusterStateWithSegmentsOnlyNode() {
+        DiscoveryNode segmentsOnlyNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            getSegmentsOnlyNodeAttributes(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        return ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder().add(segmentsOnlyNode).build()).build();
+    }
+
+    /**
+     * An index created on segments-only nodes must be remote-backed for segments and must carry no translog
+     * repository. updateRemoteStoreSettings selects the node to copy repository names from with
+     * DiscoveryNode::isRemoteSegmentStoreNode, so a segments-only node qualifies as a donor even though it has no
+     * cluster state repository.
+     */
+    public void testUpdateRemoteStoreSettingsForSegmentsOnlyNode() {
+        Settings nodeSettings = Settings.builder().put("node.attr.remote_store.segment.repository", "my-segment-repo-1").build();
+        ClusterSettings strictClusterSettings = new ClusterSettings(
+            Settings.builder()
+                .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
+                .build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+
+        Settings.Builder settingsBuilder = Settings.builder();
+        MetadataCreateIndexService.updateRemoteStoreSettings(
+            settingsBuilder,
+            clusterStateWithSegmentsOnlyNode(),
+            strictClusterSettings,
+            nodeSettings,
+            "test-index"
+        );
+
+        Settings indexSettings = settingsBuilder.build();
+        assertNull("no remote translog repository should be applied", indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
+        assertEquals("my-segment-repo-1", indexSettings.get(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY));
+        assertTrue("index should be remote-backed for segments", indexSettings.getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false));
+    }
+
+    /**
+     * A segments-only index should use the cluster's configured remote store path type rather than falling back to
+     * FIXED paths, even though there is no translog repository.
+     */
+    public void testRemoteStorePathTypeForSegmentsOnlyNode() {
+        Settings settings = Settings.builder().put("node.attr.remote_store.segment.repository", "my-segment-repo-1").build();
+
+        BlobStoreRepository repositoryMock = mock(BlobStoreRepository.class);
+        BlobStore blobStoreMock = mock(BlobStore.class);
+        when(repositoryMock.blobStore()).thenReturn(blobStoreMock);
+        when(blobStoreMock.isBlobMetadataEnabled()).thenReturn(randomBoolean());
+        when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);
+        when(repositoriesService.repository(Mockito.any())).thenReturn(repositoryMock);
+
+        ClusterState clusterState = clusterStateWithSegmentsOnlyNode();
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+            settings,
+            clusterService,
+            indicesServices,
+            null,
+            null,
+            createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+            null,
+            null,
+            null,
+            null,
+            new SystemIndices(Collections.emptyMap()),
+            false,
+            new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+            DefaultRemoteStoreSettings.INSTANCE,
+            repositoriesServiceSupplier
+        );
+
+        Settings indexSettings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+
+        IndexMetadata.Builder imdBuilder = IndexMetadata.builder("test").settings(indexSettings);
+        checkerService.addRemoteStoreCustomMetadata(imdBuilder, true, clusterState);
+
+        assertEquals(
+            "segments-only indices should use the cluster's configured path type",
+            PathType.HASHED_PREFIX,
+            RemoteStoreUtils.determineRemoteStorePathStrategy(imdBuilder.build()).getType()
+        );
     }
 
     private static Map<String, String> getNodeAttributes() {
@@ -3910,6 +4603,280 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             () -> MetadataCreateIndexService.validateIngestionSourceSettings(settings, state)
         );
         assertTrue(e.getMessage().contains("cannot be the same"));
+    }
+
+    // ---- source_partition_strategy validation tests ----
+
+    public void testValidateIngestionSourceSettingsPartitionStrategyOnCurrentVersion() {
+        // source_partition_strategy explicitly set on a current-version cluster — should pass
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_PARTITION_STRATEGY, "modulo").build();
+
+        // Should not throw
+        MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
+    }
+
+    public void testValidateIngestionSourceSettingsPartitionStrategySimpleOnCurrentVersion() {
+        // Even setting the default value (simple) explicitly should pass on current-version cluster
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_PARTITION_STRATEGY, "simple").build();
+
+        MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
+    }
+
+    public void testValidateIngestionSourceSettingsPartitionStrategyOnMixedClusterRejected() {
+        // source_partition_strategy setting key was introduced in V_3_7_0. Any explicit value (including
+        // the default 'simple') should be rejected if the cluster has nodes < V_3_7_0 — otherwise
+        // those nodes would receive replicated index metadata containing an unknown setting key.
+        final Set<DiscoveryNodeRole> roles = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        );
+        DiscoveryNode oldNode = new DiscoveryNode("old_node", buildNewFakeTransportAddress(), emptyMap(), roles, Version.V_3_5_0);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(oldNode).build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_PARTITION_STRATEGY, "modulo").build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataCreateIndexService.validateIngestionSourceSettings(settings, state)
+        );
+        assertTrue(e.getMessage().contains("index.ingestion_source.source_partition_strategy requires all nodes"));
+        assertTrue(e.getMessage().contains(Version.V_3_7_0.toString()));
+        assertTrue(e.getMessage().contains(Version.V_3_5_0.toString()));
+    }
+
+    public void testValidateIngestionSourceSettingsPartitionStrategySimpleAlsoRejectedOnMixedCluster() {
+        // Even the default value 'simple' set explicitly is rejected on a mixed cluster — the version
+        // check guards the setting KEY itself, regardless of value. Once any non-default strategy can
+        // be set, older nodes that don't recognize the key would fall back to the default 1:1 mapping
+        // and read from the wrong source partitions until upgraded.
+        final Set<DiscoveryNodeRole> roles = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        );
+        DiscoveryNode oldNode = new DiscoveryNode("old_node", buildNewFakeTransportAddress(), emptyMap(), roles, Version.V_3_5_0);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(oldNode).build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_PARTITION_STRATEGY, "simple").build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataCreateIndexService.validateIngestionSourceSettings(settings, state)
+        );
+        assertTrue(e.getMessage().contains("index.ingestion_source.source_partition_strategy requires all nodes"));
+    }
+
+    public void testValidateIngestionSourceSettingsPartitionStrategyAbsentOnMixedClusterPasses() {
+        // Without the explicit source_partition_strategy setting, no metadata is replicated — old nodes are unaffected.
+        final Set<DiscoveryNodeRole> roles = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        );
+        DiscoveryNode oldNode = new DiscoveryNode("old_node", buildNewFakeTransportAddress(), emptyMap(), roles, Version.V_3_5_0);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(oldNode).build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+
+        // No source_partition_strategy in settings — validation should pass even on mixed cluster
+        Settings settings = Settings.builder().build();
+
+        MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
+    }
+
+    /**
+     * Template A (lower priority) defines @fields as a dynamic object.
+     * Template B (higher priority) defines a specific sub-field @fields.userstate as keyword.
+     * After merging, @fields should retain both the dynamic:true/type:object settings AND
+     * the specific userstate mapping. The regression in PR#19958 caused the dynamic/object
+     * settings to be dropped, breaking index creation for dynamic fields under @fields.
+     */
+    public void testV1TemplateMergingPreservesDynamicObjectWithSubFieldMapping() throws Exception {
+        // Template A (lower priority / later in list): defines @fields as dynamic object
+        CompressedXContent templateA = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "@fields": {
+                    "type": "object",
+                    "dynamic": "true",
+                    "properties": {
+                      "status": { "type": "keyword" }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        // Template B (higher priority / earlier in list): defines specific sub-field @fields.userstate
+        CompressedXContent templateB = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "@fields": {
+                    "properties": {
+                      "userstate": { "type": "keyword" }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        // Template B is higher priority (first in list), Template A is lower priority (second in list)
+        List<CompressedXContent> templates = Arrays.asList(templateB, templateA);
+        Map<String, Object> result = MetadataCreateIndexService.parseV1Mappings("", templates, NamedXContentRegistry.EMPTY);
+
+        // Serialize result to JSON and compare against expected merged output
+        String resultJson = XContentFactory.jsonBuilder().map(result).toString();
+
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                resultJson
+            )
+        ) {
+            Map<String, Object> actual = parser.map();
+            try (
+                XContentParser expectedParser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    """
+                        {
+                          "_doc": {
+                            "properties": {
+                              "@fields": {
+                                "type": "object",
+                                "dynamic": "true",
+                                "properties": {
+                                  "userstate": { "type": "keyword" },
+                                  "status": { "type": "keyword" }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """
+                )
+            ) {
+                Map<String, Object> expected = expectedParser.map();
+                assertEquals("Merged V1 template result should preserve dynamic object with all sub-fields", expected, actual);
+            }
+        }
+    }
+
+    /**
+     * Tests that V1 template merging correctly handles request mapping overriding template
+     * while still inheriting non-conflicting object-level settings from templates.
+     * This ensures that a request mapping defining only sub-fields of an object still
+     * inherits the object's type/dynamic settings from templates.
+     */
+    public void testV1RequestMappingInheritsObjectSettingsFromTemplate() throws Exception {
+        // Template defines @fields as dynamic object
+        CompressedXContent template = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "@fields": {
+                    "type": "object",
+                    "dynamic": "true"
+                  }
+                }
+              }
+            }
+            """);
+
+        // Request mapping defines a specific sub-field under @fields
+        String requestMapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "@fields": {
+                    "properties": {
+                      "userstate": { "type": "keyword" }
+                    }
+                  }
+                }
+              }
+            }
+            """;
+
+        List<CompressedXContent> templates = Collections.singletonList(template);
+        Map<String, Object> result = MetadataCreateIndexService.parseV1Mappings(requestMapping, templates, NamedXContentRegistry.EMPTY);
+
+        // Serialize result to JSON and compare against expected merged output
+        String resultJson = XContentFactory.jsonBuilder().map(result).toString();
+
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                resultJson
+            )
+        ) {
+            Map<String, Object> actual = parser.map();
+            try (
+                XContentParser expectedParser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    """
+                        {
+                          "_doc": {
+                            "properties": {
+                              "@fields": {
+                                "type": "object",
+                                "dynamic": "true",
+                                "properties": {
+                                  "userstate": { "type": "keyword" }
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """
+                )
+            ) {
+                Map<String, Object> expected = expectedParser.map();
+                assertEquals("Request mapping should inherit object settings from template", expected, actual);
+            }
+        }
+    }
+
+    /**
+     * Stamping the fencing default must not validate the settings it is handed. {@code index.remote_store.enabled}
+     * carries a validator cross-checking {@code index.replication.type}, and this code also runs from snapshot
+     * restore's override-settings step, where restoring a remote-store snapshot onto a document-replication index is a
+     * combination the restore path itself has to reject with a {@code SnapshotRestoreException}. Reading the setting
+     * through {@code Setting#get} pre-empted that with an {@code IllegalArgumentException}, breaking
+     * {@code SearchReplicaRestoreIT}. The stamp only ever needed a boolean, so it reads the raw value.
+     */
+    public void testFencingDefaultStampDoesNotValidateReplicationTypeCompatibility() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED.getKey(), true).build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+        // The invalid pairing on purpose: remote store on, document replication.
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
+
+        MetadataCreateIndexService.updateRemoteStoreSettings(
+            settingsBuilder,
+            ClusterState.builder(ClusterName.DEFAULT).build(),
+            clusterSettings,
+            Settings.EMPTY,
+            "test-index"
+        );
+
+        // No exception, and the cluster default is still baked in - rejecting the pairing belongs to the caller.
+        assertTrue(
+            "fencing default should still be stamped for a remote-store index",
+            settingsBuilder.build().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, false)
+        );
     }
 
 }

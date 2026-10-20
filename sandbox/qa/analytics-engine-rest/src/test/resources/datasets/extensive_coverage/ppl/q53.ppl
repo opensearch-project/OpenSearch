@@ -1,0 +1,1 @@
+source=test_data | stats first(value) as first_val, last(value) as last_val by category

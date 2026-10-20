@@ -1,0 +1,1 @@
+source=rex_command | rex field=raw_log "ip=(?<clientip>\d+\.\d+\.\d+\.\d+)" | where clientip like "192.168.%" | stats count() by clientip

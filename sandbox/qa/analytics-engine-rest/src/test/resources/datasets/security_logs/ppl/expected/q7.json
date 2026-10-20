@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "attempts",
+      "type": "bigint"
+    },
+    {
+      "name": "source_ip",
+      "type": "ip"
+    },
+    {
+      "name": "threat_score",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      31,
+      "192.168.1.100",
+      "HIGH"
+    ],
+    [
+      15,
+      "10.0.0.50",
+      "MEDIUM"
+    ],
+    [
+      15,
+      "172.16.0.200",
+      "MEDIUM"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

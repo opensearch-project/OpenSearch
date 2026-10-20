@@ -149,6 +149,21 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
             return;
         }
 
+        // As in RemoteFsTranslog: remote deletions are gated on still owning the fence, so a superseded copy cannot
+        // remove files a legitimate owner is still recovering from. Index deletion is exempt - there is no owner left
+        // to protect, and the cleanup has to proceed.
+        if (indexDeleted == false) {
+            try {
+                if (isRemoteStoreFenceSuperseded()) {
+                    logger.info("Skipping remote translog cleanup: a higher primary term has taken the remote store fence");
+                    return;
+                }
+            } catch (IOException e) {
+                logger.warn("Could not determine remote store fence ownership; skipping remote translog cleanup", e);
+                return;
+            }
+        }
+
         // This is to fail fast and avoid listing md files un-necessarily.
         if (indexDeleted == false && RemoteStoreUtils.isPinnedTimestampStateStale()) {
             logger.debug("Skipping remote translog garbage collection as last fetch of pinned timestamp is stale");
@@ -202,12 +217,22 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                         return;
                     }
 
-                    logger.debug(() -> "metadataFilesToBeDeleted = " + metadataFilesToBeDeleted);
+                    logger.debug(
+                        () -> "metadataFilesToBeDeleted count = "
+                            + metadataFilesToBeDeleted.size()
+                            + ", metadataFilesToBeDeleted = "
+                            + metadataFilesToBeDeleted
+                    );
                     // For all the files that we are keeping, fetch min and max generations
                     List<String> metadataFilesNotToBeDeleted = new ArrayList<>(metadataFiles);
-                    metadataFilesNotToBeDeleted.removeAll(metadataFilesToBeDeleted);
+                    metadataFilesNotToBeDeleted.removeAll(new HashSet<>(metadataFilesToBeDeleted));
 
-                    logger.debug(() -> "metadataFilesNotToBeDeleted = " + metadataFilesNotToBeDeleted);
+                    logger.debug(
+                        () -> "metadataFilesNotToBeDeleted count = "
+                            + metadataFilesNotToBeDeleted.size()
+                            + ", metadataFilesNotToBeDeleted = "
+                            + metadataFilesNotToBeDeleted
+                    );
 
                     Set<Long> generationsToBeDeleted = getGenerationsToBeDeleted(
                         metadataFilesNotToBeDeleted,
@@ -373,7 +398,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                 long maxGeneration = TranslogTransferMetadata.getMaxGenerationFromFileName(md);
                 return maxGeneration == -1 || maxGeneration >= minGenerationToKeepInRemote;
             }).collect(Collectors.toList());
-            metadataFilesToBeDeleted.removeAll(metadataFilesContainingMinGenerationToKeep);
+            metadataFilesToBeDeleted.removeAll(new HashSet<>(metadataFilesContainingMinGenerationToKeep));
 
             logger.trace(
                 "metadataFilesContainingMinGenerationToKeep.size = {}, metadataFilesToBeDeleted based on minGenerationToKeep filtering = {}, minGenerationToKeep = {}",
@@ -572,12 +597,22 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                             staticLogger.debug("No metadata files to delete");
                             return;
                         }
-                        staticLogger.debug(() -> "metadataFilesToBeDeleted = " + metadataFilesToBeDeleted);
+                        staticLogger.debug(
+                            () -> "metadataFilesToBeDeleted count = "
+                                + metadataFilesToBeDeleted.size()
+                                + ", metadataFilesToBeDeleted = "
+                                + metadataFilesToBeDeleted
+                        );
 
                         // For all the files that we are keeping, fetch min and max generations
                         List<String> metadataFilesNotToBeDeleted = new ArrayList<>(metadataFiles);
-                        metadataFilesNotToBeDeleted.removeAll(metadataFilesToBeDeleted);
-                        staticLogger.debug(() -> "metadataFilesNotToBeDeleted = " + metadataFilesNotToBeDeleted);
+                        metadataFilesNotToBeDeleted.removeAll(new HashSet<>(metadataFilesToBeDeleted));
+                        staticLogger.debug(
+                            () -> "metadataFilesNotToBeDeleted count = "
+                                + metadataFilesNotToBeDeleted.size()
+                                + ", metadataFilesNotToBeDeleted = "
+                                + metadataFilesNotToBeDeleted
+                        );
 
                         // Delete stale metadata files
                         translogTransferManager.deleteMetadataFilesAsync(metadataFilesToBeDeleted, () -> {});

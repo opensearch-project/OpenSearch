@@ -1,0 +1,1 @@
+source=%INDEX% | where client_ip in ("10.0.0.1", "192.168.1.1") | sort id | fields id, client_ip

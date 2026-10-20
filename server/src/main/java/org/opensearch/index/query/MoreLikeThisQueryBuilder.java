@@ -1128,7 +1128,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
             likeFields.add(getResponse.getFields());
         }
-        return likeFields.toArray(Fields.EMPTY_ARRAY);
+        return likeFields.toArray(new Fields[0]);
     }
 
     private static void checkRoutingMissingException(MultiTermVectorsItemResponse response) {

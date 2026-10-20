@@ -167,6 +167,18 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
+        final int tokenCount = parseTokenCount(context);
+        if (tokenCount == Integer.MIN_VALUE) {
+            return;
+        }
+
+        context.doc()
+            .addAll(
+                NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, index, hasDocValues, skiplist, store)
+            );
+    }
+
+    private int parseTokenCount(ParseContext context) throws IOException {
         final String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
@@ -175,20 +187,13 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
         }
 
         if (value == null && nullValue == null) {
-            return;
+            return Integer.MIN_VALUE;
         }
 
-        final int tokenCount;
         if (value == null) {
-            tokenCount = nullValue;
-        } else {
-            tokenCount = countPositions(analyzer, name(), value, enablePositionIncrements);
+            return nullValue;
         }
-
-        context.doc()
-            .addAll(
-                NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, index, hasDocValues, skiplist, store)
-            );
+        return countPositions(analyzer, name(), value, enablePositionIncrements);
     }
 
     /**

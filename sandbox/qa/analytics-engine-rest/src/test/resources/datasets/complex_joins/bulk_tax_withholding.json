@@ -1,0 +1,10 @@
+{"index":{}}
+{"log_level":"INFO","part_mid":"user1","realm":"realm-a"}
+{"index":{}}
+{"log_level":"INFO","part_mid":"user2","realm":"realm-a"}
+{"index":{}}
+{"log_level":"INFO","part_mid":"user3","realm":"realm-b"}
+{"index":{}}
+{"log_level":"WARN","part_mid":"user4","realm":"realm-b"}
+{"index":{}}
+{"log_level":"INFO","part_mid":"user5","realm":"realm-c"}

@@ -1,0 +1,24 @@
+# Global named settings-combos for plan-shape golden ITs.
+# A combo IS its settings — no knob-token indirection. Goldens reference combos by name only.
+# cluster: applied via PUT /_cluster/settings.  index: applied at the index PUT (provision time).
+# index.number_of_shards is REQUIRED (the universal root knob: split vs no-split).
+#
+# `defaults` lists the combos CI runs unless overridden with -Dplan.combos=...
+
+combos:
+  prod2s:                                 # production default, multi-shard
+    index:
+      number_of_shards: 2
+    cluster:
+      analytics.shard_bucket_oversampling_factor: 2.0
+      search.concurrent.max_slice_count: 4
+      datafusion.reduce.target_partitions: 4
+  prod1s:                                 # production default, single-shard
+    index:
+      number_of_shards: 1
+    cluster:
+      analytics.shard_bucket_oversampling_factor: 2.0
+      search.concurrent.max_slice_count: 4
+      datafusion.reduce.target_partitions: 4
+
+defaults: [prod2s, prod1s]

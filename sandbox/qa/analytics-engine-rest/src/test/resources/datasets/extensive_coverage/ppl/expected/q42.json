@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "text",
+      "type": "string"
+    },
+    {
+      "name": "replaced",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "hello world test",
+      "hello world TEST"
+    ],
+    [
+      "sample data entry",
+      "sample data entry"
+    ],
+    [
+      "test example record",
+      "TEST example record"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

@@ -105,6 +105,16 @@ public class StubbableTransport implements Transport {
         requestHandlers.forceRegister(newRegistry);
     }
 
+    /**
+     * Returns {@code true} if the underlying delegate transport has a
+     * registered request handler for the given action name. Used by
+     * {@link MockTransportService#addRequestHandlingBehavior(String, RequestHandlingBehavior)}
+     * to decide which transport (regular vs streaming) owns the action.
+     */
+    boolean hasHandler(String actionName) {
+        return delegate.getRequestHandlers().getHandler(actionName) != null;
+    }
+
     void clearBehaviors() {
         clearOutboundBehaviors();
         clearInboundBehaviors();

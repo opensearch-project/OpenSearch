@@ -99,8 +99,10 @@ public class TransportGetAliasesAction extends TransportClusterManagerNodeReadAc
 
     @Override
     protected String executor() {
-        // very lightweight operation all in memory no need to fork to a thread pool
-        return ThreadPool.Names.SAME;
+        // Alias metadata serialization (filter decompression + XContent build) can be slow on
+        // clusters with many filtered aliases (e.g. DLS tenants). Run on MANAGEMENT so the
+        // Netty transport thread is never blocked by this work.
+        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override

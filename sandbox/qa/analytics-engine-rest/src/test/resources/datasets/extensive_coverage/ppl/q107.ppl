@@ -1,0 +1,1 @@
+source=test_data | eval has_value = ispresent(value) | fields id, value, has_value | head 3

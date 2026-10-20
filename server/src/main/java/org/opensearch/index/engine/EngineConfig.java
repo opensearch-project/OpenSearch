@@ -43,6 +43,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -55,20 +56,28 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecAliases;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecSettings;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.DocumentMetadataResolver;
+import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.mapper.DocumentMapperForType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndexingMemoryController;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
@@ -117,6 +126,15 @@ public final class EngineConfig {
     private final Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
     private final ClusterApplierService clusterApplierService;
     private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
+    private final DataFormatRegistry dataFormatRegistry;
+    private final MapperService mapperService;
+    private final CommitterFactory committerFactory;
+    private final Supplier<PrimaryOperationPolicy> primaryOperationPolicySupplier;
+    private final Map<String, FormatChecksumStrategy> checksumStrategies;
+    @Nullable
+    private final DocumentLookupProvider documentLookupProvider;
+    @Nullable
+    private final DocumentMetadataResolver documentMetadataResolver;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -307,6 +325,15 @@ public final class EngineConfig {
         this.indexReaderWarmer = builder.indexReaderWarmer;
         this.clusterApplierService = builder.clusterApplierService;
         this.mergedSegmentTransferTracker = builder.mergedSegmentTransferTracker;
+        this.dataFormatRegistry = builder.dataFormatRegistry;
+        this.mapperService = builder.mapperService;
+        this.committerFactory = builder.committerFactory;
+        this.primaryOperationPolicySupplier = builder.primaryOperationPolicySupplier != null
+            ? builder.primaryOperationPolicySupplier
+            : () -> DefaultPrimaryOperationPolicy.INSTANCE;
+        this.checksumStrategies = builder.checksumStrategies;
+        this.documentLookupProvider = builder.documentLookupProvider;
+        this.documentMetadataResolver = builder.documentMetadataResolver;
     }
 
     /**
@@ -355,7 +382,14 @@ public final class EngineConfig {
             .documentMapperForTypeSupplier(this.documentMapperForTypeSupplier)
             .indexReaderWarmer(this.indexReaderWarmer)
             .clusterApplierService(this.clusterApplierService)
-            .mergedSegmentTransferTracker(this.mergedSegmentTransferTracker);
+            .mergedSegmentTransferTracker(this.mergedSegmentTransferTracker)
+            .dataFormatRegistry(this.dataFormatRegistry)
+            .mapperService(this.mapperService)
+            .committerFactory(this.committerFactory)
+            .checksumStrategies(this.checksumStrategies)
+            .documentLookupProvider(this.documentLookupProvider)
+            .documentMetadataResolver(this.documentMetadataResolver)
+            .primaryOperationPolicySupplier(this.primaryOperationPolicySupplier);
     }
 
     /**
@@ -593,6 +627,14 @@ public final class EngineConfig {
         ParsedDocument newDeleteTombstoneDoc(String id);
 
         /**
+         * Creates a tombstone document for a delete operation with routing.
+         * Default ignores routing for backward compatibility; override to preserve it.
+         */
+        default ParsedDocument newDeleteTombstoneDoc(String id, String routing) {
+            return newDeleteTombstoneDoc(id);
+        }
+
+        /**
          * Creates a tombstone document for a noop operation.
          * @param reason the reason of an a noop
          */
@@ -634,6 +676,53 @@ public final class EngineConfig {
         return this.mergedSegmentTransferTracker;
     }
 
+    public DataFormatRegistry getDataFormatRegistry() {
+        return this.dataFormatRegistry;
+    }
+
+    public MapperService getMapperService() {
+        return this.mapperService;
+    }
+
+    public CommitterFactory getCommitterFactory() {
+        return this.committerFactory;
+    }
+
+    /**
+     * Returns the policy describing how a writable primary sources sequence numbers and plans
+     * operations. Never {@code null}; defaults to {@link DefaultPrimaryOperationPolicy}, which
+     * reproduces the standard primary behavior.
+     * <p>
+     * The policy is resolved on every call, against the live {@link IndexSettings} of this config, so
+     * a plugin that keys its policy off an updatable setting can change its answer over the lifetime
+     * of a single engine. Callers must therefore treat the result as a snapshot and only re-read it at
+     * points where no operation is in flight, because a policy change alters sequence-number
+     * assignment. {@link InternalEngine} does exactly that: it snapshots the policy at construction and
+     * re-reads it only from {@link Engine#refreshPrimaryOperationPolicy()}, which the shard invokes
+     * while operations are blocked.
+     */
+    @ExperimentalApi
+    public PrimaryOperationPolicy getPrimaryOperationPolicy() {
+        final PrimaryOperationPolicy policy = this.primaryOperationPolicySupplier.get();
+        return policy != null ? policy : DefaultPrimaryOperationPolicy.INSTANCE;
+    }
+
+    public Map<String, FormatChecksumStrategy> getChecksumStrategies() {
+        return this.checksumStrategies;
+    }
+
+    /** Optional {@link DocumentLookupProvider} for the pluggable get-by-id path, or {@code null}. */
+    @Nullable
+    public DocumentLookupProvider getDocumentLookupProvider() {
+        return this.documentLookupProvider;
+    }
+
+    /** Optional {@link DocumentMetadataResolver} passed per-call to the provider, or {@code null}. */
+    @Nullable
+    public DocumentMetadataResolver getDocumentMetadataResolver() {
+        return this.documentMetadataResolver;
+    }
+
     /**
      * Builder for EngineConfig class
      *
@@ -672,6 +761,15 @@ public final class EngineConfig {
         private IndexWriter.IndexReaderWarmer indexReaderWarmer;
         private ClusterApplierService clusterApplierService;
         private MergedSegmentTransferTracker mergedSegmentTransferTracker;
+        private DataFormatRegistry dataFormatRegistry;
+        private MapperService mapperService;
+        private CommitterFactory committerFactory;
+        private Supplier<PrimaryOperationPolicy> primaryOperationPolicySupplier;
+        private Map<String, FormatChecksumStrategy> checksumStrategies = Collections.emptyMap();
+        @Nullable
+        private DocumentLookupProvider documentLookupProvider;
+        @Nullable
+        private DocumentMetadataResolver documentMetadataResolver;
 
         public Builder shardId(ShardId shardId) {
             this.shardId = shardId;
@@ -825,6 +923,65 @@ public final class EngineConfig {
 
         public Builder mergedSegmentTransferTracker(MergedSegmentTransferTracker mergedSegmentTransferTracker) {
             this.mergedSegmentTransferTracker = mergedSegmentTransferTracker;
+            return this;
+        }
+
+        public Builder dataFormatRegistry(DataFormatRegistry dataFormatRegistry) {
+            this.dataFormatRegistry = dataFormatRegistry;
+            return this;
+        }
+
+        public Builder mapperService(MapperService mapperService) {
+            this.mapperService = mapperService;
+            return this;
+        }
+
+        public Builder committerFactory(CommitterFactory committerFactory) {
+            this.committerFactory = committerFactory;
+            return this;
+        }
+
+        /**
+         * Sets a fixed indexing/sequence-number policy for a writable primary. A {@code null} value
+         * selects {@link DefaultPrimaryOperationPolicy}, which reproduces the standard behavior.
+         * <p>
+         * Prefer {@link #primaryOperationPolicySupplier(Supplier)} in production code: a fixed policy
+         * cannot follow a setting change, so a shard built this way keeps the same policy from engine
+         * construction until the engine is replaced.
+         */
+        @ExperimentalApi
+        public Builder primaryOperationPolicy(@Nullable PrimaryOperationPolicy primaryOperationPolicy) {
+            final PrimaryOperationPolicy policy = primaryOperationPolicy != null
+                ? primaryOperationPolicy
+                : DefaultPrimaryOperationPolicy.INSTANCE;
+            return primaryOperationPolicySupplier(() -> policy);
+        }
+
+        /**
+         * Sets the resolver for the writable primary's indexing/sequence-number policy. It is consulted
+         * on every {@link EngineConfig#getPrimaryOperationPolicy()} call rather than once at engine
+         * construction, so a plugin keying its policy off an updatable index setting is re-consulted
+         * when the shard becomes a primary. A {@code null} value selects
+         * {@link DefaultPrimaryOperationPolicy}.
+         */
+        @ExperimentalApi
+        public Builder primaryOperationPolicySupplier(@Nullable Supplier<PrimaryOperationPolicy> primaryOperationPolicySupplier) {
+            this.primaryOperationPolicySupplier = primaryOperationPolicySupplier;
+            return this;
+        }
+
+        public Builder checksumStrategies(Map<String, FormatChecksumStrategy> checksumStrategies) {
+            this.checksumStrategies = checksumStrategies;
+            return this;
+        }
+
+        public Builder documentLookupProvider(@Nullable DocumentLookupProvider documentLookupProvider) {
+            this.documentLookupProvider = documentLookupProvider;
+            return this;
+        }
+
+        public Builder documentMetadataResolver(@Nullable DocumentMetadataResolver documentMetadataResolver) {
+            this.documentMetadataResolver = documentMetadataResolver;
             return this;
         }
 

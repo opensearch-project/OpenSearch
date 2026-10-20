@@ -1,0 +1,1 @@
+source=security_logs | where action="login_attempt" and result="failure" | stats count() as attempts by source_ip | where attempts > 10 | eval threat_score = case(attempts > 50, 'CRITICAL', attempts > 20, 'HIGH', attempts > 0, 'MEDIUM') | sort - attempts

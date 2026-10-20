@@ -1,0 +1,1 @@
+source=otel_logs | sort - time | head 5 | fields time, serviceName

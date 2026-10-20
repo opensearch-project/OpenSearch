@@ -98,6 +98,14 @@ public class NodeRuntimeMetrics implements Closeable {
     private long threadStateTimestamp;
     private static final long CACHE_TTL_MS = 1000;
 
+    /**
+     * Constructs NodeRuntimeMetrics and registers all gauges with the given metrics registry.
+     *
+     * @param registry     the metrics registry to register gauges with
+     * @param jvmService   the JVM stats service
+     * @param processProbe the process probe for CPU metrics
+     * @param osProbe      the OS probe for system CPU metrics
+     */
     public NodeRuntimeMetrics(MetricsRegistry registry, JvmService jvmService, ProcessProbe processProbe, OsProbe osProbe) {
         this(registry, jvmService, processProbe, osProbe, ManagementFactory.getThreadMXBean());
     }

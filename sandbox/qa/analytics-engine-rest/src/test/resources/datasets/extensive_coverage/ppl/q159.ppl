@@ -1,0 +1,1 @@
+source=test_data | eval ip_str = cast(ip_address as string) | fields ip_address, ip_str | head 3

@@ -19,7 +19,10 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.query.IntervalMode;
 import org.opensearch.index.query.QueryRewriteContext;
@@ -31,6 +34,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -109,6 +113,11 @@ public abstract class FilterFieldType extends MappedFieldType {
     @Override
     public boolean isSearchable() {
         return delegate.isSearchable();
+    }
+
+    @Override
+    public boolean isSearchableViaDocValues(IndexSettings indexSettings) {
+        return delegate.isSearchableViaDocValues(indexSettings);
     }
 
     @Override
@@ -267,6 +276,41 @@ public abstract class FilterFieldType extends MappedFieldType {
     }
 
     @Override
+    public boolean isMultiValued() {
+        return delegate.isMultiValued();
+    }
+
+    @Override
+    public void setMultiValued(boolean multiValued) {
+        delegate.setMultiValued(multiValued);
+    }
+
+    @Override
+    public MultiValueState multiValueState() {
+        return delegate.multiValueState();
+    }
+
+    @Override
+    public void setMultiValueState(MultiValueState multiValueState) {
+        delegate.setMultiValueState(multiValueState);
+    }
+
+    @Override
+    public boolean isMultiValueAutoPromotionEnabled() {
+        return delegate.isMultiValueAutoPromotionEnabled();
+    }
+
+    @Override
+    public boolean isMultiValueSupported() {
+        return delegate.isMultiValueSupported();
+    }
+
+    @Override
+    public void setMultiValueSupported(boolean multiValueSupported) {
+        delegate.setMultiValueSupported(multiValueSupported);
+    }
+
+    @Override
     public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
         return delegate.docValueFormat(format, timeZone);
     }
@@ -289,5 +333,25 @@ public abstract class FilterFieldType extends MappedFieldType {
     @Override
     public MappedFieldType unwrap() {
         return delegate.unwrap();
+    }
+
+    @Override
+    public Map<DataFormat, Set<FieldTypeCapabilities.Capability>> getCapabilityMap() {
+        return delegate.getCapabilityMap();
+    }
+
+    @Override
+    public synchronized void setCapabilityMap(Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capabilityMap) {
+        delegate.setCapabilityMap(capabilityMap);
+    }
+
+    @Override
+    protected FieldTypeCapabilities.Capability searchCapability() {
+        return delegate.searchCapability();
+    }
+
+    @Override
+    public Set<FieldTypeCapabilities.Capability> requestedCapabilities() {
+        return delegate.requestedCapabilities();
     }
 }

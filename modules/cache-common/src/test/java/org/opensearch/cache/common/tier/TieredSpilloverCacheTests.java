@@ -90,6 +90,17 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         clusterSettings.registerSetting(DISK_CACHE_ENABLED_SETTING_MAP.get(CacheType.INDICES_REQUEST_CACHE));
     }
 
+    public void testDefaultSegmentsCappedAtCeiling() {
+        int segments = TieredSpilloverCacheSettings.defaultSegments();
+        // Default must never exceed the ceiling, even on hosts with many CPU cores.
+        assertTrue(
+            "default segments " + segments + " must not exceed ceiling " + TieredSpilloverCacheSettings.DEFAULT_SEGMENT_COUNT_CEILING,
+            segments <= TieredSpilloverCacheSettings.DEFAULT_SEGMENT_COUNT_CEILING
+        );
+        assertTrue("default segments must be >= 1", segments >= 1);
+        assertTrue("default segments must be a valid (power-of-two) count", VALID_SEGMENT_COUNT_VALUES.contains(segments));
+    }
+
     public void testComputeIfAbsentWhenTheQueryThrowsAnException() throws Exception {
         int onHeapCacheSize = randomIntBetween(10, 30);
         int keyValueSize = 50;

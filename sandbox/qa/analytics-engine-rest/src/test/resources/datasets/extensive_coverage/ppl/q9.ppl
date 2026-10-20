@@ -1,0 +1,1 @@
+source=test_data | eval text_len = length(text) | fields text, text_len | head 5

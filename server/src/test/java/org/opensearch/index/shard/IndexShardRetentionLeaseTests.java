@@ -40,6 +40,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.InternalEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeaseStats;
@@ -165,7 +166,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), TimeValue.timeValueMillis(retentionLeaseMillis))
             .build();
         // current time is mocked through the thread pool
-        final IndexShard indexShard = newStartedShard(primary, settings, new InternalEngineFactory());
+        final IndexShard indexShard = newStartedShard(primary, settings, new EngineBackedIndexerFactory(new InternalEngineFactory()));
         final long primaryTerm = indexShard.getOperationPrimaryTerm();
         try {
             final long[] retainingSequenceNumbers = new long[1];
@@ -242,7 +243,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), Long.MAX_VALUE, TimeUnit.NANOSECONDS)
             .build();
-        final IndexShard indexShard = newStartedShard(true, settings, new InternalEngineFactory());
+        final IndexShard indexShard = newStartedShard(true, settings, new EngineBackedIndexerFactory(new InternalEngineFactory()));
         try {
             final int length = randomIntBetween(0, 8);
             final long[] minimumRetainingSequenceNumbers = new long[length];

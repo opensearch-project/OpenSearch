@@ -1,0 +1,1 @@
+source=otel_logs | stats avg(severityNumber) as avg_sev, max(`log.http.status_code`) as max_status, min(time) as min_time

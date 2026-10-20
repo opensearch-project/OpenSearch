@@ -319,6 +319,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             ObjectMapper.Builder builder = new Builder(name);
             parseNested(name, node, builder, parserContext);
+            // Parse disable_objects first so it's available when parseProperties is called.
+            // Map iteration order is not guaranteed, so disable_objects might come after properties
+            // in the map. Without this, parseProperties won't know to treat dotted field names as
+            // literal names and will incorrectly split them into intermediate object mappers.
+            Object disableObjectsNode = node.remove("disable_objects");
+            if (disableObjectsNode != null) {
+                parseObjectOrDocumentTypeProperties("disable_objects", disableObjectsNode, parserContext, builder);
+            }
             Object compositeField = null;
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -689,6 +697,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
+    // Captured at construction because canDeriveSource() takes no arguments; see that method.
+    private final boolean pluggableDataFormatEnabled;
+
     ObjectMapper(
         String name,
         String fullPath,
@@ -714,6 +725,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         } else {
             this.mappers = CopyOnWriteHashMap.copyOf(mappers);
         }
+        this.pluggableDataFormatEnabled = isPluggableDataFormatEnabled(settings);
         Version version = IndexMetadata.indexCreated(settings);
         if (version.before(Version.V_2_0_0)) {
             this.nestedTypePath = "__" + fullPath;
@@ -1074,8 +1086,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public void canDeriveSource() {
-        if (!this.enabled.value() || this.nested.isNested()) {
-            throw new UnsupportedOperationException("Derived source is not supported for " + name() + " field as it is disabled/nested");
+        if (this.enabled.value() == false) {
+            throw new UnsupportedOperationException("Derived source is not supported for " + name() + " field as it is disabled");
+        }
+        // Pluggable formats derive nested source natively; vanilla deriveSource() does not read nested child docs.
+        if (this.nested.isNested() && this.pluggableDataFormatEnabled == false) {
+            throw new UnsupportedOperationException("Derived source is not supported for " + name() + " field as it is nested");
         }
         for (final Mapper mapper : this.mappers.values()) {
             mapper.canDeriveSource();

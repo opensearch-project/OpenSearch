@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "tags",
+      "type": "string"
+    },
+    {
+      "name": "tag_pos",
+      "type": "int"
+    }
+  ],
+  "datarows": [
+    [
+      "tag1,tag2,tag3",
+      1
+    ],
+    [
+      "tag2,tag4",
+      0
+    ],
+    [
+      "tag1,tag3,tag5",
+      null
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

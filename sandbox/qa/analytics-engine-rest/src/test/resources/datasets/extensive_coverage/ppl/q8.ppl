@@ -1,0 +1,1 @@
+source=test_data | eval concat_text = concat(category, "-", id) | fields id, category, concat_text | head 5

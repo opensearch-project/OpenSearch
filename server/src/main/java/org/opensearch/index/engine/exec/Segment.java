@@ -22,6 +22,7 @@ import java.util.function.Function;
 /**
  * Represents a segment in the catalog snapshot containing files grouped by data format.
  * Each segment has a unique generation number and maintains searchable files organized by their data format type.
+ * This class is serializable and can be transmitted across nodes for replication and recovery operations.
  */
 @ExperimentalApi
 public record Segment(long generation, Map<String, WriterFileSet> dfGroupedSearchableFiles) implements Writeable {
@@ -35,18 +36,19 @@ public record Segment(long generation, Map<String, WriterFileSet> dfGroupedSearc
      *
      * @param in the stream input to read from
      * @param directoryResolver function that maps a data format name to its directory path
+     * @param version version with which this was serialized
      */
-    public Segment(StreamInput in, Function<String, String> directoryResolver) throws IOException {
-        this(in.readLong(), readWriterFileSets(in, directoryResolver));
+    public Segment(StreamInput in, Function<String, String> directoryResolver, long version) throws IOException {
+        this(in.readLong(), readWriterFileSets(in, directoryResolver, version));
     }
 
-    private static Map<String, WriterFileSet> readWriterFileSets(StreamInput in, Function<String, String> directoryResolver)
+    private static Map<String, WriterFileSet> readWriterFileSets(StreamInput in, Function<String, String> directoryResolver, long version)
         throws IOException {
         int size = in.readVInt();
         Map<String, WriterFileSet> map = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
             String key = in.readString();
-            map.put(key, new WriterFileSet(in, directoryResolver.apply(key)));
+            map.put(key, new WriterFileSet(in, directoryResolver.apply(key), version));
         }
         return map;
     }
@@ -82,8 +84,26 @@ public record Segment(long generation, Map<String, WriterFileSet> dfGroupedSearc
             return this;
         }
 
+        public Builder addSearchableFiles(String dataFormatName, WriterFileSet writerFileSetGroup) {
+            dfGroupedSearchableFiles.put(dataFormatName, writerFileSetGroup);
+            return this;
+        }
+
         public Segment build() {
             return new Segment(generation, dfGroupedSearchableFiles);
         }
+    }
+
+    /**
+     * Stable identity string used by segment-replication machinery to name this segment.
+     * Must remain equal across primary (publish) and replica (cleanup) for the same segment.
+     */
+    public String replicationCheckpointName() {
+        return Long.toString(generation);
+    }
+
+    @Override
+    public String toString() {
+        return "Segment{" + "generation=" + generation + ", dfGroupedSearchableFiles=" + dfGroupedSearchableFiles + '}';
     }
 }

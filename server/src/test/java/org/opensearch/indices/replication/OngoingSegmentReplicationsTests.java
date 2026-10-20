@@ -19,6 +19,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.indices.IndicesService;
@@ -67,7 +68,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
     public void setUp() throws Exception {
         super.setUp();
         primary = newStartedShard(true, settings);
-        replica = newShard(false, settings, new NRTReplicationEngineFactory());
+        replica = newShard(false, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
         recoverReplica(replica, primary, true);
         replicaDiscoveryNode = replica.recoveryState().getTargetNode();
         primaryDiscoveryNode = replica.recoveryState().getSourceNode();

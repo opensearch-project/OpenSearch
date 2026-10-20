@@ -421,7 +421,6 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         /**
          * Whether this failure is the result of an <em>abort</em>.
          * If {@code true}, the request to which this failure relates should never be retried, regardless of the {@link #getCause() cause}.
-         * @see BulkItemRequest#abort(String, Exception)
          */
         public boolean isAborted() {
             return aborted;

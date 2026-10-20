@@ -1,0 +1,1 @@
+source=test_data | eval sign_val = signum(value - 200) | fields value, sign_val | head 3

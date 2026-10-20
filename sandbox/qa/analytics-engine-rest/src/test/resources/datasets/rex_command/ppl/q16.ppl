@@ -1,0 +1,1 @@
+source=rex_command | rex field=message "msg=\"user \\\\\"(?<adminuser>\w+)\\\\\"" | fields adminuser, service | where adminuser is not null

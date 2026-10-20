@@ -9,6 +9,7 @@
 package org.opensearch.javaagent;
 
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
+import org.opensearch.javaagent.bootstrap.internal.StackCallerClassChainExtractor;
 
 import java.lang.StackWalker.Option;
 import java.security.Policy;

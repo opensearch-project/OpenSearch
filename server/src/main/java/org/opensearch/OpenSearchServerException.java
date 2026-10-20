@@ -14,7 +14,6 @@ import static org.opensearch.OpenSearchException.OpenSearchExceptionHandle;
 import static org.opensearch.OpenSearchException.OpenSearchExceptionHandleRegistry.registerExceptionHandle;
 import static org.opensearch.OpenSearchException.UNKNOWN_VERSION_ADDED;
 import static org.opensearch.Version.V_2_10_0;
-import static org.opensearch.Version.V_2_13_0;
 import static org.opensearch.Version.V_2_17_0;
 import static org.opensearch.Version.V_2_18_0;
 import static org.opensearch.Version.V_2_1_0;
@@ -24,6 +23,8 @@ import static org.opensearch.Version.V_2_6_0;
 import static org.opensearch.Version.V_2_7_0;
 import static org.opensearch.Version.V_3_0_0;
 import static org.opensearch.Version.V_3_2_0;
+import static org.opensearch.Version.V_3_7_0;
+import static org.opensearch.Version.V_3_8_0;
 
 /**
  * Utility class to register server exceptions
@@ -1187,22 +1188,6 @@ public final class OpenSearchServerException {
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
-                org.opensearch.action.admin.indices.view.ViewNotFoundException.class,
-                org.opensearch.action.admin.indices.view.ViewNotFoundException::new,
-                172,
-                V_2_13_0
-            )
-        );
-        registerExceptionHandle(
-            new OpenSearchExceptionHandle(
-                org.opensearch.action.admin.indices.view.ViewAlreadyExistsException.class,
-                org.opensearch.action.admin.indices.view.ViewAlreadyExistsException::new,
-                173,
-                V_2_13_0
-            )
-        );
-        registerExceptionHandle(
-            new OpenSearchExceptionHandle(
                 org.opensearch.indices.InvalidIndexContextException.class,
                 org.opensearch.indices.InvalidIndexContextException::new,
                 174,
@@ -1239,6 +1224,22 @@ public final class OpenSearchServerException {
                 org.opensearch.transport.stream.StreamException::new,
                 177,
                 V_3_2_0
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.index.engine.dataformat.merge.MergeFailedEngineException.class,
+                org.opensearch.index.engine.dataformat.merge.MergeFailedEngineException::new,
+                178,
+                V_3_7_0
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.storage.action.tiering.MergeDrainTimeoutException.class,
+                org.opensearch.storage.action.tiering.MergeDrainTimeoutException::new,
+                179,
+                V_3_8_0
             )
         );
     }

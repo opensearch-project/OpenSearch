@@ -251,6 +251,7 @@ import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.AdminClient;
 import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.wlm.WorkloadGroupService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -2060,7 +2061,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     transportService,
                     actionFilters,
                     null,
-                    DefaultRemoteStoreSettings.INSTANCE
+                    DefaultRemoteStoreSettings.INSTANCE,
+                    null
                 );
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
@@ -2122,6 +2124,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     null,
                     new RemoteStoreStatsTrackerFactory(clusterService, settings),
                     emptyMap(),
+                    null,
                     DefaultRecoverySettings.INSTANCE,
                     new CacheModule(new ArrayList<>(), settings).getCacheService(),
                     DefaultRemoteStoreSettings.INSTANCE
@@ -2326,7 +2329,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     shardLimitValidator,
                     indicesService,
                     clusterInfoService::getClusterInfo,
-                    () -> 5.0
+                    () -> 5.0,
+                    threadPool,
+                    Collections.emptyList()
                 );
                 actions.put(
                     PutMappingAction.INSTANCE,
@@ -2370,7 +2375,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     null,
                     new TaskResourceTrackingService(settings, clusterSettings, threadPool),
                     Collections.emptyList(),
-                    Collections.emptyList()
+                    Collections.emptyList(),
+                    null
                 );
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(),
@@ -2407,7 +2413,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         searchRequestOperationsCompositeListenerFactory,
                         NoopTracer.INSTANCE,
                         new TaskResourceTrackingService(settings, clusterSettings, threadPool),
-                        mockIndicesService
+                        mockIndicesService,
+                        mock(WorkloadGroupService.class)
                     )
                 );
                 actions.put(
@@ -2454,7 +2461,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         threadPool,
                         actionFilters,
                         indexNameExpressionResolver,
-                        DefaultRemoteStoreSettings.INSTANCE
+                        DefaultRemoteStoreSettings.INSTANCE,
+                        null
                     )
                 );
                 actions.put(

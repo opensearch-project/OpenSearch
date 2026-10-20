@@ -1,0 +1,49 @@
+{
+  "schema": [
+    {
+      "name": "successful_monitors",
+      "type": "bigint"
+    },
+    {
+      "name": "monitor_id",
+      "type": "string"
+    },
+    {
+      "name": "error_monitors",
+      "type": "bigint"
+    },
+    {
+      "name": "application_id",
+      "type": "string"
+    },
+    {
+      "name": "reliability_score",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      56,
+      "MON002",
+      10,
+      "MON002",
+      84.85
+    ],
+    [
+      57,
+      "MON003",
+      10,
+      "MON003",
+      85.07
+    ],
+    [
+      59,
+      "MON001",
+      10,
+      "MON001",
+      85.51
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

@@ -200,7 +200,9 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
             shardId,
             indexSettings.getRemoteStorePathStrategy(),
             null,
-            RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata())
+            RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata()),
+            false,
+            indexSettings
         );
 
         Map<String, RemoteSegmentMetadata> segmentMetadataMapWithFilenames = remoteDirectory.readLatestNMetadataFiles(5);

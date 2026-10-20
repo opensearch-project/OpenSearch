@@ -36,6 +36,7 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -46,6 +47,7 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.compress.Compressor;
@@ -53,7 +55,9 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.remote.RemoteStoreEnums;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
@@ -73,8 +77,10 @@ import org.opensearch.snapshots.SnapshotShardPaths;
 import org.opensearch.snapshots.SnapshotShardPaths.ShardInfo;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -86,12 +92,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import static org.opensearch.repositories.RepositoryDataTests.generateRandomRepoData;
@@ -101,6 +109,8 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -826,5 +836,89 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
         // then
         assertEquals(maxSafeArraySize, expectedThreshold);
+    }
+
+    /**
+     * Verifies that {@code BlobStoreRepository.remoteDirectoryCleanupAsync} propagates the
+     * {@link IndexMetadata} argument through to {@code RemoteSegmentStoreDirectory.remoteDirectoryCleanup},
+     * which in turn passes it as an {@link IndexSettings} to the factory's 8-arg {@code newDirectory}.
+     * Guards against regressions where IndexMetadata is dropped or replaced with null during cleanup.
+     */
+    public void testRemoteDirectoryCleanupAsyncPropagatesIndexMetadata() throws Exception {
+        RemoteSegmentStoreDirectoryFactory factory = mock(RemoteSegmentStoreDirectoryFactory.class);
+        // factory.newDirectory throws IOException to short-circuit; we only care about the args passed
+        when(factory.newDirectory(anyString(), anyString(), any(), any(), nullable(String.class), eq(false), eq(false), any())).thenThrow(
+            new IOException("expected-short-circuit")
+        );
+
+        ThreadPool tp = mock(ThreadPool.class);
+        ExecutorService directExecutor = OpenSearchExecutors.newDirectExecutorService();
+        when(tp.executor(ThreadPool.Names.REMOTE_PURGE)).thenReturn(directExecutor);
+
+        String indexUUID = "test-uuid";
+        ShardId shardId = new ShardId(new Index("idx", indexUUID), 0);
+        RemoteStorePathStrategy pathStrategy = new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED);
+
+        IndexMetadata indexMetadata = IndexMetadata.builder("idx")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+            .build();
+
+        // Case (a): non-null IndexMetadata propagated
+        BlobStoreRepository.remoteDirectoryCleanupAsync(
+            factory,
+            tp,
+            "repo",
+            indexUUID,
+            shardId,
+            ThreadPool.Names.REMOTE_PURGE,
+            pathStrategy,
+            false,
+            indexMetadata
+        );
+        ArgumentCaptor<IndexSettings> captor = ArgumentCaptor.forClass(IndexSettings.class);
+        verify(factory).newDirectory(
+            eq("repo"),
+            eq(indexUUID),
+            eq(shardId),
+            eq(pathStrategy),
+            eq(null),
+            eq(false),
+            eq(false),
+            captor.capture()
+        );
+        assertNotNull("IndexSettings should not be null when IndexMetadata is provided", captor.getValue());
+
+        // Case (b): null IndexMetadata propagated as null
+        Mockito.reset(factory);
+        when(factory.newDirectory(anyString(), anyString(), any(), any(), nullable(String.class), eq(false), eq(false), any())).thenThrow(
+            new IOException("expected-short-circuit")
+        );
+        BlobStoreRepository.remoteDirectoryCleanupAsync(
+            factory,
+            tp,
+            "repo",
+            indexUUID,
+            shardId,
+            ThreadPool.Names.REMOTE_PURGE,
+            pathStrategy,
+            false,
+            null
+        );
+        verify(factory).newDirectory(
+            eq("repo"),
+            eq(indexUUID),
+            eq(shardId),
+            eq(pathStrategy),
+            eq(null),
+            eq(false),
+            eq(false),
+            (IndexSettings) eq(null)
+        );
     }
 }

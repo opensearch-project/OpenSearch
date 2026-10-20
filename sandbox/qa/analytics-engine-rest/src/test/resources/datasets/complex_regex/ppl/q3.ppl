@@ -1,0 +1,1 @@
+source=regex_logs | where raw_message like "API Request:%" | grok raw_message 'API Request: %{WORD:method} %{URIPATH:endpoint} Response: %{INT:status_code} Duration: %{NUMBER:duration_ms}ms' | where status_code != "" | stats count() as error_count by endpoint, status_code | where error_count > 2 | sort - error_count

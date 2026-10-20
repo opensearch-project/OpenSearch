@@ -12,13 +12,12 @@ import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.vsr.ManagedVSR;
 
 /**
  * Parquet field for 32-bit signed integer values using {@link IntVector}.
  */
-public class IntegerParquetField extends ParquetField {
+public class IntegerParquetField extends NumericParquetField {
 
     /** Creates a new IntegerParquetField. */
     public IntegerParquetField() {}

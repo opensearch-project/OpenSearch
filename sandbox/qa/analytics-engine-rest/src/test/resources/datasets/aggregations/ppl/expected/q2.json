@@ -1,0 +1,40 @@
+{
+  "schema": [
+    {
+      "name": "unique_codes",
+      "type": "bigint"
+    },
+    {
+      "name": "total",
+      "type": "bigint"
+    },
+    {
+      "name": "region",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      3,
+      50,
+      "East"
+    ],
+    [
+      3,
+      50,
+      "North"
+    ],
+    [
+      3,
+      50,
+      "South"
+    ],
+    [
+      3,
+      50,
+      "West"
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

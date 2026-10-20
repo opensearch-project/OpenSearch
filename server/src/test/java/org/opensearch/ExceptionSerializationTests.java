@@ -40,8 +40,6 @@ import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.TimestampParsingException;
-import org.opensearch.action.admin.indices.view.ViewAlreadyExistsException;
-import org.opensearch.action.admin.indices.view.ViewNotFoundException;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.replication.ReplicationOperation;
@@ -896,12 +894,14 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(169, NodeWeighedAwayException.class);
         ids.put(170, SearchPipelineProcessingException.class);
         ids.put(171, CryptoRegistryException.class);
-        ids.put(172, ViewNotFoundException.class);
-        ids.put(173, ViewAlreadyExistsException.class);
+        ids.put(172, null); // was ViewNotFoundException, removed in 3.10.0
+        ids.put(173, null); // was ViewAlreadyExistsException, removed in 3.10.0
         ids.put(174, InvalidIndexContextException.class);
         ids.put(175, ResponseLimitBreachedException.class);
         ids.put(176, IngestionEngineException.class);
         ids.put(177, StreamException.class);
+        ids.put(178, org.opensearch.index.engine.dataformat.merge.MergeFailedEngineException.class);
+        ids.put(179, org.opensearch.storage.action.tiering.MergeDrainTimeoutException.class);
         ids.put(10001, IndexCreateBlockException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();

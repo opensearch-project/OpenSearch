@@ -8,12 +8,15 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.common.Nullable;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.index.shard.ShardPath;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
+import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Unified SPI for back-end storage and query engines.
@@ -29,21 +32,47 @@ import java.util.List;
  * @param <R> the reader type produced by this backend's reader manager
  * @opensearch.internal
  */
+// TODO: Rename to something more meaningful (e.g. EngineReaderPlugin, BackEndReaderPlugin)
+// to avoid confusion with AnalyticsSearchBackendPlugin.
 public interface SearchBackEndPlugin<R> {
 
     /** Unique backend name (e.g., "datafusion", "lucene"). */
     String name();
 
-    /** Returns the data formats this backend can read and query. */
-    List<DataFormat> getSupportedFormats();
+    // TODO: Revisit whether this should return List<DataFormat> or List<String>.
+    /** Returns the names of data formats this backend can read and query. */
+    List<String> getSupportedFormats();
 
     /**
-     * Creates a reader manager for the given format and shard.
+     * Creates a reader manager for the given settings.
      *
-     * @param format the data format
-     * @param shardPath the shard path
-     * @return a reader manager that produces readers of type {@code R}
-     * @throws IOException if creation fails
+     * @param settings the reader manager initialization settings
+     * @return the reader manager
+     * @throws IOException if reader creation fails
      */
-    EngineReaderManager<R> createReaderManager(DataFormat format, ShardPath shardPath) throws IOException;
+    EngineReaderManager<?> createReaderManager(ReaderManagerConfig settings) throws IOException;
+
+    /**
+     * Returns a supplier for native task cancellation stats, or {@code null} if not available.
+     * <p>
+     * The server calls this supplier on each {@code _nodes/stats} request to fetch
+     * native task cancellation counters from the execution engine.
+     *
+     * @return a supplier of native task cancellation stats, or null
+     */
+    default @Nullable Supplier<AnalyticsBackendTaskCancellationStats> getAnalyticsBackendTaskCancellationStats() {
+        return null;
+    }
+
+    /**
+     * Returns a supplier for native memory stats, or {@code null} if not available.
+     * <p>
+     * The server calls this supplier on each {@code _nodes/stats} request to fetch
+     * jemalloc memory metrics from the native layer.
+     *
+     * @return a supplier of native memory stats, or null
+     */
+    default @Nullable Supplier<AnalyticsBackendNativeMemoryStats> getAnalyticsBackendNativeMemoryStats() {
+        return null;
+    }
 }

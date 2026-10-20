@@ -9,6 +9,7 @@
 package org.opensearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -16,10 +17,14 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.remote.DataFormatAwareRemoteDirectory;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -119,6 +124,107 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
         when(repositoriesService.repository("remote_store_repository")).thenThrow(new RepositoryMissingException("Missing"));
 
         assertThrows(RepositoryMissingException.class, () -> remoteSegmentStoreDirectoryFactory.newDirectory(indexSettings, shardPath));
+    }
+
+    /**
+     * Verifies that when {@code IndexSettings.isPluggableDataFormatEnabled()} is true, the 8-arg
+     * {@code newDirectory} creates a {@link DataFormatAwareRemoteDirectory} as the data directory.
+     * Guards against regressions where the DFA routing branch is accidentally removed or bypassed.
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testNewDirectoryWithPluggableDataFormatEnabled() throws IOException {
+        RemoteSegmentStoreDirectoryFactory factory = new RemoteSegmentStoreDirectoryFactory(
+            repositoriesServiceSupplier,
+            threadPool,
+            "",
+            mock(DataFormatRegistry.class)
+        );
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid_1")
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "remote_store_repository")
+            .put("index.pluggable.dataformat.enabled", true)
+            .build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
+
+        BlobStoreRepository repository = mock(BlobStoreRepository.class);
+        BlobStore blobStore = mock(BlobStore.class);
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        when(repository.blobStore(false)).thenReturn(blobStore);
+        when(repository.blobStore()).thenReturn(blobStore);
+        when(repository.basePath()).thenReturn(new BlobPath());
+        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
+        when(repositoriesService.repository("remote_store_repository")).thenReturn(repository);
+        doAnswer(invocation -> {
+            LatchedActionListener<List<BlobMetadata>> listener = invocation.getArgument(3);
+            listener.onResponse(List.of());
+            return null;
+        }).when(blobContainer).listBlobsByPrefixInSortedOrder(any(), eq(METADATA_FILES_TO_FETCH), any(), any(ActionListener.class));
+
+        ShardId shardId = new ShardId(indexSettings.getIndex(), 0);
+        RemoteStorePathStrategy pathStrategy = new RemoteStorePathStrategy(org.opensearch.index.remote.RemoteStoreEnums.PathType.FIXED);
+        try (
+            Directory directory = factory.newDirectory(
+                "remote_store_repository",
+                "uuid_1",
+                shardId,
+                pathStrategy,
+                null,
+                false,
+                false,
+                indexSettings
+            )
+        ) {
+            assertTrue(directory instanceof RemoteSegmentStoreDirectory);
+            Directory delegate = ((FilterDirectory) directory).getDelegate();
+            assertTrue(
+                "Expected DataFormatAwareRemoteDirectory but got " + delegate.getClass(),
+                delegate instanceof DataFormatAwareRemoteDirectory
+            );
+        }
+    }
+
+    /**
+     * Verifies that when {@code IndexSettings.isPluggableDataFormatEnabled()} is false (or indexSettings is null),
+     * the 8-arg {@code newDirectory} creates a plain {@link RemoteDirectory} (not DataFormatAwareRemoteDirectory).
+     * Guards against regressions where the DFA branch is incorrectly triggered.
+     */
+    public void testNewDirectoryWithPluggableDataFormatDisabled() throws IOException {
+        BlobStoreRepository repository = mock(BlobStoreRepository.class);
+        BlobStore blobStore = mock(BlobStore.class);
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        when(repository.blobStore(false)).thenReturn(blobStore);
+        when(repository.blobStore()).thenReturn(blobStore);
+        when(repository.basePath()).thenReturn(new BlobPath());
+        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
+        when(repositoriesService.repository("remote_store_repository")).thenReturn(repository);
+        doAnswer(invocation -> {
+            LatchedActionListener<List<BlobMetadata>> listener = invocation.getArgument(3);
+            listener.onResponse(List.of());
+            return null;
+        }).when(blobContainer).listBlobsByPrefixInSortedOrder(any(), eq(METADATA_FILES_TO_FETCH), any(), any(ActionListener.class));
+
+        ShardId shardId = new ShardId("foo", "uuid_1", 0);
+        RemoteStorePathStrategy pathStrategy = new RemoteStorePathStrategy(org.opensearch.index.remote.RemoteStoreEnums.PathType.FIXED);
+        // null indexSettings → plain RemoteDirectory
+        try (
+            Directory directory = remoteSegmentStoreDirectoryFactory.newDirectory(
+                "remote_store_repository",
+                "uuid_1",
+                shardId,
+                pathStrategy,
+                null,
+                false,
+                false,
+                null
+            )
+        ) {
+            assertTrue(directory instanceof RemoteSegmentStoreDirectory);
+            Directory delegate = ((FilterDirectory) directory).getDelegate();
+            assertFalse(
+                "Expected plain RemoteDirectory but got " + delegate.getClass(),
+                delegate instanceof DataFormatAwareRemoteDirectory
+            );
+        }
     }
 
 }

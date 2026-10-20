@@ -25,7 +25,10 @@ public class ParquetDataFormatTests extends OpenSearchTestCase {
         var fields = new ParquetDataFormat().supportedFields();
         assertFalse(fields.isEmpty());
         for (var ftc : fields) {
-            assertTrue(ftc.capabilities().contains(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE));
+            assertTrue(
+                "filed: " + ftc + " should have columnar support",
+                ftc.capabilities().contains(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)
+            );
         }
     }
 }

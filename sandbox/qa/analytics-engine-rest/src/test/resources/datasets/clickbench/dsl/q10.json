@@ -1,0 +1,46 @@
+{
+  "from": 0,
+  "size": 0,
+  "timeout": "1m",
+  "aggregations": {
+    "RegionID": {
+      "terms": {
+        "field": "RegionID",
+        "size": 10,
+        "min_doc_count": 1,
+        "shard_min_doc_count": 0,
+        "show_term_doc_count_error": false,
+        "order": [
+          {
+            "c": "desc"
+          },
+          {
+            "_key": "asc"
+          }
+        ]
+      },
+      "aggregations": {
+        "sum(AdvEngineID)": {
+          "sum": {
+            "field": "AdvEngineID"
+          }
+        },
+        "avg(ResolutionWidth)": {
+          "avg": {
+            "field": "ResolutionWidth"
+          }
+        },
+        "dc(UserID)": {
+          "cardinality": {
+            "field": "UserID"
+          }
+        },
+        "c": {
+          "value_count": {
+            "field": "_index"
+          }
+        }
+      }
+    }
+  }
+}

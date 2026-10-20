@@ -75,6 +75,7 @@ import static org.opensearch.common.util.FeatureFlags.CONTEXT_AWARE_MIGRATION_EX
 import static org.opensearch.common.util.FeatureFlags.CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING;
 import static org.opensearch.index.codec.fuzzy.FuzzySetParameters.DEFAULT_FALSE_POSITIVE_PROBABILITY;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
+import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
@@ -220,6 +221,47 @@ public final class IndexSettings {
     public static final Setting<Boolean> INDEX_WARMER_ENABLED_SETTING = Setting.boolSetting(
         "index.warmer.enabled",
         true,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
+     * When enabled on a remote-backed index using segment replication and a remote translog, the primary bulk path
+     * appends successful primary index operations in bounded batches instead of one write per operation. Local-store
+     * and document-replication engines retain the normal per-operation path regardless of this setting. Default false:
+     * an eligible index keeps the per-operation path until an operator opts in; dynamic for controlled rollout.
+     */
+    public static final Setting<Boolean> INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING = Setting.boolSetting(
+        "index.translog.batch_append.enabled",
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
+     * Maximum number of operations one batched translog append may carry. A shard bulk request larger than this is
+     * appended in several chunks; a smaller one is always a single append, so the cap only bounds the per-append
+     * latency and memory of large bulks. Raise it for append-heavy indices fed by large bulk requests.
+     */
+    public static final Setting<Integer> INDEX_TRANSLOG_BATCH_APPEND_MAX_OPERATIONS_SETTING = Setting.intSetting(
+        "index.translog.batch_append.max_operations",
+        1_000,
+        1,
+        100_000,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
+     * Maximum serialized size one batched translog append may carry. Bounds the heap one write thread holds for its
+     * pending chunk; whichever of this and {@link #INDEX_TRANSLOG_BATCH_APPEND_MAX_OPERATIONS_SETTING} is reached
+     * first closes the chunk.
+     */
+    public static final Setting<ByteSizeValue> INDEX_TRANSLOG_BATCH_APPEND_MAX_SIZE_SETTING = Setting.byteSizeSetting(
+        "index.translog.batch_append.max_size",
+        new ByteSizeValue(1, ByteSizeUnit.MB),
+        new ByteSizeValue(4, ByteSizeUnit.KB),
+        new ByteSizeValue(64, ByteSizeUnit.MB),
         Property.Dynamic,
         Property.IndexScope
     );
@@ -880,6 +922,46 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    /**
+     * Default for {@link #INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING} and for the
+     * cluster setting it falls back to, {@code cluster.remote_store.flush_on_uncommitted_segments.threshold_size}.
+     * Deliberately the same as the default of {@link #INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING}, since this
+     * condition takes over the commit-lag-bounding job that the translog size condition performs on non
+     * remote-store shards.
+     */
+    public static final ByteSizeValue DEFAULT_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE = new ByteSizeValue(512, ByteSizeUnit.MB);
+
+    /**
+     * Minimum accepted value for {@link #DEFAULT_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE} and its cluster
+     * counterpart: a zero or negative threshold would flush on every successful segments sync, and disablement has its
+     * own explicit setting.
+     */
+    public static final ByteSizeValue MINIMUM_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
+
+    /**
+     * The minimum total size of segment bytes not yet referenced by the last commit point which triggers a flush on a
+     * remote-store shard. On remote-store shards the translog based flush threshold
+     * ({@code index.translog.flush_threshold_size}) is ineffective because uploaded translog generations are trimmed
+     * continuously; this condition restores an equivalent size-based flush signal driven by uncommitted segment bytes.
+     * Low-throughput trickle workloads that never cross the byte threshold and never go idle can additionally enable
+     * {@code index.periodic_flush_interval} (disabled by default) for a wall-clock flush backstop.
+     * <p>
+     * Only takes effect while the condition is enabled cluster-wide by
+     * {@code cluster.remote_store.flush_on_uncommitted_segments.enabled}. When this is not set on the index, the
+     * effective threshold is the cluster setting
+     * {@code cluster.remote_store.flush_on_uncommitted_segments.threshold_size} — see
+     * {@link #getFlushOnUncommittedSegmentsThresholdSize()}.
+     */
+    public static final Setting<ByteSizeValue> INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING = Setting
+        .byteSizeSetting(
+            "index.remote_store.flush_on_uncommitted_segments.threshold_size",
+            DEFAULT_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE,
+            MINIMUM_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE,
+            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+            Property.Dynamic,
+            Property.IndexScope
+        );
+
     public static final Setting<Long> INDEX_CONTEXT_CREATED_VERSION = Setting.longSetting(
         "index.context.created_version",
         0,
@@ -917,17 +999,33 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    public static final Setting<Boolean> PLUGGABLE_DATAFORMAT_ENABLED_SETTING = Setting.boolSetting(
+        "index.pluggable.dataformat.enabled",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final Setting<String> PLUGGABLE_DATAFORMAT_VALUE_SETTING = Setting.simpleString(
+        "index.pluggable.dataformat",
+        "",
+        Property.IndexScope,
+        Property.Final
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
     private final String nodeName;
     private final Settings nodeSettings;
     private final int numberOfShards;
-    private final ReplicationType replicationType;
+    private volatile ReplicationType replicationType;
     private volatile boolean isRemoteStoreEnabled;
+    private final boolean isRemoteStoreFencingEnabled;
     // For warm index we would partially store files in local.
     private final boolean isWarmIndex;
     private volatile TimeValue remoteTranslogUploadBufferInterval;
+    private volatile ByteSizeValue flushOnUncommittedSegmentsThresholdSize;
     private volatile String remoteStoreTranslogRepository;
     private volatile String remoteStoreRepository;
     private volatile String remoteStoreSegmentPathPrefix;
@@ -973,6 +1071,8 @@ public final class IndexSettings {
     private final boolean isTranslogMetadataEnabled;
     private volatile boolean allowDerivedField;
     private final boolean derivedSourceEnabled;
+    private final boolean pluggableDataFormatEnabled;
+    private final String pluggedDataFormat;
     private volatile boolean derivedSourceEnabledForTranslog;
 
     /**
@@ -989,6 +1089,9 @@ public final class IndexSettings {
     }
 
     private volatile boolean warmerEnabled;
+    private volatile boolean translogBatchAppendEnabled;
+    private volatile int translogBatchAppendMaxOperations;
+    private volatile ByteSizeValue translogBatchAppendMaxSize;
     private volatile int maxResultWindow;
     private volatile int maxInnerResultWindow;
     private volatile int maxAdjacencyMatrixFilters;
@@ -1012,6 +1115,7 @@ public final class IndexSettings {
     private volatile long mappingTotalFieldsLimit;
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
+    private volatile long mappingDynamicPropertiesLuceneFieldLimit;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1150,11 +1254,15 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
+        isRemoteStoreFencingEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, false);
 
         isWarmIndex = settings.getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false);
 
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
         remoteTranslogUploadBufferInterval = INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
+        flushOnUncommittedSegmentsThresholdSize = scopedSettings.get(
+            INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING
+        );
         remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY);
         this.remoteTranslogKeepExtraGen = INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING.get(settings);
         String rawPrefix = IndexMetadata.INDEX_REMOTE_STORE_SEGMENT_PATH_PREFIX.get(settings);
@@ -1186,6 +1294,9 @@ public final class IndexSettings {
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
+        translogBatchAppendEnabled = scopedSettings.get(INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING);
+        translogBatchAppendMaxOperations = scopedSettings.get(INDEX_TRANSLOG_BATCH_APPEND_MAX_OPERATIONS_SETTING);
+        translogBatchAppendMaxSize = scopedSettings.get(INDEX_TRANSLOG_BATCH_APPEND_MAX_SIZE_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         maxInnerResultWindow = scopedSettings.get(MAX_INNER_RESULT_WINDOW_SETTING);
         maxAdjacencyMatrixFilters = scopedSettings.get(MAX_ADJACENCY_MATRIX_FILTERS_SETTING);
@@ -1215,12 +1326,16 @@ public final class IndexSettings {
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         mappingDepthLimit = scopedSettings.get(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
+        mappingDynamicPropertiesLuceneFieldLimit = scopedSettings.get(INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING);
         maxFullFlushMergeWaitTime = scopedSettings.get(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME);
         mergeOnFlushEnabled = scopedSettings.get(INDEX_MERGE_ON_FLUSH_ENABLED);
         setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
         checkPendingFlushEnabled = scopedSettings.get(INDEX_CHECK_PENDING_FLUSH_ENABLED);
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
-        derivedSourceEnabled = scopedSettings.get(INDEX_DERIVED_SOURCE_SETTING);
+        pluggableDataFormatEnabled = FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+            && scopedSettings.get(PLUGGABLE_DATAFORMAT_ENABLED_SETTING);
+        derivedSourceEnabled = scopedSettings.get(INDEX_DERIVED_SOURCE_SETTING) || pluggableDataFormatEnabled;
+        pluggedDataFormat = scopedSettings.get(PLUGGABLE_DATAFORMAT_VALUE_SETTING);
         derivedSourceEnabledForTranslog = scopedSettings.get(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING);
         scopedSettings.addSettingsUpdateConsumer(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING, this::setDerivedSourceEnabledForTranslog);
         /* There was unintentional breaking change got introduced with [OpenSearch-6424](https://github.com/opensearch-project/OpenSearch/pull/6424) (version 2.7).
@@ -1318,6 +1433,12 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_NGRAM_DIFF_SETTING, this::setMaxNgramDiff);
         scopedSettings.addSettingsUpdateConsumer(MAX_SHINGLE_DIFF_SETTING, this::setMaxShingleDiff);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING, this::setTranslogBatchAppendEnabled);
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_TRANSLOG_BATCH_APPEND_MAX_OPERATIONS_SETTING,
+            this::setTranslogBatchAppendMaxOperations
+        );
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_BATCH_APPEND_MAX_SIZE_SETTING, this::setTranslogBatchAppendMaxSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING, this::setFlushAfterMergeThresholdSize);
@@ -1350,6 +1471,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING, this::setMappingTotalFieldsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING,
+            this::setMappingDynamicPropertiesLuceneFieldLimit
+        );
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME, this::setMaxFullFlushMergeWaitTime);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_ENABLED, this::setMergeOnFlushEnabled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_POLICY, this::setMergeOnFlushPolicy);
@@ -1363,6 +1488,10 @@ public final class IndexSettings {
             this::setRemoteTranslogUploadBufferInterval
         );
         scopedSettings.addSettingsUpdateConsumer(INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING, this::setRemoteTranslogKeepExtraGen);
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING,
+            this::setFlushOnUncommittedSegmentsThresholdSize
+        );
         this.autoForcemergeEnabled = scopedSettings.get(INDEX_AUTO_FORCE_MERGES_ENABLED);
         scopedSettings.addSettingsUpdateConsumer(INDEX_AUTO_FORCE_MERGES_ENABLED, this::setAutoForcemergeEnabled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING, this::setEnableFuzzySetForDocId);
@@ -1597,6 +1726,13 @@ public final class IndexSettings {
     }
 
     /**
+     * Returns if object-store-backed primary fencing is enabled for this index.
+     */
+    public boolean isRemoteStoreFencingEnabled() {
+        return isRemoteStoreFencingEnabled;
+    }
+
+    /**
      * Returns if remote store is enabled for this index.
      */
     public String getRemoteStoreRepository() {
@@ -1673,6 +1809,7 @@ public final class IndexSettings {
             return false;
         }
         scopedSettings.applySettings(newSettings);
+        this.replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(newSettings);
         this.settings = newIndexSettings;
         return true;
     }
@@ -1714,6 +1851,36 @@ public final class IndexSettings {
     }
 
     /**
+     * Whether an eligible remote-backed segment-replication engine should batch successful primary index operations.
+     * Local-store and document-replication engines ignore this setting and retain per-operation appends.
+     */
+    public boolean isTranslogBatchAppendEnabled() {
+        return translogBatchAppendEnabled;
+    }
+
+    private void setTranslogBatchAppendEnabled(boolean enabled) {
+        this.translogBatchAppendEnabled = enabled;
+    }
+
+    /** Maximum operations per batched translog append; see {@link #INDEX_TRANSLOG_BATCH_APPEND_MAX_OPERATIONS_SETTING}. */
+    public int getTranslogBatchAppendMaxOperations() {
+        return translogBatchAppendMaxOperations;
+    }
+
+    private void setTranslogBatchAppendMaxOperations(int maxOperations) {
+        this.translogBatchAppendMaxOperations = maxOperations;
+    }
+
+    /** Maximum serialized bytes per batched translog append; see {@link #INDEX_TRANSLOG_BATCH_APPEND_MAX_SIZE_SETTING}. */
+    public ByteSizeValue getTranslogBatchAppendMaxSize() {
+        return translogBatchAppendMaxSize;
+    }
+
+    private void setTranslogBatchAppendMaxSize(ByteSizeValue maxSize) {
+        this.translogBatchAppendMaxSize = maxSize;
+    }
+
+    /**
      * Returns the translog sync interval. This is the interval in which the transaction log is asynchronously fsynced unless
      * the transaction log is fsyncing on every operations
      */
@@ -1745,6 +1912,27 @@ public final class IndexSettings {
 
     public int getRemoteTranslogExtraKeep() {
         return remoteTranslogKeepExtraGen;
+    }
+
+    /**
+     * Returns this index's {@code index.remote_store.flush_on_uncommitted_segments.threshold_size}. Only meaningful
+     * when {@link #isFlushOnUncommittedSegmentsThresholdSizeExplicit()}; otherwise the effective threshold is the
+     * cluster default, which is resolved by the publisher of the accounting (see {@code RemoteStoreRefreshListener}).
+     */
+    public ByteSizeValue getFlushOnUncommittedSegmentsThresholdSize() {
+        return flushOnUncommittedSegmentsThresholdSize;
+    }
+
+    /**
+     * Returns true iff {@code index.remote_store.flush_on_uncommitted_segments.threshold_size} exists or in other
+     * words is explicitly set, in which case it overrides the cluster default.
+     */
+    public boolean isFlushOnUncommittedSegmentsThresholdSizeExplicit() {
+        return INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING.exists(settings);
+    }
+
+    private void setFlushOnUncommittedSegmentsThresholdSize(ByteSizeValue flushOnUncommittedSegmentsThresholdSize) {
+        this.flushOnUncommittedSegmentsThresholdSize = flushOnUncommittedSegmentsThresholdSize;
     }
 
     /**
@@ -1816,7 +2004,7 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns the maximum number of translog files that that no longer required for persistence should be kept for peer recovery
+     * Returns the maximum number of translog files that no longer required for persistence should be kept for peer recovery
      * when soft-deletes is disabled.
      */
     public int getTranslogRetentionTotalFiles() {
@@ -2024,15 +2212,17 @@ public final class IndexSettings {
                     IndexMergePolicy nodeMergePolicy = IndexMergePolicy.fromString(nodeScopedTimeSeriesIndexPolicy);
                     switch (nodeMergePolicy) {
                         case TIERED:
-                        case DEFAULT_POLICY:
                             mergePolicyProvider = tieredMergePolicyProvider;
                             break;
                         case LOG_BYTE_SIZE:
                             mergePolicyProvider = logByteSizeMergePolicyProvider;
                             break;
+                        case DEFAULT_POLICY:
+                            mergePolicyProvider = defaultMergePolicyProvider();
+                            break;
                     }
                 } else {
-                    mergePolicyProvider = tieredMergePolicyProvider;
+                    mergePolicyProvider = defaultMergePolicyProvider();
                 }
                 break;
         }
@@ -2042,6 +2232,14 @@ public final class IndexSettings {
             logger.trace("Index: " + this.index.getName() + ", Merge policy used: " + mergePolicyProvider);
         }
         return mergePolicyProvider.getMergePolicy();
+    }
+
+    /**
+     * Composite engine indexes default to {@link LogByteSizeMergePolicyProvider};
+     * all other indexes default to {@link TieredMergePolicyProvider}.
+     */
+    private MergePolicyProvider defaultMergePolicyProvider() {
+        return isPluggableDataFormatEnabled() ? logByteSizeMergePolicyProvider : tieredMergePolicyProvider;
     }
 
     public <T> T getValue(Setting<T> setting) {
@@ -2244,6 +2442,14 @@ public final class IndexSettings {
         this.mappingFieldNameLengthLimit = value;
     }
 
+    public long getMappingDynamicPropertiesLuceneFieldLimit() {
+        return mappingDynamicPropertiesLuceneFieldLimit;
+    }
+
+    private void setMappingDynamicPropertiesLuceneFieldLimit(long value) {
+        this.mappingDynamicPropertiesLuceneFieldLimit = value;
+    }
+
     private void setMaxFullFlushMergeWaitTime(TimeValue timeValue) {
         this.maxFullFlushMergeWaitTime = timeValue;
     }
@@ -2359,5 +2565,19 @@ public final class IndexSettings {
 
     public boolean isDerivedSourceEnabled() {
         return derivedSourceEnabled;
+    }
+
+    /**
+     * Returns whether the pluggable data format feature is enabled for this index.
+     * Requires both the experimental feature flag and the index-level setting.
+     *
+     * @return {@code true} if pluggable data format is enabled
+     */
+    public boolean isPluggableDataFormatEnabled() {
+        return pluggableDataFormatEnabled;
+    }
+
+    public String pluggableDataFormat() {
+        return pluggedDataFormat;
     }
 }

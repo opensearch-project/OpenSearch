@@ -33,19 +33,28 @@ package org.opensearch.index.shard;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.VersionConflictEngineException;
+import org.opensearch.index.get.DocumentLookupResult;
 import org.opensearch.index.get.GetResult;
+import org.opensearch.index.get.ShardGetService;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.Map;
 
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -216,5 +225,56 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertTrue(getResult.isExists());
 
         closeShards(shard);
+    }
+
+    @SuppressForbidden(reason = "reflective access to test private buildFromLookup method")
+    public void testBuildFromLookupSourceFiltering() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+
+        ShardGetService getService = primary.getService();
+        Method buildFromLookup = ShardGetService.class.getDeclaredMethod(
+            "buildFromLookup",
+            DocumentLookupResult.class,
+            FetchSourceContext.class
+        );
+        buildFromLookup.setAccessible(true);
+
+        BytesReference source = new BytesArray("{\"foo\":\"bar\",\"baz\":\"qux\"}");
+        DocumentField docField = new DocumentField("foo", Collections.singletonList("bar"));
+        DocumentLookupResult lookup = new DocumentLookupResult("1", 3L, true, source, 5L, 1L, Map.of("foo", docField), Map.of());
+
+        // Case 1: FETCH_SOURCE — source passes through unfiltered
+        GetResult result = (GetResult) buildFromLookup.invoke(getService, lookup, FetchSourceContext.FETCH_SOURCE);
+        assertTrue(result.isExists());
+        assertEquals("1", result.getId());
+        assertEquals(3L, result.getVersion());
+        assertEquals(5L, result.getSeqNo());
+        assertEquals(1L, result.getPrimaryTerm());
+        assertEquals("{\"foo\":\"bar\",\"baz\":\"qux\"}", new String(result.source(), StandardCharsets.UTF_8));
+        assertEquals("bar", result.getFields().get("foo").getValue());
+
+        // Case 2: DO_NOT_FETCH_SOURCE — source is null
+        GetResult noSourceResult = (GetResult) buildFromLookup.invoke(getService, lookup, FetchSourceContext.DO_NOT_FETCH_SOURCE);
+        assertNull(noSourceResult.source());
+        assertTrue(noSourceResult.isExists());
+        assertEquals("1", noSourceResult.getId());
+
+        // Case 3: includes filter — only matching fields in source
+        FetchSourceContext includesOnly = new FetchSourceContext(true, new String[] { "foo" }, new String[0]);
+        GetResult filteredResult = (GetResult) buildFromLookup.invoke(getService, lookup, includesOnly);
+        assertEquals("{\"foo\":\"bar\"}", new String(filteredResult.source(), StandardCharsets.UTF_8));
+
+        closeShards(primary);
     }
 }

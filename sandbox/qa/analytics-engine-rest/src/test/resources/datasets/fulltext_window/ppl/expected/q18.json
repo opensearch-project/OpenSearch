@@ -1,0 +1,42 @@
+{
+  "schema": [
+    {
+      "name": "userid",
+      "type": "string"
+    },
+    {
+      "name": "product",
+      "type": "string"
+    },
+    {
+      "name": "amount",
+      "type": "double"
+    },
+    {
+      "name": "rnk",
+      "type": "bigint"
+    }
+  ],
+  "datarows": [
+    [
+      "user4",
+      "professional camera",
+      3200.0,
+      1
+    ],
+    [
+      "user4",
+      "gaming desktop",
+      2500.0,
+      2
+    ],
+    [
+      "user4",
+      "laptop computer",
+      1250.0,
+      3
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

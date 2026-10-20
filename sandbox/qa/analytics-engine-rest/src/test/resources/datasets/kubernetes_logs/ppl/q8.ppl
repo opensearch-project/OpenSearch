@@ -1,0 +1,1 @@
+source=kubernetes_logs | where `kubernetes.namespace`='production' | stats count() by `cluster.name`, `kubernetes.pod_name`

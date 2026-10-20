@@ -42,6 +42,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache.Key;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -50,6 +51,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 
 /**
  * Service for field data (cacheing, etc)
@@ -90,6 +92,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {}
     };
     private volatile IndexFieldDataCache.Listener listener = DEFAULT_NOOP_LISTENER;
+    private volatile ToIntFunction<ShardId> shardIdentityResolver = shardId -> Key.NO_SHARD_IDENTITY;
 
     public IndexFieldDataService(
         IndexSettings indexSettings,
@@ -136,7 +139,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
             if (cache == null) {
                 String cacheType = indexSettings.getValue(INDEX_FIELDDATA_CACHE_KEY);
                 if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
-                    cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), fieldName);
+                    cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), fieldName, shardIdentityResolver);
                 } else if ("none".equals(cacheType)) {
                     cache = new IndexFieldDataCache.None();
                 } else {
@@ -163,6 +166,18 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
             throw new IllegalStateException("can't set listener more than once");
         }
         this.listener = listener;
+    }
+
+    /**
+     * Sets the resolver that returns the current shard's {@code System.identityHashCode}
+     * (or 0 if none) for a given {@link ShardId}. Captured at cache-load time and used to
+     * skip stale decrements after shard reallocation.
+     */
+    public void setShardIdentityResolver(ToIntFunction<ShardId> shardIdentityResolver) {
+        if (shardIdentityResolver == null) {
+            throw new IllegalArgumentException("shardIdentityResolver must not be null");
+        }
+        this.shardIdentityResolver = shardIdentityResolver;
     }
 
     @Override

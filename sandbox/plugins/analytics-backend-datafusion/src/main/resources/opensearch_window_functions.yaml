@@ -1,0 +1,72 @@
+%YAML 1.2
+---
+urn: extension:org.opensearch:window_functions
+window_functions:
+  - name: os_count_distinct
+    description: >-
+      Window form of `os_count_distinct(x)`. Emitted as the substrait window
+      function for `count(distinct x) OVER(...)` (a partner of the like-named
+      aggregate UDAF) so the operator name carries DISTINCT semantics — see
+      `os_count_distinct` in `opensearch_aggregate_functions.yaml` for the
+      rationale (DataFusion 54.x's substrait window consumer drops the
+      AggregationInvocation::DISTINCT bit).
+    impls:
+      - args:
+          - name: x
+            value: any
+        decomposable: MANY
+        intermediate: any?
+        return: i64
+        window_type: STREAMING
+  - name: internal_pattern
+    description: >-
+      PPL `patterns ... method=BRAIN mode=label`. Window form of
+      {@code internal_pattern}: for each row in the partition, emits the
+      BRAIN-derived wildcard pattern string that best matches the row's source
+      value. The partition's full corpus is fed into BrainLogParser at evaluate
+      time, then per-row matching uses the same find_best_candidate logic the
+      aggregate {@code eval_agg} path uses. Custom Rust window UDF in
+      {@code rust/src/udwf/internal_pattern.rs}.
+    impls:
+      - args:
+          - name: field
+            value: any1
+          - name: max_sample_count
+            value: any2
+          - name: buffer_limit
+            value: any3
+          - name: show_numbered_token
+            value: any4
+        decomposable: NONE
+        return: string?
+        window_type: PARTITION
+      - args:
+          - name: field
+            value: any1
+          - name: max_sample_count
+            value: any2
+          - name: buffer_limit
+            value: any3
+          - name: show_numbered_token
+            value: any4
+          - name: threshold_percentage
+            value: any5
+        decomposable: NONE
+        return: string?
+        window_type: PARTITION
+      - args:
+          - name: field
+            value: any1
+          - name: max_sample_count
+            value: any2
+          - name: buffer_limit
+            value: any3
+          - name: show_numbered_token
+            value: any4
+          - name: threshold_percentage
+            value: any5
+          - name: variable_count_threshold
+            value: any6
+        decomposable: NONE
+        return: string?
+        window_type: PARTITION

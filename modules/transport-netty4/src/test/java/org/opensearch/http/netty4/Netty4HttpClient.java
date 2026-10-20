@@ -270,7 +270,7 @@ public class Netty4HttpClient implements Closeable {
                     channel.writeAndFlush(request);
                 }
                 if (latch.await(30L, TimeUnit.SECONDS) == false) {
-                    fail("Failed to get all expected responses.");
+                    fail("Failed to get all expected responses: " + latch.getCount() + " left");
                 }
             } finally {
                 channel.close().awaitUninterruptibly();

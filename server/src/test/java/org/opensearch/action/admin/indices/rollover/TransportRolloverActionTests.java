@@ -45,6 +45,9 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.DataStreamTestHelper;
+import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -58,6 +61,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -66,6 +70,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.cache.request.RequestCacheStats;
 import org.opensearch.index.engine.SegmentsStats;
@@ -98,8 +103,11 @@ import org.mockito.ArgumentCaptor;
 
 import static java.util.Collections.emptyList;
 import static org.opensearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
@@ -467,6 +475,266 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
         final Condition<?> condition = mock(Condition.class);
         when(condition.evaluate(any())).thenReturn(new Condition.Result(condition, true));
         return condition;
+    }
+
+    private TransportRolloverAction newRolloverActionForCheckBlock(ClusterState state) {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(state);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        MetadataRolloverService rolloverService = new MetadataRolloverService(
+            threadPool,
+            mock(MetadataCreateIndexService.class),
+            mock(MetadataIndexAliasesService.class),
+            resolver
+        );
+        return new TransportRolloverAction(
+            mock(TransportService.class),
+            clusterService,
+            threadPool,
+            mock(ActionFilters.class),
+            resolver,
+            rolloverService,
+            mock(Client.class)
+        );
+    }
+
+    public void testCheckBlockSkipsBlockOnNonWriteAliasMember() {
+        // Given: an alias whose write index is unblocked, and a non-write
+        // alias member that carries a METADATA_WRITE block (CCR-style)
+        String alias = "logs-alias";
+        String writeIndexName = "logs-000002";
+        String nonWriteMember = "logs-000001";
+
+        IndexMetadata writeIndex = IndexMetadata.builder(writeIndexName)
+            .settings(settings(Version.CURRENT))
+            .putAlias(AliasMetadata.builder(alias).writeIndex(true).build())
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        IndexMetadata blockedNonWriteMember = IndexMetadata.builder(nonWriteMember)
+            .settings(settings(Version.CURRENT))
+            .putAlias(AliasMetadata.builder(alias).writeIndex(false).build())
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(writeIndex, false).put(blockedNonWriteMember, false))
+            // INDEX_WRITE_BLOCK has level WRITE only and would not trip checkBlock's METADATA_WRITE
+            // probe; INDEX_METADATA_BLOCK is the closest standard constant that includes METADATA_WRITE,
+            // matching the level CCR's INDEX_REPLICATION_BLOCK uses.
+            .blocks(ClusterBlocks.builder().addIndexBlock(nonWriteMember, IndexMetadata.INDEX_METADATA_BLOCK).build())
+            .build();
+
+        TransportRolloverAction action = newRolloverActionForCheckBlock(state);
+
+        // When: checkBlock runs for a rollover targeting the alias
+        ClusterBlockException result = action.checkBlock(new RolloverRequest(alias, null), state);
+
+        // Then: returns null (the bug fix — non-write member is irrelevant)
+        assertThat(result, is(nullValue()));
+    }
+
+    public void testCheckBlockAbortsWhenWriteIndexHasMetadataWriteBlock() {
+        // Given: an alias whose write index has a METADATA_WRITE block applied
+        String alias = "logs-alias";
+        String writeIndexName = "logs-000002";
+
+        IndexMetadata writeIndex = IndexMetadata.builder(writeIndexName)
+            .settings(settings(Version.CURRENT))
+            .putAlias(AliasMetadata.builder(alias).writeIndex(true).build())
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(writeIndex, false))
+            // INDEX_METADATA_BLOCK includes METADATA_WRITE level (see sibling test for rationale).
+            .blocks(ClusterBlocks.builder().addIndexBlock(writeIndexName, IndexMetadata.INDEX_METADATA_BLOCK).build())
+            .build();
+
+        TransportRolloverAction action = newRolloverActionForCheckBlock(state);
+
+        // When: checkBlock runs
+        ClusterBlockException result = action.checkBlock(new RolloverRequest(alias, null), state);
+
+        // Then: returns a ClusterBlockException naming only the write index
+        // (regression guard for the still-correct abort path)
+        assertThat(result, is(notNullValue()));
+        assertThat(result.getMessage(), containsString(writeIndexName));
+    }
+
+    public void testCheckBlockSkipsBlockOnNonWriteDataStreamBacking() {
+        // Given: a data stream with multiple backing indices; an older backing
+        // (not the write backing) has a METADATA_WRITE block
+        String dataStreamName = "logs-ds";
+        int generations = 2;
+
+        ClusterState baseState = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(new Tuple<>(dataStreamName, generations)),
+            List.of()
+        );
+
+        // The write backing is the highest-generation index; older backings come first.
+        String olderBacking = baseState.metadata().dataStreams().get(dataStreamName).getIndices().getFirst().getName();
+
+        ClusterState state = ClusterState.builder(baseState)
+            // INDEX_METADATA_BLOCK includes METADATA_WRITE level (see sibling test for rationale).
+            .blocks(ClusterBlocks.builder().addIndexBlock(olderBacking, IndexMetadata.INDEX_METADATA_BLOCK).build())
+            .build();
+
+        TransportRolloverAction action = newRolloverActionForCheckBlock(state);
+
+        // When: checkBlock runs for a rollover targeting the data stream
+        ClusterBlockException result = action.checkBlock(new RolloverRequest(dataStreamName, null), state);
+
+        // Then: returns null (data-stream parity with the alias case)
+        assertThat(result, is(nullValue()));
+    }
+
+    public void testCheckBlockSkipsRemoteSnapshotWriteIndexWithoutUserReadOnlyBlock() {
+        // Given: an alias whose write index is a remote_snapshot. Such indices come with
+        // an implicit METADATA_WRITE block; without a user-set read-only setting, the
+        // precheck should defer (parity with ClusterBlocks#indicesWithRemoteSnapshotBlockedException).
+        String alias = "logs-alias";
+        String writeIndexName = "logs-000002";
+
+        Settings remoteSnapshotSettings = Settings.builder()
+            .put(settings(Version.CURRENT).build())
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+            .build();
+
+        IndexMetadata writeIndex = IndexMetadata.builder(writeIndexName)
+            .settings(remoteSnapshotSettings)
+            .putAlias(AliasMetadata.builder(alias).writeIndex(true).build())
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(writeIndex, false))
+            .blocks(ClusterBlocks.builder().addIndexBlock(writeIndexName, IndexMetadata.INDEX_METADATA_BLOCK).build())
+            .build();
+
+        TransportRolloverAction action = newRolloverActionForCheckBlock(state);
+
+        // When: checkBlock runs
+        ClusterBlockException result = action.checkBlock(new RolloverRequest(alias, null), state);
+
+        // Then: returns null (the implicit remote_snapshot block is exempted)
+        assertThat(result, is(nullValue()));
+    }
+
+    public void testCheckBlockAbortsWhenRemoteSnapshotHasUserReadOnlyBlock() {
+        // Given: a remote_snapshot write index with a user-set INDEX_READ_ONLY_SETTING.
+        // That's an intentional read-only block, so the precheck must still abort.
+        String alias = "logs-alias";
+        String writeIndexName = "logs-000002";
+
+        Settings remoteSnapshotSettings = Settings.builder()
+            .put(settings(Version.CURRENT).build())
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+            .put(IndexMetadata.SETTING_READ_ONLY, true)
+            .build();
+
+        IndexMetadata writeIndex = IndexMetadata.builder(writeIndexName)
+            .settings(remoteSnapshotSettings)
+            .putAlias(AliasMetadata.builder(alias).writeIndex(true).build())
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(writeIndex, false))
+            .blocks(ClusterBlocks.builder().addIndexBlock(writeIndexName, IndexMetadata.INDEX_METADATA_BLOCK).build())
+            .build();
+
+        TransportRolloverAction action = newRolloverActionForCheckBlock(state);
+
+        // When: checkBlock runs
+        ClusterBlockException result = action.checkBlock(new RolloverRequest(alias, null), state);
+
+        // Then: aborts naming the write index (user opted in to read-only)
+        assertThat(result, is(notNullValue()));
+        assertThat(result.getMessage(), containsString(writeIndexName));
+    }
+
+    public void testCheckBlockReturnsNullWhenRolloverTargetUnresolvable() {
+        // Given: cluster state with no abstraction matching the rollover target
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()).build();
+
+        TransportRolloverAction action = newRolloverActionForCheckBlock(state);
+
+        // When: checkBlock runs
+        ClusterBlockException result = action.checkBlock(new RolloverRequest("does-not-exist", null), state);
+
+        // Then: returns null (defers to main path's canonical "not found" error)
+        assertThat(result, is(nullValue()));
+    }
+
+    public void testCheckBlockReturnsNullWhenAliasHasNoWriteMember() {
+        // Given: an alias with members but none marked is_write_index=true.
+        // (Multiple non-write members with no write member is the only shape that makes
+        // Alias#getWriteIndex() return null; a single non-write member is implicitly the write index.)
+        String alias = "logs-alias";
+        String memberA = "logs-000001";
+        String memberB = "logs-000002";
+
+        IndexMetadata indexA = IndexMetadata.builder(memberA)
+            .settings(settings(Version.CURRENT))
+            .putAlias(AliasMetadata.builder(alias).writeIndex(false).build())
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        IndexMetadata indexB = IndexMetadata.builder(memberB)
+            .settings(settings(Version.CURRENT))
+            .putAlias(AliasMetadata.builder(alias).writeIndex(false).build())
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexA, false).put(indexB, false))
+            .build();
+
+        TransportRolloverAction action = newRolloverActionForCheckBlock(state);
+
+        // When: checkBlock runs
+        ClusterBlockException result = action.checkBlock(new RolloverRequest(alias, null), state);
+
+        // Then: returns null — defers to MetadataRolloverService's canonical
+        // "rollover target [...] does not point to a write index" error.
+        assertThat(result, is(nullValue()));
+    }
+
+    public void testCheckBlockAbortsWhenDataStreamWriteBackingBlocked() {
+        // Given: a data stream where the write (highest-generation) backing carries a METADATA_WRITE block
+        String dataStreamName = "logs-ds";
+        int generations = 2;
+
+        ClusterState baseState = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(new Tuple<>(dataStreamName, generations)),
+            List.of()
+        );
+
+        // Write backing is the highest-generation index — the last in the indices list.
+        List<org.opensearch.core.index.Index> backings = baseState.metadata().dataStreams().get(dataStreamName).getIndices();
+        String writeBacking = backings.getLast().getName();
+
+        ClusterState state = ClusterState.builder(baseState)
+            .blocks(ClusterBlocks.builder().addIndexBlock(writeBacking, IndexMetadata.INDEX_METADATA_BLOCK).build())
+            .build();
+
+        TransportRolloverAction action = newRolloverActionForCheckBlock(state);
+
+        // When: checkBlock runs for a rollover targeting the data stream
+        ClusterBlockException result = action.checkBlock(new RolloverRequest(dataStreamName, null), state);
+
+        // Then: aborts naming the write backing — symmetry with the alias write-index-blocked case.
+        assertThat(result, is(notNullValue()));
+        assertThat(result.getMessage(), containsString(writeBacking));
     }
 
     public static IndicesStatsResponse randomIndicesStatsResponse(final IndexMetadata[] indices) {

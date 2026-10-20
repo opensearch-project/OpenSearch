@@ -13,20 +13,22 @@ import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.vsr.ManagedVSR;
 
 /**
  * Parquet field for half-precision (16-bit) floating-point values using {@link Float2Vector}.
  */
-public class HalfFloatParquetField extends ParquetField {
+public class HalfFloatParquetField extends NumericParquetField {
 
     /** Creates a new HalfFloatParquetField. */
     public HalfFloatParquetField() {}
 
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        ((Float2Vector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (Short) parseValue);
+        ((Float2Vector) managedVSR.getVector(mappedFieldType.name())).setSafeWithPossibleTruncate(
+            managedVSR.getRowCount(),
+            ((Number) parseValue).floatValue()
+        );
     }
 
     @Override

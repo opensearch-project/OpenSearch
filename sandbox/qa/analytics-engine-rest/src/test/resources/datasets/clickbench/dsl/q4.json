@@ -1,0 +1,12 @@
+{
+  "from": 0,
+  "size": 0,
+  "timeout": "1m",
+  "aggregations": {
+    "avg(UserID)": {
+      "avg": {
+        "field": "UserID"
+      }
+    }
+  }
+}

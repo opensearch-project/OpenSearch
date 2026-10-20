@@ -156,6 +156,8 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
      * Test the snapshot and restore of an index which has large segments files.
      */
     public void testSnapshotWithLargeSegmentFiles() throws Exception {
+        ensureGreen();
+
         final String repository = createRepository(randomName());
         final String index = "index-no-merges";
         createIndex(
@@ -188,6 +190,8 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
     }
 
     public void testRequestStats() throws Exception {
+        ensureGreen();
+
         final String repository = createRepository(randomName());
         final String index = "index-no-merges";
         createIndex(

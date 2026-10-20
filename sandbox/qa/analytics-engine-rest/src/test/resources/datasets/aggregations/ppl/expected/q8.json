@@ -1,0 +1,42 @@
+{
+  "schema": [
+    {
+      "name": "p25",
+      "type": "float"
+    },
+    {
+      "name": "p50",
+      "type": "float"
+    },
+    {
+      "name": "p75",
+      "type": "float"
+    },
+    {
+      "name": "department",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      23.625,
+      48.055557,
+      72.375,
+      "Marketing"
+    ],
+    [
+      23.0,
+      47.0,
+      71.6,
+      "Sales"
+    ],
+    [
+      18.875,
+      39.5,
+      64.75,
+      "Engineering"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

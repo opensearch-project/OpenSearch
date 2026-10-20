@@ -1,0 +1,42 @@
+{
+  "schema": [
+    {
+      "name": "max_rt",
+      "type": "int"
+    },
+    {
+      "name": "max_score",
+      "type": "float"
+    },
+    {
+      "name": "total",
+      "type": "bigint"
+    },
+    {
+      "name": "department",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      1500,
+      100.0,
+      72,
+      "Sales"
+    ],
+    [
+      1497,
+      100.0,
+      62,
+      "Engineering"
+    ],
+    [
+      1492,
+      97.0,
+      66,
+      "Marketing"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

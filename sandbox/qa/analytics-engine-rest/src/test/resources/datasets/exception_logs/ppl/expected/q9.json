@@ -1,0 +1,42 @@
+{
+  "schema": [
+    {
+      "name": "application_id",
+      "type": "bigint"
+    },
+    {
+      "name": "total",
+      "type": "bigint"
+    },
+    {
+      "name": "errors",
+      "type": "bigint"
+    },
+    {
+      "name": "error_rate",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      107148,
+      34,
+      34,
+      100.0
+    ],
+    [
+      107149,
+      33,
+      0,
+      0.0
+    ],
+    [
+      107150,
+      33,
+      0,
+      0.0
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

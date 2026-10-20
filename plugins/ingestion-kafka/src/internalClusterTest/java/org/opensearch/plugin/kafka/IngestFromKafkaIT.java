@@ -23,19 +23,30 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.IngestionPayloadDecoder;
+import org.opensearch.index.IngestionPayloadDecoderFactory;
+import org.opensearch.index.Message;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.indices.pollingingest.IngestionUtils;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
+import org.opensearch.indices.pollingingest.XContentIngestionPayloadDecoder;
+import org.opensearch.plugins.IngestionConsumerPlugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.client.Requests;
 import org.junit.Assert;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -51,6 +62,63 @@ import static org.awaitility.Awaitility.await;
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
+
+    /**
+     * Test plugin that registers a custom ingestion payload decoder ({@code test_uppercase}) which
+     * uppercases the {@code name} field of the decoded {@code _source}. Used to verify that a
+     * plugin-contributed decoder (as opposed to the built-in {@code xcontent} decoder) is honored
+     * end-to-end when selected via {@code ingestion_source.decoder_type}.
+     */
+    public static class TestCustomDecoderPlugin extends Plugin implements IngestionConsumerPlugin {
+        static final String CUSTOM_DECODER_TYPE = "test_uppercase";
+
+        @SuppressWarnings("rawtypes")
+        @Override
+        public Map<String, IngestionConsumerFactory> getIngestionConsumerFactories() {
+            return Map.of();
+        }
+
+        @Override
+        public String getType() {
+            return "TEST_CUSTOM_DECODER_PLUGIN";
+        }
+
+        @Override
+        public Map<String, IngestionPayloadDecoderFactory> getIngestionPayloadDecoderFactories() {
+            return Map.of(CUSTOM_DECODER_TYPE, new UppercaseNameIngestionPayloadDecoder.Factory());
+        }
+
+        public static class UppercaseNameIngestionPayloadDecoder implements IngestionPayloadDecoder {
+            @Override
+            @SuppressWarnings("unchecked")
+            public Map<String, Object> decode(Message<?> message) {
+                Map<String, Object> payloadMap = IngestionUtils.getParsedPayloadMap((byte[]) message.getPayload());
+                Object source = payloadMap.get("_source");
+                if (source instanceof Map) {
+                    Map<String, Object> sourceMap = (Map<String, Object>) source;
+                    Object name = sourceMap.get("name");
+                    if (name instanceof String) {
+                        sourceMap.put("name", ((String) name).toUpperCase(Locale.ROOT));
+                    }
+                }
+                return payloadMap;
+            }
+
+            public static class Factory implements IngestionPayloadDecoderFactory {
+                @Override
+                public IngestionPayloadDecoder create(IndexMetadata indexMetadata, int shardId, Map<String, Object> settings) {
+                    return new UppercaseNameIngestionPayloadDecoder();
+                }
+            }
+        }
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(TestCustomDecoderPlugin.class);
+        return plugins;
+    }
 
     /**
      * test ingestion-kafka-plugin is installed
@@ -80,6 +148,71 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             refresh(indexName);
             SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
             assertThat(response.getHits().getTotalHits().value(), is(1L));
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            assertNotNull(stats);
+            assertThat(stats.getMessageProcessorStats().totalProcessedCount(), is(2L));
+            assertThat(stats.getConsumerStats().totalPolledCount(), is(2L));
+        });
+    }
+
+    public void testKafkaIngestion_WithExplicitDecoderType() {
+        produceData("1", "name1", "24");
+        produceData("2", "name2", "20");
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.all_active", true)
+                .put("ingestion_source.decoder_type", XContentIngestionPayloadDecoder.NAME)
+                .build(),
+            mapping
+        );
+
+        RangeQueryBuilder query = new RangeQueryBuilder("age").gte(21);
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).setQuery(query).get();
+            assertThat(response.getHits().getTotalHits().value(), is(1L));
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            assertNotNull(stats);
+            assertThat(stats.getMessageProcessorStats().totalProcessedCount(), is(2L));
+            assertThat(stats.getConsumerStats().totalPolledCount(), is(2L));
+        });
+    }
+
+    public void testKafkaIngestion_WithCustomDecoder() {
+        produceData("1", "name1", "24");
+        produceData("2", "name2", "20");
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.all_active", true)
+                .put("ingestion_source.decoder_type", TestCustomDecoderPlugin.CUSTOM_DECODER_TYPE)
+                .build(),
+            mapping
+        );
+
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).get();
+            assertThat(response.getHits().getTotalHits().value(), is(2L));
+            Map<String, Map<String, Object>> docs = new HashMap<>();
+            response.getHits().forEach(hit -> docs.put(hit.getId(), hit.getSourceAsMap()));
+            assertThat(docs.get("1").get("name"), is("NAME1"));
+            assertThat(docs.get("2").get("name"), is("NAME2"));
             PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
                 .getPollingIngestStats();
             assertNotNull(stats);
@@ -135,6 +268,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.topic", "test")
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("ingestion_source.param.auto.offset.reset", "latest")
+                .put("ingestion_source.param.topic_metadata_fetch_timeout_ms", 5000)
                 .put("ingestion_source.all_active", true)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
@@ -549,7 +683,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
 
         ensureGreen(indexName);
         // no messages published, expect 0 lag
-        assertTrue(validateOffsetBasedLagForPrimaryAndReplica(0));
+        waitForState(() -> validateOffsetBasedLagForPrimaryAndReplica(0));
 
         // pause ingestion
         pauseIngestionAndWait(indexName, 2);
@@ -1383,6 +1517,110 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
 
         // Step 6: Wait for documents to be searchable (handles async refresh)
         waitForSearchableDocs(10, List.of(nodeA));
+    }
+
+    public void testKafkaIngestionWithMappingUpdate() throws Exception {
+        final String nodeA = internalCluster().startNode();
+
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.error_strategy", "drop")
+                .build(),
+            "{\"dynamic\":\"strict\",\"properties\":{\"product\":{\"type\": \"text\"},"
+                + "\"attributes\":{\"properties\":{\"title\":{\"type\": \"keyword\"}}}}}"
+        );
+        ensureGreen(indexName);
+
+        // Step 1: Publish doc with known fields and wait for it to be searchable
+        produceData(
+            "{\"_id\":\"1\", \"_op_type\":\"index\",\"_source\":"
+                + "{\"product\":\"product1\", \"attributes\":{\"title\":\"Screenshot 2026\"}}}"
+        );
+
+        waitForSearchableDocs(1, List.of(nodeA));
+
+        // Step 2: Publish doc with unknown field - strict mapping should reject it
+        produceData(
+            "{\"_id\":\"2\", \"_op_type\":\"index\",\"_source\":"
+                + "{\"product\":\"product2\", \"attributes\":{\"title\":\"Banner Ad\",\"is_promotional\":true}}}"
+        );
+
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null && stats.getMessageProcessorStats().totalFailuresDroppedCount() >= 1L;
+        });
+
+        PollingIngestStats statsBeforePutMapping = client().admin()
+            .indices()
+            .prepareStats(indexName)
+            .get()
+            .getIndex(indexName)
+            .getShards()[0].getPollingIngestStats();
+        assertThat(
+            "message2 should fail due to strict mapping",
+            statsBeforePutMapping.getMessageProcessorStats().totalFailedCount(),
+            is(1L)
+        );
+        assertThat("message2 should be dropped", statsBeforePutMapping.getMessageProcessorStats().totalFailuresDroppedCount(), is(1L));
+
+        // Step 3: Add is_promotional to the mapping via PUT mapping API
+        assertAcked(
+            client().admin()
+                .indices()
+                .preparePutMapping(indexName)
+                .setSource(
+                    "{\"properties\":{\"attributes\":{\"properties\":"
+                        + "{\"is_promotional\":{\"type\":\"boolean\",\"doc_values\":false}}}}}",
+                    org.opensearch.common.xcontent.XContentType.JSON
+                )
+        );
+
+        waitForState(() -> {
+            Map<String, Object> mappings = client().admin()
+                .indices()
+                .prepareGetMappings(indexName)
+                .get()
+                .getMappings()
+                .get(indexName)
+                .getSourceAsMap();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> attrProps = (Map<String, Object>) ((Map<String, Object>) properties.get("attributes")).get("properties");
+            return attrProps.containsKey("is_promotional");
+        });
+
+        // Step 4: Publish doc with is_promotional - should now succeed after the mapping update
+        produceData(
+            "{\"_id\":\"3\", \"_op_type\":\"index\",\"_source\":"
+                + "{\"product\":\"product3\", \"attributes\":{\"title\":\"Holiday Sale\",\"is_promotional\":false}}}"
+        );
+
+        waitForSearchableDocs(2, List.of(nodeA));
+
+        // Step 5: Query on the new boolean field to verify it was indexed correctly
+        waitForState(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName)
+                .setQuery(new TermQueryBuilder("attributes.is_promotional", false))
+                .get();
+            return response.getHits().getTotalHits().value() == 1L
+                && "product3".equals(response.getHits().getAt(0).getSourceAsMap().get("product"));
+        });
+
+        // Verify failedCount is still 1 (only message2 failed, message3 succeeded)
+        PollingIngestStats statsAfterPut = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertThat(statsAfterPut.getMessageProcessorStats().totalFailedCount(), is(1L));
     }
 
     public void testDynamicWarmupSettingsUpdate() throws Exception {

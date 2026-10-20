@@ -1,0 +1,1 @@
+source = app_logs_filter_delegation | where match(message, 'exception') OR match(message, 'connection') OR status = 500 | stats count() as cnt

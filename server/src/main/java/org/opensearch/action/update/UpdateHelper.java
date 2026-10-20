@@ -251,6 +251,7 @@ public class UpdateHelper {
                 .id(request.id())
                 .routing(routing)
                 .source(updatedSourceAsMap, updateSourceContentType)
+                .extraFieldValues(currentRequest.extraFieldValues())
                 .setIfSeqNo(getResult.getSeqNo())
                 .setIfPrimaryTerm(getResult.getPrimaryTerm())
                 .waitForActiveShards(request.waitForActiveShards())

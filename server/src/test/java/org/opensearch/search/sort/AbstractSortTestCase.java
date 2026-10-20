@@ -64,6 +64,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.Rewriteable;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptModule;
@@ -208,7 +209,11 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends Ope
             index,
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
         );
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(
+            idxSettings,
+            Mockito.mock(IndicesBitsetFilterCache.class, Mockito.RETURNS_DEEP_STUBS),
+            Mockito.mock(BitsetFilterCache.Listener.class)
+        );
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup = (
             fieldType,
             fieldIndexName,

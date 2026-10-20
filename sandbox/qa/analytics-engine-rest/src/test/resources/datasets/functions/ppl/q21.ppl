@@ -1,0 +1,1 @@
+source=function_tests | where false = case(amount > 0, true else false) | fields user, amount | head 10

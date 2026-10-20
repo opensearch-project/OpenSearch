@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "activity",
+      "type": "bigint"
+    },
+    {
+      "name": "kubernetes.namespace",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      34,
+      "production"
+    ],
+    [
+      33,
+      "default"
+    ],
+    [
+      33,
+      "staging"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

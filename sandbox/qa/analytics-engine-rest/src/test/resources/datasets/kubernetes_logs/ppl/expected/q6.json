@@ -1,0 +1,20 @@
+{
+  "schema": [
+    {
+      "name": "unique_pods",
+      "type": "bigint"
+    },
+    {
+      "name": "kubernetes.container_image",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      20,
+      null
+    ]
+  ],
+  "total": 1,
+  "size": 1
+}

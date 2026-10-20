@@ -1,0 +1,24 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+apply plugin: 'opensearch.build'
+
+dependencies {
+  compileOnly project(":server")
+  compileOnly project(":libs:opensearch-cli")
+}
+
+// This CLI uses com.sun.tools.attach (JMX Attach API) which is the standard
+// mechanism for local JVM tooling (same as jcmd, jmap, etc.)
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+  // Allow com.sun.tools.attach — required for JMX Attach API
+  bundledSignatures -= 'jdk-non-portable'
+}
+
+test.enabled = false

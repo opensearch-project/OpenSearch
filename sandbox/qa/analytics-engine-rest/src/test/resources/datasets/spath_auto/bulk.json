@@ -1,0 +1,3 @@
+{"index": {}}
+{"nested_doc": "{\"user\":{\"name\":\"John\"}}", "array_doc": "{\"tags\":[\"java\",\"sql\"]}", "merge_doc": "{\"a\":{\"b\":1},\"a.b\":2}", "stringify_doc": "{\"n\":30,\"b\":true,\"x\":null}", "empty_doc": "{}", "malformed_doc": "{\"user\":{\"name\":"}
+

@@ -1,0 +1,36 @@
+{
+  "schema": [
+    {
+      "name": "category",
+      "type": "string"
+    },
+    {
+      "name": "category_name",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "A",
+      "Alpha"
+    ],
+    [
+      "B",
+      "Beta"
+    ],
+    [
+      "A",
+      "Alpha"
+    ],
+    [
+      "C",
+      "Gamma"
+    ],
+    [
+      "B",
+      "Beta"
+    ]
+  ],
+  "total": 5,
+  "size": 5
+}

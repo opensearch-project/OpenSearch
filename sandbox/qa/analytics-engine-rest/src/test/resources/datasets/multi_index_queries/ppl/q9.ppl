@@ -1,0 +1,1 @@
+source=security_logs | stats count() as event_count by user | where event_count > 10 | sort - event_count

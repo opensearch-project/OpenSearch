@@ -1,0 +1,1 @@
+source=function_tests | eval upper_user = upper(user) | fields user, upper_user | head 10

@@ -1,0 +1,1 @@
+source=test_data | eval json_arr = json_array(category, id, value) | fields category, id, value, json_arr | head 3

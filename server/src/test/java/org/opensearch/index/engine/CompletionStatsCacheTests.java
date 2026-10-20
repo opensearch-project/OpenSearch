@@ -198,6 +198,11 @@ public class CompletionStatsCacheTests extends OpenSearchTestCase {
             completionStatsCache.afterRefresh(false);
             completionStatsCache.get();
             openCloseCounter.assertCount(3);
+
+            // afterRefresh invalidates the cache when didRefresh=true
+            completionStatsCache.afterRefresh(true);
+            completionStatsCache.get();
+            openCloseCounter.assertCount(4);
         }
     }
 

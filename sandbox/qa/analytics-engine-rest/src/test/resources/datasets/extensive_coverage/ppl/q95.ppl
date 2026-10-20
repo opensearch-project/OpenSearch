@@ -1,0 +1,1 @@
+source=test_data | stats percentile_approx(value, 50) as median_approx, percentile_approx(value, 95) as p95

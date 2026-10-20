@@ -24,6 +24,16 @@ public record FieldTypeCapabilities(String fieldType, Set<Capability> capabiliti
         capabilities = Set.copyOf(capabilities);
     }
 
+    /** Mapping scope used while assigning data-format capabilities. */
+    @ExperimentalApi
+    public enum FieldScope {
+        /** A document-root or root-owned metadata field. */
+        ROOT,
+
+        /** A field represented inside a nested element. */
+        NESTED
+    }
+
     /**
      * Capabilities that a data format can support.
      */
@@ -45,6 +55,8 @@ public record FieldTypeCapabilities(String fieldType, Set<Capability> capabiliti
         STORED_FIELDS,
 
         /** Probabilistic lookup for pruning*/
-        BLOOM_FILTER
+        BLOOM_FILTER,
+
+        FORWARD_TERMS_INDEX
     }
 }

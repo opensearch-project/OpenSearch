@@ -57,6 +57,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
+import org.opensearch.cluster.metadata.MetadataDataStreamsService;
 import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
@@ -94,10 +95,12 @@ import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.plugins.RestoreListenerPlugin;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryData;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -108,6 +111,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -147,7 +151,8 @@ import static org.opensearch.node.Node.NODE_SEARCH_CACHE_SIZE_SETTING;
  * at the {@link ShardRouting#recoverySource()} property.
  * <p>
  * At the end of the successful restore process {@code RestoreService} calls {@link #cleanupRestoreState(ClusterChangedEvent)},
- * which removes {@link RestoreInProgress} when all shards are completed. In case of
+ * which removes {@link RestoreInProgress} when all shards are completed. Once that removal is published, every
+ * {@link RestoreListenerPlugin} is told about the restore. In case of
  * restore failure a normal recovery fail-over process kicks in.
  *
  * @opensearch.internal
@@ -171,6 +176,98 @@ public class RestoreService implements ClusterStateApplier {
         unremovable.add(SETTING_AUTO_EXPAND_REPLICAS);
         unremovable.add(SETTING_VERSION_UPGRADED);
         USER_UNREMOVABLE_SETTINGS = unmodifiableSet(unremovable);
+    }
+
+    /**
+     * Creates a settings filter predicate that separates internal ignore patterns from user ignore patterns.
+     * Internal ignore patterns override protection and can filter any setting.
+     * User ignore patterns respect protected settings and cannot filter them.
+     *
+     * @param userIgnoreSettings array of user-provided settings to ignore
+     * @param internalIgnoreSettings array of internal settings to ignore (override protection)
+     * @param protectedSettings set of settings that user cannot remove
+     * @return a predicate that returns true if the setting should be kept, false if it should be filtered out
+     */
+    static Predicate<String> createSettingsFilterPredicate(
+        String[] userIgnoreSettings,
+        String[] internalIgnoreSettings,
+        Set<String> protectedSettings
+    ) {
+        Set<String> userKeyFilters = new HashSet<>();
+        List<String> userSimpleMatchPatterns = new ArrayList<>();
+        Set<String> internalKeyFilters = new HashSet<>();
+        List<String> internalSimpleMatchPatterns = new ArrayList<>();
+
+        // Process user ignore settings
+        for (String ignoredSetting : userIgnoreSettings) {
+            if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
+                userKeyFilters.add(ignoredSetting);
+            } else {
+                userSimpleMatchPatterns.add(ignoredSetting);
+            }
+        }
+
+        // Process internal ignore settings
+        for (String ignoredSetting : internalIgnoreSettings) {
+            if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
+                internalKeyFilters.add(ignoredSetting);
+            } else {
+                internalSimpleMatchPatterns.add(ignoredSetting);
+            }
+        }
+
+        return k -> {
+            // Check internal ignore patterns first (they override protection)
+            if (internalKeyFilters.contains(k)) {
+                return false;
+            }
+            for (String pattern : internalSimpleMatchPatterns) {
+                if (Regex.simpleMatch(pattern, k)) {
+                    return false;
+                }
+            }
+
+            // Check user ignore patterns only for non-protected settings
+            if (!protectedSettings.contains(k)) {
+                if (userKeyFilters.contains(k)) {
+                    return false;
+                }
+                for (String pattern : userSimpleMatchPatterns) {
+                    if (Regex.simpleMatch(pattern, k)) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        };
+    }
+
+    /**
+     * Returns the set of settings that users cannot remove during restore.
+     * Exposed for testing purposes.
+     */
+    static Set<String> getUserUnremovableSettings() {
+        return USER_UNREMOVABLE_SETTINGS;
+    }
+
+    /**
+     * Returns the internal index settings to be ignored (stripped) when restoring a snapshot
+     * onto a cluster that does not store index data remotely.
+     * <p>
+     * The remote data attribute check (segment/translog repositories) is used rather than the
+     * broader remote store attribute check, because clusters with only remote cluster state or
+     * routing table publication enabled do not store index data remotely and must still have
+     * {@code index.remote_store.*} settings stripped on restore.
+     *
+     * @param nodeSettings the node settings of the cluster performing the restore
+     * @return array of index setting patterns to ignore during restore
+     */
+    static String[] getIgnoreSettingsInternal(Settings nodeSettings) {
+        String[] indexSettingsToBeIgnored = new String[] {};
+        if (false == RemoteStoreNodeAttribute.isRemoteDataAttributePresent(nodeSettings)) {
+            indexSettingsToBeIgnored = ArrayUtils.concat(indexSettingsToBeIgnored, new String[] { REMOTE_STORE_INDEX_SETTINGS_REGEX });
+        }
+        return indexSettingsToBeIgnored;
     }
 
     private final ClusterService clusterService;
@@ -197,7 +294,7 @@ public class RestoreService implements ClusterStateApplier {
 
     private final Supplier<Double> dataToFileCacheSizeRatioSupplier;
 
-    private static final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor();
+    private final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor;
 
     public RestoreService(
         ClusterService clusterService,
@@ -208,7 +305,9 @@ public class RestoreService implements ClusterStateApplier {
         ShardLimitValidator shardLimitValidator,
         IndicesService indicesService,
         Supplier<ClusterInfo> clusterInfoSupplier,
-        Supplier<Double> dataToFileCacheSizeRatioSupplier
+        Supplier<Double> dataToFileCacheSizeRatioSupplier,
+        ThreadPool threadPool,
+        List<RestoreListenerPlugin> restoreListenerPlugins
     ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -224,6 +323,9 @@ public class RestoreService implements ClusterStateApplier {
         this.indexScopedSettings = createIndexService.getIndexScopedSettings();
         this.clusterInfoSupplier = clusterInfoSupplier;
         this.dataToFileCacheSizeRatioSupplier = dataToFileCacheSizeRatioSupplier;
+        this.cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor(
+            new RestoreCompletionNotifier(threadPool, restoreListenerPlugins)::restoreCompleted
+        );
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         restoreSnapshotTaskKey = clusterService.registerClusterManagerTask(RESTORE_SNAPSHOT, true);
@@ -595,6 +697,9 @@ public class RestoreService implements ClusterStateApplier {
                                 .map(ds -> updateDataStream(ds, mdBuilder, request))
                                 .collect(Collectors.toMap(DataStream::getName, Function.identity()))
                         );
+                        if (request.attachToDataStream()) {
+                            attachRestoredBackingIndices(indices.keySet(), mdBuilder, updatedDataStreams);
+                        }
                         mdBuilder.dataStreams(updatedDataStreams);
 
                         // Restore global state if needed
@@ -686,16 +791,9 @@ public class RestoreService implements ClusterStateApplier {
                     }
 
                     private String[] getIgnoreSettingsInternal() {
-                        // for non-remote store enabled domain, we will remove all the remote store
-                        // related index settings present in the snapshot.
-                        String[] indexSettingsToBeIgnored = new String[] {};
-                        if (false == RemoteStoreNodeAttribute.isRemoteStoreAttributePresent(clusterService.getSettings())) {
-                            indexSettingsToBeIgnored = ArrayUtils.concat(
-                                indexSettingsToBeIgnored,
-                                new String[] { REMOTE_STORE_INDEX_SETTINGS_REGEX }
-                            );
-                        }
-                        return indexSettingsToBeIgnored;
+                        // for a domain that does not store index data remotely, we will remove all the
+                        // remote store related index settings present in the snapshot.
+                        return RestoreService.getIgnoreSettingsInternal(clusterService.getSettings());
                     }
 
                     private Settings getOverrideSettingsInternal() {
@@ -818,8 +916,7 @@ public class RestoreService implements ClusterStateApplier {
                         }
                         IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata);
                         Settings settings = indexMetadata.getSettings();
-                        Set<String> keyFilters = new HashSet<>();
-                        List<String> simpleMatchPatterns = new ArrayList<>();
+
                         for (String ignoredSetting : ignoreSettings) {
                             if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
                                 if (USER_UNREMOVABLE_SETTINGS.contains(ignoredSetting)) {
@@ -832,38 +929,24 @@ public class RestoreService implements ClusterStateApplier {
                                         snapshot,
                                         "cannot remove UnmodifiableOnRestore setting [" + ignoredSetting + "] on restore"
                                     );
-                                } else {
-                                    keyFilters.add(ignoredSetting);
                                 }
-                            } else {
-                                simpleMatchPatterns.add(ignoredSetting);
                             }
                         }
 
-                        // add internal settings to ignore settings list
-                        for (String ignoredSetting : ignoreSettingsInternal) {
-                            if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
-                                keyFilters.add(ignoredSetting);
-                            } else {
-                                simpleMatchPatterns.add(ignoredSetting);
+                        // Build combined protected settings set including dynamic unmodifiable settings
+                        Set<String> protectedSettings = new HashSet<>(USER_UNREMOVABLE_SETTINGS);
+                        for (String key : settings.keySet()) {
+                            if (indexScopedSettings.isUnmodifiableOnRestoreSetting(key)) {
+                                protectedSettings.add(key);
                             }
                         }
 
-                        Predicate<String> settingsFilter = k -> {
-                            if (USER_UNREMOVABLE_SETTINGS.contains(k) == false && !indexScopedSettings.isUnmodifiableOnRestoreSetting(k)) {
-                                for (String filterKey : keyFilters) {
-                                    if (k.equals(filterKey)) {
-                                        return false;
-                                    }
-                                }
-                                for (String pattern : simpleMatchPatterns) {
-                                    if (Regex.simpleMatch(pattern, k)) {
-                                        return false;
-                                    }
-                                }
-                            }
-                            return true;
-                        };
+                        Predicate<String> settingsFilter = createSettingsFilterPredicate(
+                            ignoreSettings,
+                            ignoreSettingsInternal,
+                            protectedSettings
+                        );
+
                         Settings.Builder settingsBuilder = Settings.builder()
                             .put(settings.filter(settingsFilter))
                             .put(normalizedChangeSettings.filter(k -> {
@@ -965,6 +1048,36 @@ public class RestoreService implements ClusterStateApplier {
                 e
             );
             listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Attaches each restored {@code .ds-<streamName>-NNNNNN} index to a pre-existing data stream of the same name, in
+     * the same cluster-state update as the restore. Adding the index and advancing the generation together avoids the
+     * transient state {@link Metadata.Builder} validation rejects (a convention-named index above the generation).
+     * Updates {@code updatedDataStreams} in place. Visible for testing.
+     */
+    static void attachRestoredBackingIndices(
+        Set<String> restoredIndexNames,
+        Metadata.Builder metadata,
+        Map<String, DataStream> updatedDataStreams
+    ) {
+        for (String restoredIndexName : restoredIndexNames) {
+            String streamName = DataStream.parseDataStreamName(restoredIndexName);
+            if (streamName == null) {
+                continue;
+            }
+            DataStream currentDs = updatedDataStreams.get(streamName);
+            IndexMetadata restoredIndexMetadata = metadata.get(restoredIndexName);
+            if (currentDs == null || restoredIndexMetadata == null) {
+                continue;
+            }
+            if (currentDs.getIndices().contains(restoredIndexMetadata.getIndex())) {
+                continue;
+            }
+            // A backing index must map the timestamp field as a date, or data stream search breaks.
+            MetadataDataStreamsService.validateTimestampFieldMapping(restoredIndexMetadata, currentDs.getTimeStampField().getName());
+            updatedDataStreams.put(streamName, currentDs.addBackingIndex(restoredIndexMetadata.getIndex()));
         }
     }
 
@@ -1183,6 +1296,12 @@ public class RestoreService implements ClusterStateApplier {
             }
         }
 
+        private final Consumer<RestoreInProgress.Entry> onRestoreCompleted;
+
+        CleanRestoreStateTaskExecutor(Consumer<RestoreInProgress.Entry> onRestoreCompleted) {
+            this.onRestoreCompleted = onRestoreCompleted;
+        }
+
         @Override
         public ClusterTasksResult<Task> execute(final ClusterState currentState, final List<Task> tasks) {
             final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.<Task>builder().successes(tasks);
@@ -1203,6 +1322,21 @@ public class RestoreService implements ClusterStateApplier {
             builder.put(RestoreInProgress.TYPE, restoreInProgressBuilder.build());
             final Map<String, ClusterState.Custom> customs = Collections.unmodifiableMap(builder);
             return resultBuilder.build(ClusterState.builder(currentState).customs(customs).build());
+        }
+
+        /**
+         * Reports each restore this publication removed. Core now considers it finished: this is the same point at which
+         * a restore request that waits for completion returns. Called once per published state, so a restore that several
+         * tasks in one batch asked to clean up is reported once.
+         */
+        @Override
+        public void clusterStatePublished(ClusterChangedEvent event) {
+            final RestoreInProgress current = event.state().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
+            for (RestoreInProgress.Entry entry : event.previousState().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
+                if (entry.state().completed() && current.get(entry.uuid()) == null) {
+                    onRestoreCompleted.accept(entry);
+                }
+            }
         }
 
         @Override
@@ -1317,6 +1451,12 @@ public class RestoreService implements ClusterStateApplier {
             throw new SnapshotRestoreException(
                 new Snapshot(repository, snapshotInfo.snapshotId()),
                 "unsupported snapshot state [" + snapshotInfo.state() + "]"
+            );
+        }
+        if (snapshotInfo.version() == null) {
+            throw new SnapshotRestoreException(
+                new Snapshot(repository, snapshotInfo.snapshotId()),
+                "the snapshot has an unknown or unsupported version and cannot be restored"
             );
         }
         if (Version.CURRENT.before(snapshotInfo.version())) {

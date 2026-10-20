@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
-import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
@@ -280,13 +279,13 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
      * This validator ensures that the node meets two primary criteria:
      * 1. It must be a dedicated data node (hot node)
      * 2. Remote store must be enabled
-     * The validation is performed once and cached for subsequent checks to improve performance.
+     * Static node configuration is evaluated once and cached, while cluster membership is read from
+     * the current applied cluster state for each scheduler run.
      */
     protected class ConfigurationValidator implements ValidationStrategy {
 
         private final boolean isOnlyDataNode;
         private boolean isRemoteStoreEnabled = false;
-        private boolean hasWarmNodes = false;
 
         ConfigurationValidator() {
             DiscoveryNode localNode = clusterService.localNode();
@@ -329,12 +328,10 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
         }
 
         /**
-         * Checks if cluster has warm nodes.
+         * Checks if the current cluster state has warm nodes.
          */
         private boolean hasWarmNodes() {
-            if (hasWarmNodes == true) return true;
-            ClusterState clusterState = clusterService.state();
-            return hasWarmNodes = clusterState.getNodes().getNodes().values().stream().anyMatch(DiscoveryNode::isWarmNode);
+            return clusterService.state().getNodes().getWarmNodes().isEmpty() == false;
         }
     }
 

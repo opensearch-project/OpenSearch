@@ -1,0 +1,1 @@
+source=aggregation_tests | stats percentile(response_time, 50) as p50, percentile(response_time, 95) as p95, percentile(response_time, 99) as p99

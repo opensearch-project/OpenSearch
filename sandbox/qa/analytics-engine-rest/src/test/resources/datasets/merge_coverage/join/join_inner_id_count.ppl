@@ -1,0 +1,1 @@
+source=%INDEX% | inner join left=a, right=b ON a.id = b.id [ source=%INDEX% ] | stats count() as cnt

@@ -1172,4 +1172,17 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    public void testParseCreateFieldForPluggableFormat() throws Exception {
+        addQueryFieldMappings();
+        DocumentMapper documentMapper = mapperService.documentMapper();
+        PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
+
+        // parseCreateFieldForPluggableFormat should throw since PercolatorFieldMapper overrides parse() directly
+        UnsupportedOperationException exception = expectThrows(
+            UnsupportedOperationException.class,
+            () -> fieldMapper.parseCreateFieldForPluggableFormat(null)
+        );
+        assertThat(exception.getMessage(), containsString("should not be invoked"));
+    }
+
 }

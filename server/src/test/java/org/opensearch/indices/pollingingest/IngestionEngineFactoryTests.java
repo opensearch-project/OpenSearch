@@ -9,6 +9,7 @@
 package org.opensearch.indices.pollingingest;
 
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.IngestionPayloadDecoderFactory;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -19,14 +20,16 @@ public class IngestionEngineFactoryTests extends OpenSearchTestCase {
     public void testConstructorWithIngestServiceSupplier() {
         IngestionConsumerFactory consumerFactory = mock(IngestionConsumerFactory.class);
         IngestService ingestService = mock(IngestService.class);
+        IngestionPayloadDecoderFactory decoderFactory = mock(IngestionPayloadDecoderFactory.class);
 
-        IngestionEngineFactory factory = new IngestionEngineFactory(consumerFactory, () -> ingestService);
+        IngestionEngineFactory factory = new IngestionEngineFactory(consumerFactory, () -> ingestService, decoderFactory);
         assertNotNull(factory);
     }
 
     public void testConstructorWithNullIngestServiceSupplier() {
         IngestionConsumerFactory consumerFactory = mock(IngestionConsumerFactory.class);
+        IngestionPayloadDecoderFactory decoderFactory = mock(IngestionPayloadDecoderFactory.class);
 
-        expectThrows(NullPointerException.class, () -> new IngestionEngineFactory(consumerFactory, null));
+        expectThrows(NullPointerException.class, () -> new IngestionEngineFactory(consumerFactory, null, decoderFactory));
     }
 }

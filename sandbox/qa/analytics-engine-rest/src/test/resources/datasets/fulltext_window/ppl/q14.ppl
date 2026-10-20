@@ -1,0 +1,1 @@
+source=app_logs | where match(message, "error") OR match(message, "failed") | sort host, timestamp desc | streamstats count() as rnk by host | where rnk <= 3 | fields host, service, message, timestamp, rnk | sort host, rnk

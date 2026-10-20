@@ -1,0 +1,1 @@
+source=app_logs | where message like '%SocketTimeoutException%' or message like '%Read timed out%' or message like '%I/O error%' or log_level='ERROR' | stats count() as error_count by host, service_name | sort - error_count

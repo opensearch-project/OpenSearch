@@ -1,0 +1,70 @@
+{
+  "schema": [
+    {
+      "name": "userid",
+      "type": "string"
+    },
+    {
+      "name": "orderid",
+      "type": "string"
+    },
+    {
+      "name": "amount",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      "user1",
+      "ord003",
+      299.0
+    ],
+    [
+      "user10",
+      "ord027",
+      29.99
+    ],
+    [
+      "user2",
+      "ord026",
+      599.0
+    ],
+    [
+      "user3",
+      "ord024",
+      159.99
+    ],
+    [
+      "user4",
+      "ord029",
+      3200.0
+    ],
+    [
+      "user5",
+      "ord008",
+      320.0
+    ],
+    [
+      "user6",
+      "ord028",
+      195.0
+    ],
+    [
+      "user7",
+      "ord025",
+      78.0
+    ],
+    [
+      "user8",
+      "ord018",
+      99.99
+    ],
+    [
+      "user9",
+      "ord022",
+      42.5
+    ]
+  ],
+  "total": 10,
+  "size": 10
+}

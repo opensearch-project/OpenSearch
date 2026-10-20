@@ -1,0 +1,23 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "@timestamp": {"type": "date"},
+      "endpoint": {"type": "keyword"},
+      "url": {"type": "keyword"},
+      "method": {"type": "keyword"},
+      "status": {"type": "integer"},
+      "status_code": {"type": "integer"},
+      "latency": {"type": "integer"},
+      "latency_ms": {"type": "integer"},
+      "response_time_ms": {"type": "integer"},
+      "cluster": {"type": "keyword"},
+      "host": {"type": "keyword"},
+      "flow_direction": {"type": "keyword"},
+      "user_id": {"type": "keyword"}
+    }
+  }
+}

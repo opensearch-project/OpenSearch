@@ -9,26 +9,51 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
- * input data for a merge operation.
+ * Input data for a merge operation.
  * Use {@link Builder} to construct instances.
+ *
+ * <p>{@code liveDocs} provides per-segment delete filtering. See {@link LiveDocs} for
+ * the contract. The snapshot is taken once at merge start; mid-merge deletes are not
+ * reflected.</p>
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record MergeInput(List<WriterFileSet> writerFiles, RowIdMapping rowIdMapping, long newWriterGeneration) {
+public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long newWriterGeneration, LiveDocs liveDocs) {
 
     public MergeInput {
-        writerFiles = List.copyOf(writerFiles);
+        segments = List.copyOf(segments);
+        Objects.requireNonNull(liveDocs, "liveDocs must not be null; use LiveDocs.ALL_ALIVE for no filtering");
     }
 
     private MergeInput(Builder builder) {
-        this(new ArrayList<>(builder.fileMetadataList), builder.rowIdMapping, builder.newWriterGeneration);
+        this(new ArrayList<>(builder.segments), builder.rowIdMapping, builder.newWriterGeneration, builder.liveDocs);
+    }
+
+    /**
+     * Returns the {@link WriterFileSet} for the given data format from each segment.
+     *
+     * @param formatName the data format name (e.g. "parquet")
+     * @return list of writer file sets for the format across all segments
+     */
+    public List<WriterFileSet> getFilesForFormat(String formatName) {
+        return segments.stream().map(seg -> seg.dfGroupedSearchableFiles().get(formatName)).filter(Objects::nonNull).toList();
+    }
+
+    /**
+     * Returns the live-docs bitset for the given segment generation, or {@code null} if all
+     * rows in that segment are alive. Convenience delegate to {@link LiveDocs#packedBits(long)}.
+     */
+    public long[] getLiveDocsForSegment(long generation) {
+        return liveDocs.packedBits(generation);
     }
 
     /**
@@ -45,31 +70,32 @@ public record MergeInput(List<WriterFileSet> writerFiles, RowIdMapping rowIdMapp
      */
     @ExperimentalApi
     public static class Builder {
-        private List<WriterFileSet> fileMetadataList = new ArrayList<>();
+        private List<Segment> segments = new ArrayList<>();
         private RowIdMapping rowIdMapping;
         private long newWriterGeneration;
+        private LiveDocs liveDocs = LiveDocs.ALL_ALIVE;
 
         private Builder() {}
 
         /**
-         * Sets the list of writer file sets to merge.
+         * Sets the list of segments to merge.
          *
-         * @param fileMetadataList the writer file sets
+         * @param segments the segments to merge
          * @return this builder
          */
-        public Builder fileMetadataList(List<WriterFileSet> fileMetadataList) {
-            this.fileMetadataList = new ArrayList<>(fileMetadataList);
+        public Builder segments(List<Segment> segments) {
+            this.segments = new ArrayList<>(segments);
             return this;
         }
 
         /**
-         * Adds a writer file set to merge.
+         * Adds a segment to merge.
          *
-         * @param writerFileSet the writer file set to add
+         * @param segment the segment to add
          * @return this builder
          */
-        public Builder addFileMetadata(WriterFileSet writerFileSet) {
-            this.fileMetadataList.add(writerFileSet);
+        public Builder addSegment(Segment segment) {
+            this.segments.add(segment);
             return this;
         }
 
@@ -92,6 +118,17 @@ public record MergeInput(List<WriterFileSet> writerFiles, RowIdMapping rowIdMapp
          */
         public Builder newWriterGeneration(long newWriterGeneration) {
             this.newWriterGeneration = newWriterGeneration;
+            return this;
+        }
+
+        /**
+         * Sets the live-docs for delete filtering during merge.
+         *
+         * @param liveDocs the live-docs instance
+         * @return this builder
+         */
+        public Builder liveDocs(LiveDocs liveDocs) {
+            this.liveDocs = Objects.requireNonNull(liveDocs, "liveDocs must not be null; use LiveDocs.ALL_ALIVE");
             return this;
         }
 

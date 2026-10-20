@@ -1,0 +1,1 @@
+source = clickbench | where AdvEngineID!=0 | stats count()

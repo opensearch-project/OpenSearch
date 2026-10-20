@@ -1,0 +1,1 @@
+source=test_data | eval str_val = tostring(value), num_val = tonumber("123") | fields value, str_val, num_val | head 3

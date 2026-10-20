@@ -1,0 +1,1 @@
+source = big5 | where `aws.cloudwatch.log_stream` = 'indigodagger' or (`metrics.size` >= 10 and `metrics.size` <= 20) | head 10

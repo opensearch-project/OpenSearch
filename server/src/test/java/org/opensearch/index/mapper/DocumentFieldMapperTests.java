@@ -105,6 +105,9 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         protected void parseCreateField(ParseContext context) {}
 
         @Override
+        protected void parseCreateFieldForPluggableFormat(ParseContext context) {}
+
+        @Override
         protected String contentType() {
             return null;
         }

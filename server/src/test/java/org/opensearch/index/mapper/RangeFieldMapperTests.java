@@ -37,6 +37,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.network.InetAddresses;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
@@ -453,5 +454,9 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             final Mapping mapping = mapper.mapping();
             mapper.merge(mapping, MergeReason.MAPPING_UPDATE);
         }
+    }
+
+    private Settings pluggableSettings() {
+        return Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
     }
 }

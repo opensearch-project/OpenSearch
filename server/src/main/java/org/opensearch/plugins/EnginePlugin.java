@@ -32,11 +32,16 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.AdditionalCodecs;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceFactory;
+import org.opensearch.index.engine.DefaultPrimaryOperationPolicy;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.PrimaryOperationPolicy;
+import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
@@ -114,6 +119,35 @@ public interface EnginePlugin {
      * @return a function that returns an instance of {@link TranslogDeletionPolicy}
      */
     default Optional<TranslogDeletionPolicyFactory> getCustomTranslogDeletionPolicyFactory() {
+        return Optional.empty();
+    }
+
+    /**
+     * When an index is created this method is invoked for each engine plugin. Engine plugins can inspect the settings to determine
+     * whether or not to provide a {@link Committer} for the given index. A plugin that does not provide a Committer should return
+     * {@link Optional#empty()}.
+     *
+     * @param indexSettings index settings to detect whether a committer should be passed or not.
+     * @return an optional committer factory
+     */
+    @ExperimentalApi
+    default Optional<CommitterFactory> getCommitterFactory(IndexSettings indexSettings) {
+        return Optional.empty();
+    }
+
+    /**
+     * Invoked for each engine plugin every time an engine is built for a shard. Engine plugins can inspect the index settings to determine
+     * whether the index's writable primary should use a non-default indexing/sequence-number policy, for example a replication follower
+     * whose sequence numbers are assigned by an upstream leader rather than generated locally. A plugin that does not override the policy
+     * should return {@link Optional#empty()}, in which case {@link DefaultPrimaryOperationPolicy} is used.
+     * <p>
+     * Only one of the installed engine plugins can override this, otherwise {@link IllegalStateException} will be thrown.
+     *
+     * @param indexSettings the settings of the index whose engine is being built, so a plugin can key off its own marker setting
+     * @return an optional PrimaryOperationPolicy
+     */
+    @ExperimentalApi
+    default Optional<PrimaryOperationPolicy> getPrimaryOperationPolicy(IndexSettings indexSettings) {
         return Optional.empty();
     }
 }

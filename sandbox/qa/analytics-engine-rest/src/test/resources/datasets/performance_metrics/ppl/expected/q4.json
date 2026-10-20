@@ -1,0 +1,30 @@
+{
+  "schema": [
+    {
+      "name": "avg_cpu",
+      "type": "double"
+    },
+    {
+      "name": "avg_memory",
+      "type": "double"
+    },
+    {
+      "name": "metrics_count",
+      "type": "bigint"
+    },
+    {
+      "name": "region",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      52.01,
+      60.68,
+      100,
+      null
+    ]
+  ],
+  "total": 1,
+  "size": 1
+}

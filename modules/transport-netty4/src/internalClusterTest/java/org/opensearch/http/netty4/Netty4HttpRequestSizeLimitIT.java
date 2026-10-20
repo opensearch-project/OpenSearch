@@ -76,6 +76,7 @@ public class Netty4HttpRequestSizeLimitIT extends OpenSearchNetty4IntegTestCase 
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), LIMIT)
+            .put(Netty4HttpServerTransport.SETTING_HTTP_PIPELINE_DEPTH.getKey(), 1500)
             .build();
     }
 
@@ -94,7 +95,7 @@ public class Netty4HttpRequestSizeLimitIT extends OpenSearchNetty4IntegTestCase 
         }
 
         List<Tuple<String, CharSequence>> requests = new ArrayList<>();
-        for (int i = 0; i < 150; i++) {
+        for (int i = 0; i < 1500; i++) {
             requests.add(Tuple.tuple("/index/_bulk", bulkRequest));
         }
 
@@ -125,14 +126,14 @@ public class Netty4HttpRequestSizeLimitIT extends OpenSearchNetty4IntegTestCase 
 
         List<Tuple<String, CharSequence>> requestUris = new ArrayList<>();
         for (int i = 0; i < 1500; i++) {
-            requestUris.add(Tuple.tuple("/_cluster/settings", "{ \"transient\": {\"search.default_search_timeout\": \"40s\" } }"));
+            requestUris.add(Tuple.tuple("/_cache/clear", "{}"));
         }
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
         try (Netty4HttpClient nettyHttpClient = Netty4HttpClient.http()) {
-            Collection<FullHttpResponse> responses = nettyHttpClient.put(transportAddress.address(), requestUris);
+            Collection<FullHttpResponse> responses = nettyHttpClient.post(transportAddress.address(), requestUris);
             try {
                 assertThat(responses, hasSize(requestUris.size()));
                 assertAllInExpectedStatus(responses, HttpResponseStatus.OK);

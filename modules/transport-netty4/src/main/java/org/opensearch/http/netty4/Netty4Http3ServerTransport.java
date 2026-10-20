@@ -28,6 +28,7 @@ import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpHandlingSettings;
 import org.opensearch.http.HttpReadTimeoutException;
 import org.opensearch.http.HttpServerChannel;
+import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.netty4.http3.SecureQuicTokenHandler;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider.SecureHttpTransportParameters;
@@ -37,6 +38,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.NettyAllocator;
 import org.opensearch.transport.NettyByteBufSizer;
 import org.opensearch.transport.SharedGroupFactory;
+import org.opensearch.transport.TransportAdapterProvider;
 import org.opensearch.transport.netty4.Netty4Utils;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -47,6 +49,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
@@ -69,9 +72,11 @@ import io.netty.handler.codec.compression.ZstdEncoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http3.DefaultHttp3SettingsFrame;
 import io.netty.handler.codec.http3.Http3;
 import io.netty.handler.codec.http3.Http3FrameToHttpObjectCodec;
 import io.netty.handler.codec.http3.Http3ServerConnectionHandler;
+import io.netty.handler.codec.http3.Http3Settings;
 import io.netty.handler.codec.quic.QuicChannel;
 import io.netty.handler.codec.quic.QuicSslContext;
 import io.netty.handler.codec.quic.QuicSslContextBuilder;
@@ -141,6 +146,8 @@ public class Netty4Http3ServerTransport extends AbstractHttpServerTransport {
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
     private final SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider;
     private final TransportExceptionHandler exceptionHandler;
+    private final TransportAdapterProvider<HttpServerTransport> decompressorProvider;
+    private final ChannelInboundHandlerAdapter headerVerifier;
 
     /**
      * Creates new HTTP transport implementations based on Netty 4
@@ -196,6 +203,41 @@ public class Netty4Http3ServerTransport extends AbstractHttpServerTransport {
             receivePredictor,
             maxCompositeBufferComponents
         );
+
+        final List<ChannelInboundHandlerAdapter> headerVerifiers = secureHttpTransportSettingsProvider.getHttpTransportAdapterProviders(
+            settings
+        )
+            .stream()
+            .filter(p -> SecureHttpTransportSettingsProvider.REQUEST_HEADER_VERIFIER.equalsIgnoreCase(p.name()))
+            .map(p -> p.create(settings, this, ChannelInboundHandlerAdapter.class))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
+
+        if (headerVerifiers.size() > 1) {
+            throw new IllegalArgumentException("Cannot have more than one header verifier configured, supplied " + headerVerifiers.size());
+        }
+
+        final Optional<TransportAdapterProvider<HttpServerTransport>> decompressorProviderOpt = secureHttpTransportSettingsProvider
+            .getHttpTransportAdapterProviders(settings)
+            .stream()
+            .filter(p -> SecureHttpTransportSettingsProvider.REQUEST_DECOMPRESSOR.equalsIgnoreCase(p.name()))
+            .findFirst();
+        // There could be multiple request decompressor providers configured, using the first one
+        decompressorProviderOpt.ifPresent(p -> logger.debug("Using request decompressor provider: {}", p));
+
+        this.headerVerifier = headerVerifiers.isEmpty() ? null : headerVerifiers.get(0);
+        this.decompressorProvider = decompressorProviderOpt.orElseGet(() -> new TransportAdapterProvider<HttpServerTransport>() {
+            @Override
+            public String name() {
+                return SecureHttpTransportSettingsProvider.REQUEST_DECOMPRESSOR;
+            }
+
+            @Override
+            public <C> Optional<C> create(Settings settings, HttpServerTransport transport, Class<C> adapterClass) {
+                return Optional.empty();
+            }
+        });
     }
 
     public Settings settings() {
@@ -284,6 +326,9 @@ public class Netty4Http3ServerTransport extends AbstractHttpServerTransport {
                     io.netty.handler.codec.http3.Http3.supportedApplicationProtocols()
                 ).build();
 
+                final Http3Settings http3Settings = new Http3Settings();
+                http3Settings.maxFieldSectionSize(maxHeaderSize.getBytes());
+
                 ch.pipeline().addLast(Http3.newQuicServerCodecBuilder().sslEngineProvider(q -> {
                     final QuicSslEngine engine = sslContext.newEngine(q.alloc());
                     q.attr(HTTP_SERVER_ENGINE_KEY).set(engine);
@@ -302,7 +347,11 @@ public class Netty4Http3ServerTransport extends AbstractHttpServerTransport {
                             ch.pipeline()
                                 .addLast(
                                     new Http3ServerConnectionHandler(
-                                        new HttpChannelHandler(Netty4Http3ServerTransport.this, handlingSettings)
+                                        new HttpChannelHandler(Netty4Http3ServerTransport.this, handlingSettings),
+                                        null,
+                                        null,
+                                        new DefaultHttp3SettingsFrame(http3Settings),
+                                        true
                                     )
                                 );
                         }
@@ -405,8 +454,11 @@ public class Netty4Http3ServerTransport extends AbstractHttpServerTransport {
      * Extension point that allows a NetworkPlugin to extend the netty pipeline and inspect headers after request decoding
      */
     protected ChannelInboundHandlerAdapter createHeaderVerifier() {
-        // pass-through
-        return new ChannelInboundHandlerAdapter();
+        if (headerVerifier != null) {
+            return headerVerifier;
+        } else {
+            return new ChannelInboundHandlerAdapter();
+        }
     }
 
     /**
@@ -415,7 +467,7 @@ public class Netty4Http3ServerTransport extends AbstractHttpServerTransport {
      * Used in instances to conditionally decompress depending on the outcome from header verification
      */
     protected ChannelInboundHandlerAdapter createDecompressor() {
-        return new HttpContentDecompressor();
+        return decompressorProvider.create(settings, this, ChannelInboundHandlerAdapter.class).orElseGet(HttpContentDecompressor::new);
     }
 
     /**

@@ -35,12 +35,16 @@ package org.opensearch.index.mapper.size;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MapperServiceTestCase.CapturingDocumentInput;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.plugin.mapper.MapperSizePlugin;
@@ -56,7 +60,12 @@ import static org.hamcrest.Matchers.nullValue;
 public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(MapperSizePlugin.class, InternalSettingsPlugin.class);
+        return pluginList(
+            MapperSizePlugin.class,
+            InternalSettingsPlugin.class,
+            MockDataFormatPlugin.class,
+            MockCommitterEnginePlugin.class
+        );
     }
 
     public void testSizeEnabled() throws Exception {
@@ -116,4 +125,33 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
         assertThat(docMapper.metadataMapper(SizeFieldMapper.class).enabled(), is(false));
     }
 
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testSizeFieldMapperPluggableFormat() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_size")
+            .field("enabled", true)
+            .endObject()
+            .endObject()
+            .toString();
+        Settings settings = Settings.builder().put("index.pluggable.dataformat.enabled", true).build();
+        IndexService service = createIndex("test", settings);
+        DocumentMapper docMapper = service.mapperService()
+            .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        docMapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()),
+                MediaTypeRegistry.JSON
+            ),
+            docInput
+        );
+
+        // SizeFieldMapper.postParse adds the source length via documentInput when pluggable format is enabled
+        boolean found = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("_size"));
+        assertTrue("Expected _size field captured via postParse pluggable format path", found);
+    }
 }

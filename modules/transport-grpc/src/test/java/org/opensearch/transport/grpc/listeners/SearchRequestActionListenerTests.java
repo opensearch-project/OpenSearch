@@ -12,6 +12,8 @@ import org.opensearch.action.search.SearchResponseSections;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.AggregateProtoConverterRegistryImpl;
+import org.opensearch.transport.grpc.spi.AggregateProtoConverterRegistry;
 
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
@@ -28,13 +30,14 @@ public class SearchRequestActionListenerTests extends OpenSearchTestCase {
     @Mock
     private StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver;
 
+    private final AggregateProtoConverterRegistry aggregateRegistry = new AggregateProtoConverterRegistryImpl();
     private SearchRequestActionListener listener;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         MockitoAnnotations.openMocks(this);
-        listener = new SearchRequestActionListener(responseObserver);
+        listener = new SearchRequestActionListener(responseObserver, aggregateRegistry);
     }
 
     public void testOnResponse() {
@@ -65,7 +68,7 @@ public class SearchRequestActionListenerTests extends OpenSearchTestCase {
         StreamObserver<org.opensearch.protobufs.SearchResponse> mockResponseObserver = mock(StreamObserver.class);
 
         // Create a SearchRequestActionListener
-        SearchRequestActionListener listener = new SearchRequestActionListener(mockResponseObserver);
+        SearchRequestActionListener listener = new SearchRequestActionListener(mockResponseObserver, aggregateRegistry);
 
         // Create an exception
         Exception exception = new Exception("Test exception");

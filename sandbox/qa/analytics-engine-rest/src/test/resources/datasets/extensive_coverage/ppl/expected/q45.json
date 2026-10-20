@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "status",
+      "type": "string"
+    },
+    {
+      "name": "null_check",
+      "type": "boolean"
+    },
+    {
+      "name": "not_null",
+      "type": "boolean"
+    }
+  ],
+  "datarows": [
+    [
+      "active",
+      false,
+      true
+    ],
+    [
+      "inactive",
+      false,
+      true
+    ],
+    [
+      "active",
+      false,
+      true
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

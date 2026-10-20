@@ -195,7 +195,7 @@ public class RestActions {
     }
 
     /**
-     * Automatically transform the {@link ToXContent}-compatible, nodes-level {@code response} into a a {@link BytesRestResponse}.
+     * Automatically transform the {@link ToXContent}-compatible, nodes-level {@code response} into a {@link BytesRestResponse}.
      * <p>
      * This looks like:
      * <code>

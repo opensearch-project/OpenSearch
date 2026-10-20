@@ -13,6 +13,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
@@ -44,7 +45,15 @@ public class BaseRemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     protected SegmentInfos segmentInfos;
     protected ThreadPool threadPool;
 
-    protected String metadataFilename = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(12, 23, 34, 1, 1, "node-1");
+    protected String metadataFilename = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+        12,
+        23,
+        34,
+        1,
+        1,
+        "node-1",
+        0L
+    );
 
     protected String metadataFilenameDup = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
         12,
@@ -52,11 +61,36 @@ public class BaseRemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         34,
         2,
         1,
-        "node-2"
+        "node-2",
+        0L
     );
-    protected String metadataFilename2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(12, 13, 34, 1, 1, "node-1");
-    protected String metadataFilename3 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(10, 38, 34, 1, 1, "node-1");
-    protected String metadataFilename4 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(10, 36, 34, 1, 1, "node-1");
+    protected String metadataFilename2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+        12,
+        13,
+        34,
+        1,
+        1,
+        "node-1",
+        0L
+    );
+    protected String metadataFilename3 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+        10,
+        38,
+        34,
+        1,
+        1,
+        "node-1",
+        0L
+    );
+    protected String metadataFilename4 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+        10,
+        36,
+        34,
+        1,
+        1,
+        "node-1",
+        0L
+    );
 
     public void setupRemoteSegmentStoreDirectory() throws IOException {
         remoteDataDirectory = mock(RemoteDirectory.class);
@@ -71,7 +105,7 @@ public class BaseRemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             .build();
         ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
 
-        indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
+        indexShard = newStartedShard(false, indexSettings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
         remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
             remoteDataDirectory,
             remoteMetadataDirectory,

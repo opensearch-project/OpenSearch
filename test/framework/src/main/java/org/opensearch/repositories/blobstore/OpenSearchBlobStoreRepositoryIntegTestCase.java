@@ -124,6 +124,8 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
     }
 
     public void testReadNonExistingPath() throws IOException {
+        ensureGreen();
+
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(new BlobPath());
             expectThrows(NoSuchFileException.class, () -> {
@@ -135,6 +137,8 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
     }
 
     public void testWriteRead() throws IOException {
+        ensureGreen();
+
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(new BlobPath());
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
@@ -164,6 +168,8 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
     }
 
     public void testReadRange() throws IOException {
+        ensureGreen();
+
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(new BlobPath());
             final byte[] data = randomBytes(4096);
@@ -185,6 +191,8 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
     }
 
     public void testList() throws IOException {
+        ensureGreen();
+
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(new BlobPath());
             assertThat(container.listBlobs().size(), CoreMatchers.equalTo(0));
@@ -225,6 +233,8 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
     }
 
     public void testDeleteBlobs() throws IOException {
+        ensureGreen();
+
         try (BlobStore store = newBlobStore()) {
             final List<String> blobNames = Arrays.asList("foobar", "barfoo");
             final BlobContainer container = store.blobContainer(new BlobPath());
@@ -257,6 +267,8 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
     }
 
     public void testContainerCreationAndDeletion() throws IOException {
+        ensureGreen();
+
         try (BlobStore store = newBlobStore()) {
             final BlobContainer containerFoo = store.blobContainer(new BlobPath().add("foo"));
             final BlobContainer containerBar = store.blobContainer(new BlobPath().add("bar"));
@@ -315,6 +327,8 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
     }
 
     public void testSnapshotAndRestore() throws Exception {
+        ensureGreen();
+
         final String repoName = createRepository(randomName());
         int indexCount = randomIntBetween(1, 5);
         int[] docCounts = new int[indexCount];
@@ -391,6 +405,8 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
     }
 
     public void testMultipleSnapshotAndRollback() throws Exception {
+        ensureGreen();
+
         final String repoName = createRepository(randomName());
         int iterationCount = randomIntBetween(2, 5);
         int[] docCounts = new int[iterationCount];
@@ -455,6 +471,8 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
     }
 
     public void testIndicesDeletedFromRepository() throws Exception {
+        ensureGreen();
+
         final String repoName = createRepository("test-repo-" + randomAlphaOfLength(8));
         Client client = client();
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");

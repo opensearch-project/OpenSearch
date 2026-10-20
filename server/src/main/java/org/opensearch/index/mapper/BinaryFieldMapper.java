@@ -101,13 +101,13 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
-            return new BinaryFieldMapper(
-                name,
-                new BinaryFieldType(buildFullName(context), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
-                multiFieldsBuilder.build(this, context),
-                copyTo.build(),
-                this
+            final BinaryFieldType bft = new BinaryFieldType(
+                buildFullName(context),
+                stored.getValue(),
+                hasDocValues.getValue(),
+                meta.getValue()
             );
+            return new BinaryFieldMapper(name, bft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -194,14 +194,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         if (stored == false && hasDocValues == false) {
             return;
         }
-        byte[] value = context.parseExternalValue(byte[].class);
-        if (value == null) {
-            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-                return;
-            } else {
-                value = context.parser().binaryValue();
-            }
-        }
+        byte[] value = parseBinaryValue(context);
         if (value == null) {
             return;
         }
@@ -226,6 +219,27 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        byte[] value = parseBinaryValue(context);
+        if (value == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), value);
+    }
+
+    private byte[] parseBinaryValue(ParseContext context) throws IOException {
+        byte[] value = context.parseExternalValue(byte[].class);
+        if (value == null) {
+            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+                return null;
+            } else {
+                value = context.parser().binaryValue();
+            }
+        }
+        return value;
+    }
+
+    @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new BinaryFieldMapper.Builder(simpleName()).init(this);
     }
@@ -233,6 +247,21 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    protected void canDeriveSourceInternal() {
+        checkStoredForDerivedSource();
+    }
+
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(mappedFieldType, null, new StoredFieldFetcher(mappedFieldType, simpleName())) {
+            @Override
+            public FieldValueType getDerivedFieldPreference() {
+                return FieldValueType.STORED;
+            }
+        };
     }
 
     /**

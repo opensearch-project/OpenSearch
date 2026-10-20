@@ -79,5 +79,4 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
         assertEquals(IndexOptions.NONE, field.fieldType().indexOptions());
         assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
     }
-
 }

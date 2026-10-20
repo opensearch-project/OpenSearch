@@ -67,6 +67,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -573,14 +574,13 @@ public class MetadataUpdateSettingsService {
             return;
         }
 
-        // Check if remote store is enabled
-        boolean isRemoteStoreEnabled = clusterService.state()
-            .nodes()
-            .getNodes()
-            .values()
-            .stream()
-            .allMatch(DiscoveryNode::isRemoteStoreNode);
-        if (!isRemoteStoreEnabled) {
+        // Remote store is enabled only when there is at least one node and every node has a remote segment store
+        // (allMatch is vacuously true on an empty node set, which must not count as remote-store enabled). Balancing
+        // primaries is a placement concern, so it only requires the segments to be remote backed; isRemoteStoreNode()
+        // would additionally demand a cluster state repository, which segments_only nodes never configure.
+        Collection<DiscoveryNode> nodes = clusterService.state().nodes().getNodes().values();
+        boolean isRemoteSegmentStoreEnabled = !nodes.isEmpty() && nodes.stream().allMatch(DiscoveryNode::isRemoteSegmentStoreNode);
+        if (!isRemoteSegmentStoreEnabled) {
             throw new IllegalArgumentException(
                 "Setting ["
                     + INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey()

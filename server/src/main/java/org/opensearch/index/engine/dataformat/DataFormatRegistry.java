@@ -8,21 +8,31 @@
 
 package org.opensearch.index.engine.dataformat;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
+import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.ParametrizedFieldMapper;
+import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -37,10 +47,18 @@ public class DataFormatRegistry {
     /** Map from data format to the plugin that provides its indexing engine. */
     private final Map<DataFormat, DataFormatPlugin> dataFormatPluginRegistry;
 
-    /** Map from data format to a factory that creates an {@link EngineReaderManager} for a given shard path. */
-    private final Map<DataFormat, CheckedFunction<ShardPath, EngineReaderManager<?>, IOException>> readerManagerBuilders;
+    /** Map from data format to a factory that creates an {@link EngineReaderManager} for the given settings. */
+    private final Map<DataFormat, CheckedFunction<ReaderManagerConfig, EngineReaderManager<?>, IOException>> readerManagerBuilders;
 
     private final Map<String, DataFormat> dataFormats;
+
+    /** The single registered document lookup provider (engine-backed get-by-id execution), or {@code null} if none. */
+    private final DocumentLookupProvider documentLookupProvider;
+
+    /** The single registered document metadata resolver (id-to-row-location), or {@link DocumentMetadataResolver#NOOP} if none. */
+    private final DocumentMetadataResolver documentMetadataResolver;
+
+    private static final Logger logger = LogManager.getLogger(DataFormatRegistry.class);
 
     /**
      * Creates a registry by discovering all {@link DataFormatPlugin} and {@link SearchBackEndPlugin} implementations
@@ -52,7 +70,7 @@ public class DataFormatRegistry {
      */
     public DataFormatRegistry(PluginsService pluginsService) {
         Map<DataFormat, DataFormatPlugin> dataFormatPlugiRegistry = new HashMap<>();
-        Map<DataFormat, CheckedFunction<ShardPath, EngineReaderManager<?>, IOException>> readerManagerBuilders = new HashMap<>();
+        Map<DataFormat, CheckedFunction<ReaderManagerConfig, EngineReaderManager<?>, IOException>> readerManagerBuilders = new HashMap<>();
         Map<String, DataFormat> dataFormats = new HashMap<>();
 
         for (DataFormatPlugin plugin : pluginsService.filterPlugins(DataFormatPlugin.class)) {
@@ -65,48 +83,111 @@ public class DataFormatRegistry {
         }
 
         for (SearchBackEndPlugin<?> plugin : pluginsService.filterPlugins(SearchBackEndPlugin.class)) {
-            for (DataFormat format : plugin.getSupportedFormats()) {
-                // TODO: use mapperService and indexSettings to filter formats relevant to this index
-                readerManagerBuilders.put(format, shardPath -> plugin.createReaderManager(format, shardPath));
+            for (String formatName : plugin.getSupportedFormats()) {
+                DataFormat format = dataFormats.get(formatName);
+                if (format != null) {
+                    readerManagerBuilders.put(format, settings -> plugin.createReaderManager(settings));
+                }
             }
-        }
-
-        if (!readerManagerBuilders.keySet().equals(dataFormatPlugiRegistry.keySet())) {
-            throw new IllegalStateException(
-                "Cannot build registry as data formats have missing indexing engine/reader managers"
-                    + " - formats with reader managers: "
-                    + readerManagerBuilders.keySet()
-                    + ", formats with plugins: "
-                    + dataFormatPlugiRegistry.keySet()
-            );
         }
 
         this.dataFormatPluginRegistry = Map.copyOf(dataFormatPlugiRegistry);
         this.dataFormats = Map.copyOf(dataFormats);
         this.readerManagerBuilders = Map.copyOf(readerManagerBuilders);
+
+        List<DocumentLookupProvider> lookupProviders = pluginsService.filterPlugins(DocumentLookupProvider.class);
+        if (lookupProviders.size() > 1) {
+            throw new IllegalStateException("multiple DocumentLookupProvider implementations registered: " + lookupProviders);
+        }
+        this.documentLookupProvider = lookupProviders.isEmpty() ? null : lookupProviders.getFirst();
+
+        List<DocumentMetadataResolver> resolvers = pluginsService.filterPlugins(DocumentMetadataResolver.class);
+        if (resolvers.size() > 1) {
+            throw new IllegalStateException("multiple DocumentMetadataResolver implementations registered: " + resolvers);
+        }
+        this.documentMetadataResolver = resolvers.isEmpty() ? DocumentMetadataResolver.NOOP : resolvers.getFirst();
+    }
+
+    /**
+     * Returns the single registered {@link DocumentLookupProvider} that backs the engine's
+     * get-by-id / version-resolution path, or {@code null} when no provider is registered.
+     *
+     * @return the document lookup provider, or null
+     */
+    public DocumentLookupProvider getDocumentLookupProvider() {
+        return documentLookupProvider;
+    }
+
+    /**
+     * Returns the single registered {@link DocumentMetadataResolver} that maps an {@code _id}
+     * to its row location, or {@link DocumentMetadataResolver#NOOP} when none is registered.
+     *
+     * @return the document metadata resolver (never null)
+     */
+    public DocumentMetadataResolver getDocumentMetadataResolver() {
+        return documentMetadataResolver;
     }
 
     /**
      * Creates an {@link IndexingExecutionEngine} for the given data format.
      *
+     * @param settings the engine initialization settings
      * @param format the data format
-     * @param mapperService the mapper service for field mapping resolution
-     * @param shardPath the shard path for file storage
-     * @param indexSettings the index settings
      * @return the indexing execution engine
      * @throws IllegalArgumentException if the data format is not registered
      */
-    public IndexingExecutionEngine<?, ?> getIndexingEngine(
-        DataFormat format,
-        MapperService mapperService,
-        ShardPath shardPath,
-        IndexSettings indexSettings
-    ) {
+    public IndexingExecutionEngine<?, ?> getIndexingEngine(IndexingEngineConfig settings, DataFormat format) {
         DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
         if (plugin == null) {
             throw new IllegalArgumentException("No plugin registered for DataFormat [" + format.name() + "]");
         }
-        return plugin.indexingEngine(mapperService, shardPath, indexSettings);
+        return plugin.indexingEngine(settings);
+    }
+
+    /**
+     * Returns the plugin-contributed parameters applicable to the given content type, scoped to the data format the
+     * given index actually uses. Resolves the active data format from {@code indexSettings} via the
+     * {@code pluggable_dataformat} setting and delegates to that single plugin; composite plugins fan out to their
+     * primary and secondary formats. Returns an empty list when no pluggable data format is configured.
+     *
+     * @param contentType   the core field content type (e.g. {@code keyword}, {@code text})
+     * @param indexSettings the index settings used to determine the active data format
+     */
+    public List<ParametrizedFieldMapper.Parameter<?>> getPluginMappingParameters(String contentType, IndexSettings indexSettings) {
+        String dataformatName = indexSettings.pluggableDataFormat();
+        if (dataformatName != null && dataformatName.isEmpty() == false) {
+            DataFormat format = dataFormats.get(dataformatName);
+            if (format != null) {
+                DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
+                if (plugin != null) {
+                    List<ParametrizedFieldMapper.Parameter<?>> params = plugin.getPluginMappingParameters(contentType, indexSettings, this);
+                    return params == null ? List.of() : List.copyOf(params);
+                }
+            }
+        }
+        return List.of();
+    }
+
+    /**
+     * Returns the plugin-contributed parameters for a specific data format, bypassing the {@code pluggable_dataformat}
+     * index setting lookup. Used by composite plugins to resolve child-format parameters without recursion.
+     *
+     * @param contentType   the core field content type (e.g. {@code keyword}, {@code text})
+     * @param indexSettings the index settings
+     * @param dataFormat    the specific data format to get parameters for
+     * @return the parameters contributed by the plugin for {@code dataFormat}, or an empty list if not registered
+     */
+    public List<ParametrizedFieldMapper.Parameter<?>> getPluginMappingParameters(
+        String contentType,
+        IndexSettings indexSettings,
+        DataFormat dataFormat
+    ) {
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(dataFormat);
+        if (plugin == null) {
+            return List.of();
+        }
+        List<ParametrizedFieldMapper.Parameter<?>> params = plugin.getPluginMappingParameters(contentType, indexSettings, this);
+        return params == null ? List.of() : params;
     }
 
     public DataFormat format(String name) {
@@ -115,6 +196,22 @@ public class DataFormatRegistry {
             throw new IllegalArgumentException("No data format registered with name [" + name + "]");
         }
         return format;
+    }
+
+    /**
+     * Returns the plugin registered for the given format name, or {@code null} if not found.
+     * Used by composite plugins to look up sub-format plugins directly without going through
+     * the registry's top-level methods (which would cause infinite recursion).
+     *
+     * @param formatName the data format name (e.g., "parquet", "lucene")
+     * @return the plugin, or null if no plugin is registered for the format
+     */
+    public DataFormatPlugin getPlugin(String formatName) {
+        if (formatName == null) {
+            return null;
+        }
+        DataFormat format = dataFormats.get(formatName);
+        return format != null ? dataFormatPluginRegistry.get(format) : null;
     }
 
     /**
@@ -139,34 +236,204 @@ public class DataFormatRegistry {
     /**
      * Returns an unmodifiable view of all registered data formats and their plugins.
      *
-     * @return unmodifiable map of data formats to plugins
+     * @return unmodifiable set of data formats
      */
     public Set<DataFormat> getRegisteredFormats() {
         return Set.copyOf(dataFormatPluginRegistry.keySet());
     }
 
     /**
+     * Returns all {@link StoreStrategy} instances that apply to the active
+     * data format of the given index, keyed by the format name the strategy
+     * applies to.
+     *
+     * <p>Called once per shard at open time. The store layer uses the returned
+     * strategies to construct per-shard native file registries, seed them from
+     * remote metadata, and route directory events.
+     *
+     * @param indexSettings the index settings for this shard
+     * @return the map of applicable strategies, or an empty map when no
+     *         pluggable data format is configured or the configured format
+     *         does not participate in the tiered store
+     */
+    public Map<DataFormat, StoreStrategy> getStoreStrategies(IndexSettings indexSettings) {
+        String dataformatName = indexSettings.pluggableDataFormat();
+        if (dataformatName != null && dataformatName.isEmpty() == false) {
+            DataFormat format = dataFormats.get(dataformatName);
+            if (format != null) {
+                DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
+                if (plugin != null) {
+                    Map<DataFormat, StoreStrategy> strategies = plugin.getStoreStrategies(indexSettings, this);
+                    return strategies == null ? Map.of() : Map.copyOf(strategies);
+                }
+            }
+        }
+        return Map.of();
+    }
+
+    /**
+     * Assigns the capability map on the given field type by delegating to the configured data formats.
+     * Each format in priority order claims the capabilities it supports for the field type.
+     * If any requested capability remains unclaimed, a {@link org.opensearch.index.mapper.MapperParsingException} is thrown.
+     *
+     * @param fieldType the field type to assign capabilities to
+     * @param indexSettings the index settings used to resolve the active plugin
+     */
+    public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings) {
+        assignCapabilities(fieldType, indexSettings, FieldScope.ROOT);
+    }
+
+    /**
+     * Assigns the capability map on the given field type by delegating to the configured data formats,
+     * additionally indicating whether the field is declared directly inside a {@code nested} object's
+     * scope — passed through to the plugin so a composite plugin can restrict which of its sub-formats
+     * may claim capabilities there (see {@link DataFormatPlugin#assignCapabilities(MappedFieldType,
+     * IndexSettings, DataFormatRegistry, FieldScope)}).
+     *
+     * @param fieldType the field type to assign capabilities to
+     * @param indexSettings the index settings used to resolve the active plugin
+     * @param fieldScope the field's mapping scope
+     */
+    public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, FieldScope fieldScope) {
+        String dataformatName = indexSettings.pluggableDataFormat();
+        if (dataformatName == null || dataformatName.isEmpty()) {
+            fieldType.setCapabilityMap(Map.of());
+            return;
+        }
+        DataFormat format = dataFormats.get(dataformatName);
+        if (format == null) {
+            fieldType.setCapabilityMap(Map.of());
+            return;
+        }
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
+        if (plugin == null) {
+            fieldType.setCapabilityMap(Map.of());
+            return;
+        }
+        plugin.assignCapabilities(fieldType, indexSettings, this, fieldScope);
+    }
+
+    /**
+     * Returns store strategies for a specific data format, bypassing the
+     * {@code pluggable_dataformat} index setting lookup. Used by composite
+     * plugins to resolve child strategies without recursion.
+     *
+     * @param indexSettings the index settings
+     * @param dataFormat    the specific data format to get strategies for
+     * @return map of data format to strategy, or empty map if the format is not registered
+     */
+    public Map<DataFormat, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormat dataFormat) {
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(dataFormat);
+        if (plugin == null) {
+            return Map.of();
+        }
+        Map<DataFormat, StoreStrategy> strategies = plugin.getStoreStrategies(indexSettings, this);
+        return strategies == null ? Map.of() : strategies;
+    }
+
+    /**
+     * Returns format descriptor suppliers for the active data format of the given index.
+     * Resolves the data format from index settings via the {@code pluggable_dataformat} setting,
+     * then delegates to {@link DataFormatPlugin#getFormatDescriptors(IndexSettings, DataFormatRegistry)}.
+     * Callers that only need format names can use {@code keySet()} without triggering descriptor creation.
+     *
+     * @param indexSettings the index settings used to determine the active data format
+     * @return map of format name to descriptor supplier, or empty map if no pluggable data format is configured
+     */
+    public Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(IndexSettings indexSettings) {
+        String dataformatName = indexSettings.pluggableDataFormat();
+        if (dataformatName != null && dataformatName.isEmpty() == false) {
+            DataFormat format = dataFormats.get(dataformatName);
+            if (format != null) {
+                DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
+                if (plugin != null) {
+                    return plugin.getFormatDescriptors(indexSettings, this);
+                }
+            }
+        }
+        return Map.of();
+    }
+
+    /**
+     * Returns format descriptor suppliers for a specific data format, bypassing the
+     * {@code pluggable_dataformat} index setting lookup. This is used by composite
+     * plugins to resolve child format descriptors without recursion.
+     *
+     * @param indexSettings the index settings
+     * @param dataFormat the specific data format to get descriptors for
+     * @return map of format name to descriptor supplier, or empty map if the format is not registered
+     */
+    public Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(IndexSettings indexSettings, DataFormat dataFormat) {
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(dataFormat);
+        if (plugin == null) {
+            return Map.of();
+        }
+        return plugin.getFormatDescriptors(indexSettings, this);
+    }
+
+    /**
+     * Creates checksum strategies for all formats of the given index, intended to be called
+     * once per shard during initialization. The returned map should be shared between the
+     * directory and the engine so that pre-computed checksums registered during write are
+     * visible to the upload path.
+     *
+     * @param indexSettings the index settings used to determine the active data format
+     * @return unmodifiable map of format name to checksum strategy
+     */
+    public Map<String, FormatChecksumStrategy> createChecksumStrategies(IndexSettings indexSettings) {
+        Map<String, Supplier<DataFormatDescriptor>> descriptors = getFormatDescriptors(indexSettings);
+        Map<String, FormatChecksumStrategy> strategies = new HashMap<>();
+        for (Map.Entry<String, Supplier<DataFormatDescriptor>> entry : descriptors.entrySet()) {
+            FormatChecksumStrategy strategy = entry.getValue().get().getChecksumStrategy();
+            if (strategy != null) {
+                strategies.put(entry.getKey(), strategy);
+            }
+        }
+        return Collections.unmodifiableMap(strategies);
+    }
+
+    /**
      * Creates {@link EngineReaderManager} instances for all applicable data formats based on index settings/mappings.
-     * Each reader manager is instantiated by applying the shard path to the factory registered
+     * Each reader manager is instantiated by applying the store provider and shard path to the factory registered
      * by the corresponding {@link SearchBackEndPlugin}.
      *
-     * @param mapperService the mapper service for field mapping resolution (reserved for future filtering)
-     * @param indexSettings the index settings (reserved for future filtering)
-     * @param shardPath the shard path used to create reader managers
+     * @param readerManagerConfig config containing details about how to construct reader manager
      * @return a map from data format to its reader manager
-     * @throws RuntimeException wrapping an {@link IOException} if reader manager creation fails
+     * @throws IOException if reader manager creation fails
      */
-    public Map<DataFormat, EngineReaderManager<?>> getReaderManagers(
-        MapperService mapperService,
-        IndexSettings indexSettings,
-        ShardPath shardPath
-    ) throws IOException {
-        // TODO: Filter based on index settings
-        Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>();
-        for (Map.Entry<DataFormat, CheckedFunction<ShardPath, EngineReaderManager<?>, IOException>> entry : readerManagerBuilders
-            .entrySet()) {
-            readerManagers.put(entry.getKey(), entry.getValue().apply(shardPath));
+    public Map<DataFormat, EngineReaderManager<?>> getReaderManager(ReaderManagerConfig readerManagerConfig) throws IOException {
+        if (!readerManagerBuilders.containsKey(readerManagerConfig.format())) {
+            throw new IllegalArgumentException(
+                "Unsupported format: ["
+                    + readerManagerConfig.format()
+                    + "]. Reader Manager can be built only for: "
+                    + readerManagerBuilders.keySet()
+            );
         }
-        return readerManagers;
+        return Map.of(readerManagerConfig.format(), readerManagerBuilders.get(readerManagerConfig.format()).apply(readerManagerConfig));
+    }
+
+    /**
+     * Returns the registered delete engine, or a no-op engine when none is provided.
+     *
+     * @throws IllegalStateException if multiple plugins provide a delete engine
+     */
+    public DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
+        List<DeleteExecutionEngine<?>> engines = new ArrayList<>();
+        for (DataFormatPlugin plugin : dataFormatPluginRegistry.values()) {
+            DeleteExecutionEngine<?> engine = plugin.getDeleteExecutionEngine(committer);
+            if (engine != null) {
+                engines.add(engine);
+            }
+        }
+        if (engines.size() > 1) {
+            throw new IllegalStateException(
+                "Multiple DataFormatPlugins provide a DeleteExecutionEngine, expected exactly one but found [" + engines.size() + "]"
+            );
+        }
+        if (engines.isEmpty()) {
+            return NoOpDeleteExecutionEngine.INSTANCE;
+        }
+        return engines.getFirst();
     }
 }

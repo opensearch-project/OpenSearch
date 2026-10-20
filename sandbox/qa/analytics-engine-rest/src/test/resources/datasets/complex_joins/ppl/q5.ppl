@@ -1,0 +1,1 @@
+source=security_logs | where status_code >= 400 | stats count() as error_count by resource | left join left=l right=r on l.resource = r.resource [ source=security_logs | where status_code < 300 | stats count() as success_count by resource ] | eval error_rate = round(error_count * 100.0 / (error_count + success_count), 2) | where error_rate > 20 | sort - error_rate

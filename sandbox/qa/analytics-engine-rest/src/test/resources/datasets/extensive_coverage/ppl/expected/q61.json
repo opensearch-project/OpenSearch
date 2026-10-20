@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "json_data",
+      "type": "string"
+    },
+    {
+      "name": "is_valid",
+      "type": "boolean"
+    }
+  ],
+  "datarows": [
+    [
+      "{\"name\":\"item1\",\"price\":50}",
+      true
+    ],
+    [
+      "{\"name\":\"item2\",\"price\":75}",
+      true
+    ],
+    [
+      "{\"name\":\"item3\",\"price\":100}",
+      true
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}
