@@ -106,7 +106,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -134,10 +133,22 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private static final ActionListener<Void> SHARD_STATE_ACTION_LISTENER = ActionListener.wrap(() -> {});
 
+    /**
+     * How long a single attempt waits for the shard locks of a deleted index. Kept short so that a held lock does not park
+     * a generic thread; the retry backoff below spreads the attempts out instead.
+     */
+    static final TimeValue PENDING_DELETE_LOCK_TIMEOUT = TimeValue.timeValueSeconds(5);
+    /** Delay before the second attempt; doubled on every further attempt. */
+    static final TimeValue PENDING_DELETE_INITIAL_RETRY_DELAY = TimeValue.timeValueMinutes(1);
+    /** Upper bound for the delay between attempts. */
+    static final TimeValue PENDING_DELETE_MAX_RETRY_DELAY = TimeValue.timeValueMinutes(30);
+
     private final Settings settings;
     // a list of shards that failed during recovery
     // we keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update
     final ConcurrentMap<ShardId, ShardRouting> failedShardsCache = ConcurrentCollections.newConcurrentMap();
+    // deleted indices whose shard directories could not all be removed yet and whose pending deletion is being retried
+    private final Set<Index> pendingIndexDeletions = ConcurrentCollections.newConcurrentSet();
     private final RepositoriesService repositoriesService;
 
     private final FailedShardHandler failedShardHandler = new FailedShardHandler();
@@ -392,29 +403,102 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     indexSettings = null;
                 }
             }
-            if (indexSettings != null) {
-                threadPool.generic().execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn(() -> new ParameterizedMessage("[{}] failed to complete pending deletion for index", index), e);
-                    }
-
-                    @Override
-                    protected void doRun() throws Exception {
-                        try {
-                            // we are waiting until we can lock the index / all shards on the node and then we ack the delete of the store
-                            // to the master. If we can't acquire the locks here immediately there might be a shard of this index still
-                            // holding on to the lock due to a "currently canceled recovery" or so. The shard will delete itself BEFORE the
-                            // lock is released so it's guaranteed to be deleted by the time we get the lock
-                            indicesService.processPendingDeletes(index, indexSettings, new TimeValue(30, TimeUnit.MINUTES));
-                        } catch (ShardLockObtainFailedException exc) {
-                            logger.warn("[{}] failed to lock all shards for index - timed out after 30 seconds", index);
-                        } catch (InterruptedException e) {
-                            logger.warn("[{}] failed to lock all shards for index - interrupted", index);
-                        }
-                    }
-                });
+            if (indexSettings != null && pendingIndexDeletions.add(index)) {
+                threadPool.generic().execute(new PendingIndexDeletion(index, indexSettings));
             }
+        }
+    }
+
+    // visible for testing
+    Set<Index> pendingIndexDeletions() {
+        return pendingIndexDeletions;
+    }
+
+    /**
+     * Processes the pending deletes of a deleted index once the shard locks of the index are available.
+     * <p>
+     * A lock may still be held when the index is deleted, typically by a shard copy whose recovery is still writing
+     * files. Each attempt waits only briefly for the locks and, if one is still held, the attempt is rescheduled with
+     * exponential backoff rather than abandoned. Abandoning it would leave the shard directories of the deleted index on
+     * disk for good: the index metadata has already been wiped (see
+     * {@link IndicesService#deleteIndexStore}), so after a restart nothing can associate those directories with a deleted
+     * index, they belong to no allocated shard, and neither the store statistics nor the dangling indices API report
+     * them. Retries therefore continue until the deletion succeeds or the node shuts down.
+     */
+    final class PendingIndexDeletion extends AbstractRunnable {
+        private final Index index;
+        private final IndexSettings indexSettings;
+        private int attempt;
+
+        PendingIndexDeletion(Index index, IndexSettings indexSettings) {
+            this.index = index;
+            this.indexSettings = indexSettings;
+        }
+
+        int attempts() {
+            return attempt;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            pendingIndexDeletions.remove(index);
+            logger.warn(() -> new ParameterizedMessage("[{}] failed to complete pending deletion for index", index), e);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            attempt++;
+            try {
+                // Wait briefly for the locks of all shards of the index and delete what is still on disk. A lock may still be
+                // held by a shard copy whose cancelled recovery has not let go yet - a remote-store segment download, for
+                // instance, runs to completion regardless of the cancellation - so we keep retrying until the holder releases
+                // it. A copy that is still open at deletion time removes its own files when it closes; the copies that were
+                // already closed can only be removed here.
+                indicesService.processPendingDeletes(index, indexSettings, PENDING_DELETE_LOCK_TIMEOUT);
+                pendingIndexDeletions.remove(index);
+                if (attempt > 1) {
+                    logger.info("[{}] completed pending deletion for index after [{}] attempts", index, attempt);
+                }
+            } catch (ShardLockObtainFailedException exc) {
+                final TimeValue delay = retryDelay(attempt);
+                if (attempt == 1) {
+                    // the lock message names the current holder and how long it has held the lock
+                    logger.warn(
+                        "[{}] failed to lock all shards for index - timed out after [{}], retrying in [{}]: {}",
+                        index,
+                        PENDING_DELETE_LOCK_TIMEOUT,
+                        delay,
+                        exc.getMessage()
+                    );
+                } else {
+                    logger.debug(
+                        "[{}] failed to lock all shards for index - attempt [{}], retrying in [{}]: {}",
+                        index,
+                        attempt,
+                        delay,
+                        exc.getMessage()
+                    );
+                }
+                threadPool.scheduleUnlessShuttingDown(delay, ThreadPool.Names.GENERIC, this);
+            } catch (InterruptedException e) {
+                // only happens when the node is shutting down, so the deletion is not rescheduled
+                Thread.currentThread().interrupt();
+                pendingIndexDeletions.remove(index);
+                logger.warn("[{}] failed to lock all shards for index - interrupted", index);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "pending deletion of " + index + " (attempt " + attempt + ")";
+        }
+
+        /** 1 minute doubling on each attempt, capped at {@link #PENDING_DELETE_MAX_RETRY_DELAY}. */
+        static TimeValue retryDelay(int attempt) {
+            final long base = PENDING_DELETE_INITIAL_RETRY_DELAY.millis();
+            final long cap = PENDING_DELETE_MAX_RETRY_DELAY.millis();
+            final int shift = Math.min(attempt - 1, 30);
+            return TimeValue.timeValueMillis(Math.min(cap, base << shift));
         }
     }
 
