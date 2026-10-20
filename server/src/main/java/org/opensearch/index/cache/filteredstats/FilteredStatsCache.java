@@ -25,7 +25,6 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SmallFloat;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Setting;
@@ -39,7 +38,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.ToLongFunction;
 
 /**
  * One index's view of the visible-subset statistics used when relevance statistics are scoped to a filter.
@@ -85,12 +83,6 @@ public final class FilteredStatsCache extends AbstractIndexComponent implements 
         T compute() throws IOException;
     }
 
-    /** Stored for a (segment, filter, term) with no visible occurrences, so the absent answer is cached too. */
-    private static final long[] TERM_ABSENT = new long[0];
-
-    /** Stored for a (segment, filter) with no visible documents, and returned to callers as {@code null}. */
-    private static final BitSet NO_VISIBLE_DOCS = new FixedBitSet(1);
-
     private final IndicesFilteredStatsCache nodeCache;
     // Bytes this index holds in the node-level cache.
     private final AtomicLong bytes = new AtomicLong();
@@ -106,17 +98,30 @@ public final class FilteredStatsCache extends AbstractIndexComponent implements 
         this.nodeCache = Objects.requireNonNull(nodeCache);
     }
 
+    /**
+     * Returns the visible-subset statistics of a segment under a filter, building the visible bitset on a miss. Hold the
+     * result for the rest of the request: lookups on it after the first do not touch the node-level cache.
+     *
+     * @param ctx the segment
+     * @param filter the rewritten filter that admits the visible docs
+     * @param compute builds the visible bitset, returning {@code null} when no doc is visible
+     * @return the segment's statistics
+     */
+    public FilteredSegmentStats segment(LeafReaderContext ctx, Query filter, Computation<BitSet> compute) throws IOException {
+        track(filter, null);
+        return nodeCache.segment(this, ctx, filter, compute);
+    }
+
     /** Returns the visible-doc bitset for {@code ctx} under {@code filter}, or {@code null} when no doc is visible. */
     public BitSet getOrComputeVisibleBitSet(LeafReaderContext ctx, Query filter, Computation<BitSet> compute) throws IOException {
-        track(filter, null);
-        return cached(ctx, filter, null, null, compute, NO_VISIBLE_DOCS, BitSet::ramBytesUsed);
+        return segment(ctx, filter, compute).visibleDocs();
     }
 
     /** Returns the visible-subset {@code [docCount, sumTotalTermFreq, sumDocFreq]} for {@code (ctx, filter, field)}. */
     public long[] getOrComputeFieldContribution(LeafReaderContext ctx, Query filter, String field, Computation<long[]> compute)
         throws IOException {
         track(filter, field);
-        return cached(ctx, filter, field, null, compute, null, RamUsageEstimator::sizeOf);
+        return segment(ctx, filter, () -> computeVisibleBitSetFor(ctx, filter)).field(field, compute);
     }
 
     /**
@@ -125,24 +130,13 @@ public final class FilteredStatsCache extends AbstractIndexComponent implements 
      */
     public long[] getOrComputeTermContribution(LeafReaderContext ctx, Query filter, Term term, Computation<long[]> compute)
         throws IOException {
-        return cached(ctx, filter, null, term, compute, TERM_ABSENT, RamUsageEstimator::sizeOf);
+        return segment(ctx, filter, () -> computeVisibleBitSetFor(ctx, filter)).term(term, compute);
     }
 
-    // Stores a null result as the absent sentinel, which the node cache cannot hold as null, and maps it back.
-    private <T> T cached(
-        LeafReaderContext ctx,
-        Query filter,
-        String field,
-        Term term,
-        Computation<T> compute,
-        T absent,
-        ToLongFunction<T> weigher
-    ) throws IOException {
-        final T value = nodeCache.getOrCompute(this, ctx, filter, field, term, () -> {
-            final T computed = compute.compute();
-            return computed == null ? absent : computed;
-        }, weigher);
-        return value == absent ? null : value;
+    private static BitSet computeVisibleBitSetFor(LeafReaderContext ctx, Query filter) throws IOException {
+        final IndexSearcher searcher = new IndexSearcher(ctx.parent);
+        searcher.setQueryCache(null);
+        return computeVisibleBitSet(searcher.createWeight(searcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f), ctx);
     }
 
     void addBytes(long delta) {
@@ -182,12 +176,13 @@ public final class FilteredStatsCache extends AbstractIndexComponent implements 
             final Query filter = entry.getKey();
             try {
                 final Weight weight = searcher.createWeight(searcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
-                final BitSet visible = getOrComputeVisibleBitSet(ctx, filter, () -> computeVisibleBitSet(weight, ctx));
+                final FilteredSegmentStats segment = segment(ctx, filter, () -> computeVisibleBitSet(weight, ctx));
+                final BitSet visible = segment.visibleDocs();
                 if (visible == null) {
                     continue;
                 }
                 for (String field : entry.getValue()) {
-                    getOrComputeFieldContribution(ctx, filter, field, () -> computeFieldContribution(ctx, visible, field));
+                    segment.field(field, () -> computeFieldContribution(ctx, visible, field));
                 }
             } catch (IOException | RuntimeException e) {
                 logger.debug(() -> "failed to warm filtered statistics for filter [" + filter + "]", e);

@@ -40,12 +40,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * The node-level bound on cached visible-subset statistics: eviction under the byte limit, refusal when the breaker has
- * no room, accounting, invalidation and sharing between indices.
+ * no room, accounting, invalidation, concurrent builds and sharing between indices.
  */
 public class IndicesFilteredStatsCacheTests extends OpenSearchTestCase {
 
@@ -94,6 +95,18 @@ public class IndicesFilteredStatsCacheTests extends OpenSearchTestCase {
         return new FilteredStatsCache(IndexSettingsModule.newIndexSettings(name, Settings.EMPTY), nodeCache);
     }
 
+    private static Query filter(int i) {
+        return new TermQuery(new Term("owner", "user" + i));
+    }
+
+    private FilteredSegmentStats segment(FilteredStatsCache cache, Query filter) throws IOException {
+        return cache.segment(leaf, filter, () -> {
+            final FixedBitSet bits = new FixedBitSet(leaf.reader().maxDoc());
+            bits.set(0);
+            return bits;
+        });
+    }
+
     private static Directory oneSegment() throws IOException {
         final Directory dir = newDirectory();
         try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
@@ -105,16 +118,17 @@ public class IndicesFilteredStatsCacheTests extends OpenSearchTestCase {
         return dir;
     }
 
-    public void testManyDistinctTermsStayWithinTheByteBound() throws IOException {
-        final long bound = 8 * 1024;
+    public void testTermsOfOneEntryStayWithinHalfTheBound() throws IOException {
+        final long bound = 16 * 1024;
         final IndicesFilteredStatsCache nodeCache = unbreakable(sized(bound + "b"));
         final FilteredStatsCache cache = index("idx", nodeCache);
+        final FilteredSegmentStats segment = segment(cache, FILTER);
         for (int i = 0; i < 2_000; i++) {
-            cache.getOrComputeTermContribution(leaf, FILTER, new Term("body", "term" + i), () -> new long[] { 1, 1 });
+            segment.term(new Term("body", "term" + i), () -> new long[] { 1, 1 });
         }
-        assertThat(nodeCache.weight(), lessThanOrEqualTo(bound));
-        assertThat("older terms must have been evicted", nodeCache.count(), lessThan(2_000));
-        assertEquals("the index's share is the whole node cache", nodeCache.weight(), cache.ramBytesUsed());
+        assertThat(nodeCache.stats().getMemorySizeInBytes(), lessThanOrEqualTo(bound / 2));
+        assertThat("terms past the entry's share are computed, not kept", nodeCache.refusals(), greaterThan(0L));
+        assertEquals("the index's share is the whole node cache", nodeCache.stats().getMemorySizeInBytes(), cache.ramBytesUsed());
     }
 
     public void testManyDistinctFiltersStayWithinTheByteBound() throws IOException {
@@ -123,92 +137,146 @@ public class IndicesFilteredStatsCacheTests extends OpenSearchTestCase {
         final FilteredStatsCache cache = index("idx", nodeCache);
         // One restriction per user, each with its own visible bitset, as with per-user document rules.
         for (int user = 0; user < 500; user++) {
-            final Query perUser = new TermQuery(new Term("owner", "user" + user));
-            cache.getOrComputeVisibleBitSet(leaf, perUser, () -> new FixedBitSet(64 * 1024));
+            cache.segment(leaf, filter(user), () -> new FixedBitSet(64 * 1024));
         }
         assertThat(nodeCache.weight(), lessThanOrEqualTo(bound));
+        assertThat(nodeCache.stats().getMemorySizeInBytes(), lessThanOrEqualTo(bound));
         assertThat(nodeCache.count(), lessThan(500));
+        assertThat(nodeCache.evictions(), greaterThan(0L));
     }
 
-    public void testEvictedEntryIsRecomputed() throws IOException {
-        final IndicesFilteredStatsCache nodeCache = unbreakable(sized("1kb"));
+    public void testGrowingEntryIsReweighedSoOthersAreEvicted() throws IOException {
+        final long bound = 64 * 1024;
+        final IndicesFilteredStatsCache nodeCache = unbreakable(sized(bound + "b"));
         final FilteredStatsCache cache = index("idx", nodeCache);
-        final AtomicInteger calls = new AtomicInteger();
-        final Term first = new Term("body", "first");
-        cache.getOrComputeTermContribution(leaf, FILTER, first, () -> {
-            calls.incrementAndGet();
-            return new long[] { 3, 4 };
-        });
-        for (int i = 0; i < 200; i++) {
-            cache.getOrComputeTermContribution(leaf, FILTER, new Term("body", "other" + i), () -> new long[] { 1, 1 });
+        // About 45kb of small entries, so the growing entry's 32kb share cannot fit beside them.
+        for (int user = 0; user < 80; user++) {
+            segment(cache, filter(user));
         }
-        final long[] again = cache.getOrComputeTermContribution(leaf, FILTER, first, () -> {
-            calls.incrementAndGet();
-            return new long[] { 3, 4 };
-        });
-        assertArrayEquals(new long[] { 3, 4 }, again);
-        assertEquals("the evicted entry must be computed again", 2, calls.get());
+        final int before = nodeCache.count();
+        final FilteredSegmentStats growing = segment(cache, FILTER);
+        for (int i = 0; i < 2_000; i++) {
+            growing.term(new Term("body", "term" + i), () -> new long[] { 1, 1 });
+        }
+        assertThat("the LRU sees the entry's growth", nodeCache.weight(), greaterThanOrEqualTo(bound / 4));
+        assertThat("growth evicted older entries", nodeCache.count(), lessThan(before + 1));
+        assertThat(nodeCache.stats().getMemorySizeInBytes(), lessThanOrEqualTo(bound + bound / 4));
+    }
+
+    public void testEvictedEntryIsRebuilt() throws IOException {
+        final IndicesFilteredStatsCache nodeCache = unbreakable(sized("16kb"));
+        final FilteredStatsCache cache = index("idx", nodeCache);
+        final AtomicInteger builds = new AtomicInteger();
+        final FilteredStatsCache.Computation<BitSet> counted = () -> {
+            builds.incrementAndGet();
+            return new FixedBitSet(leaf.reader().maxDoc());
+        };
+        cache.segment(leaf, FILTER, counted);
+        for (int user = 0; user < 200; user++) {
+            segment(cache, filter(user));
+        }
+        cache.segment(leaf, FILTER, counted);
+        assertEquals("the evicted entry must be built again", 2, builds.get());
+    }
+
+    public void testHitsAndMissesAreCountedOnce() throws IOException {
+        final IndicesFilteredStatsCache nodeCache = unbreakable(Settings.EMPTY);
+        final FilteredStatsCache cache = index("idx", nodeCache);
+        final FilteredSegmentStats first = segment(cache, FILTER);
+        first.term(new Term("body", "a"), () -> new long[] { 1, 1 });
+        first.term(new Term("body", "a"), () -> new long[] { 1, 1 });
+        first.field("body", () -> new long[] { 1, 1, 1 });
+        segment(cache, FILTER).field("body", () -> new long[] { 1, 1, 1 });
+        final FilteredStatsCacheStats stats = nodeCache.stats();
+        // Misses: the entry, the term and the field. Hits: the term, the entry and the field.
+        assertEquals(3, stats.getMissCount());
+        assertEquals(3, stats.getHitCount());
+        assertEquals(1, stats.getEntries());
+        assertEquals(0, stats.getEvictions());
     }
 
     public void testBreakerWithoutRoomReturnsTheValueWithoutCachingIt() throws IOException {
         final CircuitBreaker breaker = fieldDataBreaker(100L);
         final IndicesFilteredStatsCache nodeCache = new IndicesFilteredStatsCache(Settings.EMPTY, breaker);
         final FilteredStatsCache cache = index("idx", nodeCache);
-        final AtomicInteger calls = new AtomicInteger();
+        final AtomicInteger builds = new AtomicInteger();
         final BitSet large = new FixedBitSet(64 * 1024);
         for (int i = 0; i < 2; i++) {
-            final BitSet result = cache.getOrComputeVisibleBitSet(leaf, FILTER, () -> {
-                calls.incrementAndGet();
+            final FilteredSegmentStats segment = cache.segment(leaf, FILTER, () -> {
+                builds.incrementAndGet();
                 return large;
             });
-            assertSame("the computed value is still returned", large, result);
+            assertSame("the computed value is still returned", large, segment.visibleDocs());
         }
-        assertEquals("nothing was cached, so each call computes", 2, calls.get());
+        assertEquals("nothing was cached, so each call builds", 2, builds.get());
         assertEquals(0, nodeCache.count());
         assertEquals("a refused entry reserves nothing", 0L, breaker.getUsed());
         assertEquals("each refusal shows as a breaker trip", 2L, breaker.getTrippedCount());
+        assertEquals(2L, nodeCache.refusals());
     }
 
     public void testBreakerAccountingFollowsTheCache() throws IOException {
         final CircuitBreaker breaker = fieldDataBreaker(null);
-        final IndicesFilteredStatsCache nodeCache = new IndicesFilteredStatsCache(sized("2kb"), breaker);
+        final IndicesFilteredStatsCache nodeCache = new IndicesFilteredStatsCache(sized("16kb"), breaker);
         final FilteredStatsCache cache = index("idx", nodeCache);
-        final Directory dir = oneSegment();
-        try (DirectoryReader reader = DirectoryReader.open(dir)) {
-            final LeafReaderContext leaf = reader.leaves().get(0);
-            for (int i = 0; i < 200; i++) {
-                cache.getOrComputeTermContribution(leaf, FILTER, new Term("body", "term" + i), () -> new long[] { 1, 1 });
+        final Directory other = oneSegment();
+        try (DirectoryReader otherReader = DirectoryReader.open(other)) {
+            final LeafReaderContext otherLeaf = otherReader.leaves().get(0);
+            for (int user = 0; user < 100; user++) {
+                final FilteredSegmentStats segment = cache.segment(otherLeaf, filter(user), () -> new FixedBitSet(1024));
+                segment.term(new Term("body", "t"), () -> new long[] { 1, 1 });
             }
-            assertThat(nodeCache.weight(), greaterThan(0L));
-            assertEquals("evictions return their bytes", nodeCache.weight(), breaker.getUsed());
+            assertThat(nodeCache.stats().getMemorySizeInBytes(), greaterThan(0L));
+            assertEquals("evictions return their bytes", nodeCache.stats().getMemorySizeInBytes(), breaker.getUsed());
         }
         assertEquals("closing the segment invalidates its entries", 0, nodeCache.count());
         assertEquals(0L, breaker.getUsed());
         assertEquals(0L, cache.ramBytesUsed());
-        dir.close();
+        other.close();
+    }
+
+    public void testValueAddedAfterTheEntryLeftTheCacheIsNotCharged() throws IOException {
+        final CircuitBreaker breaker = fieldDataBreaker(null);
+        final IndicesFilteredStatsCache nodeCache = new IndicesFilteredStatsCache(Settings.EMPTY, breaker);
+        final FilteredStatsCache cache = index("idx", nodeCache);
+        // A request still holds the entry when it is invalidated.
+        final FilteredSegmentStats held = segment(cache, FILTER);
+        cache.clear("test");
+        assertEquals(0L, breaker.getUsed());
+        assertArrayEquals(new long[] { 4, 5 }, held.term(new Term("body", "late"), () -> new long[] { 4, 5 }));
+        assertEquals("nothing is charged to an entry that has left the cache", 0L, breaker.getUsed());
+        assertEquals(0L, cache.ramBytesUsed());
     }
 
     public void testAbsentTermsAreCharged() throws IOException {
         final IndicesFilteredStatsCache nodeCache = unbreakable(Settings.EMPTY);
         final FilteredStatsCache cache = index("idx", nodeCache);
-        assertNull(cache.getOrComputeTermContribution(leaf, FILTER, new Term("body", "nowhere"), () -> null));
-        assertEquals(1, nodeCache.count());
-        assertThat("a cached absent answer still holds its key", nodeCache.weight(), greaterThan(0L));
+        final FilteredSegmentStats segment = segment(cache, FILTER);
+        final long before = nodeCache.stats().getMemorySizeInBytes();
+        final AtomicInteger calls = new AtomicInteger();
+        for (int i = 0; i < 2; i++) {
+            assertNull(segment.term(new Term("body", "nowhere"), () -> {
+                calls.incrementAndGet();
+                return null;
+            }));
+        }
+        assertEquals("the absent answer is kept", 1, calls.get());
+        assertThat("and it is charged", nodeCache.stats().getMemorySizeInBytes(), greaterThan(before));
     }
 
-    public void testConcurrentMissesComputeOnce() throws Exception {
+    public void testConcurrentMissesBuildTheEntryOnce() throws Exception {
         final IndicesFilteredStatsCache nodeCache = unbreakable(Settings.EMPTY);
         final FilteredStatsCache cache = index("idx", nodeCache);
-        final AtomicInteger calls = new AtomicInteger();
+        final AtomicInteger builds = new AtomicInteger();
         final CountDownLatch start = new CountDownLatch(1);
         final List<Thread> threads = new ArrayList<>();
         for (int i = 0; i < 8; i++) {
             final Thread thread = new Thread(() -> {
                 try {
                     start.await();
-                    cache.getOrComputeTermContribution(leaf, FILTER, new Term("body", "hot"), () -> {
-                        calls.incrementAndGet();
-                        return new long[] { 1, 1 };
+                    cache.segment(leaf, FILTER, () -> {
+                        builds.incrementAndGet();
+                        return new FixedBitSet(1);
                     });
                 } catch (Exception e) {
                     throw new AssertionError(e);
@@ -221,57 +289,23 @@ public class IndicesFilteredStatsCacheTests extends OpenSearchTestCase {
         for (Thread thread : threads) {
             thread.join();
         }
-        assertEquals(1, calls.get());
-    }
-
-    public void testClearDropsOnlyThatIndex() throws IOException {
-        final IndicesFilteredStatsCache nodeCache = unbreakable(Settings.EMPTY);
-        final FilteredStatsCache first = index("first", nodeCache);
-        final FilteredStatsCache second = index("second", nodeCache);
-        try (
-            Directory firstDir = oneSegment();
-            Directory secondDir = oneSegment();
-            DirectoryReader firstReader = DirectoryReader.open(firstDir);
-            DirectoryReader secondReader = DirectoryReader.open(secondDir)
-        ) {
-            first.getOrComputeFieldContribution(firstReader.leaves().get(0), FILTER, "body", () -> new long[] { 1, 1, 1 });
-            second.getOrComputeFieldContribution(secondReader.leaves().get(0), FILTER, "body", () -> new long[] { 1, 1, 1 });
-            assertEquals(2, nodeCache.count());
-
-            first.clear("test");
-            assertEquals(0L, first.ramBytesUsed());
-            assertThat(second.ramBytesUsed(), greaterThan(0L));
-            assertEquals(1, nodeCache.count());
-        }
-    }
-
-    public void testComputationFailureIsRethrownAndNotCached() throws IOException {
-        final IndicesFilteredStatsCache nodeCache = unbreakable(Settings.EMPTY);
-        final FilteredStatsCache cache = index("idx", nodeCache);
-        final IOException failure = new IOException("postings unreadable");
-        final IOException thrown = expectThrows(
-            IOException.class,
-            () -> cache.getOrComputeVisibleBitSet(leaf, FILTER, () -> { throw failure; })
-        );
-        assertSame(failure, thrown);
-        assertEquals(0, nodeCache.count());
+        assertEquals(1, builds.get());
     }
 
     /**
-     * A request waiting on a load that another request's cancellation fails must still succeed. Cache treats most such
-     * waiters as a miss; getOrCompute covers the rest, which reach the failed load from inside its own compute.
+     * A request waiting on a build that another request's cancellation fails must still succeed. Cache treats most such
+     * waiters as a miss; segment() covers the rest, which reach the failed build from inside their own compute.
      */
-    public void testWaiterComputesItselfWhenAnotherRequestsLoadFails() throws Exception {
+    public void testWaiterBuildsItselfWhenAnotherRequestsBuildFails() throws Exception {
         final IndicesFilteredStatsCache nodeCache = unbreakable(Settings.EMPTY);
         final FilteredStatsCache cache = index("idx", nodeCache);
-        final Term term = new Term("body", "shared");
-        final CountDownLatch loading = new CountDownLatch(1);
+        final CountDownLatch building = new CountDownLatch(1);
         final CountDownLatch fail = new CountDownLatch(1);
         final AtomicReference<Throwable> leaderFailure = new AtomicReference<>();
         final Thread leader = new Thread(() -> {
             try {
-                cache.getOrComputeTermContribution(leaf, FILTER, term, () -> {
-                    loading.countDown();
+                cache.segment(leaf, FILTER, () -> {
+                    building.countDown();
                     try {
                         fail.await();
                     } catch (InterruptedException e) {
@@ -285,32 +319,51 @@ public class IndicesFilteredStatsCacheTests extends OpenSearchTestCase {
             }
         });
         leader.start();
-        loading.await();
-        final AtomicReference<long[]> waiterResult = new AtomicReference<>();
+        building.await();
+        final BitSet own = new FixedBitSet(1);
+        final AtomicReference<BitSet> waiterResult = new AtomicReference<>();
         final AtomicReference<Throwable> waiterFailure = new AtomicReference<>();
         final Thread waiter = new Thread(() -> {
             try {
-                waiterResult.set(cache.getOrComputeTermContribution(leaf, FILTER, term, () -> new long[] { 5, 6 }));
+                waiterResult.set(cache.segment(leaf, FILTER, () -> own).visibleDocs());
             } catch (Throwable t) {
                 waiterFailure.set(t);
             }
         });
         waiter.start();
-        assertBusy(() -> assertEquals(Thread.State.WAITING, waiter.getState()));
-        fail.countDown();
-        leader.join();
-        waiter.join();
+        try {
+            assertBusy(() -> assertEquals(Thread.State.WAITING, waiter.getState()));
+        } finally {
+            fail.countDown();
+            leader.join();
+            waiter.join();
+        }
         assertEquals("leader cancelled", leaderFailure.get().getMessage());
         assertNull("the leader's failure must not reach the waiter", waiterFailure.get());
-        assertArrayEquals(new long[] { 5, 6 }, waiterResult.get());
+        assertSame(own, waiterResult.get());
+    }
+
+    public void testClearDropsOnlyThatIndex() throws IOException {
+        final IndicesFilteredStatsCache nodeCache = unbreakable(Settings.EMPTY);
+        final FilteredStatsCache first = index("first", nodeCache);
+        final FilteredStatsCache second = index("second", nodeCache);
+        try (Directory secondDir = oneSegment(); DirectoryReader secondReader = DirectoryReader.open(secondDir)) {
+            segment(first, FILTER);
+            second.segment(secondReader.leaves().get(0), FILTER, () -> new FixedBitSet(1));
+            assertEquals(2, nodeCache.count());
+
+            first.clear("test");
+            assertEquals(0L, first.ramBytesUsed());
+            assertThat(second.ramBytesUsed(), greaterThan(0L));
+            assertEquals(1, nodeCache.count());
+        }
     }
 
     public void testRefusedEntriesAreNotTracked() throws IOException {
-        final CircuitBreaker breaker = fieldDataBreaker(10L);
-        final IndicesFilteredStatsCache nodeCache = new IndicesFilteredStatsCache(Settings.EMPTY, breaker);
+        final IndicesFilteredStatsCache nodeCache = new IndicesFilteredStatsCache(Settings.EMPTY, fieldDataBreaker(10L));
         final FilteredStatsCache cache = index("idx", nodeCache);
-        for (int i = 0; i < 100; i++) {
-            cache.getOrComputeTermContribution(leaf, FILTER, new Term("body", "term" + i), () -> new long[] { 1, 1 });
+        for (int user = 0; user < 100; user++) {
+            segment(cache, filter(user));
         }
         assertEquals(100, nodeCache.refusals());
         assertEquals("nothing held for entries that were never cached", 0, nodeCache.trackedKeys());
@@ -321,7 +374,7 @@ public class IndicesFilteredStatsCacheTests extends OpenSearchTestCase {
         final FilteredStatsCache cache = index("idx", nodeCache);
         final AtomicInteger calls = new AtomicInteger();
         for (int i = 0; i < 3; i++) {
-            cache.getOrComputeFieldContribution(leaf, FILTER, "body", () -> {
+            segment(cache, FILTER).field("body", () -> {
                 calls.incrementAndGet();
                 return new long[] { 1, 1, 1 };
             });
@@ -331,45 +384,51 @@ public class IndicesFilteredStatsCacheTests extends OpenSearchTestCase {
     }
 
     public void testEntryLargerThanHalfTheCacheIsNotCachedAndEvictsNothing() throws IOException {
-        final IndicesFilteredStatsCache nodeCache = unbreakable(sized("16kb"));
+        final IndicesFilteredStatsCache nodeCache = unbreakable(sized("64kb"));
         final FilteredStatsCache cache = index("idx", nodeCache);
-        for (int i = 0; i < 10; i++) {
-            cache.getOrComputeTermContribution(leaf, FILTER, new Term("body", "small" + i), () -> new long[] { 1, 1 });
+        for (int user = 0; user < 10; user++) {
+            segment(cache, filter(user));
         }
         final int before = nodeCache.count();
-        final BitSet large = new FixedBitSet(80 * 1024);
-        assertSame(large, cache.getOrComputeVisibleBitSet(leaf, FILTER, () -> large));
+        final BitSet large = new FixedBitSet(320 * 1024);
+        assertSame(large, cache.segment(leaf, FILTER, () -> large).visibleDocs());
         assertEquals("the small entries survive", before, nodeCache.count());
         assertEquals(1, nodeCache.refusals());
         assertEquals(0L, nodeCache.evictions());
     }
 
-    public void testErrorInALoadDoesNotLeaveTheKeyBlocked() throws Exception {
+    public void testComputationFailureIsRethrownAndNotCached() {
         final IndicesFilteredStatsCache nodeCache = unbreakable(Settings.EMPTY);
         final FilteredStatsCache cache = index("idx", nodeCache);
-        final Directory dir = oneSegment();
-        final DirectoryReader reader = DirectoryReader.open(dir);
-        final LeafReaderContext leaf = reader.leaves().get(0);
-        final Term term = new Term("body", "fragile");
+        final IOException failure = new IOException("postings unreadable");
+        final IOException thrown = expectThrows(IOException.class, () -> cache.segment(leaf, FILTER, () -> { throw failure; }));
+        assertSame(failure, thrown);
+        assertEquals(0, nodeCache.count());
+    }
+
+    public void testErrorInABuildDoesNotLeaveTheKeyBlocked() throws Exception {
+        final IndicesFilteredStatsCache nodeCache = unbreakable(Settings.EMPTY);
+        final FilteredStatsCache cache = index("idx", nodeCache);
+        final Directory other = oneSegment();
+        final DirectoryReader otherReader = DirectoryReader.open(other);
+        final LeafReaderContext otherLeaf = otherReader.leaves().get(0);
         final AssertionError error = new AssertionError("allocation failed");
-        assertSame(
-            error,
-            expectThrows(AssertionError.class, () -> cache.getOrComputeTermContribution(leaf, FILTER, term, () -> { throw error; }))
-        );
-        final AtomicReference<long[]> retried = new AtomicReference<>();
+        assertSame(error, expectThrows(AssertionError.class, () -> cache.segment(otherLeaf, FILTER, () -> { throw error; })));
+        final BitSet retried = new FixedBitSet(1);
+        final AtomicReference<BitSet> result = new AtomicReference<>();
         final Thread retry = new Thread(() -> {
             try {
-                retried.set(cache.getOrComputeTermContribution(leaf, FILTER, term, () -> new long[] { 2, 2 }));
-                reader.close();
+                result.set(cache.segment(otherLeaf, FILTER, () -> retried).visibleDocs());
+                otherReader.close();
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
         });
         retry.start();
         retry.join(10_000);
-        assertFalse("a later caller and the segment close must not wait on the failed load", retry.isAlive());
-        assertArrayEquals(new long[] { 2, 2 }, retried.get());
+        assertFalse("a later caller and the segment close must not wait on the failed build", retry.isAlive());
+        assertSame(retried, result.get());
         assertEquals(0, nodeCache.count());
-        dir.close();
+        other.close();
     }
 }

@@ -74,6 +74,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.core.tasks.TaskCancelledException;
+import org.opensearch.index.cache.filteredstats.FilteredSegmentStats;
 import org.opensearch.index.cache.filteredstats.FilteredStatsCache;
 import org.opensearch.lucene.util.CombinedBitSet;
 import org.opensearch.search.DocValueFormat;
@@ -131,14 +132,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * A {@code null} entry means "no visible docs in that segment". The whole array being {@code null} means the
      * bitsets have not been built yet.
      */
-    private BitSet[] visibleDocsPerSegment;
+    private FilteredSegmentStats[] visibleDocsPerSegment;
     private boolean visibleDocsInitialized = false;
-    /**
-     * The rewritten alias-filter query used to key {@link FilteredStatsCache} entries. Set when the visible bitsets
-     * are built so the collection/term-statistics lookups reuse the exact same key. Rewriting once per request also
-     * keeps the key stable across the three statistics methods.
-     */
-    private Query visibleDocsFilterKey;
 
     public ContextIndexSearcher(
         IndexReader reader,
@@ -659,33 +654,27 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * O(corpus) filter scan is paid once per (segment, filter) rather than once per query; the result array is also
      * memoized on this searcher for reuse across the terms of a single request.
      */
-    private synchronized BitSet[] getVisibleDocsPerSegment() throws IOException {
+    private synchronized FilteredSegmentStats[] getVisibleDocsPerSegment() throws IOException {
         if (visibleDocsInitialized) {
             return visibleDocsPerSegment;
         }
         final List<LeafReaderContext> leaves = getIndexReader().leaves();
-        final BitSet[] bitSets = new BitSet[leaves.size()];
-        // Rewrite once and reuse as the FilteredStatsCache key for the bitset and the statistics lookups, so the key
-        // is identical across all three methods within a request.
-        final Query aliasFilter = rewrite(searchContext.filteredStatisticsFilter());
-        this.visibleDocsFilterKey = aliasFilter;
+        final FilteredSegmentStats[] segments = new FilteredSegmentStats[leaves.size()];
+        // Rewritten once, so every statistics lookup of this request uses the same cache key.
+        final Query filter = rewrite(searchContext.filteredStatisticsFilter());
         // COMPLETE_NO_SCORES: we only need the matching doc ids, not scores.
-        final Weight weight = createWeight(aliasFilter, ScoreMode.COMPLETE_NO_SCORES, 1f);
+        final Weight weight = createWeight(filter, ScoreMode.COMPLETE_NO_SCORES, 1f);
         final FilteredStatsCache cache = filteredStatsCache();
         for (LeafReaderContext ctx : leaves) {
             if (cache != null) {
-                bitSets[ctx.ord] = cache.getOrComputeVisibleBitSet(
-                    ctx,
-                    aliasFilter,
-                    () -> FilteredStatsCache.computeVisibleBitSet(weight, ctx)
-                );
+                segments[ctx.ord] = cache.segment(ctx, filter, () -> FilteredStatsCache.computeVisibleBitSet(weight, ctx));
             } else {
-                bitSets[ctx.ord] = FilteredStatsCache.computeVisibleBitSet(weight, ctx);
+                segments[ctx.ord] = FilteredSegmentStats.uncached(FilteredStatsCache.computeVisibleBitSet(weight, ctx));
             }
         }
-        this.visibleDocsPerSegment = bitSets;
+        this.visibleDocsPerSegment = segments;
         this.visibleDocsInitialized = true;
-        return bitSets;
+        return segments;
     }
 
     private FilteredStatsCache filteredStatsCache() {
@@ -699,29 +688,21 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * {@code null} when the field has no visible documents (matching Lucene's "field absent" contract).
      */
     private CollectionStatistics filteredCollectionStatistics(String field) throws IOException {
-        final BitSet[] visibleDocs = getVisibleDocsPerSegment();
+        final FilteredSegmentStats[] segments = getVisibleDocsPerSegment();
         final List<LeafReaderContext> leaves = getIndexReader().leaves();
-        final FilteredStatsCache cache = filteredStatsCache();
         long docCount = 0;         // number of visible docs that have at least one term in this field
         long sumTotalTermFreq = 0; // total number of (visible) tokens in this field
         long sumDocFreq = 0;       // sum over terms of the number of visible docs containing the term
 
         for (LeafReaderContext ctx : leaves) {
-            final BitSet visible = visibleDocs[ctx.ord];
+            final BitSet visible = segments[ctx.ord].visibleDocs();
             if (visible == null) {
                 continue;
             }
-            final long[] contribution;
-            if (cache != null) {
-                contribution = cache.getOrComputeFieldContribution(
-                    ctx,
-                    visibleDocsFilterKey,
-                    field,
-                    () -> FilteredStatsCache.computeFieldContribution(ctx, visible, field)
-                );
-            } else {
-                contribution = FilteredStatsCache.computeFieldContribution(ctx, visible, field);
-            }
+            final long[] contribution = segments[ctx.ord].field(
+                field,
+                () -> FilteredStatsCache.computeFieldContribution(ctx, visible, field)
+            );
             docCount += contribution[0];
             sumTotalTermFreq += contribution[1];
             sumDocFreq += contribution[2];
@@ -746,28 +727,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * the term (Lucene's "term absent" contract) -- so a term confined to filtered-out docs contributes no BM25 score.
      */
     private TermStatistics filteredTermStatistics(Term term) throws IOException {
-        final BitSet[] visibleDocs = getVisibleDocsPerSegment();
+        final FilteredSegmentStats[] segments = getVisibleDocsPerSegment();
         final List<LeafReaderContext> leaves = getIndexReader().leaves();
-        final FilteredStatsCache cache = filteredStatsCache();
         long docFreq = 0;       // number of visible docs containing the term
         long totalTermFreq = 0; // sum of term frequencies over visible docs
 
         for (LeafReaderContext ctx : leaves) {
-            final BitSet visible = visibleDocs[ctx.ord];
+            final BitSet visible = segments[ctx.ord].visibleDocs();
             if (visible == null) {
                 continue;
             }
-            final long[] contribution;
-            if (cache != null) {
-                contribution = cache.getOrComputeTermContribution(
-                    ctx,
-                    visibleDocsFilterKey,
-                    term,
-                    () -> computeTermContribution(ctx, visible, term)
-                );
-            } else {
-                contribution = computeTermContribution(ctx, visible, term);
-            }
+            final long[] contribution = segments[ctx.ord].term(term, () -> computeTermContribution(ctx, visible, term));
             if (contribution != null) {
                 docFreq += contribution[0];
                 totalTermFreq += contribution[1];
@@ -789,7 +759,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     /**
      * Computes a single segment's {@code [docFreq, totalTermFreq]} contribution for a term over the visible subset,
-     * or {@code null} when the term occurs in no visible doc in this segment. Memoized per (segment, filter, term) by
+     * or {@code null} when the term occurs in no visible doc in this segment. Kept per (segment, filter, term) by
      * {@link FilteredStatsCache}.
      */
     private static long[] computeTermContribution(LeafReaderContext ctx, BitSet visible, Term term) throws IOException {
