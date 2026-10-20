@@ -14,6 +14,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.dsl.converter.ProjectConverter;
 import org.opensearch.dsl.executor.QueryPlans;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
@@ -80,6 +81,7 @@ public final class HitsResponseBuilder {
         }
 
         int size = resolveSize(request);
+        boolean fetchSource = shouldFetchSource(request);
         List<String> fieldNames = hitsResult.getFieldNames();
         List<Object[]> rows = new ArrayList<>();
         for (Object[] row : hitsResult.getRows()) {
@@ -90,7 +92,7 @@ public final class HitsResponseBuilder {
         int hitCount = Math.min(rows.size(), size);
         SearchHit[] hits = new SearchHit[hitCount];
         for (int i = 0; i < hitCount; i++) {
-            hits[i] = buildHit(i, fieldNames, rows.get(i));
+            hits[i] = buildHit(i, fieldNames, rows.get(i), fetchSource);
         }
 
         return new SearchHits(hits, resolveTotal(request, countTotals, rows.size()), Float.NaN);
@@ -131,16 +133,23 @@ public final class HitsResponseBuilder {
         return source != null && source.size() != -1 ? source.size() : SearchService.DEFAULT_SIZE;
     }
 
-    private static SearchHit buildHit(int docId, List<String> fieldNames, Object[] row) throws ConversionException {
+    private static boolean shouldFetchSource(SearchRequest request) {
+        SearchSourceBuilder source = request.source();
+        return source == null || source.fetchSource() == null || source.fetchSource().fetchSource();
+    }
+
+    private static SearchHit buildHit(int docId, List<String> fieldNames, Object[] row, boolean fetchSource) throws ConversionException {
         Map<String, Object> source = buildSourceMap(fieldNames, row);
         // id=null renders the hit without an _id field (see class javadoc).
         SearchHit hit = new SearchHit(docId, null, null, null);
         hit.score(Float.NaN);
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.map(source);
-            hit.sourceRef(BytesReference.bytes(builder));
-        } catch (IOException e) {
-            throw new ConversionException("Failed to serialize hit _source", e);
+        if (fetchSource) {
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                builder.map(source);
+                hit.sourceRef(BytesReference.bytes(builder));
+            } catch (IOException e) {
+                throw new ConversionException("Failed to serialize hit _source", e);
+            }
         }
         return hit;
     }
@@ -159,7 +168,7 @@ public final class HitsResponseBuilder {
         }
         Map<String, Object> source = new LinkedHashMap<>();
         for (int i = 0; i < row.length; i++) {
-            if (row[i] == null) {
+            if (row[i] == null || ProjectConverter.EMPTY_SOURCE_PLACEHOLDER.equals(fieldNames.get(i))) {
                 continue;
             }
             insertNested(source, fieldNames.get(i), row[i]);
