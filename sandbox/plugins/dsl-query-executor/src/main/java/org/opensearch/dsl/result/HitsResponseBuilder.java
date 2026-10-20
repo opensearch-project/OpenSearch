@@ -8,6 +8,8 @@
 
 package org.opensearch.dsl.result;
 
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -26,6 +28,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Converts a HITS execution result into {@link SearchHits}.
@@ -50,6 +54,7 @@ import java.util.Map;
  * </ul>
  */
 public final class HitsResponseBuilder {
+    private static final Pattern SQL_TIMESTAMP = Pattern.compile("^(\\d{4}-\\d{2}-\\d{2}) (\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?)$");
 
     private HitsResponseBuilder() {}
 
@@ -81,6 +86,7 @@ public final class HitsResponseBuilder {
 
         int size = resolveSize(request);
         List<String> fieldNames = hitsResult.getFieldNames();
+        List<RelDataType> fieldTypes = hitsResult.getFieldTypes();
         List<Object[]> rows = new ArrayList<>();
         for (Object[] row : hitsResult.getRows()) {
             rows.add(row);
@@ -90,7 +96,7 @@ public final class HitsResponseBuilder {
         int hitCount = Math.min(rows.size(), size);
         SearchHit[] hits = new SearchHit[hitCount];
         for (int i = 0; i < hitCount; i++) {
-            hits[i] = buildHit(i, fieldNames, rows.get(i));
+            hits[i] = buildHit(i, fieldNames, fieldTypes, rows.get(i));
         }
 
         return new SearchHits(hits, resolveTotal(request, countTotals, rows.size()), Float.NaN);
@@ -131,8 +137,9 @@ public final class HitsResponseBuilder {
         return source != null && source.size() != -1 ? source.size() : SearchService.DEFAULT_SIZE;
     }
 
-    private static SearchHit buildHit(int docId, List<String> fieldNames, Object[] row) throws ConversionException {
-        Map<String, Object> source = buildSourceMap(fieldNames, row);
+    private static SearchHit buildHit(int docId, List<String> fieldNames, List<RelDataType> fieldTypes, Object[] row)
+        throws ConversionException {
+        Map<String, Object> source = buildSourceMap(fieldNames, fieldTypes, row);
         // id=null renders the hit without an _id field (see class javadoc).
         SearchHit hit = new SearchHit(docId, null, null, null);
         hit.score(Float.NaN);
@@ -152,6 +159,11 @@ public final class HitsResponseBuilder {
      * after the columnar round trip an absent field and an explicit null are indistinguishable.
      */
     static Map<String, Object> buildSourceMap(List<String> fieldNames, Object[] row) throws ConversionException {
+        return buildSourceMap(fieldNames, null, row);
+    }
+
+    private static Map<String, Object> buildSourceMap(List<String> fieldNames, List<RelDataType> fieldTypes, Object[] row)
+        throws ConversionException {
         if (fieldNames.size() != row.length) {
             throw new ConversionException(
                 "HITS row has " + row.length + " cells but the plan row type declares " + fieldNames.size() + " columns"
@@ -162,9 +174,25 @@ public final class HitsResponseBuilder {
             if (row[i] == null) {
                 continue;
             }
-            insertNested(source, fieldNames.get(i), row[i]);
+            RelDataType fieldType = fieldTypes == null ? null : fieldTypes.get(i);
+            insertNested(source, fieldNames.get(i), sourceValue(row[i], fieldType));
         }
         return source;
+    }
+
+    /**
+     * Analytics results use SQL timestamp strings, while reconstructed source needs a mapped
+     * OpenSearch date representation. OpenSearch date fields are UTC instants represented as
+     * Calcite TIMESTAMP columns, so render only those typed values as RFC 3339 UTC.
+     */
+    private static Object sourceValue(Object value, RelDataType fieldType) {
+        if (value instanceof String stringValue && fieldType != null && fieldType.getSqlTypeName() == SqlTypeName.TIMESTAMP) {
+            Matcher matcher = SQL_TIMESTAMP.matcher(stringValue);
+            if (matcher.matches()) {
+                return matcher.group(1) + "T" + matcher.group(2) + "Z";
+            }
+        }
+        return value;
     }
 
     @SuppressWarnings("unchecked")
