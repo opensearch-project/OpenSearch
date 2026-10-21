@@ -117,8 +117,9 @@ public class TransportClusterDescribeSettingsAction extends TransportClusterMana
             return SettingMetadata.withoutDefault(dynamic);
         }
         String defaultValue = setting.getDefaultRaw(Settings.EMPTY);
-        // Group settings declare an empty default; an empty string carries no information for any setting.
-        if (defaultValue == null || defaultValue.isEmpty()) {
+        // The Setting constructor asserts a non-null default for every non-secure setting, so only emptiness is
+        // checked here. Group settings declare an empty default; an empty string carries no information for any setting.
+        if (defaultValue.isEmpty()) {
             return SettingMetadata.withoutDefault(dynamic);
         }
         return SettingMetadata.withDefault(dynamic, defaultValue);
