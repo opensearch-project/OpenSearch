@@ -51,7 +51,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.logging.Handler;
-import java.util.logging.LogManager;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -207,7 +206,7 @@ public class EvilLoggerConfigurationTests extends OpenSearchTestCase {
         final Environment environment = new Environment(settings, configDir);
         LogConfigurator.configure(environment);
 
-        Handler[] handlers = LogManager.getLogManager().getLogger("").getHandlers();
+        Handler[] handlers = java.util.logging.LogManager.getLogManager().getLogger("").getHandlers();
         assertTrue(
             "LogConfigurator.configure() should install Log4jBridgeHandler on the JUL root logger",
             Arrays.stream(handlers).anyMatch(h -> h instanceof Log4jBridgeHandler)
