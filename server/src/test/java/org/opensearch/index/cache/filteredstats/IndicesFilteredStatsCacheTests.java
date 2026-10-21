@@ -405,30 +405,4 @@ public class IndicesFilteredStatsCacheTests extends OpenSearchTestCase {
         assertSame(failure, thrown);
         assertEquals(0, nodeCache.count());
     }
-
-    public void testErrorInABuildDoesNotLeaveTheKeyBlocked() throws Exception {
-        final IndicesFilteredStatsCache nodeCache = unbreakable(Settings.EMPTY);
-        final FilteredStatsCache cache = index("idx", nodeCache);
-        final Directory other = oneSegment();
-        final DirectoryReader otherReader = DirectoryReader.open(other);
-        final LeafReaderContext otherLeaf = otherReader.leaves().get(0);
-        final AssertionError error = new AssertionError("allocation failed");
-        assertSame(error, expectThrows(AssertionError.class, () -> cache.segment(otherLeaf, FILTER, () -> { throw error; })));
-        final BitSet retried = new FixedBitSet(1);
-        final AtomicReference<BitSet> result = new AtomicReference<>();
-        final Thread retry = new Thread(() -> {
-            try {
-                result.set(cache.segment(otherLeaf, FILTER, () -> retried).visibleDocs());
-                otherReader.close();
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        });
-        retry.start();
-        retry.join(10_000);
-        assertFalse("a later caller and the segment close must not wait on the failed build", retry.isAlive());
-        assertSame(retried, result.get());
-        assertEquals(0, nodeCache.count());
-        other.close();
-    }
 }

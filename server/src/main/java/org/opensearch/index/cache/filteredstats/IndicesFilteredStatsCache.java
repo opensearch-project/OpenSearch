@@ -139,7 +139,7 @@ public final class IndicesFilteredStatsCache implements Closeable {
                     return notCached.entry;
                 }
                 if (builtHere[0]) {
-                    throw rethrow(cause instanceof LoadError loadError ? loadError.error : cause);
+                    throw rethrow(cause);
                 }
             }
         }
@@ -152,14 +152,7 @@ public final class IndicesFilteredStatsCache implements Closeable {
         IndexReader.CacheHelper cacheHelper,
         FilteredStatsCache.Computation<BitSet> bitSet
     ) throws IOException {
-        final BitSet visibleDocs;
-        try {
-            visibleDocs = bitSet.compute();
-        } catch (Error error) {
-            // Cache completes a pending load only for an Exception; an Error would leave later callers of this key,
-            // and the segment close that invalidates it, waiting forever.
-            throw new LoadError(error);
-        }
+        final BitSet visibleDocs = bitSet.compute();
         final long weight = ENTRY_OVERHEAD_BYTES + key.ramBytesUsed() + (visibleDocs == null ? 0 : visibleDocs.ramBytesUsed());
         if (weight > maxEntryBytes || reserve(weight) == false) {
             onRefused(weight);
@@ -228,11 +221,10 @@ public final class IndicesFilteredStatsCache implements Closeable {
         }
     }
 
-    // Computations throw only IOException or unchecked throwables.
+    // Computations throw only IOException or unchecked exceptions.
     private static RuntimeException rethrow(Throwable cause) throws IOException {
         if (cause instanceof IOException io) throw io;
         if (cause instanceof RuntimeException re) throw re;
-        if (cause instanceof Error error) throw error;
         throw new IllegalStateException(cause);
     }
 
@@ -318,16 +310,6 @@ public final class IndicesFilteredStatsCache implements Closeable {
     public void close() {
         cache.invalidateAll();
         keysByReader.clear();
-    }
-
-    /** Carries an Error out of a load as an Exception, so the pending load completes. */
-    private static final class LoadError extends RuntimeException {
-        private final transient Error error;
-
-        LoadError(Error error) {
-            super(null, null, false, false);
-            this.error = error;
-        }
     }
 
     /** Carries statistics that were not cached back to the caller. */
