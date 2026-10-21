@@ -235,7 +235,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         return collector;
     }
 
-    private Collector ordinalsCollector(ValuesSource.Bytes.WithOrdinals source, SortedSetDocValues ordinalValues, LeafReaderContext ctx)
+    /**
+     * Picks the collector for the ordinals of one segment, honouring {@code execution_hint} and the hybrid collector settings.
+     */
+    Collector ordinalsCollector(ValuesSource.Bytes.WithOrdinals source, SortedSetDocValues ordinalValues, LeafReaderContext ctx)
         throws IOException {
         if (executionMode == CardinalityAggregatorFactory.ExecutionMode.DIRECT) {
             stringHashingCollectorsUsed++;

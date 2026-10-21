@@ -14,6 +14,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
@@ -26,21 +28,31 @@ import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.aggregations.bucket.terms.StreamStringTermsAggregator;
+import org.opensearch.search.aggregations.bucket.terms.StringTerms;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.streaming.FlushMode;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.when;
 
 public class StreamCardinalityAggregatorTests extends AggregatorTestCase {
 
@@ -1239,6 +1251,125 @@ public class StreamCardinalityAggregatorTests extends AggregatorTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * Streaming terms with a cardinality sub-aggregation go through the hybrid collector: whichever stage finishes a segment,
+     * every batch reports the distinct values of its own segment. Both segments share the group names, so the terms
+     * aggregation reuses bucket ordinals across batches.
+     */
+    public void testHybridCollectorInStreamingBatches() throws Exception {
+        List<Map<String, Set<String>>> expected = new ArrayList<>();
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
+                for (int segment = 0; segment < 2; segment++) {
+                    Map<String, Set<String>> users = new HashMap<>();
+                    for (int g = 0; g < 300; g++) {
+                        for (int u = 0; u < 2; u++) {
+                            addGroupAndUser(indexWriter, users, "g" + g, "u" + segment + "_" + ((g * 7 + u * 1031) % 3000));
+                        }
+                    }
+                    // Three large groups spread the user ordinals over 3000 values, so a BitArray per bucket is ~400 bytes
+                    for (int u = 0; u < 3000; u++) {
+                        addGroupAndUser(indexWriter, users, "filler" + (u % 3), "u" + segment + "_" + u);
+                    }
+                    indexWriter.commit();
+                    expected.add(users);
+                }
+            }
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                assertEquals(2, indexReader.leaves().size());
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                // unlimited keeps BitArrays; 60KB moves from BitArrays to roaring bitmaps mid-segment; 1 byte goes on to direct
+                for (long memoryThreshold : new long[] { Long.MAX_VALUE, 60 * 1024, 1 }) {
+                    Map<String, Object> debug = collectStreamingBatches(
+                        indexSearcher,
+                        new CardinalityAggregationContext(true, memoryThreshold),
+                        null,
+                        expected
+                    );
+                    assertEquals(2, debug.get("hybrid_collectors_used"));
+                    assertEquals(memoryThreshold == Long.MAX_VALUE ? 0 : 2, debug.get("roaring_ordinals_collectors_used"));
+                    assertEquals(memoryThreshold == 1 ? 2 : 0, debug.get("hybrid_collectors_switched_to_direct"));
+                }
+                CardinalityAggregationContext hybrid = new CardinalityAggregationContext(true, Long.MAX_VALUE);
+                assertEquals(2, collectStreamingBatches(indexSearcher, hybrid, "direct", expected).get("string_hashing_collectors_used"));
+                assertEquals(2, collectStreamingBatches(indexSearcher, hybrid, "ordinals", expected).get("ordinals_collectors_used"));
+                CardinalityAggregationContext legacy = new CardinalityAggregationContext(false, Long.MAX_VALUE);
+                assertEquals(0, collectStreamingBatches(indexSearcher, legacy, null, expected).get("hybrid_collectors_used"));
+            }
+        }
+    }
+
+    private static void addGroupAndUser(IndexWriter indexWriter, Map<String, Set<String>> users, String group, String user)
+        throws IOException {
+        Document document = new Document();
+        document.add(new SortedSetDocValuesField("group", new BytesRef(group)));
+        document.add(new SortedSetDocValuesField("user", new BytesRef(user)));
+        indexWriter.addDocument(document);
+        users.computeIfAbsent(group, k -> new HashSet<>()).add(user);
+    }
+
+    /**
+     * Collects one batch per segment, the way streaming search does, checks each batch against {@code expected} and returns
+     * the debug info of the cardinality aggregator.
+     */
+    private Map<String, Object> collectStreamingBatches(
+        IndexSearcher indexSearcher,
+        CardinalityAggregationContext cardinalityContext,
+        String executionHint,
+        List<Map<String, Set<String>>> expected
+    ) throws IOException {
+        CardinalityAggregationBuilder card = new CardinalityAggregationBuilder("users").field("user");
+        if (executionHint != null) {
+            card.executionHint(executionHint);
+        }
+        SearchContext searchContext = createSearchContext(
+            indexSearcher,
+            createIndexSettings(),
+            null,
+            new MultiBucketConsumerService.MultiBucketConsumer(
+                DEFAULT_MAX_BUCKETS,
+                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+            ),
+            new KeywordFieldMapper.KeywordFieldType("group"),
+            new KeywordFieldMapper.KeywordFieldType("user")
+        );
+        when(searchContext.isStreamSearch()).thenReturn(true);
+        when(searchContext.getFlushMode()).thenReturn(FlushMode.PER_SEGMENT);
+        when(searchContext.cardinalityAggregationContext()).thenReturn(cardinalityContext);
+        Aggregator aggregator = createAggregator(
+            new TermsAggregationBuilder("groups").field("group").size(1000).subAggregation(card),
+            searchContext
+        );
+        assertThat(aggregator, instanceOf(StreamStringTermsAggregator.class));
+        Aggregator cardinality = aggregator.subAggregator("users");
+        assertThat(cardinality, instanceOf(StreamCardinalityAggregator.class));
+
+        aggregator.preCollection();
+        List<LeafReaderContext> leaves = indexSearcher.getIndexReader().leaves();
+        for (int segment = 0; segment < leaves.size(); segment++) {
+            LeafReaderContext leaf = leaves.get(segment);
+            LeafBucketCollector leafCollector = aggregator.getLeafCollector(leaf);
+            for (int doc = 0; doc < leaf.reader().maxDoc(); doc++) {
+                leafCollector.collect(doc, 0);
+            }
+            aggregator.postCollection();
+            StringTerms batch = (StringTerms) aggregator.buildTopLevelBatch();
+            Map<String, Set<String>> users = expected.get(segment);
+            assertEquals(users.size(), batch.getBuckets().size());
+            for (StringTerms.Bucket bucket : batch.getBuckets()) {
+                InternalCardinality value = bucket.getAggregations().get("users");
+                assertEquals(
+                    "segment " + segment + " " + bucket.getKeyAsString(),
+                    users.get(bucket.getKeyAsString()).size(),
+                    value.getValue()
+                );
+            }
+        }
+        Map<String, Object> debug = new HashMap<>();
+        cardinality.collectDebugInfo(debug::put);
+        return debug;
     }
 
     private InternalAggregation buildInternalStreamingAggregation(
