@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.opensearch.rest.NamedRoute.MAX_LENGTH_OF_ACTION_NAME;
+import static org.opensearch.rest.RestHandler.Route.Property.ADMINISTRATIVE;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class NamedRouteTests extends OpenSearchTestCase {
@@ -118,6 +119,12 @@ public class NamedRouteTests extends OpenSearchTestCase {
         } catch (OpenSearchException e) {
             fail("Did not expect NamedRoute to throw exception");
         }
+    }
+
+    public void testNamedRouteWithProperties() {
+        NamedRoute route = new NamedRoute.Builder().method(GET).path("foo/bar").uniqueName("foo:bar").properties(ADMINISTRATIVE).build();
+
+        assertTrue(route.hasProperty(ADMINISTRATIVE));
     }
 
     public void testNamedRouteNullChecks() {
