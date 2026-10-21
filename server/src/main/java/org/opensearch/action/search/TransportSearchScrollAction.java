@@ -36,7 +36,6 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
@@ -80,24 +79,12 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         if (task instanceof WorkloadGroupTask workloadGroupTask) {
             workloadGroupTask.setWorkloadGroupId(threadPool.getThreadContext());
-            ActionListener<Releasable> admissionListener = ActionListener.wrap(throttlePermit -> {
-                // notifyOnce: an exception escaping executeScroll must fail (and release) through this listener, which
-                // must never notify or release twice. The admission wrap's own onFailure would skip the release.
-                ActionListener<SearchResponse> proceedListener = ActionListener.notifyOnce(
-                    throttlePermit == null ? listener : WorkloadGroupService.releaseThrottlePermitBeforeCompletion(listener, throttlePermit)
-                );
-                try {
-                    executeScroll(task, request, proceedListener);
-                } catch (Exception e) {
-                    proceedListener.onFailure(e);
-                }
-            }, listener::onFailure);
-            try {
-                workloadGroupService.acquireThrottlePermit(workloadGroupTask, () -> false, admissionListener);
-            } catch (Exception e) {
-                // Admission reports outcomes through its listener; anything thrown unexpectedly still reaches it.
-                listener.onFailure(e);
-            }
+            workloadGroupService.executeWithThrottlePermit(
+                workloadGroupTask,
+                () -> false,
+                listener,
+                admittedListener -> executeScroll(task, request, admittedListener)
+            );
             return;
         }
         try {

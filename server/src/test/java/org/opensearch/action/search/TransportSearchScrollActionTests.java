@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
@@ -35,6 +36,8 @@ public class TransportSearchScrollActionTests extends OpenSearchTestCase {
             WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
             IllegalStateException boom = new IllegalStateException("boom");
             doThrow(boom).when(workloadGroupService).acquireThrottlePermit(any(), any(), any());
+            // The real helper runs over the stubbed admission, so the exception reaches it as it would in production.
+            doCallRealMethod().when(workloadGroupService).executeWithThrottlePermit(any(), any(), any(), any());
             TransportSearchScrollAction action = new TransportSearchScrollAction(
                 mock(TransportService.class),
                 mock(ClusterService.class),
