@@ -19,34 +19,35 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.TreeMap;
 
-/** Dynamic-setting metadata; contains neither values nor defaults.
+/** Definition metadata for registered settings; contains neither configured values nor validation results.
  * @opensearch.internal
  */
 public class ClusterDescribeSettingsResponse extends ActionResponse implements ToXContentObject {
-    private final Map<String, Boolean> settings;
+    private final Map<String, SettingMetadata> settings;
 
-    public ClusterDescribeSettingsResponse(Map<String, Boolean> settings) {
+    public ClusterDescribeSettingsResponse(Map<String, SettingMetadata> settings) {
         this.settings = Collections.unmodifiableMap(new TreeMap<>(settings));
     }
 
     public ClusterDescribeSettingsResponse(StreamInput in) throws IOException {
-        this(in.readMap(StreamInput::readString, StreamInput::readBoolean));
+        this(in.readMap(StreamInput::readString, SettingMetadata::new));
     }
 
-    public Map<String, Boolean> settings() {
+    public Map<String, SettingMetadata> settings() {
         return settings;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(settings, StreamOutput::writeString, StreamOutput::writeBoolean);
+        out.writeMap(settings, StreamOutput::writeString, (o, metadata) -> metadata.writeTo(o));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject().startObject("settings");
         for (var entry : settings.entrySet()) {
-            builder.startObject(entry.getKey()).field("dynamic", entry.getValue()).endObject();
+            builder.field(entry.getKey());
+            entry.getValue().toXContent(builder, params);
         }
         return builder.endObject().endObject();
     }
