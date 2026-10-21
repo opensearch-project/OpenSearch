@@ -256,7 +256,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             final long memoryThreshold = cardinalityContext.getMemoryThreshold();
             return new HybridCollector(new OrdinalsCollector(counts, ordinalValues, context.bigArrays(), memoryThreshold, true), () -> {
                 roaringOrdinalsCollectorsUsed++;
-                return new RoaringOrdinalsCollector(counts, source.ordinalsValues(ctx), newBucketOrdinalBitmaps(), memoryThreshold);
+                BucketOrdinalBitmaps bitmaps = new BucketOrdinalBitmaps(context.bigArrays(), this::addRequestCircuitBreakerBytes);
+                return new RoaringOrdinalsCollector(counts, source.ordinalsValues(ctx), bitmaps, memoryThreshold);
             }, () -> {
                 hybridCollectorsSwitchedToDirect++;
                 return new DirectCollector(counts, MurmurHash3Values.hash(source.bytesValues(ctx)));
@@ -271,10 +272,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         ordinalsCollectorsOverheadTooHigh++;
         stringHashingCollectorsUsed++;
         return new DirectCollector(counts, MurmurHash3Values.hash(source.bytesValues(ctx)));
-    }
-
-    BucketOrdinalBitmaps newBucketOrdinalBitmaps() {
-        return new BucketOrdinalBitmaps(context.bigArrays(), this::addRequestCircuitBreakerBytes);
     }
 
     private boolean canPrune(Aggregator parent, Aggregator[] subAggregators, ValuesSourceConfig valuesSourceConfig) {
@@ -858,8 +855,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             final long bytes = ramBytesUsed(bitmap);
             totalBytes += bytes - accountedBytes.get(bucket);
             accountedBytes.set(bucket, bytes);
-            final long unflushed = totalBytes - breakerBytes;
-            if (unflushed >= BREAKER_FLUSH_BYTES || unflushed <= -BREAKER_FLUSH_BYTES) {
+            // Bitmaps only grow, and close() releases whatever was charged, so only growth needs flushing.
+            if (totalBytes - breakerBytes >= BREAKER_FLUSH_BYTES) {
                 flushBreaker();
             }
         }

@@ -13,8 +13,12 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.CheckedIntConsumer;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
@@ -24,7 +28,11 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorTestCase;
@@ -32,6 +40,10 @@ import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.CardinalityAggregator.BucketOrdinalBitmaps;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregator.DirectCollector;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregator.HybridCollector;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregator.MurmurHash3Values;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregator.OrdinalsCollector;
 import org.opensearch.search.aggregations.metrics.CardinalityAggregator.RoaringOrdinalsCollector;
 
 import java.io.IOException;
@@ -42,14 +54,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for {@link RoaringOrdinalsCollector}, the roaring bitmap stage of the cardinality {@link CardinalityAggregator.HybridCollector}.
+ * Tests for {@link RoaringOrdinalsCollector} and the fallback chain of {@link HybridCollector}.
  */
 public class RoaringOrdinalsCollectorTests extends AggregatorTestCase {
 
@@ -153,6 +168,110 @@ public class RoaringOrdinalsCollectorTests extends AggregatorTestCase {
         });
     }
 
+    /**
+     * Bulk collection through a {@link DocIdStream} or a doc range falls back through the stages like per-document collection.
+     */
+    public void testBulkCollectionFallsBack() throws IOException {
+        List<String[]> docs = new ArrayList<>();
+        for (int i = 0; i < 10_000; i++) {
+            docs.add(doc("g", app(i)));
+        }
+        withIndex(List.of(docs), searcher -> {
+            LeafReader reader = searcher.getIndexReader().leaves().get(0).reader();
+            BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+            AtomicLong breaker = new AtomicLong();
+            // A BitArray over 10000 ordinals costs ~1.3KB, a roaring bitmap of three values ~150 bytes
+            for (long memoryThreshold : new long[] { 1024, 1 }) {
+                for (boolean stream : new boolean[] { true, false }) {
+                    try (
+                        HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.DEFAULT_PRECISION, bigArrays, 1);
+                        HybridCollector collector = hybridCollector(counts, reader, bigArrays, breaker, memoryThreshold)
+                    ) {
+                        if (stream) {
+                            collector.collect(docIdStream(3, 7, 11), 0);
+                        } else {
+                            collector.collectRange(3, 6);
+                        }
+                        collector.postCollect();
+                        assertEquals(3, counts.cardinality(0));
+                        Class<?> expected = memoryThreshold == 1 ? DirectCollector.class : RoaringOrdinalsCollector.class;
+                        assertThat(collector.getActiveCollector(), instanceOf(expected));
+                    }
+                    assertEquals("breaker must be released", 0, breaker.get());
+                }
+            }
+        });
+    }
+
+    public void testHybridCollectorFailsWhenLastCollectorExceedsThreshold() throws IOException {
+        withIndex(SEGMENTS, searcher -> {
+            LeafReader reader = searcher.getIndexReader().leaves().get(0).reader();
+            BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+            try (
+                HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.DEFAULT_PRECISION, bigArrays, 1);
+                HybridCollector collector = new HybridCollector(
+                    new OrdinalsCollector(counts, reader.getSortedSetDocValues("app"), bigArrays, 1, true)
+                )
+            ) {
+                expectThrows(IllegalStateException.class, () -> collector.collect(0, 0));
+            }
+        });
+    }
+
+    public void testDocsWithoutValues() throws IOException {
+        withIndex(List.of(List.of(doc("g", "a"), doc("g", null), doc("g", null))), searcher -> {
+            LeafReader reader = searcher.getIndexReader().leaves().get(0).reader();
+            BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+            AtomicLong breaker = new AtomicLong();
+            for (int[] collected : new int[][] { { 1, 2 }, { 0, 1, 2 } }) {
+                try (
+                    HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.DEFAULT_PRECISION, bigArrays, 1);
+                    RoaringOrdinalsCollector collector = new RoaringOrdinalsCollector(
+                        counts,
+                        reader.getSortedSetDocValues("app"),
+                        new BucketOrdinalBitmaps(bigArrays, breaker::addAndGet),
+                        Long.MAX_VALUE
+                    )
+                ) {
+                    for (int doc : collected) {
+                        collector.collect(doc, 0);
+                    }
+                    collector.postCollect();
+                    assertEquals(collected.length == 2 ? 0 : 1, counts.cardinality(0));
+                }
+            }
+            assertEquals("breaker must be released", 0, breaker.get());
+        });
+    }
+
+    public void testRejectsMoreThanIntegerMaxValueOrdinals() {
+        SortedSetDocValues values = mock(SortedSetDocValues.class);
+        when(values.getValueCount()).thenReturn(Integer.MAX_VALUE + 1L);
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        AtomicLong breaker = new AtomicLong();
+        BucketOrdinalBitmaps bitmaps = new BucketOrdinalBitmaps(bigArrays, breaker::addAndGet);
+        expectThrows(IllegalArgumentException.class, () -> new RoaringOrdinalsCollector(null, values, bitmaps, Long.MAX_VALUE));
+        assertEquals("breaker must be released", 0, breaker.get());
+    }
+
+    public void testBitmapsReleaseArraysWhenAllocationBreaks() {
+        AtomicInteger allocations = new AtomicInteger();
+        CircuitBreaker requestBreaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
+            @Override
+            public double addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                if (allocations.incrementAndGet() > 1) {
+                    throw new CircuitBreakingException("test", bytes, 0, CircuitBreaker.Durability.TRANSIENT);
+                }
+                return 0;
+            }
+        };
+        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
+        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(requestBreaker);
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService).withCircuitBreaking();
+        // the first array is allocated, the second one breaks: the first must be released (checked by MockBigArrays)
+        expectThrows(CircuitBreakingException.class, () -> new BucketOrdinalBitmaps(bigArrays, bytes -> {}));
+    }
+
     public void testBitmapAccountingStaysCloseToBitmapSize() {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         // one dense bucket, many small interleaved buckets, and values spread over many containers
@@ -176,6 +295,7 @@ public class RoaringOrdinalsCollectorTests extends AggregatorTestCase {
             assertThat(bitmaps.bytesUsed(), lessThanOrEqualTo(actual));
             assertThat(bitmaps.bytesUsed(), greaterThanOrEqualTo(actual / 2));
             bitmaps.flushBreaker();
+            bitmaps.flushBreaker(); // nothing left to flush
             assertEquals(bitmaps.bytesUsed(), breaker.get());
         }
         assertEquals("breaker must be released", 0, breaker.get());
@@ -190,6 +310,65 @@ public class RoaringOrdinalsCollectorTests extends AggregatorTestCase {
 
     private static String[] doc(String group, String app) {
         return new String[] { group, app };
+    }
+
+    private static HybridCollector hybridCollector(
+        HyperLogLogPlusPlus counts,
+        LeafReader reader,
+        BigArrays bigArrays,
+        AtomicLong breaker,
+        long memoryThreshold
+    ) throws IOException {
+        return new HybridCollector(
+            new OrdinalsCollector(counts, reader.getSortedSetDocValues("app"), bigArrays, memoryThreshold, true),
+            () -> new RoaringOrdinalsCollector(
+                counts,
+                reader.getSortedSetDocValues("app"),
+                new BucketOrdinalBitmaps(bigArrays, breaker::addAndGet),
+                memoryThreshold
+            ),
+            () -> new DirectCollector(counts, MurmurHash3Values.hash(FieldData.toString(reader.getSortedSetDocValues("app"))))
+        );
+    }
+
+    /**
+     * A single-use stream of {@code docs}, like the ones bulk scorers pass to collectors.
+     */
+    private static DocIdStream docIdStream(int... docs) {
+        return new DocIdStream() {
+            private int next;
+
+            @Override
+            public void forEach(int upTo, CheckedIntConsumer<IOException> consumer) throws IOException {
+                while (next < docs.length && docs[next] < upTo) {
+                    consumer.accept(docs[next++]);
+                }
+            }
+
+            @Override
+            public int count(int upTo) {
+                int count = 0;
+                while (next < docs.length && docs[next] < upTo) {
+                    next++;
+                    count++;
+                }
+                return count;
+            }
+
+            @Override
+            public int intoArray(int upTo, int[] array) {
+                int count = 0;
+                while (next < docs.length && docs[next] < upTo && count < array.length) {
+                    array[count++] = docs[next++];
+                }
+                return count;
+            }
+
+            @Override
+            public boolean mayHaveRemaining() {
+                return next < docs.length;
+            }
+        };
     }
 
     private static String group(int i) {
@@ -207,7 +386,9 @@ public class RoaringOrdinalsCollectorTests extends AggregatorTestCase {
                     for (String[] values : segment) {
                         Document doc = new Document();
                         doc.add(new SortedSetDocValuesField("group", new BytesRef(values[0])));
-                        doc.add(new SortedSetDocValuesField("app", new BytesRef(values[1])));
+                        if (values[1] != null) {
+                            doc.add(new SortedSetDocValuesField("app", new BytesRef(values[1])));
+                        }
                         w.addDocument(doc);
                     }
                     w.commit();
