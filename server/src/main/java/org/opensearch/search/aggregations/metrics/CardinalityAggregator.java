@@ -256,8 +256,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             final long memoryThreshold = cardinalityContext.getMemoryThreshold();
             return new HybridCollector(new OrdinalsCollector(counts, ordinalValues, context.bigArrays(), memoryThreshold, true), () -> {
                 roaringOrdinalsCollectorsUsed++;
+                // Open the doc values before allocating the bitmaps so that a failure can't leak them
+                SortedSetDocValues values = source.ordinalsValues(ctx);
                 BucketOrdinalBitmaps bitmaps = new BucketOrdinalBitmaps(context.bigArrays(), this::addRequestCircuitBreakerBytes);
-                return new RoaringOrdinalsCollector(counts, source.ordinalsValues(ctx), bitmaps, memoryThreshold);
+                return new RoaringOrdinalsCollector(counts, values, bitmaps, memoryThreshold);
             }, () -> {
                 hybridCollectorsSwitchedToDirect++;
                 return new DirectCollector(counts, MurmurHash3Values.hash(source.bytesValues(ctx)));
