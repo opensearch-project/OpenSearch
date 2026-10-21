@@ -59,7 +59,6 @@ import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
@@ -493,40 +492,22 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             // or HTTP header (HTTP header will be deprecated once ActionFilter is implemented)
             if (task instanceof WorkloadGroupTask) {
                 ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
-                final ActionListener<SearchResponse> outerListener = updatedListener;
-                final ActionListener<Releasable> admissionListener = ActionListener.wrap(throttlePermit -> {
-                    // notifyOnce: an exception escaping proceedWithSearch must fail (and release) through this listener,
-                    // which must never notify or release twice. The admission wrap's own onFailure would skip the release.
-                    ActionListener<SearchResponse> proceedListener = ActionListener.notifyOnce(
-                        throttlePermit == null
-                            ? outerListener
-                            : WorkloadGroupService.releaseThrottlePermitBeforeCompletion(outerListener, throttlePermit)
-                    );
-                    try {
-                        proceedWithSearch(
-                            task,
-                            originalSearchRequest,
-                            searchAsyncActionProvider,
-                            proceedListener,
-                            searchRequestContext,
-                            timeProvider,
-                            requestSpan
-                        );
-                    } catch (Exception e) {
-                        proceedListener.onFailure(e);
-                    }
-                }, outerListener::onFailure);
-                try {
-                    workloadGroupService.acquireThrottlePermit(
-                        (WorkloadGroupTask) task,
-                        () -> parentAlreadyCounted(task),
-                        admissionListener
-                    );
-                } catch (Exception e) {
-                    // Admission reports outcomes through its listener; anything thrown unexpectedly still takes the normal
-                    // listener path (span end, status stats, timeout cleanup) rather than escaping to the caller.
-                    outerListener.onFailure(e);
-                }
+                // Every outcome, including a throttle rejection or an unexpected admission exception, completes
+                // updatedListener, so the request span always ends.
+                workloadGroupService.executeWithThrottlePermit(
+                    (WorkloadGroupTask) task,
+                    () -> parentAlreadyCounted(task),
+                    updatedListener,
+                    admittedListener -> proceedWithSearch(
+                        task,
+                        originalSearchRequest,
+                        searchAsyncActionProvider,
+                        admittedListener,
+                        searchRequestContext,
+                        timeProvider,
+                        requestSpan
+                    )
+                );
             } else {
                 proceedWithSearch(
                     task,

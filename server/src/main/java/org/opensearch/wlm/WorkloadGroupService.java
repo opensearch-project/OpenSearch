@@ -16,6 +16,7 @@ import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WorkloadGroup;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
@@ -337,7 +338,8 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
      * Admits a search against the node-local allowance ({@code node_limit}), then the shared allowance
      * ({@code shared_limit}, a cluster-wide overflow pool on top of every node's local allowance) if the local bucket is
      * full. Only shared admission can complete asynchronously. A counted parent exempts nested searches at both tiers.
-     * MONITOR records would-be throttling without rejecting; SOFT and ENFORCED reject at the effective limit.
+     * MONITOR records would-be throttling without rejecting; SOFT and ENFORCED reject at the effective limit. Callers
+     * normally go through {@link #executeWithThrottlePermit}, which owns releasing the permit.
      *
      * @param task the search task to mark as counted when admitted against a throttle
      * @param parentAlreadyCounted supplies whether this task inherits an existing throttle charge
@@ -418,6 +420,45 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
                 deliverThrottleBreach(plan, true, task, listener);
             }
         }));
+    }
+
+    /**
+     * Admits {@code task} (see {@link #acquireThrottlePermit(WorkloadGroupTask, BooleanSupplier, ActionListener)}), then runs
+     * {@code admitted} with a listener that releases the permit, if any, before notifying {@code listener}. A throttle
+     * rejection, or an exception thrown by admission or by {@code admitted} before it completes its listener, fails
+     * {@code listener} instead. {@code admitted} may run inline or on the thread that completes an asynchronous
+     * shared-tier admission.
+     *
+     * @param task                 the request's task, admitted against its workload group's throttle
+     * @param parentAlreadyCounted supplies whether this task inherits an existing throttle charge
+     * @param listener             notified once with the request's outcome, after its permit has been released
+     * @param admitted             runs the request once admitted, completing the listener it is given
+     */
+    public <T> void executeWithThrottlePermit(
+        WorkloadGroupTask task,
+        BooleanSupplier parentAlreadyCounted,
+        ActionListener<T> listener,
+        CheckedConsumer<ActionListener<T>, Exception> admitted
+    ) {
+        final ActionListener<Releasable> admissionListener = ActionListener.wrap(throttlePermit -> {
+            // notifyOnce: an exception escaping admitted must fail (and release) through this listener, which must never
+            // notify or release twice. The admission wrap's own onFailure would skip the release.
+            final ActionListener<T> admittedListener = ActionListener.notifyOnce(
+                throttlePermit == null ? listener : releaseThrottlePermitBeforeCompletion(listener, throttlePermit)
+            );
+            try {
+                admitted.accept(admittedListener);
+            } catch (Exception e) {
+                admittedListener.onFailure(e);
+            }
+        }, listener::onFailure);
+        try {
+            acquireThrottlePermit(task, parentAlreadyCounted, admissionListener);
+        } catch (Exception e) {
+            // Admission reports outcomes through its listener; anything thrown unexpectedly still reaches the caller's
+            // listener rather than escaping to the caller.
+            listener.onFailure(e);
+        }
     }
 
     /**

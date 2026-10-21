@@ -138,6 +138,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -1203,6 +1204,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
         IllegalStateException boom = new IllegalStateException("boom");
         doThrow(boom).when(workloadGroupService).acquireThrottlePermit(any(), any(), any());
+        // The real helper runs over the stubbed admission, so the exception reaches it as it would in production.
+        doCallRealMethod().when(workloadGroupService).executeWithThrottlePermit(any(), any(), any(), any());
         TransportSearchAction action = new TransportSearchAction(
             mock(NodeClient.class),
             threadPool,

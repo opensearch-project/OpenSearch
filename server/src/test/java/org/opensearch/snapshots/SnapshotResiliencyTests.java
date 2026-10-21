@@ -300,6 +300,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -2392,6 +2393,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     invocation.<ActionListener<Releasable>>getArgument(2).onResponse(null);
                     return null;
                 }).when(workloadGroupService).acquireThrottlePermit(any(), any(), any());
+                doCallRealMethod().when(workloadGroupService).executeWithThrottlePermit(any(), any(), any(), any());
                 actions.put(
                     SearchAction.INSTANCE,
                     new TransportSearchAction(

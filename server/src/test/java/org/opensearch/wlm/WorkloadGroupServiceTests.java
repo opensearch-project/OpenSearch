@@ -47,6 +47,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
@@ -56,6 +57,8 @@ import org.mockito.Mockito;
 import static org.opensearch.wlm.tracker.ResourceUsageCalculatorTests.createMockTaskWithResourceStats;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -753,6 +756,174 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         // releasing the first permit frees the slot so a subsequent acquire succeeds
         permit.close();
         assertNotNull(acquireThrottle("wg-1", null));
+    }
+
+    public void testExecuteWithThrottlePermitReleasesPermitBeforeNotifying() {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
+        stubClusterStateWithGroup(throttledGroup("wg-1", Settings.builder().put("node_limit", 1).build()));
+
+        AtomicReference<ActionListener<String>> admittedListener = new AtomicReference<>();
+        AtomicReference<Releasable> admittedFromCompletion = new AtomicReference<>();
+        workloadGroupService.executeWithThrottlePermit(
+            throttleTask("wg-1"),
+            () -> false,
+            ActionListener.wrap(response -> admittedFromCompletion.set(acquireThrottle("wg-1", null)), e -> {
+                throw new AssertionError("unexpected failure", e);
+            }),
+            admittedListener::set
+        );
+        assertNotNull("an admitted request must run", admittedListener.get());
+        // The running request holds the only slot.
+        expectThrows(OpenSearchRejectedExecutionException.class, () -> acquireThrottle("wg-1", null));
+
+        admittedListener.get().onResponse("done");
+        // Work started from the completion listener (an _msearch's next sub-search) finds the slot already free.
+        assertNotNull(admittedFromCompletion.get());
+        admittedFromCompletion.get().close();
+    }
+
+    public void testExecuteWithThrottlePermitRejectsWithoutRunningTheRequest() {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
+        stubClusterStateWithGroup(throttledGroup("wg-1", Settings.builder().put("node_limit", 1).build()));
+        Releasable held = acquireThrottle("wg-1", null);
+
+        AtomicBoolean ran = new AtomicBoolean();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        workloadGroupService.executeWithThrottlePermit(
+            throttleTask("wg-1"),
+            () -> false,
+            ActionListener.wrap(
+                response -> fail("must not succeed"),
+                e -> assertTrue("notified more than once", failure.compareAndSet(null, e))
+            ),
+            listener -> ran.set(true)
+        );
+        assertFalse("a throttled request must not run", ran.get());
+        assertTrue(failure.get() instanceof OpenSearchRejectedExecutionException);
+        assertEquals(1, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalThrottled());
+        held.close();
+    }
+
+    public void testExecuteWithThrottlePermitAdmitsANestedRequestOnItsParentsCharge() {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
+        stubClusterStateWithGroup(throttledGroup("wg-1", Settings.builder().put("node_limit", 1).build()));
+        Releasable parentPermit = acquireThrottle("wg-1", null);
+
+        WorkloadGroupTask nested = throttleTask("wg-1");
+        AtomicReference<String> response = new AtomicReference<>();
+        workloadGroupService.executeWithThrottlePermit(nested, () -> true, ActionListener.wrap(response::set, e -> {
+            throw new AssertionError("unexpected failure", e);
+        }), listener -> listener.onResponse("done"));
+        // The full bucket does not reject it: the parent's charge covers it.
+        assertEquals("done", response.get());
+        assertTrue(nested.isThrottleCounted());
+        assertEquals(0, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalThrottled());
+        parentPermit.close();
+    }
+
+    public void testExecuteWithThrottlePermitRunsWithoutAPermitWhenNotThrottled() {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.DISABLED);
+        AtomicReference<String> response = new AtomicReference<>();
+        workloadGroupService.executeWithThrottlePermit(throttleTask("wg-1"), () -> false, ActionListener.wrap(response::set, e -> {
+            throw new AssertionError("unexpected failure", e);
+        }), listener -> listener.onResponse("done"));
+        assertEquals("done", response.get());
+    }
+
+    public void testExecuteWithThrottlePermitReleasesAndFailsWhenTheRequestThrows() {
+        AtomicInteger releases = new AtomicInteger();
+        WorkloadGroupService service = serviceGrantingCountedPermit(releases);
+        IllegalStateException boom = new IllegalStateException("boom");
+
+        AtomicInteger releasesWhenNotified = new AtomicInteger(-1);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        service.executeWithThrottlePermit(
+            throttleTask("wg-1"),
+            () -> false,
+            ActionListener.wrap(response -> fail("must not succeed"), e -> {
+                assertTrue("notified more than once", failure.compareAndSet(null, e));
+                releasesWhenNotified.set(releases.get());
+            }),
+            listener -> { throw boom; }
+        );
+        assertSame(boom, failure.get());
+        assertEquals("the permit must be released before the failure is delivered", 1, releasesWhenNotified.get());
+        assertEquals("the permit must be released exactly once", 1, releases.get());
+    }
+
+    public void testExecuteWithThrottlePermitNotifiesAndReleasesOnceWhenTheRequestThrowsAfterCompleting() {
+        AtomicInteger releases = new AtomicInteger();
+        WorkloadGroupService service = serviceGrantingCountedPermit(releases);
+
+        AtomicInteger responses = new AtomicInteger();
+        service.executeWithThrottlePermit(
+            throttleTask("wg-1"),
+            () -> false,
+            ActionListener.wrap(response -> responses.incrementAndGet(), e -> fail("the completed request must not also fail")),
+            listener -> {
+                listener.onResponse("done");
+                throw new IllegalStateException("boom");
+            }
+        );
+        assertEquals(1, responses.get());
+        assertEquals("the permit must be released exactly once", 1, releases.get());
+    }
+
+    public void testExecuteWithThrottlePermitRunsWhenAsynchronousAdmissionCompletes() {
+        WorkloadGroupService service = spy(workloadGroupService);
+        AtomicReference<ActionListener<Releasable>> pendingAdmission = new AtomicReference<>();
+        doAnswer(invocation -> {
+            pendingAdmission.set(invocation.getArgument(2));
+            return null;
+        }).when(service).acquireThrottlePermit(any(), any(), any());
+
+        AtomicReference<ActionListener<String>> admittedListener = new AtomicReference<>();
+        AtomicReference<String> response = new AtomicReference<>();
+        service.executeWithThrottlePermit(throttleTask("wg-1"), () -> false, ActionListener.wrap(response::set, e -> {
+            throw new AssertionError("unexpected failure", e);
+        }), admittedListener::set);
+        assertNull("the request must wait for admission", admittedListener.get());
+
+        AtomicInteger releases = new AtomicInteger();
+        pendingAdmission.get().onResponse(releases::incrementAndGet);
+        assertNotNull(admittedListener.get());
+        assertEquals(0, releases.get());
+        admittedListener.get().onResponse("done");
+        assertEquals("done", response.get());
+        assertEquals(1, releases.get());
+    }
+
+    public void testExecuteWithThrottlePermitDeliversUnexpectedAdmissionException() {
+        WorkloadGroupService service = spy(workloadGroupService);
+        IllegalStateException boom = new IllegalStateException("boom");
+        doThrow(boom).when(service).acquireThrottlePermit(any(), any(), any());
+
+        AtomicBoolean ran = new AtomicBoolean();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        service.executeWithThrottlePermit(
+            throttleTask("wg-1"),
+            () -> false,
+            ActionListener.wrap(
+                response -> fail("must not succeed"),
+                e -> assertTrue("notified more than once", failure.compareAndSet(null, e))
+            ),
+            listener -> ran.set(true)
+        );
+        assertFalse(ran.get());
+        assertSame(boom, failure.get());
+    }
+
+    // A service whose admission grants inline a permit that counts its releases.
+    private WorkloadGroupService serviceGrantingCountedPermit(AtomicInteger releases) {
+        WorkloadGroupService service = spy(workloadGroupService);
+        doAnswer(invocation -> {
+            invocation.<ActionListener<Releasable>>getArgument(2).onResponse(releases::incrementAndGet);
+            return null;
+        }).when(service).acquireThrottlePermit(any(), any(), any());
+        return service;
     }
 
     public void testAcquireThrottleMonitorModeObservesWithoutRejecting() {
