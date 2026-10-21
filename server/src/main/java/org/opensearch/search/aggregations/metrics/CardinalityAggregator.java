@@ -62,6 +62,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.BitArray;
 import org.opensearch.common.util.BitMixer;
+import org.opensearch.common.util.IntArray;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.common.util.ObjectArray;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -79,6 +80,14 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.LongConsumer;
+
+import org.roaringbitmap.ArrayContainer;
+import org.roaringbitmap.FastRankRoaringBitmap;
+import org.roaringbitmap.PeekableIntIterator;
+import org.roaringbitmap.PeekableIntRankIterator;
+import org.roaringbitmap.RoaringArray;
+import org.roaringbitmap.RoaringBitmap;
 
 import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
 
@@ -148,6 +157,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     int ordinalsCollectorsOverheadTooHigh;
     int stringHashingCollectorsUsed;
     int dynamicPrunedSegments;
+    int roaringOrdinalsCollectorsUsed;
+    int hybridCollectorsSwitchedToDirect;
 
     public CardinalityAggregator(
         String name,
@@ -187,39 +198,15 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             return new DirectCollector(counts, hashValues);
         }
 
-        Collector collector = null;
+        Collector collector;
         if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals source) {
             final SortedSetDocValues ordinalValues = source.ordinalsValues(ctx);
-            final long maxOrd = ordinalValues.getValueCount();
-            if (maxOrd == 0) {
+            if (ordinalValues.getValueCount() == 0) {
                 emptyCollectorsUsed++;
                 return new EmptyCollector();
-            } else if (executionMode == CardinalityAggregatorFactory.ExecutionMode.ORDINALS) { // Force OrdinalsCollector
-                ordinalsCollectorsUsed++;
-                collector = new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
-            } else if (executionMode == null) {
-                // no hint provided, fall back to heuristics
-                CardinalityAggregationContext cardinalityContext = context.cardinalityAggregationContext();
-
-                if (cardinalityContext.isHybridCollectorEnabled()) {
-                    // Use HybridCollector with configurable memory threshold
-                    MurmurHash3Values hashValues = MurmurHash3Values.hash(source.bytesValues(ctx));
-                    hybridCollectorsUsed++;
-                    collector = new HybridCollector(counts, ordinalValues, hashValues, context.bigArrays(), cardinalityContext);
-                } else {
-                    final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
-                    final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
-                    if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
-                        ordinalsCollectorsUsed++;
-                        collector = new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
-                    } else {
-                        ordinalsCollectorsOverheadTooHigh++;
-                    }
-                }
             }
-        }
-
-        if (collector == null) { // not able to build an OrdinalsCollector, or hint is direct
+            collector = ordinalsCollector(source, ordinalValues, ctx);
+        } else {
             stringHashingCollectorsUsed++;
             collector = new DirectCollector(counts, MurmurHash3Values.hash(valuesSource.bytesValues(ctx)));
         }
@@ -246,6 +233,45 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         return collector;
+    }
+
+    private Collector ordinalsCollector(ValuesSource.Bytes.WithOrdinals source, SortedSetDocValues ordinalValues, LeafReaderContext ctx)
+        throws IOException {
+        if (executionMode == CardinalityAggregatorFactory.ExecutionMode.DIRECT) {
+            stringHashingCollectorsUsed++;
+            return new DirectCollector(counts, MurmurHash3Values.hash(source.bytesValues(ctx)));
+        }
+        if (executionMode == CardinalityAggregatorFactory.ExecutionMode.ORDINALS) {
+            ordinalsCollectorsUsed++;
+            return new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
+        }
+        final CardinalityAggregationContext cardinalityContext = context.cardinalityAggregationContext();
+        if (cardinalityContext.isHybridCollectorEnabled()) {
+            // BitArray per bucket while that is affordable, then roaring bitmaps that only pay for the ordinals they hold,
+            // then plain hashing. Each stage hashes what it collected into counts before handing over.
+            hybridCollectorsUsed++;
+            final long memoryThreshold = cardinalityContext.getMemoryThreshold();
+            return new HybridCollector(new OrdinalsCollector(counts, ordinalValues, context.bigArrays(), memoryThreshold, true), () -> {
+                roaringOrdinalsCollectorsUsed++;
+                return new RoaringOrdinalsCollector(counts, source.ordinalsValues(ctx), newBucketOrdinalBitmaps(), memoryThreshold);
+            }, () -> {
+                hybridCollectorsSwitchedToDirect++;
+                return new DirectCollector(counts, MurmurHash3Values.hash(source.bytesValues(ctx)));
+            });
+        }
+        final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(ordinalValues.getValueCount());
+        final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
+        if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
+            ordinalsCollectorsUsed++;
+            return new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
+        }
+        ordinalsCollectorsOverheadTooHigh++;
+        stringHashingCollectorsUsed++;
+        return new DirectCollector(counts, MurmurHash3Values.hash(source.bytesValues(ctx)));
+    }
+
+    BucketOrdinalBitmaps newBucketOrdinalBitmaps() {
+        return new BucketOrdinalBitmaps(context.bigArrays(), this::addRequestCircuitBreakerBytes);
     }
 
     private boolean canPrune(Aggregator parent, Aggregator[] subAggregators, ValuesSourceConfig valuesSourceConfig) {
@@ -393,6 +419,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         add.accept("ordinals_collectors_overhead_too_high", ordinalsCollectorsOverheadTooHigh);
         add.accept("string_hashing_collectors_used", stringHashingCollectorsUsed);
         add.accept("dynamic_pruned_segments", dynamicPrunedSegments);
+        add.accept("roaring_ordinals_collectors_used", roaringOrdinalsCollectorsUsed);
+        add.accept("hybrid_collectors_switched_to_direct", hybridCollectorsSwitchedToDirect);
     }
 
     /**
@@ -739,6 +767,241 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     /**
+     * Per-bucket {@link RoaringBitmap}s of ordinals with an estimate of their heap usage that is charged to the request
+     * circuit breaker as the bitmaps grow.
+     * <p>
+     * {@link RoaringBitmap#getSizeInBytes()} leaves out object headers, which dominate small bitmaps, so a fixed overhead per
+     * bitmap and per container is added on top. A bitmap is re-measured whenever its number of values doubles, and every
+     * {@value #MAX_VALUES_BETWEEN_MEASUREMENTS} values once it is large, which keeps the estimate within a small factor of the
+     * real size at an amortized constant cost per value.
+     *
+     * @opensearch.internal
+     */
+    static final class BucketOrdinalBitmaps implements Releasable {
+        static final long BITMAP_OVERHEAD_BYTES = RamUsageEstimator.shallowSizeOfInstance(RoaringBitmap.class) + RamUsageEstimator
+            .shallowSizeOfInstance(RoaringArray.class) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+        static final long CONTAINER_OVERHEAD_BYTES = RamUsageEstimator.shallowSizeOfInstance(ArrayContainer.class)
+            + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+        static final int MAX_VALUES_BETWEEN_MEASUREMENTS = 4096;
+        private static final long BREAKER_FLUSH_BYTES = 64 * 1024;
+
+        private final BigArrays bigArrays;
+        private final LongConsumer breaker;
+        private ObjectArray<RoaringBitmap> bitmaps;
+        private LongArray accountedBytes;
+        private IntArray valueCounts;
+        private long maxBucket = -1;
+        private long totalBytes;
+        private long breakerBytes;
+
+        BucketOrdinalBitmaps(BigArrays bigArrays, LongConsumer breaker) {
+            this.bigArrays = bigArrays;
+            this.breaker = breaker;
+            boolean success = false;
+            try {
+                bitmaps = bigArrays.newObjectArray(1);
+                accountedBytes = bigArrays.newLongArray(1, true);
+                valueCounts = bigArrays.newIntArray(1, true);
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
+        }
+
+        RoaringBitmap get(long bucket) {
+            return bucket < bitmaps.size() ? bitmaps.get(bucket) : null;
+        }
+
+        RoaringBitmap getOrCreate(long bucket) {
+            RoaringBitmap bitmap = get(bucket);
+            if (bitmap == null) {
+                bitmaps = bigArrays.grow(bitmaps, bucket + 1);
+                accountedBytes = bigArrays.grow(accountedBytes, bucket + 1);
+                valueCounts = bigArrays.grow(valueCounts, bucket + 1);
+                bitmap = new RoaringBitmap();
+                bitmaps.set(bucket, bitmap);
+                maxBucket = Math.max(maxBucket, bucket);
+                account(bucket, bitmap);
+            }
+            return bitmap;
+        }
+
+        /**
+         * Adds {@code ord} to {@code bitmap}, which must be the bitmap of {@code bucket}.
+         */
+        void add(long bucket, RoaringBitmap bitmap, int ord) {
+            if (bitmap.checkedAdd(ord) && shouldMeasure(valueCounts.increment(bucket, 1))) {
+                account(bucket, bitmap);
+            }
+        }
+
+        private static boolean shouldMeasure(int values) {
+            if (values <= MAX_VALUES_BETWEEN_MEASUREMENTS) {
+                return (values & (values - 1)) == 0; // power of two
+            }
+            return values % MAX_VALUES_BETWEEN_MEASUREMENTS == 0;
+        }
+
+        /**
+         * Estimated heap used by {@code bitmap}.
+         */
+        static long ramBytesUsed(RoaringBitmap bitmap) {
+            return BITMAP_OVERHEAD_BYTES + bitmap.getSizeInBytes() + (long) bitmap.getContainerCount() * CONTAINER_OVERHEAD_BYTES;
+        }
+
+        private void account(long bucket, RoaringBitmap bitmap) {
+            final long bytes = ramBytesUsed(bitmap);
+            totalBytes += bytes - accountedBytes.get(bucket);
+            accountedBytes.set(bucket, bytes);
+            final long unflushed = totalBytes - breakerBytes;
+            if (unflushed >= BREAKER_FLUSH_BYTES || unflushed <= -BREAKER_FLUSH_BYTES) {
+                flushBreaker();
+            }
+        }
+
+        /**
+         * Brings the circuit breaker up to date with {@link #bytesUsed()}.
+         */
+        void flushBreaker() {
+            final long delta = totalBytes - breakerBytes;
+            if (delta != 0) {
+                breaker.accept(delta);
+                breakerBytes += delta;
+            }
+        }
+
+        long bytesUsed() {
+            return totalBytes;
+        }
+
+        /**
+         * Hashes every distinct ordinal once, then adds the hashes of each bucket's ordinals to that bucket of {@code counts}.
+         *
+         * @param values resolves the ordinals held by the bitmaps to their values
+         */
+        void collectInto(HyperLogLogPlusPlus counts, SortedSetDocValues values) throws IOException {
+            final FastRankRoaringBitmap visited = new FastRankRoaringBitmap();
+            for (long bucket = 0; bucket <= maxBucket; bucket++) {
+                final RoaringBitmap bitmap = bitmaps.get(bucket);
+                if (bitmap != null) {
+                    visited.or(bitmap);
+                }
+            }
+            final int visitedCount = visited.getCardinality();
+            if (visitedCount == 0) {
+                return;
+            }
+            final long visitedBytes = ramBytesUsed(visited);
+            breaker.accept(visitedBytes);
+            try (LongArray hashes = bigArrays.newLongArray(visitedCount, false)) {
+                final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
+                final PeekableIntIterator ords = visited.getIntIterator();
+                for (long i = 0; ords.hasNext(); i++) {
+                    final BytesRef value = values.lookupOrd(ords.next());
+                    MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
+                    hashes.set(i, hash.h1);
+                }
+                // A bucket's ordinals are a sorted subset of the visited ones, so a rank iterator over the visited ordinals
+                // only ever moves forward and finds each ordinal's index without rescanning from the start.
+                for (long bucket = 0; bucket <= maxBucket; bucket++) {
+                    final RoaringBitmap bitmap = bitmaps.get(bucket);
+                    if (bitmap == null) {
+                        continue;
+                    }
+                    final PeekableIntRankIterator ranks = visited.getIntRankIterator();
+                    final PeekableIntIterator bucketOrds = bitmap.getIntIterator();
+                    while (bucketOrds.hasNext()) {
+                        ranks.advanceIfNeeded(bucketOrds.next());
+                        counts.collect(bucket, hashes.get(ranks.peekNextRank() - 1));
+                    }
+                }
+            } finally {
+                breaker.accept(-visitedBytes);
+            }
+        }
+
+        @Override
+        public void close() {
+            try {
+                if (breakerBytes != 0) {
+                    breaker.accept(-breakerBytes);
+                }
+            } finally {
+                breakerBytes = 0;
+                totalBytes = 0;
+                Releasables.close(bitmaps, accountedBytes, valueCounts);
+            }
+        }
+    }
+
+    /**
+     * Collects segment ordinals into a {@link RoaringBitmap} per bucket and hashes them into {@code counts} in
+     * {@link #postCollect()}. Unlike {@link OrdinalsCollector} a bucket only pays for the ordinals it holds rather than
+     * {@code maxOrd} bits, which keeps many sparse buckets affordable.
+     * <p>
+     * Throws {@link MemoryLimitExceededException} once the bitmaps exceed the memory threshold, so that
+     * {@link HybridCollector} can fall back to {@link DirectCollector}.
+     *
+     * @opensearch.internal
+     */
+    static class RoaringOrdinalsCollector extends Collector {
+
+        private final HyperLogLogPlusPlus counts;
+        private final SortedSetDocValues values;
+        private final BucketOrdinalBitmaps bitmaps;
+        private final long memoryThreshold;
+        private long cachedBucket = -1;
+        private RoaringBitmap cachedBitmap;
+
+        RoaringOrdinalsCollector(
+            HyperLogLogPlusPlus counts,
+            SortedSetDocValues values,
+            BucketOrdinalBitmaps bitmaps,
+            long memoryThreshold
+        ) {
+            if (values.getValueCount() > Integer.MAX_VALUE) {
+                Releasables.close(bitmaps);
+                throw new IllegalArgumentException();
+            }
+            this.counts = counts;
+            this.values = values;
+            this.bitmaps = bitmaps;
+            this.memoryThreshold = memoryThreshold;
+        }
+
+        @Override
+        public void collect(int doc, long bucketOrd) throws IOException {
+            if (values.advanceExact(doc) == false) {
+                return;
+            }
+            if (bucketOrd != cachedBucket) {
+                cachedBitmap = bitmaps.getOrCreate(bucketOrd);
+                cachedBucket = bucketOrd;
+            }
+            int count = values.docValueCount();
+            long ord;
+            while ((count-- > 0) && (ord = values.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
+                bitmaps.add(bucketOrd, cachedBitmap, (int) ord);
+            }
+            if (bitmaps.bytesUsed() > memoryThreshold) {
+                throw MemoryLimitExceededException.INSTANCE;
+            }
+        }
+
+        @Override
+        public void postCollect() throws IOException {
+            bitmaps.collectInto(counts, values);
+        }
+
+        @Override
+        public void close() {
+            bitmaps.close();
+        }
+    }
+
+    /**
      * Representation of a list of hash values. There might be dups and there is no guarantee on the order.
      *
      * @opensearch.internal
@@ -865,75 +1128,82 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     /**
-     * Hybrid Collector that starts with OrdinalsCollector and switches to DirectCollector
-     * when memory consumption exceeds a threshold. Uses exception-based control flow for
-     * optimal performance - zero overhead when memory is under threshold.
+     * Creates the collector that a {@link HybridCollector} switches to.
+     */
+    @FunctionalInterface
+    interface FallbackCollectorSupplier {
+        Collector get() throws IOException;
+    }
+
+    /**
+     * Collector that starts with a memory-hungry but fast collector and moves to the next fallback each time the active one
+     * throws {@link MemoryLimitExceededException}. The active collector is post-collected before switching, so everything it
+     * gathered is preserved, and the document being collected is collected again by the fallback. Exception-based control
+     * flow keeps the common, under-threshold path free of overhead. The last fallback must never exceed its memory budget.
      */
     static class HybridCollector extends Collector {
-        private final HyperLogLogPlusPlus counts;
-        private final MurmurHash3Values hashValues;
-        private final CardinalityAggregationContext cardinalityContext;
-
+        private final FallbackCollectorSupplier[] fallbacks;
+        private int nextFallback;
         private Collector activeCollector;
-        private final OrdinalsCollector ordinalsCollector;
 
-        HybridCollector(
-            HyperLogLogPlusPlus counts,
-            SortedSetDocValues ordinalValues,
-            MurmurHash3Values hashValues,
-            BigArrays bigArrays,
-            CardinalityAggregationContext cardinalityContext
-        ) {
-            this.counts = counts;
-            this.hashValues = hashValues;
-            this.cardinalityContext = cardinalityContext;
-
-            // Start with OrdinalsCollector with memory monitoring enabled
-            this.ordinalsCollector = new OrdinalsCollector(counts, ordinalValues, bigArrays, cardinalityContext.getMemoryThreshold(), true);
-            this.activeCollector = ordinalsCollector;
+        HybridCollector(Collector initialCollector, FallbackCollectorSupplier... fallbacks) {
+            this.activeCollector = initialCollector;
+            this.fallbacks = fallbacks;
         }
 
         @Override
         public void collect(int doc, long bucketOrd) throws IOException {
-            try {
-                activeCollector.collect(doc, bucketOrd);
-            } catch (MemoryLimitExceededException e) {
-                switchToDirectCollector();
-                // Retry collection with DirectCollector
-                activeCollector.collect(doc, bucketOrd);
+            while (true) {
+                try {
+                    activeCollector.collect(doc, bucketOrd);
+                    return;
+                } catch (MemoryLimitExceededException e) {
+                    switchToFallback();
+                }
             }
         }
 
         @Override
         public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-            try {
-                activeCollector.collect(stream, owningBucketOrd);
-            } catch (MemoryLimitExceededException e) {
-                switchToDirectCollector();
-                // Retry collection with DirectCollector
-                activeCollector.collect(stream, owningBucketOrd);
+            while (true) {
+                try {
+                    activeCollector.collect(stream, owningBucketOrd);
+                    return;
+                } catch (MemoryLimitExceededException e) {
+                    switchToFallback();
+                }
             }
         }
 
         @Override
         public void collectRange(int minDoc, int maxDoc) throws IOException {
-            try {
-                activeCollector.collectRange(minDoc, maxDoc);
-            } catch (MemoryLimitExceededException e) {
-                switchToDirectCollector();
-                // Retry collection with DirectCollector
-                activeCollector.collectRange(minDoc, maxDoc);
+            while (true) {
+                try {
+                    activeCollector.collectRange(minDoc, maxDoc);
+                    return;
+                } catch (MemoryLimitExceededException e) {
+                    switchToFallback();
+                }
             }
         }
 
-        private void switchToDirectCollector() throws IOException {
-            // Post collect all the already computed data from OrdinalsCollector
-            ordinalsCollector.postCollect();
-            ordinalsCollector.close();
-            logger.debug("Hybrid collector switching to DirectCollector due to memory threshold exceeded");
-
-            // Create DirectCollector with computed data
-            activeCollector = new DirectCollector(counts, hashValues);
+        private void switchToFallback() throws IOException {
+            if (nextFallback == fallbacks.length) {
+                throw new IllegalStateException("the last fallback collector exceeded its memory budget");
+            }
+            final Collector previous = activeCollector;
+            activeCollector = null;
+            try {
+                previous.postCollect();
+            } finally {
+                previous.close();
+            }
+            activeCollector = fallbacks[nextFallback++].get();
+            logger.debug(
+                "Hybrid collector switched from {} to {}",
+                previous.getClass().getSimpleName(),
+                activeCollector.getClass().getSimpleName()
+            );
         }
 
         @Override
