@@ -208,7 +208,12 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
         asyncAction.start();
         latch.await();
         assertTrue(searchPhaseDidRun.get());
-        SearchResponse searchResponse = asyncAction.buildSearchResponse(null, asyncAction.buildShardFailures(), null, null);
+        SearchResponse searchResponse = asyncAction.buildSearchResponse(
+            InternalSearchResponse.empty(),
+            asyncAction.buildShardFailures(),
+            null,
+            null
+        );
         assertEquals(shardsIter.size() - numSkipped, numRequests.get());
         assertEquals(0, searchResponse.getFailedShards());
         assertEquals(numSkipped, searchResponse.getSkippedShards());
