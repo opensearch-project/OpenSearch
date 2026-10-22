@@ -8,6 +8,7 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
+import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsResponse.SettingMetadata;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.SecureSetting;

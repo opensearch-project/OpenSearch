@@ -8,6 +8,7 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
+import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsResponse.SettingMetadata;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
