@@ -11,6 +11,9 @@ package org.opensearch.wlm;
 /** Builds the acquire request a test would otherwise spell out, so tests can admit a permit in one call. */
 final class SharedThrottleTestPermits {
 
+    // A coordinator task id no test registers, so a task check reports the permit's search as finished.
+    static final long NO_SUCH_TASK = Long.MAX_VALUE;
+
     private SharedThrottleTestPermits() {}
 
     static boolean tryAcquire(
@@ -21,7 +24,7 @@ final class SharedThrottleTestPermits {
         long ttlNanos,
         String coordinatorId
     ) {
-        return tryAcquire(tracker, bucketKey, sharedLimit, permitId, ttlNanos, coordinatorId, SharedThrottleTracker.UNKNOWN_TASK_ID);
+        return tryAcquire(tracker, bucketKey, sharedLimit, permitId, ttlNanos, coordinatorId, NO_SUCH_TASK);
     }
 
     static boolean tryAcquire(

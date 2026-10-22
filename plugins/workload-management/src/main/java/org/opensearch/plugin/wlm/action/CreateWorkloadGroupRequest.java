@@ -8,7 +8,6 @@
 
 package org.opensearch.plugin.wlm.action;
 
-import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.metadata.WorkloadGroup;
@@ -17,6 +16,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.wlm.WorkloadGroupThrottleSettings;
 import org.joda.time.Instant;
 
 import java.io.IOException;
@@ -72,8 +72,12 @@ public class CreateWorkloadGroupRequest extends ClusterManagerNodeRequest<Create
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Settings throttling = workloadGroup.getMutableWorkloadGroupFragment().getThrottling();
-        if (out.getVersion().before(Version.V_3_10_0) && throttling != null && throttling.isEmpty() == false) {
-            throw new IllegalArgumentException("cannot send workload group throttling to a node before version " + Version.V_3_10_0);
+        if (out.getVersion().before(WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION)
+            && throttling != null
+            && throttling.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                "cannot send workload group throttling to a node before version " + WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION
+            );
         }
         super.writeTo(out);
         workloadGroup.writeTo(out);

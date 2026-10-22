@@ -164,7 +164,6 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.cache.module.CacheModule;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -298,9 +297,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -2388,12 +2384,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 );
                 SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =
                     new SearchRequestOperationsCompositeListenerFactory();
-                WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
-                doAnswer(invocation -> {
-                    invocation.<ActionListener<Releasable>>getArgument(2).onResponse(null);
-                    return null;
-                }).when(workloadGroupService).acquireThrottlePermit(any(), any(), any());
-                doCallRealMethod().when(workloadGroupService).executeWithThrottlePermit(any(), any(), any(), any());
                 actions.put(
                     SearchAction.INSTANCE,
                     new TransportSearchAction(
@@ -2424,7 +2414,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         NoopTracer.INSTANCE,
                         new TaskResourceTrackingService(settings, clusterSettings, threadPool),
                         mockIndicesService,
-                        workloadGroupService
+                        mock(WorkloadGroupService.class)
                     )
                 );
                 actions.put(

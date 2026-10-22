@@ -106,6 +106,43 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         mockThreadPool.shutdown();
     }
 
+    public void testIsThrottlingActiveFollowsGroupThrottlingAndWlmMode() {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        assertFalse("no cluster state applied yet", workloadGroupService.isThrottlingActive());
+
+        WorkloadGroup unthrottled = throttledGroup("wg-1", Settings.EMPTY);
+        WorkloadGroup throttled = throttledGroup("wg-1", Settings.builder().put("node_limit", 1).build());
+        applyWorkloadGroups(Map.of(), Map.of("wg-1", unthrottled));
+        assertFalse("no group configures throttling", workloadGroupService.isThrottlingActive());
+
+        applyWorkloadGroups(Map.of("wg-1", unthrottled), Map.of("wg-1", throttled));
+        assertTrue(workloadGroupService.isThrottlingActive());
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.MONITOR_ONLY);
+        assertFalse("throttling only applies in enabled mode", workloadGroupService.isThrottlingActive());
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.DISABLED);
+        assertFalse(workloadGroupService.isThrottlingActive());
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        assertTrue(workloadGroupService.isThrottlingActive());
+
+        applyWorkloadGroups(Map.of("wg-1", throttled), Map.of());
+        assertFalse("the throttled group was deleted", workloadGroupService.isThrottlingActive());
+    }
+
+    private void applyWorkloadGroups(Map<String, WorkloadGroup> previous, Map<String, WorkloadGroup> current) {
+        ClusterChangedEvent event = Mockito.mock(ClusterChangedEvent.class);
+        ClusterState previousState = Mockito.mock(ClusterState.class);
+        ClusterState currentState = Mockito.mock(ClusterState.class);
+        Metadata previousMetadata = Mockito.mock(Metadata.class);
+        Metadata currentMetadata = Mockito.mock(Metadata.class);
+        when(event.previousState()).thenReturn(previousState);
+        when(event.state()).thenReturn(currentState);
+        when(previousState.metadata()).thenReturn(previousMetadata);
+        when(currentState.metadata()).thenReturn(currentMetadata);
+        when(previousMetadata.workloadGroups()).thenReturn(previous);
+        when(currentMetadata.workloadGroups()).thenReturn(current);
+        workloadGroupService.clusterChanged(event);
+    }
+
     public void testClusterChanged() {
         ClusterChangedEvent mockClusterChangedEvent = Mockito.mock(ClusterChangedEvent.class);
         ClusterState mockPreviousClusterState = Mockito.mock(ClusterState.class);

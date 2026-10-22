@@ -33,7 +33,7 @@ import java.util.function.LongSupplier;
  *   <li><b>Departed coordinators:</b> each permit records its coordinator's ephemeral id, and {@link #releaseAllFrom}
  *       drops a departed coordinator's permits instead of leaving them until the TTL.</li>
  *   <li><b>TTL:</b> expired permits remain counted while their coordinator tasks are checked. Active tasks renew their
- *       permits; completed tasks free their slots. Legacy permits without task IDs retain age-based cleanup.</li>
+ *       permits; completed tasks free their slots.</li>
  * </ul>
  * A bucket entry exists only while it holds a permit, so memory scales with concurrently active buckets.
  * <p>
@@ -83,10 +83,6 @@ final class SharedThrottleTracker {
         List<ExpiredPermit> expired;
     }
 
-    /** Coordinator id of a permit that must never be purged by {@link #releaseAllFrom} (the TTL still applies). */
-    static final String UNKNOWN_COORDINATOR = "";
-    static final long UNKNOWN_TASK_ID = -1;
-
     private final Map<String, Bucket> permitsByBucket = new ConcurrentHashMap<>();
     private final LongSupplier nanoTimeSupplier;
     private final Consumer<List<ExpiredPermit>> expiredPermitConsumer;
@@ -110,8 +106,8 @@ final class SharedThrottleTracker {
 
     /**
      * Admits one request into its bucket if fewer than the request's {@code sharedLimit} permits are live. On a grant the
-     * owner-side {@link Permit} is created from the request's permit id, TTL, coordinator (an ephemeral node id, or
-     * {@link #UNKNOWN_COORDINATOR}, for {@link #releaseAllFrom}) and coordinator task id (for expiry checks).
+     * owner-side {@link Permit} is created from the request's permit id, TTL, coordinator (an ephemeral node id, for
+     * {@link #releaseAllFrom}) and coordinator task id (for expiry checks).
      *
      * @return {@code true} if granted, {@code false} if the bucket is at its limit
      */
@@ -160,8 +156,7 @@ final class SharedThrottleTracker {
 
     /**
      * Releases every permit held by one of {@code coordinatorIds} (ephemeral node ids of coordinators that left the
-     * cluster), across all buckets. Permits recorded with {@link #UNKNOWN_COORDINATOR} are never matched. An O(total
-     * permits) scan, so only call it on node removal.
+     * cluster), across all buckets. An O(total permits) scan, so only call it on node removal.
      *
      * @return the number of permits released
      */
@@ -173,8 +168,7 @@ final class SharedThrottleTracker {
         for (String bucketKey : permitsByBucket.keySet()) {
             permitsByBucket.computeIfPresent(bucketKey, (k, bucket) -> {
                 for (Iterator<Permit> it = bucket.permits.values().iterator(); it.hasNext();) {
-                    final String coordinatorId = it.next().coordinatorId();
-                    if (UNKNOWN_COORDINATOR.equals(coordinatorId) == false && coordinatorIds.contains(coordinatorId)) {
+                    if (coordinatorIds.contains(it.next().coordinatorId())) {
                         it.remove();
                         released[0]++;
                     }
@@ -185,7 +179,7 @@ final class SharedThrottleTracker {
         return released[0];
     }
 
-    /** Collects due task checks and reclaims expired legacy permits across all buckets. */
+    /** Collects due task checks across all buckets. */
     void sweepExpired() {
         final long now = nanoTimeSupplier.getAsLong();
         final List<ExpiredPermit> expired = new ArrayList<>();
@@ -242,6 +236,19 @@ final class SharedThrottleTracker {
         return bucket == null ? 0 : bucket.permits.size();
     }
 
+    // Visible for tests: permits whose task check is pending (expiresAt == Long.MAX_VALUE, see Permit).
+    int pendingChecks() {
+        int pending = 0;
+        for (Bucket bucket : permitsByBucket.values()) {
+            for (Permit permit : bucket.permits.values()) {
+                if (permit.expiresAt() == Long.MAX_VALUE) {
+                    pending++;
+                }
+            }
+        }
+        return pending;
+    }
+
     // Visible for tests.
     int activeBuckets() {
         return permitsByBucket.size();
@@ -261,10 +268,6 @@ final class SharedThrottleTracker {
             final Entry<String, Permit> entry = it.next();
             Permit permit = entry.getValue();
             if (permit.expiresAt() <= now) {
-                if (permit.coordinatorTaskId() == UNKNOWN_TASK_ID || UNKNOWN_COORDINATOR.equals(permit.coordinatorId())) {
-                    it.remove();
-                    continue;
-                }
                 permit = new Permit(Long.MAX_VALUE, permit.ttlNanos(), permit.coordinatorId(), permit.coordinatorTaskId());
                 entry.setValue(permit);
                 expired.add(new ExpiredPermit(bucketKey, entry.getKey(), permit));

@@ -492,6 +492,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             // or HTTP header (HTTP header will be deprecated once ActionFilter is implemented)
             if (task instanceof WorkloadGroupTask) {
                 ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
+            }
+            // With throttling off (WLM disabled, or no group configures it) the search skips admission entirely.
+            if (task instanceof WorkloadGroupTask && workloadGroupService.isThrottlingActive()) {
                 // Every outcome, including a throttle rejection or an unexpected admission exception, completes
                 // updatedListener, so the request span always ends.
                 workloadGroupService.executeWithThrottlePermit(

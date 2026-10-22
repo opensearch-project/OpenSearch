@@ -38,8 +38,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 
 import org.mockito.Mockito;
 
@@ -97,7 +99,7 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
     private static Releasable awaitGrant(WorkloadGroupSharedThrottleService service, String bucket, int limit) {
         AtomicReference<Releasable> permit = new AtomicReference<>();
         AtomicReference<Exception> failure = new AtomicReference<>();
-        service.acquireAsync(bucket, limit, false, ActionListener.wrap(permit::set, failure::set));
+        service.acquireAsync(bucket, limit, SharedThrottleTestPermits.NO_SUCH_TASK, false, ActionListener.wrap(permit::set, failure::set));
         if (failure.get() != null) {
             throw failure.get() instanceof RuntimeException re ? re : new RuntimeException(failure.get());
         }
@@ -217,7 +219,13 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
 
         WorkloadGroupSharedThrottleService service = newService();
         AtomicReference<Exception> failure = new AtomicReference<>();
-        service.acquireAsync("b", 1, false, ActionListener.wrap(p -> fail("must not admit: " + p), failure::set));
+        service.acquireAsync(
+            "b",
+            1,
+            SharedThrottleTestPermits.NO_SUCH_TASK,
+            false,
+            ActionListener.wrap(p -> fail("must not admit: " + p), failure::set)
+        );
         assertNotNull("listener must be invoked inline", failure.get());
         assertTrue("empty ring must report the shared tier unavailable", WorkloadGroupSharedThrottleService.isUnavailable(failure.get()));
     }
@@ -242,7 +250,13 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
 
         WorkloadGroupSharedThrottleService service = newService();
         AtomicReference<Exception> failure = new AtomicReference<>();
-        service.acquireAsync("b", 1, false, ActionListener.wrap(p -> fail("must not admit: " + p), failure::set));
+        service.acquireAsync(
+            "b",
+            1,
+            SharedThrottleTestPermits.NO_SUCH_TASK,
+            false,
+            ActionListener.wrap(p -> fail("must not admit: " + p), failure::set)
+        );
 
         // An inline result proves the nodeConnected() pre-check fired: the mock cannot intercept the final sendRequest,
         // so sending would throw rather than complete the listener.
@@ -288,17 +302,6 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
         }
     }
 
-    public void testAcquirePermitResponseWithoutNotOwnerReadsAsDenial() throws Exception {
-        // A same-version peer that predates the former-owner fence sends only "granted"; it must decode, as a denial.
-        Map<String, Object> body = new HashMap<>();
-        body.put(WorkloadGroupSharedThrottleService.AcquirePermitResponse.KEY_GRANTED, false);
-        WorkloadGroupSharedThrottleService.AcquirePermitResponse parsed = new WorkloadGroupSharedThrottleService.AcquirePermitResponse(
-            bodyBytes(body, false)
-        );
-        assertFalse(parsed.granted);
-        assertFalse(parsed.notOwner);
-    }
-
     public void testFormerOwnerRefusesAcquireAndKeepsItsRecords() {
         DiscoveryNode newOwner = dataNode("other");
         DiscoveryNodes moved = DiscoveryNodes.builder().add(localNode).add(newOwner).localNodeId("local").build();
@@ -319,25 +322,79 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
     public void testOwnershipLostAfterTrackerAcquireReturnsThePermit() {
         DiscoveryNode newOwner = dataNode("other");
         DiscoveryNodes moved = DiscoveryNodes.builder().add(localNode).add(newOwner).localNodeId("local").build();
-
-        // Owner side (handleAcquire).
-        WorkloadGroupSharedThrottleService owner = newService();
         String key = bucketOwnedBy(serviceWithRing(moved), newOwner); // owned locally now, by newOwner after the move
-        owner.afterTrackerAcquire = () -> deliverNodesChanged(owner, moved);
+
+        // The tracker reads its clock once per acquire, after the ownership check and before it grants, so a clock that
+        // moves the bucket on that read lands the move between the grant and the post-acquire re-check.
+        // Owner side (handleAcquire).
+        RingMovingClock ownerClock = new RingMovingClock();
+        WorkloadGroupSharedThrottleService owner = newService(ownerClock);
+        ownerClock.onNextRead(() -> deliverNodesChanged(owner, moved));
+        Mockito.clearInvocations(clusterService);
         WorkloadGroupSharedThrottleService.AcquirePermitResponse response = owner.handleAcquire(acquireRequest(key, "racy"));
+        assertTrue("the bucket must move during the tracker acquire", ownerClock.fired());
+        // Once for the ownership check and once for the post-acquire re-check; a refusal before the grant reads it once.
+        Mockito.verify(clusterService, Mockito.times(2)).localNode();
         assertTrue(response.notOwner);
         assertEquals("the permit acquired before the swap must be returned", 0, owner.tracker().inFlight(key));
 
         // Coordinator-side local short-circuit (acquireAsync).
-        WorkloadGroupSharedThrottleService local = newService();
-        local.afterTrackerAcquire = () -> deliverNodesChanged(local, moved);
+        RingMovingClock localClock = new RingMovingClock();
+        WorkloadGroupSharedThrottleService local = newService(localClock);
+        localClock.onNextRead(() -> deliverNodesChanged(local, moved));
+        Mockito.clearInvocations(clusterService);
         AtomicReference<Exception> failure = new AtomicReference<>();
-        local.acquireAsync(key, 5, false, ActionListener.wrap(p -> fail("must not admit: " + p), failure::set));
+        local.acquireAsync(
+            key,
+            5,
+            SharedThrottleTestPermits.NO_SUCH_TASK,
+            false,
+            ActionListener.wrap(p -> fail("must not admit: " + p), failure::set)
+        );
+        assertTrue("the bucket must move during the tracker acquire", localClock.fired());
+        // Once to build the request and once for the post-acquire re-check.
+        Mockito.verify(clusterService, Mockito.times(2)).localNode();
         assertTrue(
             "lost ownership mid-acquire must report the shared tier unavailable",
             WorkloadGroupSharedThrottleService.isUnavailable(failure.get())
         );
         assertEquals(0, local.tracker().inFlight(key));
+    }
+
+    private WorkloadGroupSharedThrottleService newService(LongSupplier clock) {
+        WorkloadGroupSharedThrottleService service = new WorkloadGroupSharedThrottleService(
+            clusterService,
+            threadPool,
+            transportService,
+            WorkloadGroupSharedThrottleService.ACQUIRE_TIMEOUT,
+            clock
+        );
+        deliverNodesChanged(service, clusterService.state().nodes());
+        return service;
+    }
+
+    // A clock that runs a one-shot action on its next read; always reads zero.
+    private static final class RingMovingClock implements LongSupplier {
+        private final AtomicReference<Runnable> next = new AtomicReference<>();
+        private final AtomicBoolean fired = new AtomicBoolean();
+
+        void onNextRead(Runnable action) {
+            next.set(action);
+        }
+
+        boolean fired() {
+            return fired.get();
+        }
+
+        @Override
+        public long getAsLong() {
+            Runnable action = next.getAndSet(null);
+            if (action != null) {
+                action.run();
+                fired.set(true);
+            }
+            return 0L;
+        }
     }
 
     private static WorkloadGroupSharedThrottleService.AcquirePermitRequest acquireRequest(String key, String permitId) {
@@ -354,7 +411,8 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
             5,
             permitId,
             WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
-            coordinatorId
+            coordinatorId,
+            SharedThrottleTestPermits.NO_SUCH_TASK
         );
     }
 
@@ -424,7 +482,7 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
         assertTrue(service.handleAcquire(acquireRequest("b", "from-leaving-1", leaving.getEphemeralId())).granted);
         assertTrue(service.handleAcquire(acquireRequest("c", "from-leaving-2", leaving.getEphemeralId())).granted);
         assertTrue(service.handleAcquire(acquireRequest("b", "from-staying", staying.getEphemeralId())).granted);
-        assertTrue(service.handleAcquire(acquireRequest("b", "from-unknown", SharedThrottleTracker.UNKNOWN_COORDINATOR)).granted);
+        assertTrue(service.handleAcquire(acquireRequest("b", "from-other", "other-coordinator")).granted);
         assertNotNull(awaitGrant(service, "b", 5)); // local coordinator
 
         deliverNodesChanged(service, before, DiscoveryNodes.builder().add(localNode).add(staying).localNodeId("local").build());
@@ -463,37 +521,6 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
             1,
             service.tracker().releaseAllFrom(Set.of(secondIncarnation.getEphemeralId()))
         );
-    }
-
-    public void testAcquirePermitRequestWithoutCoordinatorReadsAsUnknown() throws Exception {
-        // A same-version peer that predates the coordinator field sends only the baseline keys; it must decode, with the
-        // coordinator unknown (such a permit is never purged on node removal, only by its TTL).
-        Map<String, Object> body = new HashMap<>();
-        body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_BUCKET, "grp1:group");
-        body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_SHARED_LIMIT, 5);
-        body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_PERMIT_ID, "permit-abc");
-        body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_TTL_NANOS, 1_000L);
-        StreamInput in = bodyBytes(body, true);
-        WorkloadGroupSharedThrottleService.AcquirePermitRequest parsed = new WorkloadGroupSharedThrottleService.AcquirePermitRequest(in);
-        assertEquals(SharedThrottleTracker.UNKNOWN_TASK_ID, parsed.coordinatorTaskId);
-        assertEquals("grp1:group", parsed.bucketKey);
-        assertEquals("permit-abc", parsed.permitId);
-        assertEquals(SharedThrottleTracker.UNKNOWN_COORDINATOR, parsed.coordinatorId);
-        assertEquals(0, in.available());
-    }
-
-    public void testAcquirePermitRequestWithoutTaskIdRetainsLegacyCleanup() throws Exception {
-        Map<String, Object> body = new HashMap<>();
-        body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_BUCKET, "grp1:group");
-        body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_SHARED_LIMIT, 1);
-        body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_PERMIT_ID, "legacy");
-        body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_TTL_NANOS, 100L);
-        body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_COORDINATOR, localNode.getEphemeralId());
-        WorkloadGroupSharedThrottleService.AcquirePermitRequest parsed = new WorkloadGroupSharedThrottleService.AcquirePermitRequest(
-            bodyBytes(body, true)
-        );
-        assertEquals(localNode.getEphemeralId(), parsed.coordinatorId);
-        assertEquals(SharedThrottleTracker.UNKNOWN_TASK_ID, parsed.coordinatorTaskId);
     }
 
     public void testTaskCheckUsesExistingTaskManagerAndCountsCancelledTasks() {
@@ -540,29 +567,52 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
         assertArrayEquals(original.active, copy.active);
     }
 
-    public void testTaskCheckResponseKeepsByteFlagWireFormat() throws Exception {
-        boolean[] active = { false, true, false };
-        try (BytesStreamOutput previous = new BytesStreamOutput(); BytesStreamOutput current = new BytesStreamOutput()) {
-            previous.writeByteArray(new byte[] { 0, 1, 0 });
-            new TaskCheckResponse(active).writeTo(current);
-            assertEquals(previous.bytes(), current.bytes());
-            try (StreamInput in = previous.bytes().streamInput()) {
-                assertArrayEquals(active, new TaskCheckResponse(in).active);
-                assertEquals(0, in.available());
-            }
-        }
+    public void testTaskCheckRequestIgnoresFieldsAddedByANewerPeer() throws Exception {
+        Map<String, Object> body = new HashMap<>();
+        body.put(TaskCheckRequest.KEY_COORDINATOR, "coordinator");
+        body.put(TaskCheckRequest.KEY_TASK_IDS, List.of(7L, 8L));
+        body.put("future_include_cancelled", true);
+        body.put("future_list", List.of("a", "b"));
+        StreamInput in = bodyBytes(body, true);
+        TaskCheckRequest parsed = new TaskCheckRequest(in);
+        assertEquals("coordinator", parsed.coordinatorId);
+        assertArrayEquals(new long[] { 7L, 8L }, parsed.taskIds);
+        assertEquals("unknown keys must be consumed, not left as trailing bytes", 0, in.available());
     }
 
-    public void testTaskCheckResponseRejectsInvalidBooleanDuringDecode() throws Exception {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeByteArray(new byte[] { 0, 2 });
-            try (StreamInput in = out.bytes().streamInput()) {
-                expectThrows(IllegalStateException.class, () -> new TaskCheckResponse(in));
-            }
-        }
+    public void testTaskCheckResponseIgnoresFieldsAddedByANewerPeer() throws Exception {
+        Map<String, Object> body = new HashMap<>();
+        body.put(TaskCheckResponse.KEY_ACTIVE, List.of(false, true));
+        body.put("future_cancelled", List.of(false, false));
+        StreamInput in = bodyBytes(body, false);
+        assertArrayEquals(new boolean[] { false, true }, new TaskCheckResponse(in).active);
+        assertEquals(0, in.available());
     }
 
-    public void testTaskCheckRejectsOversizedPayloadsBeforeAllocation() throws Exception {
+    public void testTaskCheckMessagesAreStrict() throws Exception {
+        Map<String, Object> full = new HashMap<>();
+        full.put(TaskCheckRequest.KEY_COORDINATOR, "coordinator");
+        full.put(TaskCheckRequest.KEY_TASK_IDS, List.of(7L));
+        for (String omitted : full.keySet()) {
+            Map<String, Object> partial = new HashMap<>(full);
+            partial.remove(omitted);
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> new TaskCheckRequest(bodyBytes(partial, true)));
+            assertTrue(e.getMessage(), e.getMessage().contains(omitted));
+        }
+        expectThrows(IllegalStateException.class, () -> new TaskCheckResponse(bodyBytes(new HashMap<>(), false)));
+    }
+
+    public void testTaskCheckMessagesRejectElementsOfTheWrongType() throws Exception {
+        Map<String, Object> request = new HashMap<>();
+        request.put(TaskCheckRequest.KEY_COORDINATOR, "coordinator");
+        request.put(TaskCheckRequest.KEY_TASK_IDS, List.of(7L, "eight"));
+        expectThrows(IllegalStateException.class, () -> new TaskCheckRequest(bodyBytes(request, true)));
+        Map<String, Object> response = new HashMap<>();
+        response.put(TaskCheckResponse.KEY_ACTIVE, List.of(true, 1));
+        expectThrows(IllegalStateException.class, () -> new TaskCheckResponse(bodyBytes(response, false)));
+    }
+
+    public void testTaskCheckRejectsOversizedPayloads() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             new TaskCheckRequest("coordinator", new long[WorkloadGroupSharedThrottleService.MAX_TASKS_PER_CHECK + 1]).writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
@@ -570,11 +620,26 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeVInt(WorkloadGroupSharedThrottleService.MAX_TASKS_PER_CHECK + 1);
+            new TaskCheckResponse(new boolean[WorkloadGroupSharedThrottleService.MAX_TASKS_PER_CHECK + 1]).writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 expectThrows(IOException.class, () -> new TaskCheckResponse(in));
             }
         }
+    }
+
+    public void testReleasePermitResponseIgnoresFieldsAddedByANewerPeer() throws Exception {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            WorkloadGroupSharedThrottleService.ReleasePermitResponse.INSTANCE.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                new WorkloadGroupSharedThrottleService.ReleasePermitResponse(in);
+                assertEquals(0, in.available());
+            }
+        }
+        Map<String, Object> body = new HashMap<>();
+        body.put("future_was_known", true);
+        StreamInput in = bodyBytes(body, false);
+        new WorkloadGroupSharedThrottleService.ReleasePermitResponse(in);
+        assertEquals("unknown keys must be consumed, not left as trailing bytes", 0, in.available());
     }
 
     private static DiscoveryNode dataNode(String id) {
@@ -635,6 +700,8 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
         body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_SHARED_LIMIT, 5);
         body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_PERMIT_ID, "permit-abc");
         body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_TTL_NANOS, 1_000L);
+        body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_COORDINATOR, "eph-coordinator");
+        body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_COORDINATOR_TASK_ID, 7L);
         body.put("requesting_node", "eph-1");
         body.put("wants_queue", true);
         body.put("future_list", List.of("a", "b"));
@@ -656,6 +723,8 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
         full.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_SHARED_LIMIT, 5);
         full.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_PERMIT_ID, "permit-abc");
         full.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_TTL_NANOS, 1_000L);
+        full.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_COORDINATOR, "eph-coordinator");
+        full.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_COORDINATOR_TASK_ID, 7L);
         for (String omitted : full.keySet()) {
             Map<String, Object> partial = new HashMap<>(full);
             partial.remove(omitted);
@@ -674,6 +743,8 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
         body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_SHARED_LIMIT, 5L);
         body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_PERMIT_ID, "permit-abc");
         body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_TTL_NANOS, 1_000);
+        body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_COORDINATOR, "eph-coordinator");
+        body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_COORDINATOR_TASK_ID, 7L);
         WorkloadGroupSharedThrottleService.AcquirePermitRequest parsed = new WorkloadGroupSharedThrottleService.AcquirePermitRequest(
             bodyBytes(body, true)
         );
@@ -684,6 +755,7 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
     public void testAcquirePermitResponseIgnoresFieldsAddedByANewerPeer() throws Exception {
         Map<String, Object> body = new HashMap<>();
         body.put(WorkloadGroupSharedThrottleService.AcquirePermitResponse.KEY_GRANTED, true);
+        body.put(WorkloadGroupSharedThrottleService.AcquirePermitResponse.KEY_NOT_OWNER, false);
         body.put("future_reason", "at_limit");
         body.put("future_retry_after_millis", 250L);
         StreamInput in = bodyBytes(body, false); // TransportResponse has no TaskId preamble
@@ -693,10 +765,18 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
     }
 
     public void testAcquirePermitResponseIsStrict() throws Exception {
-        expectThrows(
-            IllegalStateException.class,
-            () -> new WorkloadGroupSharedThrottleService.AcquirePermitResponse(bodyBytes(new HashMap<>(), false))
-        );
+        Map<String, Object> full = new HashMap<>();
+        full.put(WorkloadGroupSharedThrottleService.AcquirePermitResponse.KEY_GRANTED, false);
+        full.put(WorkloadGroupSharedThrottleService.AcquirePermitResponse.KEY_NOT_OWNER, true);
+        for (String omitted : full.keySet()) {
+            Map<String, Object> partial = new HashMap<>(full);
+            partial.remove(omitted);
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> new WorkloadGroupSharedThrottleService.AcquirePermitResponse(bodyBytes(partial, false))
+            );
+            assertTrue(e.getMessage(), e.getMessage().contains(omitted));
+        }
     }
 
     public void testReleasePermitRequestIgnoresFieldsAddedByANewerPeer() throws Exception {
