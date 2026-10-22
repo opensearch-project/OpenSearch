@@ -118,4 +118,8 @@ public final class ProfileWeight extends Weight {
     public void associateCollectorToLeaves(LeafReaderContext leaf, Collector collector) {
         profile.associateCollectorToLeaves(collector, leaf);
     }
+
+    public void associateCollectorToLeaves(LeafReaderContext leaf, Collector collector, int minDocId, int maxDocId) {
+        profile.associateCollectorToLeaves(collector, leaf, minDocId, maxDocId);
+    }
 }
