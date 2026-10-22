@@ -66,13 +66,20 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
      * {@link #PRE_FILTER} applies the alias filter before scoring, and suppresses
      * scoring: every hit takes a constant score, no corpus statistics are read, and
      * nothing about documents outside the alias can reach a score.
+     * <p>
+     * {@link #FILTERED_STATS} also applies the filter before scoring, but performs
+     * real BM25 scoring with collection and term statistics computed over only the
+     * documents the alias admits. Relevance ordering is preserved and still does not
+     * depend on documents outside the alias. It costs one pass over the admitted
+     * documents per segment the first time that segment is queried, which is cached.
      *
      * @opensearch.experimental
      */
     @ExperimentalApi
     public enum Enforcement implements Writeable {
         POST_FILTER("post_filter"),
-        PRE_FILTER("pre_filter");
+        PRE_FILTER("pre_filter"),
+        FILTERED_STATS("filtered_stats");
 
         private final String value;
 
@@ -100,7 +107,9 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
                     return e;
                 }
             }
-            throw new IllegalArgumentException("unknown alias enforcement [" + value + "], expected one of [post_filter, pre_filter]");
+            throw new IllegalArgumentException(
+                "unknown alias enforcement [" + value + "], expected one of [post_filter, pre_filter, filtered_stats]"
+            );
         }
 
         public static Enforcement readFrom(StreamInput in) throws IOException {

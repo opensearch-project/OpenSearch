@@ -172,10 +172,10 @@ public class AliasFilterTests extends OpenSearchTestCase {
 
     public void testEnforcementIsPartOfIdentityAndSurvivesRewrite() throws Exception {
         AliasFilter post = new AliasFilter(QueryBuilders.termQuery("f", "v"), AliasFilter.Enforcement.POST_FILTER, "a");
-        AliasFilter pre = new AliasFilter(QueryBuilders.termQuery("f", "v"), AliasFilter.Enforcement.PRE_FILTER, "a");
-        assertNotEquals(post, pre);
-        assertNotEquals(post.hashCode(), pre.hashCode());
-        assertThat(pre.toString(), containsString("enforcement=PRE_FILTER"));
+        AliasFilter stats = new AliasFilter(QueryBuilders.termQuery("f", "v"), AliasFilter.Enforcement.FILTERED_STATS, "a");
+        assertNotEquals(post, stats);
+        assertNotEquals(post.hashCode(), stats.hashCode());
+        assertThat(stats.toString(), containsString("enforcement=FILTERED_STATS"));
         assertSame(
             AliasFilter.Enforcement.POST_FILTER,
             new AliasFilter(QueryBuilders.termQuery("f", "v"), (AliasFilter.Enforcement) null, "a").getEnforcement()
@@ -184,11 +184,11 @@ public class AliasFilterTests extends OpenSearchTestCase {
         // A rewrite that changes the query must keep the mode, or a rewritten alias would score over the whole shard.
         AliasFilter rewritable = new AliasFilter(
             QueryBuilders.boolQuery().must(QueryBuilders.termQuery("f", "v")),
-            AliasFilter.Enforcement.PRE_FILTER,
+            AliasFilter.Enforcement.FILTERED_STATS,
             "a"
         );
         AliasFilter rewritten = rewritable.rewrite(new BaseQueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> 0L));
-        assertSame(AliasFilter.Enforcement.PRE_FILTER, rewritten.getEnforcement());
+        assertSame(AliasFilter.Enforcement.FILTERED_STATS, rewritten.getEnforcement());
     }
 
 }

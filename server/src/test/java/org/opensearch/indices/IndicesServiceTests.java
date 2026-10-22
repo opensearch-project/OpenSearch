@@ -836,6 +836,13 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
             .addAliasAction(
                 AliasActions.add().index("enforcement_idx").alias("pre").filter(QueryBuilders.termQuery("f", "b")).enforcement("pre_filter")
             )
+            .addAliasAction(
+                AliasActions.add()
+                    .index("enforcement_idx")
+                    .alias("stats")
+                    .filter(QueryBuilders.termQuery("f", "c"))
+                    .enforcement("filtered_stats")
+            )
             .get();
         IndicesService indicesService = getIndicesService();
         ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -847,6 +854,11 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         assertSame(
             AliasFilter.Enforcement.PRE_FILTER,
             indicesService.buildAliasFilter(state, "enforcement_idx", Set.of("post", "pre")).getEnforcement()
+        );
+        // filtered_stats outranks pre_filter: a request reaching both must not score over documents either excludes.
+        assertSame(
+            AliasFilter.Enforcement.FILTERED_STATS,
+            indicesService.buildAliasFilter(state, "enforcement_idx", Set.of("post", "pre", "stats")).getEnforcement()
         );
     }
 

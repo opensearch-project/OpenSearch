@@ -343,7 +343,7 @@ public class AliasActionsTests extends OpenSearchTestCase {
     }
 
     public void testParseEnforcement() throws IOException {
-        String enforcement = randomFrom("post_filter", "pre_filter");
+        String enforcement = randomFrom("post_filter", "pre_filter", "filtered_stats");
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
         b.startObject()
             .startObject("add")
@@ -381,13 +381,13 @@ public class AliasActionsTests extends OpenSearchTestCase {
     }
 
     public void testEnforcementRoundTripsAndIsDroppedForAnOlderNode() throws IOException {
-        AliasActions action = AliasActions.add().index("i").alias("a").enforcement("pre_filter");
+        AliasActions action = AliasActions.add().index("i").alias("a").enforcement("filtered_stats");
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             action.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 AliasActions read = new AliasActions(in);
                 assertEquals(action, read);
-                assertEquals("pre_filter", read.enforcement());
+                assertEquals("filtered_stats", read.enforcement());
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -401,7 +401,7 @@ public class AliasActionsTests extends OpenSearchTestCase {
             }
         }
         assertNotEquals(action, AliasActions.add().index("i").alias("a"));
-        assertThat(action.toString(), containsString("enforcement=pre_filter"));
+        assertThat(action.toString(), containsString("enforcement=filtered_stats"));
     }
 
     public void testRoundTrip() throws IOException {
