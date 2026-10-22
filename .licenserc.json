@@ -54,6 +54,8 @@
     ".lychee.excludes",
     ".idea",
     "**/META-INF/",
+    "**/rest-api-spec/",
+    "eclipse.settings",
     ".security",
     ".classpath1",
     "distribution/src/config/",
