@@ -3632,6 +3632,47 @@ public class HighlighterSearchIT extends ParameterizedStaticSettingsOpenSearchIn
         }
     }
 
+    public void testUnifiedHighlighterMaxAnalyzerOffset() throws Exception {
+        assertAcked(
+            prepareCreate("test-offset").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("text")
+                    .field("type", "text") // Default text field forces re-analysis
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        ensureGreen();
+
+        client().prepareIndex("test-offset").setId("1").setSource("text", "The quick brown fox jumps opensearch").get();
+        refresh();
+
+        SearchResponse response = client().prepareSearch("test-offset")
+            .setQuery(matchQuery("text", "opensearch"))
+            .highlighter(new HighlightBuilder().field(new HighlightBuilder.Field("text").highlighterType("unified").maxAnalyzerOffset(10)))
+            .get();
+
+        assertNoFailures(response);
+
+        // Scenario A: max_analyzer_offset is 10 so there are no highlight fields
+        assertThat(
+            "Should have 0 highlight fields because of truncation",
+            response.getHits().getAt(0).getHighlightFields().size(),
+            equalTo(0)
+        );
+
+        // Scenario B: Set max_analyzer_offset to 100 so that there are highlighted fields
+        response = client().prepareSearch("test-offset")
+            .setQuery(matchQuery("text", "opensearch"))
+            .highlighter(new HighlightBuilder().field(new HighlightBuilder.Field("text").highlighterType("unified").maxAnalyzerOffset(100)))
+            .get();
+
+        assertNoFailures(response);
+        assertHighlight(response, 0, "text", 0, containsString("jumps <em>opensearch</em>"));
+    }
+
     public static class MockAnalysisPlugin extends Plugin implements AnalysisPlugin {
 
         public final class MockSnowBall extends TokenFilter {
