@@ -225,6 +225,54 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         cache.close(); // this triggers some assertions
     }
 
+    public void testDynamicEnableDisable() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
+        w.addDocument(new Document());
+        DirectoryReader r = DirectoryReader.open(w);
+        w.close();
+        ShardId shard = new ShardId("index", "_na_", 0);
+        r = OpenSearchDirectoryReader.wrap(r, shard);
+        IndexSearcher s = new IndexSearcher(r);
+        s.setQueryCachingPolicy(alwaysCachePolicy());
+
+        Settings settings = Settings.builder().put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true).build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        IndicesQueryCache cache = new IndicesQueryCache(settings, clusterSettings);
+        s.setQueryCache(cache);
+        assertTrue(cache.isEnabled());
+
+        assertEquals(1, s.count(new DummyQuery(0)));
+        assertEquals(1L, cache.getStats(shard).getCacheSize());
+
+        // disabling clears existing entries and stops caching new ones
+        clusterSettings.applySettings(
+            Settings.builder().put(IndicesQueryCache.INDICES_QUERIES_CACHE_ENABLED_SETTING.getKey(), false).build()
+        );
+        assertFalse(cache.isEnabled());
+        assertEquals(0L, cache.getStats(shard).getCacheSize());
+        QueryCacheStats statsBefore = cache.getStats(shard);
+        assertEquals(1, s.count(new DummyQuery(0)));
+        assertEquals(1, s.count(new DummyQuery(1)));
+        QueryCacheStats statsAfter = cache.getStats(shard);
+        assertEquals(0L, statsAfter.getCacheSize());
+        assertEquals(statsBefore.getCacheCount(), statsAfter.getCacheCount());
+        assertEquals(statsBefore.getHitCount(), statsAfter.getHitCount());
+        assertEquals(statsBefore.getMissCount(), statsAfter.getMissCount());
+
+        // re-enabling resumes caching
+        clusterSettings.applySettings(
+            Settings.builder().put(IndicesQueryCache.INDICES_QUERIES_CACHE_ENABLED_SETTING.getKey(), true).build()
+        );
+        assertTrue(cache.isEnabled());
+        assertEquals(1, s.count(new DummyQuery(0)));
+        assertEquals(1L, cache.getStats(shard).getCacheSize());
+
+        IOUtils.close(r, dir);
+        cache.onClose(shard);
+        cache.close(); // this triggers some assertions
+    }
+
     public void testTwoShards() throws IOException {
         Directory dir1 = newDirectory();
         IndexWriter w1 = new IndexWriter(dir1, newIndexWriterConfig());

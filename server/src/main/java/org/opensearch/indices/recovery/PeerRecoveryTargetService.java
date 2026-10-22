@@ -260,11 +260,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                             );
                         }
                     }
-                    final boolean hasRemoteTranslog = recoveryTarget.state().getPrimary() == false
+                    // A replica here gets a read only engine, whose translog manager has no IndexWriter to replay into.
+                    final boolean skipLocalTranslogRecovery = recoveryTarget.state().getPrimary() == false
                         && indexShard.indexSettings().isAssignedOnRemoteNode();
                     final boolean hasNoTranslog = indexShard.indexSettings().isRemoteSnapshot();
-                    final boolean verifyTranslog = (hasRemoteTranslog || hasNoTranslog || hasRemoteSegmentStore) == false;
-                    final long startingSeqNo = indexShard.recoverLocallyAndFetchStartSeqNo(!hasRemoteTranslog);
+                    final boolean verifyTranslog = (skipLocalTranslogRecovery || hasNoTranslog || hasRemoteSegmentStore) == false;
+                    final long startingSeqNo = indexShard.recoverLocallyAndFetchStartSeqNo(skipLocalTranslogRecovery == false);
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
                         : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
                     startRequest = getStartRecoveryRequest(

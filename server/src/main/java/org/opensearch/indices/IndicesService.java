@@ -489,6 +489,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Consumer<IndexShard> replicator;
     private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
     private volatile int maxSizeInRequestCache;
+    private volatile boolean requestCacheEnabled;
     private volatile int defaultMaxMergeAtOnce;
     private final StatusCounterStats statusCounterStats;
     private volatile List<SearchStatsContributor> searchStatsContributors = Collections.emptyList();
@@ -686,6 +687,9 @@ public class IndicesService extends AbstractLifecycleComponent
         this.maxSizeInRequestCache = INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING, this::setMaxSizeInRequestCache);
+        this.requestCacheEnabled = IndicesRequestCache.INDICES_REQUEST_CACHE_ENABLED_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(IndicesRequestCache.INDICES_REQUEST_CACHE_ENABLED_SETTING, this::setRequestCacheEnabled);
 
         this.defaultMaxMergeAtOnce = CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING.get(clusterService.getSettings());
         this.clusterMergeSchedulerConfig = new ClusterMergeSchedulerConfig(this);
@@ -2090,6 +2094,10 @@ public class IndicesService extends AbstractLifecycleComponent
      * Can the shard request be cached at all?
      */
     public boolean canCache(ShardSearchRequest request, SearchContext context) {
+        if (requestCacheEnabled == false) {
+            return false;
+        }
+
         // Queries that create a scroll context cannot use the cache.
         // They modify the search context during their execution so using the cache
         // may invalidate the scroll for the next query.
@@ -2182,6 +2190,9 @@ public class IndicesService extends AbstractLifecycleComponent
                     request.source()
                 );
             }
+        } else if (requestCacheEnabled == false) {
+            // The cache got disabled while this search was running, so drop the entry it just added
+            indicesRequestCache.invalidate(new IndexShardCacheEntity(context.indexShard()), directoryReader, request.cacheKey());
         }
     }
 
@@ -2559,6 +2570,22 @@ public class IndicesService extends AbstractLifecycleComponent
     // Package-private for testing
     void setMaxSizeInRequestCache(Integer maxSizeInRequestCache) {
         this.maxSizeInRequestCache = maxSizeInRequestCache;
+    }
+
+    // Package-private for testing
+    void setRequestCacheEnabled(boolean requestCacheEnabled) {
+        this.requestCacheEnabled = requestCacheEnabled;
+        if (requestCacheEnabled == false) {
+            // Clean up the same way the clear cache API does
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                for (IndexService indexService : this) {
+                    for (IndexShard indexShard : indexService) {
+                        indicesRequestCache.clear(new IndexShardCacheEntity(indexShard));
+                    }
+                }
+                indicesRequestCache.forceCleanCache();
+            });
+        }
     }
 
     public void setFixedRefreshIntervalSchedulingEnabled(boolean fixedRefreshIntervalSchedulingEnabled) {
