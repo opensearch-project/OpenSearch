@@ -19,6 +19,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
@@ -40,6 +41,7 @@ import org.opensearch.wlm.SharedThrottleTracker.ExpiredPermit;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -137,10 +139,6 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
     // Set once the first cluster-state event has been compared in full; only touched on the cluster applier thread.
     private boolean ringInitialized;
     private volatile Scheduler.Cancellable sweepTask;
-    // Test seams, no-ops in production: after a tracker acquire, before a remote acquire is sent, and after a task check.
-    volatile Runnable afterTrackerAcquire = () -> {};
-    volatile Consumer<RemoteAcquire> beforeRemoteAcquireSent = acquire -> {};
-    volatile Runnable afterTaskCheck = () -> {};
 
     public WorkloadGroupSharedThrottleService(ClusterService clusterService, ThreadPool threadPool, TransportService transportService) {
         this(clusterService, threadPool, transportService, ACQUIRE_TIMEOUT_SETTING.get(clusterService.getSettings()));
@@ -191,7 +189,7 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
             ReleasePermitRequest::new,
             (request, channel, task) -> {
                 tracker.release(request.bucketKey, request.permitId);
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                channel.sendResponse(ReleasePermitResponse.INSTANCE);
             }
         );
         transportService.registerRequestHandler(
@@ -239,8 +237,10 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
             coordinators.put(node.getEphemeralId(), node);
         }
         coordinatorsByEphemeralId = Map.copyOf(coordinators);
-        // A coordinator that left will never release its permits, so free them now rather than after the TTL. Removal is
-        // by ephemeral id (a same-id restart purges the old incarnation) and independent of the ring comparison below,
+        // Free a departed coordinator's permits now rather than after the TTL. Intentional: a coordinator removed while still
+        // alive (e.g. failed follower checks during a long GC) keeps running its in-flight searches, so the bucket can briefly
+        // admit up to that coordinator's share above shared_limit until they drain; their later releases are no-ops. Removal
+        // is by ephemeral id (a same-id restart purges the old incarnation) and independent of the ring comparison below,
         // since any removed node, whatever its roles, may have been a coordinator.
         if (event.nodesChanged() && event.nodesDelta().removed()) {
             final Set<String> removed = new HashSet<>();
@@ -276,12 +276,9 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
      * shard work (see {@code deliverRefusal}). If the search pool rejects the hand-off, refusals and MONITOR grants are
      * delivered inline; any other grant is released and the rejection passed through.
      *
-     * @param proceedsOnDenial whether the caller continues the search even when denied or unavailable (MONITOR)
+     * @param coordinatorTaskId the search task the permit is for, checked with the coordinator once the permit outlives its TTL
+     * @param proceedsOnDenial  whether the caller continues the search even when denied or unavailable (MONITOR)
      */
-    void acquireAsync(String bucketKey, int sharedLimit, boolean proceedsOnDenial, ActionListener<Releasable> listener) {
-        acquireAsync(bucketKey, sharedLimit, SharedThrottleTracker.UNKNOWN_TASK_ID, proceedsOnDenial, listener);
-    }
-
     void acquireAsync(
         String bucketKey,
         int sharedLimit,
@@ -337,7 +334,6 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
             contextListener.onFailure(unavailableMarker());
             return;
         }
-        beforeRemoteAcquireSent.accept(acquire);
         final TransportRequestOptions options = TransportRequestOptions.builder().withTimeout(ACQUIRE_REPLY_BACKSTOP).build();
         transportService.sendRequest(owner, ACQUIRE_ACTION_NAME, request, options, acquire);
     }
@@ -515,7 +511,6 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
 
     // Re-checks ownership after a successful tracker acquire; if the bucket moved in between, returns the permit and true.
     private boolean fenceIfOwnershipLost(String bucketKey, String permitId) {
-        afterTrackerAcquire.run();
         if (isStillOwner(bucketKey)) {
             return false;
         }
@@ -565,6 +560,8 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         if (checksScheduled.compareAndSet(false, true) == false) {
             return;
         }
+        // Intentional: a drain triggered by admission inherits that request's ThreadContext (GENERIC preserves it), as
+        // ACQUIRE/RELEASE do; CHECK_TASKS only reads the coordinator's task manager.
         try {
             threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
                 @Override
@@ -619,7 +616,6 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
             if (coordinator == null) {
                 // The coordinator incarnation is absent from the applied membership, matching removal cleanup.
                 entry.getValue().forEach(permit -> tracker.completeCheck(permit, false));
-                afterTaskCheck.run();
                 continue;
             }
             final List<ExpiredPermit> permits = entry.getValue();
@@ -696,7 +692,6 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         for (int i = 0; i < response.active.length; i++) {
             tracker.completeCheck(expired.get(i), response.active[i]);
         }
-        afterTaskCheck.run();
     }
 
     // The "check could not complete" outcome described on checkExpiredPermits.
@@ -704,16 +699,16 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         for (ExpiredPermit permit : expired) {
             tracker.renewForRetry(permit, FAILED_CHECK_TTL.nanos());
         }
-        afterTaskCheck.run();
     }
 
+    // releaseOnce: a double close (e.g. from both a completion and a failure path) releases only once.
     private Releasable releaseLocal(String bucketKey, String permitId) {
-        return releaseOnce(() -> tracker.release(bucketKey, permitId));
+        return Releasables.releaseOnce(() -> tracker.release(bucketKey, permitId));
     }
 
     // Closing does not wait for the owner to apply the release (see WorkloadGroupService#releaseThrottlePermitBeforeCompletion).
     private Releasable releaseRemote(DiscoveryNode owner, String bucketKey, String permitId) {
-        return releaseOnce(() -> sendRelease(owner, bucketKey, permitId));
+        return Releasables.releaseOnce(() -> sendRelease(owner, bucketKey, permitId));
     }
 
     // Fire-and-forget RELEASE to the bucket owner. A lost release is reclaimed by the expired permit's task check, so
@@ -725,14 +720,14 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
             RELEASE_ACTION_NAME,
             new ReleasePermitRequest(bucketKey, permitId),
             options,
-            new TransportResponseHandler<TransportResponse.Empty>() {
+            new TransportResponseHandler<ReleasePermitResponse>() {
                 @Override
-                public TransportResponse.Empty read(StreamInput in) {
-                    return TransportResponse.Empty.INSTANCE;
+                public ReleasePermitResponse read(StreamInput in) throws IOException {
+                    return new ReleasePermitResponse(in);
                 }
 
                 @Override
-                public void handleResponse(TransportResponse.Empty response) {}
+                public void handleResponse(ReleasePermitResponse response) {}
 
                 @Override
                 public void handleException(TransportException exp) {
@@ -751,16 +746,6 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
                 }
             }
         );
-    }
-
-    // Guards against a double close (e.g. onRequestEnd and onRequestFailure) releasing twice.
-    private static Releasable releaseOnce(Runnable release) {
-        final AtomicBoolean released = new AtomicBoolean(false);
-        return () -> {
-            if (released.compareAndSet(false, true)) {
-                release.run();
-            }
-        };
     }
 
     private static String permitId() {
@@ -824,15 +809,15 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
     }
 
     /**
-     * Acquire and release RPC bodies use name-keyed maps rather than positional fields, so peers built from different commits of
-     * the same release (e.g. a blue/green deployment, which a {@code Version} gate cannot tell apart) stay
-     * interoperable: unknown keys are ignored.
+     * Every shared-throttle RPC body, request and response, is a name-keyed map rather than positional fields, so peers on
+     * different versions, or built from different commits of the same release (e.g. a blue/green deployment, which a
+     * {@code Version} gate cannot tell apart), stay interoperable without version gates: unknown keys are ignored.
      * <p>
-     * Reading rules: baseline fields are read strictly ({@code require*}); a malformed message then fails while
-     * decoding, as a positional one would. A field added later must be read with a safe default if a same-version peer
-     * may lack it, or behind a stream-version gate otherwise (the stream version is the negotiated minimum, so an older
-     * peer never takes the strict branch). Use only types {@code readGenericValue} knows (String, Integer, Long, Boolean,
-     * List, Map).
+     * Reading rules: fields that shipped with the first release (3.10) are read strictly ({@code require*}), so a
+     * malformed message fails while decoding rather than being guessed. A field added later must be read with a default
+     * that keeps the older behavior, or strictly behind a stream-version gate (the stream version is the negotiated
+     * minimum, so an older peer never takes the strict branch). Use only types {@code readGenericValue} knows (String,
+     * Integer, Long, Boolean, List, Map).
      */
     private static Map<String, Object> readBody(StreamInput in) throws IOException {
         return in.readMap(StreamInput::readString, StreamInput::readGenericValue);
@@ -864,35 +849,39 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         throw new IllegalStateException("wlm shared-throttle: key [" + key + "] missing or not a Boolean [" + value + "]");
     }
 
-    // Fields added after the baseline: a same-version peer may omit them, so read with a default.
-
-    private static boolean optionalBoolean(Map<String, Object> body, String key, boolean defaultValue) {
+    // A task check carries at most MAX_TASKS_PER_CHECK entries.
+    private static List<?> requireTaskCheckList(Map<String, Object> body, String key) throws IOException {
         final Object value = body.get(key);
-        return value instanceof Boolean b ? b : defaultValue;
-    }
-
-    private static String optionalString(Map<String, Object> body, String key, String defaultValue) {
-        final Object value = body.get(key);
-        return value instanceof String s ? s : defaultValue;
-    }
-
-    private static long optionalLong(Map<String, Object> body, String key, long defaultValue) {
-        final Object value = body.get(key);
-        return value instanceof Number number ? number.longValue() : defaultValue;
-    }
-
-    private static int readTaskCheckSize(StreamInput in) throws IOException {
-        final int size = in.readVInt();
-        if (size < 0 || size > MAX_TASKS_PER_CHECK) {
-            throw new IOException("Invalid shared throttle task check size: " + size);
+        if (value instanceof List<?> list) {
+            if (list.size() > MAX_TASKS_PER_CHECK) {
+                throw new IOException("Invalid shared throttle task check size: " + list.size());
+            }
+            return list;
         }
-        return size;
+        throw new IllegalStateException("wlm shared-throttle: key [" + key + "] missing or not a List [" + value + "]");
     }
 
-    // Positional on purpose: bounded primitives keep checks small. coordinator_task_id advertises this fixed schema,
-    // not a build identity; incompatible changes require a new action and capability for same-version interoperability.
-    /** Bounded task-ID-only request: the coordinator performs map lookups without constructing task information. */
+    private static <T> T requireElement(Object value, Class<T> type, String key) {
+        if (type.isInstance(value)) {
+            return type.cast(value);
+        }
+        throw new IllegalStateException(
+            "wlm shared-throttle: key [" + key + "] holds an element that is not a " + type.getSimpleName() + " [" + value + "]"
+        );
+    }
+
+    private static void writeBody(StreamOutput out, Map<String, Object> body) throws IOException {
+        out.writeMap(body, StreamOutput::writeString, StreamOutput::writeGenericValue);
+    }
+
+    /**
+     * {@code owner -> coord}: which of these coordinator tasks are still registered. Task ids only, at most
+     * {@link #MAX_TASKS_PER_CHECK}, so the coordinator performs map lookups without constructing task information.
+     */
     static final class TaskCheckRequest extends TransportRequest {
+        static final String KEY_COORDINATOR = "coordinator_node_id";
+        static final String KEY_TASK_IDS = "task_ids";
+
         final String coordinatorId;
         final long[] taskIds;
 
@@ -903,23 +892,26 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
 
         TaskCheckRequest(StreamInput in) throws IOException {
             super(in);
-            coordinatorId = in.readString();
-            taskIds = new long[readTaskCheckSize(in)];
+            final Map<String, Object> body = readBody(in);
+            this.coordinatorId = requireString(body, KEY_COORDINATOR);
+            final List<?> ids = requireTaskCheckList(body, KEY_TASK_IDS);
+            this.taskIds = new long[ids.size()];
             for (int i = 0; i < taskIds.length; i++) {
-                taskIds[i] = in.readVLong();
+                taskIds[i] = requireElement(ids.get(i), Number.class, KEY_TASK_IDS).longValue();
             }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(coordinatorId);
-            out.writeVLongArray(taskIds);
+            writeBody(out, Map.of(KEY_COORDINATOR, coordinatorId, KEY_TASK_IDS, Arrays.stream(taskIds).boxed().toList()));
         }
     }
 
-    /** One boolean (one byte on the wire) per task in request order. */
+    /** {@code coord -> owner}: whether each task is still registered, in request order. */
     static final class TaskCheckResponse extends TransportResponse {
+        static final String KEY_ACTIVE = "active";
+
         final boolean[] active;
 
         TaskCheckResponse(boolean[] active) {
@@ -927,18 +919,21 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         }
 
         TaskCheckResponse(StreamInput in) throws IOException {
-            active = new boolean[readTaskCheckSize(in)];
+            final Map<String, Object> body = readBody(in);
+            final List<?> flags = requireTaskCheckList(body, KEY_ACTIVE);
+            this.active = new boolean[flags.size()];
             for (int i = 0; i < active.length; i++) {
-                active[i] = in.readBoolean();
+                active[i] = requireElement(flags.get(i), Boolean.class, KEY_ACTIVE);
             }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(active.length);
+            final List<Boolean> flags = new ArrayList<>(active.length);
             for (boolean taskActive : active) {
-                out.writeBoolean(taskActive);
+                flags.add(taskActive);
             }
+            writeBody(out, Map.of(KEY_ACTIVE, flags));
         }
     }
 
@@ -948,10 +943,9 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         static final String KEY_SHARED_LIMIT = "shared_limit";
         static final String KEY_PERMIT_ID = "permit_id";
         static final String KEY_TTL_NANOS = "ttl_nanos";
-        // Added after the baseline: the coordinator's ephemeral id, for the purge on its removal. A peer that omits it
-        // reads as UNKNOWN_COORDINATOR, whose permits fall back to the TTL.
+        // The coordinator's ephemeral id, for the purge on its removal and the expiry check.
         static final String KEY_COORDINATOR = "coordinator_node_id";
-        // Presence advertises support for expiry verification; older coordinators retain legacy TTL cleanup.
+        // The coordinator's search task, checked with CHECK_TASKS once the permit outlives its TTL.
         static final String KEY_COORDINATOR_TASK_ID = "coordinator_task_id";
 
         final String bucketKey;
@@ -960,10 +954,6 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         final long ttlNanos;
         final String coordinatorId;
         final long coordinatorTaskId;
-
-        AcquirePermitRequest(String bucketKey, int sharedLimit, String permitId, long ttlNanos, String coordinatorId) {
-            this(bucketKey, sharedLimit, permitId, ttlNanos, coordinatorId, SharedThrottleTracker.UNKNOWN_TASK_ID);
-        }
 
         AcquirePermitRequest(
             String bucketKey,
@@ -988,8 +978,8 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
             this.sharedLimit = requireNumber(body, KEY_SHARED_LIMIT).intValue();
             this.permitId = requireString(body, KEY_PERMIT_ID);
             this.ttlNanos = requireNumber(body, KEY_TTL_NANOS).longValue();
-            this.coordinatorId = optionalString(body, KEY_COORDINATOR, SharedThrottleTracker.UNKNOWN_COORDINATOR);
-            this.coordinatorTaskId = optionalLong(body, KEY_COORDINATOR_TASK_ID, SharedThrottleTracker.UNKNOWN_TASK_ID);
+            this.coordinatorId = requireString(body, KEY_COORDINATOR);
+            this.coordinatorTaskId = requireNumber(body, KEY_COORDINATOR_TASK_ID).longValue();
         }
 
         @Override
@@ -1019,8 +1009,6 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
     /** {@code owner -> coord}: granted, denied, or {@code not_owner} (the answering node no longer owns the bucket). */
     static final class AcquirePermitResponse extends TransportResponse {
         static final String KEY_GRANTED = "granted";
-        // Added after the baseline: written only when true and read with a default of false, so a peer that predates it
-        // reads not_owner as a plain denial.
         static final String KEY_NOT_OWNER = "not_owner";
 
         static final AcquirePermitResponse GRANTED = new AcquirePermitResponse(true, false);
@@ -1039,13 +1027,12 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         AcquirePermitResponse(StreamInput in) throws IOException {
             final Map<String, Object> body = readBody(in);
             this.granted = requireBoolean(body, KEY_GRANTED);
-            this.notOwner = optionalBoolean(body, KEY_NOT_OWNER, false);
+            this.notOwner = requireBoolean(body, KEY_NOT_OWNER);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            final Map<String, Object> body = notOwner ? Map.of(KEY_GRANTED, granted, KEY_NOT_OWNER, true) : Map.of(KEY_GRANTED, granted);
-            out.writeMap(body, StreamOutput::writeString, StreamOutput::writeGenericValue);
+            writeBody(out, Map.of(KEY_GRANTED, granted, KEY_NOT_OWNER, notOwner));
         }
     }
 
@@ -1077,6 +1064,22 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
                 StreamOutput::writeString,
                 StreamOutput::writeGenericValue
             );
+        }
+    }
+
+    /** {@code owner -> coord}: acknowledges a release. No fields yet; a map body, so a later version can add some. */
+    static final class ReleasePermitResponse extends TransportResponse {
+        static final ReleasePermitResponse INSTANCE = new ReleasePermitResponse();
+
+        private ReleasePermitResponse() {}
+
+        ReleasePermitResponse(StreamInput in) throws IOException {
+            readBody(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            writeBody(out, Map.of());
         }
     }
 }

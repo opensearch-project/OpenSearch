@@ -8,6 +8,7 @@
 
 package org.opensearch.wlm;
 
+import org.opensearch.Version;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -25,6 +26,13 @@ import java.util.Set;
  */
 @ExperimentalApi
 public class WorkloadGroupThrottleSettings {
+
+    /**
+     * First version with WLM throttling. Gates every throttling wire format (throttling config in workload group metadata
+     * and in create/update requests, throttle stats) and which nodes can own shared-limit buckets. They all use this one
+     * value, since a reader and a writer that disagree on a gate desync the stream.
+     */
+    public static final Version MIN_SUPPORTED_VERSION = Version.V_3_10_0;
 
     /** Sentinel for an unset limit, matching the {@code -1 = not set} convention of {@code WLM_SEARCH_TIMEOUT}. */
     public static final int UNSET_LIMIT = -1;

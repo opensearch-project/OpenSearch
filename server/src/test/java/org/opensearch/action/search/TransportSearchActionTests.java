@@ -141,6 +141,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportSearchActionTests extends OpenSearchTestCase {
@@ -1196,17 +1198,47 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
     }
 
     public void testUnexpectedAdmissionExceptionTakesTheListenerPath() {
+        WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
+        when(workloadGroupService.isThrottlingActive()).thenReturn(true);
+        IllegalStateException boom = new IllegalStateException("boom");
+        doThrow(boom).when(workloadGroupService).acquireThrottlePermit(any(), any(), any());
+        // The real helper runs over the stubbed admission, so the exception reaches it as it would in production.
+        doCallRealMethod().when(workloadGroupService).executeWithThrottlePermit(any(), any(), any(), any());
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        newSearchAction(workloadGroupService).executeRequest(
+            newSearchTask(),
+            new SearchRequest("index"),
+            null,
+            ActionListener.wrap(r -> fail("must not succeed"), failure::set)
+        );
+        assertSame("an exception thrown by admission must be delivered to the listener", boom, failure.get());
+    }
+
+    public void testSearchSkipsAdmissionWhileThrottlingIsInactive() {
+        WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
+        when(workloadGroupService.isThrottlingActive()).thenReturn(false);
+        IllegalStateException boom = new IllegalStateException("boom");
+        doThrow(boom).when(workloadGroupService).executeWithThrottlePermit(any(), any(), any(), any());
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        newSearchAction(workloadGroupService).executeRequest(
+            newSearchTask(),
+            new SearchRequest("index"),
+            null,
+            ActionListener.wrap(r -> fail("must not succeed"), failure::set)
+        );
+        verify(workloadGroupService, never()).executeWithThrottlePermit(any(), any(), any(), any());
+        // The search itself still ran; with these mocks it fails past admission, never with the admission exception.
+        assertNotNull(failure.get());
+        assertNotSame(boom, failure.get());
+    }
+
+    private TransportSearchAction newSearchAction(WorkloadGroupService workloadGroupService) {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
-        IllegalStateException boom = new IllegalStateException("boom");
-        doThrow(boom).when(workloadGroupService).acquireThrottlePermit(any(), any(), any());
-        // The real helper runs over the stubbed admission, so the exception reaches it as it would in production.
-        doCallRealMethod().when(workloadGroupService).executeWithThrottlePermit(any(), any(), any(), any());
-        TransportSearchAction action = new TransportSearchAction(
+        return new TransportSearchAction(
             mock(NodeClient.class),
             threadPool,
             mock(CircuitBreakerService.class),
@@ -1226,10 +1258,10 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             mock(IndicesService.class),
             workloadGroupService
         );
-        SearchTask task = new SearchTask(1, "transport", SearchAction.NAME, () -> "test", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        action.executeRequest(task, new SearchRequest("index"), null, ActionListener.wrap(r -> fail("must not succeed"), failure::set));
-        assertSame("an exception thrown by admission must be delivered to the listener", boom, failure.get());
+    }
+
+    private static SearchTask newSearchTask() {
+        return new SearchTask(1, "transport", SearchAction.NAME, () -> "test", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
     }
 
     public void testResolveIndices() {

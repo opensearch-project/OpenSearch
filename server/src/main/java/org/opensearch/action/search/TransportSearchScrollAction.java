@@ -79,19 +79,18 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         if (task instanceof WorkloadGroupTask workloadGroupTask) {
             workloadGroupTask.setWorkloadGroupId(threadPool.getThreadContext());
-            workloadGroupService.executeWithThrottlePermit(
-                workloadGroupTask,
-                () -> false,
-                listener,
-                admittedListener -> executeScroll(task, request, admittedListener)
-            );
-            return;
+            // With throttling off (WLM disabled, or no group configures it) the page skips admission entirely.
+            if (workloadGroupService.isThrottlingActive()) {
+                workloadGroupService.executeWithThrottlePermit(
+                    workloadGroupTask,
+                    () -> false,
+                    listener,
+                    admittedListener -> executeScroll(task, request, admittedListener)
+                );
+                return;
+            }
         }
-        try {
-            executeScroll(task, request, listener);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        executeScroll(task, request, listener);
     }
 
     private void executeScroll(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {

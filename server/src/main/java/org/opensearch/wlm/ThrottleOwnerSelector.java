@@ -8,7 +8,6 @@
 
 package org.opensearch.wlm;
 
-import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.Murmur3HashFunction;
@@ -28,7 +27,8 @@ import java.util.TreeMap;
  * <ul>
  *   <li><b>Data-capable nodes only</b> ({@link DiscoveryNode#isDataNode()}); dedicated cluster-manager nodes are
  *       excluded because a cluster may run few or none.</li>
- *   <li><b>Version-filtered:</b> nodes older than {@link #MIN_OWNER_VERSION} lack the handler and are excluded, so
+ *   <li><b>Version-filtered:</b> nodes older than {@link WorkloadGroupThrottleSettings#MIN_SUPPORTED_VERSION} lack the
+ *       handler and are excluded, so
  *       during a rolling upgrade every bucket lands on a node that can answer.</li>
  *   <li><b>{@link #VIRTUAL_NODES} virtual nodes</b> per node spread buckets evenly and redistribute a departing node's
  *       share across all survivors.</li>
@@ -41,9 +41,6 @@ import java.util.TreeMap;
  * they drain.
  */
 final class ThrottleOwnerSelector {
-
-    /** First version that runs the shared-throttle handler and may therefore own buckets. */
-    private static final Version MIN_OWNER_VERSION = Version.V_3_10_0;
 
     private static final int VIRTUAL_NODES = 128;
 
@@ -102,7 +99,7 @@ final class ThrottleOwnerSelector {
     static Set<DiscoveryNode> eligibleNodeSet(DiscoveryNodes discoveryNodes) {
         Set<DiscoveryNode> eligible = new HashSet<>();
         for (DiscoveryNode node : discoveryNodes.getDataNodes().values()) {
-            if (node.getVersion().onOrAfter(MIN_OWNER_VERSION)) {
+            if (node.getVersion().onOrAfter(WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION)) {
                 eligible.add(node);
             }
         }

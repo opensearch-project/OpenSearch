@@ -8,7 +8,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.Version;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
@@ -20,6 +19,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
+import org.opensearch.test.VersionUtils;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.MutableWorkloadGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.ResourceType;
@@ -825,7 +825,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     }
 
     public void testUpdateFromPreThrottlingPeerPreservesThrottling() throws IOException {
-        // A pre-3.10 node writes no throttling; decoding that as empty would clear the group's throttling on update.
+        // A pre-throttling node writes no throttling; decoding that as empty would clear the group's throttling on update.
         MutableWorkloadGroupFragment update = new MutableWorkloadGroupFragment(
             ResiliencyMode.SOFT,
             Map.of(),
@@ -836,7 +836,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
             update,
             new NamedWriteableRegistry(Collections.emptyList()),
             MutableWorkloadGroupFragment::new,
-            Version.V_3_9_0
+            VersionUtils.getPreviousVersion(WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION)
         );
 
         WorkloadGroup updated = WorkloadGroup.updateExistingWorkloadGroup(throttledGroup(), asSeenByCurrentNode);
@@ -847,7 +847,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     }
 
     public void testThrottlingIsDroppedWhenWrittenToPreThrottlingPeer() throws IOException {
-        // Don't forward to pre-3.10 peers, which would ack without persisting the limit.
+        // Don't forward to pre-throttling peers, which would ack without persisting the limit.
         MutableWorkloadGroupFragment withThrottling = new MutableWorkloadGroupFragment(
             ResiliencyMode.ENFORCED,
             Map.of(ResourceType.MEMORY, 0.5),
@@ -859,15 +859,15 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
             withThrottling,
             new NamedWriteableRegistry(Collections.emptyList()),
             MutableWorkloadGroupFragment::new,
-            Version.V_3_9_0
+            VersionUtils.getPreviousVersion(WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION)
         );
-        assertNull("a pre-3.10 peer must not receive a throttling bag at all", asSeenByOldPeer.getThrottling());
+        assertNull("a pre-throttling peer must not receive a throttling bag at all", asSeenByOldPeer.getThrottling());
 
         MutableWorkloadGroupFragment asSeenByCurrentPeer = copyWriteable(
             withThrottling,
             new NamedWriteableRegistry(Collections.emptyList()),
             MutableWorkloadGroupFragment::new,
-            Version.V_3_10_0
+            WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION
         );
         assertEquals(Integer.valueOf(7), WorkloadGroupThrottleSettings.NODE_LIMIT.get(asSeenByCurrentPeer.getThrottling()));
     }

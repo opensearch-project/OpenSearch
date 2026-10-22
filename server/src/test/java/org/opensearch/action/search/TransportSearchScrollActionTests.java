@@ -27,17 +27,37 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class TransportSearchScrollActionTests extends OpenSearchTestCase {
 
     public void testUnexpectedAdmissionExceptionTakesTheListenerPath() {
+        WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
+        when(workloadGroupService.isThrottlingActive()).thenReturn(true);
+        IllegalStateException boom = new IllegalStateException("boom");
+        doThrow(boom).when(workloadGroupService).acquireThrottlePermit(any(), any(), any());
+        // The real helper runs over the stubbed admission, so the exception reaches it as it would in production.
+        doCallRealMethod().when(workloadGroupService).executeWithThrottlePermit(any(), any(), any(), any());
+        assertSame("an exception thrown by admission must be delivered to the listener", boom, executeScroll(workloadGroupService));
+    }
+
+    public void testScrollSkipsAdmissionWhileThrottlingIsInactive() {
+        WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
+        when(workloadGroupService.isThrottlingActive()).thenReturn(false);
+        IllegalStateException boom = new IllegalStateException("boom");
+        doThrow(boom).when(workloadGroupService).executeWithThrottlePermit(any(), any(), any(), any());
+        Exception failure = executeScroll(workloadGroupService);
+        verify(workloadGroupService, never()).executeWithThrottlePermit(any(), any(), any(), any());
+        // The page itself still ran: the invalid scroll id fails past admission, never with the admission exception.
+        assertTrue(failure instanceof IllegalArgumentException);
+    }
+
+    // Runs one scroll page with an invalid scroll id and returns the failure it completes with.
+    private Exception executeScroll(WorkloadGroupService workloadGroupService) {
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
-            WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
-            IllegalStateException boom = new IllegalStateException("boom");
-            doThrow(boom).when(workloadGroupService).acquireThrottlePermit(any(), any(), any());
-            // The real helper runs over the stubbed admission, so the exception reaches it as it would in production.
-            doCallRealMethod().when(workloadGroupService).executeWithThrottlePermit(any(), any(), any(), any());
             TransportSearchScrollAction action = new TransportSearchScrollAction(
                 mock(TransportService.class),
                 mock(ClusterService.class),
@@ -57,7 +77,7 @@ public class TransportSearchScrollActionTests extends OpenSearchTestCase {
             );
             AtomicReference<Exception> failure = new AtomicReference<>();
             action.doExecute(task, new SearchScrollRequest("scroll-id"), ActionListener.wrap(r -> fail("must not succeed"), failure::set));
-            assertSame("an exception thrown by admission must be delivered to the listener", boom, failure.get());
+            return failure.get();
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }

@@ -22,6 +22,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.tasks.Task;
@@ -33,9 +34,16 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.RequestHandlerRegistry;
 import org.opensearch.transport.TestTransportChannel;
+import org.opensearch.transport.Transport;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequestOptions;
+import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.wlm.WorkloadGroupSharedThrottleService.TaskCheckRequest;
 
+import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -74,6 +82,11 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
     // A bucket key whose ring owner is the remote (owner) node, forcing the coordinator down the transport path.
     private String remoteKey;
 
+    // The last ACQUIRE response handler a coordinator sent, captured by its transport interceptor.
+    private final AtomicReference<WorkloadGroupSharedThrottleService.RemoteAcquire> sentAcquire = new AtomicReference<>();
+    // Counted down once the owner has applied a CHECK_TASKS reply or failure; see expectTaskChecks.
+    private final AtomicReference<CountDownLatch> checkRepliesHandled = new AtomicReference<>(new CountDownLatch(0));
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -81,8 +94,8 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
 
         // Two real transports. Default node roles include DATA at Version.CURRENT (>= MIN_OWNER_VERSION), so both
         // nodes are eligible ring owners.
-        coordinatorTransport = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, NoopTracer.INSTANCE);
-        ownerTransport = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, NoopTracer.INSTANCE);
+        coordinatorTransport = newTransport(captureAcquires());
+        ownerTransport = newTransport(countCheckReplies());
         coordinatorTransport.start();
         coordinatorTransport.acceptIncomingRequests();
         ownerTransport.start();
@@ -130,6 +143,102 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
         TimeValue timeout
     ) {
         return new WorkloadGroupSharedThrottleService(clusterService, threadPool, transport, timeout);
+    }
+
+    private MockTransportService newTransport(TransportInterceptor interceptor) {
+        return MockTransportService.createNewService(
+            Settings.EMPTY,
+            MockTransportService.newMockTransport(Settings.EMPTY, Version.CURRENT, threadPool),
+            Version.CURRENT,
+            threadPool,
+            null,
+            Collections.emptySet(),
+            interceptor,
+            NoopTracer.INSTANCE
+        );
+    }
+
+    // Records each ACQUIRE's response handler (the service's RemoteAcquire, passed through unwrapped) as it is sent.
+    private TransportInterceptor captureAcquires() {
+        return new TransportInterceptor() {
+            @Override
+            public AsyncSender interceptSender(AsyncSender sender) {
+                return new AsyncSender() {
+                    @Override
+                    public <T extends TransportResponse> void sendRequest(
+                        Transport.Connection connection,
+                        String action,
+                        TransportRequest request,
+                        TransportRequestOptions options,
+                        TransportResponseHandler<T> handler
+                    ) {
+                        if (WorkloadGroupSharedThrottleService.ACQUIRE_ACTION_NAME.equals(action)
+                            && handler instanceof WorkloadGroupSharedThrottleService.RemoteAcquire acquire) {
+                            sentAcquire.set(acquire);
+                        }
+                        sender.sendRequest(connection, action, request, options, handler);
+                    }
+                };
+            }
+        };
+    }
+
+    // Counts down checkRepliesHandled after the owner's CHECK_TASKS handler has applied a reply or a failure.
+    private TransportInterceptor countCheckReplies() {
+        return new TransportInterceptor() {
+            @Override
+            public AsyncSender interceptSender(AsyncSender sender) {
+                return new AsyncSender() {
+                    @Override
+                    public <T extends TransportResponse> void sendRequest(
+                        Transport.Connection connection,
+                        String action,
+                        TransportRequest request,
+                        TransportRequestOptions options,
+                        TransportResponseHandler<T> handler
+                    ) {
+                        if (WorkloadGroupSharedThrottleService.CHECK_TASKS_ACTION_NAME.equals(action) == false) {
+                            sender.sendRequest(connection, action, request, options, handler);
+                            return;
+                        }
+                        sender.sendRequest(connection, action, request, options, new TransportResponseHandler<T>() {
+                            @Override
+                            public T read(StreamInput in) throws IOException {
+                                return handler.read(in);
+                            }
+
+                            @Override
+                            public void handleResponse(T response) {
+                                try {
+                                    handler.handleResponse(response);
+                                } finally {
+                                    checkRepliesHandled.get().countDown();
+                                }
+                            }
+
+                            @Override
+                            public void handleException(TransportException exp) {
+                                try {
+                                    handler.handleException(exp);
+                                } finally {
+                                    checkRepliesHandled.get().countDown();
+                                }
+                            }
+
+                            @Override
+                            public void handleRejection(Exception exp) {
+                                handler.handleRejection(exp);
+                            }
+
+                            @Override
+                            public String executor() {
+                                return handler.executor();
+                            }
+                        });
+                    }
+                };
+            }
+        };
     }
 
     // Finds a bucket key that every given service's ring maps to the remote owner, so acquireAsync takes the transport
@@ -191,7 +300,7 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
      */
     public void testRemoteAcquireGrantedThenReleaseRoundTrips() throws Exception {
         CapturingListener listener = new CapturingListener();
-        coordinatorService.acquireAsync(remoteKey, 1, false, listener);
+        coordinatorService.acquireAsync(remoteKey, 1, SharedThrottleTestPermits.NO_SUCH_TASK, false, listener);
         listener.await();
 
         assertNull("granted acquire must not fail", listener.failure.get());
@@ -386,13 +495,15 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
         try {
             permit = acquireTrackedPermit(task);
             ownerTransport.disconnectFromNode(coordinatorNode);
-            CountDownLatch applied = expectTaskChecks(1);
+            long scansBefore = ownerService.tracker().pruneScanCount();
             ownerClock.set(WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS);
             ownerService.tracker().sweepExpired();
-            awaitChecks(applied);
+            assertTrue("the sweep must collect the expired permit", ownerService.tracker().pruneScanCount() > scansBefore);
+            // A disconnected coordinator gets no RPC; the drain extends the permit directly, clearing its pending mark.
+            assertBusy(() -> assertEquals("task checks were not applied", 0, ownerService.tracker().pendingChecks()));
             assertEquals(1, ownerService.tracker().inFlight(remoteKey));
             ownerTransport.connectToNode(coordinatorNode);
-            applied = expectTaskChecks(1);
+            CountDownLatch applied = expectTaskChecks(1);
             ownerClock.addAndGet(WorkloadGroupSharedThrottleService.FAILED_CHECK_TTL.nanos());
             ownerService.tracker().sweepExpired();
             awaitChecks(applied);
@@ -514,9 +625,10 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
         return checks;
     }
 
+    // Expects count CHECK_TASKS round trips (reply or failure) to be applied by the owner.
     private CountDownLatch expectTaskChecks(int count) {
         CountDownLatch applied = new CountDownLatch(count);
-        ownerService.afterTaskCheck = applied::countDown;
+        checkRepliesHandled.set(applied);
         return applied;
     }
 
@@ -530,7 +642,7 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
      */
     public void testOwnerPurgesPermitsOfDepartedCoordinator() throws Exception {
         CapturingListener listener = new CapturingListener();
-        coordinatorService.acquireAsync(remoteKey, 1, false, listener);
+        coordinatorService.acquireAsync(remoteKey, 1, SharedThrottleTestPermits.NO_SUCH_TASK, false, listener);
         listener.await();
         assertNotNull("the remote grant must be delivered, failure: " + listener.failure.get(), listener.response.get());
         assertEquals(1, ownerService.tracker().inFlight(remoteKey));
@@ -557,13 +669,13 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
                 1,
                 "pre",
                 WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
-                SharedThrottleTracker.UNKNOWN_COORDINATOR
+                "filler-coordinator"
             )
         );
         assertEquals(1, ownerService.tracker().inFlight(remoteKey));
 
         CapturingListener listener = new CapturingListener();
-        coordinatorService.acquireAsync(remoteKey, 1, false, listener);
+        coordinatorService.acquireAsync(remoteKey, 1, SharedThrottleTestPermits.NO_SUCH_TASK, false, listener);
         listener.await();
 
         assertFalse("denied acquire must not invoke onResponse", listener.responded.get());
@@ -584,12 +696,12 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
                 1,
                 "pre",
                 WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
-                SharedThrottleTracker.UNKNOWN_COORDINATOR
+                "filler-coordinator"
             )
         );
 
         CapturingListener listener = new CapturingListener();
-        coordinatorService.acquireAsync(remoteKey, 1, true, listener);
+        coordinatorService.acquireAsync(remoteKey, 1, SharedThrottleTestPermits.NO_SUCH_TASK, true, listener);
         listener.await();
 
         assertTrue("must be the shared-limit denial marker", WorkloadGroupSharedThrottleService.isDenial(listener.failure.get()));
@@ -608,7 +720,7 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
         );
 
         CapturingListener listener = new CapturingListener();
-        coordinatorService.acquireAsync(remoteKey, 1, false, listener);
+        coordinatorService.acquireAsync(remoteKey, 1, SharedThrottleTestPermits.NO_SUCH_TASK, false, listener);
         listener.await();
 
         assertFalse("a not_owner reply must not admit", listener.responded.get());
@@ -642,7 +754,7 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
         });
 
         CapturingListener listener = new CapturingListener();
-        coordinatorService.acquireAsync(remoteKey, 1, false, listener);
+        coordinatorService.acquireAsync(remoteKey, 1, SharedThrottleTestPermits.NO_SUCH_TASK, false, listener);
         listener.await();
 
         assertFalse("a transport error must not admit the request", listener.responded.get());
@@ -676,7 +788,7 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
         );
 
         CapturingListener listener = new CapturingListener();
-        coordinatorService.acquireAsync(remoteKey, 1, false, listener);
+        coordinatorService.acquireAsync(remoteKey, 1, SharedThrottleTestPermits.NO_SUCH_TASK, false, listener);
         listener.await();
 
         assertTrue(
@@ -713,7 +825,7 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
             });
 
             CapturingListener listener = new CapturingListener();
-            service.acquireAsync(key, 1, false, listener);
+            service.acquireAsync(key, 1, SharedThrottleTestPermits.NO_SUCH_TASK, false, listener);
             listener.await();
 
             assertTrue("the ACQUIRE must have been sent (and swallowed)", acquireSwallowed.get());
@@ -763,11 +875,8 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
                 }
             );
 
-            AtomicReference<WorkloadGroupSharedThrottleService.RemoteAcquire> sent = new AtomicReference<>();
-            service.beforeRemoteAcquireSent = sent::set;
-
             CapturingListener listener = new CapturingListener();
-            service.acquireAsync(key, 1, false, listener);
+            service.acquireAsync(key, 1, SharedThrottleTestPermits.NO_SUCH_TASK, false, listener);
             listener.await();
             assertTrue(
                 "the timer must report the shared tier unavailable, was: " + listener.failure.get(),
@@ -775,7 +884,9 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
             );
             assertTrue("the acquire must have reached the owner", acquireArrived.await(10, TimeUnit.SECONDS));
             // The handler stays registered for the late reply, but must no longer pin the answered request's listener.
-            assertFalse("a decided acquire must drop the caller's listener", sent.get().holdsListener());
+            WorkloadGroupSharedThrottleService.RemoteAcquire acquire = sentAcquire.get();
+            assertNotNull("the ACQUIRE handler must reach the interceptor unwrapped", acquire);
+            assertFalse("a decided acquire must drop the caller's listener", acquire.holdsListener());
             assertFalse(
                 "no release may reach the owner ahead of the acquire it would reclaim",
                 waitUntil(() -> releasesBeforeAcquire.get() > 0, 500, TimeUnit.MILLISECONDS)
@@ -795,15 +906,13 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
      * anyway afterwards must neither notify again nor release the permit the caller now holds.
      */
     public void testReplyBeforeTimeoutIsDeliveredOnce() throws Exception {
-        AtomicReference<WorkloadGroupSharedThrottleService.RemoteAcquire> sent = new AtomicReference<>();
-        coordinatorService.beforeRemoteAcquireSent = sent::set;
-
         CapturingListener listener = new CapturingListener();
-        coordinatorService.acquireAsync(remoteKey, 1, false, listener);
+        coordinatorService.acquireAsync(remoteKey, 1, SharedThrottleTestPermits.NO_SUCH_TASK, false, listener);
         listener.await();
         assertNotNull("a prompt grant must be delivered, failure: " + listener.failure.get(), listener.response.get());
 
-        WorkloadGroupSharedThrottleService.RemoteAcquire acquire = sent.get();
+        WorkloadGroupSharedThrottleService.RemoteAcquire acquire = sentAcquire.get();
+        assertNotNull("the ACQUIRE handler must reach the interceptor unwrapped", acquire);
         assertTrue("the reply must cancel the acquire timer", acquire.timer().isCancelled());
         assertFalse("a decided acquire must drop the caller's listener", acquire.holdsListener());
         // Simulate the timer having already fired when the reply decided: it must be a no-op.
@@ -821,14 +930,7 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
     // Runs body against a dedicated coordinator with a short acquire timeout; key is owned by the remote owner node.
     private void withShortTimeoutCoordinator(ShortTimeoutBody body) throws Exception {
         final TimeValue acquireTimeout = TimeValue.timeValueMillis(50);
-        try (
-            MockTransportService transport = MockTransportService.createNewService(
-                Settings.EMPTY,
-                Version.CURRENT,
-                threadPool,
-                NoopTracer.INSTANCE
-            )
-        ) {
+        try (MockTransportService transport = newTransport(captureAcquires())) {
             transport.start();
             transport.acceptIncomingRequests();
             transport.connectToNode(ownerNode);
@@ -852,7 +954,7 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
     public void testSearchPoolRejectionReleasesGrantedPermit() throws Exception {
         withSaturatedSearchPool((service, key) -> {
             CapturingListener listener = new CapturingListener();
-            service.acquireAsync(key, 1, false, listener);
+            service.acquireAsync(key, 1, SharedThrottleTestPermits.NO_SUCH_TASK, false, listener);
             listener.await();
 
             assertFalse("a rejected hand-off must not admit the request", listener.responded.get());
@@ -875,7 +977,7 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
     public void testSearchPoolRejectionDeliversGrantInlineForCallerThatProceeds() throws Exception {
         withSaturatedSearchPool((service, key) -> {
             CapturingListener listener = new CapturingListener();
-            service.acquireAsync(key, 1, true, listener);
+            service.acquireAsync(key, 1, SharedThrottleTestPermits.NO_SUCH_TASK, true, listener);
             listener.await();
 
             assertNull("the grant must not be turned into a failure, was: " + listener.failure.get(), listener.failure.get());
@@ -890,17 +992,10 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
     public void testSearchPoolRejectionDeliversDenialInlineForCallerThatProceeds() throws Exception {
         withSaturatedSearchPool((service, key) -> {
             assertTrue(
-                tryAcquire(
-                    ownerService.tracker(),
-                    key,
-                    1,
-                    "pre",
-                    WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
-                    SharedThrottleTracker.UNKNOWN_COORDINATOR
-                )
+                tryAcquire(ownerService.tracker(), key, 1, "pre", WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS, "filler-coordinator")
             );
             CapturingListener listener = new CapturingListener();
-            service.acquireAsync(key, 1, true, listener);
+            service.acquireAsync(key, 1, SharedThrottleTestPermits.NO_SUCH_TASK, true, listener);
             listener.await();
 
             assertTrue(
@@ -915,17 +1010,10 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
     public void testSaturatedSearchPoolDoesNotMaskDenial() throws Exception {
         withSaturatedSearchPool((service, key) -> {
             assertTrue(
-                tryAcquire(
-                    ownerService.tracker(),
-                    key,
-                    1,
-                    "pre",
-                    WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
-                    SharedThrottleTracker.UNKNOWN_COORDINATOR
-                )
+                tryAcquire(ownerService.tracker(), key, 1, "pre", WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS, "filler-coordinator")
             );
             CapturingListener listener = new CapturingListener();
-            service.acquireAsync(key, 1, false, listener);
+            service.acquireAsync(key, 1, SharedThrottleTestPermits.NO_SUCH_TASK, false, listener);
             listener.await();
 
             assertTrue(
@@ -1038,14 +1126,7 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
 
     private void fillOwner(String key) {
         assertTrue(
-            tryAcquire(
-                ownerService.tracker(),
-                key,
-                1,
-                "pre",
-                WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
-                SharedThrottleTracker.UNKNOWN_COORDINATOR
-            )
+            tryAcquire(ownerService.tracker(), key, 1, "pre", WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS, "filler-coordinator")
         );
     }
 
@@ -1057,7 +1138,7 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
         try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
             threadPool.getThreadContext().putHeader(TEST_HEADER, "caller");
             threadPool.getThreadContext().putTransient(TEST_TRANSIENT, "caller-transient");
-            service.acquireAsync(key, 1, proceeds, listener);
+            service.acquireAsync(key, 1, SharedThrottleTestPermits.NO_SUCH_TASK, proceeds, listener);
         }
         assertNull("the caller context must not leak into the test thread", threadPool.getThreadContext().getHeader(TEST_HEADER));
         listener.await();

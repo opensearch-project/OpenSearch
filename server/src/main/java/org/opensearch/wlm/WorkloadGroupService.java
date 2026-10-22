@@ -76,6 +76,8 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
     // Node-local in-flight counters per throttle bucket.
     private final WorkloadGroupThrottleTracker throttleTracker = new WorkloadGroupThrottleTracker();
     private volatile WorkloadGroupSharedThrottleService sharedThrottleService;
+    // Whether any workload group in the applied cluster state configures throttling; see isThrottlingActive.
+    private volatile boolean throttlingConfigured;
 
     public WorkloadGroupService(
         WorkloadGroupTaskCancellationService taskCancellationService,
@@ -202,6 +204,27 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
             }
         }
         this.activeWorkloadGroups = new HashSet<>(currentMetadata.workloadGroups().values());
+        this.throttlingConfigured = anyGroupConfiguresThrottling(currentWorkloadGroups.values());
+    }
+
+    private static boolean anyGroupConfiguresThrottling(Iterable<WorkloadGroup> workloadGroups) {
+        for (WorkloadGroup workloadGroup : workloadGroups) {
+            Settings throttling = workloadGroup.getMutableWorkloadGroupFragment().getThrottling();
+            if (throttling != null && throttling.isEmpty() == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether any request can currently be throttled: WLM is {@link WlmMode#ENABLED} and some workload group configures
+     * throttling. Search actions check this before {@link #executeWithThrottlePermit}, so with the feature off admission
+     * adds no per-request work or allocation. Like every admission input, a group's throttling takes effect once its
+     * cluster state is applied on this node.
+     */
+    public boolean isThrottlingActive() {
+        return throttlingConfigured && workloadManagementSettings.getWlmMode() == WlmMode.ENABLED;
     }
 
     /**
@@ -427,7 +450,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
      * {@code admitted} with a listener that releases the permit, if any, before notifying {@code listener}. A throttle
      * rejection, or an exception thrown by admission or by {@code admitted} before it completes its listener, fails
      * {@code listener} instead. {@code admitted} may run inline or on the thread that completes an asynchronous
-     * shared-tier admission.
+     * shared-tier admission. Callers skip it entirely while {@link #isThrottlingActive()} is false.
      *
      * @param task                 the request's task, admitted against its workload group's throttle
      * @param parentAlreadyCounted supplies whether this task inherits an existing throttle charge

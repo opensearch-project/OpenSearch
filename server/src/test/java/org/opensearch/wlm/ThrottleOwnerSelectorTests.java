@@ -14,6 +14,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.Murmur3HashFunction;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -79,7 +80,7 @@ public class ThrottleOwnerSelectorTests extends OpenSearchTestCase {
 
     public void testOldVersionNodesExcludedFromRing() {
         DiscoveryNode newNode = dataNode("new", Version.CURRENT);
-        DiscoveryNode oldNode = dataNode("old", Version.V_3_9_0);
+        DiscoveryNode oldNode = dataNode("old", VersionUtils.getPreviousVersion(WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION));
         ThrottleOwnerSelector selector = ThrottleOwnerSelector.fromDiscoveryNodes(nodesOf(newNode, oldNode));
         assertEquals(1, selector.eligibleNodeSet().size());
         for (int i = 0; i < 200; i++) {
