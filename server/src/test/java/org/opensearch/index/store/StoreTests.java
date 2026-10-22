@@ -117,6 +117,7 @@ import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
@@ -682,6 +683,87 @@ public class StoreTests extends OpenSearchTestCase {
 
         deleteContent(store.directory());
         IOUtils.close(store);
+    }
+
+    public void testRecoveryDiffReusesUnchangedSegmentFilesAfterSoftUpdate() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+        IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec())
+            .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setUseCompoundFile(random().nextBoolean());
+        IndexWriter writer = new IndexWriter(store.directory(), iwc);
+        int numDocs = randomIntBetween(2, 100);
+        for (int i = 0; i < numDocs; i++) {
+            Document doc = new Document();
+            doc.add(new StringField("id", Integer.toString(i), Field.Store.NO));
+            doc.add(new TextField("body", TestUtil.randomRealisticUnicodeString(random()), Field.Store.YES));
+            writer.addDocument(doc);
+        }
+        writer.commit();
+        Store.MetadataSnapshot target = store.getMetadata();
+
+        // the update soft-deletes the old document with a doc values update, which adds generational files to its segment
+        String id = Integer.toString(randomInt(numDocs - 1));
+        Document doc = new Document();
+        doc.add(new StringField("id", id, Field.Store.NO));
+        writer.softUpdateDocument(new Term("id", id), doc, Lucene.newSoftDeletesField());
+        writer.commit();
+        writer.close();
+        Store.MetadataSnapshot source = store.getMetadata();
+
+        Store.RecoveryDiff diff = source.recoveryDiff(target);
+        assertThat(diff.different, empty());
+        for (StoreFileMetadata md : source) {
+            if (target.contains(md.name())) {
+                assertTrue(md.name() + " should be reused", diff.identical.contains(md));
+            } else {
+                assertTrue(md.name() + " should be recovered", diff.missing.contains(md));
+            }
+        }
+        assertTrue(
+            "expected a generational file of the updated segment to be recovered",
+            diff.missing.stream().anyMatch(md -> md.name().startsWith("_0_") && IndexFileNames.parseGeneration(md.name()) > 0)
+        );
+
+        deleteContent(store.directory());
+        IOUtils.close(store);
+    }
+
+    public void testRecoveryDiffReusesGenerationalFilesOnlyForIdenticalSegment() {
+        final StoreFileMetadata si = new StoreFileMetadata("_0.si", 10, "si", Version.LATEST, new BytesRef("si"));
+        final StoreFileMetadata cfs = new StoreFileMetadata("_0.cfs", 100, "cfs", Version.LATEST);
+        final StoreFileMetadata fieldInfos = new StoreFileMetadata("_0_1.fnm", 5, "fnm", Version.LATEST);
+        final StoreFileMetadata docValues = new StoreFileMetadata("_0_1_Lucene90_0.dvd", 5, "dvd", Version.LATEST);
+        final Store.MetadataSnapshot source = metadataSnapshot(si, cfs, fieldInfos, docValues);
+
+        // unchanged segment: only the missing generational file is recovered
+        Store.RecoveryDiff diff = source.recoveryDiff(metadataSnapshot(si, cfs, fieldInfos));
+        assertThat(diff.identical, containsInAnyOrder(si, cfs, fieldInfos));
+        assertThat(diff.different, empty());
+        assertThat(diff.missing, containsInAnyOrder(docValues));
+
+        // unchanged segment with a different generational file: only that file is recovered
+        final StoreFileMetadata otherFieldInfos = new StoreFileMetadata("_0_1.fnm", 5, "other", Version.LATEST);
+        diff = source.recoveryDiff(metadataSnapshot(si, cfs, otherFieldInfos, docValues));
+        assertThat(diff.identical, containsInAnyOrder(si, cfs, docValues));
+        assertThat(diff.different, containsInAnyOrder(fieldInfos));
+        assertThat(diff.missing, empty());
+
+        // different segment: all files of the segment are recovered, including identical generational files
+        final StoreFileMetadata otherSi = new StoreFileMetadata("_0.si", 10, "si", Version.LATEST, new BytesRef("other"));
+        diff = source.recoveryDiff(metadataSnapshot(otherSi, cfs, fieldInfos));
+        assertThat(diff.identical, empty());
+        assertThat(diff.different, containsInAnyOrder(si, cfs, fieldInfos));
+        assertThat(diff.missing, containsInAnyOrder(docValues));
+    }
+
+    private static Store.MetadataSnapshot metadataSnapshot(StoreFileMetadata... files) {
+        final Map<String, StoreFileMetadata> metadata = new HashMap<>();
+        for (StoreFileMetadata file : files) {
+            metadata.put(file.name(), file);
+        }
+        return new Store.MetadataSnapshot(metadata, Collections.emptyMap(), 0);
     }
 
     public void testCleanupFromSnapshot() throws IOException {
