@@ -424,6 +424,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      * {@link IndicesService#deleteIndexStore}), so after a restart nothing can associate those directories with a deleted
      * index, they belong to no allocated shard, and neither the store statistics nor the dangling indices API report
      * them. Retries therefore continue until the deletion succeeds or the node shuts down.
+     * <p>
+     * Only a held shard lock is retried. Any other failure - an I/O error while removing the files, for instance - is
+     * not a condition that waiting resolves, so it is logged once and the deletion is not rescheduled.
      */
     final class PendingIndexDeletion extends AbstractRunnable {
         private final Index index;
@@ -497,8 +500,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         static TimeValue retryDelay(int attempt) {
             final long base = PENDING_DELETE_INITIAL_RETRY_DELAY.millis();
             final long cap = PENDING_DELETE_MAX_RETRY_DELAY.millis();
-            final int shift = Math.min(attempt - 1, 30);
-            return TimeValue.timeValueMillis(Math.min(cap, base << shift));
+            long delay = base;
+            for (int i = 1; i < attempt && delay < cap; i++) {
+                delay *= 2;
+            }
+            return TimeValue.timeValueMillis(Math.min(cap, delay));
         }
     }
 

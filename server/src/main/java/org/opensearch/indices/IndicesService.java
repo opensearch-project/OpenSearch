@@ -1691,6 +1691,11 @@ public class IndicesService extends AbstractLifecycleComponent
                 continue;
             }
             try (ShardLock lock = nodeEnv.shardLock(shardId, "deleting unlocked shard of deleted index", 0)) {
+                // the index is no longer part of the cluster state, so no shard of it can be allocated here; re-checking
+                // under the lock all the same costs nothing and makes the deletion safe against anything racing the check
+                if (canDeleteShardContent(shardId, indexSettings) != ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE) {
+                    continue;
+                }
                 nodeEnv.deleteShardDirectoryUnderLock(lock, indexSettings);
                 logger.debug("{} deleted shard directory of deleted index", shardId);
             } catch (ShardLockObtainFailedException ex) {
