@@ -39,6 +39,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.util.CollectionUtils;
@@ -81,17 +82,28 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
      */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
+        /**
+         * A pluggable-data-format index always derives {@code _source}, and a binary field derives it from its
+         * stored copy only, so a binary field without {@code store: true} cannot be created there. The Parquet
+         * column already serves both the doc-values and the stored-field role on that format, so storing costs
+         * nothing extra; default it on. Lucene indices keep the {@code false} default.
+         */
+        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, () -> pluggableDataFormat);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, false);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
-            this(name, false);
+            this(name, false, Settings.EMPTY);
         }
 
         public Builder(String name, boolean hasDocValues) {
+            this(name, hasDocValues, Settings.EMPTY);
+        }
+
+        public Builder(String name, boolean hasDocValues, Settings settings) {
             super(name);
             this.hasDocValues.setValue(hasDocValues);
+            this.pluggableDataFormat = Mapper.isPluggableDataFormatEnabled(settings);
         }
 
         @Override
@@ -111,7 +123,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, false, c.getSettings()));
 
     /**
      * Binary field type
@@ -184,7 +196,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, builder.isPluggableDataFormat());
         this.stored = builder.stored.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
     }
