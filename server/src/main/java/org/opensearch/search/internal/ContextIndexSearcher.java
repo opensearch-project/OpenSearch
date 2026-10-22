@@ -71,6 +71,8 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.core.tasks.TaskCancelledException;
+import org.opensearch.index.cache.filteredstats.FilteredSegmentStats;
+import org.opensearch.index.cache.filteredstats.FilteredStatsCache;
 import org.opensearch.lucene.util.CombinedBitSet;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHits;
@@ -123,10 +125,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     /**
      * Per-segment bitsets of the documents that match {@link SearchContext#filteredStatisticsFilter()}, used to compute
      * BM25 statistics over only the "visible" subset when {@link SearchContext#useFilteredStatistics()} is true.
-     * Built lazily on first use and kept for the life of the searcher. Indexed by {@link LeafReaderContext#ord}.
-     * A {@code null} entry means "no visible docs in that segment".
+     * Built lazily on first use and cached for the life of the searcher. Indexed by {@link LeafReaderContext#ord}.
+     * A {@code null} entry means "no visible docs in that segment". The whole array being {@code null} means the
+     * bitsets have not been built yet.
      */
-    private BitSet[] visibleDocsPerSegment;
+    private FilteredSegmentStats[] visibleDocsPerSegment;
     private boolean visibleDocsInitialized = false;
 
     public ContextIndexSearcher(
@@ -643,24 +646,36 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     /**
      * Lazily builds the per-segment bitsets of documents matching {@link SearchContext#filteredStatisticsFilter()}.
      * These represent the "visible" subset over which filtered BM25 statistics are computed. Only live documents are
-     * included so the counts match what a physically-filtered index would report. The bitsets are kept on this
-     * searcher for reuse across the terms of a single request.
+     * included so the counts match what a physically-filtered index would report. Per-segment bitsets are served from
+     * {@link FilteredStatsCache} when available (keyed by segment + filter, evicted on segment close), so the
+     * O(corpus) filter scan is paid once per (segment, filter) rather than once per query; the result array is also
+     * memoized on this searcher for reuse across the terms of a single request.
      */
-    private synchronized BitSet[] getVisibleDocsPerSegment() throws IOException {
+    private synchronized FilteredSegmentStats[] getVisibleDocsPerSegment() throws IOException {
         if (visibleDocsInitialized) {
             return visibleDocsPerSegment;
         }
         final List<LeafReaderContext> leaves = getIndexReader().leaves();
-        final BitSet[] bitSets = new BitSet[leaves.size()];
+        final FilteredSegmentStats[] segments = new FilteredSegmentStats[leaves.size()];
+        // Rewritten once, so every statistics lookup of this request uses the same cache key.
         final Query filter = rewrite(searchContext.filteredStatisticsFilter());
         // COMPLETE_NO_SCORES: we only need the matching doc ids, not scores.
         final Weight weight = createWeight(filter, ScoreMode.COMPLETE_NO_SCORES, 1f);
+        final FilteredStatsCache cache = filteredStatsCache();
         for (LeafReaderContext ctx : leaves) {
-            bitSets[ctx.ord] = VisibleSubsetStatistics.computeVisibleBitSet(weight, ctx);
+            if (cache != null) {
+                segments[ctx.ord] = cache.segment(ctx, filter, () -> VisibleSubsetStatistics.computeVisibleBitSet(weight, ctx));
+            } else {
+                segments[ctx.ord] = FilteredSegmentStats.uncached(VisibleSubsetStatistics.computeVisibleBitSet(weight, ctx));
+            }
         }
-        this.visibleDocsPerSegment = bitSets;
+        this.visibleDocsPerSegment = segments;
         this.visibleDocsInitialized = true;
-        return bitSets;
+        return segments;
+    }
+
+    private FilteredStatsCache filteredStatsCache() {
+        return searchContext == null ? null : searchContext.filteredStatsCache();
     }
 
     /**
@@ -670,18 +685,21 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * {@code null} when the field has no visible documents (matching Lucene's "field absent" contract).
      */
     private CollectionStatistics filteredCollectionStatistics(String field) throws IOException {
-        final BitSet[] visibleDocs = getVisibleDocsPerSegment();
+        final FilteredSegmentStats[] segments = getVisibleDocsPerSegment();
         final List<LeafReaderContext> leaves = getIndexReader().leaves();
         long docCount = 0;         // number of visible docs that have at least one term in this field
         long sumTotalTermFreq = 0; // total number of (visible) tokens in this field
         long sumDocFreq = 0;       // sum over terms of the number of visible docs containing the term
 
         for (LeafReaderContext ctx : leaves) {
-            final BitSet visible = visibleDocs[ctx.ord];
+            final BitSet visible = segments[ctx.ord].visibleDocs();
             if (visible == null) {
                 continue;
             }
-            final long[] contribution = VisibleSubsetStatistics.computeFieldContribution(ctx, visible, field);
+            final long[] contribution = segments[ctx.ord].field(
+                field,
+                () -> VisibleSubsetStatistics.computeFieldContribution(ctx, visible, field)
+            );
             docCount += contribution[0];
             sumTotalTermFreq += contribution[1];
             sumDocFreq += contribution[2];
@@ -706,17 +724,20 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * the term (Lucene's "term absent" contract) -- so a term confined to filtered-out docs contributes no BM25 score.
      */
     private TermStatistics filteredTermStatistics(Term term) throws IOException {
-        final BitSet[] visibleDocs = getVisibleDocsPerSegment();
+        final FilteredSegmentStats[] segments = getVisibleDocsPerSegment();
         final List<LeafReaderContext> leaves = getIndexReader().leaves();
         long docFreq = 0;       // number of visible docs containing the term
         long totalTermFreq = 0; // sum of term frequencies over visible docs
 
         for (LeafReaderContext ctx : leaves) {
-            final BitSet visible = visibleDocs[ctx.ord];
+            final BitSet visible = segments[ctx.ord].visibleDocs();
             if (visible == null) {
                 continue;
             }
-            final long[] contribution = VisibleSubsetStatistics.computeTermContribution(ctx, visible, term);
+            final long[] contribution = segments[ctx.ord].term(
+                term,
+                () -> VisibleSubsetStatistics.computeTermContribution(ctx, visible, term)
+            );
             if (contribution != null) {
                 docFreq += contribution[0];
                 totalTermFreq += contribution[1];

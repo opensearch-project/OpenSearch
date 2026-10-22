@@ -32,11 +32,15 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.IndexCache;
+import org.opensearch.index.cache.filteredstats.FilteredStatsCache;
+import org.opensearch.index.cache.filteredstats.IndicesFilteredStatsCache;
 import org.opensearch.index.cache.query.QueryCache;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MapperService;
@@ -205,6 +209,14 @@ public class DefaultSearchContextFilteredStatisticsTests extends OpenSearchTestC
         }
     }
 
+    public void testCacheComesFromTheIndex() throws IOException {
+        try (DefaultSearchContext context = context(null, -1)) {
+            assertSame(cache, context.filteredStatsCache());
+        }
+    }
+
+    private FilteredStatsCache cache;
+
     private static Set<Query> filterClauses(Query query) {
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery bool = (BooleanQuery) query;
@@ -247,6 +259,11 @@ public class DefaultSearchContextFilteredStatisticsTests extends OpenSearchTestC
         IndexService indexService = mock(IndexService.class);
         IndexCache indexCache = mock(IndexCache.class);
         when(indexCache.query()).thenReturn(mock(QueryCache.class));
+        cache = new FilteredStatsCache(
+            indexSettings,
+            new IndicesFilteredStatsCache(Settings.EMPTY, new NoopCircuitBreaker(CircuitBreaker.FIELDDATA))
+        );
+        when(indexCache.filteredStatsCache()).thenReturn(cache);
         when(indexService.cache()).thenReturn(indexCache);
         when(indexService.newQueryShardContext(eq(shardId.id()), any(), any(), nullable(String.class), anyBoolean(), anyBoolean()))
             .thenReturn(mock(QueryShardContext.class));

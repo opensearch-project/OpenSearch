@@ -38,6 +38,8 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -825,6 +827,26 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         } finally {
             indicesService.setSearchStatsContributors(Collections.emptyList());
         }
+    }
+
+    public void testEveryIndexStoresFilteredStatisticsInTheNodeCache() {
+        IndexService first = createIndex("filtered_stats_first");
+        IndexService second = createIndex("filtered_stats_second");
+        assertNotNull(first.cache().filteredStatsCache());
+        assertNotNull(second.cache().filteredStatsCache());
+        assertNotSame(first.cache().filteredStatsCache(), second.cache().filteredStatsCache());
+    }
+
+    public void testNodeStatsReportTheFilteredStatisticsCacheOnRequest() {
+        NodesStatsResponse requested = client().admin()
+            .cluster()
+            .prepareNodesStats()
+            .clear()
+            .addMetric(NodesStatsRequest.Metric.FILTERED_STATS_CACHE.metricName())
+            .get();
+        assertNotNull(requested.getNodes().get(0).getFilteredStatsCacheStats());
+        NodesStatsResponse other = client().admin().cluster().prepareNodesStats().clear().addMetric("jvm").get();
+        assertNull("the section is opt-in", other.getNodes().get(0).getFilteredStatsCacheStats());
     }
 
     public void testAliasFilterTakesTheStrongestEnforcementOfItsAliases() {

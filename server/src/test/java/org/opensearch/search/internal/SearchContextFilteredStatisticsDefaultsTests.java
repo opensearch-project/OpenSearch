@@ -18,6 +18,7 @@ public class SearchContextFilteredStatisticsDefaultsTests extends OpenSearchTest
 
     public void testDefaultsScopeNothing() {
         SearchContext context = new TestSearchContext(null);
+        assertNull(context.filteredStatsCache());
         assertFalse(context.useFilteredStatistics());
         assertSame(context.aliasFilter(), context.filteredStatisticsFilter());
 

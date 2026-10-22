@@ -24,9 +24,15 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.store.Directory;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
+import org.opensearch.index.cache.filteredstats.FilteredStatsCache;
+import org.opensearch.index.cache.filteredstats.IndicesFilteredStatsCache;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.search.dfs.AggregatedDfs;
+import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -101,11 +107,21 @@ public class ContextIndexSearcherFilteredStatisticsTests extends OpenSearchTestC
     }
 
     public void testScopedStatisticsMatchAPhysicallyFilteredIndex() throws IOException {
-        assertMatchesReference(searcher(contextScopedTo(VISIBLE)));
+        assertMatchesReference(searcher(contextScopedTo(VISIBLE, null)));
+    }
+
+    public void testScopedStatisticsMatchThroughTheCache() throws IOException {
+        FilteredStatsCache cache = new FilteredStatsCache(
+            IndexSettingsModule.newIndexSettings("idx", Settings.EMPTY),
+            new IndicesFilteredStatsCache(Settings.EMPTY, new NoopCircuitBreaker(CircuitBreaker.FIELDDATA))
+        );
+        // The second searcher reads what the first one stored, so both the fill and the hit are checked.
+        assertMatchesReference(searcher(contextScopedTo(VISIBLE, cache)));
+        assertMatchesReference(searcher(contextScopedTo(VISIBLE, cache)));
     }
 
     public void testATermOnlyInExcludedDocumentsGetsTheFloorLocallyAndNothingForDfs() throws IOException {
-        ContextIndexSearcher searcher = searcher(contextScopedTo(VISIBLE));
+        ContextIndexSearcher searcher = searcher(contextScopedTo(VISIBLE, null));
         Term term = new Term("body", "only_hidden");
 
         TermStatistics local = searcher.termStatistics(term, 2, 2);
@@ -143,7 +159,7 @@ public class ContextIndexSearcherFilteredStatisticsTests extends OpenSearchTestC
     }
 
     public void testQueryPhaseOfDfsReadsTheAggregatedStatistics() throws IOException {
-        ContextIndexSearcher searcher = searcher(contextScopedTo(VISIBLE));
+        ContextIndexSearcher searcher = searcher(contextScopedTo(VISIBLE, null));
         Term alpha = new Term("body", "alpha");
         TermStatistics aggregatedTerm = new TermStatistics(alpha.bytes(), 7, 9);
         CollectionStatistics aggregatedField = new CollectionStatistics("body", 40, 30, 90, 60);
@@ -195,10 +211,11 @@ public class ContextIndexSearcherFilteredStatisticsTests extends OpenSearchTestC
         );
     }
 
-    private static SearchContext contextScopedTo(Query filter) {
+    private static SearchContext contextScopedTo(Query filter, FilteredStatsCache cache) {
         SearchContext context = baseContext();
         when(context.useFilteredStatistics()).thenReturn(true);
         when(context.filteredStatisticsFilter()).thenReturn(filter);
+        when(context.filteredStatsCache()).thenReturn(cache);
         return context;
     }
 
