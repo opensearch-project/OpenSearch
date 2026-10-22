@@ -66,6 +66,8 @@ import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesModule;
+import org.opensearch.indices.SystemIndexDescriptor;
+import org.opensearch.indices.SystemIndices;
 import org.opensearch.repositories.FilterRepository;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryMissingException;
@@ -264,7 +266,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 )
             ),
             namedWriteableRegistry,
-            () -> 0L
+            () -> 0L,
+            new SystemIndices(Collections.emptyMap())
         );
     }
 
@@ -307,7 +310,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                     )
                 ),
                 writableRegistry(),
-                () -> 0L
+                () -> 0L,
+                new SystemIndices(Collections.emptyMap())
             )
         );
     }
@@ -363,6 +367,45 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getClusterStateCustomMap().size(), is(0));
     }
 
+    public void testWriteFullMetadataExcludesSystemIndices() throws IOException {
+        final String systemIndexName = ".test-system-index";
+        remoteClusterStateService.close();
+        remoteClusterStateService = new RemoteClusterStateService(
+            "test-node-id",
+            repositoriesServiceSupplier,
+            settings,
+            clusterService,
+            () -> 0L,
+            threadPool,
+            List.of(
+                new RemoteIndexPathUploader(
+                    threadPool,
+                    settings,
+                    repositoriesServiceSupplier,
+                    clusterSettings,
+                    DefaultRemoteStoreSettings.INSTANCE
+                )
+            ),
+            namedWriteableRegistry,
+            () -> 0L,
+            new SystemIndices(Map.of("test-plugin", List.of(new SystemIndexDescriptor(systemIndexName, "test system index"))))
+        );
+        final ClusterState clusterStateWithUserIndex = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+        final IndexMetadata systemIndexMetadata = generateClusterStateWithOneIndex(systemIndexName, 1, 0, true).build()
+            .metadata()
+            .index(systemIndexName);
+        final ClusterState clusterState = ClusterState.builder(clusterStateWithUserIndex)
+            .metadata(Metadata.builder(clusterStateWithUserIndex.metadata()).put(systemIndexMetadata, true).build())
+            .build();
+        mockBlobStoreObjects();
+        remoteClusterStateService.start();
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid")
+            .getClusterMetadataManifest();
+        assertThat(manifest.getIndices().size(), is(1));
+        assertThat(manifest.getIndices().get(0).getIndexName(), is("test-index"));
+        assertFalse(manifest.getIndices().stream().anyMatch(index -> index.getIndexName().equals(systemIndexName)));
+    }
+
     public void testWriteFullMetadataSuccessPublicationEnabled() throws IOException {
         // TODO Make the publication flag parameterized
         publicationEnabled = true;
@@ -386,7 +429,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 )
             ),
             writableRegistry(),
-            () -> 0L
+            () -> 0L,
+            new SystemIndices(Collections.emptyMap())
         );
         assertTrue(remoteClusterStateService.isRemotePublicationEnabled());
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager())
@@ -761,7 +805,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 )
             ),
             writableRegistry(),
-            () -> 0L
+            () -> 0L,
+            new SystemIndices(Collections.emptyMap())
         );
         assertTrue(remoteClusterStateService.isRemotePublicationEnabled());
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
@@ -2803,7 +2848,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 )
             ),
             writableRegistry(),
-            () -> 0L
+            () -> 0L,
+            new SystemIndices(Collections.emptyMap())
         );
         assertTrue(remoteClusterStateService.getRemoteRoutingTableService() instanceof InternalRemoteRoutingTableService);
     }
@@ -3076,7 +3122,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 )
             ),
             writableRegistry(),
-            () -> 0L
+            () -> 0L,
+            new SystemIndices(Collections.emptyMap())
         );
     }
 
@@ -3107,7 +3154,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 )
             ),
             writableRegistry(),
-            () -> 0L
+            () -> 0L,
+            new SystemIndices(Collections.emptyMap())
         );
     }
 
