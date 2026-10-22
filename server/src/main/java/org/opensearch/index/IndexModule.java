@@ -68,7 +68,6 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.analysis.IndexAnalyzers;
-import org.opensearch.index.cache.filteredstats.IndicesFilteredStatsCache;
 import org.opensearch.index.cache.query.DisabledQueryCache;
 import org.opensearch.index.cache.query.IndexQueryCache;
 import org.opensearch.index.cache.query.QueryCache;
@@ -292,7 +291,6 @@ public final class IndexModule {
     private final Map<String, IndexStorePlugin.StoreFactory> storeFactories;
     private final NodeCacheService nodeCacheService;
     private final CompositeIndexSettings compositeIndexSettings;
-    private IndicesFilteredStatsCache indicesFilteredStatsCache;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -1103,8 +1101,7 @@ public final class IndexModule {
                 clusterMergeSchedulerConfig,
                 dataFormatRegistry,
                 dataFormatAwareStoreDirectoryFactory,
-                nodeCacheService,
-                indicesFilteredStatsCache
+                nodeCacheService
             );
             success = true;
             return indexService;
@@ -1301,18 +1298,6 @@ public final class IndexModule {
     public void forceQueryCacheProvider(BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider) {
         ensureNotFrozen();
         this.forceQueryCacheProvider.set(queryCacheProvider);
-    }
-
-    /**
-     * Sets the node-level cache that scoped relevance statistics for this index are stored in. Without one they are
-     * computed on every request.
-     *
-     * @param indicesFilteredStatsCache the node-level cache
-     */
-    @ExperimentalApi
-    public void setIndicesFilteredStatsCache(IndicesFilteredStatsCache indicesFilteredStatsCache) {
-        ensureNotFrozen();
-        this.indicesFilteredStatsCache = indicesFilteredStatsCache;
     }
 
     private void ensureNotFrozen() {

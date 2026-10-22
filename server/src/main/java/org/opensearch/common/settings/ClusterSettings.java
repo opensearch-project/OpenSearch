@@ -122,7 +122,6 @@ import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
 import org.opensearch.index.autoforcemerge.ForceMergeManagerSettings;
-import org.opensearch.index.cache.filteredstats.IndicesFilteredStatsCache;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.remote.RemoteStorePressureSettings;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
@@ -314,7 +313,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 FsRepository.REPOSITORIES_COMPRESS_SETTING,
                 FsRepository.REPOSITORIES_LOCATION_SETTING,
                 IndicesBitsetFilterCache.INDICES_BITSET_FILTER_CACHE_SIZE_SETTING,
-                IndicesFilteredStatsCache.INDICES_FILTERED_STATS_CACHE_SIZE_SETTING,
                 IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
                 IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
                 IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,

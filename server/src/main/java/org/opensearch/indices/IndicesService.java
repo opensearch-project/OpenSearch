@@ -116,8 +116,6 @@ import org.opensearch.index.IngestionPayloadDecoderFactory;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.analysis.AnalysisRegistry;
-import org.opensearch.index.cache.filteredstats.FilteredStatsCacheStats;
-import org.opensearch.index.cache.filteredstats.IndicesFilteredStatsCache;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.CommitStats;
@@ -439,7 +437,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesFieldDataCache indicesFieldDataCache;
     private final IndicesBitsetFilterCache indicesBitsetFilterCache;
-    private final IndicesFilteredStatsCache indicesFilteredStatsCache;
     private final CacheCleaner cacheCleaner;
     private final ThreadPool threadPool;
     private final CircuitBreakerService circuitBreakerService;
@@ -596,10 +593,6 @@ public class IndicesService extends AbstractLifecycleComponent
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
         this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, logger, threadPool, this.cleanInterval);
         this.indicesBitsetFilterCache = new IndicesBitsetFilterCache(settings);
-        this.indicesFilteredStatsCache = new IndicesFilteredStatsCache(
-            settings,
-            circuitBreakerService.getBreaker(CircuitBreaker.FIELDDATA)
-        );
         this.metaStateService = metaStateService;
         this.engineFactoryProviders = engineFactoryProviders;
 
@@ -627,7 +620,6 @@ public class IndicesService extends AbstractLifecycleComponent
                         cacheCleaner,
                         indicesRequestCache,
                         indicesQueryCache,
-                        indicesFilteredStatsCache,
                         ingestionPayloadDecoderRegistry
                     );
                 } catch (IOException e) {
@@ -906,11 +898,6 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {
         return closeLatch.await(timeout, timeUnit);
-    }
-
-    /** Returns the size and activity of the node-level filtered statistics cache. */
-    public FilteredStatsCacheStats filteredStatsCacheStats() {
-        return indicesFilteredStatsCache.stats();
     }
 
     public NodeIndicesStats stats(CommonStatsFlags flags) {
@@ -1219,8 +1206,6 @@ public class IndicesService extends AbstractLifecycleComponent
             indexModule.addIndexOperationListener(operationListener);
         }
         pluginsService.onIndexModule(indexModule);
-        // After the plugins, so the node cache is the one every index uses.
-        indexModule.setIndicesFilteredStatsCache(indicesFilteredStatsCache);
         // Add tiered storage search listeners
         if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
             indexModule.addSearchOperationListener(new TieredStorageSearchSlowLog(idxSettings));
@@ -2303,11 +2288,8 @@ public class IndicesService extends AbstractLifecycleComponent
         };
         IndexMetadata indexMetadata = state.metadata().index(index);
         String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions);
-        // Determine the enforcement mode for the resolved aliases. If any alias in the set opts into
-        // pre-filtering, the whole filter is applied before scoring so BM25 statistics reflect only the visible subset.
         // The strongest mode any alias in the set asks for wins, because a request reaching several aliases must not
-        // score over documents that any one of them excludes: filtered_stats outranks pre_filter, which outranks the
-        // historical post_filter.
+        // score over documents that any one of them excludes: pre_filter outranks the historical post_filter.
         AliasFilter.Enforcement enforcement = AliasFilter.Enforcement.POST_FILTER;
         if (aliases != null && indexMetadata != null) {
             for (String alias : aliases) {
@@ -2315,12 +2297,9 @@ public class IndicesService extends AbstractLifecycleComponent
                 if (aliasMetadata == null) {
                     continue;
                 }
-                if (AliasFilter.Enforcement.FILTERED_STATS.value().equals(aliasMetadata.enforcement())) {
-                    enforcement = AliasFilter.Enforcement.FILTERED_STATS;
-                    break;
-                }
                 if (AliasFilter.Enforcement.PRE_FILTER.value().equals(aliasMetadata.enforcement())) {
                     enforcement = AliasFilter.Enforcement.PRE_FILTER;
+                    break;
                 }
             }
         }

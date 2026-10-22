@@ -69,7 +69,7 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
     }
 
     public void testEnforcementIsPartOfIdentity() {
-        AliasMetadata with = AliasMetadata.builder("alias").enforcement("filtered_stats").build();
+        AliasMetadata with = AliasMetadata.builder("alias").enforcement("pre_filter").build();
         AliasMetadata without = AliasMetadata.builder("alias").build();
         assertNotEquals(with, without);
         assertNotEquals(with.hashCode(), without.hashCode());
@@ -77,14 +77,14 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
     }
 
     public void testEnforcementRoundTripsOnCurrentVersion() throws IOException {
-        final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").enforcement("filtered_stats").build();
+        final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").enforcement("pre_filter").build();
         final BytesStreamOutput out = new BytesStreamOutput();
         before.writeTo(out);
-        assertThat(new AliasMetadata(out.bytes().streamInput()).enforcement(), equalTo("filtered_stats"));
+        assertThat(new AliasMetadata(out.bytes().streamInput()).enforcement(), equalTo("pre_filter"));
     }
 
     public void testEnforcementIsNotSentToANodeThatPredatesIt() throws IOException {
-        final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").enforcement("filtered_stats").build();
+        final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").enforcement("pre_filter").build();
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(Version.V_3_9_0);
         before.writeTo(out);
@@ -161,7 +161,7 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
             builder.isHidden(randomBoolean());
         }
         if (randomBoolean()) {
-            builder.enforcement(randomFrom("post_filter", "pre_filter", "filtered_stats"));
+            builder.enforcement(randomFrom("post_filter", "pre_filter"));
         }
         return builder.build();
     }

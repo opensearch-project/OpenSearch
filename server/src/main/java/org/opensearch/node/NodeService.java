@@ -268,8 +268,7 @@ public class NodeService implements Closeable {
         boolean cacheService,
         boolean remoteStoreNodeStats,
         boolean nativeMemory,
-        boolean concurrencyLimiter,
-        boolean filteredStatsCache
+        boolean concurrencyLimiter
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -308,7 +307,6 @@ public class NodeService implements Closeable {
             remoteStoreNodeStats ? new RemoteStoreNodeStats() : null,
             nativeMemory ? collectNativeAllocatorStats() : null,
             concurrencyLimiter ? collectConcurrencyLimiterStats() : null,
-            filteredStatsCache ? indicesService.filteredStatsCacheStats() : null,
             // Always capture the process-level native memory estimate on this data node.
             // Serialized over the wire so the coordinator renders the source node's value,
             // not its own. Returns -1 on non-Linux platforms or when /proc/self/status is

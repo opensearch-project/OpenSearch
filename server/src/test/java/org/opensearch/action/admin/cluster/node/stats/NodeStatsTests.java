@@ -75,7 +75,6 @@ import org.opensearch.gateway.remote.RemotePersistenceStats;
 import org.opensearch.http.HttpStats;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.SegmentReplicationRejectionStats;
-import org.opensearch.index.cache.filteredstats.FilteredStatsCacheStats;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.fielddata.FieldDataStats;
@@ -625,8 +624,6 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(remoteStoreNodeStats, deserializedRemoteStoreNodeStats);
                 }
 
-                assertEquals(nodeStats.getFilteredStatsCacheStats(), deserializedNodeStats.getFilteredStatsCacheStats());
-
                 ActionConcurrencyLimiterStats limiterStats = nodeStats.getConcurrencyLimiterStats();
                 ActionConcurrencyLimiterStats deserializedLimiterStats = deserializedNodeStats.getConcurrencyLimiterStats();
                 if (limiterStats == null) {
@@ -1083,19 +1080,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             remoteStoreNodeStats,
             null,
             frequently() ? randomConcurrencyLimiterStats() : null,
-            frequently() ? randomFilteredStatsCacheStats() : null,
             -1L
-        );
-    }
-
-    private static FilteredStatsCacheStats randomFilteredStatsCacheStats() {
-        return new FilteredStatsCacheStats(
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
         );
     }
 
@@ -1761,7 +1746,6 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null,
             nativeAllocatorStats,
             null, // concurrencyLimiterStats
-            null, // filteredStatsCacheStats
             totalEstimatedNativeBytes
         );
     }
@@ -1830,30 +1814,6 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 in.setVersion(Version.V_3_7_0);
                 NodeStats deserialized = new NodeStats(in);
                 assertNull("V_3_7_0 must not include concurrencyLimiterStats", deserialized.getConcurrencyLimiterStats());
-            }
-        }
-    }
-
-    public void testFilteredStatsCacheStatsVersionGate() throws IOException {
-        NodeStats nodeStats = createNodeStats();
-        for (Version version : List.of(Version.V_3_10_0, Version.V_3_9_0)) {
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
-                nodeStats.writeTo(out);
-                try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(version);
-                    NodeStats deserialized = new NodeStats(in);
-                    if (version.onOrAfter(Version.V_3_10_0)) {
-                        assertEquals(nodeStats.getFilteredStatsCacheStats(), deserialized.getFilteredStatsCacheStats());
-                    } else {
-                        assertNull("an older node does not receive the cache stats", deserialized.getFilteredStatsCacheStats());
-                    }
-                    assertEquals(
-                        "later fields still line up",
-                        nodeStats.getTotalEstimatedNativeBytes(),
-                        deserialized.getTotalEstimatedNativeBytes()
-                    );
-                }
             }
         }
     }

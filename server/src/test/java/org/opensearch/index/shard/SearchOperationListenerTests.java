@@ -51,34 +51,6 @@ import static org.mockito.Mockito.mock;
 
 public class SearchOperationListenerTests extends OpenSearchTestCase {
 
-    public void testPreDfsPhaseReachesEveryListenerAndPropagatesFailure() {
-        AtomicInteger calls = new AtomicInteger();
-        SearchOperationListener counting = new SearchOperationListener() {
-            @Override
-            public void onPreDfsPhase(SearchContext searchContext) {
-                calls.incrementAndGet();
-            }
-        };
-        SearchContext ctx = new TestSearchContext(null);
-
-        new SearchOperationListener.CompositeListener(Arrays.asList(counting, counting), logger).onPreDfsPhase(ctx);
-        assertEquals(2, calls.get());
-
-        // A listener that cannot declare its restriction must fail the request rather than be logged and skipped.
-        SearchOperationListener failing = new SearchOperationListener() {
-            @Override
-            public void onPreDfsPhase(SearchContext searchContext) {
-                throw new IllegalStateException("restriction unavailable");
-            }
-        };
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> new SearchOperationListener.CompositeListener(Arrays.asList(failing, counting), logger).onPreDfsPhase(ctx)
-        );
-        assertEquals("restriction unavailable", e.getMessage());
-        assertEquals("listeners after the failing one do not run", 2, calls.get());
-    }
-
     // this test also tests if calls are correct if one or more listeners throw exceptions
     public void testListenersAreExecuted() {
         AtomicInteger preQuery = new AtomicInteger();

@@ -38,8 +38,6 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
-import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
-import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -829,26 +827,6 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
-    public void testEveryIndexStoresFilteredStatisticsInTheNodeCache() {
-        IndexService first = createIndex("filtered_stats_first");
-        IndexService second = createIndex("filtered_stats_second");
-        assertNotNull(first.cache().filteredStatsCache());
-        assertNotNull(second.cache().filteredStatsCache());
-        assertNotSame(first.cache().filteredStatsCache(), second.cache().filteredStatsCache());
-    }
-
-    public void testNodeStatsReportTheFilteredStatisticsCacheOnRequest() {
-        NodesStatsResponse requested = client().admin()
-            .cluster()
-            .prepareNodesStats()
-            .clear()
-            .addMetric(NodesStatsRequest.Metric.FILTERED_STATS_CACHE.metricName())
-            .get();
-        assertNotNull(requested.getNodes().get(0).getFilteredStatsCacheStats());
-        NodesStatsResponse other = client().admin().cluster().prepareNodesStats().clear().addMetric("jvm").get();
-        assertNull("the section is opt-in", other.getNodes().get(0).getFilteredStatsCacheStats());
-    }
-
     public void testAliasFilterTakesTheStrongestEnforcementOfItsAliases() {
         createIndex("enforcement_idx");
         client().admin()
@@ -857,13 +835,6 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
             .addAliasAction(AliasActions.add().index("enforcement_idx").alias("post").filter(QueryBuilders.termQuery("f", "a")))
             .addAliasAction(
                 AliasActions.add().index("enforcement_idx").alias("pre").filter(QueryBuilders.termQuery("f", "b")).enforcement("pre_filter")
-            )
-            .addAliasAction(
-                AliasActions.add()
-                    .index("enforcement_idx")
-                    .alias("stats")
-                    .filter(QueryBuilders.termQuery("f", "c"))
-                    .enforcement("filtered_stats")
             )
             .get();
         IndicesService indicesService = getIndicesService();
@@ -876,11 +847,6 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         assertSame(
             AliasFilter.Enforcement.PRE_FILTER,
             indicesService.buildAliasFilter(state, "enforcement_idx", Set.of("post", "pre")).getEnforcement()
-        );
-        // filtered_stats outranks pre_filter: a request reaching both must not score over documents either excludes.
-        assertSame(
-            AliasFilter.Enforcement.FILTERED_STATS,
-            indicesService.buildAliasFilter(state, "enforcement_idx", Set.of("post", "pre", "stats")).getEnforcement()
         );
     }
 

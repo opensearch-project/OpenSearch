@@ -95,9 +95,9 @@ public class MetadataIndexAliasesServiceTests extends OpenSearchTestCase {
         ClusterState before = createIndex(ClusterState.builder(ClusterName.DEFAULT).build(), index);
         ClusterState after = service.applyAliasActions(
             before,
-            singletonList(new AliasAction.Add(index, "scoped", null, null, null, null, null, "filtered_stats"))
+            singletonList(new AliasAction.Add(index, "scoped", null, null, null, null, null, "pre_filter"))
         );
-        assertEquals("filtered_stats", after.metadata().index(index).getAliases().get("scoped").enforcement());
+        assertEquals("pre_filter", after.metadata().index(index).getAliases().get("scoped").enforcement());
     }
 
     public void testAddAndRemove() {

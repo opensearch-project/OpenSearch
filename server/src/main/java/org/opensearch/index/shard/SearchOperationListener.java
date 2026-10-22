@@ -57,17 +57,6 @@ public interface SearchOperationListener {
     default void onPreQueryPhase(SearchContext searchContext) {}
 
     /**
-     * Executed before the dfs phase collects term statistics, so a listener can declare a restriction that must scope
-     * them, such as through {@link SearchContext#visibleSubsetFilter}.
-     * <p>
-     * Unlike the other hooks, a failure here fails the request, since an undeclared restriction would leave the
-     * statistics describing documents the caller cannot read.
-     *
-     * @param searchContext the context the dfs phase is about to run against
-     */
-    default void onPreDfsPhase(SearchContext searchContext) {}
-
-    /**
      * Executed if a query phased failed.
      * @param searchContext the current search context
      */
@@ -209,14 +198,6 @@ public interface SearchOperationListener {
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onPreQueryPhase listener [{}] failed", listener), e);
                 }
-            }
-        }
-
-        @Override
-        public void onPreDfsPhase(SearchContext searchContext) {
-            // Not caught, unlike the other hooks: see the interface method.
-            for (SearchOperationListener listener : listeners) {
-                listener.onPreDfsPhase(searchContext);
             }
         }
 

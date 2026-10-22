@@ -37,11 +37,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.QueryTimeout;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -74,8 +71,6 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.core.tasks.TaskCancelledException;
-import org.opensearch.index.cache.filteredstats.FilteredSegmentStats;
-import org.opensearch.index.cache.filteredstats.FilteredStatsCache;
 import org.opensearch.lucene.util.CombinedBitSet;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHits;
@@ -124,16 +119,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private QueryProfiler profiler;
     private MutableQueryTimeout cancellable;
     private SearchContext searchContext;
-
-    /**
-     * Per-segment bitsets of the documents that match {@link SearchContext#filteredStatisticsFilter()}, used to compute
-     * BM25 statistics over only the "visible" subset when {@link SearchContext#useFilteredStatistics()} is true.
-     * Built lazily on first use and cached for the life of the searcher. Indexed by {@link LeafReaderContext#ord}.
-     * A {@code null} entry means "no visible docs in that segment". The whole array being {@code null} means the
-     * bitsets have not been built yet.
-     */
-    private FilteredSegmentStats[] visibleDocsPerSegment;
-    private boolean visibleDocsInitialized = false;
 
     public ContextIndexSearcher(
         IndexReader reader,
@@ -567,28 +552,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
-        // Filter-aware aliases (filtered_stats): when enabled, compute the statistics over only the documents that
-        // match the statistics filter. This branch is checked BEFORE the aggregatedDfs branch on purpose so that it applies
-        // in two of the three cases below (see collectionStatistics for the full reasoning):
-        // 1. Non-dfs query path (aggregatedDfs == null): stats are computed here, filtered.
-        // 2. DFS phase (aggregatedDfs == null): DfsPhase drives statistics collection through this searcher, so the
-        // per-shard stats it ships to the coordinator are already filtered.
-        // The third case -- the query phase of a dfs search (aggregatedDfs != null) -- must NOT recompute: it has to
-        // read the pre-aggregated (already-filtered) stats, so it falls through to the aggregatedDfs branch below.
-        if (useFilteredStatistics() && aggregatedDfs == null) {
-            TermStatistics visible = filteredTermStatistics(term);
-            if (visible == null) {
-                // No visible document contains the term. We cannot return null: to Lucene null means the term is
-                // absent from the index, and TermQuery.TermWeight then leaves its SimScorer null while still building
-                // a scorer supplier from the term's real postings, which throws as soon as the supplier is asked for a
-                // scorer. Hand back the smallest statistics TermStatistics permits instead. Nothing visible can match
-                // the term, so the value never reaches a score, and being a constant it says nothing about how many
-                // hidden documents hold the term. The dfs phase must not take this substitution, which is why it calls
-                // visibleSubsetTermStatistics rather than this method.
-                return new TermStatistics(term.bytes(), 1, 1);
-            }
-            return visible;
-        }
         if (aggregatedDfs == null) {
             // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
             return super.termStatistics(term, docFreq, totalTermFreq);
@@ -601,35 +564,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return termStatistics;
     }
 
-    /**
-     * Visible-subset term statistics for the dfs phase, which aggregates per-shard numbers on the coordinator. This
-     * returns null when the term occurs in no visible document, so a shard that holds the term only in filtered-out
-     * documents contributes nothing to the aggregate. {@link #termStatistics(Term, int, long)} substitutes a floor for
-     * that null because it feeds local scoring, and the two must not be confused: using the floor here would make the
-     * aggregated docFreq depend on how many shards hold the term invisibly.
-     */
-    public TermStatistics visibleSubsetTermStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
-        if (useFilteredStatistics() && aggregatedDfs == null) {
-            return filteredTermStatistics(term);
-        }
-        return super.termStatistics(term, docFreq, totalTermFreq);
-    }
-
     @Override
     public CollectionStatistics collectionStatistics(String field) throws IOException {
-        // Filter-aware aliases (filtered_stats). Three cases, and the ordering of the checks matters:
-        // 1. Non-dfs query path: aggregatedDfs == null and useFilteredStatistics() == true. We compute collection
-        // statistics restricted to the visible (alias-filter) subset here, so BM25 N/df reflect only visible docs.
-        // 2. DFS phase of a dfs_query_then_fetch search: aggregatedDfs is also null while DfsPhase collects the
-        // per-shard statistics (it invokes createWeight through this searcher). Because this filtered branch runs
-        // before the aggregatedDfs branch, the per-shard stats DfsPhase ships upward are already filtered, so the
-        // coordinator sums filtered numbers into AggregatedDfs.
-        // 3. Query phase of a dfs search: aggregatedDfs != null. Here we must reuse the coordinator's pre-aggregated
-        // (already filtered, thanks to case 2) statistics rather than recomputing per-shard, so this filtered
-        // branch is intentionally skipped and we fall through to the aggregatedDfs lookup below.
-        if (useFilteredStatistics() && aggregatedDfs == null) {
-            return filteredCollectionStatistics(field);
-        }
         if (aggregatedDfs == null) {
             // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
             return super.collectionStatistics(field);
@@ -640,151 +576,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return super.collectionStatistics(field);
         }
         return collectionStatistics;
-    }
-
-    private boolean useFilteredStatistics() {
-        return searchContext != null && searchContext.useFilteredStatistics() && searchContext.filteredStatisticsFilter() != null;
-    }
-
-    /**
-     * Lazily builds the per-segment bitsets of documents matching {@link SearchContext#filteredStatisticsFilter()}.
-     * These represent the "visible" subset over which filtered BM25 statistics are computed. Only live documents are
-     * included so the counts match what a physically-filtered index would report. Per-segment bitsets are served from
-     * {@link FilteredStatsCache} when available (keyed by segment + filter, evicted on segment close), so the
-     * O(corpus) filter scan is paid once per (segment, filter) rather than once per query; the result array is also
-     * memoized on this searcher for reuse across the terms of a single request.
-     */
-    private synchronized FilteredSegmentStats[] getVisibleDocsPerSegment() throws IOException {
-        if (visibleDocsInitialized) {
-            return visibleDocsPerSegment;
-        }
-        final List<LeafReaderContext> leaves = getIndexReader().leaves();
-        final FilteredSegmentStats[] segments = new FilteredSegmentStats[leaves.size()];
-        // Rewritten once, so every statistics lookup of this request uses the same cache key.
-        final Query filter = rewrite(searchContext.filteredStatisticsFilter());
-        // COMPLETE_NO_SCORES: we only need the matching doc ids, not scores.
-        final Weight weight = createWeight(filter, ScoreMode.COMPLETE_NO_SCORES, 1f);
-        final FilteredStatsCache cache = filteredStatsCache();
-        for (LeafReaderContext ctx : leaves) {
-            if (cache != null) {
-                segments[ctx.ord] = cache.segment(ctx, filter, () -> FilteredStatsCache.computeVisibleBitSet(weight, ctx));
-            } else {
-                segments[ctx.ord] = FilteredSegmentStats.uncached(FilteredStatsCache.computeVisibleBitSet(weight, ctx));
-            }
-        }
-        this.visibleDocsPerSegment = segments;
-        this.visibleDocsInitialized = true;
-        return segments;
-    }
-
-    private FilteredStatsCache filteredStatsCache() {
-        return searchContext == null ? null : searchContext.filteredStatsCache();
-    }
-
-    /**
-     * Computes {@link CollectionStatistics} for a field over only the visible (alias-filter) documents. Mirrors what
-     * Lucene's {@link IndexSearcher#collectionStatistics(String)} does per segment, but intersects the field's postings
-     * with the visible bitset so docCount / sumDocFreq / sumTotalTermFreq reflect the filtered subset. Returns
-     * {@code null} when the field has no visible documents (matching Lucene's "field absent" contract).
-     */
-    private CollectionStatistics filteredCollectionStatistics(String field) throws IOException {
-        final FilteredSegmentStats[] segments = getVisibleDocsPerSegment();
-        final List<LeafReaderContext> leaves = getIndexReader().leaves();
-        long docCount = 0;         // number of visible docs that have at least one term in this field
-        long sumTotalTermFreq = 0; // total number of (visible) tokens in this field
-        long sumDocFreq = 0;       // sum over terms of the number of visible docs containing the term
-
-        for (LeafReaderContext ctx : leaves) {
-            final BitSet visible = segments[ctx.ord].visibleDocs();
-            if (visible == null) {
-                continue;
-            }
-            final long[] contribution = segments[ctx.ord].field(
-                field,
-                () -> FilteredStatsCache.computeFieldContribution(ctx, visible, field)
-            );
-            docCount += contribution[0];
-            sumTotalTermFreq += contribution[1];
-            sumDocFreq += contribution[2];
-        }
-
-        if (docCount == 0) {
-            // No visible document has this field: report the field as absent, exactly like Lucene does when
-            // docCount would be zero. This avoids violating CollectionStatistics' docCount > 0 invariant.
-            return null;
-        }
-        final long maxDoc = getIndexReader().maxDoc();
-        // Guard Lucene's CollectionStatistics invariants: docCount <= maxDoc, sumDocFreq >= docCount,
-        // sumTotalTermFreq >= sumDocFreq. These naturally hold for exact counts, but clamp defensively.
-        sumDocFreq = Math.max(sumDocFreq, docCount);
-        sumTotalTermFreq = Math.max(sumTotalTermFreq, sumDocFreq);
-        return new CollectionStatistics(field, maxDoc, docCount, sumTotalTermFreq, sumDocFreq);
-    }
-
-    /**
-     * Computes {@link TermStatistics} for a term over only the visible (alias-filter) documents by walking the term's
-     * postings intersected with the visible bitset per segment. Returns {@code null} when no visible document contains
-     * the term (Lucene's "term absent" contract) -- so a term confined to filtered-out docs contributes no BM25 score.
-     */
-    private TermStatistics filteredTermStatistics(Term term) throws IOException {
-        final FilteredSegmentStats[] segments = getVisibleDocsPerSegment();
-        final List<LeafReaderContext> leaves = getIndexReader().leaves();
-        long docFreq = 0;       // number of visible docs containing the term
-        long totalTermFreq = 0; // sum of term frequencies over visible docs
-
-        for (LeafReaderContext ctx : leaves) {
-            final BitSet visible = segments[ctx.ord].visibleDocs();
-            if (visible == null) {
-                continue;
-            }
-            final long[] contribution = segments[ctx.ord].term(term, () -> computeTermContribution(ctx, visible, term));
-            if (contribution != null) {
-                docFreq += contribution[0];
-                totalTermFreq += contribution[1];
-            }
-        }
-
-        if (docFreq == 0) {
-            // The term occurs in no visible document, so it contributes nothing to the visible subset. Null says
-            // exactly that, and the dfs phase needs it: a shard holding the term only in filtered-out documents must
-            // add nothing to the coordinator's aggregate, or the aggregated docFreq would move with the placement of
-            // hidden documents. Callers that go on to score locally must not pass this null to Lucene; see
-            // termStatistics(Term, int, long).
-            return null;
-        }
-        // TermStatistics requires totalTermFreq >= docFreq (each doc contributes at least one occurrence).
-        totalTermFreq = Math.max(totalTermFreq, docFreq);
-        return new TermStatistics(term.bytes(), docFreq, totalTermFreq);
-    }
-
-    /**
-     * Computes a single segment's {@code [docFreq, totalTermFreq]} contribution for a term over the visible subset,
-     * or {@code null} when the term occurs in no visible doc in this segment. Kept per (segment, filter, term) by
-     * {@link FilteredStatsCache}.
-     */
-    private static long[] computeTermContribution(LeafReaderContext ctx, BitSet visible, Term term) throws IOException {
-        final Terms terms = ctx.reader().terms(term.field());
-        if (terms == null) {
-            return null;
-        }
-        final TermsEnum termsEnum = terms.iterator();
-        if (termsEnum.seekExact(term.bytes()) == false) {
-            return null;
-        }
-        final PostingsEnum postings = termsEnum.postings(null, PostingsEnum.FREQS);
-        // Leapfrog the term's postings against the visible bitset instead of scanning the postings linearly and
-        // testing each hit: the conjunction advances whichever side is behind, so skip lists do the work and the
-        // cost is O(min(visible, docFreq)) rather than O(docFreq). The more selective the view, the cheaper it gets.
-        final DocIdSetIterator visibleAndTerm = ConjunctionUtils.intersectIterators(
-            Arrays.asList(new BitSetIterator(visible, visible.approximateCardinality()), postings)
-        );
-        long docFreq = 0;
-        long totalTermFreq = 0;
-        for (int doc = visibleAndTerm.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = visibleAndTerm.nextDoc()) {
-            docFreq++;
-            totalTermFreq += postings.freq();
-        }
-        return docFreq == 0 ? null : new long[] { docFreq, totalTermFreq };
     }
 
     /**
