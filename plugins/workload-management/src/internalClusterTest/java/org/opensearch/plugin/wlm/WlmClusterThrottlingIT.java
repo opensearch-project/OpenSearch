@@ -425,9 +425,9 @@ public class WlmClusterThrottlingIT extends OpenSearchIntegTestCase {
     }
 
     private void setWlmMode(String mode) throws Exception {
-        Settings.Builder settings = Settings.builder().put("wlm.workload_group.mode", mode);
+        Settings.Builder settings = Settings.builder().put(WorkloadManagementSettings.WLM_MODE_SETTING.getKey(), mode);
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(settings);
-        client().admin().cluster().updateSettings(request).get();
+        assertAcked(client().admin().cluster().updateSettings(request).get());
     }
 
     private WorkloadGroup createSharedThrottledGroup(String name, String id, int sharedLimit) {

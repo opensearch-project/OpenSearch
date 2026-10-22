@@ -38,8 +38,8 @@ import java.util.function.LongSupplier;
  * A bucket entry exists only while it holds a permit, so memory scales with concurrently active buckets.
  * <p>
  * Expired permits are found by an O(size) scan, which a saturated bucket skips while its cached earliest expiry
- * ({@code minExpiry}) is still in the future. Pending checks and short extensions after failed checks also skip scans, keeping denied acquires
- * O(1) under sustained load.
+ * ({@code minExpiry}) is still in the future. Pending checks and short extensions after failed checks also skip scans,
+ * keeping denied acquires O(1) under sustained load.
  */
 final class SharedThrottleTracker {
 

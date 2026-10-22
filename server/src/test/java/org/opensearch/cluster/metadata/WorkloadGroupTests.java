@@ -458,9 +458,13 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     }
 
     public void testGatewayReadAcceptsInvalidThrottleConfigLeniently() throws IOException {
-        // The gateway read must not throw on config this node considers invalid, or the node can't start.
+        // The gateway read must not throw on config this node considers invalid, including a key only a newer node knows,
+        // or the node can't start.
         long now = Instant.now().getMillis();
-        for (String badThrottling : new String[] { "{\"node_limit\":0}", "{\"shared_limit\":0}" }) {
+        for (String badThrottling : new String[] {
+            "{\"node_limit\":0}",
+            "{\"shared_limit\":0}",
+            "{\"node_limit\":5,\"future_limit\":3}" }) {
             String json = String.format(
                 Locale.ROOT,
                 "{\"_id\":\"test_id\",\"name\":\"test\",\"resiliency_mode\":\"enforced\","
@@ -476,7 +480,10 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     public void testCreatePathStillRejectsInvalidThrottleConfig() throws IOException {
         // The create/update path stays strict.
         long now = Instant.now().getMillis();
-        for (String badThrottling : new String[] { "{\"node_limit\":0}", "{\"shared_limit\":0}" }) {
+        for (String badThrottling : new String[] {
+            "{\"node_limit\":0}",
+            "{\"shared_limit\":0}",
+            "{\"node_limit\":5,\"future_limit\":3}" }) {
             String json = String.format(
                 Locale.ROOT,
                 "{\"_id\":\"test_id\",\"name\":\"test\",\"resiliency_mode\":\"enforced\","
