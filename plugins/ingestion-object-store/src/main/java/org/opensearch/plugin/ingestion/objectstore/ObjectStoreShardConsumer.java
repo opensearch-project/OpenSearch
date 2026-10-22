@@ -477,6 +477,16 @@ public class ObjectStoreShardConsumer implements IngestionShardConsumer<ObjectSt
         return shardId;
     }
 
+    /**
+     * Returns how many bytes this shard still has to read, from its last read position, or from
+     * {@code expectedStartPointer} before its first read, to the end of its last slice. Lag is in bytes rather than
+     * records because a pointer is a byte offset and counting the records left would mean reading them; zero means
+     * the shard has read everything it owns.
+     *
+     * @param expectedStartPointer the pointer core started this shard from on its first initialization, used only until
+     *                             this consumer has read
+     * @return the bytes left to read
+     */
     @Override
     public long getPointerBasedLag(IngestionShardPointer expectedStartPointer) {
         if (slices.isEmpty()) {

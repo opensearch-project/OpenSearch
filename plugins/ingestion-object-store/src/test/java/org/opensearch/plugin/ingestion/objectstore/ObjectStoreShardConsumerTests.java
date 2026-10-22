@@ -917,6 +917,57 @@ public class ObjectStoreShardConsumerTests extends OpenSearchTestCase {
         assertThat(e.getCause().getMessage(), containsString("truncated"));
     }
 
+    private void writeUnder(String directory, String name, String content) throws Exception {
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        try (InputStream in = new ByteArrayInputStream(bytes)) {
+            store.blobContainer(BlobPath.cleanPath().add(directory)).writeBlob(name, in, bytes.length, true);
+        }
+    }
+
+    private static ObjectStoreSourceConfig listConfig() {
+        return new ObjectStoreSourceConfig(Map.of("repository", "repo", "shard_split", "shard_prefixes", "discovery", "list"));
+    }
+
+    public void testListDiscoveryResumeAfterTheListingChangedSkipsObjectsSortedBeforeTheResumeObject() throws Exception {
+        writeUnder("0", "b.ndjson", "b1\nb2\n");
+        ObjectStoreShardConsumer first = consumer(listConfig(), container, ObjectStoreManifest.EMPTY, "", 0, 1);
+        List<ReadResult<ObjectStorePointer, ObjectStoreMessage>> beforeChange = first.readNext(2, 1000);
+        assertThat(payloads(beforeChange), contains("b1", "b2"));
+        ObjectStorePointer resumeFrom = beforeChange.get(1).getPointer();
+
+        writeUnder("0", "a.ndjson", "a1\n");
+        writeUnder("0", "c.ndjson", "c1\n");
+        ObjectStoreShardConsumer relisted = consumer(listConfig(), container, ObjectStoreManifest.EMPTY, "", 0, 1);
+
+        assertThat(payloads(relisted.readNext(resumeFrom, true, 10, 1000)), contains("b2", "c1"));
+        assertThat(relisted.readNext(10, 1000), is(empty()));
+    }
+
+    public void testListDiscoveryResumeFromAnObjectDeletedFromTheListingFailsInsteadOfSkipping() throws Exception {
+        writeUnder("0", "b.ndjson", "b1\nb2\n");
+        ObjectStoreShardConsumer first = consumer(listConfig(), container, ObjectStoreManifest.EMPTY, "", 0, 1);
+        ObjectStorePointer resumeFrom = first.readNext(1, 1000).get(0).getPointer();
+
+        store.blobContainer(BlobPath.cleanPath().add("0")).deleteBlobsIgnoringIfNotExists(List.of("b.ndjson"));
+        writeUnder("0", "c.ndjson", "c1\n");
+        ObjectStoreShardConsumer relisted = consumer(listConfig(), container, ObjectStoreManifest.EMPTY, "", 0, 1);
+
+        PointerNotOwnedException e = expectThrows(PointerNotOwnedException.class, () -> relisted.readNext(resumeFrom, true, 10, 1000));
+        assertThat(e.getMessage(), containsString("changed after ingestion started"));
+    }
+
+    public void testListDiscoveryResumeAfterTheOnlyObjectWasDeletedReadsNothingAndReportsNoLag() throws Exception {
+        writeUnder("0", "b.ndjson", "b1\nb2\n");
+        ObjectStoreShardConsumer first = consumer(listConfig(), container, ObjectStoreManifest.EMPTY, "", 0, 1);
+        ObjectStorePointer resumeFrom = first.readNext(1, 1000).get(0).getPointer();
+
+        store.blobContainer(BlobPath.cleanPath().add("0")).deleteBlobsIgnoringIfNotExists(List.of("b.ndjson"));
+        ObjectStoreShardConsumer relisted = consumer(listConfig(), container, ObjectStoreManifest.EMPTY, "", 0, 1);
+
+        assertThat(relisted.readNext(resumeFrom, true, 10, 1000), is(empty()));
+        assertThat(relisted.getPointerBasedLag(resumeFrom), is(0L));
+    }
+
     public void testExhaustedShardIssuesNoFurtherGetRequests() throws Exception {
         long size = write("events.ndjson", "r1\nr2\n");
         ObjectStoreManifest manifest = new ObjectStoreManifest(Map.of("events.ndjson", size));

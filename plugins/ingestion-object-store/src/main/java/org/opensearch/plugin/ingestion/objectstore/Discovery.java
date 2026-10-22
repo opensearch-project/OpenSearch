@@ -19,6 +19,17 @@ import java.util.Locale;
  *     <li>{@link #LIST} has each shard list only its own sub-prefix at shard start, so the cluster state carries no
  *     object keys and a shard holds only what it owns. Requires list permission on the store.</li>
  * </ul>
+ *
+ * <p>Under {@link #LIST} the listing is repeated every time a shard's consumer is created, including after a restart,
+ * a relocation, a promotion or a parameter update, so the prefix must be complete before the index is created and must
+ * not change while it ingests. Once a shard has a committed position, an object added later is read only by a shard
+ * that lists again, and only if it sorts after that shard's resume object; one that sorts before it is never read. A
+ * re-list also picks up deletions and new sizes without an error: an unread object that was removed is skipped, and a
+ * resized object is read to its new size. Removing the object a shard resumes from stops that shard with an error,
+ * unless no object remains under its sub-prefix, in which case the shard reads nothing and reports zero lag.
+ *
+ * <p>Under {@link #MANIFEST} only the objects named in the manifest are read, so an object added to the store is
+ * ignored, and an object removed or resized before it is fully read fails the read.
  */
 enum Discovery {
     /**

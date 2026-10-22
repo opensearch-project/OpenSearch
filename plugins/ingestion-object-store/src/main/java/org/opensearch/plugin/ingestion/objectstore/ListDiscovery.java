@@ -20,7 +20,8 @@ import java.util.Objects;
 
 /**
  * Discovers the objects under a single shard's sub-prefix for {@link Discovery#LIST}, so a shard never reads another
- * shard's keys.
+ * shard's keys. The listing reflects the store when the shard's consumer is created, so the object set is assumed not
+ * to change while the index ingests; see {@link Discovery} for what happens when it does.
  *
  * <p>The walk descends one path segment at a time through {@link BlobContainer#children()} rather than passing a
  * slash-bearing prefix to {@link BlobContainer#listBlobsByPrefix(String)}, because a directory-backed store treats path
