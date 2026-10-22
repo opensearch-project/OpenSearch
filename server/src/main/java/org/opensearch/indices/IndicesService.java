@@ -2174,6 +2174,9 @@ public class IndicesService extends AbstractLifecycleComponent
                     request.source()
                 );
             }
+        } else if (requestCacheEnabled == false) {
+            // The cache got disabled while this search was running, so drop the entry it just added
+            indicesRequestCache.invalidate(new IndexShardCacheEntity(context.indexShard()), directoryReader, request.cacheKey());
         }
     }
 
