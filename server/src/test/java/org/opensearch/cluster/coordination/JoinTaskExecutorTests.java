@@ -43,6 +43,8 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.metadata.View;
+import org.opensearch.cluster.metadata.ViewMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -65,6 +67,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
@@ -82,8 +85,10 @@ import static org.opensearch.test.VersionUtils.maxCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomOpenSearchVersion;
 import static org.opensearch.test.VersionUtils.randomVersionBetween;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
@@ -208,7 +213,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
@@ -244,6 +250,115 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         assertTrue(taskResult.isSuccess());
 
         assertThat(result.resultingState.getNodes().get(actualNode.getId()).getRoles(), equalTo(actualNode.getRoles()));
+    }
+
+    public void testRejectsJoinOfNewNodeThatIsNoLongerConnected() throws Exception {
+        // A join can be validated and queued while a node-left task for the same node is still being computed. The
+        // node-left apply then closes the connection to the node. The queued join must be rejected, or the node would
+        // be added without a connection and removed again by its first follower check.
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        final RemoteStoreNodeService remoteStoreNodeService = mock(RemoteStoreNodeService.class);
+        when(remoteStoreNodeService.updateRepositoriesMetadata(any(), any())).thenReturn(new RepositoriesMetadata(Collections.emptyList()));
+
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode existingNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode connectedNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode disconnectedNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
+            Settings.EMPTY,
+            allocationService,
+            logger,
+            rerouteService,
+            remoteStoreNodeService,
+            node -> node.equals(disconnectedNode) == false
+        );
+
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(clusterManagerNode)
+                    .localNodeId(clusterManagerNode.getId())
+                    .clusterManagerNodeId(clusterManagerNode.getId())
+                    .add(existingNode)
+            )
+            .build();
+
+        final JoinTaskExecutor.Task existingTask = new JoinTaskExecutor.Task(existingNode, "test");
+        final JoinTaskExecutor.Task connectedTask = new JoinTaskExecutor.Task(connectedNode, "test");
+        final JoinTaskExecutor.Task disconnectedTask = new JoinTaskExecutor.Task(disconnectedNode, "test");
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(
+            clusterState,
+            List.of(existingTask, connectedTask, disconnectedTask)
+        );
+
+        assertThat(result.executionResults.entrySet(), hasSize(3));
+        assertTrue(result.executionResults.get(existingTask).isSuccess());
+        assertTrue(result.executionResults.get(connectedTask).isSuccess());
+        final ClusterStateTaskExecutor.TaskResult disconnectedResult = result.executionResults.get(disconnectedTask);
+        assertFalse(disconnectedResult.isSuccess());
+        assertThat(disconnectedResult.getFailure(), instanceOf(IllegalStateException.class));
+        assertThat(disconnectedResult.getFailure().getMessage(), containsString("no longer connected to joining node"));
+
+        assertTrue(result.resultingState.getNodes().nodeExists(connectedNode));
+        assertFalse(result.resultingState.getNodes().nodeExists(disconnectedNode));
+    }
+
+    @SuppressWarnings("removal")
+    public void testDropsViewMetadataOnceAllNodesAreUpgraded() throws Exception {
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.V_3_10_0);
+        final DiscoveryNode joiningNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.V_3_10_0);
+
+        final ClusterState result = joinNodeToClusterWithViewMetadata(clusterManagerNode, joiningNode);
+
+        assertNull(result.metadata().custom(ViewMetadata.TYPE));
+    }
+
+    @SuppressWarnings("removal")
+    public void testKeepsViewMetadataWhileOlderNodesRemain() throws Exception {
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.V_3_10_0);
+        final DiscoveryNode joiningNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.V_3_9_0);
+
+        final ClusterState result = joinNodeToClusterWithViewMetadata(clusterManagerNode, joiningNode);
+
+        assertNotNull(result.metadata().custom(ViewMetadata.TYPE));
+    }
+
+    @SuppressWarnings("removal")
+    private ClusterState joinNodeToClusterWithViewMetadata(DiscoveryNode clusterManagerNode, DiscoveryNode joiningNode) throws Exception {
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        final RemoteStoreNodeService remoteStoreNodeService = mock(RemoteStoreNodeService.class);
+        when(remoteStoreNodeService.updateRepositoriesMetadata(any(), any())).thenReturn(new RepositoriesMetadata(Collections.emptyList()));
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
+            Settings.EMPTY,
+            allocationService,
+            logger,
+            rerouteService,
+            remoteStoreNodeService,
+            node -> true
+        );
+
+        final View view = new View("logs", "all logs", 1L, 1L, Set.of(new View.Target("logs-*")));
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(clusterManagerNode)
+                    .localNodeId(clusterManagerNode.getId())
+                    .clusterManagerNodeId(clusterManagerNode.getId())
+            )
+            .metadata(Metadata.builder().putCustom(ViewMetadata.TYPE, new ViewMetadata(Map.of("logs", view))))
+            .build();
+
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(
+            clusterState,
+            List.of(new JoinTaskExecutor.Task(joiningNode, "test"))
+        );
+        assertTrue(result.executionResults.values().iterator().next().isSuccess());
+        return result.resultingState;
     }
 
     /**
@@ -310,7 +425,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
@@ -757,7 +873,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -802,7 +919,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -865,7 +983,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -910,7 +1029,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -971,7 +1091,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -1041,7 +1162,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -1106,7 +1228,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -1388,7 +1511,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(

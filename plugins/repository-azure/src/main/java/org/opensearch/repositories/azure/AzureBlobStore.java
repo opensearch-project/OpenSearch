@@ -48,6 +48,7 @@ import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.BlobRequestConditions;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.ListBlobsOptions;
+import com.azure.storage.blob.options.BlobInputStreamOptions;
 import com.azure.storage.blob.options.BlobParallelUploadOptions;
 import com.azure.storage.common.implementation.Constants;
 import org.apache.logging.log4j.LogManager;
@@ -81,6 +82,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -95,6 +97,7 @@ import static java.util.Collections.emptyMap;
 public class AzureBlobStore implements BlobStore {
 
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
+    private static final int LIST_PAGE_SIZE = 5_000;
 
     private final AzureStorageService service;
     private final ThreadPool threadPool;
@@ -280,12 +283,22 @@ public class AzureBlobStore implements BlobStore {
         logger.trace(() -> new ParameterizedMessage("reading container [{}], blob [{}]", container, blob));
 
         return AccessController.doPrivileged(() -> {
+            final Integer readBlockSize = service.getReadBlockSize(clientName);
+            if (readBlockSize != null) {
+                final BlobRange range = length == null ? new BlobRange(position) : new BlobRange(position, length);
+                return azureBlob.openInputStream(new BlobInputStreamOptions().setRange(range).setBlockSize(readBlockSize));
+            }
             if (length == null) {
                 return azureBlob.openInputStream(new BlobRange(position), null);
             } else {
                 return azureBlob.openInputStream(new BlobRange(position, length), null);
             }
         });
+    }
+
+    public long getReadBlobPreferredLength() {
+        final Integer readBlockSize = service.getReadBlockSize(clientName);
+        return readBlockSize == null ? AzureBlobContainer.DEFAULT_MINIMUM_READ_SIZE_IN_BYTES : readBlockSize;
     }
 
     public Map<String, BlobMetadata> listBlobsByPrefix(String keyPath, String prefix) throws URISyntaxException, BlobStorageException {
@@ -317,6 +330,37 @@ public class AzureBlobStore implements BlobStore {
         });
 
         return MapBuilder.newMapBuilder(blobsBuilder).immutableMap();
+    }
+
+    public List<BlobMetadata> listBlobsByPrefixInSortedOrder(String keyPath, String prefix, int limit) throws URISyntaxException,
+        BlobStorageException {
+        if (limit == 0) {
+            return List.of();
+        }
+
+        final List<BlobMetadata> blobs = new ArrayList<>(Math.min(limit, LIST_PAGE_SIZE));
+        final Tuple<BlobServiceClient, Supplier<Context>> client = client();
+        final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
+        final ListBlobsOptions listBlobsOptions = new ListBlobsOptions().setDetails(new BlobListDetails().setRetrieveMetadata(true))
+            .setPrefix(keyPath + (prefix == null ? "" : prefix))
+            .setMaxResultsPerPage(Math.min(limit, LIST_PAGE_SIZE));
+
+        AccessController.doPrivilegedChecked(() -> {
+            for (final BlobItem blobItem : blobContainer.listBlobsByHierarchy("/", listBlobsOptions, timeout())) {
+                if (blobItem.isPrefix() != null && blobItem.isPrefix()) {
+                    continue;
+                }
+
+                final String name = getBlobName(blobItem.getName(), container, keyPath);
+                final BlobItemProperties properties = blobItem.getProperties();
+                blobs.add(new PlainBlobMetadata(name, properties.getContentLength()));
+                if (blobs.size() == limit) {
+                    break;
+                }
+            }
+        });
+
+        return List.copyOf(blobs);
     }
 
     public Map<String, BlobContainer> children(BlobPath path) throws URISyntaxException, BlobStorageException {
@@ -365,7 +409,7 @@ public class AzureBlobStore implements BlobStore {
             AccessController.doPrivilegedChecked(() -> {
                 final Response<?> response = blob.uploadWithResponse(
                     new BlobParallelUploadOptions(inputStream, blobSize).setRequestConditions(blobRequestConditions)
-                        .setParallelTransferOptions(service.getBlobRequestOptionsForWriteBlob()),
+                        .setParallelTransferOptions(service.getBlobRequestOptionsForWriteBlob(clientName)),
                     timeout(),
                     client.v2().get()
                 );
