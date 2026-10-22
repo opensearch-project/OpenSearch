@@ -8,6 +8,7 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
+import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsResponse.SettingBounds;
 import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsResponse.SettingMetadata;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.plugins.Plugin;
@@ -30,17 +31,24 @@ public class ClusterDescribeSettingsIT extends OpenSearchIntegTestCase {
         var request = new ClusterDescribeSettingsRequest(
             "plugin.example.dynamic_setting",
             "plugin.example.static_setting",
+            "plugin.example.bounded_setting",
             "plugin.example.secret_setting",
             "plugin.example.filtered_setting",
-            "plugin.example.unknown_setting"
+            "plugin.example.unknown_setting",
+            "cluster.max_shards_per_node"
         );
         var response = internalCluster().nonClusterManagerClient().execute(ClusterDescribeSettingsAction.INSTANCE, request).actionGet();
         assertEquals(
             Map.of(
                 "plugin.example.dynamic_setting",
-                SettingMetadata.withDefault(true, "false"),
+                SettingMetadata.withDefault(true, "false").withValidation(SettingBounds.ofType("boolean")),
                 "plugin.example.static_setting",
-                SettingMetadata.withDefault(false, "false")
+                SettingMetadata.withDefault(false, "false").withValidation(SettingBounds.ofType("boolean")),
+                "plugin.example.bounded_setting",
+                SettingMetadata.withDefault(false, "5").withValidation(SettingBounds.of("integer", "1", "10")),
+                // A real core setting declared with a lower bound only (ShardLimitValidator).
+                "cluster.max_shards_per_node",
+                SettingMetadata.withDefault(true, "1000").withValidation(SettingBounds.of("integer", "1", null))
             ),
             response.settings()
         );
@@ -52,6 +60,7 @@ public class ClusterDescribeSettingsIT extends OpenSearchIntegTestCase {
             return List.of(
                 Setting.boolSetting("plugin.example.dynamic_setting", false, Setting.Property.Dynamic, Setting.Property.NodeScope),
                 Setting.boolSetting("plugin.example.static_setting", false, Setting.Property.NodeScope),
+                Setting.intSetting("plugin.example.bounded_setting", 5, 1, 10, Setting.Property.NodeScope),
                 Setting.simpleString("plugin.example.secret_setting", Setting.Property.NodeScope, Setting.Property.Filtered),
                 Setting.simpleString("plugin.example.filtered_setting", Setting.Property.NodeScope)
             );
