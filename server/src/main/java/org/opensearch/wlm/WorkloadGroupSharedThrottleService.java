@@ -101,8 +101,10 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
     static final TimeValue ACQUIRE_REPLY_BACKSTOP = TimeValue.timeValueSeconds(30);
     // Timeout for the fire-and-forget RELEASE. Nothing waits on it and expiry checks are the backstop, so it is long; it is
     // still bounded so a half-open connection can't pin the response handler.
-    // Intentional: an owner stalled longer than these 30s windows makes TransportService log one late-response WARN per
-    // pending acquire or release when it recovers. Accepted as rare rather than adding a per-owner fast-fail.
+    // Intentional: an owner stalled longer than these 30s windows while still a member makes TransportService log one
+    // late-response WARN per pending acquire or release when it recovers, and an acquire it grants then has no handler left
+    // to release it, so that permit stays counted until its expiry check (about PERMIT_TTL). Accepted as rare: fault
+    // detection normally removes an owner stalled that long, moving its buckets, rather than adding a per-owner fast-fail.
     static final TimeValue RELEASE_TIMEOUT = TimeValue.timeValueSeconds(30);
     // Only expired permits trigger task checks. Short searches add no task lookup, renewal message, or scheduled timer.
     // A checked permit stays counted until its task is confirmed finished; an active task renews it for another TTL.
@@ -136,8 +138,9 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
 
     // Immutable ring snapshot, swapped wholesale so readers never see a half-built ring.
     private final AtomicReference<ThrottleOwnerSelector> ring = new AtomicReference<>();
-    // Set once the first cluster-state event has been compared in full; only touched on the cluster applier thread.
-    private boolean ringInitialized;
+    // Set once the first cluster-state event has been compared in full. Written only on the cluster applier thread; read by
+    // owner-side admission, which trusts the coordinator's routing until it is set.
+    private volatile boolean ringInitialized;
     private volatile Scheduler.Cancellable sweepTask;
 
     public WorkloadGroupSharedThrottleService(ClusterService clusterService, ThreadPool threadPool, TransportService transportService) {
@@ -497,8 +500,11 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
     // The check is repeated after the acquire to narrow the race with a concurrent ring swap.
     // Accepted: a coordinator removed from the cluster but still able to reach this owner (asymmetric partition) can be
     // granted permits after its purge; those fall back to the TTL. Rare.
+    // A joining node gets acquires for its buckets from coordinators that applied its join before it applied its own first
+    // cluster state, and until then its ring is empty. The fence is skipped in that window: refusing would only fail those
+    // requests closed, since the joiner's tracker is empty anyway, and any over-admission is the bounded rebalance effect.
     AcquirePermitResponse handleAcquire(AcquirePermitRequest request) {
-        if (isStillOwner(request.bucketKey) == false) {
+        if (ringInitialized && isStillOwner(request.bucketKey) == false) {
             return AcquirePermitResponse.NOT_OWNER;
         }
         // Intentional: the owner trusts the coordinator's limit rather than re-resolving it, so while a shared_limit change
@@ -506,7 +512,9 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         if (tracker.tryAcquire(request) == false) {
             return AcquirePermitResponse.DENIED;
         }
-        return fenceIfOwnershipLost(request.bucketKey, request.permitId) ? AcquirePermitResponse.NOT_OWNER : AcquirePermitResponse.GRANTED;
+        return ringInitialized && fenceIfOwnershipLost(request.bucketKey, request.permitId)
+            ? AcquirePermitResponse.NOT_OWNER
+            : AcquirePermitResponse.GRANTED;
     }
 
     // Re-checks ownership after a successful tracker acquire; if the bucket moved in between, returns the permit and true.
@@ -942,7 +950,6 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         static final String KEY_BUCKET = "bucket_key";
         static final String KEY_SHARED_LIMIT = "shared_limit";
         static final String KEY_PERMIT_ID = "permit_id";
-        static final String KEY_TTL_NANOS = "ttl_nanos";
         // The coordinator's ephemeral id, for the purge on its removal and the expiry check.
         static final String KEY_COORDINATOR = "coordinator_node_id";
         // The coordinator's search task, checked with CHECK_TASKS once the permit outlives its TTL.
@@ -951,6 +958,8 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         final String bucketKey;
         final int sharedLimit;
         final String permitId;
+        // Not on the wire: the owner applies its own PERMIT_TTL_NANOS to every acquire it decodes. Only in-memory requests
+        // (tests, the local short-circuit) carry another value.
         final long ttlNanos;
         final String coordinatorId;
         final long coordinatorTaskId;
@@ -977,7 +986,7 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
             this.bucketKey = requireString(body, KEY_BUCKET);
             this.sharedLimit = requireNumber(body, KEY_SHARED_LIMIT).intValue();
             this.permitId = requireString(body, KEY_PERMIT_ID);
-            this.ttlNanos = requireNumber(body, KEY_TTL_NANOS).longValue();
+            this.ttlNanos = PERMIT_TTL_NANOS;
             this.coordinatorId = requireString(body, KEY_COORDINATOR);
             this.coordinatorTaskId = requireNumber(body, KEY_COORDINATOR_TASK_ID).longValue();
         }
@@ -993,8 +1002,6 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
                     sharedLimit,
                     KEY_PERMIT_ID,
                     permitId,
-                    KEY_TTL_NANOS,
-                    ttlNanos,
                     KEY_COORDINATOR,
                     coordinatorId,
                     KEY_COORDINATOR_TASK_ID,

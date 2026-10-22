@@ -281,7 +281,11 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
         assertEquals(original.bucketKey, copy.bucketKey);
         assertEquals(original.sharedLimit, copy.sharedLimit);
         assertEquals(original.permitId, copy.permitId);
-        assertEquals(original.ttlNanos, copy.ttlNanos);
+        assertEquals(
+            "the owner applies its own TTL, whatever the sender held",
+            WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
+            copy.ttlNanos
+        );
         assertEquals(original.coordinatorId, copy.coordinatorId);
         assertEquals(original.coordinatorTaskId, copy.coordinatorTaskId);
     }
@@ -317,6 +321,23 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
         assertFalse("a former owner must not grant against its stale counter", response.granted);
         assertTrue("the refusal must say not_owner, not denied", response.notOwner);
         assertEquals("existing records drain by release or TTL, never cleared", 1, service.tracker().inFlight(key));
+    }
+
+    public void testJoiningNodeGrantsBeforeItsFirstClusterStateInsteadOfRefusing() {
+        // Coordinators that applied this node's join route its buckets here before it applies its own first cluster state.
+        WorkloadGroupSharedThrottleService joining = new WorkloadGroupSharedThrottleService(clusterService, threadPool, transportService);
+        WorkloadGroupSharedThrottleService.AcquirePermitResponse early = joining.handleAcquire(acquireRequest("b", "early"));
+        assertTrue("an empty, never-initialized ring must not refuse as not_owner", early.granted);
+        assertEquals(1, joining.tracker().inFlight("b"));
+
+        // Once its ring is built, ownership is enforced again, and the early record stays counted until it drains.
+        DiscoveryNode other = dataNode("other");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(localNode).add(other).localNodeId("local").build();
+        String notOwned = bucketOwnedBy(serviceWithRing(nodes), other);
+        deliverNodesChanged(joining, nodes);
+        assertTrue(joining.handleAcquire(acquireRequest(notOwned, "after")).notOwner);
+        assertEquals(0, joining.tracker().inFlight(notOwned));
+        assertEquals(1, joining.tracker().inFlight("b"));
     }
 
     public void testOwnershipLostAfterTrackerAcquireReturnsThePermit() {
@@ -699,9 +720,9 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
         body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_BUCKET, "grp1:group");
         body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_SHARED_LIMIT, 5);
         body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_PERMIT_ID, "permit-abc");
-        body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_TTL_NANOS, 1_000L);
         body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_COORDINATOR, "eph-coordinator");
         body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_COORDINATOR_TASK_ID, 7L);
+        body.put("ttl_nanos", 1_000L); // not part of the format: the owner applies its own TTL
         body.put("requesting_node", "eph-1");
         body.put("wants_queue", true);
         body.put("future_list", List.of("a", "b"));
@@ -712,7 +733,7 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
         assertEquals("grp1:group", parsed.bucketKey);
         assertEquals(5, parsed.sharedLimit);
         assertEquals("permit-abc", parsed.permitId);
-        assertEquals(1_000L, parsed.ttlNanos);
+        assertEquals(WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS, parsed.ttlNanos);
         assertEquals("unknown keys must be consumed, not left as trailing bytes", 0, in.available());
     }
 
@@ -722,7 +743,6 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
         full.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_BUCKET, "grp1:group");
         full.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_SHARED_LIMIT, 5);
         full.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_PERMIT_ID, "permit-abc");
-        full.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_TTL_NANOS, 1_000L);
         full.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_COORDINATOR, "eph-coordinator");
         full.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_COORDINATOR_TASK_ID, 7L);
         for (String omitted : full.keySet()) {
@@ -737,19 +757,17 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
     }
 
     public void testAcquirePermitRequestAcceptsAWidenedNumericType() throws Exception {
-        // A peer that widens shared_limit to a long, or narrows ttl to an int, must still interoperate.
+        // A peer that widens shared_limit to a long must still interoperate.
         Map<String, Object> body = new HashMap<>();
         body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_BUCKET, "grp1:group");
         body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_SHARED_LIMIT, 5L);
         body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_PERMIT_ID, "permit-abc");
-        body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_TTL_NANOS, 1_000);
         body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_COORDINATOR, "eph-coordinator");
         body.put(WorkloadGroupSharedThrottleService.AcquirePermitRequest.KEY_COORDINATOR_TASK_ID, 7L);
         WorkloadGroupSharedThrottleService.AcquirePermitRequest parsed = new WorkloadGroupSharedThrottleService.AcquirePermitRequest(
             bodyBytes(body, true)
         );
         assertEquals(5, parsed.sharedLimit);
-        assertEquals(1_000L, parsed.ttlNanos);
     }
 
     public void testAcquirePermitResponseIgnoresFieldsAddedByANewerPeer() throws Exception {

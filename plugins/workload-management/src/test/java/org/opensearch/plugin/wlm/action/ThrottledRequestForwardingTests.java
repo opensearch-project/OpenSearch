@@ -45,8 +45,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Sends throttled create/update requests from a {@link WorkloadGroupThrottleSettings#MIN_SUPPORTED_VERSION} node to a pre-throttling node over a real transport
- * connection, as when the cluster-manager has not been upgraded yet, and checks the error an operator would see.
+ * Sends throttled create/update requests from a {@link WorkloadGroupThrottleSettings#MIN_SUPPORTED_VERSION} node to a
+ * pre-throttling node over a real transport connection, as when the cluster-manager has not been upgraded yet, and checks
+ * the error an operator would see.
  */
 public class ThrottledRequestForwardingTests extends OpenSearchTestCase {
 

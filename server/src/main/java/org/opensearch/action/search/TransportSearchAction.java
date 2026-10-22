@@ -539,14 +539,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Span requestSpan
     ) {
         try (final SpanScope ignore = tracer.withSpanInScope(requestSpan)) {
-            try {
-                searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
-            } catch (Exception e) {
-                // Defensive (the composite listener already swallows child failures): fail through updatedListener so the
-                // permit is released.
-                updatedListener.onFailure(e);
-                return;
-            }
+            searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
 
             PipelinedRequest searchRequest;
             ActionListener<SearchResponse> listener;
