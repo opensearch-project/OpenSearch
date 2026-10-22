@@ -37,6 +37,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
+import org.opensearch.action.search.SearchTransportService.CoordinatorTimeoutStrategy;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -85,6 +86,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
+    public static final String COORDINATOR_TIMEOUT_STRATEGY = "coordinator_timeout_strategy";
     public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 128;
     public static final int DEFAULT_BATCHED_REDUCE_SIZE = 512;
 
@@ -128,6 +130,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private String pipeline;
 
     private Boolean phaseTook = null;
+
+    private CoordinatorTimeoutStrategy coordinatorTimeoutStrategy = null;
 
     public SearchRequest() {
         this.localClusterAlias = null;
@@ -234,6 +238,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.finalReduce = finalReduce;
         this.cancelAfterTimeInterval = searchRequest.cancelAfterTimeInterval;
         this.phaseTook = searchRequest.phaseTook;
+        this.coordinatorTimeoutStrategy = searchRequest.coordinatorTimeoutStrategy;
     }
 
     /**
@@ -281,6 +286,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             phaseTook = in.readOptionalBoolean();
         }
+        if (in.getVersion().onOrAfter(Version.V_3_8_0)) {
+            coordinatorTimeoutStrategy = CoordinatorTimeoutStrategy.fromType(in.readOptionalString());
+        }
     }
 
     @Override
@@ -314,6 +322,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeOptionalBoolean(phaseTook);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_8_0)) {
+            out.writeOptionalString(coordinatorTimeoutStrategy != null ? coordinatorTimeoutStrategy.getType() : null);
         }
     }
 
@@ -762,9 +773,29 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return pipeline;
     }
 
+    public void setCoordinatorTimeoutStrategy(String coordinatorTimeoutStrategy) {
+        assert coordinatorTimeoutStrategy != null;
+        this.coordinatorTimeoutStrategy = CoordinatorTimeoutStrategy.fromType(coordinatorTimeoutStrategy);
+    }
+
+    public CoordinatorTimeoutStrategy coordinatorTimeoutStrategy() {
+        return coordinatorTimeoutStrategy;
+    }
+
     @Override
     public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers, cancelAfterTimeInterval);
+        TimeValue timeout = source == null ? null : source.timeout();
+        return new SearchTask(
+            id,
+            type,
+            action,
+            this::buildDescription,
+            parentTaskId,
+            headers,
+            cancelAfterTimeInterval,
+            timeout,
+            coordinatorTimeoutStrategy
+        );
     }
 
     public final String buildDescription() {
@@ -816,7 +847,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
             && Objects.equals(cancelAfterTimeInterval, that.cancelAfterTimeInterval)
             && Objects.equals(pipeline, that.pipeline)
-            && Objects.equals(phaseTook, that.phaseTook);
+            && Objects.equals(phaseTook, that.phaseTook)
+            && Objects.equals(coordinatorTimeoutStrategy, that.coordinatorTimeoutStrategy);
     }
 
     @Override
@@ -838,7 +870,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             absoluteStartMillis,
             ccsMinimizeRoundtrips,
             cancelAfterTimeInterval,
-            phaseTook
+            pipeline,
+            phaseTook,
+            coordinatorTimeoutStrategy
         );
     }
 
@@ -883,6 +917,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + pipeline
             + ", phaseTook="
             + phaseTook
+            + ", coordinatorTimeoutStrategy="
+            + coordinatorTimeoutStrategy
             + "}";
     }
 }

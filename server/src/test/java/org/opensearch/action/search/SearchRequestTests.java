@@ -34,6 +34,7 @@ package org.opensearch.action.search;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.search.SearchTransportService.CoordinatorTimeoutStrategy;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.ArrayUtils;
@@ -385,12 +386,61 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testCoordinatorTimeoutStrategyResolvesTaskTimeout() {
+        TimeValue timeout = TimeValue.timeValueMillis(100);
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().timeout(timeout));
+
+        SearchTask defaultTask = (SearchTask) searchRequest.createTask(0, "test", SearchAction.NAME, TaskId.EMPTY_TASK_ID, emptyMap());
+        assertFalse(defaultTask.coordinatorTimeoutEnabled());
+        assertEquals(timeout, defaultTask.timeout());
+
+        searchRequest.setCoordinatorTimeoutStrategy(CoordinatorTimeoutStrategy.FAIL.getType());
+        SearchTask failTask = (SearchTask) searchRequest.createTask(0, "test", SearchAction.NAME, TaskId.EMPTY_TASK_ID, emptyMap());
+        assertTrue(failTask.coordinatorTimeoutEnabled());
+        assertEquals(timeout, failTask.timeout());
+    }
+
     public void testCopyConstructor() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new);
         assertEquals(deserializedRequest, searchRequest);
         assertEquals(deserializedRequest.hashCode(), searchRequest.hashCode());
         assertNotSame(deserializedRequest, searchRequest);
+    }
+
+    public void testCoordinatorTimeoutStrategySerialization() throws IOException {
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().timeout(TimeValue.timeValueMillis(100)));
+        searchRequest.setCoordinatorTimeoutStrategy(CoordinatorTimeoutStrategy.FAIL.getType());
+
+        SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new);
+        assertEquals(CoordinatorTimeoutStrategy.FAIL, deserializedRequest.coordinatorTimeoutStrategy());
+    }
+
+    public void testCreateTaskDisablesCoordinatorTimeoutForZeroTimeoutValue() {
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().timeout(TimeValue.ZERO));
+        searchRequest.setCoordinatorTimeoutStrategy("fail");
+
+        SearchTask task = searchRequest.createTask(1L, "transport", SearchAction.NAME, TaskId.EMPTY_TASK_ID, emptyMap());
+
+        assertEquals(TimeValue.ZERO, task.timeout());
+        assertFalse(task.coordinatorTimeoutEnabled());
+    }
+
+    public void testCoordinatorTimeoutSerializationAllowsUnsetStrategy() throws Exception {
+        SearchRequest searchRequest = createSearchRequest();
+        // defect-probing: an optional strategy must remain optional when serialization is enabled.
+        SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new);
+        assertNull(deserializedRequest.coordinatorTimeoutStrategy());
+    }
+
+    public void testCreateTaskPropagatesCoordinatorTimeoutStrategy() {
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().timeout(TimeValue.timeValueMillis(100)));
+        searchRequest.setCoordinatorTimeoutStrategy("fail");
+
+        SearchTask task = (SearchTask) searchRequest.createTask(1L, "transport", SearchAction.NAME, TaskId.EMPTY_TASK_ID, emptyMap());
+
+        assertTrue(task.coordinatorTimeoutEnabled());
+        assertEquals(TimeValue.timeValueMillis(100), task.timeout());
     }
 
     public void testParseSearchRequestWithUnsupportedSearchType() throws IOException {
@@ -404,6 +454,16 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             () -> RestSearchAction.parseSearchRequest(searchRequest, restRequest, null, namedWriteableRegistry, setSize)
         );
         assertEquals("Unsupported search type [query_and_fetch]", exception.getMessage());
+    }
+
+    public void testParseSearchRequestWithCoordinatorTimeoutStrategy() throws IOException {
+        RestRequest restRequest = new FakeRestRequest();
+        SearchRequest searchRequest = createSearchRequest();
+        IntConsumer setSize = mock(IntConsumer.class);
+        restRequest.params().put(SearchRequest.COORDINATOR_TIMEOUT_STRATEGY, CoordinatorTimeoutStrategy.FAIL.getType());
+
+        RestSearchAction.parseSearchRequest(searchRequest, restRequest, null, namedWriteableRegistry, setSize);
+        assertEquals(CoordinatorTimeoutStrategy.FAIL, searchRequest.coordinatorTimeoutStrategy());
     }
 
     public void testEqualsAndHashcode() throws IOException {
@@ -447,6 +507,9 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                     : TimeValue.parseTimeValue(randomTimeValue(), null, "cancel_after_time_interval")
             )
         );
+        if (searchRequest.coordinatorTimeoutStrategy() == null) {
+            mutators.add(() -> mutation.setCoordinatorTimeoutStrategy(CoordinatorTimeoutStrategy.FAIL.getType()));
+        }
         randomFrom(mutators).run();
         return mutation;
     }
