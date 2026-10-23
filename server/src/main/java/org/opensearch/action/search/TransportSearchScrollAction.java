@@ -41,7 +41,6 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
-import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupTask;
 
 /**
@@ -55,7 +54,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     private final SearchTransportService searchTransportService;
     private final SearchPhaseController searchPhaseController;
     private final ThreadPool threadPool;
-    private final WorkloadGroupService workloadGroupService;
+    private final SearchExecutionGate searchExecutionGate;
 
     @Inject
     public TransportSearchScrollAction(
@@ -65,32 +64,29 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
         SearchTransportService searchTransportService,
         SearchPhaseController searchPhaseController,
         ThreadPool threadPool,
-        WorkloadGroupService workloadGroupService
+        SearchExecutionGate searchExecutionGate
     ) {
         super(SearchScrollAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchScrollRequest>) SearchScrollRequest::new);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
         this.searchPhaseController = searchPhaseController;
         this.threadPool = threadPool;
-        this.workloadGroupService = workloadGroupService;
+        this.searchExecutionGate = searchExecutionGate;
     }
 
     @Override
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         if (task instanceof WorkloadGroupTask workloadGroupTask) {
             workloadGroupTask.setWorkloadGroupId(threadPool.getThreadContext());
-            // With throttling off (WLM disabled, or no group configures it) the page skips admission entirely.
-            if (workloadGroupService.isThrottlingActive()) {
-                workloadGroupService.executeWithThrottlePermit(
-                    workloadGroupTask,
-                    () -> false,
-                    listener,
-                    admittedListener -> executeScroll(task, request, admittedListener)
-                );
-                return;
-            }
         }
-        executeScroll(task, request, listener);
+        // Scroll pages are admitted too, or ?scroll= would bypass the limit.
+        SearchExecutionGate.execute(
+            searchExecutionGate,
+            task,
+            request,
+            listener,
+            admittedListener -> executeScroll(task, request, admittedListener)
+        );
     }
 
     private void executeScroll(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
