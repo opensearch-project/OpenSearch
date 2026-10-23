@@ -43,6 +43,8 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.metadata.View;
+import org.opensearch.cluster.metadata.ViewMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -65,10 +67,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_MODE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -82,8 +86,10 @@ import static org.opensearch.test.VersionUtils.maxCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomOpenSearchVersion;
 import static org.opensearch.test.VersionUtils.randomVersionBetween;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyString;
@@ -210,7 +216,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
@@ -248,6 +255,115 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         assertThat(result.resultingState.getNodes().get(actualNode.getId()).getRoles(), equalTo(actualNode.getRoles()));
     }
 
+    public void testRejectsJoinOfNewNodeThatIsNoLongerConnected() throws Exception {
+        // A join can be validated and queued while a node-left task for the same node is still being computed. The
+        // node-left apply then closes the connection to the node. The queued join must be rejected, or the node would
+        // be added without a connection and removed again by its first follower check.
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        final RemoteStoreNodeService remoteStoreNodeService = mock(RemoteStoreNodeService.class);
+        when(remoteStoreNodeService.updateRepositoriesMetadata(any(), any())).thenReturn(new RepositoriesMetadata(Collections.emptyList()));
+
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode existingNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode connectedNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode disconnectedNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
+            Settings.EMPTY,
+            allocationService,
+            logger,
+            rerouteService,
+            remoteStoreNodeService,
+            node -> node.equals(disconnectedNode) == false
+        );
+
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(clusterManagerNode)
+                    .localNodeId(clusterManagerNode.getId())
+                    .clusterManagerNodeId(clusterManagerNode.getId())
+                    .add(existingNode)
+            )
+            .build();
+
+        final JoinTaskExecutor.Task existingTask = new JoinTaskExecutor.Task(existingNode, "test");
+        final JoinTaskExecutor.Task connectedTask = new JoinTaskExecutor.Task(connectedNode, "test");
+        final JoinTaskExecutor.Task disconnectedTask = new JoinTaskExecutor.Task(disconnectedNode, "test");
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(
+            clusterState,
+            List.of(existingTask, connectedTask, disconnectedTask)
+        );
+
+        assertThat(result.executionResults.entrySet(), hasSize(3));
+        assertTrue(result.executionResults.get(existingTask).isSuccess());
+        assertTrue(result.executionResults.get(connectedTask).isSuccess());
+        final ClusterStateTaskExecutor.TaskResult disconnectedResult = result.executionResults.get(disconnectedTask);
+        assertFalse(disconnectedResult.isSuccess());
+        assertThat(disconnectedResult.getFailure(), instanceOf(IllegalStateException.class));
+        assertThat(disconnectedResult.getFailure().getMessage(), containsString("no longer connected to joining node"));
+
+        assertTrue(result.resultingState.getNodes().nodeExists(connectedNode));
+        assertFalse(result.resultingState.getNodes().nodeExists(disconnectedNode));
+    }
+
+    @SuppressWarnings("removal")
+    public void testDropsViewMetadataOnceAllNodesAreUpgraded() throws Exception {
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.V_3_10_0);
+        final DiscoveryNode joiningNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.V_3_10_0);
+
+        final ClusterState result = joinNodeToClusterWithViewMetadata(clusterManagerNode, joiningNode);
+
+        assertNull(result.metadata().custom(ViewMetadata.TYPE));
+    }
+
+    @SuppressWarnings("removal")
+    public void testKeepsViewMetadataWhileOlderNodesRemain() throws Exception {
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.V_3_10_0);
+        final DiscoveryNode joiningNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.V_3_9_0);
+
+        final ClusterState result = joinNodeToClusterWithViewMetadata(clusterManagerNode, joiningNode);
+
+        assertNotNull(result.metadata().custom(ViewMetadata.TYPE));
+    }
+
+    @SuppressWarnings("removal")
+    private ClusterState joinNodeToClusterWithViewMetadata(DiscoveryNode clusterManagerNode, DiscoveryNode joiningNode) throws Exception {
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        final RemoteStoreNodeService remoteStoreNodeService = mock(RemoteStoreNodeService.class);
+        when(remoteStoreNodeService.updateRepositoriesMetadata(any(), any())).thenReturn(new RepositoriesMetadata(Collections.emptyList()));
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
+            Settings.EMPTY,
+            allocationService,
+            logger,
+            rerouteService,
+            remoteStoreNodeService,
+            node -> true
+        );
+
+        final View view = new View("logs", "all logs", 1L, 1L, Set.of(new View.Target("logs-*")));
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(clusterManagerNode)
+                    .localNodeId(clusterManagerNode.getId())
+                    .clusterManagerNodeId(clusterManagerNode.getId())
+            )
+            .metadata(Metadata.builder().putCustom(ViewMetadata.TYPE, new ViewMetadata(Map.of("logs", view))))
+            .build();
+
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result = joinTaskExecutor.execute(
+            clusterState,
+            List.of(new JoinTaskExecutor.Task(joiningNode, "test"))
+        );
+        assertTrue(result.executionResults.values().iterator().next().isSuccess());
+        return result.resultingState;
+    }
+
     /**
      * Validate isBecomeClusterManagerTask() can identify "become cluster manager task" properly
      */
@@ -271,7 +387,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            mock(RemoteStoreNodeService.class)
+            mock(RemoteStoreNodeService.class),
+            node -> true
         );
         final DiscoveryNode localNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
         final IndexMetadata indexMetadata = IndexMetadata.builder("test")
@@ -349,7 +466,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
@@ -594,6 +712,75 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         assertTrue(e.getMessage().equals("a non remote store node [" + joiningNode + "] is trying to join a remote " + "store cluster"));
     }
 
+    public void testJoinClusterWithSegmentsOnlyNodeJoiningSegmentsOnlyCluster() {
+        ClusterState currentState = clusterStateWithSingleNode(segmentsOnlyNodeAttributes(SEGMENT_REPO));
+        DiscoveryNode joiningNode = newDiscoveryNode(segmentsOnlyNodeAttributes(SEGMENT_REPO));
+        JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata());
+    }
+
+    /**
+     * A segments_only node has no cluster state repository, so it is not a {@code DiscoveryNode#isRemoteStoreNode()}.
+     * The checks below are the ones that predicate used to gate, which left a segments_only cluster accepting any
+     * node at all.
+     */
+    public void testPreventJoinClusterWithSegmentsOnlyNodeWithDifferentRepositoryJoining() {
+        ClusterState currentState = clusterStateWithSingleNode(segmentsOnlyNodeAttributes(SEGMENT_REPO));
+        DiscoveryNode joiningNode = newDiscoveryNode(segmentsOnlyNodeAttributes("a-different-segment-repo"));
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
+        );
+        assertTrue(e.getMessage().contains("incompatible node attributes"));
+    }
+
+    public void testPreventJoinClusterWithNonRemoteStoreNodeJoiningSegmentsOnlyCluster() {
+        ClusterState currentState = clusterStateWithSingleNode(segmentsOnlyNodeAttributes(SEGMENT_REPO));
+        DiscoveryNode joiningNode = newDiscoveryNode(Collections.emptyMap());
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
+        );
+        assertEquals("a non remote store node [" + joiningNode + "] is trying to join a remote store cluster", e.getMessage());
+    }
+
+    /**
+     * The two kinds of remote store node have different durability semantics, and {@code IndexSettings#isTranslogDurableInRemoteStore}
+     * reads the node attribute, so a shard that moved between them would change which copy of its operations is the
+     * durable one.
+     */
+    public void testPreventJoinClusterWithRemoteStoreNodeJoiningSegmentsOnlyCluster() {
+        ClusterState currentState = clusterStateWithSingleNode(segmentsOnlyNodeAttributes(SEGMENT_REPO));
+        DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
+        );
+        assertTrue(e.getMessage().contains("incompatible node attributes"));
+    }
+
+    public void testPreventJoinClusterWithSegmentsOnlyNodeJoiningRemoteStoreCluster() {
+        ClusterState currentState = clusterStateWithSingleNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
+        DiscoveryNode joiningNode = newDiscoveryNode(segmentsOnlyNodeAttributes(SEGMENT_REPO));
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
+        );
+        assertTrue(e.getMessage().contains("incompatible node attributes"));
+    }
+
+    private ClusterState clusterStateWithSingleNode(Map<String, String> attributes) {
+        final DiscoveryNode existingNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            attributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(existingNode).localNodeId(existingNode.getId()).build())
+            .build();
+    }
+
     public void testPreventJoinClusterWithRemoteStoreNodeWithPartialAttributesJoiningRemoteStoreCluster() {
         Map<String, String> existingNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO);
         Map<String, String> remoteStoreNodeAttributes = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO);
@@ -796,7 +983,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -841,7 +1029,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -904,7 +1093,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -949,7 +1139,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -1010,7 +1201,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -1080,7 +1272,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -1145,7 +1338,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -1427,7 +1621,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            node -> true
         );
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(
@@ -1561,6 +1756,30 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
 
     private Map<String, String> remoteStoreNodeAttributes(String segmentRepoName, String translogRepoName) {
         return remoteStoreNodeAttributes(segmentRepoName, translogRepoName, CLUSTER_STATE_REPO);
+    }
+
+    /** A segment repository and deliberately no translog or cluster state repository, which is what segments_only is. */
+    private Map<String, String> segmentsOnlyNodeAttributes(String segmentRepoName) {
+        String segmentRepositoryTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            segmentRepoName
+        );
+        String segmentRepositorySettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            segmentRepoName
+        );
+
+        return new HashMap<>() {
+            {
+                put(REMOTE_STORE_MODE_KEY, "segments_only");
+                put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName);
+                put(segmentRepositoryTypeAttributeKey, "s3");
+                put(segmentRepositorySettingsAttributeKeyPrefix + "bucket", "segment_bucket");
+                put(segmentRepositorySettingsAttributeKeyPrefix + "base_path", "/segment/path");
+            }
+        };
     }
 
     private Map<String, String> remoteStoreNodeAttributes(String segmentRepoName, String translogRepoName, String clusterStateRepo) {

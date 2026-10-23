@@ -485,6 +485,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Consumer<IndexShard> replicator;
     private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
     private volatile int maxSizeInRequestCache;
+    private volatile boolean requestCacheEnabled;
     private volatile int defaultMaxMergeAtOnce;
     private final StatusCounterStats statusCounterStats;
     private volatile List<SearchStatsContributor> searchStatsContributors = Collections.emptyList();
@@ -677,6 +678,9 @@ public class IndicesService extends AbstractLifecycleComponent
         this.maxSizeInRequestCache = INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING, this::setMaxSizeInRequestCache);
+        this.requestCacheEnabled = IndicesRequestCache.INDICES_REQUEST_CACHE_ENABLED_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(IndicesRequestCache.INDICES_REQUEST_CACHE_ENABLED_SETTING, this::setRequestCacheEnabled);
 
         this.defaultMaxMergeAtOnce = CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING.get(clusterService.getSettings());
         this.clusterMergeSchedulerConfig = new ClusterMergeSchedulerConfig(this);
@@ -2074,6 +2078,10 @@ public class IndicesService extends AbstractLifecycleComponent
      * Can the shard request be cached at all?
      */
     public boolean canCache(ShardSearchRequest request, SearchContext context) {
+        if (requestCacheEnabled == false) {
+            return false;
+        }
+
         // Queries that create a scroll context cannot use the cache.
         // They modify the search context during their execution so using the cache
         // may invalidate the scroll for the next query.
@@ -2166,6 +2174,9 @@ public class IndicesService extends AbstractLifecycleComponent
                     request.source()
                 );
             }
+        } else if (requestCacheEnabled == false) {
+            // The cache got disabled while this search was running, so drop the entry it just added
+            indicesRequestCache.invalidate(new IndexShardCacheEntity(context.indexShard()), directoryReader, request.cacheKey());
         }
     }
 
@@ -2340,11 +2351,18 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Returns a function which given an index name, returns a predicate which fields must match in order to be returned by get mappings,
-     * get index, get field mappings and field capabilities API. Useful to filter the fields that such API return.
-     * The predicate receives the field name as input argument. In case multiple plugins register a field filter through
-     * {@link org.opensearch.plugins.MapperPlugin#getFieldFilter()}, only fields that match all the registered filters will be
-     * returned by get mappings, get index, get field mappings and field capabilities API.
+     * Returns a function that, given a concrete index name, returns a predicate that determines field visibility. Consumers include
+     * metadata APIs such as get mappings, get index, get field mappings, and field capabilities, as well as APIs that access field values
+     * or otherwise operate on payload data. The predicate receives the field name as its input.
+     *
+     * <p>In case multiple plugins register a field filter through
+     * {@link org.opensearch.plugins.MapperPlugin#getFieldFilter()}, only fields that match all registered filters are returned by get
+     * mappings, get index, get field mappings, and field capabilities APIs. Other consumers, including payload-data APIs, must likewise
+     * make only fields matching all registered filters available. The same aggregated filter is exposed to query-schema and query-planning
+     * implementations.
+     *
+     * <p>Plugins may use these filters to implement authorization access controls such as field-level security. Consumers must therefore
+     * treat the result as an access-control boundary and must not bypass it or reintroduce rejected fields.
      */
     public Function<String, Predicate<String>> getFieldFilter() {
         return mapperRegistry.getFieldFilter();
@@ -2515,6 +2533,22 @@ public class IndicesService extends AbstractLifecycleComponent
     // Package-private for testing
     void setMaxSizeInRequestCache(Integer maxSizeInRequestCache) {
         this.maxSizeInRequestCache = maxSizeInRequestCache;
+    }
+
+    // Package-private for testing
+    void setRequestCacheEnabled(boolean requestCacheEnabled) {
+        this.requestCacheEnabled = requestCacheEnabled;
+        if (requestCacheEnabled == false) {
+            // Clean up the same way the clear cache API does
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                for (IndexService indexService : this) {
+                    for (IndexShard indexShard : indexService) {
+                        indicesRequestCache.clear(new IndexShardCacheEntity(indexShard));
+                    }
+                }
+                indicesRequestCache.forceCleanCache();
+            });
+        }
     }
 
     public void setFixedRefreshIntervalSchedulingEnabled(boolean fixedRefreshIntervalSchedulingEnabled) {

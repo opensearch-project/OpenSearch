@@ -626,9 +626,9 @@ annotation. The presence of this annotation signals that API may change at any t
 
 #### User API
 
-The User API consists of integration specifications (e.g., [Query Domain Specific Language](https://opensearch.org/docs/latest/opensearch/query-dsl/index/),
-[field mappings](https://opensearch.org/docs/latest/opensearch/mappings/)) and endpoints (e.g., [`_search`](https://opensearch.org/docs/latest/api-reference/search/),
-[`_cat`](https://opensearch.org/docs/latest/api-reference/cat/index/)) users rely on to integrate and use OpenSearch. Backwards compatibility is critical to the
+The User API consists of integration specifications (e.g., [Query Domain Specific Language](https://docs.opensearch.org/latest/query-dsl/),
+[field mappings](https://docs.opensearch.org/latest/mappings/)) and endpoints (e.g., [`_search`](https://docs.opensearch.org/latest/api-reference/search-apis/search/),
+[`_cat`](https://docs.opensearch.org/latest/api-reference/cat/index/)) users rely on to integrate and use OpenSearch. Backwards compatibility is critical to the
 User API, therefore OpenSearch commits to using [semantic versioning](https://opensearch.org/blog/what-is-semver/) for all User facing APIs. To support this
 developers must leverage `Version` checks for any user facing endpoints or API specifications that change across minor versions. Developers must also inform
 users of any changes by adding the `>breaking` label on Pull Requests and a log message to the OpenSearch deprecation log files using the `DeprecationLogger`.

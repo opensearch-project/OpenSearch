@@ -698,12 +698,21 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
         DiscoveryNodes discoveryNodes = IndexShardTestUtils.getFakeDiscoveryNodes(routing);
         // To simulate that the node is remote backed
-        if (indexMetadata.getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_ENABLED) == "true") {
-            nodeSettings = Settings.builder()
-                .put("node.name", routing.currentNodeId())
-                .put("node.attr.remote_store.translog.repository", "seg_repo")
-                .build();
-            discoveryNodes = DiscoveryNodes.builder().add(IndexShardTestUtils.getFakeRemoteEnabledNode(routing.currentNodeId())).build();
+        if (indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)) {
+            final Settings.Builder builder = Settings.builder().put("node.name", routing.currentNodeId());
+            // A segment repository and no translog repository means segments_only, so the node must match. Giving it
+            // a translog repository anyway would make isTranslogDurableInRemoteStore() true and hide the local translog paths.
+            final boolean segmentsOnly = indexMetadata.getSettings().hasValue(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY)
+                && indexMetadata.getSettings().hasValue(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY) == false;
+            builder.put(
+                segmentsOnly ? "node.attr.remote_store.segment.repository" : "node.attr.remote_store.translog.repository",
+                "seg_repo"
+            );
+            nodeSettings = builder.build();
+            final DiscoveryNode node = segmentsOnly
+                ? IndexShardTestUtils.getFakeSegmentsOnlyNode(routing.currentNodeId())
+                : IndexShardTestUtils.getFakeRemoteEnabledNode(routing.currentNodeId());
+            discoveryNodes = DiscoveryNodes.builder().add(node).build();
         }
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, nodeSettings);
         final IndexShard indexShard;
