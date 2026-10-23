@@ -8,6 +8,7 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
+import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsResponse.SettingMetadata;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -33,7 +34,15 @@ public class ClusterDescribeSettingsIT extends OpenSearchIntegTestCase {
             "plugin.example.unknown_setting"
         );
         var response = internalCluster().nonClusterManagerClient().execute(ClusterDescribeSettingsAction.INSTANCE, request).actionGet();
-        assertEquals(Map.of("plugin.example.dynamic_setting", true, "plugin.example.static_setting", false), response.settings());
+        assertEquals(
+            Map.of(
+                "plugin.example.dynamic_setting",
+                SettingMetadata.withDefault(true, "false"),
+                "plugin.example.static_setting",
+                SettingMetadata.withDefault(false, "false")
+            ),
+            response.settings()
+        );
     }
 
     public static class DescriptionTestPlugin extends Plugin {
