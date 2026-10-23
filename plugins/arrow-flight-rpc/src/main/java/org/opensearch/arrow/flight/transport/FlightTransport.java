@@ -272,7 +272,24 @@ class FlightTransport extends TcpTransport {
                 }
 
                 FlightServer server = builder.build();
-                server.start();
+                try {
+                    server.start();
+                } catch (Exception e) {
+                    // builder.build() registers the underlying gRPC ServerImpl in the process-wide
+                    // InternalChannelz static registry (ServerImpl constructor → channelz.addServer).
+                    // It is only removed when the server terminates. If we leave the failed server
+                    // un-shutdown, it leaks in channelz and pins the entire handler chain (FlightService
+                    // → ArrowFlightProducer → FlightTransport → the OpenSearch node) in memory.
+                    // shutdown() deregisters from channelz and is safe here because grpcExecutor is null
+                    // (OSFlightServer passes null when an external executor is supplied), so it will not
+                    // shut down the shared serverExecutor/bossEventLoopGroup/workerEventLoopGroup.
+                    try {
+                        server.shutdown();
+                    } catch (Exception shutdownEx) {
+                        e.addSuppressed(shutdownEx);
+                    }
+                    throw e;
+                }
                 this.flightServer = server;
                 logger.info("Arrow Flight server started. Listening at {}", locations);
                 return true;

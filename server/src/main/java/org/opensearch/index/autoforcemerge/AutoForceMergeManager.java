@@ -339,6 +339,11 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
      * Validates node-level conditions for force merge operations.
      * This validator checks CPU usage, JVM memory usage, and force merge thread availability
      * to determine if force merge operations can proceed safely.
+     * <p>
+     * Each resource reading is compared against its threshold using a strict greater-than ({@code >})
+     * comparison, so a reading that is exactly equal to the threshold does not defer the merge. Because the
+     * thresholds are capped at 100 (percent), configuring a threshold of 100 makes the check a deterministic
+     * bypass: even a fully saturated reading of 100 cannot exceed it, so that resource never gates the merge.
      */
     protected class NodeValidator implements ValidationStrategy {
 
@@ -371,18 +376,19 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
         }
 
         private boolean isJvmUsageOverThreshold() {
+            // Strict '>' so a reading exactly equal to the threshold passes; a threshold of 100 disables this check.
             double jvmAverage = resourceTrackers.jvmFiveMinute.getAverage();
-            if (jvmAverage >= forceMergeManagerSettings.getJvmThreshold()) {
+            if (jvmAverage > forceMergeManagerSettings.getJvmThreshold()) {
                 logger.debug("JVM Average: 5m({}%) breached the threshold: {}", jvmAverage, forceMergeManagerSettings.getJvmThreshold());
                 return true;
             }
             jvmAverage = resourceTrackers.jvmOneMinute.getAverage();
-            if (jvmAverage >= forceMergeManagerSettings.getJvmThreshold()) {
+            if (jvmAverage > forceMergeManagerSettings.getJvmThreshold()) {
                 logger.debug("JVM Average: 1m({}%) breached the threshold: {}", jvmAverage, forceMergeManagerSettings.getJvmThreshold());
                 return true;
             }
             double jvmUsedPercent = jvmService.stats().getMem().getHeapUsedPercent();
-            if (jvmUsedPercent >= forceMergeManagerSettings.getJvmThreshold()) {
+            if (jvmUsedPercent > forceMergeManagerSettings.getJvmThreshold()) {
                 logger.debug("JVM memory: {}% breached the threshold: {}", jvmUsedPercent, forceMergeManagerSettings.getJvmThreshold());
                 return true;
             }
@@ -390,18 +396,19 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
         }
 
         private boolean isCpuUsageOverThreshold() {
+            // Strict '>' so a reading exactly equal to the threshold passes; a threshold of 100 disables this check.
             double cpuAverage = resourceTrackers.cpuFiveMinute.getAverage();
-            if (cpuAverage >= forceMergeManagerSettings.getCpuThreshold()) {
+            if (cpuAverage > forceMergeManagerSettings.getCpuThreshold()) {
                 logger.debug("CPU Average: 5m({}%) breached the threshold: {}", cpuAverage, forceMergeManagerSettings.getCpuThreshold());
                 return true;
             }
             cpuAverage = resourceTrackers.cpuOneMinute.getAverage();
-            if (cpuAverage >= forceMergeManagerSettings.getCpuThreshold()) {
+            if (cpuAverage > forceMergeManagerSettings.getCpuThreshold()) {
                 logger.debug("CPU Average: 1m({}%) breached the threshold: {}", cpuAverage, forceMergeManagerSettings.getCpuThreshold());
                 return true;
             }
             double cpuPercent = osService.stats().getCpu().getPercent();
-            if (cpuPercent >= forceMergeManagerSettings.getCpuThreshold()) {
+            if (cpuPercent > forceMergeManagerSettings.getCpuThreshold()) {
                 logger.debug("CPU usage: {} breached the threshold: {}", cpuPercent, forceMergeManagerSettings.getCpuThreshold());
                 return true;
             }
@@ -412,7 +419,8 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
             long total = fsService.stats().getTotal().getTotal().getBytes();
             long available = fsService.stats().getTotal().getAvailable().getBytes();
             double diskPercent = ((double) (total - available) / total) * 100;
-            if (diskPercent >= forceMergeManagerSettings.getDiskThreshold()) {
+            // Strict '>' so a reading exactly equal to the threshold passes; a threshold of 100 disables this check.
+            if (diskPercent > forceMergeManagerSettings.getDiskThreshold()) {
                 logger.debug("Disk usage: {}% breached the threshold: {}", diskPercent, forceMergeManagerSettings.getDiskThreshold());
                 return true;
             }
