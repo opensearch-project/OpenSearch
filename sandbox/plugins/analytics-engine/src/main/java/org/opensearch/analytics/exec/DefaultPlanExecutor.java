@@ -436,7 +436,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             );
         }
         final String fullPlan = profile ? RelOptUtil.toString(plan) : null;
-        QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver);
+        Integer targetPartitions = queryCtx != null ? queryCtx.targetPartitions() : null;
+        QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService, indexNameExpressionResolver, targetPartitions);
 
         // Dispatch resolution under the GENERAL post-CBO scheduler. The enforcement pass placed every
         // exchange (shuffle/broadcast) + pre-split any distributed aggregate; DAGBuilder cut at those and

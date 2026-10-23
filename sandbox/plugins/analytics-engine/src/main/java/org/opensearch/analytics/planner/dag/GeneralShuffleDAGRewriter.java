@@ -157,7 +157,7 @@ public final class GeneralShuffleDAGRewriter {
 
         Set<Integer> workerIds = descriptors.keySet();
         Stage newRoot = rebuild(root, workerIds, nodesByStageId, backend);
-        QueryDAG rewrittenDag = new QueryDAG(dag.queryId(), newRoot);
+        QueryDAG rewrittenDag = new QueryDAG(dag.queryId(), newRoot, dag.targetPartitions());
 
         // Deferred level builder — run after the convert pipeline re-creates non-worker stages. Producers
         // are looked up from the rewritten DAG by stage id; an intermediate-worker producer keeps its
