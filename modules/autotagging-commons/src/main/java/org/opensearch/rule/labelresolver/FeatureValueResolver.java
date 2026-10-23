@@ -18,8 +18,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -31,22 +33,39 @@ import java.util.stream.Collectors;
  *   A list of feature values matches are collected for each attribute.
  *   An intersection of all candidate feature values is computed.
  *   The intersection is then reduced to a final feature value using tie-breaking logic.
+ * When the stores hold rule ids, the matches are rule ids, mapped to feature values via featureValueOf.
  */
 public class FeatureValueResolver {
     private final AttributeValueStoreFactory storeFactory;
     private final List<AttributeExtractor<String>> orderedExtractors;
+    private final Function<String, String> featureValueOf;
     private final Map<Attribute, List<MatchLabel<String>>> matchLabelMap = new HashMap<>();
     private Set<String> intersection = null;
     final float EPSILON = 1e-6f;
 
     /**
-     * Constructor for FeatureValueAggregator
+     * Constructor for FeatureValueResolver, for stores that hold feature values
      * @param storeFactory
      * @param orderedExtractors
      */
     public FeatureValueResolver(AttributeValueStoreFactory storeFactory, List<AttributeExtractor<String>> orderedExtractors) {
+        this(storeFactory, orderedExtractors, Function.identity());
+    }
+
+    /**
+     * Constructor for FeatureValueResolver, for stores that hold rule ids so that only one rule's attributes match together
+     * @param storeFactory
+     * @param orderedExtractors
+     * @param featureValueOf maps a stored rule id to its feature value
+     */
+    public FeatureValueResolver(
+        AttributeValueStoreFactory storeFactory,
+        List<AttributeExtractor<String>> orderedExtractors,
+        Function<String, String> featureValueOf
+    ) {
         this.storeFactory = storeFactory;
         this.orderedExtractors = orderedExtractors;
+        this.featureValueOf = featureValueOf;
     }
 
     /**
@@ -74,9 +93,9 @@ public class FeatureValueResolver {
         if (intersection == null || intersection.isEmpty()) {
             return Optional.empty();
         }
-        if (intersection.size() == 1) {
-            String res = intersection.iterator().next();
-            return Optional.of(res);
+        Optional<String> featureValue = singleFeatureValue(intersection);
+        if (featureValue.isPresent()) {
+            return featureValue;
         }
 
         return breakTie();
@@ -90,13 +109,22 @@ public class FeatureValueResolver {
         for (AttributeExtractor<String> extractor : orderedExtractors) {
             Set<String> nextIntersection = getTopScoringMatches(extractor.getAttribute());
 
-            if (nextIntersection.size() == 1) {
-                return Optional.of(nextIntersection.iterator().next());
+            Optional<String> featureValue = singleFeatureValue(nextIntersection);
+            if (featureValue.isPresent()) {
+                return featureValue;
             } else {
                 intersection = nextIntersection;
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Returns the feature value if all the given matches map to the same one
+     */
+    private Optional<String> singleFeatureValue(Set<String> matches) {
+        Set<String> featureValues = matches.stream().map(featureValueOf).filter(Objects::nonNull).collect(Collectors.toSet());
+        return featureValues.size() == 1 ? Optional.of(featureValues.iterator().next()) : Optional.empty();
     }
 
     /**
@@ -126,16 +154,13 @@ public class FeatureValueResolver {
         Set<String> values = new HashSet<>();
         for (int j = startIndex; j < matches.size(); j++) {
             MatchLabel<String> m = matches.get(j);
-            if (belongsToTopScoringGroup(m, topScore)) {
-                values.add(m.getFeatureValue());
-            } else {
+            if (Math.abs(m.getMatchScore() - topScore) >= EPSILON) {
                 break;
+            }
+            if (intersection.contains(m.getFeatureValue())) {
+                values.add(m.getFeatureValue());
             }
         }
         return values;
-    }
-
-    private boolean belongsToTopScoringGroup(MatchLabel<String> match, float topScore) {
-        return intersection.contains(match.getFeatureValue()) && Math.abs(match.getMatchScore() - topScore) < EPSILON;
     }
 }
