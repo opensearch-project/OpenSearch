@@ -141,6 +141,28 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
         assertFalse(sut.evaluateLabel(getAttributeExtractors(List.of("my-index-1"))).isPresent());
     }
 
+    public void testRemoveKeepsValuesSharedWithOtherRules() {
+        // Both rules leave the second attribute unset, so they share its empty value for the same label
+        InMemoryRuleProcessingService service = twoAttributeService();
+        Rule second = twoAttributeRule("second", "other");
+        service.add(twoAttributeRule("first", "test"));
+        service.add(second);
+        service.remove(second);
+
+        assertEquals(Optional.of("test_id"), service.evaluateLabel(twoAttributeExtractors("test", "anything")));
+    }
+
+    public void testRemoveKeepsSameValueOfOtherRules() {
+        // Both rules set the same first value for the same label, and differ in the second attribute
+        InMemoryRuleProcessingService service = twoAttributeService();
+        Rule second = twoAttributeRule("second", "test", "b");
+        service.add(twoAttributeRule("first", "test", "a"));
+        service.add(second);
+        service.remove(second);
+
+        assertEquals(Optional.of("test_id"), service.evaluateLabel(twoAttributeExtractors("test", "a")));
+    }
+
     public void testEvaluateLabelForNoMatchWithLongestMatchingPrefixCase() {
         sut.add(getRule(Set.of("key1", "change"), "test_id"));
         sut.add(getRule(Set.of("key12", "double"), "test_id1"));
@@ -172,6 +194,70 @@ public class InMemoryRuleProcessingServiceTests extends OpenSearchTestCase {
             @Override
             public Iterable<String> extract() {
                 return extractedAttributes;
+            }
+
+            @Override
+            public LogicalOperator getLogicalOperator() {
+                return OR;
+            }
+        });
+        return extractors;
+    }
+
+    private static final Attribute SECOND_ATTRIBUTE = () -> "second_attribute";
+
+    private static final FeatureType TWO_ATTRIBUTES = new FeatureType() {
+        @Override
+        public String getName() {
+            return "two_attributes";
+        }
+
+        @Override
+        public Map<Attribute, Integer> getOrderedAttributes() {
+            return Map.of(TestAttribute.TEST_ATTRIBUTE, 1, SECOND_ATTRIBUTE, 2);
+        }
+    };
+
+    private static InMemoryRuleProcessingService twoAttributeService() {
+        return new InMemoryRuleProcessingService(
+            new AttributeValueStoreFactory(TWO_ATTRIBUTES, DefaultAttributeValueStore::new),
+            TWO_ATTRIBUTES.getOrderedAttributes()
+        );
+    }
+
+    private static Rule twoAttributeRule(String id, String value) {
+        return new Rule(
+            id,
+            "test description",
+            Map.of(TestAttribute.TEST_ATTRIBUTE, Set.of(value)),
+            TWO_ATTRIBUTES,
+            "test_id",
+            "2025-02-24T07:42:10.123456Z"
+        );
+    }
+
+    private static Rule twoAttributeRule(String id, String value, String secondValue) {
+        return new Rule(
+            id,
+            "test description",
+            Map.of(TestAttribute.TEST_ATTRIBUTE, Set.of(value), SECOND_ATTRIBUTE, Set.of(secondValue)),
+            TWO_ATTRIBUTES,
+            "test_id",
+            "2025-02-24T07:42:10.123456Z"
+        );
+    }
+
+    private static List<AttributeExtractor<String>> twoAttributeExtractors(String firstValue, String secondValue) {
+        List<AttributeExtractor<String>> extractors = getAttributeExtractors(List.of(firstValue));
+        extractors.add(new AttributeExtractor<>() {
+            @Override
+            public Attribute getAttribute() {
+                return SECOND_ATTRIBUTE;
+            }
+
+            @Override
+            public Iterable<String> extract() {
+                return List.of(secondValue);
             }
 
             @Override
