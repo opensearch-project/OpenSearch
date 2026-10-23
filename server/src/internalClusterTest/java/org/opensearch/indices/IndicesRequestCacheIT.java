@@ -48,6 +48,7 @@ import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.ClusterState;
@@ -608,6 +609,73 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         OpenSearchAssertions.assertAllSuccessful(r8);
         assertThat(r8.getHits().getTotalHits().value(), equalTo(5L));
         assertCacheState(client, index, 0, 6);
+    }
+
+    public void testDynamicEnableDisable() throws Exception {
+        Client client = client();
+        String index = "index";
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(index)
+                .setMapping("f", "type=date")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                        .put(SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                        // Disable index refreshing to avoid cache being invalidated mid-test
+                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(-1))
+                )
+                .get()
+        );
+        indexRandom(
+            true,
+            client.prepareIndex(index).setSource("f", "2014-03-10T00:00:00.000Z"),
+            client.prepareIndex(index).setSource("f", "2014-05-13T00:00:00.000Z")
+        );
+        ensureSearchable(index);
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
+        forceMerge(client, index);
+        assertCacheState(client, index, 0, 0);
+
+        assertSearchResponse(sizeZeroAggSearch(client, index).get());
+        assertCacheState(client, index, 0, 1);
+        assertThat(getRequestCacheStats(client, index).getMemorySizeInBytes(), greaterThan(0L));
+        assertSearchResponse(sizeZeroAggSearch(client, index).get());
+        assertCacheState(client, index, 1, 1);
+
+        // Disabling the cache clears existing entries and stops caching, even when the request asks for the cache
+        setRequestCacheEnabled(false);
+        assertBusy(() -> assertThat(getRequestCacheStats(client, index).getMemorySizeInBytes(), equalTo(0L)));
+        for (int i = 0; i < 3; i++) {
+            assertSearchResponse(sizeZeroAggSearch(client, index).setRequestCache(true).get());
+        }
+        assertCacheState(client, index, 1, 1);
+        assertThat(getRequestCacheStats(client, index).getMemorySizeInBytes(), equalTo(0L));
+
+        // Re-enabling resumes caching
+        setRequestCacheEnabled(true);
+        assertSearchResponse(sizeZeroAggSearch(client, index).get());
+        assertCacheState(client, index, 1, 2);
+        assertThat(getRequestCacheStats(client, index).getMemorySizeInBytes(), greaterThan(0L));
+        assertSearchResponse(sizeZeroAggSearch(client, index).get());
+        assertCacheState(client, index, 2, 2);
+    }
+
+    private static SearchRequestBuilder sizeZeroAggSearch(Client client, String index) {
+        return client.prepareSearch(index)
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setSize(0)
+            .addAggregation(dateHistogram("histo").field("f").dateHistogramInterval(DateHistogramInterval.MONTH));
+    }
+
+    private void setRequestCacheEnabled(boolean enabled) {
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(
+            Settings.builder().put(IndicesRequestCache.INDICES_REQUEST_CACHE_ENABLED_SETTING.getKey(), enabled)
+        );
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
     }
 
     public void testCacheWithFilteredAlias() throws InterruptedException {
