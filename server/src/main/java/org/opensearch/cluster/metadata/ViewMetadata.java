@@ -11,7 +11,7 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.NamedDiff;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.DeprecatedApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -27,8 +27,19 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-/** View metadata */
-@ExperimentalApi
+/**
+ * Cluster-state custom holding the views created by the removed experimental Views feature.
+ * <p>
+ * The Views APIs were removed in 3.10.0. Nothing writes this custom any more. It is kept only so that a cluster state
+ * containing a {@code view} custom, written by an earlier 3.x node, still deserializes while a rolling upgrade is in
+ * progress. Once every node in the cluster is on 3.10.0 or later, {@code JoinTaskExecutor} drops the custom. This class
+ * will be deleted in 4.0.
+ *
+ * @opensearch.api
+ */
+@DeprecatedApi(since = "3.10.0", forRemoval = "4.0.0")
+@SuppressWarnings("removal")
+@Deprecated(forRemoval = true)
 public class ViewMetadata implements Metadata.Custom {
 
     public static final String TYPE = "view";
@@ -58,10 +69,6 @@ public class ViewMetadata implements Metadata.Custom {
 
     public ViewMetadata(final StreamInput in) throws IOException {
         this.views = in.readMap(StreamInput::readString, View::new);
-    }
-
-    public Map<String, View> views() {
-        return this.views;
     }
 
     @Override
@@ -102,10 +109,6 @@ public class ViewMetadata implements Metadata.Custom {
         return builder;
     }
 
-    public static Builder builder() {
-        return new Builder();
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(this.views);
@@ -126,24 +129,6 @@ public class ViewMetadata implements Metadata.Custom {
     @Override
     public String toString() {
         return Strings.toString(MediaTypeRegistry.JSON, this);
-    }
-
-    /**
-     * Builder of view metadata.
-     */
-    @ExperimentalApi
-    public static class Builder {
-
-        private final Map<String, View> views = new HashMap<>();
-
-        public Builder putDataStream(final View view) {
-            views.put(view.getName(), view);
-            return this;
-        }
-
-        public ViewMetadata build() {
-            return new ViewMetadata(views);
-        }
     }
 
     /**

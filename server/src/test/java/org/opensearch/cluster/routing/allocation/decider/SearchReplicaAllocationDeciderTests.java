@@ -201,6 +201,38 @@ public class SearchReplicaAllocationDeciderTests extends OpenSearchAllocationTes
     }
 
     public void testSearchReplicaWithThrottlingDeciderWithoutPrimary_RemoteStoreEnabled() {
+        Decision decision = throttlingDecisionForSearchReplicaMoveWithoutPrimary(
+            newRemoteNode("node1"),
+            newRemoteSearchNode("node2"),
+            newRemoteNode("node3")
+        );
+        assertEquals("Remote based search replica below incoming recovery limit: [0 < 2]", decision.getExplanation());
+        assertEquals(Decision.Type.YES, decision.type());
+    }
+
+    /**
+     * A {@code segments_only} node has no translog repository, but a search replica recovers from the remote segment
+     * store, so it must keep the same exemption a full remote store node gets.
+     */
+    public void testSearchReplicaWithThrottlingDeciderWithoutPrimary_SegmentsOnly() {
+        Decision decision = throttlingDecisionForSearchReplicaMoveWithoutPrimary(
+            newSegmentsOnlyNode("node1"),
+            newSegmentsOnlySearchNode("node2"),
+            newSegmentsOnlyNode("node3")
+        );
+        assertEquals("Remote based search replica below incoming recovery limit: [0 < 2]", decision.getExplanation());
+        assertEquals(Decision.Type.YES, decision.type());
+    }
+
+    /**
+     * Starts the primary on {@code primaryNode} and the search replica on {@code searchNode}, kills the primary, then
+     * asks to move the search replica to {@code targetNode} and returns the throttling decider's decision.
+     */
+    private Decision throttlingDecisionForSearchReplicaMoveWithoutPrimary(
+        DiscoveryNode primaryNode,
+        DiscoveryNode searchNode,
+        DiscoveryNode targetNode
+    ) {
         TestGatewayAllocator gatewayAllocator = new TestGatewayAllocator();
         AllocationService strategy = createAllocationService(Settings.EMPTY, gatewayAllocator);
         Metadata metadata = Metadata.builder()
@@ -213,24 +245,22 @@ public class SearchReplicaAllocationDeciderTests extends OpenSearchAllocationTes
             )
             .build();
 
-        ClusterState clusterState = initializeClusterStateWithSingleIndexAndShard(newRemoteNode("node1"), metadata, gatewayAllocator);
+        ClusterState clusterState = initializeClusterStateWithSingleIndexAndShard(primaryNode, metadata, gatewayAllocator);
 
         clusterState = strategy.reroute(clusterState, "reroute");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
-        DiscoveryNode node2 = newRemoteSearchNode("node2");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(node2)).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(searchNode)).build();
         clusterState = strategy.reroute(clusterState, "reroute");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         assertEquals(2, clusterState.routingTable().shardsWithState(STARTED).size());
-        assertEquals(clusterState.getRoutingNodes().getOutgoingRecoveries("node1"), 0);
+        assertEquals(clusterState.getRoutingNodes().getOutgoingRecoveries(primaryNode.getId()), 0);
         // start a third node, we will try and move the SR to this node
-        DiscoveryNode node3 = newRemoteNode("node3");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(node3)).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(targetNode)).build();
         clusterState = strategy.reroute(clusterState, "reroute");
         // remove the primary and reroute - this would throw an NPE for search replicas but *not* regular.
         // regular replicas would get promoted to primary before the CanMoveAway call.
         clusterState = strategy.disassociateDeadNodes(
-            ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node1")).build(),
+            ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(primaryNode.getId())).build(),
             true,
             "test"
         );
@@ -238,22 +268,19 @@ public class SearchReplicaAllocationDeciderTests extends OpenSearchAllocationTes
         // attempt to move the replica
         AllocationService.CommandsResult commandsResult = strategy.reroute(
             clusterState,
-            new AllocationCommands(new MoveAllocationCommand("test", 0, "node2", "node3")),
+            new AllocationCommands(new MoveAllocationCommand("test", 0, searchNode.getId(), targetNode.getId())),
             true,
             false
         );
 
         assertEquals(commandsResult.explanations().explanations().size(), 1);
         assertEquals(commandsResult.explanations().explanations().get(0).decisions().type(), Decision.Type.NO);
-        boolean foundYesMessage = false;
         for (Decision decision : commandsResult.explanations().explanations().get(0).decisions().getDecisions()) {
             if (decision.label().equals(ThrottlingAllocationDecider.NAME)) {
-                assertEquals("Remote based search replica below incoming recovery limit: [0 < 2]", decision.getExplanation());
-                assertEquals(Decision.Type.YES, decision.type());
-                foundYesMessage = true;
+                return decision;
             }
         }
-        assertTrue(foundYesMessage);
+        throw new AssertionError("no " + ThrottlingAllocationDecider.NAME + " decision was returned");
     }
 
     private ClusterState initializeClusterStateWithSingleIndexAndShard(
@@ -321,5 +348,13 @@ public class SearchReplicaAllocationDeciderTests extends OpenSearchAllocationTes
                 "translog-repo"
             )
         );
+    }
+
+    private static DiscoveryNode newSegmentsOnlyNode(String name) {
+        return newNode(name, name, Map.of(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "segment-repo"));
+    }
+
+    private static DiscoveryNode newSegmentsOnlySearchNode(String name) {
+        return newSearchNode(name, name, Map.of(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "segment-repo"));
     }
 }

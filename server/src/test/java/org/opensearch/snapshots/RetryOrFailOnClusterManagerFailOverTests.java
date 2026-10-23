@@ -22,11 +22,14 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.repositories.RepositoryData;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -34,6 +37,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -593,4 +601,106 @@ public class RetryOrFailOnClusterManagerFailOverTests extends OpenSearchTestCase
         task.onFailure("test-source", new NotClusterManagerException("simulated"));
     }
 
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testCleanupRetryArmedBeforeFailoverHandlingIsDropped() {
+        final List<Runnable> scheduled = new ArrayList<>();
+        final List<ClusterStateUpdateTask> submitted = new ArrayList<>();
+        final SnapshotsService service = serviceCapturingSchedules(scheduled, submitted);
+        final Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap-1", UUIDs.randomBase64UUID()));
+
+        failRemovalPublish(service, snapshot, RepositoryData.EMPTY);
+        assertThat(scheduled, hasSize(1));
+        runFailoverHandling(service);
+        scheduled.remove(0).run();
+        assertThat("a retry scheduled before failover handling must not be submitted after it", submitted, empty());
+
+        failRemovalPublish(service, snapshot, RepositoryData.EMPTY);
+        scheduled.remove(0).run();
+        assertThat("a retry scheduled after failover handling must be submitted", submitted, hasSize(1));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testCleanupRetryWithoutRepositoryHandoffIsNotDropped() {
+        final List<Runnable> scheduled = new ArrayList<>();
+        final List<ClusterStateUpdateTask> submitted = new ArrayList<>();
+        final SnapshotsService service = serviceCapturingSchedules(scheduled, submitted);
+        final Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap-1", UUIDs.randomBase64UUID()));
+
+        failRemovalPublish(service, snapshot, null);
+        assertThat(scheduled, hasSize(1));
+        runFailoverHandling(service);
+        scheduled.remove(0).run();
+        assertThat("a retry whose task hands no repository on must still be submitted", submitted, hasSize(1));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testV2CleanupRetryIsNotDroppedAfterFailoverHandling() {
+        final List<Runnable> scheduled = new ArrayList<>();
+        final List<ClusterStateUpdateTask> submitted = new ArrayList<>();
+        final SnapshotsService service = serviceCapturingSchedules(scheduled, submitted);
+        final String source = "remove in progress snapshot v2 after cluster manager switch";
+
+        service.createStateWithoutSnapshotV2Task(source, 0).onFailure(source, new FailedToCommitClusterStateException("publish failed"));
+        assertThat(scheduled, hasSize(1));
+        runFailoverHandling(service);
+        scheduled.remove(0).run();
+        assertThat("the v2 cleanup retry holds no repository bookkeeping, so it must still be submitted", submitted, hasSize(1));
+    }
+
+    @LockFeatureFlag(FeatureFlags.SNAPSHOT_RESILIENCE)
+    public void testDroppedCleanupRetryStillEndsSnapshot() {
+        final List<Runnable> scheduled = new ArrayList<>();
+        final List<ClusterStateUpdateTask> submitted = new ArrayList<>();
+        final SnapshotsService service = serviceCapturingSchedules(scheduled, submitted);
+        final Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap-1", UUIDs.randomBase64UUID()));
+        service.endingSnapshots.add(snapshot);
+
+        failRemovalPublish(service, snapshot, RepositoryData.EMPTY);
+        runFailoverHandling(service);
+        scheduled.remove(0).run();
+
+        assertThat(submitted, empty());
+        assertFalse("a dropped retry must still end its snapshot", service.endingSnapshots.contains(snapshot));
+    }
+
+    private static void failRemovalPublish(SnapshotsService service, Snapshot snapshot, RepositoryData repositoryData) {
+        final String source = "remove snapshot metadata";
+        service.createRemoveFailedSnapshotTask(source, 0, snapshot, new RuntimeException("snapshot failed"), repositoryData, null)
+            .onFailure(source, new FailedToCommitClusterStateException("publish failed"));
+    }
+
+    private static void runFailoverHandling(SnapshotsService service) {
+        final Snapshot other = new Snapshot("repo", new SnapshotId("snap-2", UUIDs.randomBase64UUID()));
+        final String source = "remove snapshot metadata";
+        service.createRemoveFailedSnapshotTask(source, 0, other, new RuntimeException("snapshot failed"), null, null)
+            .onNoLongerClusterManager(source);
+    }
+
+    private static SnapshotsService serviceCapturingSchedules(List<Runnable> scheduled, List<ClusterStateUpdateTask> submitted) {
+        final ThreadPool capturing = mock(ThreadPool.class);
+        when(capturing.schedule(any(Runnable.class), any(TimeValue.class), anyString())).thenAnswer(invocation -> {
+            scheduled.add(invocation.getArgument(0));
+            return mock(Scheduler.ScheduledCancellable.class);
+        });
+        final ClusterService capturingClusterService = mock(ClusterService.class);
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(capturingClusterService.getClusterSettings()).thenReturn(clusterSettings);
+        doAnswer(invocation -> {
+            submitted.add(invocation.getArgument(1));
+            return null;
+        }).when(capturingClusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        final TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(capturing);
+        return new SnapshotsService(
+            Settings.builder().put("node.name", "test").putList("node.roles", "cluster_manager", "data").build(),
+            capturingClusterService,
+            mock(org.opensearch.cluster.metadata.IndexNameExpressionResolver.class),
+            mock(org.opensearch.repositories.RepositoriesService.class),
+            transportService,
+            mock(org.opensearch.action.support.ActionFilters.class),
+            null,
+            new org.opensearch.indices.RemoteStoreSettings(Settings.EMPTY, clusterSettings),
+            null
+        );
+    }
 }

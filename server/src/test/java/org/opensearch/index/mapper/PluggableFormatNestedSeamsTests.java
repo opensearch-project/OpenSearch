@@ -427,4 +427,88 @@ public class PluggableFormatNestedSeamsTests extends MapperServiceTestCase {
         assertEquals(FieldScope.NESTED, recordedScopes.get("comments.text"));
         assertEquals("pre-existing root fields keep ROOT scope on re-assignment", FieldScope.ROOT, recordedScopes.get("root_leaf"));
     }
+
+    // ------------------------------------------------------------------
+    // Vanilla behavior around the seams
+    // ------------------------------------------------------------------
+
+    public void testParseFailureInsideNestedElementSurfacesOriginalException() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("user");
+            {
+                b.field("type", "nested");
+                b.field("include_in_parent", true);
+                b.startObject("properties");
+                b.startObject("age").field("type", "integer").endObject();
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("user");
+            b.startObject().field("age", "not-a-number").endObject();
+            b.endArray();
+        })));
+        assertTrue(
+            "the original parse exception must surface, got: " + e.getMessage(),
+            e.getMessage().contains("user.age") || e.getCause() != null && e.getCause().getMessage().contains("user.age")
+        );
+    }
+
+    public void testVanillaNestedWithDisableObjectsKeepsFlattenedParsing() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("user");
+            {
+                b.field("type", "nested");
+                b.field("disable_objects", true);
+                b.startObject("properties");
+                b.startObject("name").field("type", "keyword").endObject();
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startArray("user");
+            b.startObject().field("name", "alice").endObject();
+            b.startObject().field("name", "bob").endObject();
+            b.endArray();
+        }));
+
+        assertEquals("vanilla path must not create nested child documents", 1, doc.docs().size());
+        assertTrue("values must flatten onto the root document", doc.rootDoc().getFields("user.name").length > 0);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableNestedWithDisableObjectsOpensElementScopes() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings(), mapping(b -> {
+            b.startObject("user");
+            {
+                b.field("type", "nested");
+                b.field("disable_objects", true);
+                b.startObject("properties");
+                b.startObject("name").field("type", "keyword").field("index", false).endObject();
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        BoundaryCapturingDocumentInput input = new BoundaryCapturingDocumentInput();
+
+        mapper.parse(source(b -> {
+            b.startArray("user");
+            b.startObject().field("name", "alice").endObject();
+            b.startObject().field("name", "bob").endObject();
+            b.endArray();
+        }), input);
+
+        assertEquals("one element scope per array entry", 2, input.count("start"));
+        assertEquals(2, input.count("end"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testFlatObjectAcceptedUnderPluggableDerivedSource() throws Exception {
+        // Vanilla-side rejection: FlatObjectFieldMapperTests#testDerivedSourceRejectedOnVanillaIndex.
+        createMapperService(pluggableSettings(), mapping(b -> { b.startObject("attrs").field("type", "flat_object").endObject(); }));
+    }
 }

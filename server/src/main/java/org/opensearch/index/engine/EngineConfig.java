@@ -129,7 +129,7 @@ public final class EngineConfig {
     private final DataFormatRegistry dataFormatRegistry;
     private final MapperService mapperService;
     private final CommitterFactory committerFactory;
-    private final PrimaryOperationPolicy primaryOperationPolicy;
+    private final Supplier<PrimaryOperationPolicy> primaryOperationPolicySupplier;
     private final Map<String, FormatChecksumStrategy> checksumStrategies;
     @Nullable
     private final DocumentLookupProvider documentLookupProvider;
@@ -328,9 +328,9 @@ public final class EngineConfig {
         this.dataFormatRegistry = builder.dataFormatRegistry;
         this.mapperService = builder.mapperService;
         this.committerFactory = builder.committerFactory;
-        this.primaryOperationPolicy = builder.primaryOperationPolicy != null
-            ? builder.primaryOperationPolicy
-            : DefaultPrimaryOperationPolicy.INSTANCE;
+        this.primaryOperationPolicySupplier = builder.primaryOperationPolicySupplier != null
+            ? builder.primaryOperationPolicySupplier
+            : () -> DefaultPrimaryOperationPolicy.INSTANCE;
         this.checksumStrategies = builder.checksumStrategies;
         this.documentLookupProvider = builder.documentLookupProvider;
         this.documentMetadataResolver = builder.documentMetadataResolver;
@@ -389,7 +389,7 @@ public final class EngineConfig {
             .checksumStrategies(this.checksumStrategies)
             .documentLookupProvider(this.documentLookupProvider)
             .documentMetadataResolver(this.documentMetadataResolver)
-            .primaryOperationPolicy(this.primaryOperationPolicy);
+            .primaryOperationPolicySupplier(this.primaryOperationPolicySupplier);
     }
 
     /**
@@ -692,10 +692,19 @@ public final class EngineConfig {
      * Returns the policy describing how a writable primary sources sequence numbers and plans
      * operations. Never {@code null}; defaults to {@link DefaultPrimaryOperationPolicy}, which
      * reproduces the standard primary behavior.
+     * <p>
+     * The policy is resolved on every call, against the live {@link IndexSettings} of this config, so
+     * a plugin that keys its policy off an updatable setting can change its answer over the lifetime
+     * of a single engine. Callers must therefore treat the result as a snapshot and only re-read it at
+     * points where no operation is in flight, because a policy change alters sequence-number
+     * assignment. {@link InternalEngine} does exactly that: it snapshots the policy at construction and
+     * re-reads it only from {@link Engine#refreshPrimaryOperationPolicy()}, which the shard invokes
+     * while operations are blocked.
      */
     @ExperimentalApi
     public PrimaryOperationPolicy getPrimaryOperationPolicy() {
-        return this.primaryOperationPolicy;
+        final PrimaryOperationPolicy policy = this.primaryOperationPolicySupplier.get();
+        return policy != null ? policy : DefaultPrimaryOperationPolicy.INSTANCE;
     }
 
     public Map<String, FormatChecksumStrategy> getChecksumStrategies() {
@@ -755,7 +764,7 @@ public final class EngineConfig {
         private DataFormatRegistry dataFormatRegistry;
         private MapperService mapperService;
         private CommitterFactory committerFactory;
-        private PrimaryOperationPolicy primaryOperationPolicy;
+        private Supplier<PrimaryOperationPolicy> primaryOperationPolicySupplier;
         private Map<String, FormatChecksumStrategy> checksumStrategies = Collections.emptyMap();
         @Nullable
         private DocumentLookupProvider documentLookupProvider;
@@ -933,12 +942,31 @@ public final class EngineConfig {
         }
 
         /**
-         * Sets the indexing/sequence-number policy for a writable primary. A {@code null} value
+         * Sets a fixed indexing/sequence-number policy for a writable primary. A {@code null} value
          * selects {@link DefaultPrimaryOperationPolicy}, which reproduces the standard behavior.
+         * <p>
+         * Prefer {@link #primaryOperationPolicySupplier(Supplier)} in production code: a fixed policy
+         * cannot follow a setting change, so a shard built this way keeps the same policy from engine
+         * construction until the engine is replaced.
          */
         @ExperimentalApi
         public Builder primaryOperationPolicy(@Nullable PrimaryOperationPolicy primaryOperationPolicy) {
-            this.primaryOperationPolicy = primaryOperationPolicy;
+            final PrimaryOperationPolicy policy = primaryOperationPolicy != null
+                ? primaryOperationPolicy
+                : DefaultPrimaryOperationPolicy.INSTANCE;
+            return primaryOperationPolicySupplier(() -> policy);
+        }
+
+        /**
+         * Sets the resolver for the writable primary's indexing/sequence-number policy. It is consulted
+         * on every {@link EngineConfig#getPrimaryOperationPolicy()} call rather than once at engine
+         * construction, so a plugin keying its policy off an updatable index setting is re-consulted
+         * when the shard becomes a primary. A {@code null} value selects
+         * {@link DefaultPrimaryOperationPolicy}.
+         */
+        @ExperimentalApi
+        public Builder primaryOperationPolicySupplier(@Nullable Supplier<PrimaryOperationPolicy> primaryOperationPolicySupplier) {
+            this.primaryOperationPolicySupplier = primaryOperationPolicySupplier;
             return this;
         }
 

@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
-import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocator;
 import org.opensearch.arrow.spi.PoolGroup;
 import org.opensearch.be.datafusion.action.stats.DataFusionStatsActionType;
@@ -26,7 +25,6 @@ import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -62,6 +60,7 @@ import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginComponentRegistry;
 import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
@@ -513,41 +512,12 @@ public class DataFusionPlugin extends Plugin
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        DataFormatRegistry dataFormatRegistry
+        PluginComponentRegistry pluginComponentRegistry
     ) {
-        return createComponents(
-            client,
-            clusterService,
-            threadPool,
-            resourceWatcherService,
-            scriptService,
-            xContentRegistry,
-            environment,
-            nodeEnvironment,
-            namedWriteableRegistry,
-            indexNameExpressionResolver,
-            repositoriesServiceSupplier,
-            dataFormatRegistry,
-            null
-        );
-    }
-
-    @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        DataFormatRegistry dataFormatRegistry,
-        @Nullable NativeAllocator nativeAllocator
-    ) {
+        DataFormatRegistry dataFormatRegistry = pluginComponentRegistry.getComponent(DataFormatRegistry.class)
+            .orElseThrow(() -> new IllegalStateException("DataFormatRegistry is not available during DataFusion initialization"));
+        NativeAllocator nativeAllocator = pluginComponentRegistry.getComponent(NativeAllocator.class)
+            .orElseThrow(() -> new IllegalStateException("NativeAllocator is not available; arrow-base plugin must be installed"));
         this.dataFormatRegistry = dataFormatRegistry;
         this.clusterService = clusterService;
         Settings settings = environment.settings();
@@ -660,41 +630,36 @@ public class DataFusionPlugin extends Plugin
 
         this.substraitExtensions = loadSubstraitExtensions();
 
-        // Register with the unified allocator if available
-        if (nativeAllocator != null) {
-            ClusterSettings clusterSettings = clusterService.getClusterSettings();
-            ArrowNativeAllocator arrowAllocator = (ArrowNativeAllocator) nativeAllocator;
+        NativeAllocator.VirtualPoolHandle dfPool = nativeAllocator.registerVirtualPool(
+            DatafusionSettings.POOL_DATAFUSION,
+            DatafusionSettings.DATAFUSION_MEMORY_POOL_MIN.get(settings),
+            DATAFUSION_MEMORY_POOL_LIMIT.get(settings),
+            PoolGroup.SEARCH,
+            this::updateMemoryPoolLimit
+        );
 
-            NativeAllocator.VirtualPoolHandle dfPool = arrowAllocator.registerVirtualPool(
-                DatafusionSettings.POOL_DATAFUSION,
-                DatafusionSettings.DATAFUSION_MEMORY_POOL_MIN.get(settings),
-                DATAFUSION_MEMORY_POOL_LIMIT.get(settings),
-                PoolGroup.SEARCH,
-                this::updateMemoryPoolLimit
-            );
+        nativeAllocator.addStatsRefresher(() -> {
+            if (dataFusionService != null) {
+                long usage = dataFusionService.getMemoryPoolUsage();
+                dfPool.updateStats(usage, usage);
+            }
+        });
 
-            arrowAllocator.addStatsRefresher(() -> {
-                if (dataFusionService != null) {
-                    long usage = dataFusionService.getMemoryPoolUsage();
-                    dfPool.updateStats(usage, usage);
-                }
-            });
+        nativeAllocator.setNativeMemoryStatsSupplier(() -> {
+            AnalyticsBackendNativeMemoryStats s = NativeMemoryFetcher.fetch();
+            return new long[] { s.getAllocatedBytes(), s.getResidentBytes() };
+        });
 
-            arrowAllocator.setNativeMemoryStatsSupplier(() -> {
-                AnalyticsBackendNativeMemoryStats s = NativeMemoryFetcher.fetch();
-                return new long[] { s.getAllocatedBytes(), s.getResidentBytes() };
-            });
-
-            // Wire dynamic setting consumers for pool min/max
-            clusterSettings.addSettingsUpdateConsumer(DATAFUSION_MEMORY_POOL_LIMIT, newMax -> {
-                arrowAllocator.setPoolLimit(DatafusionSettings.POOL_DATAFUSION, newMax);
-                updateMemoryPoolLimit(newMax);
-            });
-            clusterSettings.addSettingsUpdateConsumer(
-                DatafusionSettings.DATAFUSION_MEMORY_POOL_MIN,
-                newMin -> arrowAllocator.setPoolMin(DatafusionSettings.POOL_DATAFUSION, newMin)
-            );
-        }
+        // Wire dynamic setting consumers for pool min/max
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        clusterSettings.addSettingsUpdateConsumer(DATAFUSION_MEMORY_POOL_LIMIT, newMax -> {
+            nativeAllocator.setPoolLimit(DatafusionSettings.POOL_DATAFUSION, newMax);
+            updateMemoryPoolLimit(newMax);
+        });
+        clusterSettings.addSettingsUpdateConsumer(
+            DatafusionSettings.DATAFUSION_MEMORY_POOL_MIN,
+            newMin -> nativeAllocator.setPoolMin(DatafusionSettings.POOL_DATAFUSION, newMin)
+        );
 
         return Collections.singletonList(dataFusionService);
     }

@@ -53,6 +53,7 @@ import java.lang.management.RuntimeMXBean;
 import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -63,6 +64,21 @@ import java.util.Map;
 public class JvmInfo implements ReportingService.Info {
 
     private static JvmInfo INSTANCE;
+
+    // Must stay above the static initializer below, which masks this JVM's arguments.
+    private static final String[] SECRET_KEY_PATTERNS = new String[] {
+        "password",
+        "secret",
+        "credential",
+        "authtoken",
+        "accesstoken",
+        "sessiontoken",
+        "accesskey",
+        "privatekey",
+        "keypass",
+        "storepass" };
+
+    static final String SECRET_MASK = "********";
 
     static {
         RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
@@ -79,7 +95,7 @@ public class JvmInfo implements ReportingService.Info {
         } catch (Exception t) {
             // ignore
         }
-        String[] inputArguments = runtimeMXBean.getInputArguments().toArray(new String[0]);
+        String[] inputArguments = maskSecretArguments(runtimeMXBean.getInputArguments().toArray(new String[0]));
         Mem mem = new Mem(heapInit, heapMax, nonHeapInit, nonHeapMax, directMemoryMax);
 
         String bootClassPath;
@@ -302,10 +318,12 @@ public class JvmInfo implements ReportingService.Info {
         bundledJdk = in.readBoolean();
         usingBundledJdk = in.readOptionalBoolean();
         startTime = in.readLong();
-        inputArguments = new String[in.readInt()];
-        for (int i = 0; i < inputArguments.length; i++) {
-            inputArguments[i] = in.readString();
+        final String[] receivedInputArguments = new String[in.readInt()];
+        for (int i = 0; i < receivedInputArguments.length; i++) {
+            receivedInputArguments[i] = in.readString();
         }
+        // A peer on a version without masking sends unmasked arguments.
+        inputArguments = maskSecretArguments(receivedInputArguments);
         bootClassPath = in.readString();
         classPath = in.readString();
         systemProperties = in.readMap(StreamInput::readString, StreamInput::readString);
@@ -555,6 +573,36 @@ public class JvmInfo implements ReportingService.Info {
 
         builder.endObject();
         return builder;
+    }
+
+    /**
+     * Masks the value of every {@code -Dkey=value} argument whose key indicates a secret. Only this reported copy is
+     * masked; {@link System#getProperty(String)} still returns the real value.
+     */
+    static String[] maskSecretArguments(final String[] arguments) {
+        final String[] masked = new String[arguments.length];
+        for (int i = 0; i < arguments.length; i++) {
+            masked[i] = maskIfSecret(arguments[i]);
+        }
+        return masked;
+    }
+
+    private static String maskIfSecret(final String argument) {
+        if (argument == null || argument.startsWith("-D") == false) {
+            return argument;
+        }
+        final int equals = argument.indexOf('=');
+        if (equals < 0) {
+            return argument;
+        }
+        final String key = argument.substring("-D".length(), equals);
+        final String lowerCaseKey = key.toLowerCase(Locale.ROOT);
+        for (final String pattern : SECRET_KEY_PATTERNS) {
+            if (lowerCaseKey.contains(pattern)) {
+                return "-D" + key + "=" + SECRET_MASK;
+            }
+        }
+        return argument;
     }
 
     static final class Fields {

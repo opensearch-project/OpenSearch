@@ -46,8 +46,6 @@ import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
 @SuppressWarnings("CheckReturnValue")
 class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements PainlessParserVisitor<T> {
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -57,8 +55,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -68,8 +64,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -79,8 +73,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -90,8 +82,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -101,8 +91,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -112,8 +100,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -123,8 +109,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -134,8 +118,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -145,8 +127,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -156,8 +136,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -167,8 +145,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -178,8 +154,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -189,8 +163,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -200,8 +172,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -211,8 +181,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -222,8 +190,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -233,8 +199,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -244,8 +208,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -255,8 +217,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -266,8 +226,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -277,8 +235,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -288,8 +244,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -299,8 +253,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -310,8 +262,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -321,8 +271,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -332,8 +280,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -343,8 +289,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -354,8 +298,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -365,8 +307,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -376,8 +316,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -387,8 +325,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -398,8 +334,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -409,8 +343,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -420,8 +352,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -431,8 +361,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -442,8 +370,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -453,8 +379,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -464,8 +388,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -475,8 +397,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -486,8 +406,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -497,8 +415,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -508,8 +424,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -519,8 +433,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -530,8 +442,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -541,8 +451,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -552,8 +460,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -563,8 +469,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -574,8 +478,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -585,8 +487,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -596,8 +496,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -607,8 +505,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -618,8 +514,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -629,8 +523,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -640,8 +532,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -651,8 +541,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -662,8 +550,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -673,8 +559,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -684,8 +568,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -695,8 +577,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -706,8 +586,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -717,8 +595,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -728,8 +604,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -739,8 +613,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -750,8 +622,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -761,8 +631,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -772,8 +640,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -783,8 +649,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -794,8 +658,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -805,8 +667,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -816,8 +676,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -827,8 +685,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -838,8 +694,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -849,8 +703,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -860,8 +712,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -871,8 +721,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -882,8 +730,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
@@ -893,8 +739,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
     }
 
     /**
-     * {@inheritDoc}
-     *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
