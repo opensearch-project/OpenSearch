@@ -8,12 +8,15 @@
 
 package org.opensearch.search.query.rewriters;
 
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -23,6 +26,15 @@ public class TermsMergingRewriterTests extends OpenSearchTestCase {
 
     private final TermsMergingRewriter rewriter = TermsMergingRewriter.INSTANCE;
     private final QueryShardContext context = mock(QueryShardContext.class);
+
+    /**
+     * The rewriter is a singleton carrying a mutable threshold, and these tests are written against the default.
+     * Another test in the same JVM may have moved it, so it is put back rather than assumed.
+     */
+    @Before
+    public void resetThresholdToDefault() {
+        rewriter.initialize(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+    }
 
     public void testSimpleTermMergingBelowThreshold() {
         // Few term queries on same field should NOT be merged (below threshold)

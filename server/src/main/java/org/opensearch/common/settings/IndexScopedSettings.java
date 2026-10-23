@@ -150,6 +150,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
                 IndexSettings.INDEX_TRANSLOG_READ_FORWARD_SETTING,
                 IndexSettings.INDEX_WARMER_ENABLED_SETTING,
+                IndexSettings.INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING,
+                IndexSettings.INDEX_TRANSLOG_BATCH_APPEND_MAX_OPERATIONS_SETTING,
+                IndexSettings.INDEX_TRANSLOG_BATCH_APPEND_MAX_SIZE_SETTING,
                 IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
                 IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING,
                 IndexSettings.MAX_RESULT_WINDOW_SETTING,
@@ -250,11 +253,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 // Settings for remote translog
                 IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
                 IndexSettings.INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING,
+                IndexSettings.INDEX_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE_SETTING,
 
                 // Settings for remote store enablement
                 IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING,
                 IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
                 IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
+                IndexMetadata.INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING,
+                IndexMetadata.INDEX_REMOTE_STORE_AUTO_RESTORE_ENABLED_SETTING,
 
                 IndexSettings.INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING,
                 IndexSettings.INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,

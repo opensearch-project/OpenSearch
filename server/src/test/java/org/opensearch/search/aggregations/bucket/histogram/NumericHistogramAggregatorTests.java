@@ -48,6 +48,7 @@ import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.metrics.InternalMin;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
@@ -444,5 +445,39 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             }
         };
         testCase(request, new MatchAllDocsQuery(), buildIndex, verify, longField("outer"), longField("inner"), longField("n"));
+    }
+
+    /**
+     * Numeric histogram has no filter-rewrite fast path (it collects doc-by-doc, which is naturally
+     * partition-safe under the bulk scorer's doc-id bounds), so it always opts into intra-segment search —
+     * with or without a sub-aggregation.
+     */
+    public void testSupportsIntraSegmentSearch() throws IOException {
+        assertTrue(supportsIntraSegmentSearch(new HistogramAggregationBuilder("test").field("field").interval(5)));
+        assertTrue(
+            supportsIntraSegmentSearch(
+                new HistogramAggregationBuilder("test").field("field")
+                    .interval(5)
+                    .subAggregation(new MinAggregationBuilder("min").field("field"))
+            )
+        );
+    }
+
+    private boolean supportsIntraSegmentSearch(HistogramAggregationBuilder builder) throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            indexWriter.addDocument(List.of(new SortedNumericDocValuesField("field", 7)));
+            try (IndexReader reader = indexWriter.getReader()) {
+                IndexSearcher searcher = newIndexSearcher(reader);
+                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
+                AggregatorFactories factories = AggregatorFactories.builder()
+                    .addAggregator(builder)
+                    .build(
+                        createSearchContext(searcher, createIndexSettings(), new MatchAllDocsQuery(), null, fieldType)
+                            .getQueryShardContext(),
+                        null
+                    );
+                return factories.allFactoriesSupportIntraSegmentSearch();
+            }
+        }
     }
 }

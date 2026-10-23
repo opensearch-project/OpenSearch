@@ -32,6 +32,7 @@
 
 package org.opensearch.action.bulk;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.DocWriteRequest;
@@ -44,9 +45,11 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.TransportActions;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.ReplicationTask;
+import org.opensearch.action.support.replication.TransportReplicationAction.PrimaryResult;
 import org.opensearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
 import org.opensearch.action.support.replication.TransportWriteAction.WritePrimaryResult;
 import org.opensearch.action.update.UpdateHelper;
@@ -73,6 +76,7 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Mapping;
@@ -84,6 +88,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
@@ -97,28 +102,37 @@ import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
+
+import org.mockito.InOrder;
 
 import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSettings;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -687,7 +701,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         final long resultSeqNo = 13;
         Engine.DeleteResult deleteResult = new FakeDeleteResult(1, 1, resultSeqNo, found, resultLocation);
         IndexShard shard = mock(IndexShard.class);
-        when(shard.applyDeleteOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong())).thenReturn(deleteResult);
+        when(shard.applyDeleteOperationOnPrimary(anyLong(), any(), any(), any(), anyLong(), anyLong())).thenReturn(deleteResult);
         when(shard.indexSettings()).thenReturn(indexSettings);
         when(shard.shardId()).thenReturn(shardId);
 
@@ -768,6 +782,507 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(failure.getId(), equalTo("id"));
         assertThat(failure.getCause(), equalTo(err));
         assertThat(failure.getStatus(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+    }
+
+    public void testBatchedTranslogFinishFailureFailsRequestAcknowledgement() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+        BulkItemRequest item = new BulkItemRequest(
+            0,
+            new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value")
+        );
+        BulkShardRequest request = new BulkShardRequest(shardId, RefreshPolicy.NONE, new BulkItemRequest[] { item });
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            new FakeIndexResult(1, 1, 0, true, null)
+        );
+        Engine.TranslogBatch batch = mock(Engine.TranslogBatch.class);
+        EngineException appendFailure = new EngineException(shardId, "simulated batched append failure");
+        when(batch.finish()).thenThrow(appendFailure);
+        when(shard.beginTranslogBatch()).thenReturn(batch);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> observedFailure = new AtomicReference<>();
+        TransportShardBulkAction.performOnPrimary(
+            request,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(new ActionListener<>() {
+                @Override
+                public void onResponse(PrimaryResult<BulkShardRequest, BulkShardResponse> response) {
+                    fail("request must not be acknowledged after a batched translog append failure");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    observedFailure.set(e);
+                }
+            }, latch),
+            threadPool,
+            Names.WRITE
+        );
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertThat(observedFailure.get(), equalTo(appendFailure));
+    }
+
+    /**
+     * A batched append that fails while the runnable is yielding for a mapping update must fail the request exactly
+     * once. The mapping-update continuation re-executes the runnable; without deferring, the yield-time finish failure
+     * would fail the request and the re-execution would then complete it a second time.
+     */
+    public void testBatchFinishFailureDuringMappingUpdateYieldFailsRequestExactlyOnce() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+        BulkItemRequest[] items = new BulkItemRequest[] {
+            new BulkItemRequest(0, new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "foo", "bar")) };
+        BulkShardRequest request = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+        when(shard.mapperService()).thenReturn(mock(MapperService.class));
+        Engine.IndexResult mappingUpdate = new Engine.IndexResult(
+            new Mapping(null, mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap())
+        );
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            mappingUpdate
+        );
+        Engine.TranslogBatch batch = mock(Engine.TranslogBatch.class);
+        TranslogException appendFailure = new TranslogException(shardId, "simulated append failure at yield");
+        when(batch.finish()).thenThrow(appendFailure);
+        when(shard.beginTranslogBatch()).thenReturn(batch);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicInteger completions = new AtomicInteger();
+        AtomicReference<Exception> observedFailure = new AtomicReference<>();
+        TransportShardBulkAction.performOnPrimary(
+            request,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            // resume synchronously via the listener, as the real cluster-state observer would on another thread
+            listener -> listener.onResponse(null),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(PrimaryResult<BulkShardRequest, BulkShardResponse> response) {
+                    completions.incrementAndGet();
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    completions.incrementAndGet();
+                    observedFailure.set(e);
+                    latch.countDown();
+                }
+            },
+            threadPool,
+            Names.WRITE
+        );
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertBusy(() -> assertThat(completions.get(), equalTo(1)));
+        assertThat(observedFailure.get(), sameInstance(appendFailure));
+        // the first scope was finished (and failed) at the yield; the re-execution surfaced the failure before opening another
+        verify(shard, times(1)).beginTranslogBatch();
+        verify(batch, times(1)).finish();
+        verify(shard, times(1)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
+    }
+
+    /**
+     * When the request body throws (as a per-operation translog failure does today) and the final-chunk append then
+     * fails too, the body's exception is what the client sees, with the finish failure attached as suppressed. The
+     * finally-block finish must not replace it.
+     */
+    public void testBatchFinishFailureDoesNotMaskBodyFailure() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+        BulkItemRequest item = new BulkItemRequest(
+            0,
+            new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value")
+        );
+        BulkShardRequest request = new BulkShardRequest(shardId, RefreshPolicy.NONE, new BulkItemRequest[] { item });
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+        TranslogException bodyFailure = new TranslogException(shardId, "simulated inline translog failure");
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenThrow(
+            bodyFailure
+        );
+        Engine.TranslogBatch batch = mock(Engine.TranslogBatch.class);
+        AlreadyClosedException finishFailure = new AlreadyClosedException("translog is already closed");
+        when(batch.finish()).thenThrow(finishFailure);
+        when(shard.beginTranslogBatch()).thenReturn(batch);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> observedFailure = new AtomicReference<>();
+        TransportShardBulkAction.performOnPrimary(
+            request,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(new ActionListener<>() {
+                @Override
+                public void onResponse(PrimaryResult<BulkShardRequest, BulkShardResponse> response) {
+                    fail("request must not be acknowledged");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    observedFailure.set(e);
+                }
+            }, latch),
+            threadPool,
+            Names.WRITE
+        );
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertThat(observedFailure.get(), sameInstance(bodyFailure));
+        assertThat(Arrays.asList(bodyFailure.getSuppressed()), contains(sameInstance(finishFailure)));
+        verify(batch, times(1)).finish();
+    }
+
+    /**
+     * The real failure path: a failed {@code TranslogBatchScope} stores the append exception and rethrows that very
+     * instance from {@code finish()}, so the body failure and the finish failure are the same object. It must not be
+     * attached to itself as suppressed ({@code IllegalArgumentException: Self-suppression not permitted}), because that
+     * would replace an {@link AlreadyClosedException} the coordinator retries on the re-promoted primary with one it
+     * does not recognise.
+     */
+    public void testSameFailureInstanceFromBodyAndFinishIsNotSelfSuppressed() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+        BulkItemRequest item = new BulkItemRequest(
+            0,
+            new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value")
+        );
+        BulkShardRequest request = new BulkShardRequest(shardId, RefreshPolicy.NONE, new BulkItemRequest[] { item });
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+        // The cap-triggered chunk append fails inside batch.add during the index operation and the scope stores it...
+        AlreadyClosedException closed = new AlreadyClosedException("translog is already closed");
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenThrow(closed);
+        // ...and finish() rethrows exactly that stored instance.
+        Engine.TranslogBatch batch = mock(Engine.TranslogBatch.class);
+        when(batch.finish()).thenThrow(closed);
+        when(shard.beginTranslogBatch()).thenReturn(batch);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> observedFailure = new AtomicReference<>();
+        TransportShardBulkAction.performOnPrimary(
+            request,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(new ActionListener<>() {
+                @Override
+                public void onResponse(PrimaryResult<BulkShardRequest, BulkShardResponse> response) {
+                    fail("request must not be acknowledged");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    observedFailure.set(e);
+                }
+            }, latch),
+            threadPool,
+            Names.WRITE
+        );
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertThat(observedFailure.get(), sameInstance(closed));
+        assertThat(closed.getSuppressed(), emptyArray());
+        assertTrue(TransportActions.isShardNotAvailableException(observedFailure.get()));
+        verify(batch, times(1)).finish();
+    }
+
+    /**
+     * The pending index chunk must be appended (flushed) before an UPDATE and before a DELETE are applied, so that an
+     * update/delete can never be ordered ahead of an index operation it logically follows. This asserts the exact
+     * interleaving of {@link Engine.TranslogBatch#flush()} with the shard apply calls using a single {@link InOrder}
+     * over both the batch and the shard, for a mixed INDEX, UPDATE, DELETE bulk request.
+     */
+    public void testPendingIndexBatchFlushesBeforeUpdateAndDeleteBoundaries() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+
+        // Mixed request: an index that fills the batch, then an update, then a delete. Each of the update and delete
+        // must be preceded by a flush of the pending index chunk.
+        BulkItemRequest[] items = new BulkItemRequest[] {
+            new BulkItemRequest(0, new IndexRequest("index").id("idx").source(Requests.INDEX_CONTENT_TYPE, "field", "value")),
+            new BulkItemRequest(1, new UpdateRequest("index", "upd").doc(Requests.INDEX_CONTENT_TYPE, "field", "value")),
+            new BulkItemRequest(2, new DeleteRequest("index", "del")) };
+        BulkShardRequest request = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+
+        Engine.TranslogBatch batch = mock(Engine.TranslogBatch.class);
+        when(shard.beginTranslogBatch()).thenReturn(batch);
+
+        // Index op succeeds and leaves a chunk pending in the batch.
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            new FakeIndexResult(1, 1, 10, true, new Translog.Location(10, 10, 10)),
+            new FakeIndexResult(1, 1, 11, true, new Translog.Location(11, 11, 11))
+        );
+        // Update is applied as an index op after UpdateHelper.prepare; distinguish it from the delete via the result.
+        UpdateHelper updateHelper = mock(UpdateHelper.class);
+        IndexRequest updatedDoc = new IndexRequest("index").id("upd").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
+            new UpdateHelper.Result(
+                updatedDoc,
+                DocWriteResponse.Result.UPDATED,
+                Collections.singletonMap("field", "value"),
+                Requests.INDEX_CONTENT_TYPE
+            )
+        );
+        when(shard.applyDeleteOperationOnPrimary(anyLong(), any(), any(), any(), anyLong(), anyLong())).thenReturn(
+            new FakeDeleteResult(1, 1, 12, true, new Translog.Location(12, 12, 12))
+        );
+
+        CountDownLatch latch = new CountDownLatch(1);
+        TransportShardBulkAction.performOnPrimary(
+            request,
+            shard,
+            updateHelper,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {}), latch),
+            threadPool,
+            Names.WRITE
+        );
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        // A single ordered verification across both mocks proves the interleaving:
+        // begin -> apply index -> flush (before update) -> apply update -> flush (before delete) -> apply delete -> finish
+        InOrder inOrder = inOrder(shard, batch);
+        inOrder.verify(shard).beginTranslogBatch();
+        inOrder.verify(shard).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
+        inOrder.verify(batch).flush();
+        // the update is executed as an index operation on the shard
+        inOrder.verify(shard).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
+        inOrder.verify(batch).flush();
+        inOrder.verify(shard).applyDeleteOperationOnPrimary(anyLong(), any(), any(), any(), anyLong(), anyLong());
+        inOrder.verify(batch).finish();
+    }
+
+    /**
+     * A batched index result carries no translog location when it is recorded; its chunk is appended by the flush that
+     * precedes the delete. The delete is then written inline at a later location, and {@code finish()} reports only
+     * the greatest location the batch itself appended, which is older than the delete. The request must sync to the
+     * delete's location, otherwise an acknowledged delete can escape the sync (or the remote upload after a generation
+     * roll). Regression test for the review finding on PR #23224.
+     */
+    public void testInlineDeleteAfterLastBatchFlushWinsOverOlderFinishLocation() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+
+        BulkItemRequest[] items = new BulkItemRequest[] {
+            new BulkItemRequest(0, new IndexRequest("index").id("idx").source(Requests.INDEX_CONTENT_TYPE, "field", "value")),
+            new BulkItemRequest(1, new DeleteRequest("index", "del")) };
+        BulkShardRequest request = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+
+        final Translog.Location chunkLocation = new Translog.Location(1, 10, 10);
+        final Translog.Location deleteLocation = new Translog.Location(1, 20, 10);
+        Engine.TranslogBatch batch = mock(Engine.TranslogBatch.class);
+        when(shard.beginTranslogBatch()).thenReturn(batch);
+        // The flush before the delete appends the pending index chunk; finish has nothing left and reports the same
+        // (older) greatest batch location.
+        when(batch.flush()).thenReturn(chunkLocation);
+        when(batch.finish()).thenReturn(chunkLocation);
+
+        // Deferred index result: no location yet, as the real engines return under batching.
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            new FakeIndexResult(1, 1, 10, true, null)
+        );
+        when(shard.applyDeleteOperationOnPrimary(anyLong(), any(), any(), any(), anyLong(), anyLong())).thenReturn(
+            new FakeDeleteResult(1, 1, 11, true, deleteLocation)
+        );
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Translog.Location> synced = new AtomicReference<>();
+        TransportShardBulkAction.performOnPrimary(
+            request,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(
+                ActionTestUtils.assertNoFailureListener(
+                    result -> synced.set(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location)
+                ),
+                latch
+            ),
+            threadPool,
+            Names.WRITE
+        );
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        InOrder inOrder = inOrder(shard, batch);
+        inOrder.verify(shard).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
+        inOrder.verify(batch).flush();
+        inOrder.verify(shard).applyDeleteOperationOnPrimary(anyLong(), any(), any(), any(), anyLong(), anyLong());
+        inOrder.verify(batch).finish();
+        assertThat(synced.get(), equalTo(deleteLocation));
+    }
+
+    /**
+     * Dynamic mapping update in the middle of a batched bulk: the first document is deferred (null location) into
+     * scope 1, the second needs a mapping update, so scope 1 is finished before the yield and reports its chunk
+     * location; the retry runs on another thread in scope 2, whose finish reports a later location. The request must
+     * sync to the later location, and both items must be acknowledged.
+     */
+    public void testMappingUpdateMidBatchSyncsToLaterScopeLocation() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+
+        BulkItemRequest[] items = new BulkItemRequest[] {
+            new BulkItemRequest(0, new IndexRequest("index").id("a").source(Requests.INDEX_CONTENT_TYPE, "foo", "bar")),
+            new BulkItemRequest(1, new IndexRequest("index").id("b").source(Requests.INDEX_CONTENT_TYPE, "newfield", "baz")) };
+        BulkShardRequest request = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+        when(shard.mapperService()).thenReturn(mock(MapperService.class));
+
+        Engine.IndexResult deferredA = new FakeIndexResult(1, 1, 0, true, null);
+        Engine.IndexResult mappingUpdate = new Engine.IndexResult(
+            new Mapping(null, mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap())
+        );
+        Engine.IndexResult deferredB = new FakeIndexResult(1, 1, 1, true, null);
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            deferredA,
+            mappingUpdate,
+            deferredB
+        );
+
+        final Translog.Location scope1Location = new Translog.Location(1, 10, 10);
+        final Translog.Location scope2Location = new Translog.Location(1, 30, 10);
+        List<Engine.TranslogBatch> batches = new CopyOnWriteArrayList<>();
+        when(shard.beginTranslogBatch()).thenAnswer(invocation -> {
+            Engine.TranslogBatch batch = mock(Engine.TranslogBatch.class);
+            Translog.Location loc = batches.isEmpty() ? scope1Location : scope2Location;
+            when(batch.flush()).thenReturn(loc);
+            when(batch.finish()).thenReturn(loc);
+            batches.add(batch);
+            return batch;
+        });
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<WritePrimaryResult<BulkShardRequest, BulkShardResponse>> primaryResult = new AtomicReference<>();
+        TransportShardBulkAction.performOnPrimary(
+            request,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(
+                ActionTestUtils.assertNoFailureListener(
+                    result -> primaryResult.set((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result)
+                ),
+                latch
+            ),
+            threadPool,
+            Names.WRITE
+        );
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        assertThat(batches.size(), equalTo(2));
+        verify(batches.get(0)).finish();
+        verify(batches.get(1)).finish();
+        assertThat(primaryResult.get().location, equalTo(scope2Location));
+        for (BulkItemRequest item : primaryResult.get().replicaRequest().items()) {
+            assertNotNull(item.primaryResponse());
+            assertFalse(item.primaryResponse().isFailed());
+        }
+    }
+
+    /**
+     * When an operation requires a dynamic mapping update, execution yields the thread. Before yielding, the current
+     * batch scope must be finalized with {@link Engine.TranslogBatch#finish()} (so a pending chunk never crosses
+     * threads), and when execution resumes on another thread it must open a brand-new batch via
+     * {@link IndexShard#beginTranslogBatch()}. This verifies two distinct begin calls on two distinct threads and a
+     * finish for each scope, with no sleeps - the resume is driven by the mapping-update listener callbacks.
+     */
+    public void testMappingUpdateYieldFinishesScopeAndResumedExecutionBeginsFreshBatch() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+
+        BulkItemRequest[] items = new BulkItemRequest[] {
+            new BulkItemRequest(0, new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "foo", "bar")) };
+        BulkShardRequest request = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+        when(shard.mapperService()).thenReturn(mock(MapperService.class));
+
+        // First attempt requires a mapping update (yield), the retry after the update succeeds.
+        Engine.IndexResult mappingUpdate = new Engine.IndexResult(
+            new Mapping(null, mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap())
+        );
+        Engine.IndexResult success = new FakeIndexResult(1, 1, 10, true, new Translog.Location(10, 10, 10));
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            mappingUpdate,
+            success
+        );
+
+        // Each doRun() invocation opens a fresh batch; hand out a distinct mock per begin call and record the calling
+        // thread so we can prove the resumed execution ran on a different thread.
+        List<Engine.TranslogBatch> batches = new CopyOnWriteArrayList<>();
+        List<String> beginThreads = new CopyOnWriteArrayList<>();
+        when(shard.beginTranslogBatch()).thenAnswer(invocation -> {
+            Engine.TranslogBatch batch = mock(Engine.TranslogBatch.class);
+            batches.add(batch);
+            beginThreads.add(Thread.currentThread().getName());
+            return batch;
+        });
+
+        CountDownLatch latch = new CountDownLatch(1);
+        TransportShardBulkAction.performOnPrimary(
+            request,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            // resume synchronously via the listener - no sleeps, deterministic
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {}), latch),
+            threadPool,
+            Names.WRITE
+        );
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        // Exactly two batch scopes: the original (yielded) scope and the resumed scope.
+        assertThat(batches.size(), equalTo(2));
+        assertThat(beginThreads.size(), equalTo(2));
+
+        // Both operations were attempted (mapping-update attempt + successful retry).
+        verify(shard, times(2)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
+
+        // The first scope was finalized before the yield, and the resumed scope was finalized at completion.
+        verify(batches.get(0)).finish();
+        verify(batches.get(1)).finish();
+
+        // The resumed execution began its fresh batch on a different thread than the original invocation, proving the
+        // scope was detached and did not cross threads.
+        assertThat(beginThreads.get(1), not(equalTo(beginThreads.get(0))));
     }
 
     public void testFailedUpdatePreparationDoesNotTriggerRefresh() throws Exception {
@@ -1464,6 +1979,50 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         TransportShardBulkAction action = createAction();
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.indexSettings()).thenReturn(createIndexSettings(false));
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    public void testGetReplicationModeWithRemoteStoreFencing() {
+        // With the object-store fence enforcing stale-primary fencing on every (request-durability) translog upload,
+        // replicas come off the write path entirely - no primary term validation fanout.
+        TransportShardBulkAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.indexSettings()).thenReturn(
+            createIndexSettings(
+                true,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true)
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                    .build()
+            )
+        );
+        assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    public void testGetReplicationModeWithRemoteStoreFencingAndAsyncDurability() {
+        // ASYNC durability only validates the fence at the sync interval, so the per-operation term validation fanout
+        // must be retained.
+        TransportShardBulkAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.indexSettings()).thenReturn(
+            createIndexSettings(
+                true,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true)
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+                    .build()
+            )
+        );
+        assertEquals(ReplicationMode.PRIMARY_TERM_VALIDATION, action.getReplicationMode(indexShard));
+    }
+
+    public void testGetReplicationModeWithFencingOnNonRemoteIndex() {
+        // The setting is inert without remote store; fencing must not take replicas off the write path.
+        TransportShardBulkAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.indexSettings()).thenReturn(
+            createIndexSettings(false, Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true).build())
+        );
         assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
     }
 

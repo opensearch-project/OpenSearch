@@ -10,25 +10,25 @@ plans:
         OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(PageViews=[$1], Title=[$0], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0}], PageViews=[SUM($1)], mode=[FINAL], viableBackends=[[datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchSort(sort0=[$1], sort1=[$0], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[30], viableBackends=[[datafusion]])
                   OpenSearchAggregate(group=[{0}], PageViews=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
                     OpenSearchProject(Title=[$83], viableBackends=[[datafusion]])
-                      OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($14, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=5, backends=[datafusion], <>($83, '')))], viableBackends=[[datafusion]])
+                      OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($14, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=5, backends=[lucene, datafusion], <>($83, '')))], viableBackends=[[datafusion]])
                         OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     fragment: |
-      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
       OpenSearchSort(sort0=[$1], sort1=[$0], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[30], viableBackends=[[datafusion]])
         OpenSearchAggregate(group=[{0}], PageViews=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
           OpenSearchProject(Title=[$83], viableBackends=[[datafusion]])
-            OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($14, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=5, backends=[datafusion], <>($83, '')))], viableBackends=[[datafusion]])
+            OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($14, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=5, backends=[lucene, datafusion], <>($83, '')))], viableBackends=[[datafusion]])
               OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
       [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
       OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
         OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(PageViews=[$1], Title=[$0], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0}], PageViews=[SUM($1)], mode=[FINAL], viableBackends=[[datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
     shard_physical_1seg: |
       ProjectionExec: expr=[Title@0 as Title, count(Int64(1))[count]@1 as PageViews]
@@ -37,9 +37,8 @@ plans:
             AggregateExec: mode=PartialReduce, gby=[Title@0 as Title], aggr=[count(Int64(1))]
               RepartitionExec: partitioning=Hash([Title@0], 4), input_partitions=4
                 AggregateExec: mode=Partial, gby=[Title@0 as Title], aggr=[count(Int64(1))]
-                  FilterExec: CounterID@0 = 62 AND EventDate@2 >= 1372636800000 AND EventDate@2 <= 1375228800000 AND DontCountHits@1 = 0 AND IsRefresh@3 = 0 AND Title@4 != , projection=[Title@4]
-                    RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-                      DataSourceExec: file_groups={<scrubbed>}, projection=[CounterID, DontCountHits, EventDate, IsRefresh, Title], file_type=parquet, predicate=CounterID@107 = 62 AND EventDate@0 >= 1372636800000 AND EventDate@0 <= 1375228800000 AND DontCountHits@43 = 0 AND IsRefresh@74 = 0 AND Title@101 != , pruning_predicate=CounterID_null_count@2 != row_count@3 AND CounterID_min@0 <= 62 AND 62 <= CounterID_max@1 AND EventDate_null_count@5 != row_count@3 AND EventDate_max@4 >= 1372636800000 AND EventDate_null_count@5 != row_count@3 AND EventDate_min@6 <= 1375228800000 AND DontCountHits_null_count@9 != row_count@3 AND DontCountHits_min@7 <= 0 AND 0 <= DontCountHits_max@8 AND IsRefresh_null_count@12 != row_count@3 AND IsRefresh_min@10 <= 0 AND 0 <= IsRefresh_max@11 AND Title_null_count@15 != row_count@3 AND (Title_min@13 !=  OR  != Title_max@14), required_guarantees=[CounterID in (62), DontCountHits in (0), IsRefresh in (0), Title not in ()]
+                  RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                    QueryShardExec: partitions=1, segments=1, ordering=unsorted
     shard_physical_nseg: |
       ProjectionExec: expr=[Title@0 as Title, count(Int64(1))[count]@1 as PageViews]
         SortPreservingMergeExec: [count(Int64(1))@1 DESC NULLS LAST, Title@0 ASC], fetch=30
@@ -47,9 +46,8 @@ plans:
             AggregateExec: mode=PartialReduce, gby=[Title@0 as Title], aggr=[count(Int64(1))]
               RepartitionExec: partitioning=Hash([Title@0], 4), input_partitions=4
                 AggregateExec: mode=Partial, gby=[Title@0 as Title], aggr=[count(Int64(1))]
-                  FilterExec: CounterID@0 = 62 AND EventDate@2 >= 1372636800000 AND EventDate@2 <= 1375228800000 AND DontCountHits@1 = 0 AND IsRefresh@3 = 0 AND Title@4 != , projection=[Title@4]
-                    RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-                      DataSourceExec: file_groups={<scrubbed>}, projection=[CounterID, DontCountHits, EventDate, IsRefresh, Title], file_type=parquet, predicate=CounterID@107 = 62 AND EventDate@0 >= 1372636800000 AND EventDate@0 <= 1375228800000 AND DontCountHits@43 = 0 AND IsRefresh@74 = 0 AND Title@101 != , pruning_predicate=CounterID_null_count@2 != row_count@3 AND CounterID_min@0 <= 62 AND 62 <= CounterID_max@1 AND EventDate_null_count@5 != row_count@3 AND EventDate_max@4 >= 1372636800000 AND EventDate_null_count@5 != row_count@3 AND EventDate_min@6 <= 1375228800000 AND DontCountHits_null_count@9 != row_count@3 AND DontCountHits_min@7 <= 0 AND 0 <= DontCountHits_max@8 AND IsRefresh_null_count@12 != row_count@3 AND IsRefresh_min@10 <= 0 AND 0 <= IsRefresh_max@11 AND Title_null_count@15 != row_count@3 AND (Title_min@13 !=  OR  != Title_max@14), required_guarantees=[CounterID in (62), DontCountHits in (0), IsRefresh in (0), Title not in ()]
+                  RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                    QueryShardExec: partitions=2, segments=2, ordering=unsorted
     coord_physical: |
       ProjectionExec: expr=[sum(input-0.PageViews)@0 as PageViews, Title@1 as Title]
         SortPreservingMergeExec: [sum(input-0.PageViews)@0 DESC NULLS LAST, Title@1 ASC], fetch=10
@@ -67,16 +65,16 @@ plans:
           OpenSearchProject(PageViews=[$1], Title=[$0], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0}], PageViews=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
               OpenSearchProject(Title=[$83], viableBackends=[[datafusion]])
-                OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($14, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=5, backends=[datafusion], <>($83, '')))], viableBackends=[[datafusion]])
+                OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($14, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=5, backends=[lucene, datafusion], <>($83, '')))], viableBackends=[[datafusion]])
                   OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     fragment: |
-      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
+      [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
       OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
         OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(PageViews=[$1], Title=[$0], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0}], PageViews=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
               OpenSearchProject(Title=[$83], viableBackends=[[datafusion]])
-                OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($14, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=5, backends=[datafusion], <>($83, '')))], viableBackends=[[datafusion]])
+                OpenSearchFilter(condition=[AND(ANNOTATED_PREDICATE(id=0, backends=[datafusion], =($12, 62)), ANNOTATED_PREDICATE(id=1, backends=[datafusion], >=($15, TIMESTAMP('2013-07-01':VARCHAR))), ANNOTATED_PREDICATE(id=2, backends=[datafusion], <=($15, TIMESTAMP('2013-07-31':VARCHAR))), ANNOTATED_PREDICATE(id=3, backends=[datafusion], =($14, 0)), ANNOTATED_PREDICATE(id=4, backends=[datafusion], =($40, 0)), ANNOTATED_PREDICATE(id=5, backends=[lucene, datafusion], <>($83, '')))], viableBackends=[[datafusion]])
                   OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     shard_physical_1seg: |
       ProjectionExec: expr=[count(Int64(1))@0 as PageViews, Title@1 as Title]
@@ -86,9 +84,8 @@ plans:
               AggregateExec: mode=FinalPartitioned, gby=[Title@0 as Title], aggr=[count(Int64(1))]
                 RepartitionExec: partitioning=Hash([Title@0], 4), input_partitions=4
                   AggregateExec: mode=Partial, gby=[Title@0 as Title], aggr=[count(Int64(1))]
-                    FilterExec: CounterID@0 = 62 AND EventDate@2 >= 1372636800000 AND EventDate@2 <= 1375228800000 AND DontCountHits@1 = 0 AND IsRefresh@3 = 0 AND Title@4 != , projection=[Title@4]
-                      RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-                        DataSourceExec: file_groups={<scrubbed>}, projection=[CounterID, DontCountHits, EventDate, IsRefresh, Title], file_type=parquet, predicate=CounterID@107 = 62 AND EventDate@0 >= 1372636800000 AND EventDate@0 <= 1375228800000 AND DontCountHits@43 = 0 AND IsRefresh@74 = 0 AND Title@101 != , pruning_predicate=CounterID_null_count@2 != row_count@3 AND CounterID_min@0 <= 62 AND 62 <= CounterID_max@1 AND EventDate_null_count@5 != row_count@3 AND EventDate_max@4 >= 1372636800000 AND EventDate_null_count@5 != row_count@3 AND EventDate_min@6 <= 1375228800000 AND DontCountHits_null_count@9 != row_count@3 AND DontCountHits_min@7 <= 0 AND 0 <= DontCountHits_max@8 AND IsRefresh_null_count@12 != row_count@3 AND IsRefresh_min@10 <= 0 AND 0 <= IsRefresh_max@11 AND Title_null_count@15 != row_count@3 AND (Title_min@13 !=  OR  != Title_max@14), required_guarantees=[CounterID in (62), DontCountHits in (0), IsRefresh in (0), Title not in ()]
+                    RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
+                      QueryShardExec: partitions=1, segments=1, ordering=unsorted
     shard_physical_nseg: |
       ProjectionExec: expr=[count(Int64(1))@0 as PageViews, Title@1 as Title]
         SortPreservingMergeExec: [count(Int64(1))@0 DESC NULLS LAST, Title@1 ASC], fetch=10
@@ -97,6 +94,5 @@ plans:
               AggregateExec: mode=FinalPartitioned, gby=[Title@0 as Title], aggr=[count(Int64(1))]
                 RepartitionExec: partitioning=Hash([Title@0], 4), input_partitions=4
                   AggregateExec: mode=Partial, gby=[Title@0 as Title], aggr=[count(Int64(1))]
-                    FilterExec: CounterID@0 = 62 AND EventDate@2 >= 1372636800000 AND EventDate@2 <= 1375228800000 AND DontCountHits@1 = 0 AND IsRefresh@3 = 0 AND Title@4 != , projection=[Title@4]
-                      RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-                        DataSourceExec: file_groups={<scrubbed>}, projection=[CounterID, DontCountHits, EventDate, IsRefresh, Title], file_type=parquet, predicate=CounterID@107 = 62 AND EventDate@0 >= 1372636800000 AND EventDate@0 <= 1375228800000 AND DontCountHits@43 = 0 AND IsRefresh@74 = 0 AND Title@101 != , pruning_predicate=CounterID_null_count@2 != row_count@3 AND CounterID_min@0 <= 62 AND 62 <= CounterID_max@1 AND EventDate_null_count@5 != row_count@3 AND EventDate_max@4 >= 1372636800000 AND EventDate_null_count@5 != row_count@3 AND EventDate_min@6 <= 1375228800000 AND DontCountHits_null_count@9 != row_count@3 AND DontCountHits_min@7 <= 0 AND 0 <= DontCountHits_max@8 AND IsRefresh_null_count@12 != row_count@3 AND IsRefresh_min@10 <= 0 AND 0 <= IsRefresh_max@11 AND Title_null_count@15 != row_count@3 AND (Title_min@13 !=  OR  != Title_max@14), required_guarantees=[CounterID in (62), DontCountHits in (0), IsRefresh in (0), Title not in ()]
+                    RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
+                      QueryShardExec: partitions=2, segments=2, ordering=unsorted

@@ -64,17 +64,18 @@ public class SnapshotCleanupRetryIT extends AbstractSnapshotIntegTestCase {
             assertTrue("Snapshot marker should be cleaned up", snapshotsInProgress.entries().isEmpty());
         }, 60, TimeUnit.SECONDS);
 
-        logger.info("--> verify snapshot state after failover");
-        GetSnapshotsResponse snapshotResponse = client().admin()
-            .cluster()
-            .prepareGetSnapshots("test-repo")
-            .setSnapshots("test-snap")
-            .setIgnoreUnavailable(true)
-            .get();
-        if (snapshotResponse.getSnapshots().isEmpty() == false) {
-            SnapshotState state = snapshotResponse.getSnapshots().get(0).state();
-            assertTrue("Snapshot should be completed but was " + state, state.completed());
-        }
+        assertBusy(() -> {
+            GetSnapshotsResponse snapshotResponse = client().admin()
+                .cluster()
+                .prepareGetSnapshots("test-repo")
+                .setSnapshots("test-snap")
+                .setIgnoreUnavailable(true)
+                .get();
+            if (snapshotResponse.getSnapshots().isEmpty() == false) {
+                SnapshotState state = snapshotResponse.getSnapshots().get(0).state();
+                assertTrue("Snapshot should be completed but was " + state, state.completed());
+            }
+        });
 
         logger.info("--> verify index deletion is unblocked");
         assertAcked(client().admin().indices().prepareDelete("test-idx").get());

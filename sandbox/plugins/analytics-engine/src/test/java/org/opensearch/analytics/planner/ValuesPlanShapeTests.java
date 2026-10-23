@@ -10,18 +10,24 @@ package org.opensearch.analytics.planner;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.calcite.plan.RelOptTable;
+import org.apache.calcite.plan.hep.HepPlanner;
+import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.CorrelationId;
 import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.calcite.rel.core.Project;
+import org.apache.calcite.rel.core.Values;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalUnion;
 import org.apache.calcite.rel.logical.LogicalValues;
+import org.apache.calcite.rel.rules.CoreRules;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.opensearch.analytics.planner.rules.OpenSearchValuesCharNormalizeRule;
 import org.opensearch.analytics.spi.EngineCapability;
 
 import java.util.HashSet;
@@ -70,7 +76,7 @@ public class ValuesPlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchUnion(all=[true], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                   OpenSearchValues(tuples=[[{ 99, 1 }]], viableBackends=[[mock-parquet]])
                 """,
@@ -104,7 +110,7 @@ public class ValuesPlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                   OpenSearchValues(tuples=[[{ 1 }]], viableBackends=[[mock-parquet]])
                 """,
@@ -147,6 +153,109 @@ public class ValuesPlanShapeTests extends PlanShapeTestBase {
             OpenSearchProject(c=[ANNOTATED_PROJECT_EXPR(id=0, backends=[mock-parquet], +($0, $1))], viableBackends=[[mock-parquet]])
               OpenSearchValues(tuples=[[{ 1, 2 }]], viableBackends=[[mock-parquet]])
             """, result);
+    }
+
+    /**
+     * Rule-level check for {@link OpenSearchValuesCharNormalizeRule}. A Values with mixed-length CHAR
+     * literals plus an INTEGER column is rewritten to a casting Project over a Values whose char column
+     * and char literals are now precision-unspecified VARCHAR, so isthmus emits Substrait Str. The
+     * casting Project restores the original CHAR row type. The integer column and its literals stay
+     * untouched. Applying the rule directly keeps the assertion on the rule output shape and away from
+     * backend CAST-viability marking.
+     */
+    public void testCharValues_NormalizedToVarcharUnderCastingProject() {
+        RelDataType charType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.CHAR, 5), true);
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RelDataType rowType = typeFactory.builder().add("name", charType).add("age", intType).build();
+        RexLiteral alice = (RexLiteral) rexBuilder.makeLiteral("Alice", typeFactory.createSqlType(SqlTypeName.CHAR, 5), false);
+        RexLiteral bob = (RexLiteral) rexBuilder.makeLiteral("Bob", typeFactory.createSqlType(SqlTypeName.CHAR, 3), false);
+        RexLiteral thirty = (RexLiteral) rexBuilder.makeLiteral(30, intType, true);
+        RexLiteral twentyFive = (RexLiteral) rexBuilder.makeLiteral(25, intType, true);
+        ImmutableList<ImmutableList<RexLiteral>> tuples = ImmutableList.of(
+            ImmutableList.of(alice, thirty),
+            ImmutableList.of(bob, twentyFive)
+        );
+        RelNode values = LogicalValues.create(cluster, rowType, tuples);
+
+        HepProgramBuilder programBuilder = new HepProgramBuilder();
+        programBuilder.addRuleInstance(new OpenSearchValuesCharNormalizeRule());
+        HepPlanner planner = new HepPlanner(programBuilder.build());
+        planner.setRoot(values);
+        RelNode result = planner.findBestExp();
+
+        assertTrue("top node must be a casting Project", result instanceof Project);
+        assertEquals(
+            "projected char column keeps the ORIGINAL CHAR type",
+            SqlTypeName.CHAR,
+            result.getRowType().getFieldList().get(0).getType().getSqlTypeName()
+        );
+        assertEquals(
+            "int column type unchanged",
+            SqlTypeName.INTEGER,
+            result.getRowType().getFieldList().get(1).getType().getSqlTypeName()
+        );
+
+        RelNode input = result.getInput(0);
+        assertTrue("input must be a Values", input instanceof Values);
+        RelDataType normalizedName = input.getRowType().getFieldList().get(0).getType();
+        assertEquals("char column normalized to VARCHAR", SqlTypeName.VARCHAR, normalizedName.getSqlTypeName());
+        assertEquals(
+            "normalized VARCHAR must be precision-unspecified",
+            RelDataType.PRECISION_NOT_SPECIFIED,
+            normalizedName.getPrecision()
+        );
+        assertEquals("int column stays INTEGER", SqlTypeName.INTEGER, input.getRowType().getFieldList().get(1).getType().getSqlTypeName());
+
+        Values normalized = (Values) input;
+        for (List<RexLiteral> tuple : normalized.getTuples()) {
+            assertEquals("char literal rebuilt as VARCHAR", SqlTypeName.VARCHAR, tuple.get(0).getType().getSqlTypeName());
+            assertEquals("int literal stays INTEGER", SqlTypeName.INTEGER, tuple.get(1).getType().getSqlTypeName());
+        }
+    }
+
+    /**
+     * With the rule registered in the pushdown collection, PROJECT_MERGE folds the casting Project into
+     * the makeresults query Project, so a single Project over the normalized VARCHAR Values reaches
+     * marking. This is the shape pushdownRules produces for makeresults.
+     */
+    public void testCharValues_FoldWithProjectMergeYieldsSingleProject() {
+        RelDataType char5 = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.CHAR, 5), false);
+        RelDataType char3 = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.CHAR, 3), false);
+        RelDataType rowType = typeFactory.builder().add("name", char5).add("age", char3).build();
+        RexLiteral alice = (RexLiteral) rexBuilder.makeLiteral("Alice", typeFactory.createSqlType(SqlTypeName.CHAR, 5), false);
+        RexLiteral thirty = (RexLiteral) rexBuilder.makeLiteral("30", typeFactory.createSqlType(SqlTypeName.CHAR, 2), false);
+        RexLiteral bob = (RexLiteral) rexBuilder.makeLiteral("Bob", typeFactory.createSqlType(SqlTypeName.CHAR, 3), false);
+        RexLiteral twentyFive = (RexLiteral) rexBuilder.makeLiteral("25", typeFactory.createSqlType(SqlTypeName.CHAR, 2), false);
+        ImmutableList<ImmutableList<RexLiteral>> tuples = ImmutableList.of(
+            ImmutableList.of(alice, thirty),
+            ImmutableList.of(bob, twentyFive)
+        );
+        RelNode values = LogicalValues.create(cluster, rowType, tuples);
+        RelDataType varcharNotNull = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), false);
+        RexNode castName = rexBuilder.makeCast(varcharNotNull, rexBuilder.makeInputRef(values, 0));
+        RexNode castAge = rexBuilder.makeCast(varcharNotNull, rexBuilder.makeInputRef(values, 1));
+        RelNode makeresults = LogicalProject.create(values, List.of(), List.of(castName, castAge), List.of("name", "age"));
+
+        HepProgramBuilder programBuilder = new HepProgramBuilder();
+        programBuilder.addRuleInstance(new OpenSearchValuesCharNormalizeRule());
+        programBuilder.addRuleInstance(CoreRules.PROJECT_MERGE);
+        HepPlanner planner = new HepPlanner(programBuilder.build());
+        planner.setRoot(makeresults);
+        RelNode result = planner.findBestExp();
+
+        assertTrue("top node must be a single Project", result instanceof Project);
+        assertTrue("input must be a Values", result.getInput(0) instanceof Values);
+        assertEquals("no intermediate Project remains", 1, countProjects(result));
+        RelDataType normalizedName = result.getInput(0).getRowType().getFieldList().get(0).getType();
+        assertEquals("char column normalized to VARCHAR", SqlTypeName.VARCHAR, normalizedName.getSqlTypeName());
+    }
+
+    private static int countProjects(RelNode root) {
+        int count = root instanceof Project ? 1 : 0;
+        for (RelNode in : root.getInputs()) {
+            count += countProjects(in);
+        }
+        return count;
     }
 
 }

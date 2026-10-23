@@ -31,6 +31,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.MutableWorkloadGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadGroupThrottleSettings;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -529,5 +530,92 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         }).when(clusterService).submitStateUpdateTask(anyString(), any());
         workloadGroupPersistenceService.updateInClusterStateMetadata(updateWorkloadGroupRequest, listener);
         verify(listener).onFailure(any(RuntimeException.class));
+    }
+
+    private static Settings throttling(String by, Integer nodeLimit) {
+        Settings.Builder builder = Settings.builder();
+        if (by != null) {
+            builder.put("by", by);
+        }
+        if (nodeLimit != null) {
+            builder.put("node_limit", nodeLimit);
+        }
+        return builder.build();
+    }
+
+    public void testValidateThrottlingIgnoresAbsentAndEmptyConfig() {
+        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(null);
+        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(Settings.EMPTY);
+    }
+
+    public void testValidateThrottlingTreatsMissingByAsGroupScope() {
+        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(throttling(null, 9));
+    }
+
+    public void testValidateThrottlingTreatsNullByAsGroupScope() {
+        Settings throttling = Settings.builder().putNull("by").put("node_limit", 9).build();
+
+        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(throttling);
+    }
+
+    public void testUpdateValidationUsesMergedThrottlingConfig() {
+        WorkloadGroup existingGroup = builder().name(NAME_ONE)
+            ._id(_ID_ONE)
+            .mutableWorkloadGroupFragment(
+                new MutableWorkloadGroupFragment(
+                    ResiliencyMode.ENFORCED,
+                    Map.of(ResourceType.MEMORY, 0.3),
+                    Settings.EMPTY,
+                    throttling("username", 5)
+                )
+            )
+            .updatedAt(1690934400000L)
+            .build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().workloadGroups(Map.of(_ID_ONE, existingGroup)))
+            .build();
+        UpdateWorkloadGroupRequest request = updateWorkloadGroupRequest(
+            NAME_ONE,
+            new MutableWorkloadGroupFragment(null, Map.of(), Settings.EMPTY, throttling(null, 9))
+        );
+
+        Settings effectiveThrottling = WorkloadGroupPersistenceService.getEffectiveThrottling(request, clusterState);
+
+        assertEquals("username", WorkloadGroupThrottleSettings.BY.get(effectiveThrottling));
+        assertEquals(Integer.valueOf(9), WorkloadGroupThrottleSettings.NODE_LIMIT.get(effectiveThrottling));
+    }
+
+    public void testUpdateValidationClearingByReturnsToGroupScope() {
+        WorkloadGroup existingGroup = builder().name(NAME_ONE)
+            ._id(_ID_ONE)
+            .mutableWorkloadGroupFragment(
+                new MutableWorkloadGroupFragment(
+                    ResiliencyMode.ENFORCED,
+                    Map.of(ResourceType.MEMORY, 0.3),
+                    Settings.EMPTY,
+                    throttling("username", 5)
+                )
+            )
+            .updatedAt(1690934400000L)
+            .build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().workloadGroups(Map.of(_ID_ONE, existingGroup)))
+            .build();
+        UpdateWorkloadGroupRequest request = updateWorkloadGroupRequest(
+            NAME_ONE,
+            new MutableWorkloadGroupFragment(
+                null,
+                Map.of(),
+                Settings.EMPTY,
+                Settings.builder().putNull(WorkloadGroupThrottleSettings.BY.getKey()).build()
+            )
+        );
+
+        Settings effectiveThrottling = WorkloadGroupPersistenceService.getEffectiveThrottling(request, clusterState);
+
+        assertFalse(effectiveThrottling.keySet().contains(WorkloadGroupThrottleSettings.BY.getKey()));
+        assertEquals(WorkloadGroupThrottleSettings.GROUP_SCOPE, WorkloadGroupThrottleSettings.getEffectiveBy(effectiveThrottling));
+        assertEquals(Integer.valueOf(5), WorkloadGroupThrottleSettings.NODE_LIMIT.get(effectiveThrottling));
+        WorkloadGroupPersistenceService.validateUpdateThrottlingIsEnforceable(request, clusterState);
     }
 }

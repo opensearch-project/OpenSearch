@@ -10,7 +10,7 @@ plans:
         OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], sort3=[$3], sort4=[$4], sort5=[$5], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], dir3=[ASC-nulls-first], dir4=[ASC-nulls-first], dir5=[ASC-nulls-first], offset=[5], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(PageViews=[$5], TraficSourceID=[$0], SearchEngineID=[$1], AdvEngineID=[$2], Src=[$3], Dst=[$4], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0, 1, 2, 3, 4}], PageViews=[SUM($5)], mode=[FINAL], viableBackends=[[datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchSort(sort0=[$5], sort1=[$0], sort2=[$1], sort3=[$2], sort4=[$3], sort5=[$4], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], dir3=[ASC-nulls-first], dir4=[ASC-nulls-first], dir5=[ASC-nulls-first], fetch=[45], viableBackends=[[datafusion]])
                   OpenSearchAggregate(group=[{0, 1, 2, 3, 4}], PageViews=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
                     OpenSearchProject(TraficSourceID=[$84], SearchEngineID=[$73], AdvEngineID=[$0], Src=[ANNOTATED_PROJECT_EXPR(id=7, backends=[datafusion], CASE(ANNOTATED_PROJECT_EXPR(id=6, backends=[datafusion], AND(ANNOTATED_PROJECT_EXPR(id=4, backends=[datafusion], =($73, 0)), ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], =($0, 0)))), $61, '':VARCHAR))], Dst=[$85], viableBackends=[[datafusion]])
@@ -28,7 +28,7 @@ plans:
         OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], sort3=[$3], sort4=[$4], sort5=[$5], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], dir3=[ASC-nulls-first], dir4=[ASC-nulls-first], dir5=[ASC-nulls-first], offset=[5], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(PageViews=[$5], TraficSourceID=[$0], SearchEngineID=[$1], AdvEngineID=[$2], Src=[$3], Dst=[$4], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0, 1, 2, 3, 4}], PageViews=[SUM($5)], mode=[FINAL], viableBackends=[[datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
     shard_physical_1seg: |
       ProjectionExec: expr=[TraficSourceID@0 as TraficSourceID, SearchEngineID@1 as SearchEngineID, AdvEngineID@2 as AdvEngineID, CASE WHEN <scrubbed>.SearchEngineID = Int32(0) AND <scrubbed>.AdvEngineID = Int32(0) THEN <scrubbed>.Referer ELSE Utf8("") END@3 as Src, URL@4 as Dst, count(Int64(1))[count]@5 as PageViews]

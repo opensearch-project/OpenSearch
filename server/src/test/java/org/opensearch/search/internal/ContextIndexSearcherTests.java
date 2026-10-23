@@ -264,7 +264,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
         };
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(w), new ShardId(settings.getIndex(), 0));
         ThreadPool tp = new TestThreadPool("test");
-        IndicesBitsetFilterCache indicesCache = new IndicesBitsetFilterCache(Settings.EMPTY, tp);
+        IndicesBitsetFilterCache indicesCache = new IndicesBitsetFilterCache(Settings.EMPTY);
         BitsetFilterCache cache = new BitsetFilterCache(settings, indicesCache, listener);
         Query roleQuery = new TermQuery(new Term("allowed", "yes"));
         BitSet bitSet = cache.getBitSetProducer(roleQuery).getBitSet(reader.leaves().get(0));
@@ -638,6 +638,75 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
 
             searcher.removeQueryCancellation(cancellation);
             assertFalse("shouldExit should return false after cancellation is removed", searcher.getTimeout().shouldExit());
+        });
+    }
+
+    /**
+     * Timeout and task-cancellation checks can coexist. Removing and re-adding one callback must leave
+     * the other active, without requiring a particular callback execution order.
+     */
+    public void testMultipleCancellationCallbacks() throws Exception {
+        withContextIndexSearcher(searcher -> {
+            int[] calls = new int[2];
+            Runnable first = () -> calls[0]++;
+            Runnable second = () -> calls[1]++;
+            QueryTimeout timeout = searcher.getTimeout();
+            assertFalse(searcher.hasCancellations());
+            assertSame(first, searcher.addQueryCancellation(first));
+            assertSame(second, searcher.addQueryCancellation(second));
+            assertTrue(searcher.hasCancellations());
+            assertFalse(timeout.shouldExit());
+            assertArrayEquals(new int[] { 1, 1 }, calls);
+
+            searcher.removeQueryCancellation(first);
+            searcher.removeQueryCancellation(first); // Removing an absent callback is harmless.
+            searcher.removeQueryCancellation(null);
+            assertTrue(searcher.hasCancellations());
+            assertFalse(timeout.shouldExit());
+            assertArrayEquals(new int[] { 1, 2 }, calls);
+
+            searcher.addQueryCancellation(first);
+            assertFalse(timeout.shouldExit());
+            assertArrayEquals(new int[] { 2, 3 }, calls);
+            searcher.removeQueryCancellation(second);
+            searcher.removeQueryCancellation(first);
+            assertFalse(searcher.hasCancellations());
+            assertFalse(timeout.shouldExit());
+            assertArrayEquals(new int[] { 2, 3 }, calls);
+        });
+    }
+
+    /** Equal callbacks must be rejected as duplicates and removable through an equal instance. */
+    public void testCancellationCallbackEquality() throws Exception {
+        withContextIndexSearcher(searcher -> {
+            record Cancellation(int id) implements Runnable {
+                @Override
+                public void run() {
+                    throw new TaskCancelledException("cancelled");
+                }
+            }
+            Runnable first = new Cancellation(1);
+            Runnable equal = new Cancellation(1);
+            assertNotSame(first, equal);
+            searcher.addQueryCancellation(first);
+            expectThrows(IllegalArgumentException.class, () -> searcher.addQueryCancellation(equal));
+            assertTrue(searcher.getTimeout().shouldExit());
+            searcher.removeQueryCancellation(equal);
+            assertFalse(searcher.hasCancellations());
+            assertFalse(searcher.getTimeout().shouldExit());
+        });
+    }
+
+    /** The cancellation object may outlive its search context; closing the searcher must deactivate all its callbacks. */
+    public void testClosingSearcherClearsCancellationCallbacks() throws Exception {
+        withContextIndexSearcher(searcher -> {
+            QueryTimeout retainedTimeout = searcher.getTimeout();
+            searcher.addQueryCancellation(() -> {});
+            searcher.addQueryCancellation(() -> { throw new TaskCancelledException("cancelled"); });
+            assertTrue(retainedTimeout.shouldExit());
+            searcher.close();
+            assertFalse(searcher.hasCancellations());
+            assertFalse(retainedTimeout.shouldExit());
         });
     }
 

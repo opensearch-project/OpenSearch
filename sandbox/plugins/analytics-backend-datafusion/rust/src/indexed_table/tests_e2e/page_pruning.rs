@@ -63,6 +63,7 @@ use crate::indexed_table::eval::single_collector::SingleCollectorEvaluator;
 use crate::indexed_table::eval::{
     CollectorCallStrategy, RgEvalContext, RowGroupBitsetSource, TreeBitsetSource,
 };
+use crate::indexed_table::index::CollectDocsResult;
 use crate::indexed_table::index::RowGroupDocsCollector;
 use crate::indexed_table::page_pruner::{build_pruning_predicate, PagePruner};
 use crate::indexed_table::stream::{FilterStrategy, RowGroupInfo};
@@ -153,7 +154,11 @@ struct MockCollector {
 }
 
 impl RowGroupDocsCollector for MockCollector {
-    fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
+    fn collect_packed_u64_bitset(
+        &self,
+        min_doc: i32,
+        max_doc: i32,
+    ) -> Result<CollectDocsResult, String> {
         let span = (max_doc - min_doc) as usize;
         let mut out = vec![0u64; span.div_ceil(64)];
         for &doc in &self.docs {
@@ -162,7 +167,7 @@ impl RowGroupDocsCollector for MockCollector {
                 out[rel / 64] |= 1u64 << (rel % 64);
             }
         }
-        Ok(out)
+        Ok(out.into())
     }
 }
 
@@ -320,9 +325,7 @@ async fn run_bitmap_tree(tree: BoolNode) -> (Vec<i32>, Arc<dyn ExecutionPlan>) {
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
-                leaves: Arc::new(CollectorLeafBitmaps {
-                    ffm_collector_calls: sm.ffm_collector_calls.clone(),
-                }),
+                leaves: Arc::new(CollectorLeafBitmaps::new(sm.ffm_collector_calls.clone())),
                 page_pruner: pruner,
                 cost_predicate: 1,
                 cost_collector: 10,

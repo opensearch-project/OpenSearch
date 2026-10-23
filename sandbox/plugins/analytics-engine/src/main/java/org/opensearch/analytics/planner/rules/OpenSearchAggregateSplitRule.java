@@ -61,8 +61,47 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         return aggregate.getMode() == AggregateMode.SINGLE;
     }
 
-    /** Skip the PARTIAL/FINAL split when it would emit a row type that fails Volcano's typeMatchesInferred. */
-    private static boolean shouldSkipPartialFinalSplit(OpenSearchAggregate aggregate) {
+    /**
+     * True when PARTIAL/FINAL split would yield a malformed row type or invalid aggregate
+     * semantics. In those cases {@link #onMatch} still produces the SINGLE+SINGLETON
+     * alternative (so the planner can route shard input through a coordinator gather), but
+     * skips the PARTIAL+ER+FINAL alternative.
+     *
+     * <p>Two cases are unsafe today:
+     * <ul>
+     *   <li><b>percentile_approx</b> is a 2-arg aggregate (field, percent) whose FINAL phase
+     *       needs (tdigest_state, percent_literal). {@code AggregateDecompositionResolver}'s
+     *       single-field rewrite paths only produce a single-arg FINAL call, yielding
+     *       {@code "Type mismatch: rel rowtype: RecordType(BIGINT p50, BIGINT p50_0) NOT NULL,
+     *       equiv rowtype: RecordType(INTEGER bucket, BIGINT p50)"}. Other aggCalls in the
+     *       same Aggregate (SUM, AVG, etc.) inherit the single-stage execution.</li>
+     *   <li><b>Cross-family non-prefix groupSet</b>: PARTIAL's output places group keys at
+     *       positions {@code [0..groupCount)}. FINAL reuses ORIGINAL's groupSet against
+     *       PARTIAL's output. When an input column at index {@code k >= groupCount} is a group
+     *       key (e.g. {@code groupSet={2}, groupCount=1}), PARTIAL's output at index {@code k}
+     *       is an agg-result instead, and Calcite's row-type equivalence check fires only if
+     *       that agg-result's {@link SqlTypeFamily} differs from the ORIGINAL input column's
+     *       family. PPL {@code timechart}'s no-{@code by} form trips this: the Project below
+     *       the Aggregate keeps the raw {@code @timestamp} (DATETIME family) at position 0
+     *       and materializes {@code SPAN(@timestamp)} at a later position; the agg result at
+     *       that later position is {@code DOUBLE} (NUMERIC family) → cross-family mismatch
+     *       ({@code "Type mismatch ... DOUBLE -> TIMESTAMP(0)"}). Same-family non-prefix
+     *       cases (e.g. {@code group={1}} with both columns INTEGER + a NUMERIC agg) pass
+     *       Calcite's relaxed numeric type check and don't need the skip — see
+     *       {@code PlanShapeTests.testJoinWithDifferentGroupKeys_multiShard}.</li>
+     * </ul>
+     *
+     * <p>Until {@code AggregateDecompositionResolver} gains engine-native merge support
+     * (percentile_approx) and ORIGINAL→FINAL groupSet remapping (cross-family non-prefix),
+     * the split is conservative in those shapes — distributed parallelism is traded for
+     * correctness.
+     *
+     * <p>Public so the general post-CBO distribution-enforcement pass ({@code DistributionEnforcementPass})
+     * shares the same correctness gates as this coord-centric split — both use an identical PARTIAL/FINAL
+     * safety check, so STATE_EXPANDING / DISTINCT / cross-family-non-prefix shapes stay coordinator-centric
+     * in every path.
+     */
+    public static boolean shouldSkipPartialFinalSplit(OpenSearchAggregate aggregate) {
         for (AggregateCall aggCall : aggregate.getAggCallList()) {
             // STATE_EXPANDING aggregates (TAKE/FIRST/LAST/LIST/VALUES/PERCENTILE_APPROX/PATTERN)
             // can't decompose into per-shard partials reduced additively. APPROXIMATE goes through
@@ -275,7 +314,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
     }
 
     /** Wraps FINAL in a CAST-projection when any column type drifts from {@code expected}'s row type; type-only check, name differences pass through. */
-    private static RelNode wrapWithCastIfNeeded(OpenSearchAggregate finalAggregate, OpenSearchAggregate expected) {
+    public static RelNode wrapWithCastIfNeeded(OpenSearchAggregate finalAggregate, OpenSearchAggregate expected) {
         RelDataType actualType = finalAggregate.getRowType();
         RelDataType expectedType = expected.getRowType();
         RexBuilder rexBuilder = finalAggregate.getCluster().getRexBuilder();
@@ -305,8 +344,16 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         );
     }
 
-    /** Re-declare LIST/VALUES return type as {@code ARRAY<arg0>} (PPL lowers it to {@code ARRAY<VARCHAR>}). */
-    private static List<AggregateCall> repairLossyReturnTypes(List<AggregateCall> aggCalls, RelNode input) {
+    /**
+     * Rebuild any LIST/VALUES aggCall to declare {@code ARRAY<actual-arg0>} instead of
+     * PPL's lossy {@code ARRAY<VARCHAR>}. Pass-through for every other call. Used on the
+     * PARTIAL side only — the FINAL keeps the original call list so Volcano's parent
+     * row-type check on transformTo passes.
+     *
+     * <p>Public so the general post-CBO distribution-enforcement pass ({@code DistributionEnforcementPass})
+     * can call it.
+     */
+    public static List<AggregateCall> repairLossyReturnTypes(List<AggregateCall> aggCalls, RelNode input) {
         List<AggregateCall> rebuilt = null;
         for (int i = 0; i < aggCalls.size(); i++) {
             AggregateCall call = aggCalls.get(i);
@@ -337,7 +384,13 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         return rebuilt != null ? rebuilt : aggCalls;
     }
 
-    private static Map<Integer, List<RexLiteral>> captureLiteralArgsForFinal(List<AggregateCall> aggCalls, RelNode child) {
+    /**
+     * Captures the literal config args (e.g. TAKE's N) of STATE_EXPANDING aggregates from the child
+     * {@code Project} so FINAL can re-project them. Public so the general post-CBO distribution-enforcement
+     * pass ({@code DistributionEnforcementPass}) shares the exact capture the coord-centric split uses
+     * (keeps PARTIAL/FINAL literal handling identical).
+     */
+    public static Map<Integer, List<RexLiteral>> captureLiteralArgsForFinal(List<AggregateCall> aggCalls, RelNode child) {
         if (!(RelNodeUtils.unwrapHep(child) instanceof Project project)) {
             return Map.of();
         }

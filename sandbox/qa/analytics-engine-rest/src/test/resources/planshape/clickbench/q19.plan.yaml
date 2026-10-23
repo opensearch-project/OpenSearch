@@ -10,7 +10,7 @@ plans:
         OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], sort3=[$3], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], dir3=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(count()=[$3], UserID=[$0], m=[$1], SearchPhrase=[$2], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0, 1, 2}], count()=[SUM($3)], mode=[FINAL], viableBackends=[[datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchSort(sort0=[$3], sort1=[$0], sort2=[$1], sort3=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], dir3=[ASC-nulls-first], fetch=[30], viableBackends=[[datafusion]])
                   OpenSearchAggregate(group=[{0, 1, 2}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
                     OpenSearchProject(UserID=[$97], m=[ANNOTATED_PROJECT_EXPR(id=0, backends=[datafusion], EXTRACT('minute':VARCHAR, $16))], SearchPhrase=[$74], viableBackends=[[datafusion]])
@@ -26,7 +26,7 @@ plans:
         OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], sort3=[$3], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], dir3=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(count()=[$3], UserID=[$0], m=[$1], SearchPhrase=[$2], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0, 1, 2}], count()=[SUM($3)], mode=[FINAL], viableBackends=[[datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
     shard_physical_1seg: |
       ProjectionExec: expr=[UserID@0 as UserID, opensearch_extract(Utf8("minute"),<scrubbed>.EventTime)@1 as m, SearchPhrase@2 as SearchPhrase, count(Int64(1))[count]@3 as count()]

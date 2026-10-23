@@ -17,7 +17,9 @@ import java.lang.foreign.ValueLayout;
 public class WireConfigSnapshotTests extends OpenSearchTestCase {
 
     public void testByteSize() {
-        assertEquals(52L, WireConfigSnapshot.BYTE_SIZE);
+        // 9 fixed fields (52) + prefer_hash_join i32 at offset 52 = 56. Must match the Rust
+        // WireDatafusionQueryConfig #[repr(C)] layout (datafusion_query_config.rs).
+        assertEquals(56L, WireConfigSnapshot.BYTE_SIZE);
     }
 
     public void testWriteToWritesCorrectValuesAtCorrectOffsets() {
@@ -63,6 +65,7 @@ public class WireConfigSnapshotTests extends OpenSearchTestCase {
             assertEquals(-1, segment.get(ValueLayout.JAVA_INT, 40)); // force_strategy default (None)
             assertEquals(1, segment.get(ValueLayout.JAVA_INT, 44));  // cost_predicate (hardcoded)
             assertEquals(10, segment.get(ValueLayout.JAVA_INT, 48)); // cost_collector (hardcoded)
+            assertEquals(1, segment.get(ValueLayout.JAVA_INT, 52));  // prefer_hash_join default (true)
         }
     }
 

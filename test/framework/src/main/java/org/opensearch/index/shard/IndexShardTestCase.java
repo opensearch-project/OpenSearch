@@ -698,12 +698,21 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
         DiscoveryNodes discoveryNodes = IndexShardTestUtils.getFakeDiscoveryNodes(routing);
         // To simulate that the node is remote backed
-        if (indexMetadata.getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_ENABLED) == "true") {
-            nodeSettings = Settings.builder()
-                .put("node.name", routing.currentNodeId())
-                .put("node.attr.remote_store.translog.repository", "seg_repo")
-                .build();
-            discoveryNodes = DiscoveryNodes.builder().add(IndexShardTestUtils.getFakeRemoteEnabledNode(routing.currentNodeId())).build();
+        if (indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)) {
+            final Settings.Builder builder = Settings.builder().put("node.name", routing.currentNodeId());
+            // A segment repository and no translog repository means segments_only, so the node must match. Giving it
+            // a translog repository anyway would make isTranslogDurableInRemoteStore() true and hide the local translog paths.
+            final boolean segmentsOnly = indexMetadata.getSettings().hasValue(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY)
+                && indexMetadata.getSettings().hasValue(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY) == false;
+            builder.put(
+                segmentsOnly ? "node.attr.remote_store.segment.repository" : "node.attr.remote_store.translog.repository",
+                "seg_repo"
+            );
+            nodeSettings = builder.build();
+            final DiscoveryNode node = segmentsOnly
+                ? IndexShardTestUtils.getFakeSegmentsOnlyNode(routing.currentNodeId())
+                : IndexShardTestUtils.getFakeRemoteEnabledNode(routing.currentNodeId());
+            discoveryNodes = DiscoveryNodes.builder().add(node).build();
         }
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, nodeSettings);
         final IndexShard indexShard;
@@ -838,12 +847,25 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             protected void assertSnapshotOrGenericThread() {
                 // eliminate thread name check as we create repo manually
             }
+
+            @Override
+            protected BlobStore createBlobStore() throws Exception {
+                return wrapRemoteStoreBlobStore(super.createBlobStore());
+            }
         };
         clusterService.addStateApplier(event -> repository.updateState(event.state()));
         // Apply state once to initialize repo properly like RepositoriesService would
         repository.updateState(clusterService.state());
         repository.start();
         return repository;
+    }
+
+    /**
+     * Hook for tests on the blob store that backs a remote-store shard's segment and translog repository. The default
+     * returns the store unchanged; a test overrides it to interpose, for instance to hold a download until released.
+     */
+    protected BlobStore wrapRemoteStoreBlobStore(BlobStore blobStore) {
+        return blobStore;
     }
 
     private Environment createEnvironment(Path path) {
@@ -1464,6 +1486,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             result = shard.applyDeleteOperationOnPrimary(
                 Versions.MATCH_ANY,
                 id,
+                null,
                 VersionType.INTERNAL,
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 0
@@ -1473,7 +1496,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         } else {
             final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
             shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
-            result = shard.applyDeleteOperationOnReplica(seqNo, shard.getOperationPrimaryTerm(), 0L, id);
+            result = shard.applyDeleteOperationOnReplica(seqNo, shard.getOperationPrimaryTerm(), 0L, id, null);
             shard.sync(); // advance local checkpoint
         }
         return result;

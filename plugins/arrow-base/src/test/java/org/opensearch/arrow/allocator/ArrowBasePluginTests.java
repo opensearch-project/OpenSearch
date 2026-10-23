@@ -21,10 +21,14 @@ import java.util.Set;
 public class ArrowBasePluginTests extends OpenSearchTestCase {
 
     public void testQuerySettingsExposeDefaults() {
-        // Explicit 0 expresses "AC unconfigured" so QUERY_MAX falls back to Long.MAX_VALUE.
+        // Explicit 0 expresses "AC unconfigured": the min stays 0, but the max no longer falls back to an
+        // unbounded Long.MAX_VALUE. It is bounded to a percentage of MaxDirectMemorySize so the pool keeps
+        // guarding allocations (see testPoolMaxDefaultsFallBackToMaxDirectWhenAcUnset).
         Settings s = Settings.builder().put("node.native_memory.limit", "0b").build();
         assertEquals(Long.valueOf(0L), ArrowBasePlugin.QUERY_MIN_SETTING.get(s));
-        assertEquals(Long.valueOf(Long.MAX_VALUE), ArrowBasePlugin.QUERY_MAX_SETTING.get(s));
+        long maxDirect = ArrowBasePlugin.maxDirectMemoryBytes();
+        long expected = maxDirect > 0 ? maxDirect * 5 / 100 : Long.MAX_VALUE;
+        assertEquals(Long.valueOf(expected), ArrowBasePlugin.QUERY_MAX_SETTING.get(s));
     }
 
     public void testFlightAndIngestMinDerivedFromBudget() {
@@ -37,11 +41,25 @@ public class ArrowBasePluginTests extends OpenSearchTestCase {
         assertEquals(Long.valueOf(budget * 2 / 100), ArrowBasePlugin.INGEST_MIN_SETTING.get(s));
     }
 
-    public void testPoolMaxDefaultsAreLongMaxValueWhenAcUnset() {
+    public void testPoolMaxDefaultsFallBackToMaxDirectWhenAcUnset() {
+        // When node.native_memory.limit cannot be derived (0b, e.g. a container that cannot read cgroup
+        // RAM), the pool max must NOT be unbounded (Long.MAX_VALUE) - that would remove the pool's own
+        // ceiling and let a burst exhaust the JVM-wide direct-memory budget as a hard OutOfDirectMemoryError.
+        // Instead it falls back to the same percentage of MaxDirectMemorySize so the pool stays bounded below
+        // the JVM wall and over-budget allocations circuit-break within the pool.
         Settings s = Settings.builder().put("node.native_memory.limit", "0b").build();
-        assertEquals(Long.valueOf(Long.MAX_VALUE), ArrowBasePlugin.FLIGHT_MAX_SETTING.get(s));
-        assertEquals(Long.valueOf(Long.MAX_VALUE), ArrowBasePlugin.INGEST_MAX_SETTING.get(s));
-        assertEquals(Long.valueOf(Long.MAX_VALUE), ArrowBasePlugin.QUERY_MAX_SETTING.get(s));
+        long maxDirect = ArrowBasePlugin.maxDirectMemoryBytes();
+        if (maxDirect > 0) {
+            assertEquals(Long.valueOf(maxDirect * 5 / 100), ArrowBasePlugin.FLIGHT_MAX_SETTING.get(s));
+            assertEquals(Long.valueOf(maxDirect * 5 / 100), ArrowBasePlugin.INGEST_MAX_SETTING.get(s));
+            assertEquals(Long.valueOf(maxDirect * 5 / 100), ArrowBasePlugin.QUERY_MAX_SETTING.get(s));
+            // The bound is real (below the JVM direct-memory wall), not the old unbounded sentinel.
+            assertTrue(ArrowBasePlugin.FLIGHT_MAX_SETTING.get(s) < Long.MAX_VALUE);
+            assertTrue(ArrowBasePlugin.FLIGHT_MAX_SETTING.get(s) < maxDirect);
+        } else {
+            // MaxDirectMemorySize unavailable (not expected on a supported JVM): historical unbounded fallback.
+            assertEquals(Long.valueOf(Long.MAX_VALUE), ArrowBasePlugin.FLIGHT_MAX_SETTING.get(s));
+        }
     }
 
     public void testPoolMaxDefaultsScaleFromAcBudget() {

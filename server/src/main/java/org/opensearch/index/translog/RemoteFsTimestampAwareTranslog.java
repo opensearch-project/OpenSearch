@@ -149,6 +149,21 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
             return;
         }
 
+        // As in RemoteFsTranslog: remote deletions are gated on still owning the fence, so a superseded copy cannot
+        // remove files a legitimate owner is still recovering from. Index deletion is exempt - there is no owner left
+        // to protect, and the cleanup has to proceed.
+        if (indexDeleted == false) {
+            try {
+                if (isRemoteStoreFenceSuperseded()) {
+                    logger.info("Skipping remote translog cleanup: a higher primary term has taken the remote store fence");
+                    return;
+                }
+            } catch (IOException e) {
+                logger.warn("Could not determine remote store fence ownership; skipping remote translog cleanup", e);
+                return;
+            }
+        }
+
         // This is to fail fast and avoid listing md files un-necessarily.
         if (indexDeleted == false && RemoteStoreUtils.isPinnedTimestampStateStale()) {
             logger.debug("Skipping remote translog garbage collection as last fetch of pinned timestamp is stale");

@@ -62,4 +62,148 @@ public class TermQueryTranslatorTests extends OpenSearchTestCase {
     public void testReportsCorrectQueryType() {
         assertEquals(TermQueryBuilder.class, translator.getQueryType());
     }
+
+    public void testScaledFloatTermQuery() throws ConversionException {
+        // term scaled_price = 10.5 with factor 10 -> Math.round(10.5 * 10) = 105
+        RexNode result = translator.convert(QueryBuilders.termQuery("scaled_price", 10.5), ctx);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.EQUALS, call.getKind());
+        assertEquals(13, ((RexInputRef) call.getOperands().get(0)).getIndex());
+        // makeLiteral wraps nullable BIGINT in a CAST
+        RexNode literalNode = call.getOperands().get(1);
+        Long literalValue;
+        if (literalNode instanceof RexLiteral lit) {
+            literalValue = lit.getValueAs(Long.class);
+        } else {
+            RexCall cast = (RexCall) literalNode;
+            literalValue = ((RexLiteral) cast.getOperands().get(0)).getValueAs(Long.class);
+        }
+        assertEquals(Long.valueOf(105L), literalValue);
+    }
+
+    public void testScaledFloatTermQueryNonNumericThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("scaled_price", "abc"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("Non-numeric"));
+    }
+
+    // ========== UNSIGNED_LONG TERM TESTS ==========
+
+    public void testUnsignedLongTermInRange() throws ConversionException {
+        // term unsigned_counter = 100 → literal 100, EQUALS
+        RexNode result = translator.convert(QueryBuilders.termQuery("unsigned_counter", 100), ctx);
+        RexCall call = (RexCall) result;
+        assertEquals(SqlKind.EQUALS, call.getKind());
+        assertEquals(14, ((RexInputRef) call.getOperands().get(0)).getIndex());
+        RexNode literalNode = call.getOperands().get(1);
+        Long literalValue;
+        if (literalNode instanceof RexLiteral lit) {
+            literalValue = lit.getValueAs(Long.class);
+        } else {
+            RexCall cast = (RexCall) literalNode;
+            literalValue = ((RexLiteral) cast.getOperands().get(0)).getValueAs(Long.class);
+        }
+        assertEquals(Long.valueOf(100L), literalValue);
+    }
+
+    public void testUnsignedLongTermAboveLongMaxThrows() {
+        // term above Long.MAX_VALUE → ConversionException
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("unsigned_counter", "9223372036854775808"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("not representable"));
+    }
+
+    public void testUnsignedLongTermNegativeMatchNone() throws ConversionException {
+        // term -5 on unsigned_long → match-none (literal false)
+        RexNode result = translator.convert(QueryBuilders.termQuery("unsigned_counter", -5), ctx);
+        assertTrue("Expected literal false (match-none)", result instanceof RexLiteral);
+        assertEquals(Boolean.FALSE, ((RexLiteral) result).getValueAs(Boolean.class));
+    }
+
+    public void testUnsignedLongTermNonNumericThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("unsigned_counter", "abc"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("Non-numeric"));
+    }
+
+    // ========== FIX 2: NaN/Infinity on scaled_float term must throw ==========
+
+    public void testScaledFloatTermInfinityThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("scaled_price", "Infinity"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("Infinity") || ex.getMessage().contains("non-finite"));
+    }
+
+    public void testScaledFloatTermNaNThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("scaled_price", "NaN"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("NaN") || ex.getMessage().contains("non-finite"));
+    }
+
+    public void testScaledFloatTermDoubleNaNThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("scaled_price", Double.NaN), ctx)
+        );
+        assertTrue(ex.getMessage().contains("NaN") || ex.getMessage().contains("non-finite"));
+    }
+
+    public void testScaledFloatTermDoubleInfinityThrows() {
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("scaled_price", Double.POSITIVE_INFINITY), ctx)
+        );
+        assertTrue(ex.getMessage().contains("Infinity") || ex.getMessage().contains("non-finite"));
+    }
+
+    // ========== FIX 4+5: decimal on unsigned_long term must match-none ==========
+
+    public void testUnsignedLongTermDecimalMatchNone() throws ConversionException {
+        // term 2.5 on unsigned_long → match-none (literal false), per legacy MatchNoDocsQuery
+        RexNode result = translator.convert(QueryBuilders.termQuery("unsigned_counter", 2.5), ctx);
+        assertTrue("Expected literal false (match-none) for decimal term on unsigned_long", result instanceof RexLiteral);
+        assertEquals(Boolean.FALSE, ((RexLiteral) result).getValueAs(Boolean.class));
+    }
+
+    public void testUnsignedLongTermDecimalStringMatchNone() throws ConversionException {
+        // term "2.5" on unsigned_long → match-none
+        RexNode result = translator.convert(QueryBuilders.termQuery("unsigned_counter", "2.5"), ctx);
+        assertTrue("Expected literal false (match-none) for decimal string term on unsigned_long", result instanceof RexLiteral);
+        assertEquals(Boolean.FALSE, ((RexLiteral) result).getValueAs(Boolean.class));
+    }
+
+    // ========== IP FIELD TERM TEST ==========
+
+    public void testIpTermThrowsConversionException() {
+        // Legacy IpFieldMapper.termQuery supports IP terms, but implementing without verified
+        // parity would replace a loud crash with a possibly silently-wrong answer.
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("ip_address", "192.168.1.1"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("not yet supported"));
+    }
+
+    // ========== DATE FIELD TERM TEST ==========
+
+    public void testDateTermThrowsConversionException() {
+        // Legacy DateFieldMapper.DateFieldType.termQuery (line 505) supports date terms by
+        // delegating to rangeQuery; our rejection is a known divergence until parity-verified
+        // date term support is implemented.
+        ConversionException ex = expectThrows(
+            ConversionException.class,
+            () -> translator.convert(QueryBuilders.termQuery("created_date", "2024-01-01"), ctx)
+        );
+        assertTrue(ex.getMessage().contains("not yet supported"));
+    }
 }

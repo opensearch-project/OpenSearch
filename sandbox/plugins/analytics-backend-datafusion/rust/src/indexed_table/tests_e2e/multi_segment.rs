@@ -74,7 +74,11 @@ struct PerSegmentCollector {
 }
 
 impl RowGroupDocsCollector for PerSegmentCollector {
-    fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
+    fn collect_packed_u64_bitset(
+        &self,
+        min_doc: i32,
+        max_doc: i32,
+    ) -> Result<CollectDocsResult, String> {
         let span = (max_doc - min_doc) as usize;
         let mut out = vec![0u64; span.div_ceil(64)];
         for &doc in &self.matching {
@@ -83,7 +87,7 @@ impl RowGroupDocsCollector for PerSegmentCollector {
                 out[rel / 64] |= 1u64 << (rel % 64);
             }
         }
-        Ok(out)
+        Ok(out.into())
     }
 }
 
@@ -272,7 +276,11 @@ struct ConcurrencyWitnessCollector {
 }
 
 impl RowGroupDocsCollector for ConcurrencyWitnessCollector {
-    fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
+    fn collect_packed_u64_bitset(
+        &self,
+        min_doc: i32,
+        max_doc: i32,
+    ) -> Result<CollectDocsResult, String> {
         use std::sync::atomic::Ordering;
         let cur = self.in_flight.fetch_add(1, Ordering::SeqCst) + 1;
         // Update high-water-mark with a CAS loop.
@@ -1016,13 +1024,13 @@ async fn run_wide_segments(
             &self,
             min_doc: i32,
             max_doc: i32,
-        ) -> Result<Vec<u64>, String> {
+        ) -> Result<CollectDocsResult, String> {
             let span = (max_doc - min_doc) as usize;
             let mut out = vec![0u64; span.div_ceil(64)];
             for i in 0..span {
                 out[i / 64] |= 1u64 << (i % 64);
             }
-            Ok(out)
+            Ok(out.into())
         }
     }
 
@@ -1365,13 +1373,13 @@ async fn run_wide_segments_with_stats_pruning(
             &self,
             min_doc: i32,
             max_doc: i32,
-        ) -> Result<Vec<u64>, String> {
+        ) -> Result<CollectDocsResult, String> {
             let span = (max_doc - min_doc) as usize;
             let mut out = vec![0u64; span.div_ceil(64)];
             for i in 0..span {
                 out[i / 64] |= 1u64 << (i % 64);
             }
-            Ok(out)
+            Ok(out.into())
         }
     }
 
@@ -1760,13 +1768,13 @@ async fn stats_prune_direct_prefetch_asserts_pruning_and_empty_bitsets() {
             &self,
             min_doc: i32,
             max_doc: i32,
-        ) -> Result<Vec<u64>, String> {
+        ) -> Result<CollectDocsResult, String> {
             let span = (max_doc - min_doc) as usize;
             let mut out = vec![0u64; span.div_ceil(64)];
             for i in 0..span {
                 out[i / 64] |= 1u64 << (i % 64);
             }
-            Ok(out)
+            Ok(out.into())
         }
     }
 
@@ -1961,13 +1969,13 @@ async fn stats_prune_asserts_empty_collector_bitset_in_pruned_subtree() {
             &self,
             min_doc: i32,
             max_doc: i32,
-        ) -> Result<Vec<u64>, String> {
+        ) -> Result<CollectDocsResult, String> {
             let span = (max_doc - min_doc) as usize;
             let mut out = vec![0u64; span.div_ceil(64)];
             for i in 0..span {
                 out[i / 64] |= 1u64 << (i % 64);
             }
-            Ok(out)
+            Ok(out.into())
         }
     }
 

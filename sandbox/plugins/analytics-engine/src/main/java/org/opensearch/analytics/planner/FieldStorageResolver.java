@@ -122,7 +122,7 @@ public class FieldStorageResolver {
         for (String fieldName : fieldNames) {
             FieldStorageInfo info = fieldStorage.get(fieldName);
             if (info == null) {
-                throw new IllegalStateException("Field [" + fieldName + "] not found in field storage for index");
+                throw new IllegalArgumentException("Field [" + fieldName + "] not found in field storage for index");
             }
             result.add(info);
         }

@@ -41,4 +41,19 @@ public class WorkloadGroupTaskTests extends OpenSearchTestCase {
         sut.setWorkloadGroupId(threadPool.getThreadContext());
         assertEquals("akfanglkaglknag2332", sut.getWorkloadGroupId());
     }
+
+    public void testThrottlePrincipalIsPerTaskAndNotAHeader() {
+        assertNull("an absent principal must read as null so username/role throttling fails open", sut.getThrottlePrincipal());
+
+        sut.setThrottlePrincipal("username|alice");
+        assertEquals("username|alice", sut.getThrottlePrincipal());
+
+        // _msearch sub-requests share a thread context, so the principal is per task to avoid cross-billing.
+        WorkloadGroupTask other = new WorkloadGroupTask(124, "transport", "Search", "test task", null, Collections.emptyMap());
+        assertNull(other.getThrottlePrincipal());
+
+        // Not in the header maps, which are serialized to every shard and remote cluster.
+        assertNull(sut.getHeader("workloadGroupPrincipal"));
+        assertNull(threadPool.getThreadContext().getHeader("workloadGroupPrincipal"));
+    }
 }

@@ -90,7 +90,8 @@ public class RestTestUtil {
      */
     static void setupDependencies(Project project, SourceSet sourceSet) {
         if (BuildParams.isInternal()) {
-            project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework"));
+            project.getDependencies()
+                .add(sourceSet.getImplementationConfigurationName(), project.getDependencies().project(":test:framework"));
         } else {
             project.getDependencies()
                 .add(sourceSet.getImplementationConfigurationName(), "org.opensearch.test:framework:" + VersionProperties.getOpenSearch());

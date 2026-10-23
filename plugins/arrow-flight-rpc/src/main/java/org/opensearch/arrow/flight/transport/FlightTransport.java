@@ -345,6 +345,11 @@ class FlightTransport extends TcpTransport {
     @Override
     protected TcpChannel initiateChannel(DiscoveryNode node) throws IOException {
         TransportAddress publishAddress = node.getStreamAddress();
+        // A node that predates the stream transport, or has it disabled, publishes no stream address.
+        // Fail cleanly instead of NPEing on the address below.
+        if (publishAddress == null) {
+            throw new ConnectTransportException(node, "node does not publish a stream (Flight) address");
+        }
         String address = publishAddress.getAddress();
         int flightPort = publishAddress.address().getPort();
         Location location = sslContextProvider != null

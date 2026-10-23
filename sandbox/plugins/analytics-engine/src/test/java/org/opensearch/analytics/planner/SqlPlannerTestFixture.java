@@ -111,6 +111,43 @@ public final class SqlPlannerTestFixture {
     }
 
     /**
+     * Builds a {@link ClusterState} holding SEVERAL indices, all with the same fields. Needed whenever a
+     * test has to tell two indices apart — for example a subquery that reads a different index from the
+     * outer query, where a single-index state would make the two indistinguishable.
+     *
+     * @param indexNames the indices to create; all share {@code fields}
+     * @param fields the field mappings applied to every index
+     * @return a cluster state containing all of them, parquet-primary with one shard each
+     */
+    public static ClusterState clusterStateWith(java.util.List<String> indexNames, Map<String, Map<String, Object>> fields) {
+        try {
+            Metadata.Builder metadata = Metadata.builder();
+            for (String indexName : indexNames) {
+                try (XContentBuilder mapping = XContentBuilder.builder(MediaTypeRegistry.JSON.xContent())) {
+                    mapping.startObject().field("properties", fields).endObject();
+                    metadata.put(
+                        IndexMetadata.builder(indexName)
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+                                    .put("index.composite.primary_data_format", "parquet")
+                                    .putList("index.composite.secondary_data_formats", "lucene")
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .putMapping(mapping.toString())
+                            .build(),
+                        false
+                    );
+                }
+            }
+            return ClusterState.builder(new ClusterName("test")).metadata(metadata.build()).build();
+        } catch (Exception e) {
+            throw new AssertionError("Failed to build ClusterState for indices: " + indexNames, e);
+        }
+    }
+
+    /**
      * Builds a single-index {@link ClusterState} with explicit primary data format and shard count.
      * The primary format flows through to {@code FieldStorageResolver} and decides which backends
      * can scan the index's fields.

@@ -9,7 +9,7 @@
 package org.opensearch.be.lucene.merge;
 
 import org.apache.lucene.index.CodecReader;
-import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.PreparableOneMerge;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -21,7 +21,7 @@ import java.util.List;
 import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTRIBUTE;
 
 /**
- * A custom {@link MergePolicy.OneMerge} that wraps each segment's {@link CodecReader}
+ * A {@link PreparableOneMerge} that wraps each segment's {@link CodecReader}
  * with a {@link RowIdRemappingCodecReader} during the merge process.
  *
  * <p>The wrapped reader remaps row ID doc values so the merged segment stores
@@ -36,12 +36,15 @@ import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTR
  * merged segment, so the attribute is persisted to the {@code .si} file and survives a
  * writer reopen. No codec, thread-local, or commit-data plumbing is needed.
  *
+ * <p>Inheriting from {@link PreparableOneMerge} makes this OneMerge compatible with the
+ * two-phase prepare/execute flow used to keep cross-format live-docs snapshots consistent.
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi
-class RowIdRemappingOneMerge extends MergePolicy.OneMerge {
+class RowIdRemappingOneMerge extends PreparableOneMerge {
 
-    private final RowIdMapping rowIdMapping;
+    private RowIdMapping rowIdMapping;
     private final long outputWriterGeneration;
     private int nextRowIdOffset;
 
@@ -50,6 +53,15 @@ class RowIdRemappingOneMerge extends MergePolicy.OneMerge {
         this.rowIdMapping = rowIdMapping;
         this.outputWriterGeneration = outputWriterGeneration;
         this.nextRowIdOffset = 0;
+    }
+
+    /**
+     * Sets the row-ID mapping. Used when the OneMerge is constructed before the primary
+     * format's merge runs (so the mapping isn't known yet) and updated once the primary
+     * produces its mapping. Must be called before {@code wrapForMerge} runs.
+     */
+    void setRowIdMapping(RowIdMapping rowIdMapping) {
+        this.rowIdMapping = rowIdMapping;
     }
 
     @Override

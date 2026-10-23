@@ -21,45 +21,57 @@ import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalOrder;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Mutable builder for {@link AggregationMetadata}. Used by {@link AggregationTreeWalker}
- * to accumulate groupings and aggregate calls during tree traversal.
- * Grouping indices are resolved at build time from the input row type.
+ * to accumulate the defining bucket aggregation's plan parameters, parent groupings, and
+ * metric calls during tree traversal. Grouping indices are resolved at build time from the
+ * input row type.
+ *
+ * <p>One builder exists per aggregation-name path — plans are per aggregation, so exactly one
+ * bucket aggregation defines each builder (none for the global metrics builder).
  */
 public class AggregationMetadataBuilder {
 
     /** Name used for the implicit COUNT(*) aggregate added by bucket aggregations. */
     public static final String IMPLICIT_COUNT_NAME = "_count";
 
+    private final List<String> aggNamePath;
     private final List<GroupingInfo> groupings = new ArrayList<>();
+    private final Map<String, Object> missingValues = new LinkedHashMap<>();
     private final List<AggregateCall> aggregateCalls = new ArrayList<>();
     private final List<String> aggregateFieldNames = new ArrayList<>();
     private final List<BucketOrder> bucketOrders = new ArrayList<>();
+    private Integer definingSize;
+    private Long definingMinDocCount;
     private boolean implicitCountRequested = false;
 
-    /** Creates a new empty builder. */
-    public AggregationMetadataBuilder() {}
+    /** Creates a builder for the global (no defining aggregation) metrics plan. */
+    public AggregationMetadataBuilder() {
+        this(List.of());
+    }
 
     /**
-     * Adds a grouping contribution from a bucket translator.
+     * Creates a builder for the plan defined by the given aggregation-name path.
+     *
+     * @param aggNamePath the defining aggregation-name path, outer bucket first
+     */
+    public AggregationMetadataBuilder(List<String> aggNamePath) {
+        this.aggNamePath = List.copyOf(aggNamePath);
+    }
+
+    /**
+     * Adds a grouping contribution from a bucket translator. The grouping's per-field
+     * {@code missing} values are accumulated for the plan's null handling.
      *
      * @param grouping the grouping info
      */
     public void addGrouping(GroupingInfo grouping) {
         groupings.add(grouping);
-    }
-
-    /**
-     * Adds an aggregate call with its output field name.
-     *
-     * @param call the Calcite aggregate call
-     * @param fieldName the output field name
-     */
-    public void addAggregateCall(AggregateCall call, String fieldName) {
-        aggregateCalls.add(call);
-        aggregateFieldNames.add(fieldName);
+        missingValues.putAll(grouping.getMissingByField());
     }
 
     /**
@@ -68,13 +80,28 @@ public class AggregationMetadataBuilder {
      *
      * @param order the bucket order
      */
-    public void addBucketOrder(BucketOrder order) {
+    private void addBucketOrder(BucketOrder order) {
         if (order == null) return;
         if (order instanceof InternalOrder.CompoundOrder compound) {
             bucketOrders.addAll(compound.orderElements());
         } else {
             bucketOrders.add(order);
         }
+    }
+
+    /**
+     * Records the plan parameters of the bucket aggregation that defines this plan: its sort
+     * order plus the {@code size} and {@code min_doc_count} to bake in as LIMIT and HAVING.
+     * Called exactly once per builder — each bucket aggregation owns its own plan.
+     *
+     * @param order the bucket order (flattened like {@link #addBucketOrder})
+     * @param size the requested bucket count, or null for base-contract bucket types
+     * @param minDocCount the minimum bucket doc count, or null for base-contract bucket types
+     */
+    public void setBucketDefinition(BucketOrder order, Integer size, Long minDocCount) {
+        addBucketOrder(order);
+        this.definingSize = size;
+        this.definingMinDocCount = minDocCount;
     }
 
     /**
@@ -91,8 +118,28 @@ public class AggregationMetadataBuilder {
     }
 
     /**
+     * Adds an aggregate call with its output field name.
+     *
+     * @param call the Calcite aggregate call
+     * @param fieldName the output field name
+     */
+    public void addAggregateCall(AggregateCall call, String fieldName) {
+        aggregateCalls.add(call);
+        aggregateFieldNames.add(fieldName);
+    }
+
+    /**
      * Builds the immutable metadata. Resolves grouping indices from the input row type.
      * For no-GROUP-BY metrics, makes return types nullable (AVG of empty set is null).
+     *
+     * <p>Plan bounds, decided here: {@code min_doc_count} above 1 always becomes a HAVING
+     * filter. Root-level sized plans (a single grouping) get a flat LIMIT
+     * ({@code fetch = size}); nested sized plans (parent groupings present) get a per-parent
+     * bound instead ({@code perParentFetch = size}), enforced by the ROW_NUMBER window plan
+     * shape — a flat LIMIT there would keep globally-top groups, not each parent's top K.
+     * Multi-field groupings get no bound: the eligible-count machinery (count plans,
+     * {@code COUNT(field)}) is single-field today, and an unbounded plan fails loudly at
+     * render rather than accounting with a wrong total.
      *
      * @param inputRowType the schema before aggregation
      * @param typeFactory the type factory for creating types
@@ -151,7 +198,33 @@ public class AggregationMetadataBuilder {
             allFieldNames.add(IMPLICIT_COUNT_NAME);
         }
 
-        return new AggregationMetadata(ImmutableBitSet.of(allGroupIndices), allGroupFieldNames, allCalls, allFieldNames, bucketOrders);
+        // min_doc_count ≤ 1 needs no HAVING: a GROUP BY group has ≥ 1 row by construction.
+        Long havingMinDocCount = definingMinDocCount != null && definingMinDocCount > 1 ? definingMinDocCount : null;
+        Integer fetch = null;
+        Integer perParentFetch = null;
+        boolean singleFieldGroupings = groupings.stream().allMatch(g -> g.getFieldNames().size() == 1);
+        if (definingSize != null && singleFieldGroupings) {
+            if (groupings.size() == 1) {
+                fetch = definingSize;
+            } else {
+                // Nested level: the bound is per parent, not global — a flat LIMIT would keep
+                // globally-top groups, not each parent's top K.
+                perParentFetch = definingSize;
+            }
+        }
+
+        return new AggregationMetadata(
+            aggNamePath,
+            ImmutableBitSet.of(allGroupIndices),
+            allGroupFieldNames,
+            allCalls,
+            allFieldNames,
+            bucketOrders,
+            fetch,
+            perParentFetch,
+            havingMinDocCount,
+            missingValues
+        );
     }
 
     /**

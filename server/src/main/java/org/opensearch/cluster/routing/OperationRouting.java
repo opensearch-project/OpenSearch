@@ -34,6 +34,8 @@ package org.opensearch.cluster.routing;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.deployment.DeploymentState;
+import org.opensearch.cluster.deployment.DeploymentStateService;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.VirtualShardRoutingHelper;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
@@ -260,11 +262,16 @@ public class OperationRouting {
         @Nullable SliceBuilder slice
     ) {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
+        final Map<String, DeploymentState> drainedNodes = DeploymentStateService.getNodeDeploymentStates(clusterState);
 
         Map<Index, List<ShardIterator>> shardIterators = new HashMap<>();
         for (IndexShardRoutingTable shard : shards) {
+            IndexShardRoutingTable effectiveShard = shard;
+            if (!drainedNodes.isEmpty()) {
+                effectiveShard = filterDrainedNodes(shard, drainedNodes);
+            }
 
-            IndexMetadata indexMetadataForShard = indexMetadata(clusterState, shard.shardId.getIndex().getName());
+            IndexMetadata indexMetadataForShard = indexMetadata(clusterState, effectiveShard.shardId.getIndex().getName());
             // Server-injected preferences are scoped per index: compute the effective preference for each shard
             // instead of mutating the caller-supplied preference, so that a preference injected for one index
             // (e.g. a remote snapshot or writable warm index) does not leak into other indices of the same
@@ -291,7 +298,7 @@ public class OperationRouting {
             }
 
             ShardIterator iterator = preferenceActiveShardIterator(
-                shard,
+                effectiveShard,
                 clusterState.nodes().getLocalNodeId(),
                 clusterState.nodes(),
                 effectivePreference,
@@ -334,6 +341,22 @@ public class OperationRouting {
     }
 
     private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();
+
+    private static IndexShardRoutingTable filterDrainedNodes(IndexShardRoutingTable shard, Map<String, DeploymentState> drainedNodes) {
+        IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(shard.shardId);
+        for (ShardRouting shardRouting : shard) {
+            DeploymentState nodeState = drainedNodes.get(shardRouting.currentNodeId());
+            if (nodeState != DeploymentState.DRAIN) {
+                builder.addShard(shardRouting);
+            }
+        }
+        IndexShardRoutingTable filtered = builder.build();
+        if (filtered.size() == 0) {
+            // Fall back to original if all shards were filtered out
+            return shard;
+        }
+        return filtered;
+    }
 
     private Set<IndexShardRoutingTable> computeTargetedShards(
         ClusterState clusterState,

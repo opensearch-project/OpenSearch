@@ -15,6 +15,7 @@ import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilterChain;
 import org.opensearch.action.support.ActionRequestMetadata;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.plugin.wlm.rule.attribute_extractor.IndicesExtractor;
@@ -117,14 +118,45 @@ public class AutoTaggingActionFilter implements ActionFilter {
             }
         }
 
+        List<String> principalValues = null;
         if (featureType.getAllowedAttributesRegistry().containsKey(PRINCIPAL_ATTRIBUTE_NAME)) {
             Attribute attribute = featureType.getAllowedAttributesRegistry().get(PRINCIPAL_ATTRIBUTE_NAME);
             assert attributeExtensions.containsKey(attribute);
-            attributeExtractors.add(attributeExtensions.get(attribute).getAttributeExtractor());
+            final AttributeExtractor<String> extractor = attributeExtensions.get(attribute).getAttributeExtractor();
+            // Materialize once: extract() has no re-iterability contract, and an empty second read would disable throttling.
+            final List<String> values = new ArrayList<>();
+            extractor.extract().forEach(values::add);
+            principalValues = values;
+            attributeExtractors.add(new AttributeExtractor<>() {
+                @Override
+                public Attribute getAttribute() {
+                    return extractor.getAttribute();
+                }
+
+                @Override
+                public Iterable<String> extract() {
+                    return values;
+                }
+
+                @Override
+                public LogicalOperator getLogicalOperator() {
+                    return extractor.getLogicalOperator();
+                }
+            });
         }
 
         Optional<String> label = ruleProcessingService.evaluateLabel(attributeExtractors);
-        label.ifPresent(s -> threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, s));
+        ThreadContext threadContext = threadPool.getThreadContext();
+        if (threadContext.getRequestHeadersOnly().containsKey(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER) == false) {
+            label.ifPresent(s -> threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, s));
+        }
+        // Carried on the task, not the thread context; see WorkloadGroupTask#setThrottlePrincipal.
+        if (principalValues != null && task instanceof WorkloadGroupTask) {
+            String principal = String.join(WorkloadGroupTask.WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER, principalValues);
+            if (principal.isEmpty() == false) {
+                ((WorkloadGroupTask) task).setThrottlePrincipal(principal);
+            }
+        }
         chain.proceed(task, action, request, listener);
     }
 }
