@@ -323,7 +323,7 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
 import org.opensearch.watcher.ResourceWatcherService;
-import org.opensearch.wlm.WorkloadGroupSearchGate;
+import org.opensearch.wlm.WorkloadGroupSearchAdmission;
 import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupSharedThrottleService;
 import org.opensearch.wlm.WorkloadGroupsStateAccessor;
@@ -1503,10 +1503,8 @@ public class Node implements Closeable {
             );
             workloadGroupService.setSharedThrottleService(workloadGroupSharedThrottleService);
             // Admits searches and scroll pages against WLM throttles; the search actions depend only on the core interface.
-            final SearchExecutionGate searchExecutionGate = new WorkloadGroupSearchGate(
-                workloadGroupService,
-                clusterService,
-                transportService.getTaskManager()
+            final SearchExecutionGate searchExecutionGate = new SearchExecutionGate(
+                new WorkloadGroupSearchAdmission(workloadGroupService, clusterService, transportService.getTaskManager())
             );
 
             TopNSearchTasksLogger taskConsumer = new TopNSearchTasksLogger(settings, settingsModule.getClusterSettings());

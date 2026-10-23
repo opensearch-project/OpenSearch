@@ -494,8 +494,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
             // Every outcome, including a rejection or an unexpected admission exception, completes updatedListener, so the
             // request span always ends.
-            SearchExecutionGate.execute(
-                searchExecutionGate,
+            searchExecutionGate.execute(
                 task,
                 originalSearchRequest,
                 updatedListener,
@@ -513,7 +512,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Runs the search once the {@link SearchExecutionGate} admits it, or directly while the gate is inactive, inline or
+     * Runs the search once the node's {@link SearchAdmission} admits it, or directly while admission is inactive, inline or
      * from an asynchronous admission callback. Re-enters the request span, which may not be active on the callback's thread.
      */
     private void proceedWithSearch(

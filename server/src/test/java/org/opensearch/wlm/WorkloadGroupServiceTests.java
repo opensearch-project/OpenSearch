@@ -802,8 +802,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
 
         AtomicReference<ActionListener<String>> admittedListener = new AtomicReference<>();
         AtomicReference<Releasable> admittedFromCompletion = new AtomicReference<>();
-        SearchExecutionGate.execute(
-            activeSearchGate(),
+        activeSearchGate().execute(
             throttleTask("wg-1"),
             new SearchRequest(),
             ActionListener.<String>wrap(response -> admittedFromCompletion.set(acquireThrottle("wg-1", null)), e -> {
@@ -829,8 +828,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
 
         AtomicBoolean ran = new AtomicBoolean();
         AtomicReference<Exception> failure = new AtomicReference<>();
-        SearchExecutionGate.execute(
-            activeSearchGate(),
+        activeSearchGate().execute(
             throttleTask("wg-1"),
             new SearchRequest(),
             ActionListener.<String>wrap(
@@ -848,21 +846,18 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     public void testSearchGateRunsWithoutAChargeWhenNotThrottled() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.DISABLED);
         AtomicReference<String> response = new AtomicReference<>();
-        SearchExecutionGate.execute(
-            activeSearchGate(),
-            throttleTask("wg-1"),
-            new SearchRequest(),
-            ActionListener.<String>wrap(response::set, e -> {
-                throw new AssertionError("unexpected failure", e);
-            }),
-            listener -> listener.onResponse("done")
-        );
+        activeSearchGate().execute(throttleTask("wg-1"), new SearchRequest(), ActionListener.<String>wrap(response::set, e -> {
+            throw new AssertionError("unexpected failure", e);
+        }), listener -> listener.onResponse("done"));
         assertEquals("done", response.get());
     }
 
-    // This service's gate, consulted even though the fixture never applies cluster state (so isThrottlingActive() stays false).
+    // A gate over this service's admission, consulted even though the fixture never applies cluster state (so
+    // isThrottlingActive() stays false).
     private SearchExecutionGate activeSearchGate() {
-        return new WorkloadGroupSearchGate(workloadGroupService, mockClusterService, Mockito.mock(TaskManager.class))::admit;
+        return new SearchExecutionGate(
+            new WorkloadGroupSearchAdmission(workloadGroupService, mockClusterService, Mockito.mock(TaskManager.class))::admit
+        );
     }
 
     public void testAcquireThrottleMonitorModeObservesWithoutRejecting() {

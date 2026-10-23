@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 public class SearchExecutionGateTests extends OpenSearchTestCase {
 
@@ -34,7 +35,7 @@ public class SearchExecutionGateTests extends OpenSearchTestCase {
     private final SearchRequest request = new SearchRequest("index");
 
     public void testInactiveGateRunsTheRequestDirectly() {
-        SearchExecutionGate inactive = new SearchExecutionGate() {
+        SearchAdmission inactive = new SearchAdmission() {
             @Override
             public boolean isActive() {
                 return false;
@@ -42,36 +43,35 @@ public class SearchExecutionGateTests extends OpenSearchTestCase {
 
             @Override
             public void admit(Task task, ActionRequest request, ActionListener<Releasable> listener) {
-                throw new AssertionError("an inactive gate must not be consulted");
+                throw new AssertionError("an inactive admission must not be consulted");
             }
         };
         ActionListener<String> listener = ActionListener.wrap(r -> {}, e -> {});
         AtomicReference<ActionListener<String>> received = new AtomicReference<>();
-        SearchExecutionGate.execute(inactive, task, request, listener, received::set);
+        execute(inactive, task, request, listener, received::set);
         assertSame("a request run directly gets the caller's listener", listener, received.get());
 
         // Run directly, the request's exceptions reach the caller as if there were no gate.
         IllegalStateException boom = new IllegalStateException("boom");
-        assertSame(
-            boom,
-            expectThrows(IllegalStateException.class, () -> SearchExecutionGate.execute(inactive, task, request, listener, l -> {
-                throw boom;
-            }))
-        );
+        assertSame(boom, expectThrows(IllegalStateException.class, () -> execute(inactive, task, request, listener, l -> { throw boom; })));
     }
 
-    public void testNoopGateIsInactiveAndAdmitsWithoutACharge() {
-        assertFalse(SearchExecutionGate.NOOP.isActive());
-        AtomicReference<Releasable> permit = new AtomicReference<>();
-        SearchExecutionGate.NOOP.admit(task, request, ActionListener.wrap(permit::set, e -> fail("must not fail")));
-        assertSame(SearchExecutionGate.NOOP_PERMIT, permit.get());
+    public void testNoopGateRunsEveryRequestDirectly() {
+        ActionListener<String> listener = ActionListener.wrap(r -> {}, e -> {});
+        AtomicReference<ActionListener<String>> received = new AtomicReference<>();
+        SearchExecutionGate.NOOP.execute(task, request, listener, received::set);
+        assertSame("a request run directly gets the caller's listener", listener, received.get());
+    }
+
+    public void testRequiresAnAdmission() {
+        expectThrows(NullPointerException.class, () -> new SearchExecutionGate(null));
     }
 
     public void testReleasesPermitBeforeNotifyingSuccess() {
         AtomicInteger releases = new AtomicInteger();
         AtomicInteger releasesWhenNotified = new AtomicInteger(-1);
         AtomicReference<String> response = new AtomicReference<>();
-        SearchExecutionGate.execute(grantingCountedPermit(releases), task, request, ActionListener.<String>wrap(r -> {
+        execute(grantingCountedPermit(releases), task, request, ActionListener.<String>wrap(r -> {
             releasesWhenNotified.set(releases.get());
             response.set(r);
         }, e -> fail("must not fail")), l -> {
@@ -88,16 +88,10 @@ public class SearchExecutionGateTests extends OpenSearchTestCase {
         AtomicInteger releasesWhenNotified = new AtomicInteger(-1);
         IllegalStateException boom = new IllegalStateException("boom");
         AtomicReference<Exception> failure = new AtomicReference<>();
-        SearchExecutionGate.execute(
-            grantingCountedPermit(releases),
-            task,
-            request,
-            ActionListener.<String>wrap(r -> fail("must not succeed"), e -> {
-                releasesWhenNotified.set(releases.get());
-                failure.set(e);
-            }),
-            l -> l.onFailure(boom)
-        );
+        execute(grantingCountedPermit(releases), task, request, ActionListener.<String>wrap(r -> fail("must not succeed"), e -> {
+            releasesWhenNotified.set(releases.get());
+            failure.set(e);
+        }), l -> l.onFailure(boom));
         assertSame(boom, failure.get());
         assertEquals("the permit must be released before the failure is delivered", 1, releasesWhenNotified.get());
         assertEquals("the permit must be released exactly once", 1, releases.get());
@@ -107,7 +101,7 @@ public class SearchExecutionGateTests extends OpenSearchTestCase {
         OpenSearchRejectedExecutionException rejection = new OpenSearchRejectedExecutionException("throttled");
         AtomicBoolean ran = new AtomicBoolean();
         AtomicReference<Exception> failure = new AtomicReference<>();
-        SearchExecutionGate.execute(
+        execute(
             (t, r, l) -> l.onFailure(rejection),
             task,
             request,
@@ -125,7 +119,7 @@ public class SearchExecutionGateTests extends OpenSearchTestCase {
         AtomicReference<ActionListener<Releasable>> pendingAdmission = new AtomicReference<>();
         AtomicReference<ActionListener<String>> admittedListener = new AtomicReference<>();
         AtomicReference<String> response = new AtomicReference<>();
-        SearchExecutionGate.execute((t, r, l) -> pendingAdmission.set(l), task, request, ActionListener.<String>wrap(response::set, e -> {
+        execute((t, r, l) -> pendingAdmission.set(l), task, request, ActionListener.<String>wrap(response::set, e -> {
             throw new AssertionError("unexpected failure", e);
         }), admittedListener::set);
         assertNull("the request must wait for admission", admittedListener.get());
@@ -144,16 +138,10 @@ public class SearchExecutionGateTests extends OpenSearchTestCase {
         IllegalStateException boom = new IllegalStateException("boom");
         AtomicInteger releasesWhenNotified = new AtomicInteger(-1);
         AtomicReference<Exception> failure = new AtomicReference<>();
-        SearchExecutionGate.execute(
-            grantingCountedPermit(releases),
-            task,
-            request,
-            ActionListener.<String>wrap(r -> fail("must not succeed"), e -> {
-                assertTrue("notified more than once", failure.compareAndSet(null, e));
-                releasesWhenNotified.set(releases.get());
-            }),
-            l -> { throw boom; }
-        );
+        execute(grantingCountedPermit(releases), task, request, ActionListener.<String>wrap(r -> fail("must not succeed"), e -> {
+            assertTrue("notified more than once", failure.compareAndSet(null, e));
+            releasesWhenNotified.set(releases.get());
+        }), l -> { throw boom; });
         assertSame(boom, failure.get());
         assertEquals("the permit must be released before the failure is delivered", 1, releasesWhenNotified.get());
         assertEquals("the permit must be released exactly once", 1, releases.get());
@@ -162,7 +150,7 @@ public class SearchExecutionGateTests extends OpenSearchTestCase {
     public void testNotifiesAndReleasesOnceWhenTheRequestThrowsAfterCompleting() {
         AtomicInteger releases = new AtomicInteger();
         AtomicInteger responses = new AtomicInteger();
-        SearchExecutionGate.execute(
+        execute(
             grantingCountedPermit(releases),
             task,
             request,
@@ -180,7 +168,7 @@ public class SearchExecutionGateTests extends OpenSearchTestCase {
         IllegalStateException boom = new IllegalStateException("boom");
         AtomicBoolean ran = new AtomicBoolean();
         AtomicReference<Exception> failure = new AtomicReference<>();
-        SearchExecutionGate.execute(
+        execute(
             (t, r, l) -> { throw boom; },
             task,
             request,
@@ -196,7 +184,7 @@ public class SearchExecutionGateTests extends OpenSearchTestCase {
 
     public void testFailedReleaseDoesNotFailTheRequest() {
         AtomicReference<String> response = new AtomicReference<>();
-        SearchExecutionGate.execute(
+        execute(
             (t, r, l) -> l.onResponse(() -> { throw new IllegalStateException("release failed"); }),
             task,
             request,
@@ -208,8 +196,19 @@ public class SearchExecutionGateTests extends OpenSearchTestCase {
         assertEquals("done", response.get());
     }
 
-    // A gate that admits inline with a permit counting its releases.
-    private static SearchExecutionGate grantingCountedPermit(AtomicInteger releases) {
+    // An admission that admits inline with a permit counting its releases.
+    private static SearchAdmission grantingCountedPermit(AtomicInteger releases) {
         return (t, r, l) -> l.onResponse(releases::incrementAndGet);
+    }
+
+    // Runs body through a gate built on admission.
+    private static <T> void execute(
+        SearchAdmission admission,
+        Task task,
+        ActionRequest request,
+        ActionListener<T> listener,
+        Consumer<ActionListener<T>> body
+    ) {
+        new SearchExecutionGate(admission).execute(task, request, listener, body);
     }
 }

@@ -80,13 +80,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
             workloadGroupTask.setWorkloadGroupId(threadPool.getThreadContext());
         }
         // Scroll pages are admitted too, or ?scroll= would bypass the limit.
-        SearchExecutionGate.execute(
-            searchExecutionGate,
-            task,
-            request,
-            listener,
-            admittedListener -> executeScroll(task, request, admittedListener)
-        );
+        searchExecutionGate.execute(task, request, listener, admittedListener -> executeScroll(task, request, admittedListener));
     }
 
     private void executeScroll(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {

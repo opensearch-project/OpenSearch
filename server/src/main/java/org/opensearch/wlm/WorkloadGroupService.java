@@ -219,7 +219,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
 
     /**
      * Whether any request can currently be throttled: WLM is {@link WlmMode#ENABLED} and some workload group configures
-     * throttling. Backs {@link WorkloadGroupSearchGate#isActive()}: with the feature off, searches skip admission entirely
+     * throttling. Backs {@link WorkloadGroupSearchAdmission#isActive()}: with the feature off, searches skip admission entirely
      * (no admission work or listener wrapping). Like every admission input, a group's throttling takes effect once its
      * cluster state is applied on this node.
      */
@@ -362,7 +362,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
      * ({@code shared_limit}, a cluster-wide overflow pool on top of every node's local allowance) if the local bucket is
      * full. Only shared admission can complete asynchronously. A counted parent exempts nested searches at both tiers.
      * MONITOR records would-be throttling without rejecting; SOFT and ENFORCED reject at the effective limit. Search actions
-     * reach this through {@link SearchExecutionGate#execute} ({@link WorkloadGroupSearchGate}),
+     * reach this through {@link SearchExecutionGate#execute} ({@link WorkloadGroupSearchAdmission}),
      * which owns releasing the permit.
      *
      * @param task the search task to mark as counted when admitted against a throttle
