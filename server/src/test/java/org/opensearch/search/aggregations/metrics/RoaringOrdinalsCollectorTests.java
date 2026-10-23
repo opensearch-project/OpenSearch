@@ -57,6 +57,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.roaringbitmap.RoaringBitmap;
+
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -278,6 +280,32 @@ public class RoaringOrdinalsCollectorTests extends AggregatorTestCase {
         assertAccounting(bigArrays, 1, 50_000, 100_000);
         assertAccounting(bigArrays, 2_000, 20, 1_000_000);
         assertAccounting(bigArrays, 500, 40, Integer.MAX_VALUE);
+    }
+
+    /**
+     * A value that opens a container costs ~25 times more than one added to an existing container. A bitmap that turns from
+     * dense to sparse must still be accounted within 2x, both while its value count doubles and once it is re-measured every
+     * {@value BucketOrdinalBitmaps#MAX_VALUES_BETWEEN_MEASUREMENTS} values.
+     */
+    public void testBitmapAccountingWhenValuesOpenNewContainers() {
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        for (int denseValues : new int[] { 2048, 5000 }) {
+            AtomicLong breaker = new AtomicLong();
+            try (BucketOrdinalBitmaps bitmaps = new BucketOrdinalBitmaps(bigArrays, breaker::addAndGet)) {
+                RoaringBitmap bitmap = bitmaps.getOrCreate(0);
+                for (int ord = 0; ord < denseValues; ord++) {
+                    bitmaps.add(0, bitmap, ord);
+                }
+                for (int container = 1; container < 3000; container++) {
+                    bitmaps.add(0, bitmap, container << 16);
+                    long actual = BucketOrdinalBitmaps.ramBytesUsed(bitmap);
+                    // an array container that turned into a bitmap container since the last measurement is a few bytes smaller
+                    assertThat("after " + bitmap.getCardinality() + " values", bitmaps.bytesUsed(), lessThanOrEqualTo(actual + 16));
+                    assertThat("after " + bitmap.getCardinality() + " values", bitmaps.bytesUsed(), greaterThanOrEqualTo(actual / 2));
+                }
+            }
+            assertEquals("breaker must be released", 0, breaker.get());
+        }
     }
 
     private void assertAccounting(BigArrays bigArrays, int buckets, int valuesPerBucket, int maxOrd) {

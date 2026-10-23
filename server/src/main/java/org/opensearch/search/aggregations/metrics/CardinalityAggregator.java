@@ -773,9 +773,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
      * circuit breaker as the bitmaps grow.
      * <p>
      * {@link RoaringBitmap#getSizeInBytes()} leaves out object headers, which dominate small bitmaps, so a fixed overhead per
-     * bitmap and per container is added on top. A bitmap is re-measured whenever its number of values doubles, and every
-     * {@value #MAX_VALUES_BETWEEN_MEASUREMENTS} values once it is large, which keeps the estimate within a small factor of the
-     * real size at an amortized constant cost per value.
+     * bitmap and per container is added on top. A value that opens a new container is charged right away. Values added to
+     * existing containers cost at most 2 bytes each and are picked up by re-measuring the bitmap whenever its number of values
+     * doubles, and every {@value #MAX_VALUES_BETWEEN_MEASUREMENTS} values once it is large. This keeps the estimate within 2x of
+     * the bitmap's size at an amortized constant cost per value.
      *
      * @opensearch.internal
      */
@@ -784,6 +785,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             .shallowSizeOfInstance(RoaringArray.class) + 2L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
         static final long CONTAINER_OVERHEAD_BYTES = RamUsageEstimator.shallowSizeOfInstance(ArrayContainer.class)
             + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+        // A new container holding one value adds 8 bytes to RoaringBitmap#getSizeInBytes: its key, header and the value
+        static final long NEW_CONTAINER_BYTES = CONTAINER_OVERHEAD_BYTES + 8;
         static final int MAX_VALUES_BETWEEN_MEASUREMENTS = 4096;
         private static final long BREAKER_FLUSH_BYTES = 64 * 1024;
 
@@ -834,8 +837,13 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
          * Adds {@code ord} to {@code bitmap}, which must be the bitmap of {@code bucket}.
          */
         void add(long bucket, RoaringBitmap bitmap, int ord) {
-            if (bitmap.checkedAdd(ord) && shouldMeasure(valueCounts.increment(bucket, 1))) {
-                account(bucket, bitmap);
+            final int containers = bitmap.getContainerCount();
+            if (bitmap.checkedAdd(ord)) {
+                if (shouldMeasure(valueCounts.increment(bucket, 1))) {
+                    account(bucket, bitmap);
+                } else if (bitmap.getContainerCount() != containers) {
+                    charge(bucket, NEW_CONTAINER_BYTES);
+                }
             }
         }
 
@@ -854,10 +862,14 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         private void account(long bucket, RoaringBitmap bitmap) {
-            final long bytes = ramBytesUsed(bitmap);
-            totalBytes += bytes - accountedBytes.get(bucket);
-            accountedBytes.set(bucket, bytes);
-            // Bitmaps only grow, and close() releases whatever was charged, so only growth needs flushing.
+            charge(bucket, ramBytesUsed(bitmap) - accountedBytes.get(bucket));
+        }
+
+        private void charge(long bucket, long bytes) {
+            accountedBytes.increment(bucket, bytes);
+            totalBytes += bytes;
+            // The estimate only shrinks by a few bytes when an array container turns into a bitmap container, and close()
+            // releases whatever was charged, so only growth needs flushing.
             if (totalBytes - breakerBytes >= BREAKER_FLUSH_BYTES) {
                 flushBreaker();
             }
