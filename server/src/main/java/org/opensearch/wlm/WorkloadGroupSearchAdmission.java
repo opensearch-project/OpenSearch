@@ -9,7 +9,7 @@
 package org.opensearch.wlm;
 
 import org.opensearch.action.ActionRequest;
-import org.opensearch.action.search.SearchExecutionGate;
+import org.opensearch.action.search.SearchAdmission;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lease.Releasable;
@@ -22,17 +22,17 @@ import java.util.function.BooleanSupplier;
 
 /**
  * Admits searches and scroll pages against workload group throttles, so the search actions depend only on the core
- * {@link SearchExecutionGate}. Active only while {@link WorkloadGroupService#isThrottlingActive()}.
+ * {@link SearchAdmission}. Active only while {@link WorkloadGroupService#isThrottlingActive()}.
  *
  * @opensearch.internal
  */
-public final class WorkloadGroupSearchGate implements SearchExecutionGate {
+public final class WorkloadGroupSearchAdmission implements SearchAdmission {
 
     private final WorkloadGroupService workloadGroupService;
     private final ClusterService clusterService;
     private final TaskManager taskManager;
 
-    public WorkloadGroupSearchGate(WorkloadGroupService workloadGroupService, ClusterService clusterService, TaskManager taskManager) {
+    public WorkloadGroupSearchAdmission(WorkloadGroupService workloadGroupService, ClusterService clusterService, TaskManager taskManager) {
         this.workloadGroupService = workloadGroupService;
         this.clusterService = clusterService;
         this.taskManager = taskManager;
@@ -49,7 +49,7 @@ public final class WorkloadGroupSearchGate implements SearchExecutionGate {
             listener.onResponse(NOOP_PERMIT);
             return;
         }
-        // The service reports "nothing to charge" as a null permit; the gate contract wants a non-null one.
+        // The service reports "nothing to charge" as a null permit; the admission contract wants a non-null one.
         final ActionListener<Releasable> permitListener = ActionListener.delegateFailure(
             listener,
             (l, permit) -> l.onResponse(permit == null ? NOOP_PERMIT : permit)

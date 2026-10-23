@@ -1198,7 +1198,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
     public void testUnexpectedAdmissionExceptionTakesTheListenerPath() {
         IllegalStateException boom = new IllegalStateException("boom");
         AtomicReference<Exception> failure = new AtomicReference<>();
-        newSearchAction((task, request, listener) -> { throw boom; }).executeRequest(
+        newSearchAction(new SearchExecutionGate((task, request, listener) -> { throw boom; })).executeRequest(
             newSearchTask(),
             new SearchRequest("index"),
             null,
@@ -1211,7 +1211,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         IllegalStateException boom = new IllegalStateException("boom");
         AtomicBoolean admitted = new AtomicBoolean();
         AtomicReference<Exception> failure = new AtomicReference<>();
-        newSearchAction(new SearchExecutionGate() {
+        newSearchAction(new SearchExecutionGate(new SearchAdmission() {
             @Override
             public boolean isActive() {
                 return false;
@@ -1222,13 +1222,13 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 admitted.set(true);
                 throw boom;
             }
-        }).executeRequest(
+        })).executeRequest(
             newSearchTask(),
             new SearchRequest("index"),
             null,
             ActionListener.wrap(r -> fail("must not succeed"), failure::set)
         );
-        assertFalse("an inactive gate must not be consulted", admitted.get());
+        assertFalse("an inactive admission must not be consulted", admitted.get());
         // The search itself still ran; with these mocks it fails past admission, never with the admission exception.
         assertNotNull(failure.get());
         assertNotSame(boom, failure.get());

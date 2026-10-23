@@ -13,7 +13,7 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.search.MultiSearchAction;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.SearchAction;
-import org.opensearch.action.search.SearchExecutionGate;
+import org.opensearch.action.search.SearchAdmission;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.search.SearchTask;
@@ -41,13 +41,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-public class WorkloadGroupSearchGateTests extends OpenSearchTestCase {
+public class WorkloadGroupSearchAdmissionTests extends OpenSearchTestCase {
 
     private static final long PARENT_ID = 7;
 
     private WorkloadGroupService workloadGroupService;
     private TaskManager taskManager;
-    private WorkloadGroupSearchGate gate;
+    private WorkloadGroupSearchAdmission admission;
     // The arguments of the last acquireThrottlePermit call.
     private final AtomicReference<BooleanSupplier> parentAlreadyCounted = new AtomicReference<>();
     private final AtomicReference<ActionListener<Releasable>> serviceListener = new AtomicReference<>();
@@ -66,26 +66,26 @@ public class WorkloadGroupSearchGateTests extends OpenSearchTestCase {
             new DiscoveryNode("local", buildNewFakeTransportAddress(), Collections.emptyMap(), Collections.emptySet(), Version.CURRENT)
         );
         taskManager = mock(TaskManager.class);
-        gate = new WorkloadGroupSearchGate(workloadGroupService, clusterService, taskManager);
+        admission = new WorkloadGroupSearchAdmission(workloadGroupService, clusterService, taskManager);
     }
 
     public void testIsActiveFollowsWhetherThrottlingIsActive() {
         when(workloadGroupService.isThrottlingActive()).thenReturn(true);
-        assertTrue(gate.isActive());
+        assertTrue(admission.isActive());
         when(workloadGroupService.isThrottlingActive()).thenReturn(false);
-        assertFalse(gate.isActive());
+        assertFalse(admission.isActive());
     }
 
     public void testAdmitsATaskOutsideWorkloadManagementWithoutACharge() {
         Task task = new Task(1, "transport", SearchAction.NAME, "test", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
-        assertSame(SearchExecutionGate.NOOP_PERMIT, admit(task, new SearchRequest()).get());
+        assertSame(SearchAdmission.NOOP_PERMIT, admit(task, new SearchRequest()).get());
         verify(workloadGroupService, never()).acquireThrottlePermit(any(), any(), any());
     }
 
     public void testNoChargeBecomesTheNoopPermit() {
         AtomicReference<Releasable> permit = admit(searchTask(TaskId.EMPTY_TASK_ID), new SearchRequest());
         serviceListener.get().onResponse(null);
-        assertSame(SearchExecutionGate.NOOP_PERMIT, permit.get());
+        assertSame(SearchAdmission.NOOP_PERMIT, permit.get());
     }
 
     public void testPassesThroughAPermitAndARejection() {
@@ -96,7 +96,11 @@ public class WorkloadGroupSearchGateTests extends OpenSearchTestCase {
 
         OpenSearchRejectedExecutionException rejection = new OpenSearchRejectedExecutionException("throttled");
         AtomicReference<Exception> failure = new AtomicReference<>();
-        gate.admit(searchTask(TaskId.EMPTY_TASK_ID), new SearchRequest(), ActionListener.wrap(p -> fail("must not admit"), failure::set));
+        admission.admit(
+            searchTask(TaskId.EMPTY_TASK_ID),
+            new SearchRequest(),
+            ActionListener.wrap(p -> fail("must not admit"), failure::set)
+        );
         serviceListener.get().onFailure(rejection);
         assertSame(rejection, failure.get());
     }
@@ -136,7 +140,7 @@ public class WorkloadGroupSearchGateTests extends OpenSearchTestCase {
 
     public void testLooksUpTheParentOnlyWhenAsked() {
         admit(searchTask(new TaskId("local", PARENT_ID)), new SearchRequest());
-        // The service asks only once a throttle applies; until then the gate must not touch the task manager.
+        // The service asks only once a throttle applies; until then the admission must not touch the task manager.
         verifyNoInteractions(taskManager);
         parentAlreadyCounted.get().getAsBoolean();
         verify(taskManager).getTask(PARENT_ID);
@@ -156,7 +160,7 @@ public class WorkloadGroupSearchGateTests extends OpenSearchTestCase {
         parentAlreadyCounted.set(null);
         serviceListener.set(null);
         AtomicReference<Releasable> permit = new AtomicReference<>();
-        gate.admit(task, request, ActionListener.wrap(permit::set, e -> { throw new AssertionError("unexpected failure", e); }));
+        admission.admit(task, request, ActionListener.wrap(permit::set, e -> { throw new AssertionError("unexpected failure", e); }));
         return permit;
     }
 

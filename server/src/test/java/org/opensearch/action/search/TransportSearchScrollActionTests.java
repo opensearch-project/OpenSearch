@@ -32,15 +32,19 @@ public class TransportSearchScrollActionTests extends OpenSearchTestCase {
 
     public void testUnexpectedAdmissionExceptionTakesTheListenerPath() {
         IllegalStateException boom = new IllegalStateException("boom");
-        assertSame("an exception thrown by admission must be delivered to the listener", boom, executeScroll((task, request, listener) -> {
-            throw boom;
-        }));
+        assertSame(
+            "an exception thrown by admission must be delivered to the listener",
+            boom,
+            executeScroll(new SearchExecutionGate((task, request, listener) -> {
+                throw boom;
+            }))
+        );
     }
 
     public void testScrollSkipsAdmissionWhileGateIsInactive() {
         IllegalStateException boom = new IllegalStateException("boom");
         AtomicBoolean admitted = new AtomicBoolean();
-        Exception failure = executeScroll(new SearchExecutionGate() {
+        Exception failure = executeScroll(new SearchExecutionGate(new SearchAdmission() {
             @Override
             public boolean isActive() {
                 return false;
@@ -51,8 +55,8 @@ public class TransportSearchScrollActionTests extends OpenSearchTestCase {
                 admitted.set(true);
                 throw boom;
             }
-        });
-        assertFalse("an inactive gate must not be consulted", admitted.get());
+        }));
+        assertFalse("an inactive admission must not be consulted", admitted.get());
         // The page itself still ran: the invalid scroll id fails past admission, never with the admission exception.
         assertTrue(failure instanceof IllegalArgumentException);
     }
