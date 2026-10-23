@@ -35,6 +35,7 @@ package org.opensearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.Version;
+import org.opensearch.action.ActionRequest;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.OriginalIndicesTests;
@@ -59,6 +60,7 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -94,6 +96,7 @@ import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.sort.SortBuilders;
+import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.telemetry.tracing.Tracer;
@@ -114,7 +117,6 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
-import org.opensearch.wlm.WorkloadGroupService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -127,6 +129,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -137,12 +140,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.awaitLatch;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportSearchActionTests extends OpenSearchTestCase {
@@ -1198,14 +1196,9 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
     }
 
     public void testUnexpectedAdmissionExceptionTakesTheListenerPath() {
-        WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
-        when(workloadGroupService.isThrottlingActive()).thenReturn(true);
         IllegalStateException boom = new IllegalStateException("boom");
-        doThrow(boom).when(workloadGroupService).acquireThrottlePermit(any(), any(), any());
-        // The real helper runs over the stubbed admission, so the exception reaches it as it would in production.
-        doCallRealMethod().when(workloadGroupService).executeWithThrottlePermit(any(), any(), any(), any());
         AtomicReference<Exception> failure = new AtomicReference<>();
-        newSearchAction(workloadGroupService).executeRequest(
+        newSearchAction((task, request, listener) -> { throw boom; }).executeRequest(
             newSearchTask(),
             new SearchRequest("index"),
             null,
@@ -1214,25 +1207,34 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         assertSame("an exception thrown by admission must be delivered to the listener", boom, failure.get());
     }
 
-    public void testSearchSkipsAdmissionWhileThrottlingIsInactive() {
-        WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
-        when(workloadGroupService.isThrottlingActive()).thenReturn(false);
+    public void testSearchSkipsAdmissionWhileGateIsInactive() {
         IllegalStateException boom = new IllegalStateException("boom");
-        doThrow(boom).when(workloadGroupService).executeWithThrottlePermit(any(), any(), any(), any());
+        AtomicBoolean admitted = new AtomicBoolean();
         AtomicReference<Exception> failure = new AtomicReference<>();
-        newSearchAction(workloadGroupService).executeRequest(
+        newSearchAction(new SearchExecutionGate() {
+            @Override
+            public boolean isActive() {
+                return false;
+            }
+
+            @Override
+            public void admit(Task task, ActionRequest request, ActionListener<Releasable> listener) {
+                admitted.set(true);
+                throw boom;
+            }
+        }).executeRequest(
             newSearchTask(),
             new SearchRequest("index"),
             null,
             ActionListener.wrap(r -> fail("must not succeed"), failure::set)
         );
-        verify(workloadGroupService, never()).executeWithThrottlePermit(any(), any(), any(), any());
+        assertFalse("an inactive gate must not be consulted", admitted.get());
         // The search itself still ran; with these mocks it fails past admission, never with the admission exception.
         assertNotNull(failure.get());
         assertNotSame(boom, failure.get());
     }
 
-    private TransportSearchAction newSearchAction(WorkloadGroupService workloadGroupService) {
+    private TransportSearchAction newSearchAction(SearchExecutionGate searchExecutionGate) {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -1256,7 +1258,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             NoopTracer.INSTANCE,
             mock(TaskResourceTrackingService.class),
             mock(IndicesService.class),
-            workloadGroupService
+            searchExecutionGate
         );
     }
 
@@ -1326,7 +1328,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 mock(Tracer.class),
                 mock(TaskResourceTrackingService.class),
                 mock(IndicesService.class),
-                mock(WorkloadGroupService.class)
+                SearchExecutionGate.NOOP
             );
 
             // Actual test cases start here:

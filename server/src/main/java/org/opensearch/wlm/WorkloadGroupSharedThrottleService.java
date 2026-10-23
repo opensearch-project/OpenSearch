@@ -714,7 +714,9 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         return Releasables.releaseOnce(() -> tracker.release(bucketKey, permitId));
     }
 
-    // Closing does not wait for the owner to apply the release (see WorkloadGroupService#releaseThrottlePermitBeforeCompletion).
+    // Closing does not wait for the owner to apply the release. SearchExecutionGate#execute closes the permit before
+    // notifying, so a follow-up acquire (an _msearch's next sub-search) can reach the owner first and see the bucket full,
+    // a rare false 429 under saturation. Accepted.
     private Releasable releaseRemote(DiscoveryNode owner, String bucketKey, String permitId) {
         return Releasables.releaseOnce(() -> sendRelease(owner, bucketKey, permitId));
     }

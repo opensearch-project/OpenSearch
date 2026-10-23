@@ -11,12 +11,12 @@ package org.opensearch.wlm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceNotFoundException;
+import org.opensearch.action.search.SearchExecutionGate;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WorkloadGroup;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
@@ -219,8 +219,8 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
 
     /**
      * Whether any request can currently be throttled: WLM is {@link WlmMode#ENABLED} and some workload group configures
-     * throttling. Search actions check this before {@link #executeWithThrottlePermit}, so with the feature off admission
-     * adds no per-request work or allocation. Like every admission input, a group's throttling takes effect once its
+     * throttling. Backs {@link WorkloadGroupSearchGate#isActive()}: with the feature off, searches skip admission entirely
+     * (no admission work or listener wrapping). Like every admission input, a group's throttling takes effect once its
      * cluster state is applied on this node.
      */
     public boolean isThrottlingActive() {
@@ -361,8 +361,9 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
      * Admits a search against the node-local allowance ({@code node_limit}), then the shared allowance
      * ({@code shared_limit}, a cluster-wide overflow pool on top of every node's local allowance) if the local bucket is
      * full. Only shared admission can complete asynchronously. A counted parent exempts nested searches at both tiers.
-     * MONITOR records would-be throttling without rejecting; SOFT and ENFORCED reject at the effective limit. Callers
-     * normally go through {@link #executeWithThrottlePermit}, which owns releasing the permit.
+     * MONITOR records would-be throttling without rejecting; SOFT and ENFORCED reject at the effective limit. Search actions
+     * reach this through {@link SearchExecutionGate#execute} ({@link WorkloadGroupSearchGate}),
+     * which owns releasing the permit.
      *
      * @param task the search task to mark as counted when admitted against a throttle
      * @param parentAlreadyCounted supplies whether this task inherits an existing throttle charge
@@ -443,70 +444,6 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
                 deliverThrottleBreach(plan, true, task, listener);
             }
         }));
-    }
-
-    /**
-     * Admits {@code task} (see {@link #acquireThrottlePermit(WorkloadGroupTask, BooleanSupplier, ActionListener)}), then runs
-     * {@code admitted} with a listener that releases the permit, if any, before notifying {@code listener}. A throttle
-     * rejection, or an exception thrown by admission or by {@code admitted} before it completes its listener, fails
-     * {@code listener} instead. {@code admitted} may run inline or on the thread that completes an asynchronous
-     * shared-tier admission. Callers skip it entirely while {@link #isThrottlingActive()} is false.
-     *
-     * @param task                 the request's task, admitted against its workload group's throttle
-     * @param parentAlreadyCounted supplies whether this task inherits an existing throttle charge
-     * @param listener             notified once with the request's outcome, after its permit has been released
-     * @param admitted             runs the request once admitted, completing the listener it is given
-     */
-    public <T> void executeWithThrottlePermit(
-        WorkloadGroupTask task,
-        BooleanSupplier parentAlreadyCounted,
-        ActionListener<T> listener,
-        CheckedConsumer<ActionListener<T>, Exception> admitted
-    ) {
-        final ActionListener<Releasable> admissionListener = ActionListener.wrap(throttlePermit -> {
-            // notifyOnce: an exception escaping admitted must fail (and release) through this listener, which must never
-            // notify or release twice. The admission wrap's own onFailure would skip the release.
-            final ActionListener<T> admittedListener = ActionListener.notifyOnce(
-                throttlePermit == null ? listener : releaseThrottlePermitBeforeCompletion(listener, throttlePermit)
-            );
-            try {
-                admitted.accept(admittedListener);
-            } catch (Exception e) {
-                admittedListener.onFailure(e);
-            }
-        }, listener::onFailure);
-        try {
-            acquireThrottlePermit(task, parentAlreadyCounted, admissionListener);
-        } catch (Exception e) {
-            // Admission reports outcomes through its listener; anything thrown unexpectedly still reaches the caller's
-            // listener rather than escaping to the caller.
-            listener.onFailure(e);
-        }
-    }
-
-    /**
-     * Wraps {@code listener} so the request's throttle permit is released <em>before</em> the listener is notified: a
-     * completion listener may synchronously start new work in the same bucket (an {@code _msearch} dispatches its next
-     * sub-search from the previous one's response handler), so releasing after would spuriously 429 a request the
-     * coordinator deliberately serialized. Accepted: for a remote shared permit this only sends the fire-and-forget
-     * RELEASE, so a follow-up acquire can reach the owner before that release and see the bucket full, a rare false
-     * 429 under saturation. The close is guarded so a failed release can never turn a successful search into an error.
-     *
-     * @param listener       the listener to notify once the permit has been released (or, if remote, its release sent)
-     * @param throttlePermit the permit acquired by
-     *                       {@link #acquireThrottlePermit(WorkloadGroupTask, BooleanSupplier, ActionListener)}
-     */
-    public static <T> ActionListener<T> releaseThrottlePermitBeforeCompletion(
-        final ActionListener<T> listener,
-        final Releasable throttlePermit
-    ) {
-        return ActionListener.runBefore(listener, () -> {
-            try {
-                throttlePermit.close();
-            } catch (Exception e) {
-                logger.warn("Failed to release WLM throttle permit", e);
-            }
-        });
     }
 
     private void deliverThrottleBreach(

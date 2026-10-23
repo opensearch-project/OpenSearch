@@ -45,6 +45,7 @@ import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
+import org.opensearch.action.search.SearchExecutionGate;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.SearchRequestOperationsCompositeListenerFactory;
@@ -322,6 +323,7 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
 import org.opensearch.watcher.ResourceWatcherService;
+import org.opensearch.wlm.WorkloadGroupSearchGate;
 import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupSharedThrottleService;
 import org.opensearch.wlm.WorkloadGroupsStateAccessor;
@@ -1500,6 +1502,12 @@ public class Node implements Closeable {
                 transportService
             );
             workloadGroupService.setSharedThrottleService(workloadGroupSharedThrottleService);
+            // Admits searches and scroll pages against WLM throttles; the search actions depend only on the core interface.
+            final SearchExecutionGate searchExecutionGate = new WorkloadGroupSearchGate(
+                workloadGroupService,
+                clusterService,
+                transportService.getTaskManager()
+            );
 
             TopNSearchTasksLogger taskConsumer = new TopNSearchTasksLogger(settings, settingsModule.getClusterSettings());
             transportService.getTaskManager().registerTaskResourceConsumer(taskConsumer);
@@ -1783,6 +1791,7 @@ public class Node implements Closeable {
                 b.bind(SearchBackpressureService.class).toInstance(searchBackpressureService);
                 b.bind(WorkloadGroupService.class).toInstance(workloadGroupService);
                 b.bind(WorkloadGroupSharedThrottleService.class).toInstance(workloadGroupSharedThrottleService);
+                b.bind(SearchExecutionGate.class).toInstance(searchExecutionGate);
                 b.bind(AdmissionControlService.class).toInstance(admissionControlService);
                 b.bind(UsageService.class).toInstance(usageService);
                 b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());

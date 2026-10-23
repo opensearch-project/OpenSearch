@@ -8,54 +8,57 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.action.ActionRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
-import org.opensearch.wlm.WorkloadGroupService;
 
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class TransportSearchScrollActionTests extends OpenSearchTestCase {
 
     public void testUnexpectedAdmissionExceptionTakesTheListenerPath() {
-        WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
-        when(workloadGroupService.isThrottlingActive()).thenReturn(true);
         IllegalStateException boom = new IllegalStateException("boom");
-        doThrow(boom).when(workloadGroupService).acquireThrottlePermit(any(), any(), any());
-        // The real helper runs over the stubbed admission, so the exception reaches it as it would in production.
-        doCallRealMethod().when(workloadGroupService).executeWithThrottlePermit(any(), any(), any(), any());
-        assertSame("an exception thrown by admission must be delivered to the listener", boom, executeScroll(workloadGroupService));
+        assertSame("an exception thrown by admission must be delivered to the listener", boom, executeScroll((task, request, listener) -> {
+            throw boom;
+        }));
     }
 
-    public void testScrollSkipsAdmissionWhileThrottlingIsInactive() {
-        WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
-        when(workloadGroupService.isThrottlingActive()).thenReturn(false);
+    public void testScrollSkipsAdmissionWhileGateIsInactive() {
         IllegalStateException boom = new IllegalStateException("boom");
-        doThrow(boom).when(workloadGroupService).executeWithThrottlePermit(any(), any(), any(), any());
-        Exception failure = executeScroll(workloadGroupService);
-        verify(workloadGroupService, never()).executeWithThrottlePermit(any(), any(), any(), any());
+        AtomicBoolean admitted = new AtomicBoolean();
+        Exception failure = executeScroll(new SearchExecutionGate() {
+            @Override
+            public boolean isActive() {
+                return false;
+            }
+
+            @Override
+            public void admit(Task task, ActionRequest request, ActionListener<Releasable> listener) {
+                admitted.set(true);
+                throw boom;
+            }
+        });
+        assertFalse("an inactive gate must not be consulted", admitted.get());
         // The page itself still ran: the invalid scroll id fails past admission, never with the admission exception.
         assertTrue(failure instanceof IllegalArgumentException);
     }
 
     // Runs one scroll page with an invalid scroll id and returns the failure it completes with.
-    private Exception executeScroll(WorkloadGroupService workloadGroupService) {
+    private Exception executeScroll(SearchExecutionGate searchExecutionGate) {
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             TransportSearchScrollAction action = new TransportSearchScrollAction(
@@ -65,7 +68,7 @@ public class TransportSearchScrollActionTests extends OpenSearchTestCase {
                 mock(SearchTransportService.class),
                 new SearchPhaseController(new NamedWriteableRegistry(Collections.emptyList()), (searchSourceBuilder) -> null),
                 threadPool,
-                workloadGroupService
+                searchExecutionGate
             );
             SearchTask task = new SearchTask(
                 1,
