@@ -254,6 +254,10 @@ public class RestSearchAction extends BaseRestHandler {
         }
 
         searchRequest.setCancelAfterTimeInterval(request.paramAsTime("cancel_after_time_interval", null));
+
+        if (request.hasParam("shard_info")) {
+            searchRequest.shardInfo(request.paramAsBoolean("shard_info", false));
+        }
     }
 
     /**
