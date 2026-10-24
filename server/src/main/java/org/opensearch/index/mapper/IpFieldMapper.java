@@ -121,9 +121,24 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         }
 
         public Builder(String name, boolean ignoreMalformedByDefault, Version indexCreatedVersion, Settings settings) {
+            this(name, ignoreMalformedByDefault, indexCreatedVersion, settings, List.of());
+        }
+
+        /**
+         * Creates a builder that also carries the mapping parameters contributed by the index's data-format plugin,
+         * so they are parsed, serialized and merged alongside the core parameters.
+         */
+        public Builder(
+            String name,
+            boolean ignoreMalformedByDefault,
+            Version indexCreatedVersion,
+            Settings settings,
+            List<Parameter<?>> pluginParameters
+        ) {
             super(name);
             this.ignoreMalformedByDefault = ignoreMalformedByDefault;
             this.indexCreatedVersion = indexCreatedVersion;
+            setPluginMappingParameters(pluginParameters);
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
@@ -160,11 +175,14 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta);
+            List<Parameter<?>> parameters = new ArrayList<>(Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta));
+            parameters.addAll(pluginMappingParameters());
+            return parameters;
         }
 
         @Override
         public IpFieldMapper build(BuilderContext context) {
+            applyPluginParameterEffects();
             return new IpFieldMapper(
                 name,
                 new IpFieldType(
@@ -190,7 +208,10 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
-        return new Builder(n, ignoreMalformedByDefault, c.indexVersionCreated(), c.getSettings());
+        List<Parameter<?>> pluginParameters = c.dataFormatRegistry() == null || c.mapperService() == null
+            ? List.of()
+            : c.dataFormatRegistry().getPluginMappingParameters(CONTENT_TYPE, c.mapperService().getIndexSettings());
+        return new Builder(n, ignoreMalformedByDefault, c.indexVersionCreated(), c.getSettings(), pluginParameters);
     });
 
     @Override
@@ -617,6 +638,8 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
     private final boolean ignoreMalformedByDefault;
     private final Version indexCreatedVersion;
+    private final Map<String, Object> mappingPluginParameterValues;
+    private final List<Parameter<?>> mappingPluginParameters;
 
     private IpFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedFieldType, multiFields, copyTo, builder.isPluggableDataFormat());
@@ -628,6 +651,13 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         this.nullValue = builder.parseNullValue();
         this.nullValueAsString = builder.nullValue.getValue();
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.mappingPluginParameterValues = builder.pluginMappingParameterValues();
+        this.mappingPluginParameters = builder.pluginMappingParameters();
+    }
+
+    @Override
+    public Map<String, Object> mappingPluginParameterValues() {
+        return mappingPluginParameterValues;
     }
 
     @Override
@@ -741,6 +771,6 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), ignoreMalformedByDefault, indexCreatedVersion).init(this);
+        return new Builder(simpleName(), ignoreMalformedByDefault, indexCreatedVersion, Settings.EMPTY, mappingPluginParameters).init(this);
     }
 }
