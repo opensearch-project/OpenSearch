@@ -209,7 +209,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
-        if (original instanceof ApproximateScoreQuery approximateScoreQuery) {
+        if (original instanceof ApproximateScoreQuery approximateScoreQuery && searchContext != null && original == searchContext.query()) {
             approximateScoreQuery.setContext(searchContext);
         }
         if (profiler != null) {
