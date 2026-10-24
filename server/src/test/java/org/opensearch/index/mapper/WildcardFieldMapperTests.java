@@ -24,10 +24,18 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -40,17 +48,22 @@ import org.opensearch.index.analysis.LowercaseNormalizer;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
+import org.opensearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 import static org.opensearch.index.mapper.FieldTypeTestCase.fetchSourceValue;
 import static org.opensearch.index.mapper.KeywordFieldMapper.normalizeValue;
+import static org.mockito.Mockito.when;
 
 public class WildcardFieldMapperTests extends MapperTestCase {
 
@@ -368,6 +381,246 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                 assertEquals("{\"" + FIELD_NAME + "\":" + "\"" + value + "\"" + "}", source);
             }
         }
+    }
+
+    public void testRequiredTermsQueryMatchesLongWildcard() throws IOException {
+        String value = longValueExceedingClauseLimit();
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, value)));
+        ParsedDocument upperCaseDoc = mapperService.documentMapper()
+            .parse(source(b -> b.field(FIELD_NAME, value.toUpperCase(Locale.ROOT))));
+        ParsedDocument suffixDoc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, value + "suffix")));
+        QueryShardContext context = createQueryShardContext(mapperService);
+        when(context.sourcePath(FIELD_NAME)).thenReturn(Set.of(FIELD_NAME));
+        MappedFieldType fieldType = mapperService.fieldType(FIELD_NAME);
+        Query exactQuery = fieldType.wildcardQuery(value, null, false, context);
+        Query prefixQuery = fieldType.wildcardQuery(value + "*", null, false, context);
+
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(doc.rootDoc());
+            iw.addDocument(upperCaseDoc.rootDoc());
+            iw.addDocument(suffixDoc.rootDoc());
+        }, reader -> {
+            IndexSearcher indexSearcher = new IndexSearcher(reader);
+            assertEquals(1, indexSearcher.count(exactQuery));
+            assertEquals(2, indexSearcher.count(prefixQuery));
+        });
+    }
+
+    public void testRequiredTermsQueryMatchesLongWildcardCaseInsensitive() throws IOException {
+        String value = longValueExceedingClauseLimit();
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, value)));
+        ParsedDocument upperCaseDoc = mapperService.documentMapper()
+            .parse(source(b -> b.field(FIELD_NAME, value.toUpperCase(Locale.ROOT))));
+        ParsedDocument suffixDoc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, value + "suffix")));
+        QueryShardContext context = createQueryShardContext(mapperService);
+        when(context.sourcePath(FIELD_NAME)).thenReturn(Set.of(FIELD_NAME));
+        MappedFieldType fieldType = mapperService.fieldType(FIELD_NAME);
+        Query exactQuery = fieldType.wildcardQuery(value, null, true, context);
+        Query prefixQuery = fieldType.wildcardQuery(value + "*", null, true, context);
+
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(doc.rootDoc());
+            iw.addDocument(upperCaseDoc.rootDoc());
+            iw.addDocument(suffixDoc.rootDoc());
+        }, reader -> {
+            IndexSearcher indexSearcher = new IndexSearcher(reader);
+            assertEquals(2, indexSearcher.count(exactQuery));
+            assertEquals(3, indexSearcher.count(prefixQuery));
+        });
+    }
+
+    public void testRequiredTermsQueryMatchesLongRegexp() throws IOException {
+        String value = longValueExceedingClauseLimit();
+        Set<String> requiredTerms = WildcardFieldMapper.WildcardFieldType.getRequiredNGrams("*" + value + "*", true);
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, value)));
+        ParsedDocument upperCaseDoc = mapperService.documentMapper()
+            .parse(source(b -> b.field(FIELD_NAME, value.toUpperCase(Locale.ROOT))));
+        ParsedDocument suffixDoc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, value + "suffix")));
+        QueryShardContext context = createQueryShardContext(mapperService);
+        when(context.sourcePath(FIELD_NAME)).thenReturn(Set.of(FIELD_NAME));
+        Query query = mapperService.fieldType(FIELD_NAME).regexpQuery(value, 0, 0, 10_000, null, context);
+        Query approximation = new WildcardFieldMapper.RequiredTermsQuery(FIELD_NAME, requiredTerms, false);
+
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(doc.rootDoc());
+            iw.addDocument(upperCaseDoc.rootDoc());
+            iw.addDocument(suffixDoc.rootDoc());
+        }, reader -> {
+            IndexSearcher indexSearcher = new IndexSearcher(reader);
+            // The suffix document contains every required trigram but cannot match the full regexp.
+            assertEquals(2, indexSearcher.count(approximation));
+            assertEquals(1, indexSearcher.count(query));
+        });
+    }
+
+    public void testRequiredTermsQueryMatchesLongRegexpCaseInsensitive() throws IOException {
+        String value = longValueExceedingClauseLimit();
+        Set<String> requiredTerms = WildcardFieldMapper.WildcardFieldType.getRequiredNGrams("*" + value + "*", true);
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, value)));
+        ParsedDocument upperCaseDoc = mapperService.documentMapper()
+            .parse(source(b -> b.field(FIELD_NAME, value.toUpperCase(Locale.ROOT))));
+        ParsedDocument suffixDoc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, value + "suffix")));
+        QueryShardContext context = createQueryShardContext(mapperService);
+        when(context.sourcePath(FIELD_NAME)).thenReturn(Set.of(FIELD_NAME));
+        Query query = mapperService.fieldType(FIELD_NAME).regexpQuery(value, 0, RegExp.ASCII_CASE_INSENSITIVE, 10_000, null, context);
+        Query approximation = new WildcardFieldMapper.RequiredTermsQuery(FIELD_NAME, requiredTerms, true);
+
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(doc.rootDoc());
+            iw.addDocument(upperCaseDoc.rootDoc());
+            iw.addDocument(suffixDoc.rootDoc());
+        }, reader -> {
+            IndexSearcher indexSearcher = new IndexSearcher(reader);
+            assertEquals(3, indexSearcher.count(approximation));
+            assertEquals(2, indexSearcher.count(query));
+        });
+    }
+
+    public void testRequiredTermsQueryPreservesShortPrefixes() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        String value = "abcdefghijklmnopqrstuvwxyz";
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, value)));
+        String pattern = "*a*b*c*d*e*f*g*h*i*j*k*l*m*n*o*p*";
+        QueryShardContext context = createQueryShardContext(mapperService);
+        when(context.sourcePath(FIELD_NAME)).thenReturn(Set.of(FIELD_NAME));
+        Query query = mapperService.fieldType(FIELD_NAME).wildcardQuery(pattern, null, false, context);
+        assertTrue(((WildcardFieldMapper.WildcardMatchingQuery) query).getSecondPhaseMatcher().test(value));
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
+            // There is no exact term "a", but prefixes such as "a" match indexed trigrams such as "abc".
+            assertEquals(0, reader.docFreq(new Term(FIELD_NAME, "a")));
+            assertEquals(1, reader.docFreq(new Term(FIELD_NAME, "abc")));
+            assertEquals(
+                "A matching document must not be discarded when the required terms are short prefixes",
+                1,
+                new IndexSearcher(reader).count(query)
+            );
+        });
+    }
+
+    public void testRequiredTermsQueryRespectsConfiguredClauseLimit() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, "abcdefghijklmnopqrstuvwxyz")));
+        QueryShardContext context = createQueryShardContext(mapperService);
+        when(context.sourcePath(FIELD_NAME)).thenReturn(Set.of(FIELD_NAME));
+        String pattern = "*abcdefghijkl*";
+        Set<String> requiredTerms = WildcardFieldMapper.WildcardFieldType.getRequiredNGrams(pattern, false);
+        assertEquals(10, requiredTerms.size());
+
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        for (String term : List.of("abc", "bcd", "cde", "def", "efg", "fgh", "ghi", "hij")) {
+            builder.add(new TermQuery(new Term(FIELD_NAME, term)), BooleanClause.Occur.FILTER);
+        }
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
+            int originalMaxClauseCount = IndexSearcher.getMaxClauseCount();
+            try {
+                IndexSearcher.setMaxClauseCount(8);
+                // Ten distinct trigrams must be reduced to eight clauses before building the BooleanQuery.
+                IndexSearcher indexSearcher = new IndexSearcher(reader);
+                Query approximation = new WildcardFieldMapper.RequiredTermsQuery(FIELD_NAME, requiredTerms, false);
+                Query query = mapperService.fieldType(FIELD_NAME).wildcardQuery(pattern, null, false, context);
+                assertEquals(builder.build(), approximation.rewrite(indexSearcher));
+                assertEquals(1, indexSearcher.count(query));
+            } finally {
+                IndexSearcher.setMaxClauseCount(originalMaxClauseCount);
+            }
+        });
+    }
+
+    public void testRequiredTermsQueryRejectsMissingTrigramDuringRewrite() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, "abcdefghijklmnopqrstuvwxyz")));
+        Query query = new WildcardFieldMapper.RequiredTermsQuery(FIELD_NAME, Set.of("000"), true);
+
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.add(AutomatonQueries.caseInsensitiveTermQuery(new Term(FIELD_NAME, "000")), BooleanClause.Occur.FILTER);
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
+            IndexSearcher indexSearcher = new IndexSearcher(reader);
+            assertEquals(0, reader.docFreq(new Term(FIELD_NAME, "000")));
+            assertEquals(1, reader.docFreq(new Term(FIELD_NAME, "abc")));
+            assertEquals(builder.build(), query.rewrite(indexSearcher));
+            assertEquals(0, indexSearcher.count(query));
+        });
+    }
+
+    public void testRequiredTermsQuerySelectsLowestFrequencies() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        Set<String> requiredTerms = new HashSet<>();
+        List<String> values = new ArrayList<>();
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+
+        for (int i = 0; i < 20; i++) {
+            String term = String.valueOf((char) ('a' + i)).repeat(3);
+            requiredTerms.add(term);
+            for (int document = 0; document <= i; document++) {
+                values.add(term);
+            }
+            if (i < 16) {
+                builder.add(new TermQuery(new Term(FIELD_NAME, term)), BooleanClause.Occur.FILTER);
+            }
+        }
+        Query query = new WildcardFieldMapper.RequiredTermsQuery(FIELD_NAME, requiredTerms, false);
+
+        withLuceneIndex(mapperService, iw -> {
+            for (String value : values) {
+                ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, value)));
+                iw.addDocument(doc.rootDoc());
+            }
+        }, reader -> {
+            IndexSearcher indexSearcher = new IndexSearcher(reader);
+            assertEquals(builder.build(), query.rewrite(indexSearcher));
+        });
+    }
+
+    public void testRequiredTermsQuerySelectsLowestFrequenciesCaseInsensitive() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        Set<String> requiredTerms = new HashSet<>();
+        List<String> values = new ArrayList<>();
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+
+        for (int i = 0; i < 20; i++) {
+            String term = String.valueOf((char) ('a' + i)).repeat(3);
+            requiredTerms.add(term);
+            for (int document = 0; document <= i; document++) {
+                values.add(term.toUpperCase(Locale.ROOT));
+            }
+            if (i < 16) {
+                builder.add(AutomatonQueries.caseInsensitiveTermQuery(new Term(FIELD_NAME, term)), BooleanClause.Occur.FILTER);
+            }
+        }
+        Query query = new WildcardFieldMapper.RequiredTermsQuery(FIELD_NAME, requiredTerms, true);
+
+        withLuceneIndex(mapperService, iw -> {
+            for (String value : values) {
+                ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, value)));
+                iw.addDocument(doc.rootDoc());
+            }
+        }, reader -> {
+            IndexSearcher indexSearcher = new IndexSearcher(reader);
+            assertEquals(0, reader.docFreq(new Term(FIELD_NAME, "aaa")));
+            assertEquals(1, reader.docFreq(new Term(FIELD_NAME, "AAA")));
+            assertEquals(builder.build(), query.rewrite(indexSearcher));
+        });
+    }
+
+    private String longValueExceedingClauseLimit() {
+        StringBuilder builder = new StringBuilder();
+        for (char first = 'a'; first <= 'z'; first++) {
+            for (char second = 'a'; second <= 'z'; second++) {
+                builder.append(first).append(second).append('x');
+            }
+        }
+        String value = builder.toString();
+        Set<String> requiredTerms = WildcardFieldMapper.WildcardFieldType.getRequiredNGrams("*" + value + "*", false);
+        assertTrue(value.length() > 2000);
+        assertTrue(requiredTerms.size() > IndexSearcher.getMaxClauseCount());
+        return value;
     }
 
     private WildcardFieldMapper getMapper(FieldMapper.CopyTo copyTo, int ignoreAbove, String normalizerName, boolean hasDocValues)
