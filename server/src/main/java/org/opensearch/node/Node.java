@@ -45,7 +45,6 @@ import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
-import org.opensearch.action.admin.indices.view.ViewService;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.SearchRequestOperationsCompositeListenerFactory;
@@ -86,6 +85,7 @@ import org.opensearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataDataStreamsService;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
+import org.opensearch.cluster.metadata.MetadataMappingService;
 import org.opensearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.opensearch.cluster.metadata.TemplateUpgradeService;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -237,6 +237,7 @@ import org.opensearch.plugins.DefaultPluginComponentRegistry;
 import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.ExtensionAwarePlugin;
+import org.opensearch.plugins.FieldFilterProvider;
 import org.opensearch.plugins.IdentityAwarePlugin;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -251,6 +252,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.RepositoryPlugin;
+import org.opensearch.plugins.RestoreListenerPlugin;
 import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
@@ -1204,9 +1206,9 @@ public class Node implements Closeable {
             );
             final MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(clusterService);
 
-            final ViewService viewService = new ViewService(clusterService, client, null);
-
             final DefaultPluginComponentRegistry pluginComponentRegistry = new DefaultPluginComponentRegistry();
+            pluginComponentRegistry.register(new FieldFilterProvider(indicesService.getFieldFilter()));
+            pluginComponentRegistry.register(dataFormatRegistry);
             final List<Object> pluginComponents = new ArrayList<>();
             for (Plugin p : pluginsService.filterPlugins(Plugin.class)) {
                 Collection<Object> components = p.createComponents(
@@ -1228,6 +1230,7 @@ public class Node implements Closeable {
                 }
                 pluginComponents.addAll(components);
             }
+            final NativeAllocator nativeAllocator = pluginComponentRegistry.getComponent(NativeAllocator.class).orElse(null);
             pluginComponentRegistry.seal();
 
             Collection<Object> telemetryAwarePluginComponents = pluginsService.filterPlugins(TelemetryAwarePlugin.class)
@@ -1253,37 +1256,6 @@ public class Node implements Closeable {
 
             // Add the telemetryAwarePlugin components to the existing pluginComponents collection.
             pluginComponents.addAll(telemetryAwarePluginComponents);
-
-            // Extract the NativeAllocator instance (published by ArrowBasePlugin in phase 1)
-            // so it can be passed to SearchBackEndPlugin.createComponents for virtual pool registration.
-            final NativeAllocator nativeAllocator = pluginComponents.stream()
-                .filter(c -> c instanceof NativeAllocator)
-                .map(c -> (NativeAllocator) c)
-                .findFirst()
-                .orElse(null);
-
-            @SuppressWarnings("rawtypes")
-            Collection<Object> searchBackEndPluginComponents = pluginsService.filterPlugins(SearchBackEndPlugin.class)
-                .stream()
-                .flatMap(
-                    p -> ((SearchBackEndPlugin<?>) p).createComponents(
-                        client,
-                        clusterService,
-                        threadPool,
-                        resourceWatcherService,
-                        scriptService,
-                        xContentRegistry,
-                        environment,
-                        nodeEnvironment,
-                        namedWriteableRegistry,
-                        clusterModule.getIndexNameExpressionResolver(),
-                        repositoriesServiceReference::get,
-                        dataFormatRegistry,
-                        nativeAllocator
-                    ).stream()
-                )
-                .collect(Collectors.toList());
-            pluginComponents.addAll(searchBackEndPluginComponents);
 
             pluginsService.filterPlugins(SearchBackEndPlugin.class)
                 .stream()
@@ -1616,7 +1588,9 @@ public class Node implements Closeable {
                 shardLimitValidator,
                 indicesService,
                 clusterInfoService::getClusterInfo,
-                new FileCacheSettings(settings, clusterService.getClusterSettings())::getRemoteDataRatio
+                new FileCacheSettings(settings, clusterService.getClusterSettings())::getRemoteDataRatio,
+                threadPool,
+                pluginsService.filterPlugins(RestoreListenerPlugin.class)
             );
 
             RemoteStoreRestoreService remoteStoreRestoreService = new RemoteStoreRestoreService(
@@ -1822,7 +1796,6 @@ public class Node implements Closeable {
                 b.bind(AwarenessReplicaBalance.class).toInstance(awarenessReplicaBalance);
                 b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
                 b.bind(MetadataDataStreamsService.class).toInstance(metadataDataStreamsService);
-                b.bind(ViewService.class).toInstance(viewService);
                 b.bind(SearchService.class).toInstance(searchService);
                 b.bind(SearchTransportService.class).toInstance(searchTransportService);
                 if (streamSearchTransportService.isPresent()) {
@@ -1917,6 +1890,12 @@ public class Node implements Closeable {
                 }
             });
             injector = modules.createInjector();
+
+            // Register the index creation validators for mapping updates as well, so a mapping
+            // rejected at creation cannot be introduced later through PUT _mapping.
+            final MetadataMappingService metadataMappingServiceInstance = injector.getInstance(MetadataMappingService.class);
+            pluginsService.filterPlugins(Plugin.class)
+                .forEach(p -> p.getIndexCreationValidators().forEach(metadataMappingServiceInstance::addIndexCreationValidator));
 
             // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.
             // The search for viable copies is triggered by an allocation attempt (i.e. a reroute) and is performed asynchronously. When it

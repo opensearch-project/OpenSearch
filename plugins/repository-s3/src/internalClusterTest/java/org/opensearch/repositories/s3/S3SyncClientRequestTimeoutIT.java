@@ -47,7 +47,7 @@ import fixture.s3.DelayedS3HttpHandler;
 import static org.hamcrest.Matchers.greaterThan;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
-@ThreadLeakFilters(filters = EventLoopThreadFilter.class)
+@ThreadLeakFilters(filters = { EventLoopThreadFilter.class, ResponseInputStreamTimeoutThreadFilter.class })
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class S3SyncClientRequestTimeoutIT extends OpenSearchIntegTestCase {

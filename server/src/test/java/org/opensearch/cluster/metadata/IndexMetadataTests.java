@@ -57,6 +57,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
@@ -112,6 +113,28 @@ public class IndexMetadataTests extends OpenSearchTestCase {
             .version(version)
             .system(isSystem)
             .build();
+    }
+
+    public void testIsAppendOnlyIndexSettingPrecedence() {
+        // Composite (pluggable-dataformat) with no explicit setting -> append-only by default.
+        assertTrue(buildIsAppendOnly(true, null));
+        // Composite with an explicit false -> NOT append-only (opts in to updates/deletes).
+        assertFalse(buildIsAppendOnly(true, false));
+        // Non-composite with an explicit true -> append-only.
+        assertTrue(buildIsAppendOnly(false, true));
+        // Neither set -> default (not append-only).
+        assertFalse(buildIsAppendOnly(false, null));
+    }
+
+    private static boolean buildIsAppendOnly(boolean pluggableDataformat, Boolean explicitAppendOnly) {
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), pluggableDataformat);
+        if (explicitAppendOnly != null) {
+            settings.put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), explicitAppendOnly);
+        }
+        return IndexMetadata.builder("idx").settings(settings.build()).numberOfShards(1).numberOfReplicas(0).build().isAppendOnlyIndex();
     }
 
     public void testIndexMetadataSerialization() throws IOException {

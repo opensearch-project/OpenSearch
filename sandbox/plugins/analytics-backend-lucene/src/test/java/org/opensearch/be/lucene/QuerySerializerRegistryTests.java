@@ -48,6 +48,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Unit tests for {@link QuerySerializerRegistry} serializers — optional parameter round-trips
@@ -252,6 +253,39 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
                 entry.getValue() instanceof DelegatedPredicateSerializer
             );
         }
+    }
+
+    /**
+     * Asserts that the registry's key set exactly equals the expected complete set of ScalarFunction
+     * keys. A dropped or renamed registration fails this test.
+     */
+    public void testRegistryKeySetMatchesExpectedFunctions() {
+        Set<ScalarFunction> expected = Set.of(
+            ScalarFunction.MATCH,
+            ScalarFunction.MATCH_PHRASE,
+            ScalarFunction.MATCH_BOOL_PREFIX,
+            ScalarFunction.MATCH_PHRASE_PREFIX,
+            ScalarFunction.MULTI_MATCH,
+            ScalarFunction.QUERY_STRING,
+            ScalarFunction.SIMPLE_QUERY_STRING,
+            ScalarFunction.WILDCARD_QUERY,
+            ScalarFunction.PREFIX_QUERY,
+            ScalarFunction.WILDCARD_QUERY_DSL,
+            ScalarFunction.QUERY,
+            ScalarFunction.MATCHALL,
+            ScalarFunction.EQUALS,
+            ScalarFunction.NOT_EQUALS,
+            ScalarFunction.IS_NULL,
+            ScalarFunction.IS_NOT_NULL,
+            ScalarFunction.LIKE,
+            ScalarFunction.GREATER_THAN,
+            ScalarFunction.GREATER_THAN_OR_EQUAL,
+            ScalarFunction.LESS_THAN,
+            ScalarFunction.LESS_THAN_OR_EQUAL,
+            ScalarFunction.REGEXP,
+            ScalarFunction.SARG_PREDICATE
+        );
+        assertEquals("Registry key set must match expected ScalarFunction set", expected, serializers.keySet());
     }
 
     // --- MatchAllSerializer tests ---

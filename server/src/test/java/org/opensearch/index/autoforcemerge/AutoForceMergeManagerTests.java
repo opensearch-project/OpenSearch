@@ -225,6 +225,29 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         autoForceMergeManager.close();
     }
 
+    public void testWarmNodePresenceIsReevaluatedAfterClusterStateChange() {
+        DiscoveryNode dataNode = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
+        when(clusterService.state()).thenReturn(createClusterWithWarmNodes(), createClusterWithoutWarmNodes());
+        when(indicesService.spliterator()).thenReturn(Collections.<IndexService>emptyList().spliterator());
+        setupHealthySystemResources();
+        ExecutorService executorService = setupForceMergeThreadPool();
+
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            dataNode
+        );
+
+        executeTestWithManager(autoForceMergeManager, () -> {
+            autoForceMergeManager.getTask().runInternal();
+            autoForceMergeManager.getTask().runInternal();
+
+            verify(clusterService, times(2)).state();
+            verify(mockSkipsFromConfigValidatorCounter, times(1)).add(eq(1.0), any());
+            verify(mockSkipsFromNodeValidatorCounter, never()).add(anyDouble(), any());
+            verify(mockMergesTriggeredCounter, never()).add(anyDouble(), any());
+        }, executorService);
+    }
+
     public void testConfigurationValidatorWithNonDataNode() {
         AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
             getConfiguredClusterSettings(true, true, Collections.emptyMap()),

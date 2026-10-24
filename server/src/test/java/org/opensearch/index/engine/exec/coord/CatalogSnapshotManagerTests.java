@@ -360,6 +360,182 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         }
     }
 
+    /** Builds a manager over the given segments; caller closes it. */
+    private CatalogSnapshotManager managerOver(List<Segment> segments) throws IOException {
+        DataformatAwareCatalogSnapshot cs = new DataformatAwareCatalogSnapshot(0, 0, 1, segments, 0, Map.of());
+        cs.setLastCommitInfo("segments_1", 1L, 0L);
+        return new CatalogSnapshotManager(
+            List.of(cs),
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            files -> Map.of(),
+            Map.of(),
+            List.of(),
+            null,
+            mock(CommitFileManager.class)
+        );
+    }
+
+    private static List<Long> generationsOf(CatalogSnapshotManager manager) throws IOException {
+        try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+            return ref.get().getSegments().stream().map(Segment::generation).sorted().collect(java.util.stream.Collectors.toList());
+        }
+    }
+
+    /**
+     * A refresh applying deletes rewrites an existing generation's live-docs file, so that
+     * generation reappears as a different {@link Segment} value while the in-flight merge still
+     * holds the record it selected. The merge must still apply: its output already reflects those
+     * deletes, because Lucene's {@code commitMerge} carries them onto the merged segment.
+     *
+     * <p>Matching by generation is what makes this work; matching by record equality rejected it
+     * and the caller turned that into a failed engine.
+     */
+    public void testApplyMergeResultsAppliesWhenSourceLiveDocsChangedDuringMerge() throws Exception {
+        DataFormat format = new MockDataFormat();
+        // What the merge selected, before any delete landed.
+        Segment staleSeg1 = new Segment(1L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, 0L)));
+        Segment seg2 = new Segment(2L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200, 0L)));
+        Segment seg3 = new Segment(3L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 3L, Set.of("c.cfs"), 300, 0L)));
+        // The current view: gen 1 gained a live-docs file. Same generation, different record.
+        Segment liveSeg1 = new Segment(1L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs", "a.liv"), 100, 0L)));
+        assertNotEquals("the two views must not be equal Segments", staleSeg1, liveSeg1);
+
+        WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 4L, Set.of("merged.cfs", "merged.liv"), 250, 0L);
+        CatalogSnapshotManager manager = managerOver(List.of(liveSeg1, seg2, seg3));
+        try {
+            manager.applyMergeResults(new MergeResult(Map.of(format, mergedWfs)), new OneMerge(List.of(staleSeg1, seg2)));
+
+            assertEquals("gens 1 and 2 replaced by the merged gen 4", List.of(3L, 4L), generationsOf(manager));
+            try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                List<Segment> segments = ref.get().getSegments();
+                // Merged segment takes the position of the first removed source, carrying its .liv.
+                assertEquals(4L, segments.get(0).generation());
+                assertEquals(Set.of("merged.cfs", "merged.liv"), segments.get(0).dfGroupedSearchableFiles().get(format.name()).files());
+                // The untouched segment keeps its current record.
+                assertEquals(seg3, segments.get(1));
+            }
+        } finally {
+            manager.close();
+        }
+    }
+
+    /**
+     * A refresh that deletes every document in a source generation drops it outright
+     * ({@code RefreshResult.droppedGenerations}). The merge must still apply: the remaining
+     * sources are replaced and the merged output installed.
+     */
+    public void testApplyMergeResultsAppliesWhenOneSourceGenerationWasDropped() throws Exception {
+        DataFormat format = new MockDataFormat();
+        Segment seg1 = new Segment(1L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, 0L)));
+        Segment seg2 = new Segment(2L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200, 0L)));
+        Segment seg3 = new Segment(3L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 3L, Set.of("c.cfs"), 300, 0L)));
+
+        // gen 2 was fully deleted during the merge and is no longer in the catalog.
+        CatalogSnapshotManager manager = managerOver(List.of(seg1, seg3));
+        try {
+            WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 4L, Set.of("merged.cfs"), 150, 0L);
+            manager.applyMergeResults(new MergeResult(Map.of(format, mergedWfs)), new OneMerge(List.of(seg1, seg2)));
+
+            assertEquals("surviving source removed, merged installed", List.of(3L, 4L), generationsOf(manager));
+        } finally {
+            manager.close();
+        }
+    }
+
+    /**
+     * Every source generation dropped during the merge. The merged segment still has to land in the
+     * catalog, at the front, which is the pre-existing {@code !inserted} branch.
+     */
+    public void testApplyMergeResultsAppliesWhenAllSourceGenerationsWereDropped() throws Exception {
+        DataFormat format = new MockDataFormat();
+        Segment seg1 = new Segment(1L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, 0L)));
+        Segment seg2 = new Segment(2L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200, 0L)));
+        Segment seg9 = new Segment(9L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 9L, Set.of("i.cfs"), 900, 0L)));
+
+        // Neither source survives in the catalog.
+        CatalogSnapshotManager manager = managerOver(List.of(seg9));
+        try {
+            WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 10L, Set.of("merged.cfs"), 50, 0L);
+            manager.applyMergeResults(new MergeResult(Map.of(format, mergedWfs)), new OneMerge(List.of(seg1, seg2)));
+
+            assertEquals("merged segment prepended", List.of(9L, 10L), generationsOf(manager));
+            try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                assertEquals("prepended at the front", 10L, ref.get().getSegments().get(0).generation());
+            }
+        } finally {
+            manager.close();
+        }
+    }
+
+    /**
+     * Genuine invariant violation: re-applying a merge would duplicate its output, so a merged
+     * generation that already exists as a retained segment must still be rejected. This is what
+     * guards against double-apply now that source presence is no longer required.
+     */
+    public void testApplyMergeResultsThrowsWhenMergedGenerationCollidesWithRetained() throws Exception {
+        DataFormat format = new MockDataFormat();
+        Segment seg1 = new Segment(1L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, 0L)));
+        Segment seg2 = new Segment(2L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200, 0L)));
+        // gen 4 is already in the catalog and is NOT a merge source, so it would be retained.
+        Segment seg4 = new Segment(4L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 4L, Set.of("d.cfs"), 400, 0L)));
+
+        CatalogSnapshotManager manager = managerOver(List.of(seg1, seg2, seg4));
+        try {
+            WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 4L, Set.of("merged.cfs"), 300, 0L);
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> manager.applyMergeResults(new MergeResult(Map.of(format, mergedWfs)), new OneMerge(List.of(seg1, seg2)))
+            );
+            assertTrue("must name the collision, got: " + e.getMessage(), e.getMessage().contains("collides with a retained segment"));
+            assertEquals("snapshot untouched", List.of(1L, 2L, 4L), generationsOf(manager));
+        } finally {
+            manager.close();
+        }
+    }
+
+    /**
+     * Genuine invariant violation: a merge may drop rows (deletes) but can never produce more rows
+     * than it read, so an inflated output must still be rejected.
+     */
+    public void testApplyMergeResultsThrowsWhenMergedRowCountExceedsSources() throws Exception {
+        DataFormat format = new MockDataFormat();
+        Segment seg1 = new Segment(1L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, 0L)));
+        Segment seg2 = new Segment(2L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200, 0L)));
+
+        CatalogSnapshotManager manager = managerOver(List.of(seg1, seg2));
+        try {
+            // 301 > 100 + 200
+            WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 3L, Set.of("merged.cfs"), 301, 0L);
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> manager.applyMergeResults(new MergeResult(Map.of(format, mergedWfs)), new OneMerge(List.of(seg1, seg2)))
+            );
+            assertTrue("must report the row mismatch, got: " + e.getMessage(), e.getMessage().contains("row count mismatch"));
+            assertEquals("snapshot untouched", List.of(1L, 2L), generationsOf(manager));
+        } finally {
+            manager.close();
+        }
+    }
+
+    /**
+     * Fewer rows out than in is legitimate — that is compaction dropping deleted rows — so it must
+     * apply rather than trip the conservation check.
+     */
+    public void testApplyMergeResultsAppliesWhenMergedRowCountIsLower() throws Exception {
+        DataFormat format = new MockDataFormat();
+        Segment seg1 = new Segment(1L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, 0L)));
+        Segment seg2 = new Segment(2L, Map.of(format.name(), new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200, 0L)));
+
+        CatalogSnapshotManager manager = managerOver(List.of(seg1, seg2));
+        try {
+            WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 3L, Set.of("merged.cfs"), 1, 0L);
+            manager.applyMergeResults(new MergeResult(Map.of(format, mergedWfs)), new OneMerge(List.of(seg1, seg2)));
+            assertEquals(List.of(3L), generationsOf(manager));
+        } finally {
+            manager.close();
+        }
+    }
+
     public void testApplyMergeResultsWhenAllMergedSegmentsRemoved() throws Exception {
         DataFormat format = new MockDataFormat();
         WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, 0L);

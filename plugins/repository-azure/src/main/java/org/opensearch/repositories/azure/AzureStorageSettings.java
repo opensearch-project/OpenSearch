@@ -37,6 +37,7 @@ import com.azure.identity.ManagedIdentityCredential;
 import com.azure.identity.ManagedIdentityCredentialBuilder;
 import com.azure.identity.implementation.CredentialBuilderBaseHelper;
 import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.azure.storage.blob.specialized.BlockBlobAsyncClient;
 import com.azure.storage.common.implementation.Constants;
 import com.azure.storage.common.implementation.connectionstring.StorageConnectionString;
 import com.azure.storage.common.implementation.connectionstring.StorageEndpoint;
@@ -52,6 +53,8 @@ import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.settings.SecureString;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.net.InetAddress;
 import java.net.URI;
@@ -67,6 +70,12 @@ final class AzureStorageSettings {
 
     // prefix for azure client settings
     private static final String AZURE_CLIENT_PREFIX_KEY = "azure.client.";
+    private static final ByteSizeValue UNSET_TRANSFER_SIZE = new ByteSizeValue(-1, ByteSizeUnit.BYTES);
+    private static final ByteSizeValue MAX_READ_BLOCK_SIZE = new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES);
+    private static final ByteSizeValue MAX_SINGLE_UPLOAD_SIZE = new ByteSizeValue(
+        BlockBlobAsyncClient.MAX_UPLOAD_BLOB_BYTES_LONG,
+        ByteSizeUnit.BYTES
+    );
 
     /** Azure account name */
     public static final AffixSetting<SecureString> ACCOUNT_SETTING = Setting.affixKeySetting(
@@ -164,6 +173,42 @@ final class AzureStorageSettings {
         () -> KEY_SETTING
     );
 
+    /** Read block size. The Azure SDK default is used when unset. */
+    public static final AffixSetting<ByteSizeValue> READ_BLOCK_SIZE_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "read.block_size",
+        key -> optionalTransferSizeSetting(key, MAX_READ_BLOCK_SIZE),
+        () -> ACCOUNT_SETTING
+    );
+
+    /** Upload block size. The Azure SDK default is used when unset. */
+    public static final AffixSetting<ByteSizeValue> WRITE_BLOCK_SIZE_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "write.block_size",
+        key -> optionalTransferSizeSetting(key, AzureStorageService.MAX_CHUNK_SIZE),
+        () -> ACCOUNT_SETTING
+    );
+
+    /** Largest upload sent as one Put Blob request. The Azure SDK default is used when unset. */
+    public static final AffixSetting<ByteSizeValue> MAX_SINGLE_UPLOAD_SIZE_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "write.max_single_upload_size",
+        key -> optionalTransferSizeSetting(key, MAX_SINGLE_UPLOAD_SIZE),
+        () -> ACCOUNT_SETTING
+    );
+
+    /** Maximum concurrent requests per upload. The Azure SDK default is used when unset. */
+    public static final AffixSetting<Integer> WRITE_CONCURRENCY_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "write.max_concurrency",
+        key -> Setting.intSetting(key, -1, -1, value -> {
+            if (value == 0) {
+                throw new IllegalArgumentException("setting [" + key + "] must be -1 or at least 1");
+            }
+        }, Property.NodeScope),
+        () -> ACCOUNT_SETTING
+    );
+
     /** The type of the proxy to connect to azure through. Can be direct (no proxy, default), http or socks */
     public static final AffixSetting<ProxySettings.ProxyType> PROXY_TYPE_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
@@ -229,6 +274,10 @@ final class AzureStorageSettings {
     private final TimeValue writeTimeout;
     private final TimeValue readTimeout;
     private final TimeValue responseTimeout;
+    private final ByteSizeValue readBlockSize;
+    private final ByteSizeValue writeBlockSize;
+    private final ByteSizeValue maxSingleUploadSize;
+    private final int writeConcurrency;
     private final ProxySettings proxySettings;
 
     // copy-constructor
@@ -245,6 +294,10 @@ final class AzureStorageSettings {
         TimeValue writeTimeout,
         TimeValue readTimeout,
         TimeValue responseTimeout,
+        ByteSizeValue readBlockSize,
+        ByteSizeValue writeBlockSize,
+        ByteSizeValue maxSingleUploadSize,
+        int writeConcurrency,
         ProxySettings proxySettings
     ) {
         this.account = account;
@@ -259,6 +312,10 @@ final class AzureStorageSettings {
         this.writeTimeout = writeTimeout;
         this.readTimeout = readTimeout;
         this.responseTimeout = responseTimeout;
+        this.readBlockSize = readBlockSize;
+        this.writeBlockSize = writeBlockSize;
+        this.maxSingleUploadSize = maxSingleUploadSize;
+        this.writeConcurrency = writeConcurrency;
         this.proxySettings = proxySettings;
     }
 
@@ -274,6 +331,10 @@ final class AzureStorageSettings {
         TimeValue writeTimeout,
         TimeValue readTimeout,
         TimeValue responseTimeout,
+        ByteSizeValue readBlockSize,
+        ByteSizeValue writeBlockSize,
+        ByteSizeValue maxSingleUploadSize,
+        int writeConcurrency,
         ProxySettings proxySettings
     ) {
         this.account = account;
@@ -316,6 +377,10 @@ final class AzureStorageSettings {
         this.writeTimeout = writeTimeout;
         this.readTimeout = readTimeout;
         this.responseTimeout = responseTimeout;
+        this.readBlockSize = readBlockSize;
+        this.writeBlockSize = writeBlockSize;
+        this.maxSingleUploadSize = maxSingleUploadSize;
+        this.writeConcurrency = writeConcurrency;
         this.proxySettings = proxySettings;
     }
 
@@ -385,6 +450,22 @@ final class AzureStorageSettings {
         return responseTimeout;
     }
 
+    public ByteSizeValue getReadBlockSize() {
+        return readBlockSize;
+    }
+
+    public ByteSizeValue getWriteBlockSize() {
+        return writeBlockSize;
+    }
+
+    public ByteSizeValue getMaxSingleUploadSize() {
+        return maxSingleUploadSize;
+    }
+
+    public int getWriteConcurrency() {
+        return writeConcurrency;
+    }
+
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("AzureStorageSettings{");
@@ -399,8 +480,26 @@ final class AzureStorageSettings {
         sb.append(", writeTimeout='").append(writeTimeout).append('\'');
         sb.append(", readTimeout='").append(readTimeout).append('\'');
         sb.append(", responseTimeout='").append(responseTimeout).append('\'');
+        sb.append(", readBlockSize='").append(readBlockSize).append('\'');
+        sb.append(", writeBlockSize='").append(writeBlockSize).append('\'');
+        sb.append(", maxSingleUploadSize='").append(maxSingleUploadSize).append('\'');
+        sb.append(", writeConcurrency='").append(writeConcurrency).append('\'');
         sb.append('}');
         return sb.toString();
+    }
+
+    private static Setting<ByteSizeValue> optionalTransferSizeSetting(String key, ByteSizeValue maxValue) {
+        return new Setting<>(
+            key,
+            UNSET_TRANSFER_SIZE.getStringRep(),
+            new Setting.ByteSizeValueParser(UNSET_TRANSFER_SIZE, maxValue, key),
+            value -> {
+                if (value.getBytes() == 0L) {
+                    throw new IllegalArgumentException("setting [" + key + "] must be -1 or at least 1b");
+                }
+            },
+            Property.NodeScope
+        );
     }
 
     /**
@@ -444,6 +543,10 @@ final class AzureStorageSettings {
                 getValue(settings, clientName, WRITE_TIMEOUT_SETTING),
                 getValue(settings, clientName, READ_TIMEOUT_SETTING),
                 getValue(settings, clientName, RESPONSE_TIMEOUT_SETTING),
+                getValue(settings, clientName, READ_BLOCK_SIZE_SETTING),
+                getValue(settings, clientName, WRITE_BLOCK_SIZE_SETTING),
+                getValue(settings, clientName, MAX_SINGLE_UPLOAD_SIZE_SETTING),
+                getValue(settings, clientName, WRITE_CONCURRENCY_SETTING),
                 validateAndCreateProxySettings(settings, clientName)
             );
         }
@@ -508,6 +611,10 @@ final class AzureStorageSettings {
                     entry.getValue().writeTimeout,
                     entry.getValue().readTimeout,
                     entry.getValue().responseTimeout,
+                    entry.getValue().readBlockSize,
+                    entry.getValue().writeBlockSize,
+                    entry.getValue().maxSingleUploadSize,
+                    entry.getValue().writeConcurrency,
                     entry.getValue().getProxySettings()
                 )
             );

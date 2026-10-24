@@ -14,8 +14,7 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.opensearch.dsl.converter.ConversionException;
-import org.opensearch.search.aggregations.AggregationBuilder;
-import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 import java.util.Collections;
 
@@ -24,10 +23,30 @@ import java.util.Collections;
  * logic — subclasses supply the SQL aggregate function, field name, and optionally
  * override the return type.
  */
-public abstract class AbstractMetricTranslator<T extends AggregationBuilder> implements MetricTranslator<T> {
+public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregationBuilder<T>> implements MetricTranslator<T> {
 
     /** Creates a metric translator. */
     protected AbstractMetricTranslator() {}
+
+    /**
+     * Rejects {@code missing} (substitutes a value for docs lacking the field) and
+     * {@code script} (computes the metric input from a script): the translation implements
+     * neither — it emits plain {@code fn(field)}, whose result differs from classic search
+     * when either parameter is present.
+     */
+    @Override
+    public void validate(T agg) throws ConversionException {
+        if (agg.missing() != null) {
+            throw new ConversionException(
+                "[missing] on metric aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
+            );
+        }
+        if (agg.script() != null) {
+            throw new ConversionException(
+                "[script] on metric aggregation [" + agg.getName() + "] is not supported by the DSL execution path"
+            );
+        }
+    }
 
     /** Returns the SQL aggregate function (e.g., AVG, SUM, MIN, MAX). */
     protected abstract SqlAggFunction getAggFunction();
@@ -67,9 +86,18 @@ public abstract class AbstractMetricTranslator<T extends AggregationBuilder> imp
         return agg.getName();
     }
 
-    // TODO: implement response conversion per metric type (InternalAvg, InternalSum, etc.)
-    @Override
-    public InternalAggregation toInternalAggregation(String name, Object value) {
-        throw new UnsupportedOperationException("toInternalAggregation not yet implemented for " + getClass().getSimpleName());
+    /**
+     * Coerces an engine result cell to double. Calcite keeps the input column type (AVG over
+     * an INTEGER column returns an integral value), so the int→double widening happens here.
+     *
+     * @param value the raw cell value (must be a {@link Number})
+     */
+    protected static double toDouble(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        throw new IllegalStateException(
+            "Expected numeric aggregation result but got " + (value == null ? "null" : value.getClass().getSimpleName())
+        );
     }
 }

@@ -89,6 +89,17 @@ public class GetService implements Closeable {
 
         private final DataFusionPlugin dfPlugin;
         private final BufferAllocator sharedAllocator = new RootAllocator(64 * 1024 * 1024);
+        /**
+         * Unbounded staging child every batch of every stream this executor opens is imported onto — never
+         * one per stream, see {@code DatafusionResultStream.BatchIterator#stagingAllocator}. These streams are
+         * drained inline (not handed to the Flight transport), so it is always drained by the time
+         * {@link #close()} runs.
+         */
+        private final BufferAllocator importStagingAllocator = sharedAllocator.newChildAllocator(
+            "datafusion-get-import-staging",
+            0,
+            Long.MAX_VALUE
+        );
 
         NativeBridgeExecutor(DataFusionPlugin dfPlugin) {
             this.dfPlugin = dfPlugin;
@@ -96,6 +107,7 @@ public class GetService implements Closeable {
 
         @Override
         public void close() {
+            importStagingAllocator.close();
             sharedAllocator.close();
         }
 
@@ -137,35 +149,43 @@ public class GetService implements Closeable {
 
         @Override
         public List<Map<String, Object>> executeRowsAboveSeqNo(List<WriterFileSet> fileSets, long seqNoFloor) throws IOException {
-            long runtimePtr = dfPlugin.getDataFusionService().getNativeRuntime().get();
-            List<Map<String, Object>> all = new ArrayList<>();
-            for (WriterFileSet parquetSet : fileSets) {
-                String parquetDir = parquetSet.directory();
-                String parquetFile = parquetSet.files().iterator().next();
-                MonoFileWriterSet writerSet = MonoFileWriterSet.of(parquetDir, parquetSet.writerGeneration(), parquetFile, 0L);
-                try (ReaderHandle readerHandle = new ReaderHandle(parquetDir, List.of(writerSet), null, List.of(), List.of())) {
-                    long readerPtr = readerHandle.getPointer();
-                    // Internal-search seq-no scan: the native side ignores Substrait and builds a
-                    // DataFrame plan filtering `_seq_no > seqNoFloor`, projecting only the version
-                    // metadata columns, with pushdown enabled.
-                    long streamPtr = executeInternalSearch(
-                        readerPtr,
-                        runtimePtr,
-                        NativeBridge.INTERNAL_SEARCH_SEQ_NO_ABOVE,
-                        seqNoFloor,
-                        "DataFusion range query failed"
-                    );
-                    all.addAll(readAllRows(streamPtr));
-                }
+            if (fileSets.isEmpty()) {
+                return List.of();
             }
-            return all;
+            String parquetDir = fileSets.get(0).directory();
+            List<MonoFileWriterSet> segments = new ArrayList<>(fileSets.size());
+            for (WriterFileSet parquetSet : fileSets) {
+                if (parquetDir.equals(parquetSet.directory()) == false) {
+                    throw new IllegalArgumentException(
+                        "Segments read together must share a directory, but generation "
+                            + parquetSet.writerGeneration()
+                            + " is in ["
+                            + parquetSet.directory()
+                            + "] not ["
+                            + parquetDir
+                            + "]"
+                    );
+                }
+                segments.add(MonoFileWriterSet.from(parquetSet));
+            }
+            long runtimePtr = dfPlugin.getDataFusionService().getNativeRuntime().get();
+            try (ReaderHandle readerHandle = new ReaderHandle(parquetDir, segments, null, List.of(), List.of())) {
+                long streamPtr = executeInternalSearch(
+                    readerHandle.getPointer(),
+                    runtimePtr,
+                    NativeBridge.INTERNAL_SEARCH_SEQ_NO_ABOVE,
+                    seqNoFloor,
+                    "DataFusion range query failed"
+                );
+                return readAllRows(streamPtr);
+            }
         }
 
         private List<Map<String, Object>> readAllRows(long streamPtr) {
             List<Map<String, Object>> results = new ArrayList<>();
             try (
                 StreamHandle streamHandle = new StreamHandle(streamPtr, dfPlugin.getDataFusionService().getNativeRuntime());
-                DatafusionResultStream stream = new DatafusionResultStream(streamHandle, sharedAllocator)
+                DatafusionResultStream stream = new DatafusionResultStream(streamHandle, sharedAllocator, importStagingAllocator)
             ) {
                 var iter = stream.iterator();
                 while (iter.hasNext()) {
@@ -188,7 +208,7 @@ public class GetService implements Closeable {
         private Map<String, Object> readSingleRow(long streamPtr) {
             try (
                 StreamHandle streamHandle = new StreamHandle(streamPtr, dfPlugin.getDataFusionService().getNativeRuntime());
-                DatafusionResultStream stream = new DatafusionResultStream(streamHandle, sharedAllocator)
+                DatafusionResultStream stream = new DatafusionResultStream(streamHandle, sharedAllocator, importStagingAllocator)
             ) {
                 var iter = stream.iterator();
                 if (!iter.hasNext()) return null;

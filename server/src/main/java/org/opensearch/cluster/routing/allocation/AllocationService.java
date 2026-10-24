@@ -285,26 +285,12 @@ public class AllocationService {
                         failedShard
                     );
                 }
-                int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().getNumFailedAllocations() : 0;
-                final Set<String> failedNodeIds;
-                if (failedShard.unassignedInfo() != null) {
-                    failedNodeIds = new HashSet<>(failedShard.unassignedInfo().getFailedNodeIds().size() + 1);
-                    failedNodeIds.addAll(failedShard.unassignedInfo().getFailedNodeIds());
-                    failedNodeIds.add(failedShard.currentNodeId());
-                } else {
-                    failedNodeIds = Collections.emptySet();
-                }
-                String message = "failed shard on node [" + shardToFail.currentNodeId() + "]: " + failedShardEntry.getMessage();
-                UnassignedInfo unassignedInfo = new UnassignedInfo(
-                    UnassignedInfo.Reason.ALLOCATION_FAILED,
-                    message,
+                UnassignedInfo unassignedInfo = UnassignedInfo.failedShard(
+                    failedShard,
+                    failedShardEntry.getMessage(),
                     failedShardEntry.getFailure(),
-                    failedAllocations + 1,
                     currentNanoTime,
-                    System.currentTimeMillis(),
-                    false,
-                    UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-                    failedNodeIds
+                    System.currentTimeMillis()
                 );
                 if (failedShardEntry.markAsStale()) {
                     allocation.removeAllocationId(failedShard);

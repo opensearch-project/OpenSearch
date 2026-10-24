@@ -35,12 +35,16 @@ package org.opensearch.search;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.Version;
@@ -111,6 +115,7 @@ import java.util.function.Supplier;
 
 import static org.opensearch.index.IndexSettings.INDEX_SEARCH_THROTTLED;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
@@ -398,6 +403,20 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
+
+            // buildFilteredQuery: when at least one filter is added (here a slice filter) and the incoming
+            // query is already a ConstantScoreQuery, the combined query must stay non-scoring so Lucene's
+            // COMPLETE_NO_SCORES fast path is preserved; a normal query is combined into a scoring BooleanQuery.
+            when(mapperService.hasNested()).thenReturn(false);
+            SliceBuilder filterSlice = mock(SliceBuilder.class);
+            when(filterSlice.toFilter(any(), any(), any(), any())).thenReturn(new TermQuery(new Term("field", "value")));
+            context3.sliceBuilder(filterSlice);
+            assertThat(
+                context3.buildFilteredQuery(new ConstantScoreQuery(new TermQuery(new Term("content", "alpha")))),
+                instanceOf(ConstantScoreQuery.class)
+            );
+            assertThat(context3.buildFilteredQuery(new TermQuery(new Term("content", "alpha"))), instanceOf(BooleanQuery.class));
+            context3.sliceBuilder(null);
             // make sure getPreciseRelativeTimeInMillis is same as System.nanoTime()
             long timeToleranceInMs = 10;
             long currTime = TimeValue.nsecToMSec(System.nanoTime());

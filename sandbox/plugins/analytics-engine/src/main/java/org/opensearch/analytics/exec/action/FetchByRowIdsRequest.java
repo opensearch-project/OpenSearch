@@ -38,14 +38,28 @@ public class FetchByRowIdsRequest extends ActionRequest implements ShardInvocati
     private final String backendId;
     private final long[] rowIds;
     private final String[] columns;
+    private final boolean profile;
 
     public FetchByRowIdsRequest(String queryId, int stageId, ShardId shardId, String backendId, long[] rowIds, String[] columns) {
+        this(queryId, stageId, shardId, backendId, rowIds, columns, false);
+    }
+
+    public FetchByRowIdsRequest(
+        String queryId,
+        int stageId,
+        ShardId shardId,
+        String backendId,
+        long[] rowIds,
+        String[] columns,
+        boolean profile
+    ) {
         this.queryId = queryId;
         this.stageId = stageId;
         this.shardId = shardId;
         this.backendId = backendId;
         this.rowIds = rowIds;
         this.columns = columns;
+        this.profile = profile;
     }
 
     public FetchByRowIdsRequest(StreamInput in) throws IOException {
@@ -56,6 +70,7 @@ public class FetchByRowIdsRequest extends ActionRequest implements ShardInvocati
         this.backendId = in.readString();
         this.rowIds = in.readLongArray();
         this.columns = in.readStringArray();
+        this.profile = in.readBoolean();
     }
 
     @Override
@@ -67,6 +82,7 @@ public class FetchByRowIdsRequest extends ActionRequest implements ShardInvocati
         out.writeString(backendId);
         out.writeLongArray(rowIds);
         out.writeStringArray(columns);
+        out.writeBoolean(profile);
     }
 
     @Override
@@ -94,6 +110,10 @@ public class FetchByRowIdsRequest extends ActionRequest implements ShardInvocati
 
     public String[] getColumns() {
         return columns;
+    }
+
+    public boolean profile() {
+        return profile;
     }
 
     @Override

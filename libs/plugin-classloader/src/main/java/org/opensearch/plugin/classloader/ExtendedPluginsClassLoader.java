@@ -32,8 +32,8 @@
 
 package org.opensearch.plugin.classloader;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
+import org.opensearch.secure_sm.AccessController;
+
 import java.util.Collections;
 import java.util.List;
 
@@ -65,10 +65,7 @@ public class ExtendedPluginsClassLoader extends ClassLoader {
     /**
      * Return a new classloader across the parent and extended loaders.
      */
-    @SuppressWarnings("removal")
     public static ExtendedPluginsClassLoader create(ClassLoader parent, List<ClassLoader> extendedLoaders) {
-        return AccessController.doPrivileged(
-            (PrivilegedAction<ExtendedPluginsClassLoader>) () -> new ExtendedPluginsClassLoader(parent, extendedLoaders)
-        );
+        return AccessController.doPrivileged(() -> new ExtendedPluginsClassLoader(parent, extendedLoaders));
     }
 }
