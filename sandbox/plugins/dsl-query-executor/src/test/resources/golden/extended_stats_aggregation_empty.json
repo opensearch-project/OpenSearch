@@ -1,0 +1,80 @@
+{
+  "testName": "extended_stats_aggregation_empty",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "price_stats": {
+        "extended_stats": {
+          "field": "price",
+          "sigma": 3.0
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalAggregate(group=[{}], price_stats_count=[COUNT($1)], price_stats_min=[MIN($1)], price_stats_max=[MAX($1)], price_stats_sum=[SUM($1)], price_stats_variance=[VAR_POP($1)])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": [
+    "price_stats_count",
+    "price_stats_min",
+    "price_stats_max",
+    "price_stats_sum",
+    "price_stats_variance"
+  ],
+  "mockResultRows": [
+    [
+      0,
+      null,
+      null,
+      null,
+      null
+    ]
+  ],
+  "mockCountRow": {
+    "_total": 0
+  },
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": null,
+      "hits": []
+    },
+    "aggregations": {
+      "price_stats": {
+        "count": 0,
+        "min": null,
+        "max": null,
+        "avg": null,
+        "sum": 0.0,
+        "sum_of_squares": null,
+        "variance": null,
+        "variance_population": null,
+        "variance_sampling": null,
+        "std_deviation": null,
+        "std_deviation_population": null,
+        "std_deviation_sampling": null,
+        "std_deviation_bounds": {
+          "upper": null,
+          "lower": null,
+          "upper_population": null,
+          "lower_population": null,
+          "upper_sampling": null,
+          "lower_sampling": null
+        }
+      }
+    }
+  }
+}
