@@ -39,7 +39,9 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.ArrayUtils;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.tasks.TaskId;
-import org.opensearch.geometry.LinearRing;
+import org.opensearch.geometry.Geometry;
+import org.opensearch.geometry.GeometryVisitor;
+import org.opensearch.geometry.ShapeType;
 import org.opensearch.index.query.GeoShapeQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.rest.RestRequest;
@@ -463,14 +465,31 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     }
 
     public void testDescriptionOnSourceError() {
-        LinearRing linearRing = new LinearRing(new double[] { -25, -35, -25 }, new double[] { -25, -35, -25 });
-        GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder("geo", linearRing);
+        // LinearRing used to be the natural trigger for a serialization error here, but since #12324
+        // it serializes as a LineString, so use a synthetic geometry to keep covering the error path.
+        Geometry unserializableShape = new Geometry() {
+            @Override
+            public ShapeType type() {
+                return ShapeType.LINEARRING;
+            }
+
+            @Override
+            public <T, E extends Exception> T visit(GeometryVisitor<T, E> visitor) throws E {
+                throw new UnsupportedOperationException("shape cannot be serialized using GeoJson");
+            }
+
+            @Override
+            public boolean isEmpty() {
+                return false;
+            }
+        };
+        GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder("geo", unserializableShape);
         SearchRequest request = new SearchRequest();
         request.source(new SearchSourceBuilder().query(queryBuilder));
         assertThat(
             toDescription(request),
             equalTo(
-                "indices[], search_type[QUERY_THEN_FETCH], source[<error: java.lang.UnsupportedOperationException: line ring cannot be serialized using GeoJson>]"
+                "indices[], search_type[QUERY_THEN_FETCH], source[<error: java.lang.UnsupportedOperationException: shape cannot be serialized using GeoJson>]"
             )
         );
     }
