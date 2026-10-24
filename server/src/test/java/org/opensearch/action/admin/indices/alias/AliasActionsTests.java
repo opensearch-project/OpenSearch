@@ -32,9 +32,11 @@
 
 package org.opensearch.action.admin.indices.alias;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -338,6 +340,68 @@ public class AliasActionsTests extends OpenSearchTestCase {
             assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(e.getCause().getCause().getMessage(), containsString("Only one of [alias] and [aliases] is supported"));
         }
+    }
+
+    public void testParseEnforcement() throws IOException {
+        String enforcement = randomFrom("post_filter", "pre_filter", "filtered_stats");
+        XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
+        b.startObject()
+            .startObject("add")
+            .field("index", "i")
+            .field("alias", "a")
+            .field("enforcement", enforcement)
+            .endObject()
+            .endObject();
+        try (XContentParser parser = createParser(b)) {
+            AliasActions action = AliasActions.PARSER.apply(parser, null);
+            assertEquals(enforcement, action.enforcement());
+            // It is written back out, so the request round-trips through the REST layer.
+            assertThat(Strings.toString(MediaTypeRegistry.JSON, action), containsString("\"enforcement\":\"" + enforcement + "\""));
+        }
+    }
+
+    public void testUnknownEnforcementIsRejected() throws IOException {
+        XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
+        b.startObject()
+            .startObject("add")
+            .field("index", "i")
+            .field("alias", "a")
+            .field("enforcement", "filter_stats")
+            .endObject()
+            .endObject();
+        try (XContentParser parser = createParser(b)) {
+            Exception e = expectThrows(XContentParseException.class, () -> AliasActions.PARSER.apply(parser, null));
+            Throwable root = e;
+            while (root.getCause() != null) {
+                root = root.getCause();
+            }
+            assertThat(root.getMessage(), containsString("unknown alias enforcement [filter_stats]"));
+        }
+        expectThrows(IllegalArgumentException.class, () -> AliasActions.add().enforcement("filter_stats"));
+    }
+
+    public void testEnforcementRoundTripsAndIsDroppedForAnOlderNode() throws IOException {
+        AliasActions action = AliasActions.add().index("i").alias("a").enforcement("filtered_stats");
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            action.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                AliasActions read = new AliasActions(in);
+                assertEquals(action, read);
+                assertEquals("filtered_stats", read.enforcement());
+            }
+        }
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_3_9_0);
+            action.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_3_9_0);
+                AliasActions read = new AliasActions(in);
+                assertNull(read.enforcement());
+                assertEquals(0, in.available());
+            }
+        }
+        assertNotEquals(action, AliasActions.add().index("i").alias("a"));
+        assertThat(action.toString(), containsString("enforcement=filtered_stats"));
     }
 
     public void testRoundTrip() throws IOException {
