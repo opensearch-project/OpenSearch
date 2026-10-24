@@ -170,18 +170,24 @@ public class SemanticVersionFieldMapper extends ParametrizedFieldMapper {
             if (value == null) {
                 throw new IllegalArgumentException("Cannot search for null value");
             }
-            BytesRef bytes = value instanceof BytesRef ? (BytesRef) value : new BytesRef(value.toString());
-            Query indexQuery = isSearchable ? new TermQuery(new Term(name(), bytes)) : null;
-            Query dvQuery = hasDocValues ? SortedSetDocValuesField.newSlowExactQuery(normalizedFieldName, bytes) : null;
-            if (indexQuery != null && dvQuery != null) {
-                return new IndexOrDocValuesQuery(indexQuery, dvQuery);
-            } else if (indexQuery != null) {
-                return indexQuery;
-            } else if (dvQuery != null) {
-                return dvQuery;
+            // Doc values only hold the normalized form, which drops build metadata, so they can't
+            // answer an exact term query. Only fall back to them when the field isn't indexed.
+            if (isSearchable) {
+                return new TermQuery(new Term(name(), toBytesRef(value)));
+            } else if (hasDocValues) {
+                return SortedSetDocValuesField.newSlowExactQuery(normalizedFieldName, normalize(value));
             } else {
                 throw new IllegalArgumentException("Field [" + name() + "] is neither indexed nor has doc_values enabled");
             }
+        }
+
+        private static BytesRef toBytesRef(Object value) {
+            return value instanceof BytesRef ? (BytesRef) value : new BytesRef(value.toString());
+        }
+
+        private static BytesRef normalize(Object value) {
+            String str = value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value.toString();
+            return new BytesRef(SemanticVersion.parse(str).getNormalizedComparableString());
         }
 
         @Override
@@ -229,17 +235,16 @@ public class SemanticVersionFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
             List<BytesRef> bytesList = new ArrayList<>();
-            for (Object value : values) {
-                bytesList.add(value instanceof BytesRef ? (BytesRef) value : new BytesRef(value.toString()));
-            }
-            Query indexQuery = isSearchable ? new org.apache.lucene.search.TermInSetQuery(name(), bytesList) : null;
-            Query dvQuery = hasDocValues ? SortedSetDocValuesField.newSlowSetQuery(normalizedFieldName, bytesList) : null;
-            if (indexQuery != null && dvQuery != null) {
-                return new IndexOrDocValuesQuery(indexQuery, dvQuery);
-            } else if (indexQuery != null) {
-                return indexQuery;
-            } else if (dvQuery != null) {
-                return dvQuery;
+            if (isSearchable) {
+                for (Object value : values) {
+                    bytesList.add(toBytesRef(value));
+                }
+                return new org.apache.lucene.search.TermInSetQuery(name(), bytesList);
+            } else if (hasDocValues) {
+                for (Object value : values) {
+                    bytesList.add(normalize(value));
+                }
+                return SortedSetDocValuesField.newSlowSetQuery(normalizedFieldName, bytesList);
             } else {
                 throw new IllegalArgumentException("Field [" + name() + "] is neither indexed nor has doc_values enabled");
             }
