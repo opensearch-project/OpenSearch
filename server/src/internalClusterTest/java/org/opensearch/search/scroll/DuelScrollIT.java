@@ -129,6 +129,66 @@ public class DuelScrollIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         clearScroll(scrollId);
     }
 
+    public void testDuelIndexSortedFilteredScroll() throws Exception {
+        for (SortOrder order : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
+            String index = "sorted-" + order;
+            assertAcked(
+                prepareCreate(index).setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.refresh_interval", -1)
+                        .put("index.sort.field", "number")
+                        .put("index.sort.order", order.toString())
+                ).setMapping("number", "type=long", "tag", "type=keyword")
+            );
+            IndexRequestBuilder[] documents = new IndexRequestBuilder[128];
+            for (int i = 0; i < documents.length; i++) {
+                documents[i] = client().prepareIndex(index)
+                    .setId(Integer.toString(i))
+                    .setSource("number", i / 3, "tag", i % 2 == 0 ? "match" : "other");
+            }
+            indexRandom(true, documents);
+            client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
+            client().prepareDelete(index, "20").get();
+            refresh(index);
+            SearchResponse control = client().prepareSearch(index)
+                .setQuery(QueryBuilders.termQuery("tag", "match"))
+                .addSort("number", order)
+                .setSize(documents.length)
+                .get();
+            assertNoFailures(control);
+            assertEquals(63, control.getHits().getTotalHits().value());
+            for (int pageSize : new int[] { 7, 31 }) {
+                SearchResponse scroll = client().prepareSearch(index)
+                    .setQuery(QueryBuilders.termQuery("tag", "match"))
+                    .addSort("number", order)
+                    .setSize(pageSize)
+                    .setScroll("1m")
+                    .get();
+                int collected = 0;
+                try {
+                    while (true) {
+                        assertNoFailures(scroll);
+                        assertEquals(control.getHits().getTotalHits(), scroll.getHits().getTotalHits());
+                        if (scroll.getHits().getHits().length == 0) {
+                            break;
+                        }
+                        for (SearchHit hit : scroll.getHits()) {
+                            SearchHit expected = control.getHits().getAt(collected++);
+                            assertEquals(expected.getId(), hit.getId());
+                            assertArrayEquals(expected.getSortValues(), hit.getSortValues());
+                        }
+                        scroll = client().prepareSearchScroll(scroll.getScrollId()).setScroll("1m").get();
+                    }
+                    assertEquals(control.getHits().getHits().length, collected);
+                } finally {
+                    clearScroll(scroll.getScrollId());
+                }
+            }
+        }
+    }
+
     private TestContext create(SearchType... searchTypes) throws Exception {
         assertAcked(
             prepareCreate("index").setMapping(
