@@ -43,9 +43,11 @@ import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpoin
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -269,7 +271,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 // This is done to avoid delete post each refresh.
                 // Also trigger cleanup if the uploaded segments map exceeds the configured threshold,
                 // to prevent unbounded memory growth when flushes do not happen.
-                if (isRefreshAfterCommit() || uploadedSegmentsMapExceedsThreshold()) {
+                boolean refreshAfterCommit = isRefreshAfterCommit();
+                if (refreshAfterCommit || uploadedSegmentsMapExceedsThreshold()) {
                     // Collection fails CLOSED, on its own gate, unlike the publication gate at the top of this sync
                     // (which fails open - an unreadable fence there costs at most an orphan). The two directions must
                     // sit on separate checks: FenceSegmentFlow.tla measures that relaxing the publication gate alone
@@ -309,53 +312,82 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     long lastRefreshedCheckpoint = indexShard.getIndexer().lastRefreshedCheckpoint();
                     Collection<String> localSegmentsPostRefresh = catalogSnapshot.getFiles(true);
 
-                    evictUploadedChecksums(localSegmentsPostRefresh);
-                    // Create a map of file name to size and update the refresh segment tracker
-                    Map<String, Long> localSegmentsSizeMap = updateLocalSizeMapAndTracker(localSegmentsPostRefresh).entrySet()
-                        .stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                    CountDownLatch latch = new CountDownLatch(1);
-                    ActionListener<Void> segmentUploadsCompletedListener = new LatchedActionListener<>(new ActionListener<>() {
-                        @Override
-                        public void onResponse(Void unused) {
+                    // On the first refresh that observes a commit, pin the commit's own catalog snapshot so a
+                    // metadata file referencing exactly the commit's files can be uploaded below. Refreshes
+                    // racing a commit otherwise leave only reader-based metadata for the commit's term and
+                    // generation, which can reference post-commit (uncommitted or merged) segments. The pin is
+                    // held until this sync completes so a racing merge cannot delete the commit's files.
+                    final GatedCloseable<CatalogSnapshot> committedSnapshotRef = refreshAfterCommit
+                        ? acquireLastCommittedCatalogSnapshot()
+                        : null;
+                    try {
+
+                        evictUploadedChecksums(localSegmentsPostRefresh);
+                        // Create a map of file name to size and update the refresh segment tracker
+                        Map<String, Long> localSegmentsSizeMap = updateLocalSizeMapAndTracker(localSegmentsPostRefresh).entrySet()
+                            .stream()
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                        CountDownLatch latch = new CountDownLatch(1);
+                        ActionListener<Void> segmentUploadsCompletedListener = new LatchedActionListener<>(new ActionListener<>() {
+                            @Override
+                            public void onResponse(Void unused) {
+                                try {
+                                    logger.debug("New segments upload successful");
+                                    // Upload a metadata file pinned to the exact commit file set before the
+                                    // reader-based one, so that the earliest metadata file for the commit's term
+                                    // and generation always describes the commit itself.
+                                    if (committedSnapshotRef != null) {
+                                        try {
+                                            uploadCommitPinnedMetadata(committedSnapshotRef.get(), checkpoint);
+                                        } catch (Exception e) {
+                                            logger.warn("Exception while uploading commit-pinned metadata", e);
+                                        }
+                                    }
+                                    // Start metadata file upload
+                                    uploadMetadata(localSegmentsPostRefresh, catalogSnapshot, checkpoint);
+                                    logger.debug("Metadata upload successful");
+                                    clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
+                                    onSuccessfulSegmentsSync(
+                                        refreshTimeMs,
+                                        refreshClockTimeMs,
+                                        refreshSeqNo,
+                                        lastRefreshedCheckpoint,
+                                        localSegmentsSizeMap,
+                                        checkpoint
+                                    );
+                                    // At this point since we have uploaded new segments, segment infos and segment metadata file,
+                                    // along with marking minSeqNoToKeep, upload has succeeded completely.
+                                    successful.set(true);
+                                } catch (Exception e) {
+                                    // We don't want to fail refresh if upload of new segments fails. The missed segments will be re-tried
+                                    // as part of exponential back-off retry logic. This should not affect durability of the indexed data
+                                    // with remote trans-log integration.
+                                    logger.warn("Exception in post new segment upload actions", e);
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.warn("Exception while uploading new segments to the remote segment store", e);
+                            }
+                        }, latch);
+
+                        // Start the segments files upload with crypto
+                        uploadNewSegments(localSegmentsPostRefresh, localSegmentsSizeMap, segmentUploadsCompletedListener, cryptoMetadata);
+                        if (latch.await(
+                            remoteStoreSettings.getClusterRemoteSegmentTransferTimeout().millis(),
+                            TimeUnit.MILLISECONDS
+                        ) == false) {
+                            throw new SegmentUploadFailedException("Timeout while waiting for remote segment transfer to complete");
+                        }
+                    } finally {
+                        if (committedSnapshotRef != null) {
                             try {
-                                logger.debug("New segments upload successful");
-                                // Start metadata file upload
-                                uploadMetadata(localSegmentsPostRefresh, catalogSnapshot, checkpoint);
-                                logger.debug("Metadata upload successful");
-                                clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
-                                onSuccessfulSegmentsSync(
-                                    refreshTimeMs,
-                                    refreshClockTimeMs,
-                                    refreshSeqNo,
-                                    lastRefreshedCheckpoint,
-                                    localSegmentsSizeMap,
-                                    checkpoint
-                                );
-                                // At this point since we have uploaded new segments, segment infos and segment metadata file,
-                                // along with marking minSeqNoToKeep, upload has succeeded completely.
-                                successful.set(true);
-                            } catch (Exception e) {
-                                // We don't want to fail refresh if upload of new segments fails. The missed segments will be re-tried
-                                // as part of exponential back-off retry logic. This should not affect durability of the indexed data
-                                // with remote trans-log integration.
-                                logger.warn("Exception in post new segment upload actions", e);
+                                committedSnapshotRef.close();
+                            } catch (IOException e) {
+                                logger.warn("Failed to release the pinned committed catalog snapshot", e);
                             }
                         }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.warn("Exception while uploading new segments to the remote segment store", e);
-                        }
-                    }, latch);
-
-                    // Start the segments files upload with crypto
-                    uploadNewSegments(localSegmentsPostRefresh, localSegmentsSizeMap, segmentUploadsCompletedListener, cryptoMetadata);
-                    if (latch.await(
-                        remoteStoreSettings.getClusterRemoteSegmentTransferTimeout().millis(),
-                        TimeUnit.MILLISECONDS
-                    ) == false) {
-                        throw new SegmentUploadFailedException("Timeout while waiting for remote segment transfer to complete");
                     }
                 } catch (EngineException e) {
                     logger.warn("Exception while reading SegmentInfosSnapshot", e);
@@ -535,6 +567,69 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             logger.info("Exception occurred in isRefreshAfterCommitSafe", e);
         }
         return false;
+    }
+
+    /**
+     * Acquires a pinned reference to the last commit's catalog snapshot, for the commit-pinned
+     * metadata upload. Returns null when the commit cannot be acquired; the reader-based metadata
+     * upload still proceeds in that case.
+     */
+    private GatedCloseable<CatalogSnapshot> acquireLastCommittedCatalogSnapshot() {
+        try {
+            org.opensearch.index.engine.exec.Indexer indexer = indexShard.getIndexerOrNull();
+            if (indexer == null) {
+                return null;
+            }
+            return indexer.acquireLastCommittedSnapshot(false);
+        } catch (Exception e) {
+            logger.warn("Failed to acquire the last committed catalog snapshot, skipping commit-pinned metadata upload", e);
+            return null;
+        }
+    }
+
+    /**
+     * Uploads a metadata file that references exactly the files of the last commit. Readers that pin a commit
+     * (snapshots) resolve the commit's metadata to the earliest upload for its term and generation, which is
+     * this file as long as it is uploaded before the reader-based metadata of the same sync.
+     *
+     * If a merge raced the commit and some commit files were never uploaded to the remote store, the upload is
+     * skipped: a metadata file referencing files missing from the remote store is worse than no file at all.
+     */
+    private void uploadCommitPinnedMetadata(CatalogSnapshot committedSnapshot, ReplicationCheckpoint checkpoint) throws IOException {
+        Collection<String> commitFiles = committedSnapshot.getFiles(true);
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteDirectory
+            .getSegmentsUploadedToRemoteStore();
+        List<String> missingFromRemote = new ArrayList<>();
+        for (String file : commitFiles) {
+            if (EXCLUDE_FILES.contains(file) == false && uploadedSegments.containsKey(file) == false) {
+                missingFromRemote.add(file);
+            }
+        }
+        if (missingFromRemote.isEmpty() == false) {
+            logger.warn(
+                "Skipping commit-pinned metadata upload for commit generation {}: files not in remote store {}",
+                committedSnapshot.getGeneration(),
+                missingFromRemote
+            );
+            return;
+        }
+        Translog.TranslogGeneration translogGeneration = indexShard.getIndexer().translogManager().getTranslogGeneration();
+        if (translogGeneration == null) {
+            logger.warn(
+                "Skipping commit-pinned metadata upload for commit generation {}: no active translog generation",
+                committedSnapshot.getGeneration()
+            );
+            return;
+        }
+        remoteDirectory.uploadMetadata(
+            commitFiles,
+            committedSnapshot,
+            storeDirectory,
+            translogGeneration.translogFileGeneration,
+            checkpoint,
+            indexShard.getNodeId(),
+            indexShard.catalogSnapshotToRemoteMetadataSerializer()
+        );
     }
 
     private boolean uploadedSegmentsMapExceedsThreshold() {
