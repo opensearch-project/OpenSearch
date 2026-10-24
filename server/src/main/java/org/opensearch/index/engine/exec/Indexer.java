@@ -202,11 +202,16 @@ public interface Indexer
     GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException, IOException;
 
     /**
-     * Resolves a document by id. Engine-backed indexers delegate to
-     * {@link Engine#get(Engine.Get, java.util.function.BiFunction)} with {@code searcherFactory};
-     * row-store indexers acquire their own reader and ignore the factory.
+     * Resolves a document by id using the request-scoped lookup context, which carries the
+     * {@link Engine.Get} request and the effective read-access policy. Engine-backed indexers
+     * delegate to {@link Engine#get(Engine.Get, java.util.function.BiFunction)} with
+     * {@code searcherFactory}; row-store indexers acquire their own reader and ignore the factory.
+     *
+     * @param context request-scoped document lookup dependencies
+     * @param searcherFactory searcher factory used by engine-backed indexers
      */
-    Engine.GetResult getById(Engine.Get get, BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory) throws IOException;
+    Engine.GetResult getById(DocumentLookupContext context, BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory)
+        throws IOException;
 
     /**
      * Returns {@code true} if there are merges queued but not yet started.

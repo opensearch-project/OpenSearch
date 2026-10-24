@@ -66,6 +66,42 @@ public class DocumentLookupService {
     }
 
     /**
+     * Executes the second stage of a secured get-by-id lookup.
+     *
+     * <p>The caller has already used the secondary metadata index (normally Lucene) to resolve
+     * {@code id} to the exact writer generation and primary-store row ID represented by
+     * {@code metadata}. Passing that resolution into this method avoids resolving the ID again
+     * and ensures that the supplied plan is executed against the same reader snapshot and file
+     * set. The {@code securedPlan} is expected to constrain the primary-store scan to that row ID
+     * and apply the effective Document Level Security predicate before the row is returned.
+     *
+     * <p>A plan that produces no row means either that the resolved document did not survive the
+     * security predicate or that no matching row is visible in the supplied snapshot. Both cases
+     * are deliberately returned as {@link DocumentLookupResult#notFound(String)} so GET/MGET does
+     * not disclose the existence of a document that the caller is not authorized to read. Plan
+     * translation or execution failures are not converted to an unfiltered lookup; they propagate
+     * to the caller and therefore fail closed.
+     *
+     * @param id external document ID used to construct the result
+     * @param metadata row location previously resolved for {@code id}
+     * @param reader point-in-time reader from which {@code metadata} was resolved
+     * @param index concrete index whose name identifies the backend scan table
+     * @param securedPlan serialized row-ID-constrained Document Level Security plan
+     * @return the authorized document, or a not-found result when the plan produces no row
+     * @throws IOException if the secured backend execution fails
+     */
+    public DocumentLookupResult getByResolvedMetadata(
+        String id,
+        DocumentMetadata metadata,
+        IndexReaderProvider.Reader reader,
+        Index index,
+        byte[] securedPlan
+    ) throws IOException {
+        Map<String, Object> row = fetchRow(metadata, reader, index.getName(), securedPlan);
+        return row == null ? DocumentLookupResult.notFound(id) : buildResultFromRow(id, row);
+    }
+
+    /**
      * Resolves version metadata without reconstructing {@code _source}. Uses resolver metadata when
      * available; legacy segments without these doc values fall back to a primary-store row lookup.
      */
@@ -120,6 +156,21 @@ public class DocumentLookupService {
             );
         }
         return row;
+    }
+
+    private Map<String, Object> fetchRow(DocumentMetadata metadata, IndexReaderProvider.Reader reader, String tableName, byte[] securedPlan)
+        throws IOException {
+        WriterFileSet fileSet = reader.catalogSnapshot().findFileSet(executor.formatName(), metadata.writerGeneration());
+        if (fileSet == null) {
+            throw new IllegalStateException(
+                "Resolver located id ["
+                    + metadata.id()
+                    + "] at writer generation ["
+                    + metadata.writerGeneration()
+                    + "] but no matching file set was found"
+            );
+        }
+        return executor.executeSingleRow(metadata.rowId(), fileSet, tableName, securedPlan);
     }
 
     public List<DocumentLookupResult> getDocsAboveSeqNo(long fromSeqNoExclusive, IndexReaderProvider.Reader reader, Index index)
