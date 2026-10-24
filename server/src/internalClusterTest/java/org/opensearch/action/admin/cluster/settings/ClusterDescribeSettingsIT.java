@@ -24,8 +24,9 @@ public class ClusterDescribeSettingsIT extends OpenSearchIntegTestCase {
         return List.of(DescriptionTestPlugin.class);
     }
 
-    public void testDescribeFromNonClusterManagerNode() {
+    public void testDescribeIsAnsweredLocallyByAnyNode() {
         ensureStableCluster(internalCluster().size());
+        // The request is executed on the non-cluster-manager node it is sent to; nothing is forwarded to the cluster-manager.
         var request = new ClusterDescribeSettingsRequest(
             "plugin.example.dynamic_setting",
             "plugin.example.static_setting",

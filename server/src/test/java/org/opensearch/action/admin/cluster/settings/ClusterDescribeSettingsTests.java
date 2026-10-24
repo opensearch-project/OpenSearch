@@ -16,6 +16,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchTestCase;
@@ -140,12 +141,9 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
         var response = new ClusterDescribeSettingsResponse(
             Map.of("plugin.static", SettingMetadata.withDefault(false, "false"), "plugin.dynamic", SettingMetadata.withoutDefault(true))
         );
-        try (var out = new BytesStreamOutput()) {
-            response.writeTo(out);
-            try (var in = out.bytes().streamInput()) {
-                assertEquals(response.settings(), new ClusterDescribeSettingsResponse(in).settings());
-            }
-        }
+        // The response is local-only: it is rendered with toXContent on the receiving node and never put on the wire.
+        expectThrows(UnsupportedOperationException.class, () -> response.writeTo(new BytesStreamOutput()));
+        expectThrows(UnsupportedOperationException.class, () -> new ClusterDescribeSettingsResponse((StreamInput) null));
     }
 
     public void testToXContentOmitsAbsentDefault() throws Exception {
