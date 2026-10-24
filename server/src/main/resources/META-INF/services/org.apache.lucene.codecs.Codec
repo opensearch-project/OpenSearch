@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 org.opensearch.index.codec.composite.composite912.Composite912Codec
 org.opensearch.index.codec.composite.composite104.Composite104Codec
 org.opensearch.index.codec.composite.backward_codecs.composite103.Composite103Codec
