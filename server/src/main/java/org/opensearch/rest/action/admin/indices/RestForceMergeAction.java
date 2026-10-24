@@ -77,6 +77,7 @@ public class RestForceMergeAction extends BaseRestHandler {
         mergeRequest.onlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", mergeRequest.onlyExpungeDeletes()));
         mergeRequest.flush(request.paramAsBoolean("flush", mergeRequest.flush()));
         mergeRequest.primaryOnly(request.paramAsBoolean("primary_only", mergeRequest.primaryOnly()));
+        mergeRequest.ignoreDuress(request.paramAsBoolean("ignore_duress", mergeRequest.ignoreDuress()));
         if (mergeRequest.onlyExpungeDeletes() && mergeRequest.maxNumSegments() != ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS) {
             deprecationLogger.deprecate(
                 "force_merge_expunge_deletes_and_max_num_segments_deprecation",
