@@ -54,6 +54,7 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
     public static final String _ID_STRING = "_id";
     public static final String NAME_STRING = "name";
     public static final String UPDATED_AT_STRING = "updated_at";
+    private static final String LEGACY_SEARCH_SETTINGS_STRING = "search_settings";
     private static final int MAX_CHARS_ALLOWED_IN_NAME = 50;
     private final String name;
     private final String _id;
@@ -245,9 +246,10 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
      * Deserializes a workload group from XContent. This is the on-disk gateway read of persisted cluster state at startup
      * ({@code WorkloadGroupMetadata#context()} == ALL_CONTEXTS), so it builds leniently. The create/update API path parses
      * via {@link Builder#fromXContent} and calls the strict {@link Builder#build()}, so it is unaffected.
+     * The legacy 3.6 {@code search_settings} object is skipped, since it may still be present in persisted cluster state.
      */
     public static WorkloadGroup fromXContent(final XContentParser parser) throws IOException {
-        return Builder.fromXContent(parser).build(true);
+        return Builder.fromXContent(parser, true).build(true);
     }
 
     public static Diff<WorkloadGroup> readDiff(final StreamInput in) throws IOException {
@@ -334,6 +336,10 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         private Builder() {}
 
         public static Builder fromXContent(XContentParser parser) throws IOException {
+            return fromXContent(parser, false);
+        }
+
+        private static Builder fromXContent(XContentParser parser, boolean skipLegacySearchSettings) throws IOException {
             if (parser.currentToken() == null) { // fresh parser? move to the first token
                 parser.nextToken();
             }
@@ -364,6 +370,16 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
                         throw new IllegalArgumentException(fieldName + " is not a valid field in WorkloadGroup");
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
+                    if (skipLegacySearchSettings && fieldName.equals(LEGACY_SEARCH_SETTINGS_STRING)) {
+                        logger.warn(
+                            "Ignoring legacy [{}] in persisted workload group [{}]; it has been replaced by [{}] and its values are dropped",
+                            LEGACY_SEARCH_SETTINGS_STRING,
+                            builder.name != null ? builder.name : builder._id,
+                            MutableWorkloadGroupFragment.SETTINGS_STRING
+                        );
+                        parser.skipChildren();
+                        continue;
+                    }
                     if (!MutableWorkloadGroupFragment.shouldParse(fieldName)) {
                         throw new IllegalArgumentException(fieldName + " is not a valid object in WorkloadGroup");
                     }
