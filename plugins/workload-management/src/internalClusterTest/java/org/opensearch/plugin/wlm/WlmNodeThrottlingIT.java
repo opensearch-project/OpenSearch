@@ -72,8 +72,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
@@ -731,18 +731,19 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
         static final String SCRIPT_NAME = "search_block";
 
         private final AtomicInteger hits = new AtomicInteger();
-        private final AtomicBoolean shouldBlock = new AtomicBoolean(true);
+        // Blocks until released, as the plugin starts armed. A latch releases blocked queries the instant disableBlock() is called.
+        private volatile CountDownLatch release = new CountDownLatch(1);
 
         public void reset() {
             hits.set(0);
         }
 
         public void disableBlock() {
-            shouldBlock.set(false);
+            release.countDown();
         }
 
         public void enableBlock() {
-            shouldBlock.set(true);
+            release = new CountDownLatch(1);
         }
 
         @Override
@@ -750,12 +751,17 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
             return Collections.singletonMap(SCRIPT_NAME, params -> {
                 LeafFieldsLookup fieldsLookup = (LeafFieldsLookup) params.get("_fields");
                 LogManager.getLogger(WlmNodeThrottlingIT.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
+                CountDownLatch latch = release;
                 hits.incrementAndGet();
                 try {
-                    // Outlast callers' 30s assertBusy waits; the 10s default would fail inside an unrelated assertion.
-                    assertBusy(() -> assertFalse(shouldBlock.get()), 120, TimeUnit.SECONDS);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
+                    // Outlast callers' 30s waits. Throw a RuntimeException (a clean shard failure) on expiry, never an
+                    // AssertionError: an Error escapes AbstractRunnable, kills the search thread and never answers the search.
+                    if (latch.await(120, TimeUnit.SECONDS) == false) {
+                        throw new IllegalStateException("blocking script was never released");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
                 }
                 return true;
             });
