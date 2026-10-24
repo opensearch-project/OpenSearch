@@ -32,7 +32,9 @@
 
 package org.opensearch.ingest.common;
 
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -58,6 +60,25 @@ import static org.mockito.Mockito.mock;
 
 public class GrokProcessorGetActionTests extends OpenSearchTestCase {
     private static final Map<String, String> TEST_PATTERNS = Map.of("PATTERN2", "foo2", "PATTERN1", "foo1");
+
+    public void testLocalActionValidatesRequests() {
+        var validationFailure = new ActionRequestValidationException();
+        validationFailure.addValidationError("invalid request");
+        var request = new GrokProcessorGetAction.Request(false) {
+            @Override
+            public ActionRequestValidationException validate() {
+                return validationFailure;
+            }
+        };
+        var action = new GrokProcessorGetAction.TransportAction(
+            mock(TaskManager.class),
+            new ActionFilters(Collections.emptySet()),
+            TEST_PATTERNS
+        );
+        var future = new PlainActionFuture<GrokProcessorGetAction.Response>();
+        action.execute(null, request, future);
+        assertSame(validationFailure, expectThrows(ActionRequestValidationException.class, future::actionGet));
+    }
 
     public void testRequest() throws Exception {
         GrokProcessorGetAction.Request request = new GrokProcessorGetAction.Request(false);

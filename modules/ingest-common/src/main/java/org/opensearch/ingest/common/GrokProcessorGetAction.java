@@ -36,6 +36,7 @@ import org.opensearch.action.LocalOnlyActionRequest;
 import org.opensearch.action.LocalOnlyActionResponse;
 import org.opensearch.action.LocalOnlyActionType;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.LocalOnlyTransportAction;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -106,7 +107,7 @@ public class GrokProcessorGetAction extends LocalOnlyActionType<GrokProcessorGet
 
     }
 
-    public static class TransportAction extends org.opensearch.action.support.TransportAction<Request, Response> {
+    public static class TransportAction extends LocalOnlyTransportAction<Request, Response> {
 
         private final Map<String, String> grokPatterns;
         private final Map<String, String> sortedGrokPatterns;
@@ -118,7 +119,7 @@ public class GrokProcessorGetAction extends LocalOnlyActionType<GrokProcessorGet
 
         // visible for testing
         TransportAction(TaskManager taskManager, ActionFilters actionFilters, Map<String, String> grokPatterns) {
-            super(NAME, actionFilters, taskManager);
+            super(INSTANCE, actionFilters, taskManager);
             this.grokPatterns = grokPatterns;
             this.sortedGrokPatterns = new TreeMap<>(this.grokPatterns);
         }

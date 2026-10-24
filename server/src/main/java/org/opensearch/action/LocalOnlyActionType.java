@@ -12,7 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
  * An action invoked through the local node client, not through a transport request handler.
- * Implementations extend {@link org.opensearch.action.support.TransportAction} directly and
+ * Implementations extend {@link org.opensearch.action.support.LocalOnlyTransportAction} and
  * remain subject to its validation, action filters and task tracking. Local-only does not mean trusted.
  *
  * @param <Response> the local response type
