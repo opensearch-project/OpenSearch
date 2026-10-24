@@ -47,6 +47,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
+import org.opensearch.index.cache.filteredstats.FilteredStatsCache;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
@@ -292,6 +293,15 @@ public abstract class SearchContext implements Releasable {
 
     public abstract BitsetFilterCache bitsetFilterCache();
 
+    /**
+     * The {@link FilteredStatsCache} for this context's index, or {@code null} when it is unavailable (e.g. a
+     * cacheless context). {@code DefaultSearchContext} overrides this; callers must tolerate {@code null} and fall
+     * back to inline computation.
+     */
+    public FilteredStatsCache filteredStatsCache() {
+        return null;
+    }
+
     public abstract TimeValue timeout();
 
     public abstract void timeout(TimeValue timeout);
@@ -364,6 +374,51 @@ public abstract class SearchContext implements Releasable {
     public abstract ParsedQuery parsedPostFilter();
 
     public abstract Query aliasFilter();
+
+    /**
+     * Whether BM25 collection/term statistics should be computed over only the documents that match the
+     * {@link #aliasFilter()} (the "visible" subset) instead of the whole shard.
+     * <p>
+     * This backs the {@code filtered_stats} scoring behavior of a {@code pre_filter} alias: relevance ranking
+     * runs as if the shard contained only the visible documents, so a term that appears exclusively in
+     * filtered-out documents does not contribute its document frequency to the BM25 IDF of visible documents.
+     * It is distinct from
+     * the {@code constant_score} pre-filter behavior (which suppresses scoring entirely by wrapping the query in a
+     * {@link org.apache.lucene.search.ConstantScoreQuery}).
+     * <p>
+     * Defaults to {@code false} (whole-shard statistics, today's behavior). When {@code true},
+     * {@link ContextIndexSearcher} computes statistics restricted to the {@link #aliasFilter()} bitset. This is
+     * only meaningful when {@link #aliasFilter()} is non-null.
+     */
+    public boolean useFilteredStatistics() {
+        return false;
+    }
+
+    /**
+     * The query that defines the visible subset for statistics purposes, which is the alias filter for a
+     * {@code pre_filter} alias and otherwise whatever a plugin has supplied through
+     * {@link #visibleSubsetFilter(Query)}.
+     * <p>
+     * {@link ContextIndexSearcher} reads this rather than {@link #aliasFilter()} directly, so it does not need to know
+     * which mechanism restricted the request. Returns null when statistics should cover the whole shard.
+     */
+    public Query filteredStatisticsFilter() {
+        return aliasFilter();
+    }
+
+    /**
+     * Declares the query that restricts this request, so BM25 statistics are computed over the documents it admits
+     * instead of the whole shard.
+     * <p>
+     * Calling this opts the request in. Pass the restriction alone, not combined with the user's query; it is subject
+     * to the visible-document budget.
+     *
+     * @param filter the restriction the caller applied to this request
+     */
+    public void visibleSubsetFilter(Query filter) {
+        // No-op by default. A plugin calls this on whatever context a request happens to carry, and a context that
+        // cannot scope statistics should ignore the hint rather than fail the request over it.
+    }
 
     public abstract SearchContext parsedQuery(ParsedQuery query);
 

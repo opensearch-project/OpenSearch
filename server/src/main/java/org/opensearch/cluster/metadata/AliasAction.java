@@ -108,6 +108,24 @@ public abstract class AliasAction {
         @Nullable
         final Boolean isHidden;
 
+        @Nullable
+        private final String enforcement;
+
+        /**
+         * Build the operation without an explicit enforcement mode (defaults to {@code null}).
+         */
+        public Add(
+            String index,
+            String alias,
+            @Nullable String filter,
+            @Nullable String indexRouting,
+            @Nullable String searchRouting,
+            @Nullable Boolean writeIndex,
+            @Nullable Boolean isHidden
+        ) {
+            this(index, alias, filter, indexRouting, searchRouting, writeIndex, isHidden, null);
+        }
+
         /**
          * Build the operation.
          */
@@ -118,7 +136,8 @@ public abstract class AliasAction {
             @Nullable String indexRouting,
             @Nullable String searchRouting,
             @Nullable Boolean writeIndex,
-            @Nullable Boolean isHidden
+            @Nullable Boolean isHidden,
+            @Nullable String enforcement
         ) {
             super(index);
             if (false == Strings.hasText(alias)) {
@@ -130,6 +149,7 @@ public abstract class AliasAction {
             this.searchRouting = searchRouting;
             this.writeIndex = writeIndex;
             this.isHidden = isHidden;
+            this.enforcement = enforcement;
         }
 
         /**
@@ -160,6 +180,11 @@ public abstract class AliasAction {
             return isHidden;
         }
 
+        @Nullable
+        public String getEnforcement() {
+            return enforcement;
+        }
+
         @Override
         boolean removeIndex() {
             return false;
@@ -175,6 +200,7 @@ public abstract class AliasAction {
                 .searchRouting(searchRouting)
                 .writeIndex(writeIndex)
                 .isHidden(isHidden)
+                .enforcement(enforcement)
                 .build();
 
             // Check if this alias already exists
