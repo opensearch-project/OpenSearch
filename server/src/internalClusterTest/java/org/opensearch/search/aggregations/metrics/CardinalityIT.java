@@ -50,10 +50,12 @@ import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -665,5 +667,61 @@ public class CardinalityIT extends ParameterizedStaticSettingsOpenSearchIntegTes
             equalTo(2L)
         );
         internalCluster().wipeIndices("cache_test_idx");
+    }
+
+    /**
+     * Thresholds low enough that the hybrid collector falls back from BitArrays to roaring bitmaps, and from roaring bitmaps
+     * to direct hashing, must not change any result.
+     */
+    public void testAsSubAggWithHybridCollectorFallbacks() throws Exception {
+        assertAcked(
+            prepareCreate("hybrid_idx").setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
+                .setMapping("group", "type=keyword", "user", "type=keyword")
+        );
+        ensureGreen("hybrid_idx");
+        String memoryThreshold = CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_MEMORY_THRESHOLD.getKey();
+        try {
+            List<IndexRequestBuilder> builders = new ArrayList<>(20_000);
+            for (int i = 0; i < 20_000; i++) {
+                builders.add(client().prepareIndex("hybrid_idx").setSource("group", "g" + (i % 200), "user", "u" + i));
+            }
+            // Index in 3 batches, refreshing after each, so that each shard has several segments
+            int batchSize = builders.size() / 3;
+            for (int seg = 0; seg < 3; seg++) {
+                int from = seg * batchSize;
+                indexRandom(true, false, false, builders.subList(from, seg == 2 ? builders.size() : from + batchSize));
+            }
+            indexRandomForConcurrentSearch("hybrid_idx");
+            // 50kb overflows a segment's BitArrays (~200 buckets x ~3000 ordinals) but not its roaring bitmaps; 1b overflows both
+            for (String threshold : new String[] { "50kb", "1b" }) {
+                assertAcked(
+                    client().admin()
+                        .cluster()
+                        .prepareUpdateSettings()
+                        .setTransientSettings(Settings.builder().put(memoryThreshold, threshold))
+                );
+                for (String hint : new String[] { null, "direct" }) {
+                    CardinalityAggregationBuilder card = cardinality("cardinality").field("user");
+                    if (hint != null) {
+                        card.executionHint(hint);
+                    }
+                    SearchResponse response = client().prepareSearch("hybrid_idx")
+                        .addAggregation(terms("terms").field("group").size(200).subAggregation(card))
+                        .get();
+                    assertSearchResponse(response);
+                    Terms terms = response.getAggregations().get("terms");
+                    assertThat(terms.getBuckets().size(), equalTo(200));
+                    for (Terms.Bucket bucket : terms.getBuckets()) {
+                        Cardinality count = bucket.getAggregations().get("cardinality");
+                        assertThat("threshold " + threshold + " hint " + hint, count.getValue(), equalTo(100L));
+                    }
+                }
+            }
+        } finally {
+            assertAcked(
+                client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull(memoryThreshold))
+            );
+            internalCluster().wipeIndices("hybrid_idx");
+        }
     }
 }
