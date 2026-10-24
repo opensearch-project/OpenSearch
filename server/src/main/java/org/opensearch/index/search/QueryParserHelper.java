@@ -52,6 +52,16 @@ import java.util.Set;
  * @opensearch.internal
  */
 public final class QueryParserHelper {
+
+    private static SearchService searchService;
+
+    public static void setSearchService(SearchService service) {
+        if (searchService != null) {
+            return; // already initialized
+        }
+        searchService = service;
+    }
+
     private QueryParserHelper() {}
 
     /**
@@ -180,7 +190,7 @@ public final class QueryParserHelper {
     }
 
     static void checkForTooManyFields(int numberOfFields, QueryShardContext context, @Nullable String inputPattern) {
-        int limit = SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.get(context.getIndexSettings().getSettings());
+        int limit = searchService.getFieldExpansionLimit();
         if (numberOfFields > limit) {
             StringBuilder errorMsg = new StringBuilder("field expansion ");
             if (inputPattern != null) {
