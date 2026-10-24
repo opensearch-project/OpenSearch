@@ -44,6 +44,7 @@ import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobItem;
 import com.azure.storage.blob.models.BlobItemProperties;
 import com.azure.storage.blob.models.BlobListDetails;
+import com.azure.storage.blob.models.BlobProperties;
 import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.BlobRequestConditions;
 import com.azure.storage.blob.models.BlobStorageException;
@@ -299,6 +300,17 @@ public class AzureBlobStore implements BlobStore {
     public long getReadBlobPreferredLength() {
         final Integer readBlockSize = service.getReadBlockSize(clientName);
         return readBlockSize == null ? AzureBlobContainer.DEFAULT_MINIMUM_READ_SIZE_IN_BYTES : readBlockSize;
+    }
+
+    public long getBlobLength(String blob) throws URISyntaxException, BlobStorageException {
+        final Tuple<BlobServiceClient, Supplier<Context>> client = client();
+        final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
+        return AccessController.doPrivileged(() -> {
+            final BlobProperties properties = blobContainer.getBlobClient(blob)
+                .getPropertiesWithResponse(null, timeout(), client.v2().get())
+                .getValue();
+            return properties.getBlobSize();
+        });
     }
 
     public Map<String, BlobMetadata> listBlobsByPrefix(String keyPath, String prefix) throws URISyntaxException, BlobStorageException {
