@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.alias;
 
 import org.opensearch.OpenSearchGenerationException;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.AliasesRequest;
 import org.opensearch.action.CompositeIndicesRequest;
@@ -57,6 +58,7 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.search.internal.AliasFilter;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -114,6 +116,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private static final ParseField IS_WRITE_INDEX = new ParseField("is_write_index");
         private static final ParseField IS_HIDDEN = new ParseField("is_hidden");
         private static final ParseField MUST_EXIST = new ParseField("must_exist");
+        private static final ParseField ENFORCEMENT = new ParseField("enforcement");
 
         private static final ParseField ADD = new ParseField("add");
         private static final ParseField REMOVE = new ParseField("remove");
@@ -221,6 +224,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             ADD_PARSER.declareField(AliasActions::searchRouting, XContentParser::text, SEARCH_ROUTING, ValueType.INT);
             ADD_PARSER.declareField(AliasActions::writeIndex, XContentParser::booleanValue, IS_WRITE_INDEX, ValueType.BOOLEAN);
             ADD_PARSER.declareField(AliasActions::isHidden, XContentParser::booleanValue, IS_HIDDEN, ValueType.BOOLEAN);
+            ADD_PARSER.declareField(AliasActions::enforcement, XContentParser::text, ENFORCEMENT, ValueType.STRING);
         }
         private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser(REMOVE.getPreferredName(), AliasActions::remove);
         static {
@@ -265,6 +269,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private Boolean writeIndex;
         private Boolean isHidden;
         private Boolean mustExist;
+        private String enforcement;
 
         public AliasActions(AliasActions.Type type) {
             this.type = type;
@@ -285,6 +290,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             isHidden = in.readOptionalBoolean();
             originalAliases = in.readStringArray();
             mustExist = in.readOptionalBoolean();
+            if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
+                enforcement = in.readOptionalString();
+            }
         }
 
         @Override
@@ -300,6 +308,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             out.writeOptionalBoolean(isHidden);
             out.writeStringArray(originalAliases);
             out.writeOptionalBoolean(mustExist);
+            if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
+                out.writeOptionalString(enforcement);
+            }
         }
 
         /**
@@ -496,6 +507,19 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return mustExist;
         }
 
+        public AliasActions enforcement(String enforcement) {
+            if (enforcement != null) {
+                // Rejected here, because a misspelled mode would otherwise be stored and silently treated as post_filter.
+                AliasFilter.Enforcement.fromString(enforcement);
+            }
+            this.enforcement = enforcement;
+            return this;
+        }
+
+        public String enforcement() {
+            return enforcement;
+        }
+
         @Override
         public String[] aliases() {
             return aliases;
@@ -560,6 +584,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (null != mustExist) {
                 builder.field(MUST_EXIST.getPreferredName(), mustExist);
             }
+            if (null != enforcement) {
+                builder.field(ENFORCEMENT.getPreferredName(), enforcement);
+            }
             builder.endObject();
             builder.endObject();
             return builder;
@@ -590,6 +617,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 + writeIndex
                 + ",mustExist="
                 + mustExist
+                + ",enforcement="
+                + enforcement
                 + "]";
         }
 
@@ -609,12 +638,25 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 && Objects.equals(searchRouting, other.searchRouting)
                 && Objects.equals(writeIndex, other.writeIndex)
                 && Objects.equals(isHidden, other.isHidden)
-                && Objects.equals(mustExist, other.mustExist);
+                && Objects.equals(mustExist, other.mustExist)
+                && Objects.equals(enforcement, other.enforcement);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex, isHidden, mustExist);
+            return Objects.hash(
+                type,
+                indices,
+                aliases,
+                filter,
+                routing,
+                indexRouting,
+                searchRouting,
+                writeIndex,
+                isHidden,
+                mustExist,
+                enforcement
+            );
         }
     }
 

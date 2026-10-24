@@ -90,6 +90,16 @@ public class MetadataIndexAliasesServiceTests extends OpenSearchTestCase {
         });
     }
 
+    public void testAddKeepsTheEnforcementMode() {
+        String index = randomAlphaOfLength(5);
+        ClusterState before = createIndex(ClusterState.builder(ClusterName.DEFAULT).build(), index);
+        ClusterState after = service.applyAliasActions(
+            before,
+            singletonList(new AliasAction.Add(index, "scoped", null, null, null, null, null, "pre_filter"))
+        );
+        assertEquals("pre_filter", after.metadata().index(index).getAliases().get("scoped").enforcement());
+    }
+
     public void testAddAndRemove() {
         // Create a state with a single index
         String index = randomAlphaOfLength(5);

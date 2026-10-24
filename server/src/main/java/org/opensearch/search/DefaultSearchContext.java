@@ -95,6 +95,7 @@ import org.opensearch.search.fetch.subphase.FetchFieldsContext;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.fetch.subphase.ScriptFieldsContext;
 import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.PitReaderContext;
 import org.opensearch.search.internal.ReaderContext;
@@ -473,7 +474,13 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (aliasFilter != null) {
-            filters.add(aliasFilter);
+            if (request.getAliasFilter().getEnforcement() == AliasFilter.Enforcement.PRE_FILTER) {
+                // Filter before scoring and score every hit the same, so no corpus statistics are read and documents
+                // outside the alias cannot affect a score.
+                query = new ConstantScoreQuery(new BooleanQuery.Builder().add(query, Occur.MUST).add(aliasFilter, Occur.FILTER).build());
+            } else {
+                filters.add(aliasFilter);
+            }
         }
 
         if (sliceBuilder != null) {

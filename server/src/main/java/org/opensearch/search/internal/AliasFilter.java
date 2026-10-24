@@ -32,6 +32,8 @@
 
 package org.opensearch.search.internal;
 
+import org.opensearch.Version;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -53,19 +55,96 @@ import java.util.Objects;
 @PublicApi(since = "1.0.0")
 public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
 
+    /**
+     * Where the alias filter is applied in the query pipeline.
+     * <p>
+     * {@link #POST_FILTER} is the historical behavior: the filter is added as a
+     * post-collection filter, so statistics and scoring still run over every
+     * document in the shard. This is the mode any pre-3.8 node speaks over the
+     * wire, and it is the default for every code path today.
+     * <p>
+     * {@link #PRE_FILTER} applies the alias filter before scoring, and suppresses
+     * scoring: every hit takes a constant score, no corpus statistics are read, and
+     * nothing about documents outside the alias can reach a score.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public enum Enforcement implements Writeable {
+        POST_FILTER("post_filter"),
+        PRE_FILTER("pre_filter");
+
+        private final String value;
+
+        Enforcement(String value) {
+            this.value = value;
+        }
+
+        /** The canonical REST/XContent string for this enforcement mode (e.g. {@code "pre_filter"}). */
+        public String value() {
+            return value;
+        }
+
+        /**
+         * Parse an enforcement mode from its REST/XContent string. Returns {@link #POST_FILTER} for a
+         * {@code null} value so an unspecified enforcement keeps today's behavior.
+         *
+         * @throws IllegalArgumentException if {@code value} is non-null but not a known mode
+         */
+        public static Enforcement fromString(String value) {
+            if (value == null) {
+                return POST_FILTER;
+            }
+            for (Enforcement e : values()) {
+                if (e.value.equals(value)) {
+                    return e;
+                }
+            }
+            throw new IllegalArgumentException("unknown alias enforcement [" + value + "], expected one of [post_filter, pre_filter]");
+        }
+
+        public static Enforcement readFrom(StreamInput in) throws IOException {
+            return in.readEnum(Enforcement.class);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeEnum(this);
+        }
+    }
+
+    /**
+     * First version that carries {@link Enforcement} on the wire. The alias request and alias metadata gate their copy
+     * of the field on the same version.
+     */
+    static final Version ENFORCEMENT_VERSION = Version.V_3_10_0;
+
     private final String[] aliases;
     private final QueryBuilder filter;
+    private final Enforcement enforcement;
 
     public static final AliasFilter EMPTY = new AliasFilter(null, Strings.EMPTY_ARRAY);
 
     public AliasFilter(QueryBuilder filter, String... aliases) {
+        this(filter, Enforcement.POST_FILTER, aliases);
+    }
+
+    public AliasFilter(QueryBuilder filter, Enforcement enforcement, String... aliases) {
         this.aliases = aliases == null ? Strings.EMPTY_ARRAY : aliases;
         this.filter = filter;
+        this.enforcement = enforcement == null ? Enforcement.POST_FILTER : enforcement;
     }
 
     public AliasFilter(StreamInput input) throws IOException {
         aliases = input.readStringArray();
         filter = input.readOptionalNamedWriteable(QueryBuilder.class);
+        // BWC: older nodes never write the enforcement field. Default to
+        // POST_FILTER (today's behavior) so mixed-version clusters keep working.
+        if (input.getVersion().onOrAfter(ENFORCEMENT_VERSION)) {
+            enforcement = input.readEnum(Enforcement.class);
+        } else {
+            enforcement = Enforcement.POST_FILTER;
+        }
     }
 
     @Override
@@ -74,7 +153,7 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
         if (queryBuilder != null) {
             QueryBuilder rewrite = Rewriteable.rewrite(queryBuilder, context);
             if (rewrite != queryBuilder) {
-                return new AliasFilter(rewrite, aliases);
+                return new AliasFilter(rewrite, enforcement, aliases);
             }
         }
         return this;
@@ -84,6 +163,10 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(aliases);
         out.writeOptionalNamedWriteable(filter);
+        if (out.getVersion().onOrAfter(ENFORCEMENT_VERSION)) {
+            out.writeEnum(enforcement);
+        }
+        // Pre-3.8 receivers implicitly treat the field as POST_FILTER.
     }
 
     /**
@@ -101,21 +184,31 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
         return filter;
     }
 
+    /**
+     * Returns where the alias filter should be applied in the query pipeline. Always
+     * non-null; defaults to {@link Enforcement#POST_FILTER} for backward compatibility.
+     * {@link Enforcement#PRE_FILTER} causes {@code DefaultSearchContext} to apply the filter
+     * before scoring so BM25 statistics reflect only the documents the alias admits.
+     */
+    public Enforcement getEnforcement() {
+        return enforcement;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AliasFilter that = (AliasFilter) o;
-        return Arrays.equals(aliases, that.aliases) && Objects.equals(filter, that.filter);
+        return Arrays.equals(aliases, that.aliases) && Objects.equals(filter, that.filter) && enforcement == that.enforcement;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(aliases), filter);
+        return Objects.hash(Arrays.hashCode(aliases), filter, enforcement);
     }
 
     @Override
     public String toString() {
-        return "AliasFilter{" + "aliases=" + Arrays.toString(aliases) + ", filter=" + filter + '}';
+        return "AliasFilter{aliases=" + Arrays.toString(aliases) + ", filter=" + filter + ", enforcement=" + enforcement + '}';
     }
 }
