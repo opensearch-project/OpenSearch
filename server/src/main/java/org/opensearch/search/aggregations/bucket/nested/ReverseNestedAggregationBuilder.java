@@ -131,8 +131,8 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         }
 
         NestedScope nestedScope = queryShardContext.nestedScope();
+        nestedScope.nextLevel(parentObjectMapper);
         try {
-            nestedScope.nextLevel(parentObjectMapper);
             return new ReverseNestedAggregatorFactory(
                 name,
                 false,
