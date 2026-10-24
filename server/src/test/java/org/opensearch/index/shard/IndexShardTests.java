@@ -104,6 +104,7 @@ import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
+import org.opensearch.index.engine.DocumentIndexWriter;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.EngineConfig;
@@ -150,6 +151,7 @@ import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.RemoteTranslogStats;
 import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.IndicesQueryCache;
@@ -237,7 +239,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -5780,6 +5785,168 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(initialPeriodicFlushCount + 1, primary.flushStats().getPeriodic());
 
         closeShards(primary);
+    }
+
+    public void testPeriodicFlushTaskAllowsLocalRolloverDuringCommit() throws Exception {
+        final CountDownLatch commitStarted = new CountDownLatch(1);
+        final CountDownLatch releaseCommit = new CountDownLatch(1);
+        final AtomicBoolean blockCommit = new AtomicBoolean();
+        final Settings settings = Settings.builder().put("index.translog.generation_threshold_size", "1kb").build();
+        final IndexShard primary = newStartedShard(true, settings, new EngineBackedIndexerFactory(config -> new InternalEngine(config) {
+            @Override
+            protected void commitIndexWriter(DocumentIndexWriter writer, String translogUUID) throws IOException {
+                if (blockCommit.compareAndSet(true, false)) {
+                    commitStarted.countDown();
+                    try {
+                        if (releaseCommit.await(30, TimeUnit.SECONDS) == false) {
+                            throw new IOException("timed out waiting to release the flush commit");
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException(e);
+                    }
+                }
+                super.commitIndexWriter(writer, translogUUID);
+            }
+        }));
+        final IndexShard.AsyncShardFlushTask task = primary.new AsyncShardFlushTask(primary, TimeValue.timeValueDays(1));
+        final PlainActionFuture<Void> flushDone = new PlainActionFuture<>();
+        final Thread flushThread = new Thread(() -> {
+            try {
+                task.runInternal();
+                flushDone.onResponse(null);
+            } catch (Exception e) {
+                flushDone.onFailure(e);
+            }
+        });
+        IndexShard recovered = null;
+        try {
+            indexDoc(primary, "_doc", "before");
+            final long initialFlushCount = primary.flushStats().getPeriodic();
+            blockCommit.set(true);
+            flushThread.start();
+            assertTrue("timer flush did not reach its commit", commitStarted.await(10, TimeUnit.SECONDS));
+            assertTrue(primary.isFlushOrRollRunning());
+
+            // A second timer invocation must not enter a concurrent flush.
+            task.runInternal();
+            assertEquals(initialFlushCount, primary.flushStats().getPeriodic());
+
+            // Index into the new generation while the timer's flush is paused after its own rollover.
+            indexDoc(primary, "_doc", "during", "{\"foo\":\"" + "x".repeat(4096) + "\"}");
+            final long generation = getTranslog(primary).currentFileGeneration();
+            assertTrue(primary.shouldRollTranslogGeneration());
+            primary.afterWriteOperation();
+            assertBusy(() -> assertTrue(getTranslog(primary).currentFileGeneration() > generation));
+            assertFalse(primary.shouldRollTranslogGeneration());
+            assertFalse("flush should remain paused while rollover completes", flushDone.isDone());
+
+            releaseCommit.countDown();
+            flushDone.get(10, TimeUnit.SECONDS);
+            flushThread.join(TimeUnit.SECONDS.toMillis(10));
+            assertFalse(flushThread.isAlive());
+            assertBusy(() -> assertFalse(primary.isFlushOrRollRunning()));
+            assertEquals(initialFlushCount + 1, primary.flushStats().getPeriodic());
+
+            task.close();
+            recovered = reinitShard(primary);
+            recoverShardFromStore(recovered);
+            assertThat(getShardDocUIDs(recovered), containsInAnyOrder("before", "during"));
+        } finally {
+            releaseCommit.countDown();
+            flushThread.join(TimeUnit.SECONDS.toMillis(10));
+            task.close();
+            closeShards(primary);
+            if (recovered != null) {
+                closeShards(recovered);
+            }
+        }
+    }
+
+    public void testPeriodicFlushTaskRunsWhileLocalRolloverIsScheduled() throws Exception {
+        final Settings settings = Settings.builder().put("index.translog.generation_threshold_size", "1kb").build();
+        final IndexShard primary = newStartedShard(true, settings);
+        final IndexShard shard = spy(primary);
+        final Indexer indexer = spy(primary.getIndexer());
+        final TranslogManager manager = spy(indexer.translogManager());
+        doReturn(manager).when(indexer).translogManager();
+        doReturn(indexer).when(shard).getIndexer();
+        final CountDownLatch rollStarted = new CountDownLatch(1);
+        final CountDownLatch releaseRoll = new CountDownLatch(1);
+        final CountDownLatch rollFinished = new CountDownLatch(1);
+        final AtomicReference<Throwable> rollFailure = new AtomicReference<>();
+        doAnswer(invocation -> {
+            rollStarted.countDown();
+            try {
+                if (releaseRoll.await(30, TimeUnit.SECONDS) == false) {
+                    throw new IOException("timed out waiting to release local rollover");
+                }
+                return invocation.callRealMethod();
+            } catch (Throwable e) {
+                rollFailure.set(e);
+                throw e;
+            } finally {
+                rollFinished.countDown();
+            }
+        }).when(manager).rollTranslogGeneration(false);
+        final IndexShard.AsyncShardFlushTask task = primary.new AsyncShardFlushTask(shard, TimeValue.timeValueDays(1));
+        IndexShard recovered = null;
+        try {
+            indexDoc(primary, "_doc", "0", "{\"foo\":\"" + "x".repeat(4096) + "\"}");
+            final long initialFlushCount = primary.flushStats().getPeriodic();
+            shard.afterWriteOperation();
+            assertTrue("local rollover did not start", rollStarted.await(10, TimeUnit.SECONDS));
+            assertTrue(shard.isFlushOrRollRunning());
+
+            task.runInternal();
+            assertEquals(initialFlushCount + 1, primary.flushStats().getPeriodic());
+            assertEquals("rollover must remain paused during the flush", 1, rollFinished.getCount());
+            assertTrue(shard.isFlushOrRollRunning());
+
+            releaseRoll.countDown();
+            assertTrue(rollFinished.await(10, TimeUnit.SECONDS));
+            assertBusy(() -> assertFalse(shard.isFlushOrRollRunning()));
+            assertNull(rollFailure.get());
+
+            task.close();
+            recovered = reinitShard(primary);
+            recoverShardFromStore(recovered);
+            assertThat(getShardDocUIDs(recovered), containsInAnyOrder("0"));
+        } finally {
+            releaseRoll.countDown();
+            try {
+                if (rollStarted.getCount() == 0) {
+                    assertTrue(rollFinished.await(10, TimeUnit.SECONDS));
+                    assertBusy(() -> assertFalse(shard.isFlushOrRollRunning()));
+                }
+            } finally {
+                task.close();
+                closeShards(primary);
+                if (recovered != null) {
+                    closeShards(recovered);
+                }
+            }
+        }
+    }
+
+    public void testPeriodicFlushTaskReleasesGuardAfterFailure() throws Exception {
+        final IndexShard primary = newStartedShard(true);
+        final IndexShard shard = spy(primary);
+        doThrow(new IllegalStateException("simulated flush failure")).doCallRealMethod().when(shard).flush(any(FlushRequest.class));
+        try (IndexShard.AsyncShardFlushTask task = primary.new AsyncShardFlushTask(shard, TimeValue.timeValueDays(1))) {
+            indexDoc(primary, "_doc", "0");
+            final long initialFlushCount = primary.flushStats().getPeriodic();
+            final IllegalStateException failure = expectThrows(IllegalStateException.class, task::runInternal);
+            assertEquals("simulated flush failure", failure.getMessage());
+            assertFalse(shard.isFlushOrRollRunning());
+            assertEquals(initialFlushCount, primary.flushStats().getPeriodic());
+
+            task.runInternal();
+            assertFalse(shard.isFlushOrRollRunning());
+            assertEquals(initialFlushCount + 1, primary.flushStats().getPeriodic());
+        } finally {
+            closeShards(primary);
+        }
     }
 
     public void testPeriodicFlushTaskStartedOnDynamicEnable() throws Exception {

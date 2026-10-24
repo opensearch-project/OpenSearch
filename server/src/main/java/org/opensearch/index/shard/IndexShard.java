@@ -5712,73 +5712,77 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     // we can not protect with a lock since we "release" on a different thread
-    private final AtomicBoolean flushOrRollRunning = new AtomicBoolean();
+    private final AtomicBoolean flushRunning = new AtomicBoolean();
+    private final AtomicBoolean rollRunning = new AtomicBoolean();
 
     /**
-     * Schedules a flush or translog generation roll if needed but will not schedule more than one concurrently. The operation will be
-     * executed asynchronously on the flush thread pool.
+     * Schedules a flush or translog generation roll if needed but will not schedule more than one operation of the same
+     * type concurrently. The operation will be executed asynchronously on the flush thread pool.
      * Can also schedule a flush if decided by translog manager
      */
     public void afterWriteOperation() {
-        if (shouldPeriodicallyFlush() || shouldRollTranslogGeneration()) {
-            if (flushOrRollRunning.compareAndSet(false, true)) {
-                /*
-                 * We have to check again since otherwise there is a race when a thread passes the first check next to another thread which
-                 * performs the operation quickly enough to  finish before the current thread could flip the flag. In that situation, we
-                 * have an extra operation.
-                 *
-                 * Additionally, a flush implicitly executes a translog generation roll so if we execute a flush then we do not need to
-                 * check if we should roll the translog generation.
-                 */
-                if (shouldPeriodicallyFlush()) {
-                    logger.debug("submitting async flush request");
-                    final AbstractRunnable flush = new AbstractRunnable() {
-                        @Override
-                        public void onFailure(final Exception e) {
-                            if (state != IndexShardState.CLOSED) {
-                                logger.warn("failed to flush index", e);
-                            }
-                        }
-
-                        @Override
-                        protected void doRun() throws IOException {
-                            flush(new FlushRequest());
-                            periodicFlushMetric.inc();
-                        }
-
-                        @Override
-                        public void onAfter() {
-                            flushOrRollRunning.compareAndSet(true, false);
-                            afterWriteOperation();
-                        }
-                    };
-                    threadPool.executor(ThreadPool.Names.FLUSH).execute(flush);
-                } else if (shouldRollTranslogGeneration()) {
-                    logger.debug("submitting async roll translog generation request");
-                    final AbstractRunnable roll = new AbstractRunnable() {
-                        @Override
-                        public void onFailure(final Exception e) {
-                            if (state != IndexShardState.CLOSED) {
-                                logger.warn("failed to roll translog generation", e);
-                            }
-                        }
-
-                        @Override
-                        protected void doRun() throws Exception {
-                            rollTranslogGeneration();
-                        }
-
-                        @Override
-                        public void onAfter() {
-                            flushOrRollRunning.compareAndSet(true, false);
-                            afterWriteOperation();
-                        }
-                    };
-                    threadPool.executor(ThreadPool.Names.FLUSH).execute(roll);
-                } else {
-                    flushOrRollRunning.compareAndSet(true, false);
-                }
+        if (shouldPeriodicallyFlush() && flushRunning.compareAndSet(false, true)) {
+            /*
+             * We have to check again since otherwise there is a race when a thread passes the first check next to another thread which
+             * performs the operation quickly enough to  finish before the current thread could flip the flag. In that situation, we
+             * have an extra operation.
+             *
+             * Additionally, a flush implicitly executes a translog generation roll so if we execute a flush then we do not need to
+             * check if we should roll the translog generation.
+             */
+            if (!shouldPeriodicallyFlush()) {
+                flushRunning.compareAndSet(true, false);
+                return;
             }
+            logger.debug("submitting async flush request");
+            final AbstractRunnable flush = new AbstractRunnable() {
+                @Override
+                public void onFailure(final Exception e) {
+                    if (state != IndexShardState.CLOSED) {
+                        logger.warn("failed to flush index", e);
+                    }
+                }
+
+                @Override
+                protected void doRun() throws IOException {
+                    flush(new FlushRequest());
+                    periodicFlushMetric.inc();
+                }
+
+                @Override
+                public void onAfter() {
+                    flushRunning.compareAndSet(true, false);
+                    afterWriteOperation();
+                }
+            };
+            threadPool.executor(ThreadPool.Names.FLUSH).execute(flush);
+        } else if (shouldRollTranslogGeneration() && rollRunning.compareAndSet(false, true)) {
+            if (!shouldRollTranslogGeneration()) {
+                rollRunning.compareAndSet(true, false);
+                return;
+            }
+            logger.debug("submitting async roll translog generation request");
+            final AbstractRunnable roll = new AbstractRunnable() {
+                @Override
+                public void onFailure(final Exception e) {
+                    if (state != IndexShardState.CLOSED) {
+                        logger.warn("failed to roll translog generation", e);
+                    }
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    getIndexer().translogManager().rollTranslogGeneration(false);
+                }
+
+                @Override
+                public void onAfter() {
+                    rollRunning.compareAndSet(true, false);
+                    afterWriteOperation();
+                }
+            };
+            // Local translog rollover could still be delayed if it's queued behind concurrent flushes
+            threadPool.executor(ThreadPool.Names.FLUSH).execute(roll);
         }
     }
 
@@ -7013,7 +7017,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     // Visible for testing
     boolean isFlushOrRollRunning() {
-        return flushOrRollRunning.get();
+        return flushRunning.get() || rollRunning.get();
     }
 
     /**
@@ -7042,13 +7046,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         @Override
         protected void runInternal() {
-            // Only execute if no other flush/roll is running to prevent concurrent flushes
-            if (indexShard.flushOrRollRunning.compareAndSet(false, true)) {
+            // Serialize flushes while allowing local translog rolls to proceed independently.
+            if (indexShard.flushRunning.compareAndSet(false, true)) {
                 try {
                     indexShard.flush(new FlushRequest());
                     indexShard.periodicFlushMetric.inc();
                 } finally {
-                    indexShard.flushOrRollRunning.set(false);
+                    indexShard.flushRunning.set(false);
                 }
             }
         }
