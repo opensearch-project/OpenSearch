@@ -158,6 +158,17 @@ public final class SqlPlannerTestFixture {
         String primaryDataFormat,
         int shardCount
     ) {
+        return clusterStateWith(indexName, fields, primaryDataFormat, shardCount, Settings.EMPTY);
+    }
+
+    /** As {@link #clusterStateWith(String, Map, String, int)} with extra index settings (e.g. {@code index.sort.*}). */
+    public static ClusterState clusterStateWith(
+        String indexName,
+        Map<String, Map<String, Object>> fields,
+        String primaryDataFormat,
+        int shardCount,
+        Settings extraSettings
+    ) {
         try (XContentBuilder mapping = XContentBuilder.builder(MediaTypeRegistry.JSON.xContent())) {
             mapping.startObject().field("properties", fields).endObject();
             IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
@@ -166,6 +177,7 @@ public final class SqlPlannerTestFixture {
                         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
                         .put("index.composite.primary_data_format", primaryDataFormat)
                         .putList("index.composite.secondary_data_formats", "lucene")
+                        .put(extraSettings)
                 )
                 .numberOfShards(shardCount)
                 .numberOfReplicas(0)
