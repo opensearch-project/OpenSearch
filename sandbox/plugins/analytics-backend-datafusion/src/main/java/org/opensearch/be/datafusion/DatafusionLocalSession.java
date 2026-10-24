@@ -16,9 +16,8 @@ import org.opensearch.be.datafusion.nativelib.NativeBridge;
  * coordinator-reduce path ({@link DatafusionReduceSink}).
  *
  * <p>The session holds a DataFusion {@code SessionContext} bound to the node-global runtime's
- * memory pool and disk manager. It owns any input partition streams registered via
- * {@link NativeBridge#registerPartitionStream(long, String, byte[])} and drops them when the
- * session itself is closed.
+ * memory pool and disk manager. It owns table providers and input partition streams registered
+ * through {@link NativeBridge}; closing the session drops those native registrations.
  */
 public final class DatafusionLocalSession extends NativeHandle {
 
