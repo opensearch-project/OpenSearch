@@ -35,16 +35,144 @@ package org.opensearch.index.mapper;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class DynamicTemplateTests extends OpenSearchTestCase {
+
+    public void testPathMatchArray() {
+        DynamicTemplate t = DynamicTemplate.parse(
+            "paths",
+            Map.of("path_match", List.of("a.*", "b.*"), "match_mapping_type", "string", "mapping", Map.of("type", "keyword"))
+        );
+        assertTrue(t.match("a.x", "x", XContentFieldType.STRING));
+        assertTrue(t.match("b.y", "y", XContentFieldType.STRING));
+        assertFalse(t.match("c.x", "x", XContentFieldType.STRING));
+        assertFalse(t.match("a.x", "x", XContentFieldType.LONG));
+    }
+
+    public void testPathUnmatchArray() {
+        DynamicTemplate t = DynamicTemplate.parse(
+            "paths",
+            Map.of("path_match", "*", "path_unmatch", List.of("a.skip", "b.skip"), "mapping", Map.of("type", "keyword"))
+        );
+        assertTrue(t.match("a.x", "x", XContentFieldType.STRING));
+        assertTrue(t.match("b.y", "y", XContentFieldType.STRING));
+        assertFalse(t.match("a.skip", "skip", XContentFieldType.STRING));
+        assertFalse(t.match("b.skip", "skip", XContentFieldType.STRING));
+    }
+
+    public void testPathPatternArraySerialization() throws Exception {
+        for (List<String> p : List.of(List.of("a.*", "b.*"), List.of("a.*"), List.<String>of())) {
+            DynamicTemplate t = DynamicTemplate.parse(
+                "paths",
+                Map.of("path_match", p, "path_unmatch", p, "mapping", Map.of("type", "keyword"))
+            );
+            try (XContentBuilder b = JsonXContent.contentBuilder()) {
+                t.toXContent(b, ToXContent.EMPTY_PARAMS);
+                try (XContentParser parser = createParser(JsonXContent.jsonXContent, b.toString())) {
+                    Map<String, Object> m = parser.map();
+                    assertEquals(p, m.get("path_match"));
+                    assertEquals(p, m.get("path_unmatch"));
+                }
+            }
+        }
+    }
+
+    public void testParseInvalidRegexInPathArray() {
+        for (String k : new String[] { "path_match", "path_unmatch" }) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> DynamicTemplate.parse(
+                    "paths",
+                    Map.of(
+                        k,
+                        List.of("^a.*$", "*a"),
+                        "match_mapping_type",
+                        "string",
+                        "match_pattern",
+                        "regex",
+                        "mapping",
+                        Map.of("type", "keyword")
+                    )
+                )
+            );
+            assertEquals("Pattern [*a] of type [regex] is invalid. Cannot create dynamic template [paths].", e.getMessage());
+        }
+    }
+
+    public void testRegexPathArrays() {
+        DynamicTemplate t = DynamicTemplate.parse(
+            "paths",
+            Map.of(
+                "path_match",
+                List.of("a\\..*", "b\\..*"),
+                "path_unmatch",
+                List.of("a\\.skip", "b\\.skip"),
+                "match_pattern",
+                "regex",
+                "mapping",
+                Map.of("type", "keyword")
+            )
+        );
+        assertTrue(t.match("a.x", "x", XContentFieldType.STRING));
+        assertTrue(t.match("b.y", "y", XContentFieldType.STRING));
+        assertFalse(t.match("c.x", "x", XContentFieldType.STRING));
+        assertFalse(t.match("a.skip", "skip", XContentFieldType.STRING));
+        assertFalse(t.match("b.skip", "skip", XContentFieldType.STRING));
+    }
+
+    public void testNamePatternsWithPathArrays() {
+        DynamicTemplate t = DynamicTemplate.parse(
+            "paths",
+            Map.of(
+                "path_match",
+                List.of("a.*", "b.*"),
+                "path_unmatch",
+                List.of("a.skip*", "b.skip*"),
+                "match",
+                "*_id",
+                "unmatch",
+                "private_*",
+                "mapping",
+                Map.of("type", "keyword")
+            )
+        );
+        assertTrue(t.match("a.user_id", "user_id", XContentFieldType.STRING));
+        assertTrue(t.match("b.user_id", "user_id", XContentFieldType.STRING));
+        assertFalse(t.match("c.user_id", "user_id", XContentFieldType.STRING));
+        assertFalse(t.match("a.name", "name", XContentFieldType.STRING));
+        assertFalse(t.match("a.private_id", "private_id", XContentFieldType.STRING));
+        assertFalse(t.match("b.skip_id", "skip_id", XContentFieldType.STRING));
+    }
+
+    public void testEmptyPathArrays() {
+        DynamicTemplate t = DynamicTemplate.parse("paths", Map.of("path_match", List.of(), "mapping", Map.of("type", "keyword")));
+        assertFalse(t.match("a.x", "x", XContentFieldType.STRING));
+        t = DynamicTemplate.parse("paths", Map.of("path_match", "*", "path_unmatch", List.of(), "mapping", Map.of("type", "keyword")));
+        assertTrue(t.match("a.x", "x", XContentFieldType.STRING));
+    }
+
+    public void testPathArrayElementsMustBeStrings() {
+        for (String k : new String[] { "path_match", "path_unmatch" }) {
+            for (List<?> p : List.of(List.of("a.*", 1), Arrays.asList("a.*", null), List.of(List.of("a.*")))) {
+                IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> DynamicTemplate.parse("paths", Map.of(k, p, "match_mapping_type", "string", "mapping", Map.of("type", "keyword")))
+                );
+                assertEquals("[" + k + "] must be a string or an array of strings", e.getMessage());
+            }
+        }
+    }
 
     public void testParseUnknownParam() throws Exception {
         Map<String, Object> templateDef = new HashMap<>();
