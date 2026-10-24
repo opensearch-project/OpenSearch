@@ -61,6 +61,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.gateway.LocalAllocateDangledIndices;
@@ -102,6 +103,8 @@ import org.opensearch.test.TestSearchContext;
 import org.opensearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -382,6 +385,63 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
             assertThat(indicesService.hasUncompletedPendingDeletes(), equalTo(hasBogus)); // "bogus" index has not been removed
             assertFalse(shardPath.exists());
         });
+    }
+
+    /**
+     * A deleted index whose shard directories are still on disk, with one shard lock held (as a recovery that is still
+     * writing files would). The shards whose lock is free must be removed immediately; the locked one is deferred to the
+     * pending deletes and removed once the lock is released.
+     */
+    public void testDeleteIndexStoreRemovesUnlockedShardsWhenAShardIsLocked() throws Exception {
+        final Index index = new Index("orphan", UUIDs.randomBase64UUID());
+        final IndicesService indicesService = getIndicesService();
+        final NodeEnvironment nodeEnv = getNodeEnvironment();
+        final Settings idxSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .build();
+        final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName()).settings(idxSettings)
+            .numberOfShards(3)
+            .numberOfReplicas(0)
+            .build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+
+        // fabricate on-disk shard copies 0, 1 and 2 of an index that is no longer part of the cluster
+        final ShardId[] shardIds = new ShardId[3];
+        for (int i = 0; i < shardIds.length; i++) {
+            shardIds[i] = new ShardId(index, i);
+            for (Path shardPath : nodeEnv.availableShardPaths(shardIds[i])) {
+                Files.createDirectories(shardPath.resolve("index"));
+                Files.write(shardPath.resolve("index").resolve("_0.cfs"), new byte[] { 1, 2, 3 });
+            }
+        }
+        for (ShardId shardId : shardIds) {
+            assertTrue(FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId)));
+        }
+
+        // shard 1 is "in use" - its lock is held, as it would be by an in-flight recovery
+        try (ShardLock held = nodeEnv.shardLock(shardIds[1], "test: simulated in-flight recovery", 0)) {
+            indicesService.deleteIndexStore("test", indexMetadata);
+
+            assertFalse("unlocked shard 0 should be deleted immediately", FileSystemUtils.exists(nodeEnv.availableShardPaths(shardIds[0])));
+            assertFalse("unlocked shard 2 should be deleted immediately", FileSystemUtils.exists(nodeEnv.availableShardPaths(shardIds[2])));
+            assertTrue("locked shard 1 must not be touched", FileSystemUtils.exists(nodeEnv.availableShardPaths(shardIds[1])));
+            assertEquals(1, indicesService.numPendingDeletes(index));
+
+            // while the lock is still held the pending delete cannot complete
+            expectThrows(
+                ShardLockObtainFailedException.class,
+                () -> indicesService.processPendingDeletes(index, indexSettings, TimeValue.timeValueMillis(0))
+            );
+            assertTrue(FileSystemUtils.exists(nodeEnv.availableShardPaths(shardIds[1])));
+            assertEquals(1, indicesService.numPendingDeletes(index));
+        }
+
+        // lock released: the retried pending delete removes the remaining shard and the index directory
+        indicesService.processPendingDeletes(index, indexSettings, TimeValue.timeValueMillis(0));
+        assertEquals(0, indicesService.numPendingDeletes(index));
+        assertFalse(FileSystemUtils.exists(nodeEnv.availableShardPaths(shardIds[1])));
+        assertFalse("index directory should be gone", FileSystemUtils.exists(nodeEnv.indexPaths(index)));
     }
 
     public void testVerifyIfIndexContentDeleted() throws Exception {

@@ -1657,6 +1657,11 @@ public class IndicesService extends AbstractLifecycleComponent
                 () -> new ParameterizedMessage("{} failed to delete index store - at least one shards is still locked", index),
                 ex
             );
+            // Locking the whole index is all-or-nothing: a single locked shard (for example a copy whose recovery is still
+            // downloading files) prevents every other shard directory of the deleted index from being removed, even though
+            // those directories have no owner any more. Remove what can be removed right now so that disk is reclaimed
+            // immediately; the locked shards are handled by the pending delete scheduled below.
+            deleteUnlockedShardDirectories(index, indexSettings);
         } catch (Exception ex) {
             logger.warn(() -> new ParameterizedMessage("{} failed to delete index", index), ex);
         } finally {
@@ -1666,6 +1671,38 @@ public class IndicesService extends AbstractLifecycleComponent
             // this is a pure protection to make sure this index doesn't get re-imported as a dangling index.
             // we should in the future rather write a tombstone rather than wiping the metadata.
             MetadataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
+        }
+    }
+
+    /**
+     * Best-effort removal of the shard directories of a deleted index whose shard locks are free. Shards whose lock is
+     * currently held (for example by a recovery that is still writing files) are left in place; they are deleted later
+     * by {@link #processPendingDeletes(Index, IndexSettings, TimeValue)} once the lock is released.
+     * <p>
+     * Only shards that actually have a directory on this node and are not allocated to it are considered, so this never
+     * creates directories for shards that were never here.
+     */
+    private void deleteUnlockedShardDirectories(final Index index, final IndexSettings indexSettings) {
+        for (int shard = 0; shard < indexSettings.getNumberOfShards(); shard++) {
+            final ShardId shardId = new ShardId(index, shard);
+            final ShardDeletionCheckResult check = canDeleteShardContent(shardId, indexSettings);
+            if (check != ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE) {
+                logger.trace("{} not deleting shard directory of deleted index: {}", shardId, check);
+                continue;
+            }
+            try (ShardLock lock = nodeEnv.shardLock(shardId, "deleting unlocked shard of deleted index", 0)) {
+                // the index is no longer part of the cluster state, so no shard of it can be allocated here; re-checking
+                // under the lock all the same costs nothing and makes the deletion safe against anything racing the check
+                if (canDeleteShardContent(shardId, indexSettings) != ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE) {
+                    continue;
+                }
+                nodeEnv.deleteShardDirectoryUnderLock(lock, indexSettings);
+                logger.debug("{} deleted shard directory of deleted index", shardId);
+            } catch (ShardLockObtainFailedException ex) {
+                logger.debug(() -> new ParameterizedMessage("{} shard of deleted index is still locked, deferring deletion", shardId), ex);
+            } catch (Exception ex) {
+                logger.warn(() -> new ParameterizedMessage("{} failed to delete shard directory of deleted index", shardId), ex);
+            }
         }
     }
 
