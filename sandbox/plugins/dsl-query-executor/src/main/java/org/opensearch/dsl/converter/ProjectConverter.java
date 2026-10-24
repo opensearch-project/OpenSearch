@@ -27,6 +27,8 @@ import java.util.regex.Pattern;
  * Handles exact field names, wildcard patterns, and {@code _source: false}.
  */
 public class ProjectConverter extends AbstractDslConverter {
+    /** Internal projected column used when source filtering selects no real fields. */
+    public static final String EMPTY_SOURCE_PLACEHOLDER = "__dsl_empty_source";
 
     /** Creates a project converter. */
     public ProjectConverter() {}
@@ -41,7 +43,7 @@ public class ProjectConverter extends AbstractDslConverter {
         FetchSourceContext fetchSource = ctx.getSearchSource().fetchSource();
 
         if (!fetchSource.fetchSource()) {
-            return LogicalProject.create(input, List.of(), List.of(), List.of());
+            return createEmptySourceProjection(input);
         }
 
         String[] includes = fetchSource.includes();
@@ -71,7 +73,7 @@ public class ProjectConverter extends AbstractDslConverter {
                     resolveWildcard(pattern, rowType, rexBuilder, projects, fieldNames, seen, excludeSet);
                 } else {
                     if (!excludeSet.contains(pattern)) {
-                        resolveField(pattern, rowType, rexBuilder, projects, fieldNames, seen);
+                        resolveField(pattern, rowType, rexBuilder, projects, fieldNames, seen, excludeSet);
                     }
                 }
             }
@@ -86,7 +88,21 @@ public class ProjectConverter extends AbstractDslConverter {
             }
         }
 
-        return LogicalProject.create(input, List.of(), projects, fieldNames);
+        return projects.isEmpty() ? createEmptySourceProjection(input) : LogicalProject.create(input, List.of(), projects, fieldNames);
+    }
+
+    /**
+     * The Arrow transport cannot send a batch without field vectors. Project one real input
+     * column under an internal name; the response builder removes it from reconstructed source.
+     */
+    private static RelNode createEmptySourceProjection(RelNode input) {
+        List<RelDataTypeField> fields = input.getRowType().getFieldList();
+        if (fields.isEmpty()) {
+            return LogicalProject.create(input, List.of(), List.of(), List.of());
+        }
+        RelDataTypeField field = fields.get(0);
+        RexNode placeholder = input.getCluster().getRexBuilder().makeInputRef(field.getType(), field.getIndex());
+        return LogicalProject.create(input, List.of(), List.of(placeholder), List.of(EMPTY_SOURCE_PLACEHOLDER));
     }
 
     private static Pattern toWildcardRegex(String wildcardPattern) {
@@ -101,8 +117,8 @@ public class ProjectConverter extends AbstractDslConverter {
         return Pattern.compile(regex.toString());
     }
 
-    // Unlike includes (resolveField throws for unknown fields), excludes silently ignore
-    // nonexistent field names — consistent with OpenSearch core behavior.
+    // Source filtering silently ignores nonexistent include and exclude fields, consistent with
+    // OpenSearch core behavior.
     private Set<String> buildExcludeSet(String[] excludes, RelDataType rowType) {
         Set<String> excludeSet = new HashSet<>();
         for (String pattern : excludes) {
@@ -115,6 +131,12 @@ public class ProjectConverter extends AbstractDslConverter {
                 }
             } else {
                 excludeSet.add(pattern);
+                String objectPrefix = pattern + ".";
+                for (RelDataTypeField field : rowType.getFieldList()) {
+                    if (field.getName().startsWith(objectPrefix)) {
+                        excludeSet.add(field.getName());
+                    }
+                }
             }
         }
         return excludeSet;
@@ -145,11 +167,23 @@ public class ProjectConverter extends AbstractDslConverter {
         RexBuilder rexBuilder,
         List<RexNode> projects,
         List<String> fieldNames,
-        Set<String> seen
-    ) throws ConversionException {
+        Set<String> seen,
+        Set<String> excludeSet
+    ) {
         RelDataTypeField field = rowType.getField(fieldName, false, false);
         if (field == null) {
-            throw new ConversionException("Field '" + fieldName + "' not found in schema");
+            // Object fields are represented by their leaf columns in the analytics schema.
+            // OpenSearch _source filtering treats an object include as all of its descendants.
+            String objectPrefix = fieldName + ".";
+            for (RelDataTypeField candidate : rowType.getFieldList()) {
+                if (candidate.getName().startsWith(objectPrefix)) {
+                    if (!excludeSet.contains(candidate.getName()) && seen.add(candidate.getName())) {
+                        projects.add(rexBuilder.makeInputRef(candidate.getType(), candidate.getIndex()));
+                        fieldNames.add(candidate.getName());
+                    }
+                }
+            }
+            return;
         }
         if (seen.add(field.getName())) {
             projects.add(rexBuilder.makeInputRef(field.getType(), field.getIndex()));
