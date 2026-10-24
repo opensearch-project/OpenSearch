@@ -266,7 +266,9 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
         }
 
         public void decrementSizeInBytes(long amountBytes) {
-            this.stats.decrementSizeInBytes(amountBytes);
+            // A shard copy's node-level stats can already have been dropped by removeDimensions for an older copy on
+            // this node, so clamp the live counters at zero to keep late decrements from going negative.
+            this.stats.subtractSizeAndEntries(amountBytes, 0);
         }
 
         void incrementItems() {
@@ -274,7 +276,7 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
         }
 
         void decrementItems() {
-            this.stats.decrementItems();
+            this.stats.subtractSizeAndEntries(0, 1);
         }
 
         long getEntries() {
