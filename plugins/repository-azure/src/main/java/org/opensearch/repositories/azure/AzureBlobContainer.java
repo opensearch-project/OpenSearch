@@ -79,14 +79,15 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean blobExists(String blobName) {
+    public boolean blobExists(String blobName) throws IOException {
         logger.trace("blobExists({})", blobName);
         try {
             return blobStore.blobExists(buildKey(blobName));
-        } catch (URISyntaxException | BlobStorageException e) {
-            logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore, e.getMessage());
+        } catch (BlobStorageException e) {
+            throw new IOException("Can not check if blob [" + blobName + "] exists", e);
+        } catch (URISyntaxException e) {
+            throw new IOException("Can not check if blob [" + blobName + "] exists", e);
         }
-        return false;
     }
 
     private InputStream openInputStream(String blobName, long position, @Nullable Long length) throws IOException {
