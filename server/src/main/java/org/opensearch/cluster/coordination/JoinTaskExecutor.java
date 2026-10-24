@@ -274,6 +274,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             }
             results.success(joinTask);
         }
+        final ClusterState nodeJoinState = newState.nodes(nodesBuilder).build();
         RepositoriesMetadata repositoriesMetadata = new RepositoriesMetadata(new ArrayList<>(repositories.values()));
         if (nodesChanged) {
             rerouteService.reroute(
@@ -298,15 +299,15 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
                 // if VotingConfigExclusions did get updated
                 if (newVotingConfigExclusions.equals(currentVotingConfigExclusions) == false) {
-                    CoordinationMetadata.Builder coordMetadataBuilder = CoordinationMetadata.builder(currentState.coordinationMetadata())
+                    CoordinationMetadata.Builder coordMetadataBuilder = CoordinationMetadata.builder(nodeJoinState.coordinationMetadata())
                         .clearVotingConfigExclusions();
                     newVotingConfigExclusions.forEach(coordMetadataBuilder::addVotingConfigExclusion);
-                    Metadata newMetadata = Metadata.builder(currentState.metadata())
+                    Metadata newMetadata = Metadata.builder(nodeJoinState.metadata())
                         .coordinationMetadata(coordMetadataBuilder.build())
                         .build();
                     return results.build(
                         allocationService.adaptAutoExpandReplicas(
-                            newState.nodes(nodesBuilder)
+                            ClusterState.builder(nodeJoinState)
                                 .metadata(
                                     dropViewMetadata(
                                         updateMetadataWithRepositoriesMetadata(newMetadata, repositoriesMetadata),
@@ -321,10 +322,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
             return results.build(
                 allocationService.adaptAutoExpandReplicas(
-                    newState.nodes(nodesBuilder)
+                    ClusterState.builder(nodeJoinState)
                         .metadata(
                             dropViewMetadata(
-                                updateMetadataWithRepositoriesMetadata(currentState.metadata(), repositoriesMetadata),
+                                updateMetadataWithRepositoriesMetadata(nodeJoinState.metadata(), repositoriesMetadata),
                                 minClusterNodeVersion
                             )
                         )
@@ -335,12 +336,14 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             // we must return a new cluster state instance to force publishing. This is important
             // for the joining node to finalize its join and set us as a cluster-manager
             return results.build(
-                newState.metadata(
-                    dropViewMetadata(
-                        updateMetadataWithRepositoriesMetadata(currentState.metadata(), repositoriesMetadata),
-                        minClusterNodeVersion
+                ClusterState.builder(nodeJoinState)
+                    .metadata(
+                        dropViewMetadata(
+                            updateMetadataWithRepositoriesMetadata(nodeJoinState.metadata(), repositoriesMetadata),
+                            minClusterNodeVersion
+                        )
                     )
-                ).build()
+                    .build()
             );
         }
     }
