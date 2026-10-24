@@ -31,16 +31,13 @@
 
 package org.opensearch.ingest.common;
 
-import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.ActionType;
+import org.opensearch.action.LocalOnlyActionRequest;
+import org.opensearch.action.LocalOnlyActionResponse;
+import org.opensearch.action.LocalOnlyActionType;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.action.ActionResponse;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.grok.Grok;
@@ -48,6 +45,7 @@ import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
 import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskManager;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
 
@@ -59,16 +57,16 @@ import java.util.TreeMap;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
-public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Response> {
+public class GrokProcessorGetAction extends LocalOnlyActionType<GrokProcessorGetAction.Response> {
 
     static final GrokProcessorGetAction INSTANCE = new GrokProcessorGetAction();
     static final String NAME = "cluster:admin/ingest/processor/grok/get";
 
     private GrokProcessorGetAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LocalOnlyActionRequest {
 
         private final boolean sorted;
 
@@ -76,20 +74,9 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
             this.sorted = sorted;
         }
 
-        Request(StreamInput in) throws IOException {
-            super(in);
-            this.sorted = in.readBoolean();
-        }
-
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeBoolean(sorted);
         }
 
         public boolean sorted() {
@@ -97,16 +84,11 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends LocalOnlyActionResponse implements ToXContentObject {
         private final Map<String, String> grokPatterns;
 
         Response(Map<String, String> grokPatterns) {
             this.grokPatterns = grokPatterns;
-        }
-
-        Response(StreamInput in) throws IOException {
-            super(in);
-            grokPatterns = in.readMap(StreamInput::readString, StreamInput::readString);
         }
 
         public Map<String, String> getGrokPatterns() {
@@ -122,25 +104,21 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
             return builder;
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(grokPatterns, StreamOutput::writeString, StreamOutput::writeString);
-        }
     }
 
-    public static class TransportAction extends HandledTransportAction<Request, Response> {
+    public static class TransportAction extends org.opensearch.action.support.TransportAction<Request, Response> {
 
         private final Map<String, String> grokPatterns;
         private final Map<String, String> sortedGrokPatterns;
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
-            this(transportService, actionFilters, Grok.BUILTIN_PATTERNS);
+            this(transportService.getTaskManager(), actionFilters, Grok.BUILTIN_PATTERNS);
         }
 
         // visible for testing
-        TransportAction(TransportService transportService, ActionFilters actionFilters, Map<String, String> grokPatterns) {
-            super(NAME, transportService, actionFilters, Request::new);
+        TransportAction(TaskManager taskManager, ActionFilters actionFilters, Map<String, String> grokPatterns) {
+            super(NAME, actionFilters, taskManager);
             this.grokPatterns = grokPatterns;
             this.sortedGrokPatterns = new TreeMap<>(this.grokPatterns);
         }
