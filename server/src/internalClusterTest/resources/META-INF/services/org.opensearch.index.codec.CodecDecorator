@@ -1,0 +1,2 @@
+org.opensearch.index.codec.CodecDecoratorIT$PrefixingStoredFieldsDecorator
+org.opensearch.index.codec.CodecDecoratorIT$MarkingCompoundDecorator
