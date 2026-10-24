@@ -1114,6 +1114,70 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
     }
 
     /**
+     * Initial layout: two indices with 11 and 4 primaries, no replicas, all STARTED.
+     * The empty, excluded node2 is added only in the second check.
+     *
+     *             eligible (allowed)                      | excluded (filter NO)
+     *             node0                  node1            | node2
+     * ---------   --------------------   ---------------- | --------------------
+     * index1      P0 P1 P2 P3 P4 P5 P6   P7 P8 P9 P10     | .
+     * index2      .                      P0 P1 P2 P3      | .
+     * ---------   --------------------   ---------------- | --------------------
+     * total       7                      8                | 0
+     */
+    public void testEmptyExcludedNodeDoesNotChangeFirstRebalance() {
+        AllocationService service = createAllocationService(
+            getSettingsBuilderForPrimaryBalance(false, false).put("cluster.routing.allocation.exclude._id", "node2")
+                .put("cluster.routing.allocation.cluster_concurrent_rebalance", 1)
+                .put(BalancedShardsAllocator.CLUSTER_ALLOCATION_FILTER_AWARE_BALANCE.getKey(), true)
+                .build(),
+            new TestGatewayAllocator()
+        );
+        Metadata.Builder metadata = Metadata.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        int[][] primaryOwners = { { 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1 }, { 1, 1, 1, 1 } };
+        for (int i = 0; i < primaryOwners.length; i++) {
+            IndexMetadata index = IndexMetadata.builder("index" + (i + 1))
+                .settings(settings(Version.CURRENT).put("index.replication.type", "SEGMENT"))
+                .numberOfShards(primaryOwners[i].length)
+                .numberOfReplicas(0)
+                .build();
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(index);
+            IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index.getIndex());
+            for (int shard = 0; shard < primaryOwners[i].length; shard++) {
+                ShardId shardId = new ShardId(index.getIndex(), shard);
+                IndexShardRoutingTable.Builder shardBuilder = new IndexShardRoutingTable.Builder(shardId);
+                shardBuilder.addShard(
+                    TestShardRouting.newShardRouting(shardId, "node" + primaryOwners[i][shard], true, ShardRoutingState.STARTED)
+                );
+                IndexShardRoutingTable shardTable = shardBuilder.build();
+                indexRoutingTable.addIndexShard(shardTable);
+                indexMetadata.putInSyncAllocationIds(shard, shardTable.getAllAllocationIds());
+            }
+            metadata.put(indexMetadata.build(), false);
+            routingTable.add(indexRoutingTable);
+        }
+        ClusterState state = ClusterState.builder(new ClusterName("filtered-index-order"))
+            .nodes(DiscoveryNodes.builder().add(newNode("node0")).add(newNode("node1")))
+            .metadata(metadata)
+            .routingTable(routingTable.build())
+            .build();
+        // Reroute the same initial placement in both checks; do not carry over the first relocation.
+        for (int nodeCount = 2; nodeCount <= 3; nodeCount++) {
+            if (nodeCount == 3) {
+                state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).add(newNode("node2"))).build();
+            }
+            ClusterState rerouted = service.reroute(state, "verify-index-order");
+            List<ShardRouting> relocating = rerouted.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING);
+            assertEquals(1, relocating.size());
+            ShardRouting shard = relocating.get(0);
+            assertEquals("First rebalance with " + nodeCount + " nodes", "index2", shard.getIndexName());
+            assertEquals("node1", shard.currentNodeId());
+            assertEquals("node0", shard.relocatingNodeId());
+        }
+    }
+
+    /**
      * Cluster: 8 nodes; node4..node7 excluded via cluster.routing.allocation.exclude._id
      * Index  : 12 primaries x (1 + 1 replica) = 24 shards, all on the 4 eligible nodes
      *          every eligible node holds exactly 6 shards.
@@ -1138,7 +1202,6 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         final int numberOfShards = 12;
         final int numberOfReplicas = 1;
         final String indexName = "test";
-
         // Enable prefer-primary balance & rebalance, exclude the second half of nodes.
         Settings.Builder settingsBuilder = getSettingsBuilderForPrimaryReBalance();
         StringBuilder excludeList = new StringBuilder();
@@ -1149,10 +1212,8 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
             excludeList.append("node").append(i);
         }
         settingsBuilder.put("cluster.routing.allocation.exclude._id", excludeList.toString());
-        settingsBuilder.put("cluster.routing.allocation.balance.filter_aware", true);
-
+        settingsBuilder.put(BalancedShardsAllocator.CLUSTER_ALLOCATION_FILTER_AWARE_BALANCE.getKey(), true);
         AllocationService strategy = createAllocationService(settingsBuilder.build(), new TestGatewayAllocator());
-
         // Build 8 discovery nodes.
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         List<String> nodesList = new ArrayList<>(numberOfNodes);
@@ -1163,15 +1224,11 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         }
         discoBuilder.localNodeId(nodesList.get(0));
         discoBuilder.clusterManagerNodeId(nodesList.get(0));
-
         IndexMetadata indexMetadata = getIndexMetadata(indexName, numberOfShards, numberOfReplicas);
-
         int[] primaryOwners = new int[] { 0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 3, 3 };
         int[] replicaOwners = new int[] { 1, 2, 3, 1, 2, 3, 2, 3, 1, 3, 1, 2 };
-
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
         IndexMetadata.Builder indexMetaDataBuilder = IndexMetadata.builder(indexMetadata);
-
         for (int shardId = 0; shardId < numberOfShards; shardId++) {
             ShardId sid = new ShardId(indexMetadata.getIndex(), shardId);
             IndexShardRoutingTable.Builder shardBuilder = new IndexShardRoutingTable.Builder(sid);
@@ -1185,20 +1242,16 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
             indexRoutingTable.addIndexShard(shardTable);
             indexMetaDataBuilder.putInSyncAllocationIds(shardId, shardTable.getAllAllocationIds());
         }
-
         Metadata.Builder metadata = Metadata.builder();
         metadata.persistentSettings(settingsBuilder.build());
         metadata.put(indexMetaDataBuilder.build(), false);
-
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
-
         ClusterState.Builder stateBuilder = ClusterState.builder(new ClusterName("test"));
         stateBuilder.nodes(discoBuilder);
         stateBuilder.metadata(metadata.generateClusterUuidIfNeeded().build());
         stateBuilder.routingTable(routingTable.build());
         ClusterState clusterState = stateBuilder.build();
-
         // Sanity check: initial primary distribution is 6/2/2/2 on eligible nodes and 0 on excluded.
         int[] initialPrimaries = countPrimariesPerNode(clusterState, nodesList, indexName);
         int[] initialTotals = countTotalShardsPerNode(clusterState, nodesList, indexName);
@@ -1216,7 +1269,6 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         assertEquals("eligible node1 total shards", 6, initialTotals[1]);
         assertEquals("eligible node2 total shards", 6, initialTotals[2]);
         assertEquals("eligible node3 total shards", 6, initialTotals[3]);
-
         clusterState = strategy.reroute(clusterState, "reroute");
         clusterState = applyStartedShardsUntilNoChange(clusterState, strategy);
         for (int i = 0; i < 20; i++) {
@@ -1227,16 +1279,12 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
             }
             clusterState = next;
         }
-
         logger.info("[after reroute]\n{}", ShardAllocations.printShardDistribution(clusterState));
-
         int[] finalPrimaries = countPrimariesPerNode(clusterState, nodesList, indexName);
-
         // Excluded nodes must still be empty.
         for (int i = numberOfNodes - excludedNodeCount; i < numberOfNodes; i++) {
             assertEquals("excluded node " + nodesList.get(i) + " must remain empty", 0, finalPrimaries[i]);
         }
-
         int totalEligiblePrimaries = 0;
         int maxEligible = Integer.MIN_VALUE;
         int minEligible = Integer.MAX_VALUE;
@@ -1289,5 +1337,4 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         }
         return counts;
     }
-
 }
