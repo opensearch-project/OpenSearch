@@ -48,7 +48,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -58,6 +57,12 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import reactor.core.scheduler.Schedulers;
 import reactor.netty.http.HttpResources;
@@ -98,10 +103,17 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
     }
 
     private AzureStorageService storageServiceWithSettingsValidation(Settings settings) {
-        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
+        final AzureRepositoryPlugin plugin = new AzureRepositoryPlugin(settings);
+        try {
+            new SettingsModule(settings, plugin.getSettings(), Collections.emptyList(), Collections.emptySet());
             return plugin.azureStoreService;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        } catch (RuntimeException e) {
+            try {
+                plugin.close();
+            } catch (IOException closeException) {
+                e.addSuppressed(closeException);
+            }
+            throw e;
         }
     }
 
@@ -503,6 +515,90 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         }
     }
 
+    public void testPrimaryClientsAreDistinctAndRebuiltOnRefresh() throws IOException {
+        final Settings settings = buildSettings();
+        try (AzureStorageService service = storageServiceWithSettingsValidation(settings)) {
+            final Map<String, AzureStorageSettings> secondarySettings = AzureStorageSettings.overrideLocationMode(
+                AzureStorageSettings.load(settings),
+                LocationMode.SECONDARY_ONLY
+            );
+            service.refreshAndClearCache(secondarySettings);
+
+            final BlobServiceClient locationAware = service.client("azure1").v1();
+            final BlobServiceClient versionedRead = service.clientForVersionedRead("azure1", (request, response) -> {}).v1();
+            final BlobServiceClient conditionalWrite = service.clientForConditionalWrite("azure1", (request, response) -> {}).v1();
+
+            assertEquals("https://myaccount1-secondary.blob.core.windows.net", locationAware.getAccountUrl());
+            assertEquals("https://myaccount1.blob.core.windows.net", versionedRead.getAccountUrl());
+            assertEquals("https://myaccount1.blob.core.windows.net", conditionalWrite.getAccountUrl());
+            assertNotSame(versionedRead, conditionalWrite);
+            assertSame(versionedRead, service.clientForVersionedRead("azure1", (request, response) -> {}).v1());
+            assertSame(conditionalWrite, service.clientForConditionalWrite("azure1", (request, response) -> {}).v1());
+
+            service.refreshAndClearCache(secondarySettings);
+            final BlobServiceClient refreshedVersionedRead = service.clientForVersionedRead("azure1", (request, response) -> {}).v1();
+            final BlobServiceClient refreshedConditionalWrite = service.clientForConditionalWrite("azure1", (request, response) -> {}).v1();
+            assertNotSame(versionedRead, refreshedVersionedRead);
+            assertNotSame(conditionalWrite, refreshedConditionalWrite);
+            assertNotSame(refreshedVersionedRead, refreshedConditionalWrite);
+        }
+    }
+
+    public void testVersionedReadClientAcquisitionCannotPublishOldSettingsAfterReload() throws Exception {
+        final BlockingClientService service = new BlockingClientService(buildSettings());
+        final ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            final Future<?> acquisition = executor.submit(() -> service.clientForVersionedRead("azure1", (request, response) -> {}));
+            assertTrue(service.buildStarted.await(10, TimeUnit.SECONDS));
+
+            final MockSecureSettings reloadedSecureSettings = buildSecureSettings();
+            reloadedSecureSettings.setString("azure.client.azure1.account", "reloadedaccount");
+            final Settings reloadedSettings = Settings.builder().setSecureSettings(reloadedSecureSettings).build();
+            final CountDownLatch reloadQueued = service.expectRefresh();
+            final Future<?> reload = executor.submit(() -> service.refreshAndClearCache(AzureStorageSettings.load(reloadedSettings)));
+            assertTrue(reloadQueued.await(10, TimeUnit.SECONDS));
+
+            service.releaseBuild.countDown();
+            acquisition.get(10, TimeUnit.SECONDS);
+            reload.get(10, TimeUnit.SECONDS);
+            assertEquals(0, service.versionedReadClientCount());
+            assertThat(
+                service.clientForVersionedRead("azure1", (request, response) -> {}).v1().getAccountUrl(),
+                containsString("reloadedaccount")
+            );
+        } finally {
+            service.releaseBuild.countDown();
+            executor.shutdownNow();
+            service.close();
+        }
+    }
+
+    public void testConditionalWriteClientAcquisitionCannotPublishAfterClose() throws Exception {
+        final BlockingClientService service = new BlockingClientService(buildSettings());
+        final ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            final Future<?> acquisition = executor.submit(() -> service.clientForConditionalWrite("azure1", (request, response) -> {}));
+            assertTrue(service.buildStarted.await(10, TimeUnit.SECONDS));
+
+            final CountDownLatch closeQueued = service.expectClose();
+            final Future<?> close = executor.submit(() -> {
+                service.close();
+                return null;
+            });
+            assertTrue(closeQueued.await(10, TimeUnit.SECONDS));
+
+            service.releaseBuild.countDown();
+            acquisition.get(10, TimeUnit.SECONDS);
+            close.get(10, TimeUnit.SECONDS);
+            assertEquals(0, service.conditionalWriteClientCount());
+            expectThrows(IllegalStateException.class, () -> service.clientForConditionalWrite("azure1", (request, response) -> {}));
+        } finally {
+            service.releaseBuild.countDown();
+            executor.shutdownNow();
+            service.close();
+        }
+    }
+
     public void testNoProxy() throws IOException {
         final Settings settings = Settings.builder().setSecureSettings(buildSecureSettings()).build();
         try (final AzureStorageService mock = storageServiceWithSettingsValidation(settings)) {
@@ -853,6 +949,59 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         }
 
         return null;
+    }
+
+    private static class BlockingClientService extends AzureStorageService {
+        private final CountDownLatch buildStarted = new CountDownLatch(1);
+        private final CountDownLatch releaseBuild = new CountDownLatch(1);
+        private final AtomicBoolean blockNextBuild = new AtomicBoolean(true);
+        private volatile CountDownLatch refreshExpected;
+        private volatile CountDownLatch closeExpected;
+
+        BlockingClientService(Settings settings) {
+            super(settings);
+        }
+
+        CountDownLatch expectRefresh() {
+            refreshExpected = new CountDownLatch(1);
+            return refreshExpected;
+        }
+
+        CountDownLatch expectClose() {
+            closeExpected = new CountDownLatch(1);
+            return closeExpected;
+        }
+
+        @Override
+        void beforeClientBuild() {
+            if (blockNextBuild.compareAndSet(true, false)) {
+                buildStarted.countDown();
+                try {
+                    if (releaseBuild.await(10, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("timed out waiting to release client build");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
+                }
+            }
+        }
+
+        @Override
+        void beforeRefresh() {
+            final CountDownLatch expected = refreshExpected;
+            if (expected != null) {
+                expected.countDown();
+            }
+        }
+
+        @Override
+        void beforeClose() {
+            final CountDownLatch expected = closeExpected;
+            if (expected != null) {
+                expected.countDown();
+            }
+        }
     }
 
     /**
