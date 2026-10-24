@@ -56,8 +56,10 @@ import org.opensearch.gateway.remote.RemoteDownloadStats;
 import org.opensearch.node.Node;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.test.transport.CapturingTransport.CapturedRequest;
+import org.opensearch.transport.BytesTransportRequest;
 import org.opensearch.transport.TransportService;
 import org.junit.Before;
 
@@ -430,6 +432,95 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
         assertThat(publicationContext3, instanceOf(RemotePublicationContext.class));
     }
 
+    public void testNewPublicationContextWithOlderVersionNode() {
+        final PublicationTransportHandler handler = getPublicationTransportHandler();
+
+        // A node older than the cluster manager cannot be assumed to read remote state written at Version.CURRENT
+        ClusterChangedEvent event = new ClusterChangedEvent(
+            "older node",
+            buildClusterStateWithRemoteNodes(TERM, VERSION + 1, VersionUtils.getPreviousVersion()),
+            buildClusterStateWithRemoteNodes(TERM, VERSION, VersionUtils.getPreviousVersion())
+        );
+        PublicationContext publicationContext = handler.newPublicationContext(event, true, new PersistedStateRegistry());
+        assertNotNull(publicationContext);
+        assertThat(publicationContext, not(instanceOf(RemotePublicationContext.class)));
+
+        // Every node, including those on the current version, is sent the state over transport
+        for (DiscoveryNode node : event.state().nodes()) {
+            publicationContext.sendClusterState(node, ActionListener.wrap(r -> {}, e -> {}));
+            CapturedRequest[] capturedRequests = capturingTransport.getCapturedRequestsAndClear();
+            assertThat(capturedRequests.length, equalTo(1));
+            assertThat(capturedRequests[0].action, equalTo(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME));
+            // ...serialized for that node's own version
+            assertThat(((BytesTransportRequest) capturedRequests[0].request).version(), equalTo(node.getVersion()));
+        }
+    }
+
+    public void testNewPublicationContextWithNewerVersionNode() {
+        final PublicationTransportHandler handler = getPublicationTransportHandler();
+
+        // A node newer than the cluster manager can read remote state written at Version.CURRENT
+        Version newerVersion = Version.fromId(Version.CURRENT.id + 100);
+        ClusterChangedEvent event = new ClusterChangedEvent(
+            "newer node",
+            buildClusterStateWithRemoteNodes(TERM, VERSION + 1, newerVersion),
+            buildClusterStateWithRemoteNodes(TERM, VERSION, newerVersion)
+        );
+        PublicationContext publicationContext = handler.newPublicationContext(event, true, new PersistedStateRegistry());
+        assertThat(publicationContext, instanceOf(RemotePublicationContext.class));
+    }
+
+    public void testNewPublicationContextWhenOlderVersionNodeJoinsAndLeaves() {
+        final PublicationTransportHandler handler = getPublicationTransportHandler();
+        final Version olderVersion = VersionUtils.getPreviousVersion();
+
+        // All nodes on the current version: remote publication
+        ClusterChangedEvent allCurrent = new ClusterChangedEvent(
+            "all current",
+            buildClusterStateWithRemoteNodes(TERM, VERSION + 1),
+            buildClusterStateWithRemoteNodes(TERM, VERSION)
+        );
+        assertThat(
+            handler.newPublicationContext(allCurrent, true, new PersistedStateRegistry()),
+            instanceOf(RemotePublicationContext.class)
+        );
+
+        // An older node joins in this publication: transport, even though remote publication was already in use
+        ClusterChangedEvent olderJoins = new ClusterChangedEvent(
+            "older node joins",
+            buildClusterStateWithRemoteNodes(TERM, VERSION + 2, olderVersion),
+            allCurrent.state()
+        );
+        assertThat(
+            handler.newPublicationContext(olderJoins, true, new PersistedStateRegistry()),
+            not(instanceOf(RemotePublicationContext.class))
+        );
+
+        // The older node leaves in this publication: remote publication again
+        ClusterChangedEvent olderLeaves = new ClusterChangedEvent(
+            "older node leaves",
+            buildClusterStateWithRemoteNodes(TERM, VERSION + 3),
+            olderJoins.state()
+        );
+        assertThat(
+            handler.newPublicationContext(olderLeaves, true, new PersistedStateRegistry()),
+            instanceOf(RemotePublicationContext.class)
+        );
+    }
+
+    public void testNewPublicationContextWithOlderVersionNodeAndRemotePublicationDisabled() {
+        final PublicationTransportHandler handler = getPublicationTransportHandler();
+        ClusterChangedEvent event = new ClusterChangedEvent(
+            "remote publication disabled",
+            buildClusterStateWithRemoteNodes(TERM, VERSION + 1, VersionUtils.getPreviousVersion()),
+            buildClusterState(TERM, VERSION)
+        );
+        assertThat(
+            handler.newPublicationContext(event, false, new PersistedStateRegistry()),
+            not(instanceOf(RemotePublicationContext.class))
+        );
+    }
+
     public void testRemotePublicationContext() throws Exception {
         ClusterChangedEvent event = new ClusterChangedEvent(
             "source3",
@@ -459,6 +550,11 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
         assertThat(capturedRequests1.length, equalTo(1));
         CapturedRequest capturedRequest1 = capturedRequests1[0];
         assertThat(capturedRequest1.request, instanceOf(RemotePublishRequest.class));
+    }
+
+    private PublicationTransportHandler getPublicationTransportHandler() {
+        PublishWithJoinResponse expectedPublishResponse = new PublishWithJoinResponse(new PublishResponse(TERM, VERSION), Optional.empty());
+        return getPublicationTransportHandler(p -> expectedPublishResponse, mock(RemoteClusterStateService.class));
     }
 
     private PublicationTransportHandler getPublicationTransportHandler(
@@ -504,6 +600,10 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
     }
 
     private ClusterState buildClusterStateWithRemoteNodes(long term, long version) {
+        return buildClusterStateWithRemoteNodes(term, version, Version.CURRENT);
+    }
+
+    private ClusterState buildClusterStateWithRemoteNodes(long term, long version, Version secondNodeVersion) {
         CoordinationMetadata.Builder coordMetadataBuilder = CoordinationMetadata.builder().term(term);
         Metadata newMetadata = Metadata.builder().coordinationMetadata(coordMetadataBuilder.build()).build();
         DiscoveryNode remoteNode1 = new DiscoveryNode(
@@ -528,7 +628,7 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
                 "remote_routing_repo"
             ),
             DiscoveryNodeRole.BUILT_IN_ROLES,
-            Version.CURRENT
+            secondNodeVersion
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(remoteNode1).add(remoteNode2).localNodeId(remoteNode1.getId()).build();
         return ClusterState.builder(ClusterState.EMPTY_STATE).version(version).metadata(newMetadata).nodes(nodes).build();
