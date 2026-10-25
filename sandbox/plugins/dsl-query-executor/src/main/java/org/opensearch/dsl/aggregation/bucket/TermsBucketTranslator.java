@@ -9,12 +9,12 @@
 package org.opensearch.dsl.aggregation.bucket;
 
 import org.opensearch.dsl.aggregation.FieldGrouping;
+import org.opensearch.dsl.aggregation.FieldTypeLookup;
 import org.opensearch.dsl.aggregation.GroupingInfo;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.result.BucketEntry;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.BucketOrder;
@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * Translates a {@link TermsAggregationBuilder} — single-field GROUP BY.
@@ -39,17 +38,17 @@ import java.util.function.Supplier;
  */
 public class TermsBucketTranslator implements SizedBucketTranslator<TermsAggregationBuilder> {
 
-    private final Supplier<MapperService> mapperServiceSupplier;
+    private final FieldTypeLookup fieldTypeLookup;
 
     /**
      * Creates a terms bucket translator.
      *
-     * @param mapperServiceSupplier supplies the target index's MapperService for key type and
-     *        format resolution; supplying null skips {@link #validate} mapping checks and fails
+     * @param fieldTypeLookup resolves the group field's mapping for key type and format
+     *        resolution; supplying null skips {@link #validate} mapping checks and fails
      *        rendering
      */
-    public TermsBucketTranslator(Supplier<MapperService> mapperServiceSupplier) {
-        this.mapperServiceSupplier = mapperServiceSupplier;
+    public TermsBucketTranslator(FieldTypeLookup fieldTypeLookup) {
+        this.fieldTypeLookup = fieldTypeLookup;
     }
 
     @Override
@@ -171,16 +170,14 @@ public class TermsBucketTranslator implements SizedBucketTranslator<TermsAggrega
         return strategy.build(agg, kept, otherDocCount, fieldType.docValueFormat(null, null));
     }
 
-    /** Resolves the group field's mapping, or null when the MapperService or field mapping is unavailable. */
+    /** Resolves the group field's mapping, or null when no mapping lookup or field mapping is available. */
     private MappedFieldType resolveFieldType(String field) {
-        MapperService mapperService = mapperServiceSupplier.get();
-        return mapperService == null ? null : mapperService.fieldType(field);
+        return fieldTypeLookup == null ? null : fieldTypeLookup.fieldType(field);
     }
 
     /** Resolves the group field's mapping for rendering, failing loudly when it cannot be resolved. */
     private MappedFieldType requireFieldType(TermsAggregationBuilder agg) {
-        MapperService mapperService = mapperServiceSupplier.get();
-        if (mapperService == null) {
+        if (fieldTypeLookup == null) {
             throw new IllegalStateException(
                 "index mapping unavailable for terms aggregation ["
                     + agg.getName()
@@ -189,7 +186,7 @@ public class TermsBucketTranslator implements SizedBucketTranslator<TermsAggrega
                     + "]"
             );
         }
-        MappedFieldType fieldType = mapperService.fieldType(agg.field());
+        MappedFieldType fieldType = fieldTypeLookup.fieldType(agg.field());
         if (fieldType == null) {
             throw new IllegalStateException(
                 "field [" + agg.field() + "] of terms aggregation [" + agg.getName() + "] is not present in the index mapping"

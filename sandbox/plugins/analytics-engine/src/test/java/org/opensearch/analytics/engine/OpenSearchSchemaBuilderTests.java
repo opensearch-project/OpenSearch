@@ -21,6 +21,7 @@ import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.Planner;
 import org.opensearch.Version;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.analytics.schema.BinaryType;
 import org.opensearch.analytics.schema.DateOnlyType;
 import org.opensearch.analytics.schema.IpType;
@@ -722,6 +723,75 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
         assertNotNull("backing concrete index still present", schema.getTable("bank_a"));
         RelDataType rowType = schema.getTable("bank_all").getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
         assertFieldType(rowType, "age", SqlTypeName.BIGINT);
+    }
+
+    /**
+     * Phantom-column guard: an alias whose backings include a CLOSED index must expose only the
+     * OPEN backings' fields. The closed backing declares an extra column {@code c}; because the
+     * execution-side {@code IndexResolution.resolveAlias} drops closed backings unconditionally,
+     * {@code c} would validate but never receive rows if the schema kept it — a phantom column.
+     * The OPEN filter in {@code resolveTable}'s alias short-circuit must exclude it. This is not
+     * gated on {@link IndicesOptions}; the alias path uses {@code buildSchema(state)} defaults.
+     */
+    public void testAliasWithClosedBackingExcludesClosedOnlyColumns() throws Exception {
+        IndexMetadata openBacking = IndexMetadata.builder("events_open")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping("{\"properties\":{\"a\":{\"type\":\"keyword\"},\"b\":{\"type\":\"long\"}}}")
+            .putAlias(AliasMetadata.builder("events").build())
+            .build();
+        IndexMetadata closedBacking = IndexMetadata.builder("events_closed")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(IndexMetadata.State.CLOSE)
+            .putMapping("{\"properties\":{\"a\":{\"type\":\"keyword\"},\"b\":{\"type\":\"long\"},\"c\":{\"type\":\"keyword\"}}}")
+            .putAlias(AliasMetadata.builder("events").build())
+            .build();
+        ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().put(openBacking, false).put(closedBacking, false).build())
+            .build();
+
+        SchemaPlus schema = OpenSearchSchemaBuilder.buildSchema(state);
+        Table alias = schema.getTable("events");
+        assertNotNull("alias table must resolve", alias);
+
+        RelDataType rowType = alias.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        assertFieldType(rowType, "a", SqlTypeName.VARCHAR);
+        assertFieldType(rowType, "b", SqlTypeName.BIGINT);
+        assertNull(
+            "closed backing's exclusive column 'c' must NOT appear in the alias row type (phantom column)",
+            rowType.getField("c", true, false)
+        );
+    }
+
+    /**
+     * Options threading: the wildcard/expression path resolves through the caller's
+     * {@link IndicesOptions} rather than a hardcoded {@code lenientExpandOpen()}. A closed index
+     * is excluded from {@code logs*} under expand-open-only options but included when the caller's
+     * options expand closed indices — proving the options reach {@code concreteIndexNames}.
+     */
+    public void testWildcardHonorsCallerIndicesOptionsForClosedIndex() throws Exception {
+        IndexMetadata closed = IndexMetadata.builder("logs_2020")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(IndexMetadata.State.CLOSE)
+            .putMapping("{\"properties\":{\"msg\":{\"type\":\"keyword\"}}}")
+            .build();
+        ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder().put(closed, false).build()).build();
+
+        // lenientExpandOpen expands wildcards to OPEN indices only → closed 'logs_2020' excluded.
+        SchemaPlus lenient = OpenSearchSchemaBuilder.buildSchema(state, IndicesOptions.lenientExpandOpen());
+        assertNull("closed index must be excluded from 'logs*' under expand-open-only options", lenient.getTable("logs*"));
+
+        // Caller options that expand closed wildcards → 'logs_2020' included with its column.
+        IndicesOptions expandClosed = IndicesOptions.fromOptions(false, true, true, true);
+        SchemaPlus withClosed = OpenSearchSchemaBuilder.buildSchema(state, expandClosed);
+        Table table = withClosed.getTable("logs*");
+        assertNotNull("closed index must be included when caller options expand closed wildcards", table);
+        assertFieldType(table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl()), "msg", SqlTypeName.VARCHAR);
     }
 
     /**

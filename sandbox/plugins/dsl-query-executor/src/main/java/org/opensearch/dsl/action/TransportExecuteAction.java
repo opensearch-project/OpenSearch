@@ -38,6 +38,7 @@ import org.opensearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Coordinates DSL query execution: converts SearchSourceBuilder to Calcite RelNode plans,
@@ -55,7 +56,7 @@ public class TransportExecuteAction extends HandledTransportAction<SearchRequest
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final IndexResolutionStrategy indexResolutionStrategy = new SingleIndexResolutionStrategy();
+    private final IndexResolutionStrategy indexResolutionStrategy = new MultiIndexResolutionStrategy();
     private final ThreadPool threadPool;
 
     /**
@@ -95,30 +96,45 @@ public class TransportExecuteAction extends HandledTransportAction<SearchRequest
             // One snapshot per request: index resolution, the engine schema, and response
             // typing all derive from the same immutable cluster state.
             final ClusterState state = clusterService.state();
-            final IndexMetadata indexMetadata;
+            final List<IndexMetadata> resolvedIndices;
+            final RequestScopedMapperService mapperServiceHolder;
             try {
-                indexMetadata = indexResolutionStrategy.resolve(indexNameExpressionResolver, state, request).get(0);
+                resolvedIndices = indexResolutionStrategy.resolve(indexNameExpressionResolver, state, request);
+                // Reject filtering aliases the engine cannot honor (including hidden aliases reached via
+                // expand_wildcards=open,hidden) before conversion/execution — an intentional 400 divergence.
+                FilteringAliasGuard.check(indexNameExpressionResolver, state, request.indices(), request.indicesOptions(), resolvedIndices);
+                // Legitimate empty resolution (allow_no_indices=true matching nothing) answers an
+                // empty 200 like vanilla _search, before building a mapper for zero indices.
+                // allow_no_indices=false with no match already threw IndexNotFoundException above.
+                if (resolvedIndices.isEmpty()) {
+                    long tookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+                    listener.onResponse(SearchResponseBuilder.empty(request, tookInMillis));
+                    return;
+                }
+                // Response typing works off the mappings pinned at request start: one immutable
+                // snapshot per index for conversion and response building, created lazily, and closed
+                // when the request completes whether it succeeded or failed.
+                // TODO: cache per (indexUUID, mappingVersion) to avoid rebuilding analyzers.
+                mapperServiceHolder = new RequestScopedMapperService(resolvedIndices, indicesService::createIndexMapperService);
             } catch (Exception e) {
                 listener.onFailure(e);
                 return;
             }
-            final String indexName = indexMetadata.getIndex().getName();
+            // The plan resolves and types against the union of the resolved indices: a comma-list
+            // of the concrete names lets the engine schema build the cross-index union row type.
+            // At one index this is that single name, byte-identical to the single-index path.
+            final String indexExpression = concreteIndexExpression(resolvedIndices);
 
-            // Response typing works off the mapping pinned at request start: one immutable
-            // snapshot for conversion and response building, created lazily, and closed when
-            // the request completes whether it succeeded or failed.
-            // TODO: cache per (indexUUID, mappingVersion) to avoid rebuilding analyzers.
-            final RequestScopedMapperService mapperServiceHolder = new RequestScopedMapperService(
-                indexMetadata,
-                indicesService::createIndexMapperService
-            );
             final ActionListener<SearchResponse> requestListener = ActionListener.runAfter(listener, mapperServiceHolder::close);
 
             final QueryPlans plans;
             final SearchSourceConverter converter;
             try {
-                converter = new SearchSourceConverter(contextProvider.getContext(state).schema(), mapperServiceHolder);
-                plans = converter.convert(request.source(), indexName);
+                converter = new SearchSourceConverter(
+                    contextProvider.getContext(state, request.indicesOptions()).schema(),
+                    mapperServiceHolder::fieldType
+                );
+                plans = converter.convert(request.source(), indexExpression);
             } catch (ConversionException e) {
                 // The request carries a shape or parameter this path cannot honor — a client
                 // error (400), matching classic search's rejection of unsupported parameters.
@@ -129,8 +145,36 @@ public class TransportExecuteAction extends HandledTransportAction<SearchRequest
                 requestListener.onFailure(e);
                 return;
             }
+
+            // Reject a multi-index request whose indices disagree on how a referenced field is
+            // typed or rendered, before executing. A no-op at a single index (handled inside the
+            // gate); the referenced-field set keeps a divergent but unreferenced field from
+            // rejecting the request.
+            if (resolvedIndices.size() > 1) {
+                try {
+                    SchemaEquivalenceGate.check(
+                        resolvedIndices,
+                        mapperServiceHolder::fieldType,
+                        PlanFieldReferences.referencedFields(plans),
+                        PlanFieldReferences.aggregatedBucketFields(request.source())
+                    );
+                } catch (IllegalArgumentException e) {
+                    logger.debug("Schema-equivalence gate rejected the multi-index request", e);
+                    requestListener.onFailure(e);
+                    return;
+                } catch (Exception e) {
+                    requestListener.onFailure(e);
+                    return;
+                }
+            }
+
             executePlans(plans, request, converter, startNanos, requestListener);
         });
+    }
+
+    /** Joins the resolved concrete index names into one schema expression resolving to their union. */
+    private static String concreteIndexExpression(List<IndexMetadata> resolvedIndices) {
+        return resolvedIndices.stream().map(index -> index.getIndex().getName()).collect(Collectors.joining(","));
     }
 
     /**

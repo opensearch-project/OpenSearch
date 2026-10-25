@@ -81,7 +81,9 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
@@ -1601,6 +1603,30 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         );
         assertEquals(new HashSet<>(Arrays.asList("test-1", "alias-1")), indexNameExpressionResolver.resolveExpressions(state, "*-1"));
         expectThrows(InvalidIndexNameException.class, () -> indexNameExpressionResolver.resolveExpressions(state, "_invalid_index_name"));
+    }
+
+    public void testResolveExpressionsWithOptionsIncludesHiddenAlias() {
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(indexBuilder("data-visible").state(State.OPEN).putAlias(AliasMetadata.builder("data-visible-alias")))
+            .put(
+                indexBuilder("data-hidden", Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build()).state(State.OPEN)
+                    .putAlias(AliasMetadata.builder("data-hidden-alias").isHidden(true).filter("{ \"term\": \"foo\"}"))
+            );
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        // The 2-arg (lenientExpandOpen) version excludes hidden indices/aliases, so the hidden alias is omitted.
+        Set<String> lenient = indexNameExpressionResolver.resolveExpressions(state, "data-*");
+        assertThat(lenient, hasItem("data-visible-alias"));
+        assertThat(lenient, not(hasItem("data-hidden-alias")));
+
+        // The options overload with expand_wildcards=open,hidden includes the hidden alias — the whole point of the overload.
+        IndicesOptions openAndHidden = IndicesOptions.fromOptions(true, true, true, false, true);
+        Set<String> withHidden = indexNameExpressionResolver.resolveExpressions(state, openAndHidden, "data-*");
+        assertThat(withHidden, hasItem("data-visible-alias"));
+        assertThat(withHidden, hasItem("data-hidden-alias"));
+
+        // Delegation preserves behaviour: the 2-arg version is byte-identical to the overload with lenientExpandOpen().
+        assertEquals(indexNameExpressionResolver.resolveExpressions(state, IndicesOptions.lenientExpandOpen(), "data-*"), lenient);
     }
 
     public void testFilteringAliases() {
