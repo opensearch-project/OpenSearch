@@ -1035,7 +1035,7 @@ fn test_resolve_range_offset_none_when_size_zero() {
 
 use bytes::Bytes;
 use opensearch_block_cache::range_cache::{range_cache_key, CacheKey};
-use opensearch_block_cache::traits::BlockCache;
+use opensearch_block_cache::traits::{BlockCache, PutOutcome};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -1047,6 +1047,28 @@ struct MockBlockCache {
     data: Mutex<HashMap<String, Bytes>>,
     meta: Mutex<HashMap<String, Bytes>>,
     evicted: Mutex<Vec<String>>,
+    /// Maximum entry size, mirroring `TieredBlockCache`'s bound. `None` = unlimited.
+    /// Entries above it are refused with [`PutOutcome::Rejected`] instead of stored.
+    max_entry_size: Option<u64>,
+}
+
+impl MockBlockCache {
+    /// Cap entry size so tests can exercise the rejection path.
+    fn with_max_entry_size(limit: u64) -> Self {
+        Self {
+            max_entry_size: Some(limit),
+            ..Default::default()
+        }
+    }
+
+    /// `Some(Rejected)` when `data` exceeds the configured bound, else `None`.
+    fn reject_if_oversized(&self, data: &Bytes) -> Option<PutOutcome> {
+        let limit = self.max_entry_size?;
+        (data.len() as u64 > limit).then_some(PutOutcome::Rejected {
+            len: data.len(),
+            limit,
+        })
+    }
 }
 
 impl BlockCache for MockBlockCache {
@@ -1069,18 +1091,26 @@ impl BlockCache for MockBlockCache {
         Box::pin(async move { hit })
     }
 
-    fn put(&self, key: &CacheKey, data: Bytes) {
+    fn put(&self, key: &CacheKey, data: Bytes) -> PutOutcome {
+        if let Some(rejected) = self.reject_if_oversized(&data) {
+            return rejected;
+        }
         self.data
             .lock()
             .unwrap()
             .insert(key.as_str().to_string(), data);
+        PutOutcome::Accepted
     }
 
-    fn put_metadata(&self, key: &CacheKey, data: Bytes) {
+    fn put_metadata(&self, key: &CacheKey, data: Bytes) -> PutOutcome {
+        if let Some(rejected) = self.reject_if_oversized(&data) {
+            return rejected;
+        }
         self.meta
             .lock()
             .unwrap()
             .insert(key.as_str().to_string(), data);
+        PutOutcome::Accepted
     }
 
     fn evict_prefix(&self, prefix: &str) {
@@ -1167,7 +1197,67 @@ async fn test_put_metadata_routes_to_metadata_tier_only() {
 async fn test_put_metadata_noop_without_cache() {
     // No cache attached — must be a no-op, not a panic.
     let (_registry, _local, _remote, tiered) = setup();
-    tiered.put_metadata("a.parquet", &[0..10], &[Bytes::from_static(b"0123456789")]);
+    let promotion =
+        tiered.put_metadata("a.parquet", &[0..10], &[Bytes::from_static(b"0123456789")]);
+    assert_eq!(
+        promotion,
+        MetadataPromotion::default(),
+        "a store without a metadata tier must report nothing promoted, not claim success"
+    );
+    assert!(!promotion.has_rejections());
+}
+
+/// A range the metadata tier refuses is reported as rejected, not counted as promoted.
+///
+/// This is what lets shard warmup tell the truth: without it, an oversized page-index
+/// region is dropped and the warmup log still claims every requested range was promoted.
+#[tokio::test]
+async fn test_put_metadata_reports_partial_promotion() {
+    let registry = Arc::new(TieredStorageRegistry::new());
+    let local = Arc::new(InMemory::new());
+    // 8-byte entry bound: the footer fits, the page-index region does not.
+    let cache = Arc::new(MockBlockCache::with_max_entry_size(8));
+    let tiered = TieredObjectStore::new(Arc::clone(&registry), Arc::clone(&local) as _)
+        .with_cache(Arc::clone(&cache) as Arc<dyn BlockCache>);
+
+    let promotion = tiered.put_metadata(
+        "a.parquet",
+        &[0..64, 936..1000],
+        &[
+            Bytes::from_static(b"PAGE-INDEX-REGION-TOO-BIG"), // 25 bytes > 8 → refused
+            Bytes::from_static(b"FOOTER00"),                  // 8 bytes ≤ 8 → accepted
+        ],
+    );
+
+    assert_eq!(
+        promotion,
+        MetadataPromotion {
+            accepted: 1,
+            accepted_bytes: 8,
+            rejected: 1,
+            rejected_bytes: 25,
+        },
+        "promotion must account for each range separately"
+    );
+    assert!(promotion.has_rejections());
+
+    // And the accounting matches reality: only the footer is actually in the tier.
+    assert!(
+        cache
+            .meta
+            .lock()
+            .unwrap()
+            .contains_key(range_cache_key("a.parquet", 936, 1000).as_str()),
+        "the accepted range must really be cached"
+    );
+    assert!(
+        !cache
+            .meta
+            .lock()
+            .unwrap()
+            .contains_key(range_cache_key("a.parquet", 0, 64).as_str()),
+        "the rejected range must not be cached"
+    );
 }
 
 #[tokio::test]
