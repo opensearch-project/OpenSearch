@@ -16,6 +16,7 @@ import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.CapabilityRegistry;
@@ -121,6 +122,23 @@ public class OpenSearchFilterRule extends RelOptRule {
      * {@link AnnotatedPredicate} with viable backends resolved from child's field storage.
      */
     private RexNode annotateCondition(RexNode condition, List<FieldStorageInfo> fieldStorageInfos, List<String> childViableBackends) {
+        // Calcite's ReduceExpressionsRule folds `boolCol = TRUE` to a bare boolean reference. Annotate it as an
+        // IS_TRUE leaf so the capability gate runs; an unannotated ref would leave every child-viable backend viable.
+        if (condition instanceof RexInputRef ref && ref.getType().getSqlTypeName() == SqlTypeName.BOOLEAN) {
+            FieldStorageInfo fsi = FieldStorageInfo.resolve(fieldStorageInfos, ref.getIndex());
+            // IS_TRUE is a capability key for routing only: the annotated expression remains the bare ref.
+            Set<String> viable = new HashSet<>(context.getCapabilityRegistry().filterCapableBackends());
+            viable.retainAll(leafFieldViableBackends(ScalarFunction.IS_TRUE, fsi, childViableBackends));
+            // Apply the delegation block-list as the RexCall leaf path does, but never empty the viable set.
+            DelegationBlockList blockList = context.getDelegationBlockList();
+            if (!blockList.isEmpty()) {
+                boolean someBackendSurvives = viable.stream().anyMatch(backend -> !blockList.isBlocked(backend, ScalarFunction.IS_TRUE));
+                if (someBackendSurvives) {
+                    viable.removeIf(backend -> blockList.isBlocked(backend, ScalarFunction.IS_TRUE));
+                }
+            }
+            return new AnnotatedPredicate(ref.getType(), ref, new ArrayList<>(viable), context.nextAnnotationId());
+        }
         if (!(condition instanceof RexCall rexCall)) {
             return condition;
         }
@@ -252,28 +270,7 @@ public class OpenSearchFilterRule extends RelOptRule {
 
         for (int fieldIndex : fieldIndices) {
             FieldStorageInfo storageInfo = FieldStorageInfo.resolve(fieldStorageInfos, fieldIndex);
-
-            Set<String> fieldViable;
-            if (storageInfo.isDerived()) {
-                // Derived columns (post-Aggregate, post-Join, post-Union, post-Project) are
-                // computed in memory by the producer. The filter can only run on a backend
-                // the producer is also viable for (its child's viableBackends), and further
-                // only on backends that support this function on the field's logical type —
-                // delegation isn't applicable because there's no physical storage to delegate
-                // a scan against. Surfaced by testHavingFilterAfterJoin_multiShard etc., where
-                // a HAVING clause filters on a stats-derived column.
-                fieldViable = new HashSet<>(childViableBackends);
-                fieldViable.retainAll(registry.filterBackendsAnyFormat(function, storageInfo.getFieldType()));
-            } else {
-                // Format-aware: backends that can access this field's storage (doc values + index).
-                // A backend is viable only if it has the field in its own storage formats — ensuring
-                // delegation targets are also field-storage-aware (e.g. Lucene is viable for a keyword
-                // field only when the field has indexFormats=[lucene] set in the mapping).
-                // TODO: for FULL_TEXT operators, extract required params from RexCall
-                fieldViable = new HashSet<>(registry.filterBackendsForField(function, storageInfo));
-            }
-
-            viableSet.retainAll(fieldViable);
+            viableSet.retainAll(leafFieldViableBackends(function, storageInfo, childViableBackends));
         }
 
         // Every nested scalar function in the predicate must also be evaluable by a candidate backend
@@ -350,6 +347,32 @@ public class OpenSearchFilterRule extends RelOptRule {
             );
         }
         return new ArrayList<>(viableSet);
+    }
+
+    /**
+     * Resolves the backends able to evaluate a single field reference under {@code function}, per the derived vs
+     * stored-column convention.
+     */
+    private Set<String> leafFieldViableBackends(ScalarFunction function, FieldStorageInfo storageInfo, List<String> childViableBackends) {
+        CapabilityRegistry registry = context.getCapabilityRegistry();
+        if (storageInfo.isDerived()) {
+            // Derived columns (post-Aggregate, post-Join, post-Union, post-Project) are
+            // computed in memory by the producer. The filter can only run on a backend
+            // the producer is also viable for (its child's viableBackends), and further
+            // only on backends that support this function on the field's logical type —
+            // delegation isn't applicable because there's no physical storage to delegate
+            // a scan against. Surfaced by testHavingFilterAfterJoin_multiShard etc., where
+            // a HAVING clause filters on a stats-derived column.
+            Set<String> fieldViable = new HashSet<>(childViableBackends);
+            fieldViable.retainAll(registry.filterBackendsAnyFormat(function, storageInfo.getFieldType()));
+            return fieldViable;
+        }
+        // Format-aware: backends that can access this field's storage (doc values + index).
+        // A backend is viable only if it has the field in its own storage formats — ensuring
+        // delegation targets are also field-storage-aware (e.g. Lucene is viable for a keyword
+        // field only when the field has indexFormats=[lucene] set in the mapping).
+        // TODO: for FULL_TEXT operators, extract required params from RexCall
+        return new HashSet<>(registry.filterBackendsForField(function, storageInfo));
     }
 
     /**
