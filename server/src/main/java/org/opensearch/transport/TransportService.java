@@ -1571,6 +1571,13 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
+        public void onStreamCreated(StreamTransportResponse<T> response) {
+            // Runs on the sending thread, whose context is already the caller's, so there is nothing to
+            // restore; and it is not a terminal callback, so the timeout handler stays armed.
+            delegate.onStreamCreated(response);
+        }
+
+        @Override
         public void handleException(TransportException exp) {
             if (handler != null) {
                 handler.cancel();
@@ -1792,6 +1799,11 @@ public class TransportService extends AbstractLifecycleComponent
                     @Override
                     public void handleStreamResponse(StreamTransportResponse<T> response) {
                         handler.handleStreamResponse(response);
+                    }
+
+                    @Override
+                    public void onStreamCreated(StreamTransportResponse<T> response) {
+                        handler.onStreamCreated(response);
                     }
 
                     @Override
