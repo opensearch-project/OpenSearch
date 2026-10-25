@@ -14,8 +14,10 @@ import org.apache.arrow.c.CDataDictionaryProvider;
 import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.dictionary.DictionaryProvider;
 import org.apache.arrow.vector.ipc.ArrowStreamWriter;
 import org.apache.arrow.vector.ipc.message.IpcOption;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.exec.shuffle.ShuffleCompression;
@@ -28,6 +30,7 @@ import java.io.ByteArrayOutputStream;
 import java.nio.channels.Channels;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -45,8 +48,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * reverse-engineering the seed in JVM code.
  *
  * <p><b>Lifecycle.</b> {@code feed} is called once per engine batch; {@code close} is called once
- * after the engine stream drains. On close, every target receives an {@code isLast=true} send
- * (empty payload) so the consumer's per-side {@code awaitReady} latch releases. Send completions
+ * after the engine stream drains. On close, every target receives an {@code isLast=true} send so
+ * the consumer's per-side {@code awaitReady} latch releases. A partition that received at least one
+ * data payload gets a bare (empty-payload) marker; a partition that received none gets a
+ * SCHEMA-ONLY Arrow IPC payload instead — see {@link #schemaOnlyIpc}. Send completions
  * are tracked through one shared {@link AtomicInteger} pending counter — the framework's calling
  * code can poll completion by waiting until the counter returns to zero, but the sink itself
  * does not block on send acknowledgement (sends are fire-and-forget with retry handled inside
@@ -57,6 +62,17 @@ import java.util.concurrent.atomic.AtomicReference;
  * batches sequentially per stream so concurrent feeds aren't expected, but the partitioning +
  * IPC serialization happen outside any lock so multiple feeds would interleave their FFM calls,
  * which is safe.
+ *
+ * <p><b>Every partition receives a schema.</b> The consumer's {@code ShuffleScanHandler} derives the
+ * join input's Arrow schema from the first chunk it drains for its partition, so a partition that
+ * receives no chunk at all cannot register a bindable table. Two cases would otherwise leave one
+ * empty: rows that hash into only some partitions (handled natively — {@code partition_batch_by_hash}
+ * emits a {@code RecordBatch::new_empty(schema)} for every zero-row partition, so each still gets a
+ * schema-carrying chunk), and a producer whose engine yields NO rows at all. The second case reaches
+ * {@code feed} exactly once, with the zero-row schema-bearing batch {@code DatafusionResultStream}
+ * synthesises for an empty native stream; {@link #feed} records that batch's schema in
+ * {@link #fedSchema} before discarding it, and {@code close} ships it as a schema-only payload to
+ * every partition that never received data.
  *
  * <p><b>Failure surface.</b> A native partitioner error or IPC serialization error stamps a
  * sticky {@link #firstError}; subsequent feeds and {@code close} skip work but still send
@@ -78,6 +94,23 @@ public final class DatafusionPartitionedSink implements ExchangeSink {
     private final AtomicReference<Throwable> firstError = new AtomicReference<>();
     private volatile boolean closed;
     private long batchesFed;
+
+    /**
+     * Schema of the batches this producer emitted, recorded by every {@code feed} — including one
+     * carrying a zero-row batch, which is the ONLY thing a producer whose engine yielded no rows ever
+     * feeds. All batches of one engine stream share a schema, so which feed wins is immaterial.
+     * {@code close} needs it to ship a schema-carrying final marker to partitions that received no
+     * data. Stays null only when {@code feed} was never called at all.
+     */
+    private volatile Schema fedSchema;
+
+    /**
+     * Per-partition flag: 1 once this partition has been shipped at least one data payload. Read by
+     * {@code close} to choose between a bare final marker and a schema-only one. Atomic because the
+     * class contract allows {@code feed} from any thread, so {@code close} must see every feed's
+     * writes without relying on the caller happening to drain and close on one thread.
+     */
+    private final AtomicIntegerArray dataShipped;
 
     /**
      * @param alloc                buffer allocator for Arrow C-data exports / IPC serialization
@@ -116,6 +149,7 @@ public final class DatafusionPartitionedSink implements ExchangeSink {
         this.sender = sender;
         this.logTag = logTag;
         this.compression = compression;
+        this.dataShipped = new AtomicIntegerArray(partitionCount);
     }
 
     @Override
@@ -130,6 +164,12 @@ public final class DatafusionPartitionedSink implements ExchangeSink {
             batch.close();
             return;
         }
+        // Record the schema BEFORE the zero-row short-circuit below. A producer whose engine yielded
+        // no rows feeds exactly one batch — the zero-row schema-bearing root DatafusionResultStream
+        // synthesises for an empty native stream — and that is the only chance this sink ever gets to
+        // learn its output schema. Dropping it here is what left empty partitions with no schema for
+        // the consumer to register a table from.
+        fedSchema = batch.getSchema();
         if (batch.getRowCount() == 0) {
             batch.close();
             return;
@@ -251,12 +291,43 @@ public final class DatafusionPartitionedSink implements ExchangeSink {
     }
 
     /**
+     * Serializes {@code schema} as an Arrow IPC stream carrying the schema header and the
+     * end-of-stream marker but NO record batch. The consumer reads the schema from the header
+     * ({@code ShuffleScanHandler.extractSchemaIpc}) and then pumps zero batches into the native
+     * partition stream — exactly the right shape for a partition with no rows.
+     *
+     * <p>Written uncompressed regardless of {@link #compression}: there are no batch buffers to
+     * compress, and the consumer's reader auto-detects the codec (including none) per message.
+     */
+    private byte[] schemaOnlyIpc(Schema schema) throws java.io.IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (
+            VectorSchemaRoot emptyRoot = VectorSchemaRoot.create(schema, alloc);
+            // Empty (not null) provider: Arrow only consults it for dictionary-encoded fields, and
+            // passing null would NPE on such a schema rather than reporting the missing dictionary.
+            ArrowStreamWriter writer = new ArrowStreamWriter(
+                emptyRoot,
+                new DictionaryProvider.MapDictionaryProvider(),
+                Channels.newChannel(baos)
+            )
+        ) {
+            emptyRoot.setRowCount(0);
+            writer.start();
+            writer.end();
+        }
+        return baos.toByteArray();
+    }
+
+    /**
      * Hands one partition's payload to the framework {@link ShuffleSender}. Increments the
      * {@link #pending} counter before send and decrements on completion (success or failure) so
      * the producer fragment's caller can wait on quiescence.
      */
     private void shipPayload(int partitionIndex, byte[] data, boolean isLast) {
         String targetNodeId = targetWorkerNodeIds.get(partitionIndex);
+        if (isLast == false) {
+            dataShipped.set(partitionIndex, 1);
+        }
         pending.incrementAndGet();
         sender.send(targetNodeId, partitionIndex, data, isLast, new ActionListener<>() {
             @Override
@@ -301,9 +372,31 @@ public final class DatafusionPartitionedSink implements ExchangeSink {
         // PHASE 2: send isLast=true to every target so the consumer's per-side awaitReady latch fires.
         // Even partitions we never produced rows for need an isLast — the consumer counts senders
         // by partition, not by row count.
+        //
+        // A partition that received no data payload gets the schema as its isLast payload, so the
+        // consumer has a chunk to read the join input's schema from and can register a bindable
+        // zero-row table (without it the consumer has no schema at all and fails the query). The
+        // receiving transport admits a send's payload BEFORE it counts the isLast
+        // (TransportAnalyticsShuffleDataAction), so riding the marker keeps this inside the existing
+        // two-phase ordering: no data can land after a consumer's drain snapshot.
+        //
+        // Serialized ONCE, outside the send loop. Serializing inside it could throw part-way through
+        // and leave a partition with no isLast at all — the consumer would then block until its
+        // awaitReady timeout instead of failing fast. A failure here degrades to bare markers for
+        // every partition, so the consumer still releases and reports the missing schema.
+        byte[] schemaOnlyPayload = new byte[0];
+        Schema schema = fedSchema;
+        if (schema != null) {
+            try {
+                schemaOnlyPayload = schemaOnlyIpc(schema);
+            } catch (Throwable t) {
+                firstError.compareAndSet(null, t);
+                LOGGER.warn("DatafusionPartitionedSink: failed to serialize the schema-only marker payload for " + logTag, t);
+            }
+        }
         for (int p = 0; p < partitionCount; p++) {
             try {
-                shipPayload(p, new byte[0], /* isLast */ true);
+                shipPayload(p, dataShipped.get(p) == 0 ? schemaOnlyPayload : new byte[0], /* isLast */ true);
             } catch (Throwable t) {
                 firstError.compareAndSet(null, t);
                 LOGGER.warn("DatafusionPartitionedSink: failed to ship final marker for partition " + p + " (" + logTag + ")", t);
