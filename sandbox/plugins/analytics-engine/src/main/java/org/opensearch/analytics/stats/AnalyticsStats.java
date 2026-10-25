@@ -129,23 +129,28 @@ public final class AnalyticsStats implements ToXContentFragment, Writeable {
     }
 
     /**
-     * Per-query latency rollup. Counters like total / succeeded / failed are
-     * intentionally <strong>not</strong> exposed here — those are covered by
-     * analytics-engine integration with the existing {@code _nodes/stats}
-     * extension point. This bucket carries analytics-engine-specific timing
-     * totals that don't have a home in core node stats: end-to-end query
-     * elapsed and Calcite planning time.
+     * Per-query latency rollup. Generic pass/fail counters (total / succeeded / failed) are
+     * intentionally <strong>not</strong> exposed here — those apply uniformly across every search
+     * path (Lucene, analytics engine, etc.) and are covered by analytics-engine integration with
+     * the existing {@code _nodes/stats} extension point.
+     *
+     * <p>{@code planningFailures} is not a generic pass/fail counter — it is a failure-phase
+     * breakdown that only exists because the analytics engine executes queries through a distinct
+     * Calcite planning phase before execution. That phase has no equivalent in {@code _nodes/stats},
+     * so its failure count lives here alongside the other analytics-engine-specific timing totals:
+     * end-to-end query elapsed and Calcite planning time.
      */
-    public record Queries(LatencyStats elapsedMs, LatencyStats planningMs) implements ToXContentFragment, Writeable {
+    public record Queries(LatencyStats elapsedMs, LatencyStats planningMs, long planningFailures) implements ToXContentFragment, Writeable {
 
         public Queries(StreamInput in) throws IOException {
-            this(new LatencyStats(in), new LatencyStats(in));
+            this(new LatencyStats(in), new LatencyStats(in), in.readVLong());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             elapsedMs.writeTo(out);
             planningMs.writeTo(out);
+            out.writeVLong(planningFailures);
         }
 
         @Override
@@ -155,6 +160,7 @@ public final class AnalyticsStats implements ToXContentFragment, Writeable {
             elapsedMs.toXContent(builder, params);
             builder.field("planning_ms");
             planningMs.toXContent(builder, params);
+            builder.field("planning_failures", planningFailures);
             builder.endObject();
             return builder;
         }

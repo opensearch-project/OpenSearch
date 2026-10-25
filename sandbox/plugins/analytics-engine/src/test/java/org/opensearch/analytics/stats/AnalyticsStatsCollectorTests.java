@@ -164,6 +164,17 @@ public class AnalyticsStatsCollectorTests extends OpenSearchTestCase {
         assertEquals(1, c.snapshot().stagesByType().size());
     }
 
+    public void testRecordPlanningFailure() {
+        AnalyticsStatsCollector c = new AnalyticsStatsCollector();
+        assertEquals(0, c.snapshot().queries().planningFailures());
+
+        c.recordPlanningFailure();
+        c.recordPlanningFailure();
+        c.recordPlanningFailure();
+
+        assertEquals(3, c.snapshot().queries().planningFailures());
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private static Stage stageOf(int id, StageExecutionType type, List<Stage> children) {
