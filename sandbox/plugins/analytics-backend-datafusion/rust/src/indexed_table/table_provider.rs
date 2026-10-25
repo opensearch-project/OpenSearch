@@ -832,6 +832,16 @@ impl QueryShardExec {
     ) -> Option<&Arc<dyn datafusion::physical_expr::PhysicalExpr>> {
         self.predicate.as_ref()
     }
+
+    /// Test-only accessor for the dynamic filters accepted via
+    /// `handle_child_pushdown_result`. Distinguishes "no filter was ever
+    /// delivered" (empty) from "a filter arrived but pruned nothing" (non-empty
+    /// with zero prune counters) — the two cases look identical in metrics.
+    pub(crate) fn test_dynamic_filters(
+        &self,
+    ) -> &[Arc<dyn datafusion::physical_expr::PhysicalExpr>] {
+        &self.dynamic_filters
+    }
 }
 
 #[cfg(test)]

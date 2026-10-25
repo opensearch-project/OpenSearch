@@ -160,6 +160,8 @@ public final class NativeBridge {
     private static final MethodHandle FETCH_BY_ROW_IDS;
     private static final MethodHandle UPDATE_CONCURRENCY_GATE;
     private static final MethodHandle CAN_MATCH;
+    private static final MethodHandle CAN_MATCH_SET;
+    private static final MethodHandle INSTALL_RUNTIME_FILTER;
     private static final MethodHandle SHARD_SORT_BOUNDS;
 
     static {
@@ -734,13 +736,39 @@ public final class NativeBridge {
         CAN_MATCH = linker.downcallHandle(
             lib.find("df_can_match").orElseThrow(),
             FunctionDescriptor.of(
-                ValueLayout.JAVA_LONG,   // return: 1=Yes, 0=No, -1=Unknown
+                ValueLayout.JAVA_LONG,   // return: CAN_MATCH_NO=0, CAN_MATCH_YES=1, CAN_MATCH_UNKNOWN=2
                 ValueLayout.JAVA_LONG,   // runtime_ptr
                 ValueLayout.JAVA_LONG,   // shard_view_ptr
                 ValueLayout.ADDRESS,     // column_name_ptr
                 ValueLayout.JAVA_LONG,   // column_name_len
                 ValueLayout.JAVA_LONG,   // filter_min
                 ValueLayout.JAVA_LONG    // filter_max
+            )
+        );
+
+        // i64 df_install_runtime_filter(session_ctx_handle_ptr, filter_id, bitset_ptr, bitset_len)
+        INSTALL_RUNTIME_FILTER = linker.downcallHandle(
+            lib.find("df_install_runtime_filter").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,   // return: RUNTIME_FILTER_INSTALLED=0, RUNTIME_FILTER_SKIPPED=1
+                ValueLayout.JAVA_LONG,   // session_ctx_handle_ptr
+                ValueLayout.JAVA_INT,    // filter_id
+                ValueLayout.ADDRESS,     // bitset_ptr
+                ValueLayout.JAVA_LONG    // bitset_len
+            )
+        );
+
+        // i64 df_can_match_set(runtime_ptr, shard_view_ptr, column_name_ptr, column_name_len, values_ptr, values_len)
+        CAN_MATCH_SET = linker.downcallHandle(
+            lib.find("df_can_match_set").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,   // return: CAN_MATCH_NO=0, CAN_MATCH_YES=1, CAN_MATCH_UNKNOWN=2
+                ValueLayout.JAVA_LONG,   // runtime_ptr
+                ValueLayout.JAVA_LONG,   // shard_view_ptr
+                ValueLayout.ADDRESS,     // column_name_ptr
+                ValueLayout.JAVA_LONG,   // column_name_len
+                ValueLayout.ADDRESS,     // values_ptr — values_len i64s, ascending
+                ValueLayout.JAVA_LONG    // values_len
             )
         );
 
@@ -2089,6 +2117,35 @@ public final class NativeBridge {
     }
 
     /** {@link #canMatch} status: shard provably holds no matching row. The only value that prunes. */
+    /** A join runtime filter was decoded and installed; the fragment will apply it. */
+    public static final long RUNTIME_FILTER_INSTALLED = 0L;
+    /**
+     * The filter was not installed — a malformed bitset or a closed session. A status
+     * rather than an exception on purpose: a runtime filter is an optimization, so
+     * failing to install one costs the optimization and not the query. The fragment
+     * runs unfiltered because the UDF answers `true` for an id it cannot find.
+     */
+    public static final long RUNTIME_FILTER_SKIPPED = 1L;
+
+    /**
+     * Installs a join runtime filter's bitset on a session under {@code filterId}.
+     *
+     * <p>Must be called before the fragment executes: the plan carries only the id, and
+     * this supplies the bytes the {@code os_runtime_filter} UDF probes.
+     *
+     * <p>Returns {@link #RUNTIME_FILTER_INSTALLED} or {@link #RUNTIME_FILTER_SKIPPED};
+     * never throws for a bad payload.
+     */
+    public static long installRuntimeFilter(long sessionCtxHandlePtr, int filterId, byte[] bitset) {
+        if (bitset == null || bitset.length == 0) {
+            return RUNTIME_FILTER_SKIPPED;
+        }
+        try (var call = new NativeCall()) {
+            var bytes = call.bytes(bitset);
+            return call.invoke(INSTALL_RUNTIME_FILTER, sessionCtxHandlePtr, filterId, bytes, (long) bitset.length);
+        }
+    }
+
     public static final long CAN_MATCH_NO = 0L;
     /** {@link #canMatch} status: shard may hold a matching row. */
     public static final long CAN_MATCH_YES = 1L;
@@ -2108,6 +2165,31 @@ public final class NativeBridge {
         try (var call = new NativeCall()) {
             var cn = call.str(columnName);
             return call.invoke(CAN_MATCH, runtimePtr, shardViewPtr, cn.segment(), cn.len(), filterMin, filterMax);
+        }
+    }
+
+    /**
+     * Can-match against a set of candidate values — the runtime-filter counterpart of
+     * {@link #canMatch}. Prunes strictly more than a range over the same candidates,
+     * because a row group falling in a gap between candidates is excluded too.
+     *
+     * <p>{@code values} must be ascending; {@code LongSet} sorts on construction and the
+     * native side binary-searches on that assumption. An empty array yields
+     * {@link #CAN_MATCH_UNKNOWN} rather than pruning — no candidates means the caller
+     * failed to build a filter, not that nothing can match.
+     *
+     * <p>Returns one of {@link #CAN_MATCH_NO}, {@link #CAN_MATCH_YES},
+     * {@link #CAN_MATCH_UNKNOWN} — all non-negative, for the same reason
+     * {@link #canMatch} documents.
+     */
+    public static long canMatchSet(long runtimePtr, long shardViewPtr, String columnName, long[] values) {
+        if (values == null || values.length == 0) {
+            return CAN_MATCH_UNKNOWN;
+        }
+        try (var call = new NativeCall()) {
+            var cn = call.str(columnName);
+            var vals = call.longs(values);
+            return call.invoke(CAN_MATCH_SET, runtimePtr, shardViewPtr, cn.segment(), cn.len(), vals, (long) values.length);
         }
     }
 

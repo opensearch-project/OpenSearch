@@ -43,7 +43,9 @@ public enum InstructionType {
     SHUFFLE_SCAN,
     /** Worker session setup — creates a backend session with no shard view; the worker's hash-join plan
      *  reads only from named-input streams subsequently registered by {@link #SHUFFLE_SCAN} handlers (M2). */
-    SETUP_SHUFFLE_WORKER;
+    SETUP_SHUFFLE_WORKER,
+    /** Join runtime filter — install a build-side summary the probe fragment's plan references by id. */
+    INSTALL_RUNTIME_FILTER;
 
     /** Deserializes an {@link InstructionNode} from the stream based on this type. */
     public InstructionNode readNode(StreamInput in) throws IOException {
@@ -56,6 +58,7 @@ public enum InstructionType {
             case SHUFFLE_PRODUCER -> new ShuffleProducerInstructionNode(in);
             case SHUFFLE_SCAN -> new ShuffleScanInstructionNode(in);
             case SETUP_SHUFFLE_WORKER -> new ShuffleWorkerSetupInstructionNode(in);
+            case INSTALL_RUNTIME_FILTER -> new RuntimeFilterInstructionNode(in);
         };
     }
 }
