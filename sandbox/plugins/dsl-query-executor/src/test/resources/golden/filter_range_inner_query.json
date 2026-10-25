@@ -1,0 +1,64 @@
+{
+  "testName": "filter_range_inner_query",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "status": "VARCHAR"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "price_band": {
+        "filter": {
+          "range": {
+            "price": {
+              "gte": 300,
+              "lt": 600
+            }
+          }
+        },
+        "aggregations": {
+          "avg_price": {
+            "avg": {
+              "field": "price"
+            }
+          }
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalAggregate(group=[{}], avg_price=[AVG($1)], _count=[COUNT()])",
+    "  LogicalFilter(condition=[AND(>=($1, CAST(300):INTEGER), <($1, CAST(600):INTEGER))])",
+    "    LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["avg_price", "_count"],
+  "mockResultRows": [
+    [450.0, 3]
+  ],
+  "mockCountRow": {
+    "_total": 8
+  },
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 8,
+        "relation": "eq"
+      },
+      "max_score": null,
+      "hits": []
+    },
+    "aggregations": {
+      "price_band": {
+        "doc_count": 3,
+        "avg_price": {
+          "value": 450.0
+        }
+      }
+    }
+  }
+}

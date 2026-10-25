@@ -314,4 +314,35 @@ public class AggregationTreeWalkerTests extends OpenSearchTestCase {
         );
         assertTrue(e.getMessage().contains("missing"));
     }
+
+    // ---- Filter aggregation tests ----
+
+    public void testFilterAggProducesNonEmptyPath() throws ConversionException {
+        List<AggregationBuilder> aggs = List.of(
+            new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder(
+                "active_only",
+                new org.opensearch.index.query.TermQueryBuilder("status", "active")
+            )
+        );
+
+        List<AggregationMetadata> result = walker.walk(aggs, ctx.getRowType(), ctx.getCluster().getTypeFactory());
+
+        assertEquals(1, result.size());
+        assertEquals(List.of("active_only"), result.get(0).getAggNamePath());
+        // Filter bucket produces implicit _count
+        assertTrue(result.get(0).getAggregateFieldNames().contains("_count"));
+    }
+
+    public void testFilterAggCarriesFilterQuery() throws ConversionException {
+        org.opensearch.index.query.TermQueryBuilder termQuery = new org.opensearch.index.query.TermQueryBuilder("status", "active");
+        List<AggregationBuilder> aggs = List.of(
+            new org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder("active_only", termQuery)
+        );
+
+        List<AggregationMetadata> result = walker.walk(aggs, ctx.getRowType(), ctx.getCluster().getTypeFactory());
+
+        assertEquals(1, result.size());
+        assertTrue(result.get(0).getFilterQuery().isPresent());
+        assertEquals(termQuery, result.get(0).getFilterQuery().get());
+    }
 }

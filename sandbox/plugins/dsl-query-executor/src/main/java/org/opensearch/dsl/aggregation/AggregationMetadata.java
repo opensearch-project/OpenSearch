@@ -10,10 +10,12 @@ package org.opensearch.dsl.aggregation;
 
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.aggregations.BucketOrder;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Pre-computed metadata for one aggregation plan.
@@ -44,6 +46,8 @@ public class AggregationMetadata {
     private final Integer perParentFetch;
     private final Long havingMinDocCount;
     private final Map<String, Object> missingValues;
+    private final QueryBuilder filterQuery;
+    private final List<AggregationMetadataBuilder.AncestorFilter> ancestorFilters;
 
     /**
      * Creates aggregation metadata.
@@ -62,6 +66,9 @@ public class AggregationMetadata {
      *        for none
      * @param missingValues null-substitution value per group field ({@code missing} parameter);
      *        fields absent from the map get an {@code IS NOT NULL} filter instead
+     * @param filterQuery the defining aggregation's own filter query, or null
+     * @param ancestorFilters filter predicates from enclosing ancestor bucket aggregations;
+     *        accumulated so descendant plans compute over only the filtered document set
      */
     public AggregationMetadata(
         List<String> aggNamePath,
@@ -73,7 +80,9 @@ public class AggregationMetadata {
         Integer fetch,
         Integer perParentFetch,
         Long havingMinDocCount,
-        Map<String, Object> missingValues
+        Map<String, Object> missingValues,
+        QueryBuilder filterQuery,
+        List<AggregationMetadataBuilder.AncestorFilter> ancestorFilters
     ) {
         this.aggNamePath = List.copyOf(aggNamePath);
         this.groupByBitSet = groupByBitSet;
@@ -85,6 +94,8 @@ public class AggregationMetadata {
         this.perParentFetch = perParentFetch;
         this.havingMinDocCount = havingMinDocCount;
         this.missingValues = Map.copyOf(missingValues);
+        this.filterQuery = filterQuery;
+        this.ancestorFilters = List.copyOf(ancestorFilters);
     }
 
     /**
@@ -182,10 +193,31 @@ public class AggregationMetadata {
      * makes every query-matching document eligible. False when the plan carries a
      * {@code min_doc_count} HAVING — the threshold drops whole groups from eligibility even with
      * {@code missing} — or when no {@code missing} value is configured; those plans use a
-     * per-aggregation eligible count instead. Meaningful only for plans with {@link #getFetch()}
-     * set (root-level, single-field by eligibility).
+     * per-aggregation eligible count instead. Also false when the plan carries its own filter
+     * or any ancestor filter: a filter narrows the eligible set, so the premise that every
+     * query-matching document is eligible no longer holds and a filtered per-aggregation count
+     * is required. Meaningful only for plans with {@link #getFetch()} set (root-level,
+     * single-field by eligibility).
      */
     public boolean eligibleDocCountIsTotal() {
-        return havingMinDocCount == null && !groupByFieldNames.isEmpty() && missingValues.containsKey(groupByFieldNames.get(0));
+        return havingMinDocCount == null
+            && !groupByFieldNames.isEmpty()
+            && missingValues.containsKey(groupByFieldNames.get(0))
+            && filterQuery == null
+            && ancestorFilters.isEmpty();
+    }
+
+    /** Returns the per-aggregation filter query, or empty when no predicate applies. */
+    public Optional<QueryBuilder> getFilterQuery() {
+        return Optional.ofNullable(filterQuery);
+    }
+
+    /**
+     * Returns the accumulated ancestor filter predicates from enclosing bucket aggregations.
+     * Descendant plans must conjoin these with any own filter to compute over only the
+     * ancestor-filtered document set. Empty when no ancestor carries a filter.
+     */
+    public List<AggregationMetadataBuilder.AncestorFilter> getAncestorFilters() {
+        return ancestorFilters;
     }
 }
