@@ -225,7 +225,17 @@ public class RestRequestTests extends OpenSearchTestCase {
     }
 
     public void testMalformedContentTypeHeader() {
-        final String type = randomFrom("text", "text/:ain; charset=utf-8", "text/plain\";charset=utf-8", ":", "/", "t:/plain");
+        final String type = randomFrom(
+            "text",
+            "text/:ain; charset=utf-8",
+            "text/plain\";charset=utf-8",
+            ":",
+            "/",
+            "t:/plain",
+            "text/plain[",
+            "text/plain]",
+            "text\\plain"
+        );
         final RestRequest.ContentTypeHeaderException e = expectThrows(RestRequest.ContentTypeHeaderException.class, () -> {
             final Map<String, List<String>> headers = Collections.singletonMap("Content-Type", Collections.singletonList(type));
             contentRestRequest("", Collections.emptyMap(), headers);
