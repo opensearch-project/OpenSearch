@@ -93,6 +93,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
@@ -2662,6 +2663,73 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             assertEquals(115, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
+        }
+    }
+
+    /**
+     * Closing one socket tears the whole connection down, which closes every other socket belonging to it. Only
+     * the socket that actually failed may be counted, otherwise every close looks like a failure of all channel
+     * types at once and the breakdown says nothing.
+     */
+    public void testChannelCloseIsAttributedOnlyToTheSocketThatClosed() throws Exception {
+        assumeTrue("only tcp transport tracks channel closes by type", serviceA.getOriginalTransport() instanceof TcpTransport);
+        final TcpTransport transport = (TcpTransport) serviceA.getOriginalTransport();
+
+        final Map<String, Long> before = transport.getStats().getChannelCloseByType();
+        try (Transport.Connection connection = openConnectionWithRegOnItsOwnSocket(transport)) {
+            ((TcpTransport.NodeChannels) connection).channel(TransportRequestOptions.Type.REG).close();
+
+            assertBusy(() -> assertChannelCloseDelta(before, transport.getStats().getChannelCloseByType(), 1L));
+        }
+    }
+
+    /**
+     * A connection closed on purpose — the node left the cluster, or the transport is shutting down — is not a
+     * socket failure, even though it closes every socket the connection owns.
+     */
+    public void testDeliberateConnectionCloseIsNotCountedAsChannelClose() throws Exception {
+        assumeTrue("only tcp transport tracks channel closes by type", serviceA.getOriginalTransport() instanceof TcpTransport);
+        final TcpTransport transport = (TcpTransport) serviceA.getOriginalTransport();
+
+        final Map<String, Long> before = transport.getStats().getChannelCloseByType();
+        final TcpTransport.NodeChannels connection = (TcpTransport.NodeChannels) openConnectionWithRegOnItsOwnSocket(transport);
+        final TcpChannel regChannel = connection.channel(TransportRequestOptions.Type.REG);
+
+        connection.close();
+
+        assertBusy(() -> assertFalse("connection close should close its sockets", regChannel.isOpen()));
+        assertChannelCloseDelta(before, transport.getStats().getChannelCloseByType(), 0L);
+    }
+
+    /**
+     * Opens a connection to nodeB that puts REG on a socket of its own, so that closing the REG socket is
+     * distinguishable from closing the socket shared by the remaining channel types.
+     */
+    private Transport.Connection openConnectionWithRegOnItsOwnSocket(TcpTransport transport) {
+        final ConnectionProfile profile = ConnectionProfile.resolveConnectionProfile(
+            new ConnectionProfile.Builder().addConnections(1, TransportRequestOptions.Type.REG)
+                .addConnections(
+                    1,
+                    TransportRequestOptions.Type.BULK,
+                    TransportRequestOptions.Type.PING,
+                    TransportRequestOptions.Type.RECOVERY,
+                    TransportRequestOptions.Type.STATE
+                )
+                .addConnections(0, TransportRequestOptions.Type.STREAM)
+                .build(),
+            ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY)
+        );
+
+        PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+        transport.openConnection(nodeB, profile, future);
+        return future.actionGet();
+    }
+
+    private void assertChannelCloseDelta(Map<String, Long> before, Map<String, Long> after, long expectedRegDelta) {
+        for (TransportRequestOptions.Type type : TransportRequestOptions.Type.values()) {
+            final String name = type.name().toLowerCase(Locale.ROOT);
+            final long expected = type == TransportRequestOptions.Type.REG ? expectedRegDelta : 0L;
+            assertEquals("close count for channel type [" + name + "]", expected, after.get(name) - before.get(name));
         }
     }
 

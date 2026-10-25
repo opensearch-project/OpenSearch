@@ -89,6 +89,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -135,6 +136,13 @@ public class TransportService extends AbstractLifecycleComponent
 
     public static final TransportInterceptor NOOP_TRANSPORT_INTERCEPTOR = new TransportInterceptor() {
     };
+
+    // Counters for outbound request failures, exposed through TransportStats / _nodes/stats.
+    // outgoingTimeouts covers any cause of a missing response: packet loss, a route that silently drops
+    // traffic, or saturation of the remote thread pool. requestsFailedOnDisconnect counts in-flight
+    // requests cancelled because the connection closed before a response arrived.
+    private final AtomicLong outgoingTimeouts = new AtomicLong();
+    private final AtomicLong requestsFailedOnDisconnect = new AtomicLong();
 
     // tracer log
 
@@ -478,7 +486,10 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     public TransportStats stats() {
-        return transport.getStats();
+        // The transport owns every counter except the two request-level ones tracked here.
+        return new TransportStats.Builder(transport.getStats()).outgoingTimeouts(outgoingTimeouts.get())
+            .requestsFailedOnDisconnect(requestsFailedOnDisconnect.get())
+            .build();
     }
 
     public boolean isTransportSecure() {
@@ -1411,6 +1422,7 @@ public class TransportService extends AbstractLifecycleComponent
             List<Transport.ResponseContext<? extends TransportResponse>> pruned = responseHandlers.prune(
                 h -> h.connection().getCacheKey().equals(connection.getCacheKey())
             );
+            requestsFailedOnDisconnect.addAndGet(pruned.size());
             // callback that an exception happened, but on a different thread since we don't
             // want handlers to worry about stack overflows
             getExecutorService().execute(new Runnable() {
@@ -1456,6 +1468,7 @@ public class TransportService extends AbstractLifecycleComponent
                 if (holder != null) {
                     assert holder.action().equals(action);
                     assert holder.connection().getNode().equals(node);
+                    outgoingTimeouts.incrementAndGet();
                     holder.handler()
                         .handleException(
                             new ReceiveTimeoutTransportException(
