@@ -1132,7 +1132,7 @@ public final class IndexModule {
             throw new IllegalArgumentException("store type [" + storeType + "] is not allowed because mmap is disabled");
         }
         final IndexStorePlugin.DirectoryFactory factory;
-        if (storeType.isEmpty()) {
+        if (storeType.isEmpty() && INDEX_STORE_TYPE_SETTING.exists(indexSettings.getSettings()) == false) {
             factory = DEFAULT_DIRECTORY_FACTORY;
         } else {
             factory = indexStoreFactories.get(storeType);
