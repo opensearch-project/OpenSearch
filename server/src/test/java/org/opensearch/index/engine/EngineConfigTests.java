@@ -8,10 +8,13 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat.Mode;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.mapper.MapperService;
@@ -96,5 +99,34 @@ public class EngineConfigTests extends OpenSearchTestCase {
             .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
             .readOnlyReplica(true)
             .build();
+    }
+
+    public void testBuiltInCodecCompressionModes() {
+        Map<String, Mode> modes = Map.of(
+            CodecService.DEFAULT_CODEC,
+            Mode.BEST_SPEED,
+            CodecService.LZ4,
+            Mode.BEST_SPEED,
+            CodecService.BEST_COMPRESSION_CODEC,
+            Mode.BEST_COMPRESSION,
+            CodecService.ZLIB,
+            Mode.BEST_COMPRESSION
+        );
+        for (Map.Entry<String, Mode> entry : modes.entrySet()) {
+            assertEquals(entry.getKey(), entry.getValue(), createEngineConfigWithCodec(entry.getKey()).getCodecCompressionMode());
+        }
+    }
+
+    public void testUnknownCodecCompressionModes() {
+        assertNull(createEngineConfigWithCodec(CodecService.LUCENE_DEFAULT_CODEC).getCodecCompressionMode());
+        assertNull(createEngineConfigWithCodec(new Lucene104Codec().getName()).getCodecCompressionMode());
+    }
+
+    private EngineConfig createEngineConfigWithCodec(String codecName) {
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder().put(defaultIndexSettings.getSettings()).put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codecName).build()
+        );
+        return new EngineConfig.Builder().indexSettings(indexSettings).retentionLeasesSupplier(() -> RetentionLeases.EMPTY).build();
     }
 }
