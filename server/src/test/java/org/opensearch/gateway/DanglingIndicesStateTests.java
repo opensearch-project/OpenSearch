@@ -31,6 +31,8 @@
 
 package org.opensearch.gateway;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexGraveyard;
@@ -40,6 +42,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
@@ -285,6 +288,65 @@ public class DanglingIndicesStateTests extends OpenSearchTestCase {
             new DanglingIndicesState(env, metaStateService, localAllocateDangledIndices, clusterServiceMock);
 
             verify(clusterServiceMock, never()).addListener(any());
+        }
+    }
+
+    /**
+     * Check that no warning is logged when the setting is left at its (disabled) default, since that
+     * would be noise on every startup with the default configuration.
+     */
+    public void testNoWarningWhenSettingUsesDefault() throws Exception {
+        try (
+            NodeEnvironment env = newNodeEnvironment();
+            MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(DanglingIndicesState.class))
+        ) {
+            appender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "no warning on default settings",
+                    DanglingIndicesState.class.getCanonicalName(),
+                    Level.WARN,
+                    "*" + AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey() + " is disabled*"
+                )
+            );
+
+            MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
+            LocalAllocateDangledIndices localAllocateDangledIndices = mock(LocalAllocateDangledIndices.class);
+            final ClusterService clusterServiceMock = mock(ClusterService.class);
+            when(clusterServiceMock.getSettings()).thenReturn(Settings.EMPTY);
+
+            new DanglingIndicesState(env, metaStateService, localAllocateDangledIndices, clusterServiceMock);
+
+            appender.assertAllExpectationsMatched();
+        }
+    }
+
+    /**
+     * Check that a warning is logged when the user has explicitly disabled the setting, so the
+     * operational consequence of their choice is still surfaced.
+     */
+    public void testWarningWhenSettingExplicitlyDisabled() throws Exception {
+        try (
+            NodeEnvironment env = newNodeEnvironment();
+            MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(DanglingIndicesState.class))
+        ) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "warning when explicitly disabled",
+                    DanglingIndicesState.class.getCanonicalName(),
+                    Level.WARN,
+                    "*" + AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey() + " is disabled*"
+                )
+            );
+
+            MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
+            LocalAllocateDangledIndices localAllocateDangledIndices = mock(LocalAllocateDangledIndices.class);
+            final Settings settings = Settings.builder().put(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey(), false).build();
+            final ClusterService clusterServiceMock = mock(ClusterService.class);
+            when(clusterServiceMock.getSettings()).thenReturn(settings);
+
+            new DanglingIndicesState(env, metaStateService, localAllocateDangledIndices, clusterServiceMock);
+
+            appender.assertAllExpectationsMatched();
         }
     }
 
