@@ -15,6 +15,7 @@ import org.opensearch.analytics.spi.CloseableIterator;
 import org.opensearch.analytics.spi.ShuffleBufferAccess;
 import org.opensearch.analytics.spi.ShuffleBufferExceededException;
 import org.opensearch.analytics.spi.ShuffleBufferRegistry;
+import org.opensearch.analytics.spi.ShuffleSlots;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -27,13 +28,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -96,8 +100,61 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
      */
     private volatile long nodeBudgetBytes = Long.MAX_VALUE;
     private volatile long perQueryMaxBytes = Long.MAX_VALUE;
+
+    /**
+     * Per-slot IN-FLIGHT WINDOW: the maximum bytes that may sit queued-but-undrained on a single
+     * (buffer, slot) before admission starts returning {@link AdmitResult#REJECT_RETRY}.
+     *
+     * <p>This is the bound that makes pipelined shuffle's promise real. The node/per-query budgets
+     * above cap the ABSOLUTE footprint (they must, as an OOM backstop), but they are sized as a
+     * percentage of heap — 80% by default, i.e. ~24GB on a 30GB heap — so on their own they let one
+     * partition accumulate until the node is pinned. The window is a much smaller, drain-rate-coupled
+     * cap: producers pace to the consumer, and peak residency becomes a function of the window rather
+     * than of partition size.
+     *
+     * <p>The bound is SOFT: an empty slot admits one chunk of any size, so residency per slot is
+     * window + one chunk. That escape is what stops the window from deadlocking a chunk larger than
+     * itself — see {@link #tryAdmit}.
+     *
+     * <p>Never enforced by BLOCKING on a bounded queue: admission runs on a transport thread, and
+     * parking transport threads to apply backpressure risks starving the node's thread pool. A full
+     * window is instead relieved in one of two ways, and which one decides whether backpressure can fail
+     * a query:
+     * <ul>
+     *   <li>by SPILLING the slot's oldest chunks to disk, when no consumer has begun draining the buffer
+     *       (always true for the whole accumulation phase of a materialized buffer). The producer is
+     *       never asked to retry, so there is no terminal state.</li>
+     *   <li>otherwise by {@link AdmitResult#REJECT_RETRY} + {@link ShuffleSenderRetry}'s bounded
+     *       producer-side retry — which CAN exhaust and fail the query. This is the pipelined mode's
+     *       remaining gap, and it is why a window under pipelining stays opt-in.</li>
+     * </ul>
+     */
+    private volatile long streamWindowBytes = Long.MAX_VALUE;
+
+    /**
+     * Window used for a materialized, spill-capable buffer when no window is configured (see
+     * {@link #effectiveWindowBytes}). 64 MiB matches the order of magnitude every comparable engine
+     * picks for a per-consumer in-flight bound (Spark's fetch window is 48 MB, ClickHouse's per-sink cap
+     * 16 MiB) and is small enough that the heap holds a shuffle's working set rather than its total.
+     *
+     * <p>The node-level bound is this times (partitions of this stage hosted here) times (slots per
+     * partition), so it is a per-slot figure, not a node budget — {@link #nodeBudgetBytes} remains the
+     * absolute backstop.
+     */
+    static final long MATERIALIZED_WINDOW_DEFAULT_BYTES = 64L * 1024 * 1024;
     private final AtomicLong totalBytes = new AtomicLong();
     private final Map<String, AtomicLong> perQueryBytes = new ConcurrentHashMap<>();
+
+    /**
+     * Whether a streaming drain overlaps its producers (default) or waits for them first.
+     *
+     * <p>ON: the consumer reads chunks as they arrive, so peak residency is the in-flight window rather
+     * than the whole partition. OFF: the drain blocks until every declared sender has finished, which is
+     * the pre-streaming behaviour and holds the entire partition — once as buffered chunks and again as
+     * decoded batches. Exists as an operator kill switch for the streaming path; correctness does not
+     * depend on which side it is on, only peak memory and how early rows start flowing.
+     */
+    private volatile boolean pipelinedEnabled = true;
 
     /**
      * Disk-spill configuration (default OFF). When {@link #spillEnabled} is true and a chunk would
@@ -201,6 +258,36 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
     }
 
     /**
+     * Sets the per-slot in-flight window (see {@link #streamWindowBytes}). {@code Long.MAX_VALUE}
+     * disables it, restoring accumulate-until-budget behaviour.
+     */
+    public void setStreamWindowBytes(long windowBytes) {
+        this.streamWindowBytes = windowBytes <= 0 ? Long.MAX_VALUE : windowBytes;
+    }
+
+    /** Current per-slot in-flight window in bytes (for observability/tests). */
+    public long getStreamWindowBytes() {
+        return streamWindowBytes;
+    }
+
+    /**
+     * Enables or disables pipelined draining (see {@link #pipelinedEnabled}). Applies to buffers that
+     * already exist as well as new ones, so the switch takes effect on in-flight queries rather than
+     * only the next one — the point of a kill switch is to act on the query that is misbehaving.
+     */
+    public void setPipelinedEnabled(boolean enabled) {
+        this.pipelinedEnabled = enabled;
+        for (ShuffleBuffer buffer : buffers.values()) {
+            buffer.setPipelined(enabled);
+        }
+    }
+
+    /** Whether pipelined draining is active (for observability/tests). */
+    public boolean isPipelinedEnabled() {
+        return pipelinedEnabled;
+    }
+
+    /**
      * Configure hash-shuffle disk spill. {@code enabled} is the master switch; {@code directory} is
      * the root under which per-query spill subdirs are written ({@code <directory>/<queryId>/});
      * {@code maxBytes} is the hard node-wide disk ceiling (exceeding it fails the query). When
@@ -301,25 +388,66 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
                 key(queryId, targetStageId, partitionIndex),
                 k -> newBuffer(queryId, targetStageId, partitionIndex)
             );
-            // Defensive: NEVER append data to a buffer a consumer has begun draining — the drain
-            // snapshotted the in-memory tail, so this chunk would be silently dropped (lost rows).
-            // The producer's two-phase close (DatafusionPartitionedSink: drain all data sends before
-            // any isLast) makes this unreachable in the normal path, but a buggy/reordered late RPC
-            // must FAIL LOUD here rather than under-deliver. (codex round-5 BLOCKER #2.) Checked under
-            // admitLock, the same lock beginDrain flips `draining` under, so this read can't race a
-            // half-started drain.
-            if (buffer.isDraining()) {
+            String slot = ShuffleSlots.validate(side);
+            // Defensive: NEVER append data to a slot whose EOF sentinel has been enqueued — the
+            // consumer terminates its stream at the sentinel, so this chunk would be silently dropped
+            // (lost rows). The producer's two-phase close (DatafusionPartitionedSink: all data sends
+            // before any isLast) makes this unreachable in the normal path, but a buggy/reordered late
+            // RPC must FAIL LOUD here rather than under-deliver. (codex round-5 BLOCKER #2.)
+            //
+            // This REPLACES the old `buffer.isDraining()` form. Under pipelined shuffle add and drain
+            // are concurrent BY DESIGN — `draining` is set as soon as the consumer's handler runs, long
+            // before producers finish — so "is draining" no longer means "too late". EOF does: it fires
+            // only once every declared sender on that slot has reported isLast.
+            if (buffer.isEofEnqueued(slot)) {
                 buffer.recordRejected();
+                // Poison the CONSUMER as well as failing this producer. The producer-side throw can lose
+                // the race — the consumer may already have terminated at the premature EOF and produced
+                // output — so the only way truncation is never silent is to fail both ends.
+                buffer.failSlot(side);
                 throw new IllegalStateException(
                     "Shuffle data ("
                         + size
-                        + " bytes) admitted to an already-draining buffer "
+                        + " bytes) admitted after end-of-stream on buffer "
                         + key(queryId, targetStageId, partitionIndex)
                         + " side="
                         + side
-                        + " — the consumer already snapshotted this partition, so the chunk would be lost. "
+                        + " — the consumer has already terminated this slot's stream, so the chunk would be lost. "
                         + "This indicates a producer shipped data after its isLast (a close-ordering bug)."
                 );
+            }
+            // In-flight window full: the consumer has not drained this slot fast enough. Soft, retryable
+            // — room frees as the drain advances. This is the pacing signal that keeps residency bounded.
+            //
+            // An EMPTY slot always admits, however large the chunk. Without that escape a chunk bigger
+            // than the window is rejected forever: nothing is queued, so no drain can ever free room, and
+            // the producer retries until it exhausts its budget and fails the query. A window that can
+            // reach zero admissible items is not backpressure, it is a deadlock — so the invariant is that
+            // at least one chunk is always admissible, which keeps the drain fed and therefore keeps room
+            // becoming available. The cost is that residency is bounded by window + one chunk rather than
+            // by the window exactly; that is the same soft bound Spark and Presto accept for the same
+            // reason.
+            long window = effectiveWindowBytes(buffer);
+            long queued = buffer.queuedBytes(slot);
+            if (queued > 0 && queued + size > window) {
+                // A full window is relieved by DISK whenever this buffer can still spill — i.e. no
+                // consumer has begun draining it. That is what makes the window usable at all: the
+                // producer is never told to retry, so backpressure cannot walk into the terminal
+                // "rejected N times, query failed" state, and heap residency is bounded by the window
+                // instead of by the per-query budget (80% of heap, the value that pins old-gen).
+                //
+                // Once a drain owns the queue, spill would mutate a head the consumer is taking from,
+                // so the pipelined mode necessarily falls back to the retryable reject below. The
+                // materialized mode never reaches that state: its drain blocks until every sender is
+                // done, so the whole accumulation phase runs with the buffer non-draining.
+                if (spillEnabled && buffer.isDraining() == false) {
+                    spillSlotHead(buffer, queryId, slot, queued + size - window);
+                }
+                long stillQueued = buffer.queuedBytes(slot);
+                if (stillQueued > 0 && stillQueued + size > window) {
+                    buffer.recordRejected();
+                    return AdmitResult.REJECT_RETRY;
+                }
             }
             AtomicLong q = perQueryBytes.computeIfAbsent(queryId, k -> new AtomicLong());
             long qProjected = q.get() + size;
@@ -370,6 +498,61 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
     }
 
     /**
+     * In-flight window applied to {@code buffer}: the explicit {@code analytics.mpp.shuffle.stream_window}
+     * when an operator set one, else a derived default for a MATERIALIZED, spill-capable buffer, else
+     * unbounded (accumulate until the per-query budget).
+     *
+     * <p>The derived default exists because a materialized buffer with no window is bounded only by the
+     * per-query budget — 80% of heap — which is the footprint that pins old-gen for the rest of the
+     * query. It is applied ONLY when spill is enabled and pipelining is off, because that is exactly the
+     * combination in which a window cannot fail a query: a full window is relieved by writing to disk
+     * rather than by waiting for a drain that has not started. Under pipelining the same default would
+     * reintroduce the measured failure mode (a smaller window failed monotonically more queries), so it
+     * stays unbounded there unless an operator opts in.
+     *
+     * <p>The materialized-without-spill case deliberately IGNORES an explicit window, because there
+     * nothing can relieve it: no consumer drains until every sender is done, so a rejected producer
+     * retries against a queue that cannot shrink and fails once its attempt budget runs out —
+     * guaranteed, for any partition larger than the window. That is the same "a window with no
+     * admissible item is a deadlock, not backpressure" rule as the empty-slot escape. Accumulating to
+     * the budget instead is worse for residency but cannot invent a failure.
+     */
+    private long effectiveWindowBytes(ShuffleBuffer buffer) {
+        if (buffer.isPipelined() == false) {
+            if (spillEnabled == false) {
+                return Long.MAX_VALUE; // no relief path exists — see above
+            }
+            return streamWindowBytes != Long.MAX_VALUE ? streamWindowBytes : MATERIALIZED_WINDOW_DEFAULT_BYTES;
+        }
+        // Pipelined: a drain is already running, so a reject CAN be relieved by it (and spill relieves
+        // it too until the drain takes ownership). No derived default — the measured behaviour of a
+        // window under pipelining is that failures rise as it shrinks.
+        return streamWindowBytes;
+    }
+
+    /**
+     * Evicts {@code slot}'s oldest chunks to its spill file until at least {@code targetBytes} of HEAP
+     * are freed, and returns the bytes freed. Narrower than {@link #spillToMakeRoom} on purpose: the
+     * in-flight window is PER-SLOT, so spilling any other slot (or a sibling partition) would write to
+     * disk without freeing the window that is actually full.
+     *
+     * <p>MUST run with {@link #admitLock} held, and only on a buffer that is not yet draining: eviction
+     * takes from the queue HEAD, which is where a live consumer reads. Arrival order survives because
+     * the drain reads the spill file before the resident queue, and every spilled chunk is older than
+     * everything left in the queue.
+     */
+    private long spillSlotHead(ShuffleBuffer buffer, String queryId, String slot, long targetBytes) {
+        long freed = buffer.spillOldest(slot, targetBytes);
+        if (freed > 0) {
+            // Same accounting path as spillToMakeRoom: the buffer's own resident counter, then the
+            // query + node aggregates, so perQueryBytes stays the single source of truth.
+            buffer.releaseCurrentBytes(freed);
+            releaseLocked(queryId, freed);
+        }
+        return freed;
+    }
+
+    /**
      * Creates a stored buffer for {@code (queryId,targetStageId,partitionIndex)} and, when spill is
      * enabled, hands it the spill identity (root dir + key components) so it can lazily open per-side
      * spill files on demand. Throwaway buffers (the tombstone path) are created via the bare ctor and
@@ -377,6 +560,11 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
      */
     private ShuffleBuffer newBuffer(String queryId, int targetStageId, int partitionIndex) {
         ShuffleBuffer buffer = new ShuffleBuffer();
+        // Identity for diagnostics. A truncation abort has to name WHICH slot mis-declared its sender
+        // count, otherwise the error says a count is wrong without saying whose, and the level that
+        // declared it cannot be identified from the message alone.
+        buffer.bufferKey = key(queryId, targetStageId, partitionIndex);
+        buffer.setPipelined(pipelinedEnabled);
         if (spillEnabled && spillDir != null) {
             buffer.enableSpill(this, spillDir, queryId, targetStageId, partitionIndex);
         }
@@ -407,7 +595,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
         // later releases only what's still resident (no double-release). (A receiving buffer that is
         // already draining — a retried/reordered admit landing post-drain — is skipped here too.)
         if (!buffer.isDraining()) {
-            freed += spillBufferBothSides(buffer, side, targetBytes);
+            freed += spillBufferAllSlots(buffer, side, targetBytes);
         }
         if (freed >= targetBytes) {
             return freed;
@@ -426,22 +614,27 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             if (sibling == buffer || sibling.isDraining() || !e.getKey().startsWith(stagePrefix)) {
                 continue;
             }
-            freed += spillBufferBothSides(sibling, side, targetBytes - freed);
+            freed += spillBufferAllSlots(sibling, side, targetBytes - freed);
         }
         return freed;
     }
 
     /**
-     * Spills {@code buffer}'s oldest resident chunks (the incoming {@code side} first, then the other
-     * side) until at least {@code targetBytes} are freed or the buffer runs dry, releasing the spilled
-     * bytes from this buffer's own {@code currentBytes}. Returns the bytes freed from THIS buffer. Both
-     * sides' chunks are read back in arrival order at drain (left/right drain into separate streams, so
-     * cross-side interleaving is irrelevant). MUST run under {@link #admitLock}.
+     * Spills {@code buffer}'s oldest resident chunks (the incoming {@code slot} first, then its other
+     * slots) until at least {@code targetBytes} are freed or the buffer runs dry, releasing the spilled
+     * bytes from this buffer's own {@code currentBytes}. Returns the bytes freed from THIS buffer. Every
+     * slot's chunks are read back in arrival order at drain (each slot drains into its own stream, so
+     * cross-slot interleaving is irrelevant). MUST run under {@link #admitLock}.
      */
-    private long spillBufferBothSides(ShuffleBuffer buffer, String side, long targetBytes) {
-        long freed = buffer.spillOldest(side, targetBytes);
-        if (freed < targetBytes) {
-            String other = "left".equals(side) ? "right" : "left";
+    private long spillBufferAllSlots(ShuffleBuffer buffer, String slot, long targetBytes) {
+        long freed = buffer.spillOldest(slot, targetBytes);
+        for (String other : buffer.getSlots()) {
+            if (freed >= targetBytes) {
+                break;
+            }
+            if (other.equals(slot)) {
+                continue; // already spilled above
+            }
             freed += buffer.spillOldest(other, targetBytes - freed);
         }
         buffer.releaseCurrentBytes(freed);
@@ -548,6 +741,8 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             }
         }
         if (removed != null) {
+            // Wake any parked drain first: the buffer is out of the map, so nothing more will arrive.
+            removed.abortStreams();
             removed.deleteSpillFiles(); // returns on-disk bytes to the node spill budget (I/O, off-lock)
         }
     }
@@ -577,6 +772,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
         // is a disk leak (mirrors the in-memory cleanup). Only the caller that actually removed the
         // entry cleans up — a second remove / a concurrent clearForQuery sweep sees null and skips.
         if (removed != null) {
+            removed.abortStreams();
             removed.deleteSpillFiles();
         }
     }
@@ -677,6 +873,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
         // EVERY terminal (success/fail/cancel). The buffers are already out of the map, so no admit
         // can recreate the on-disk state for this (now tombstoned) query.
         for (ShuffleBuffer b : swept) {
+            b.abortStreams();
             b.deleteSpillFiles();
         }
         deleteQuerySpillDir(queryId);
@@ -748,29 +945,122 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
      * {@link #awaitReady} returns. Byte-budget enforcement lives in the enclosing manager, not here.
      */
     public static class ShuffleBuffer implements ShuffleBufferAccess {
-        private final List<byte[]> leftData = Collections.synchronizedList(new ArrayList<>());
-        private final List<byte[]> rightData = Collections.synchronizedList(new ArrayList<>());
-        private final AtomicInteger leftDoneCount = new AtomicInteger();
-        private final AtomicInteger rightDoneCount = new AtomicInteger();
-        private volatile int expectedLeftSenders = -1;
-        private volatile int expectedRightSenders = -1;
-        private final CountDownLatch leftReady = new CountDownLatch(1);
-        private final CountDownLatch rightReady = new CountDownLatch(1);
+
+        /** {@code queryId:targetStageId:partitionIndex}, for error messages. Null only in unit tests. */
+        private volatile String bufferKey;
+
+        /**
+         * Per-slot accumulation + completion state. One entry per input stream the consumer will
+         * read (see {@link ShuffleSlots}): a binary hash join has {@code left} + {@code right}, a
+         * FINAL-aggregate worker has only {@code left}, and an N-way worker tier has one per input.
+         *
+         * <p>Created on demand by whichever thread first touches the slot ({@code addData} from a
+         * producer RPC, {@code senderDone} from an isLast, or {@code setExpectedSenders} from the
+         * consumer's setup handler), so no slot list needs to be known up front.
+         */
+        private static final class Slot {
+            /**
+             * Bounded FIFO of admitted chunks, drained CONCURRENTLY by the consumer. This is the
+             * pipelined-shuffle core: the old design was a {@code List} that accumulated the WHOLE
+             * partition because {@code awaitReady} blocked the drain until every producer finished, so
+             * peak residency scaled with partition size (on-heap {@code byte[]} AND again as Arrow
+             * buffers at drain). With a bounded queue, residency is {@code capacity × chunk size} —
+             * independent of partition size — and a full queue becomes producer backpressure.
+             */
+            private final BlockingQueue<byte[]> queue = new LinkedBlockingQueue<>();
+            private final AtomicInteger doneCount = new AtomicInteger();
+            private final CountDownLatch ready = new CountDownLatch(1);
+            private volatile int expectedSenders = -1;
+            /**
+             * Enqueued-EOF guard. The sentinel must be enqueued EXACTLY once (a second one would
+             * truncate a sibling reader), and it is also the new "too late to add data" marker that
+             * replaces the old {@code draining} check in {@link ShuffleBufferManager#tryAdmit}.
+             */
+            private final AtomicBoolean eofEnqueued = new AtomicBoolean();
+            /** Chunks currently queued (not yet taken) — observability. */
+            private final AtomicInteger queuedChunks = new AtomicInteger();
+            /**
+             * Bytes currently queued but not yet taken by the consumer — the IN-FLIGHT WINDOW. This is
+             * what makes peak residency independent of partition size: admission rejects (retryably)
+             * once a slot's window is full, so producers pace themselves to the consumer's drain rate
+             * instead of accumulating the whole partition. Decremented when the drain takes a chunk or
+             * the spill path evicts one.
+             */
+            private final AtomicLong queuedBytes = new AtomicLong();
+            /**
+             * Set when this slot's stream has been INVALIDATED (a late admit past end-of-stream, or a
+             * terminal). Checked by the drain at its EOF transition, so it does not depend on queue
+             * ORDER: the poison sentinel is necessarily enqueued after the EOF sentinel, and an in-order
+             * consumer would otherwise terminate cleanly at EOF and never see it — which is exactly the
+             * silent truncation this guards against.
+             */
+            private volatile boolean invalidated;
+            /** On-disk file for this slot, lazily created on first spill (null when never spilled). */
+            private SpilledSide spill;
+        }
+
+        /**
+         * End-of-stream marker enqueued once per slot when every declared sender has reported
+         * {@code isLast}. Compared by IDENTITY (never by content), so a real zero-length payload can
+         * never be mistaken for EOF. Replaces the {@code ready} latch as the drain's terminator.
+         */
+        static final byte[] EOF_SENTINEL = new byte[0];
+
+        /**
+         * Poison marker enqueued on every slot when a buffer is removed or its query is cleared
+         * (terminal / cancellation). Without it a drain parked in {@code queue.poll(timeout)} would sit
+         * for the full liveness timeout after its query died, holding an Arrow allocator and a thread.
+         *
+         * <p>Deliberately DISTINCT from {@link #EOF_SENTINEL}: waking a consumer with a clean
+         * end-of-stream would let it close the native sender normally, and the join would emit results
+         * from a truncated input. This one makes the drain THROW, so the caller fails the native stream.
+         */
+        static final byte[] CANCELLED_SENTINEL = new byte[0];
+
+        /**
+         * Wait for the MATERIALIZED barrier — every declared sender of a slot reporting {@code isLast}.
+         *
+         * <p>Deliberately NOT the per-chunk timeout the caller passes to {@link #drain(String, long)}.
+         * The two bound different things and differ by an order of magnitude:
+         * <ul>
+         *   <li>the caller's value bounds the wait for ONE chunk while producers are already shipping, so
+         *       it is kept small on purpose — at a high partition count a partition that will never be fed
+         *       must fail in a minute rather than hang for five;</li>
+         *   <li>this bounds the WHOLE producer phase, which at scale is minutes: sf=100 fact-table
+         *       producers run far longer than the per-chunk value, so reusing it made every materialized
+         *       stage die at the barrier having received {@code 0/N senders} — measured on the sf=100
+         *       cluster, where q9's shuffle had already written 3.8 GB per node to disk (so the data path
+         *       was healthy) before the barrier expired at 60s and failed the query.</li>
+         * </ul>
+         *
+         * <p>This value is a BACKSTOP, not the primary liveness mechanism: a failed or cancelled query
+         * calls {@code clearForQuery} → {@code abortStreams}, which counts the barrier latch down and
+         * makes the drain fail immediately. It only governs the case where nothing terminates the query at
+         * all, so it trades a longer worst-case hold of one worker thread for the ability to run a
+         * materialized shuffle whose producers legitimately take minutes.
+         */
+        static final long MATERIALIZED_BARRIER_TIMEOUT_MILLIS = 300_000L;
+
+        /**
+         * Slots by label. {@link ConcurrentHashMap} because producer RPCs (arbitrary transport
+         * threads) and the consumer's handler chain create/read entries concurrently;
+         * {@code computeIfAbsent} makes slot creation atomic so two producers racing on the same new
+         * slot cannot install two accumulation lists (which would silently drop one's rows).
+         */
+        private final Map<String, Slot> slots = new ConcurrentHashMap<>();
         private final AtomicLong currentBytes = new AtomicLong();
         private final AtomicLong rejectedCount = new AtomicLong();
 
         /**
          * Spill state. Null/disabled by default — a buffer only spills when the manager wires its
-         * spill identity via {@link #enableSpill}. {@link #leftSpill} / {@link #rightSpill} are the
-         * per-side on-disk files (lazily created on first spill). All spill state mutation happens
-         * under the manager's {@code admitLock} (spill) or after the buffer is out of the map
-         * (drain/cleanup), so the per-side fields need no further synchronization.
+         * spill identity via {@link #enableSpill}. Each {@link Slot#spill} is that slot's on-disk
+         * file (lazily created on first spill). All spill state mutation happens under the manager's
+         * {@code admitLock} (spill) or after the buffer is out of the map (drain/cleanup), so the
+         * per-slot fields need no further synchronization.
          */
         private ShuffleBufferManager owner;
         private Path querySpillDir;
         private String spillKey; // <stageId>-<partition>
-        private SpilledSide leftSpill;
-        private SpilledSide rightSpill;
 
         /**
          * Set once a consumer begins draining this buffer (snapshotting the in-memory tail / opening
@@ -783,7 +1073,36 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
          */
         private volatile boolean draining;
 
+        /**
+         * Mirror of the manager's pipelining switch (see
+         * {@link ShuffleBufferManager#setPipelinedEnabled(boolean)}). Held per-buffer because this is a
+         * static nested class with no implicit manager reference, and the existing {@code owner} field is
+         * wired only on the spill path.
+         */
+        private volatile boolean pipelined = true;
+
         public ShuffleBuffer() {}
+
+        /** Sets whether a drain on this buffer overlaps its producers. */
+        void setPipelined(boolean enabled) {
+            this.pipelined = enabled;
+        }
+
+        /**
+         * Narrows this buffer to the materialized shape, as requested by its worker stage's setup
+         * instruction. One-way (see the SPI contract): the node-level switch stays the operator's kill
+         * switch, and a per-stage decision must not be able to re-enable pipelining against it.
+         */
+        @Override
+        public void useMaterializedMode() {
+            setPipelined(false);
+        }
+
+        /** True when a drain on this buffer overlaps its producers (pipelined) rather than waiting for
+         *  all of them first (materialized). */
+        boolean isPipelined() {
+            return pipelined;
+        }
 
         /**
          * Wires this buffer's spill identity (lazy — no file is opened here). Once set, a per-query
@@ -796,33 +1115,85 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             this.spillKey = stageId + "-" + partition;
         }
 
-        public void setExpectedSenders(int leftSenders, int rightSenders) {
-            // -1 means "leave unchanged"; allows per-side handlers to set their own count
-            // without clobbering the other side's.
-            if (leftSenders >= 0) {
-                this.expectedLeftSenders = leftSenders;
-                checkCompletion("left");
-            }
-            if (rightSenders >= 0) {
-                this.expectedRightSenders = rightSenders;
-                checkCompletion("right");
+        @Override
+        public void setExpectedSenders(Map<String, Integer> expectedSendersBySlot) {
+            for (Map.Entry<String, Integer> e : expectedSendersBySlot.entrySet()) {
+                Integer count = e.getValue();
+                if (count == null || count < 0) {
+                    continue; // negative/absent means "leave unchanged" (see the SPI contract)
+                }
+                String slotId = ShuffleSlots.validate(e.getKey());
+                slotFor(slotId).expectedSenders = count;
+                // A producer's isLast may already have arrived (it does not need the consumer's
+                // count), so re-check completion now that the target is known.
+                checkCompletion(slotId);
             }
         }
 
+        /** The slot for {@code slotId}, created on first touch. */
+        private Slot slotFor(String slotId) {
+            return slots.computeIfAbsent(slotId, k -> new Slot());
+        }
+
         /**
-         * Stores {@code data} on the named side and tracks this buffer's byte total. Admission /
+         * Stores {@code data} on the named slot and tracks this buffer's byte total. Admission /
          * budget enforcement is owned by the enclosing {@link ShuffleBufferManager#tryAdmit} (node +
          * per-query budgets); this method only stores after admission has reserved the bytes. The
          * tracked {@link #currentBytes} is read at removal time to release the reservation.
          */
-        public void addData(String side, byte[] data) {
+        public void addData(String slot, byte[] data) {
             int size = data == null ? 0 : data.length;
             currentBytes.addAndGet(size);
-            if ("left".equals(side)) {
-                leftData.add(data);
-            } else {
-                rightData.add(data);
+            enqueue(slot, data);
+        }
+
+        /**
+         * Publishes {@code data} to {@code slot}'s stream. Split out from the byte accounting so
+         * {@link ShuffleBufferManager#tryAdmit} can reserve under {@code admitLock} and publish
+         * OUTSIDE it — the queue is thread-safe and the consumer drains concurrently, so holding the
+         * global admission lock across a publish would serialize every producer on the node.
+         *
+         * <p>Refuses after the slot's EOF sentinel (returns false). That is the streaming replacement
+         * for the old "never append to a draining buffer" rule: with concurrent drain, {@code draining}
+         * is set almost immediately and can no longer mean "too late", but data after EOF is still
+         * unambiguously a producer close-ordering bug.
+         */
+        boolean enqueue(String slot, byte[] data) {
+            Slot s = slotFor(ShuffleSlots.validate(slot));
+            if (s.eofEnqueued.get()) {
+                return false;
             }
+            s.queuedChunks.incrementAndGet();
+            s.queuedBytes.addAndGet(data == null ? 0 : data.length);
+            s.queue.add(data);
+            return true;
+        }
+
+        /** Chunks currently queued but not yet taken by the consumer, on {@code slot} (0 if unknown). */
+        int queuedChunks(String slot) {
+            Slot s = slots.get(slot);
+            return s == null ? 0 : s.queuedChunks.get();
+        }
+
+        /** Bytes queued but not yet taken on {@code slot} — the in-flight window (0 if unknown). */
+        long queuedBytes(String slot) {
+            Slot s = slots.get(slot);
+            return s == null ? 0L : s.queuedBytes.get();
+        }
+
+        /**
+         * Spilled frames read back on {@code slot} so far (0 when it never spilled). Test hook for the
+         * LAZINESS of the spilled phase: consuming one chunk must read one frame, not the whole file.
+         */
+        long spilledFramesRead(String slot) {
+            Slot s = slots.get(ShuffleSlots.validate(slot));
+            return s == null || s.spill == null ? 0L : s.spill.framesRead();
+        }
+
+        /** True once {@code slot}'s EOF sentinel has been enqueued (all declared senders reported isLast). */
+        boolean isEofEnqueued(String slot) {
+            Slot s = slots.get(slot);
+            return s != null && s.eofEnqueued.get();
         }
 
         /** Records a rejected/failed admission attempt against this buffer (observability). */
@@ -863,36 +1234,48 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
          * it is still spilled whole (resident then drops below the budget). Throws a re-messaged
          * {@link ShuffleBufferExceededException} if the node-wide disk ceiling is hit or a write fails.
          */
-        long spillOldest(String side, long targetBytes) {
+        long spillOldest(String slotId, long targetBytes) {
             if (querySpillDir == null || targetBytes <= 0) {
                 return 0L;
             }
-            List<byte[]> list = "left".equals(side) ? leftData : rightData;
+            Slot slot = slots.get(slotId);
+            if (slot == null) {
+                return 0L; // nothing ever arrived on this slot
+            }
+            BlockingQueue<byte[]> queue = slot.queue;
             long evicted = 0L;
             while (evicted < targetBytes) {
-                byte[] chunk;
-                // synchronizedList: lock the list for the size-check + remove(0) so a concurrent
-                // addData (other side / other producer) can't shift indices under us.
-                synchronized (list) {
-                    if (list.isEmpty()) {
-                        break;
-                    }
-                    chunk = list.get(0);
-                    int len = chunk == null ? 0 : chunk.length;
-                    // Disk footprint includes the 4-byte frame header append() writes, so the on-disk
-                    // total can't silently grow past the ceiling by 4×chunkCount. (codex round-2.)
-                    long diskBytes = len + SPILL_FRAME_HEADER_BYTES;
-                    // Reserve disk budget BEFORE removing from memory — if the ceiling is hit we
-                    // leave the chunk resident and fail (it's still safely in memory/accounted).
-                    if (!owner.reserveSpillBytes(diskBytes)) {
-                        throw ShuffleBufferExceededException.forDiskCeiling(owner.getSpilledTotalBytes() + diskBytes, owner.spillMaxBytes);
-                    }
-                    list.remove(0);
+                // Head-of-queue eviction, oldest first, so spill-file order stays arrival order. Safe
+                // to peek-then-poll without extra locking: only producers append (at the tail), and
+                // spillToMakeRoom runs under admitLock and SKIPS draining buffers, so no consumer is
+                // concurrently taking from this head.
+                byte[] head = queue.peek();
+                if (head == null || head == EOF_SENTINEL) {
+                    break; // nothing resident, or only the terminator is left — never spill the sentinel
                 }
-                int len = chunk == null ? 0 : chunk.length;
+                int len = head.length;
+                // Disk footprint includes the 4-byte frame header append() writes, so the on-disk
+                // total can't silently grow past the ceiling by 4×chunkCount. (codex round-2.)
                 long diskBytes = len + SPILL_FRAME_HEADER_BYTES;
+                // Reserve disk budget BEFORE removing from memory — if the ceiling is hit we
+                // leave the chunk resident and fail (it's still safely in memory/accounted).
+                if (!owner.reserveSpillBytes(diskBytes)) {
+                    throw ShuffleBufferExceededException.forDiskCeiling(owner.getSpilledTotalBytes() + diskBytes, owner.spillMaxBytes);
+                }
+                byte[] chunk = queue.poll();
+                if (chunk == null || chunk == EOF_SENTINEL) {
+                    // Raced with the terminator being enqueued: give the disk reservation back and, if
+                    // we took the sentinel, restore it so the drain still terminates.
+                    owner.releaseSpillBytes(diskBytes);
+                    if (chunk == EOF_SENTINEL) {
+                        queue.add(chunk);
+                    }
+                    break;
+                }
+                slot.queuedChunks.decrementAndGet();
+                slot.queuedBytes.addAndGet(-len);
                 try {
-                    SpilledSide spill = spillFor(side);
+                    SpilledSide spill = spillFor(slotId, slot);
                     spill.append(chunk);
                 } catch (IOException e) {
                     // The disk bytes for THIS chunk were reserved (reserveSpillBytes above) but the
@@ -911,33 +1294,67 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             return evicted;
         }
 
-        /** Lazily opens (and remembers) the per-side spill file's append stream. */
-        private SpilledSide spillFor(String side) throws IOException {
-            if ("left".equals(side)) {
-                if (leftSpill == null) {
-                    leftSpill = new SpilledSide(spillFilePath("left"));
-                }
-                return leftSpill;
-            } else {
-                if (rightSpill == null) {
-                    rightSpill = new SpilledSide(spillFilePath("right"));
-                }
-                return rightSpill;
+        /** Lazily opens (and remembers) the slot's spill file append stream. */
+        private SpilledSide spillFor(String slotId, Slot slot) throws IOException {
+            if (slot.spill == null) {
+                slot.spill = new SpilledSide(spillFilePath(slotId));
             }
+            return slot.spill;
         }
 
-        private Path spillFilePath(String side) {
-            return querySpillDir.resolve(spillKey + "-" + side + ".spill");
+        /** Spill-file path for one slot. The slot label is validated on the way in
+         *  ({@link ShuffleSlots#validate}), so it cannot escape {@link #querySpillDir}. */
+        private Path spillFilePath(String slotId) {
+            return querySpillDir.resolve(spillKey + "-" + slotId + ".spill");
         }
 
         /**
-         * Deletes both sides' spill files (closing their streams first) and returns their on-disk
+         * Deletes every slot's spill file (closing their streams first) and returns their on-disk
          * bytes to the manager's node-wide spill budget. Best-effort, idempotent; called on every
          * terminal (removeBuffer / clearForQuery). A leaked .spill file is a disk leak.
          */
+        /**
+         * Wakes any drain parked on this buffer and makes it fail. Called on every terminal path
+         * (removeBuffer / clearForQuery) BEFORE the buffer's bytes are released, so a consumer can never
+         * be left blocked on a queue whose owner has gone away. Idempotent and non-blocking: an extra
+         * poison on an already-finished slot is simply never read.
+         */
+        void abortStreams() {
+            for (Slot slot : slots.values()) {
+                slot.invalidated = true;
+                slot.queue.add(CANCELLED_SENTINEL);
+                // Release anything waiting on the old latch too (tests / awaitReady callers).
+                slot.ready.countDown();
+            }
+        }
+
+        /**
+         * Poisons ONE slot's stream so a live consumer fails instead of finishing on truncated input.
+         *
+         * <p>Safety net for a wrong {@code expectedSenders}. EOF is published when {@code doneCount}
+         * reaches the declared sender count; if that count is too LOW, EOF fires while a straggling
+         * producer still has rows to ship, the consumer terminates, and the join silently returns fewer
+         * rows — a wrong answer with an HTTP 200 (measured: 18,215 late admits on one worker while the
+         * query "succeeded"). The producer-side throw alone is not enough, because the consumer may
+         * already have finished by the time it propagates.
+         *
+         * <p>So the CONSUMER is poisoned too: whichever side notices first, the query cannot return a
+         * truncated result. Uses {@link #CANCELLED_SENTINEL}, not {@link #EOF_SENTINEL} — a clean
+         * end-of-stream is exactly what must not happen here.
+         */
+        void failSlot(String slot) {
+            Slot s = slots.get(ShuffleSlots.validate(slot));
+            if (s != null) {
+                s.invalidated = true;          // order-independent: seen even if EOF is already queued
+                s.queue.add(CANCELLED_SENTINEL); // wakes a drain parked in poll()
+                s.ready.countDown();
+            }
+        }
+
         void deleteSpillFiles() {
-            leftSpill = closeAndDelete(leftSpill);
-            rightSpill = closeAndDelete(rightSpill);
+            for (Slot slot : slots.values()) {
+                slot.spill = closeAndDelete(slot.spill);
+            }
         }
 
         private SpilledSide closeAndDelete(SpilledSide spill) {
@@ -960,41 +1377,59 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             return null;
         }
 
-        public void senderDone(String side) {
-            if ("left".equals(side)) {
-                leftDoneCount.incrementAndGet();
-                checkCompletion("left");
-            } else {
-                rightDoneCount.incrementAndGet();
-                checkCompletion("right");
+        public void senderDone(String slot) {
+            String slotId = ShuffleSlots.validate(slot);
+            slotFor(slotId).doneCount.incrementAndGet();
+            checkCompletion(slotId);
+        }
+
+        private void checkCompletion(String slotId) {
+            Slot slot = slots.get(slotId);
+            if (slot == null) {
+                return;
+            }
+            int expected = slot.expectedSenders;
+            if (expected >= 0 && slot.doneCount.get() >= expected) {
+                // Publish EOF exactly once, BEFORE releasing the latch: a consumer woken by the latch
+                // must find the terminator already queued, never race ahead of it.
+                if (slot.eofEnqueued.compareAndSet(false, true)) {
+                    slot.queue.add(EOF_SENTINEL);
+                }
+                slot.ready.countDown();
             }
         }
 
-        private void checkCompletion(String side) {
-            if ("left".equals(side)) {
-                if (expectedLeftSenders >= 0 && leftDoneCount.get() >= expectedLeftSenders) {
-                    leftReady.countDown();
-                }
-            } else {
-                if (expectedRightSenders >= 0 && rightDoneCount.get() >= expectedRightSenders) {
-                    rightReady.countDown();
-                }
-            }
-        }
-
-        /** Wait for both sides' senders to complete. Returns {@code false} on timeout. */
+        /**
+         * Wait for every DECLARED slot's senders to complete. Returns {@code false} on timeout.
+         *
+         * <p>Waits only on slots whose expected count has been set: an undeclared slot (one that
+         * exists solely because a producer's payload arrived early) has no target to compare against,
+         * so waiting on it could never succeed. The consumer's setup handler declares all of its
+         * slots in one call BEFORE any drain, which is what makes this set complete — see
+         * {@link ShuffleBufferAccess#setExpectedSenders(Map)}.
+         */
         public boolean awaitReady(long timeoutMillis) throws InterruptedException {
             long deadline = System.currentTimeMillis() + timeoutMillis;
-            long remaining = timeoutMillis;
-            if (!leftReady.await(remaining, TimeUnit.MILLISECONDS)) {
-                LOGGER.warn("Shuffle left side timed out: received {}/{} senders", leftDoneCount.get(), expectedLeftSenders);
-                return false;
-            }
-            remaining = deadline - System.currentTimeMillis();
-            if (remaining <= 0) return false;
-            if (!rightReady.await(remaining, TimeUnit.MILLISECONDS)) {
-                LOGGER.warn("Shuffle right side timed out: received {}/{} senders", rightDoneCount.get(), expectedRightSenders);
-                return false;
+            // Snapshot the slot set so a concurrently-created slot (an early producer payload for a
+            // slot this consumer never declared) can't extend the wait mid-loop.
+            for (Map.Entry<String, Slot> e : new ArrayList<>(slots.entrySet())) {
+                Slot slot = e.getValue();
+                if (slot.expectedSenders < 0) {
+                    continue; // never declared by the consumer — nothing to wait for
+                }
+                long remaining = deadline - System.currentTimeMillis();
+                if (remaining <= 0) {
+                    return false;
+                }
+                if (!slot.ready.await(remaining, TimeUnit.MILLISECONDS)) {
+                    LOGGER.warn(
+                        "Shuffle slot {} timed out: received {}/{} senders",
+                        e.getKey(),
+                        slot.doneCount.get(),
+                        slot.expectedSenders
+                    );
+                    return false;
+                }
             }
             return true;
         }
@@ -1022,204 +1457,291 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             return draining;
         }
 
-        public List<byte[]> getLeftData() {
-            beginDrain();
-            return drainSide(leftSpill, leftData);
-        }
-
-        public List<byte[]> getRightData() {
-            beginDrain();
-            return drainSide(rightSpill, rightData);
-        }
-
         @Override
-        public CloseableIterator<byte[]> drainLeft() {
+        public List<byte[]> getData(String slot) {
+            // EAGER, NON-BLOCKING form: returns what is resident RIGHT NOW (spilled chunks, then the
+            // currently-queued ones) and stops at the queue's end or the EOF sentinel. It must not wait
+            // for EOF: callers use this to inspect what has accumulated so far, with no guarantee that
+            // any sender has reported isLast, so blocking would hang them. The streaming consumer path
+            // uses drain(slot, timeout) instead.
             beginDrain();
-            return drainSideLazy(leftSpill, leftData);
-        }
-
-        @Override
-        public CloseableIterator<byte[]> drainRight() {
-            beginDrain();
-            return drainSideLazy(rightSpill, rightData);
-        }
-
-        /**
-         * LAZY drain: yields the side's chunks in arrival order WITHOUT holding the whole partition
-         * in heap. Spilled chunks are streamed one-at-a-time from the file (the file handle lives in
-         * the returned iterator and is released on {@link CloseableIterator#close()}), then the
-         * in-memory tail is yielded. This is what lets an over-budget (spilled) partition drain
-         * through the consumer's bounded native channel rather than re-materializing and OOMing.
-         *
-         * <p>Runs once per side after {@link #awaitReady}; the buffer is fully populated and no longer
-         * mutated, so a snapshot of the in-memory tail taken under its monitor is stable.
-         */
-        private static CloseableIterator<byte[]> drainSideLazy(SpilledSide spill, List<byte[]> inMemory) {
-            // Snapshot the in-memory tail once (drain is single-threaded post awaitReady, but addData
-            // used a synchronizedList, so honor its monitor for safe publication).
-            final List<byte[]> tail;
-            synchronized (inMemory) {
-                tail = new ArrayList<>(inMemory);
+            Slot s = slots.get(ShuffleSlots.validate(slot));
+            if (s == null) {
+                return List.of(); // nothing ever arrived on this slot
             }
-            if (spill == null) {
-                // No spill for this side: just iterate the heap-resident tail, nothing to close.
-                Iterator<byte[]> it = tail.iterator();
-                return new CloseableIterator<>() {
-                    @Override
-                    public boolean hasNext() {
-                        return it.hasNext();
+            List<byte[]> out = new ArrayList<>();
+            if (s.spill != null) {
+                // Frame-at-a-time off disk. This form materializes the result as a List by contract, so
+                // it cannot bound residency the way the streaming iterator does; reading frame-by-frame
+                // at least keeps ONE reader implementation, so a fix to it can never miss this path.
+                try (DataInputStream in = s.spill.openForRead()) {
+                    if (in != null) {
+                        byte[] frame;
+                        while ((frame = s.spill.readFrame(in)) != null) {
+                            out.add(frame);
+                        }
                     }
-
-                    @Override
-                    public byte[] next() {
-                        return it.next();
-                    }
-
-                    @Override
-                    public void close() {}
-                };
-            }
-            // Spilled: stream the file chunk-by-chunk, then the in-memory tail. The DataInputStream is
-            // owned by the iterator and closed on close() / at clean EOF.
-            return new SpillThenTailIterator(spill, tail);
-        }
-
-        /**
-         * Returns the side's chunks in ARRIVAL order. With no spill, the in-memory list is returned
-         * as-is (byte-identical to the pre-spill path). With spill, the spilled chunks are read back
-         * and deframed from the file (in write = arrival order) FIRST, then the in-memory tail is
-         * appended — reconstructing the full arrival sequence. Drain happens once per partition after
-         * {@link #awaitReady}, so reading the whole file back into a list then concatenating is
-         * acceptable. A spill read error surfaces as an {@link UncheckedIOException} that fails the
-         * fragment (correctness over silent under-delivery).
-         */
-        private static List<byte[]> drainSide(SpilledSide spill, List<byte[]> inMemory) {
-            if (spill == null) {
-                return inMemory;
-            }
-            try {
-                List<byte[]> spilled = spill.readBack();
-                List<byte[]> combined = new ArrayList<>(spilled.size() + inMemory.size());
-                combined.addAll(spilled);
-                // Snapshot the in-memory tail under its monitor — drain is single-threaded post
-                // awaitReady, but addData uses a synchronizedList so honor its lock.
-                synchronized (inMemory) {
-                    combined.addAll(inMemory);
-                }
-                return combined;
-            } catch (IOException e) {
-                throw new UncheckedIOException("Failed to read back shuffle spill file " + spill.path(), e);
-            }
-        }
-
-        public int getExpectedLeftSenders() {
-            return expectedLeftSenders;
-        }
-
-        public int getExpectedRightSenders() {
-            return expectedRightSenders;
-        }
-
-        public int getLeftDoneCount() {
-            return leftDoneCount.get();
-        }
-
-        public int getRightDoneCount() {
-            return rightDoneCount.get();
-        }
-
-        /**
-         * Lazy drain iterator: yields spilled chunks streamed one-at-a-time from {@code spill}'s file
-         * (deframing the big-endian length prefix), then the heap-resident {@code tail}. Only ONE
-         * chunk is in heap at a time during the spilled phase — that is the property that lets an
-         * over-budget partition drain through the consumer's bounded native channel without OOM.
-         * Closing it releases the spill-file stream; it is also closed automatically at clean EOF of
-         * the spilled phase. Reading past a corrupt/short frame surfaces an {@link UncheckedIOException}
-         * (correctness over silent under-delivery — matches the eager {@code drainSide}).
-         */
-        private static final class SpillThenTailIterator implements CloseableIterator<byte[]> {
-            private DataInputStream in;          // null once the spilled phase is exhausted/closed
-            private final Iterator<byte[]> tail;
-            private final Path spillPath;
-            private byte[] nextChunk;            // one-chunk lookahead from the file
-            private boolean nextLoaded;
-
-            SpillThenTailIterator(SpilledSide spill, List<byte[]> tail) {
-                this.tail = tail.iterator();
-                this.spillPath = spill.path();
-                try {
-                    this.in = spill.openForRead();  // may be null if nothing was written
                 } catch (IOException e) {
-                    throw new UncheckedIOException("Failed to open shuffle spill file " + spillPath, e);
+                    throw new UncheckedIOException("Failed to read back shuffle spill file " + s.spill.path(), e);
+                }
+            }
+            while (true) {
+                byte[] chunk = s.queue.poll();
+                if (chunk == null) {
+                    break;
+                }
+                if (chunk == EOF_SENTINEL) {
+                    // Put the terminator back so a subsequent streaming drain still terminates.
+                    s.queue.add(chunk);
+                    break;
+                }
+                s.queuedChunks.decrementAndGet();
+                s.queuedBytes.addAndGet(-chunk.length);
+                out.add(chunk);
+            }
+            return out;
+        }
+
+        @Override
+        public CloseableIterator<byte[]> drain(String slot) {
+            // NON-BLOCKING, and deliberately so: this is the pre-streaming SPI method, whose contract is
+            // "lazily yield what is resident". Callers of this form (tests, small non-streaming callers)
+            // do not necessarily complete their senders, so waiting for EOF here would hang them. The
+            // streaming consumer opts in explicitly via drain(slot, timeoutMillis).
+            beginDrain();
+            Slot s = slotFor(ShuffleSlots.validate(slot));
+            return new StreamingSlotIterator(s, 0L, slot, bufferKey);
+        }
+
+        @Override
+        public CloseableIterator<byte[]> drain(String slot, long timeoutMillis) {
+            // MATERIALIZED: barrier FIRST, so the iterator only ever sees a completed partition, and the
+            // accumulating buffer spills (nothing is draining, so eviction is safe) instead of holding the
+            // partition on heap. Bounded by MATERIALIZED_BARRIER_TIMEOUT_MILLIS, NOT by the caller's
+            // per-chunk timeout: this waits out the entire producer phase, which is minutes at scale, and
+            // conflating the two failed every materialized stage at 0/N senders.
+            if (!pipelined) {
+                awaitCompleteOrThrow(MATERIALIZED_BARRIER_TIMEOUT_MILLIS, slot);
+            }
+            beginDrain();
+            // slotFor (not slots.get): the consumer can now start draining BEFORE any producer has
+            // touched this slot, so the slot may not exist yet. Creating it here is what lets the
+            // stream block for the first chunk instead of mis-reporting an empty partition.
+            Slot s = slotFor(ShuffleSlots.validate(slot));
+            return new StreamingSlotIterator(s, timeoutMillis, slot, bufferKey);
+        }
+
+        /**
+         * Blocks until every declared slot's senders have finished, for the non-pipelined path. Failing
+         * loudly on timeout is deliberate: returning here with producers still in flight would let the
+         * iterator report a clean end-of-stream over a partial partition, i.e. silently drop rows.
+         */
+        private void awaitCompleteOrThrow(long timeoutMillis, String slot) {
+            try {
+                if (!awaitReady(timeoutMillis)) {
+                    throw new IllegalStateException(
+                        "ShuffleBufferManager: timed out after "
+                            + timeoutMillis
+                            + "ms waiting for shuffle producers to finish before a non-pipelined drain of slot "
+                            + slot
+                    );
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("ShuffleBufferManager: interrupted awaiting shuffle producers for slot " + slot, e);
+            }
+        }
+
+        /**
+         * STREAMING drain: yields any already-spilled chunks (arrival order, ONE FRAME AT A TIME off
+         * disk), then blocks for live chunks off the slot's queue until the EOF sentinel.
+         *
+         * <p>This replaces the old snapshot-based drain. The difference that matters: the old iterator
+         * was created AFTER {@code awaitReady} guaranteed the partition was complete, so it could
+         * safely copy the in-memory list; this one runs CONCURRENTLY with producers, so it must consume
+         * the live queue and rely on the sentinel to know when to stop. That is what removes
+         * partition-sized residency — nothing accumulates waiting for a barrier.
+         *
+         * <p>Terminates on: EOF sentinel (clean), poll timeout (producers stalled → throw, never a
+         * silent short read), or interrupt (cancellation).
+         */
+        private static final class StreamingSlotIterator implements CloseableIterator<byte[]> {
+            private final Slot slot;
+            private final long timeoutMillis;
+            private final String slotLabel;
+            private final String bufferKey;
+            /** This slot's spill file, or null when it never spilled. */
+            private final SpilledSide spill;
+            /** Open read stream over {@link #spill}; null before the first read and once exhausted. */
+            private DataInputStream spillIn;
+            private byte[] pending;
+            private boolean eof;
+
+            StreamingSlotIterator(Slot slot, long timeoutMillis, String slotLabel, String bufferKey) {
+                this.slot = slot;
+                this.timeoutMillis = timeoutMillis;
+                this.slotLabel = slotLabel;
+                this.bufferKey = bufferKey;
+                this.spill = slot.spill;
+                // Spilled chunks were written before the drain began and are immutable now (only
+                // pre-drain accumulation spills — spillToMakeRoom skips draining buffers), so the file
+                // can be streamed. It is opened here but read ONE FRAME AT A TIME below: reading it back
+                // into a List would put the whole spilled prefix on the heap in one go, which is exactly
+                // the residency spill exists to remove — an over-budget partition would spill to disk and
+                // then be fully re-materialized at drain, so the heap peak would be unchanged.
+                if (spill != null) {
+                    try {
+                        this.spillIn = spill.openForRead();
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("Failed to open shuffle spill file " + spill.path(), e);
+                    }
                 }
             }
 
             @Override
             public boolean hasNext() {
-                if (nextLoaded) {
+                if (pending != null) {
                     return true;
                 }
-                if (in != null) {
-                    nextChunk = readNextChunk();
-                    if (nextChunk != null) {
-                        nextLoaded = true;
+                if (spillIn != null) {
+                    byte[] fromDisk = spill.readFrame(spillIn);
+                    if (fromDisk != null) {
+                        pending = fromDisk;
                         return true;
                     }
-                    // Spilled phase exhausted — release the file handle and fall through to the tail.
-                    close();
+                    close(); // spilled phase exhausted — release the file handle, fall through to the queue
                 }
-                return tail.hasNext();
+                if (eof) {
+                    return false;
+                }
+                byte[] next;
+                if (timeoutMillis <= 0) {
+                    // Non-blocking mode (the legacy drain(slot) contract): yield only what is already
+                    // resident and stop. An empty queue is a normal end here, NOT a stall.
+                    next = slot.queue.poll();
+                    if (next == null) {
+                        eof = true;
+                        return false;
+                    }
+                } else {
+                    try {
+                        next = slot.queue.poll(timeoutMillis, TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        // Cancellation: surface it rather than reporting a clean end-of-stream, so the
+                        // caller fails the native stream instead of silently under-delivering.
+                        throw new IllegalStateException("Shuffle drain interrupted on slot " + slotLabel, e);
+                    }
+                }
+                if (next == null) {
+                    throw new IllegalStateException(
+                        "Shuffle drain timed out after "
+                            + timeoutMillis
+                            + "ms waiting for the next chunk on slot "
+                            + slotLabel
+                            + " (received "
+                            + slot.doneCount.get()
+                            + "/"
+                            + slot.expectedSenders
+                            + " senders) — producers appear stalled"
+                    );
+                }
+                if (next == EOF_SENTINEL) {
+                    eof = true;
+                    if (slot.invalidated) {
+                        // End-of-stream reached, but the slot was invalidated (rows arrived after EOF —
+                        // the declared sender count was too low). Finishing here would hand the join a
+                        // truncated input and return a WRONG ANSWER with no error anywhere.
+                        throw new IllegalStateException(
+                            "Shuffle drain aborted on slot "
+                                + slotLabel
+                                + " of buffer "
+                                + bufferKey
+                                + " — data arrived after end-of-stream, so this partition is truncated "
+                                + "(declared "
+                                + slot.expectedSenders
+                                + " senders, "
+                                + slot.doneCount.get()
+                                + " reported done). The declared count is too LOW: more senders shipped to "
+                                + "this slot than the consumer was told to expect."
+                        );
+                    }
+                    return false;
+                }
+                if (next == CANCELLED_SENTINEL) {
+                    eof = true;
+                    throw new IllegalStateException(
+                        "Shuffle drain aborted on slot " + slotLabel + " — the buffer was released (query terminated or cancelled)"
+                    );
+                }
+                slot.queuedChunks.decrementAndGet();
+                // Free the in-flight window as we consume, so blocked producers can proceed. This is
+                // the feedback loop that paces producers to the consumer instead of accumulating.
+                slot.queuedBytes.addAndGet(-next.length);
+                pending = next;
+                return true;
             }
 
             @Override
             public byte[] next() {
-                if (nextLoaded) {
-                    byte[] c = nextChunk;
-                    nextChunk = null;
-                    nextLoaded = false;
-                    return c;
+                if (!hasNext()) {
+                    throw new NoSuchElementException("Shuffle stream exhausted on slot " + slotLabel);
                 }
-                if (in != null) {
-                    byte[] c = readNextChunk();
-                    if (c != null) {
-                        return c;
-                    }
-                    close();
-                }
-                if (!tail.hasNext()) {
-                    throw new NoSuchElementException();
-                }
-                return tail.next();
+                byte[] out = pending;
+                pending = null;
+                return out;
             }
 
-            /** Reads one length-prefixed chunk, or {@code null} at clean EOF. */
-            private byte[] readNextChunk() {
-                try {
-                    int len;
-                    try {
-                        len = in.readInt();
-                    } catch (EOFException eof) {
-                        return null; // clean end of file
-                    }
-                    byte[] chunk = new byte[len];
-                    in.readFully(chunk);
-                    return chunk;
-                } catch (IOException e) {
-                    throw new UncheckedIOException("Failed to read back shuffle spill file " + spillPath, e);
-                }
-            }
-
+            /**
+             * Releases the spill read stream. The queue itself is owned by the buffer (cleared by
+             * removeBuffer / clearForQuery), so only the file handle is ours. Idempotent — also called
+             * mid-iteration when the spilled phase is exhausted, and again by the consumer's
+             * try-with-resources / finally.
+             */
             @Override
             public void close() {
-                if (in != null) {
+                if (spillIn != null) {
                     try {
-                        in.close();
+                        spillIn.close();
                     } catch (IOException e) {
-                        LOGGER.debug(new ParameterizedMessage("Failed to close shuffle spill read stream {}", spillPath), e);
+                        LOGGER.debug(new ParameterizedMessage("Failed to close shuffle spill read stream {}", spill.path()), e);
                     }
-                    in = null;
+                    spillIn = null;
                 }
             }
+        }
+
+        /** Expected sender count declared for {@code slot}, or -1 if the slot was never declared. */
+        public int getExpectedSenders(String slot) {
+            Slot s = slots.get(slot);
+            return s == null ? -1 : s.expectedSenders;
+        }
+
+        /** Number of senders that have reported {@code isLast} on {@code slot} (0 if unknown slot). */
+        public int getDoneCount(String slot) {
+            Slot s = slots.get(slot);
+            return s == null ? 0 : s.doneCount.get();
+        }
+
+        /** Slot labels this buffer has seen (declared by the consumer or created by a producer). */
+        public Set<String> getSlots() {
+            return Set.copyOf(slots.keySet());
+        }
+
+        public int getExpectedLeftSenders() {
+            return getExpectedSenders(ShuffleSlots.LEFT);
+        }
+
+        public int getExpectedRightSenders() {
+            return getExpectedSenders(ShuffleSlots.RIGHT);
+        }
+
+        public int getLeftDoneCount() {
+            return getDoneCount(ShuffleSlots.LEFT);
+        }
+
+        public int getRightDoneCount() {
+            return getDoneCount(ShuffleSlots.RIGHT);
         }
 
         /**
@@ -1229,13 +1751,14 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
          * its byte length to split the concatenation back apart on read.
          *
          * <p>Writes happen under the manager's {@code admitLock} (one writer at a time);
-         * {@link #readBack} runs once at drain after the buffer is fully populated. The append stream
-         * is buffered and flushed per chunk so a crash-free terminal can always read back the file.
+         * {@link #readFrame} is pulled by the drain, one frame per consumed chunk. The append stream is
+         * buffered and flushed per chunk so a crash-free terminal can always read back the file.
          */
         private static final class SpilledSide {
             private final Path path;
             private OutputStream out;
             private long bytesOnDisk;
+            private long framesRead;
 
             SpilledSide(Path path) throws IOException {
                 this.path = path;
@@ -1277,29 +1800,36 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             }
 
             /**
-             * Reads every spilled chunk back, in write (= arrival) order, deframing on the length
-             * prefix. Closes the append stream first so all buffered bytes are flushed.
+             * Reads ONE length-prefixed chunk from {@code in}, or {@code null} at clean end of file.
+             *
+             * <p>The only spill reader. Deliberately frame-at-a-time: a whole-file variant used to exist
+             * beside it and was what the streaming drain called, so an over-budget partition spilled to
+             * disk and was then fully re-materialized on the heap at drain — the peak that spill exists
+             * to remove came straight back. Keeping one reader means a caller cannot pick the eager one
+             * by accident. A corrupt/short frame surfaces as {@link UncheckedIOException} rather than a
+             * short read (correctness over silent under-delivery).
              */
-            List<byte[]> readBack() throws IOException {
-                closeOut();
-                List<byte[]> chunks = new ArrayList<>();
-                if (!Files.exists(path)) {
-                    return chunks;
-                }
-                try (DataInputStream in = new DataInputStream(new BufferedInputStream(Files.newInputStream(path)))) {
-                    while (true) {
-                        int len;
-                        try {
-                            len = in.readInt();
-                        } catch (EOFException eof) {
-                            break; // clean end of file
-                        }
-                        byte[] chunk = new byte[len];
-                        in.readFully(chunk);
-                        chunks.add(chunk);
+            byte[] readFrame(DataInputStream in) {
+                try {
+                    int len;
+                    try {
+                        len = in.readInt();
+                    } catch (EOFException eof) {
+                        return null; // clean end of file
                     }
+                    byte[] chunk = new byte[len];
+                    in.readFully(chunk);
+                    framesRead++;
+                    return chunk;
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Failed to read back shuffle spill file " + path, e);
                 }
-                return chunks;
+            }
+
+            /** Frames handed back by {@link #readFrame} so far. Lets a test assert the read is LAZY —
+             *  pulling one chunk must not consume the file — rather than only asserting chunk order. */
+            long framesRead() {
+                return framesRead;
             }
 
             long bytesOnDisk() {
