@@ -157,6 +157,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             multiRequest.add(searchRequest);
         });
         List<SearchRequest> requests = multiRequest.requests();
+        final String coordinatorTimeoutStrategy = restRequest.param(SearchRequest.COORDINATOR_TIMEOUT_STRATEGY);
         final TimeValue cancelAfterTimeInterval = restRequest.paramAsTime("cancel_after_time_interval", null);
         for (SearchRequest request : requests) {
             // preserve if it's set on the request
@@ -170,6 +171,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
             // multi search request level will be used
             if (request.getCancelAfterTimeInterval() == null) {
                 request.setCancelAfterTimeInterval(cancelAfterTimeInterval);
+            }
+            if (coordinatorTimeoutStrategy != null && request.coordinatorTimeoutStrategy() == null) {
+                request.setCoordinatorTimeoutStrategy(coordinatorTimeoutStrategy);
             }
         }
         return multiRequest;
