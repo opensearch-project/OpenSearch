@@ -66,7 +66,10 @@ import org.opensearch.search.suggest.Suggest;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -102,6 +105,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     private final Clusters clusters;
     private final long tookInMillis;
     private final PhaseTook phaseTook;
+    // Optional latency timeline; set at build time, null when phase_took is off or on older-version peers.
+    private SearchLatencyBreakdown latencyBreakdown;
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
@@ -127,6 +132,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         skippedShards = in.readVInt();
         pointInTimeId = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
+            latencyBreakdown = in.readOptionalWriteable(SearchLatencyBreakdown::new);
+        }
     }
 
     public SearchResponse(
@@ -258,6 +266,24 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     /**
+     * The per-phase latency breakdown for Gantt-style rendering, or {@code null} when phase timing output
+     * was not requested (or when received from a peer older than the introducing version).
+     */
+    public SearchLatencyBreakdown getLatencyBreakdown() {
+        return latencyBreakdown;
+    }
+
+    /**
+     * Sets the latency breakdown. Package-private so the only producer is the coordinator's response build
+     * path, which sources it from {@code SearchRequestContext.getLatencyBreakdown()} — {@code null} unless the
+     * {@code phase_took} opt-in is enabled. This keeps the field gated at its single entry point; leaving it
+     * unset keeps it out of both the wire format and XContent, including on error/empty responses.
+     */
+    void setLatencyBreakdown(SearchLatencyBreakdown latencyBreakdown) {
+        this.latencyBreakdown = latencyBreakdown;
+    }
+
+    /**
      * The total number of shards the search was executed on.
      */
     public int getTotalShards() {
@@ -347,6 +373,10 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         builder.field(TOOK.getPreferredName(), tookInMillis);
         if (phaseTook != null) {
             phaseTook.toXContent(builder, params);
+        }
+        // Non-null only when phase_took was opted into (see setLatencyBreakdown); emitted like phase_took above.
+        if (latencyBreakdown != null) {
+            latencyBreakdown.toXContent(builder, params);
         }
         builder.field(TIMED_OUT.getPreferredName(), isTimedOut());
         if (isTerminatedEarly() != null) {
@@ -573,6 +603,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         out.writeVInt(skippedShards);
         out.writeOptionalString(pointInTimeId);
+        if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
+            out.writeOptionalWriteable(latencyBreakdown);
+        }
     }
 
     @Override
@@ -748,6 +781,196 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         @Override
         public int hashCode() {
             return Objects.hash(phaseTookMap);
+        }
+    }
+
+    /**
+     * A coordinator-side latency timeline for Gantt-style rendering. Each search phase and coordinator event
+     * carries a start offset and duration in microseconds, derived from timestamps the coordinator already
+     * captures plus a few per-request timers, so it adds no per-shard or per-document overhead.
+     *
+     * @opensearch.api
+     */
+    @PublicApi(since = "3.10.0")
+    public static class SearchLatencyBreakdown implements ToXContentFragment, Writeable {
+        static final ParseField LATENCY_BREAKDOWN = new ParseField("latency_breakdown");
+        static final String START_OFFSET_MICROS = "start_offset_micros";
+        static final String DURATION_MICROS = "duration_micros";
+
+        // All times in microseconds. Coordinator event values are [startOffsetMicros, durationMicros].
+        private final Map<String, Long> phaseStartOffsetMicrosMap;
+        private final Map<String, Long> phaseDurationMicrosMap;
+        private final Map<String, long[]> coordinatorEventMap;
+
+        public SearchLatencyBreakdown(
+            Map<String, Long> phaseStartOffsetMicrosMap,
+            Map<String, Long> phaseDurationMicrosMap,
+            Map<String, long[]> coordinatorEventMap
+        ) {
+            this.phaseStartOffsetMicrosMap = Collections.unmodifiableMap(new HashMap<>(phaseStartOffsetMicrosMap));
+            this.phaseDurationMicrosMap = Collections.unmodifiableMap(new HashMap<>(phaseDurationMicrosMap));
+            this.coordinatorEventMap = Collections.unmodifiableMap(new HashMap<>(coordinatorEventMap));
+        }
+
+        private SearchLatencyBreakdown(StreamInput in) throws IOException {
+            this(
+                in.readMap(StreamInput::readString, StreamInput::readLong),
+                in.readMap(StreamInput::readString, StreamInput::readLong),
+                in.readMap(StreamInput::readString, i -> new long[] { i.readLong(), i.readLong() })
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeMap(phaseStartOffsetMicrosMap, StreamOutput::writeString, StreamOutput::writeLong);
+            out.writeMap(phaseDurationMicrosMap, StreamOutput::writeString, StreamOutput::writeLong);
+            out.writeMap(coordinatorEventMap, StreamOutput::writeString, (o, v) -> {
+                o.writeLong(v[0]);
+                o.writeLong(v[1]);
+            });
+        }
+
+        /** Read-only map of phase name to start offset in microseconds. */
+        public Map<String, Long> getPhaseStartOffsetMicrosMap() {
+            return phaseStartOffsetMicrosMap;
+        }
+
+        /** Read-only map of phase name to duration in microseconds. */
+        public Map<String, Long> getPhaseDurationMicrosMap() {
+            return phaseDurationMicrosMap;
+        }
+
+        /** Read-only map of coordinator event name to {@code [startOffsetMicros, durationMicros]}. */
+        public Map<String, long[]> getCoordinatorEventMap() {
+            return coordinatorEventMap;
+        }
+
+        private boolean phaseExecuted(String phase) {
+            return phaseStartOffsetMicrosMap.containsKey(phase) && phaseDurationMicrosMap.containsKey(phase);
+        }
+
+        /** Executed phase names ordered by actual start offset (not enum declaration order). */
+        private List<String> executedPhasesByStartOffset() {
+            List<String> phases = new ArrayList<>();
+            for (SearchPhaseName phaseName : SearchPhaseName.values()) {
+                if (phaseExecuted(phaseName.getName())) {
+                    phases.add(phaseName.getName());
+                }
+            }
+            phases.sort(Comparator.comparingLong(phaseStartOffsetMicrosMap::get));
+            return phases;
+        }
+
+        /** Largest gap between one executed phase's end and the next's start (the query&rarr;fetch reduce), or null. */
+        private long[] deriveReduceAndCoordinate() {
+            long bestGapStartMicros = -1;
+            long bestGapMicros = -1;
+            long prevEndMicros = -1;
+            // Walk phases in temporal order so adjacent-phase gaps are real, regardless of enum declaration order.
+            for (String phase : executedPhasesByStartOffset()) {
+                long thisStart = phaseStartOffsetMicrosMap.get(phase);
+                long gap = thisStart - prevEndMicros;
+                if (prevEndMicros >= 0 && gap > 0 && gap > bestGapMicros) {
+                    bestGapMicros = gap;
+                    bestGapStartMicros = prevEndMicros;
+                }
+                prevEndMicros = thisStart + phaseDurationMicrosMap.get(phase);
+            }
+            if (bestGapMicros <= 0) {
+                return null;
+            }
+            return new long[] { bestGapStartMicros, bestGapMicros };
+        }
+
+        /** Span from the last coordinator event's end to the first executed phase's start (routing + fan-out), or null. */
+        private long[] deriveCoordinatorDispatch() {
+            long lastEventEndMicros = 0;
+            for (long[] v : coordinatorEventMap.values()) {
+                lastEventEndMicros = Math.max(lastEventEndMicros, v[0] + v[1]);
+            }
+            long firstPhaseStartMicros = -1;
+            for (SearchPhaseName phaseName : SearchPhaseName.values()) {
+                String phase = phaseName.getName();
+                if (phaseExecuted(phase) == false) {
+                    continue;
+                }
+                long startOffsetMicros = phaseStartOffsetMicrosMap.get(phase);
+                if (firstPhaseStartMicros < 0 || startOffsetMicros < firstPhaseStartMicros) {
+                    firstPhaseStartMicros = startOffsetMicros;
+                }
+            }
+            if (firstPhaseStartMicros < 0 || firstPhaseStartMicros <= lastEventEndMicros) {
+                return null;
+            }
+            return new long[] { lastEventEndMicros, firstPhaseStartMicros - lastEventEndMicros };
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            Map<String, long[]> timeline = new LinkedHashMap<>();
+            timeline.putAll(coordinatorEventMap);
+
+            long[] reduceGap = deriveReduceAndCoordinate();
+            if (reduceGap != null) {
+                timeline.put(CoordinatorLatencyEventName.REDUCE_AND_COORDINATE.getName(), reduceGap);
+            }
+            long[] dispatch = deriveCoordinatorDispatch();
+            if (dispatch != null) {
+                timeline.put(CoordinatorLatencyEventName.COORDINATOR_DISPATCH.getName(), dispatch);
+            }
+            // Emit only phases that actually ran; unexecuted phases are omitted rather than shown as zero bars.
+            for (String phase : executedPhasesByStartOffset()) {
+                timeline.put(phase, new long[] { phaseStartOffsetMicrosMap.get(phase), phaseDurationMicrosMap.get(phase) });
+            }
+
+            List<Map.Entry<String, long[]>> ordered = new ArrayList<>(timeline.entrySet());
+            ordered.sort(Comparator.<Map.Entry<String, long[]>>comparingLong(en -> en.getValue()[0]).thenComparing(Map.Entry::getKey));
+
+            builder.startObject(LATENCY_BREAKDOWN.getPreferredName());
+            for (Map.Entry<String, long[]> en : ordered) {
+                builder.startObject(en.getKey());
+                builder.field(START_OFFSET_MICROS, en.getValue()[0]);
+                builder.field(DURATION_MICROS, en.getValue()[1]);
+                builder.endObject();
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            SearchLatencyBreakdown that = (SearchLatencyBreakdown) o;
+            return phaseStartOffsetMicrosMap.equals(that.phaseStartOffsetMicrosMap)
+                && phaseDurationMicrosMap.equals(that.phaseDurationMicrosMap)
+                && coordinatorEventMapEquals(that.coordinatorEventMap);
+        }
+
+        private boolean coordinatorEventMapEquals(Map<String, long[]> other) {
+            if (coordinatorEventMap.size() != other.size()) {
+                return false;
+            }
+            for (Map.Entry<String, long[]> e : coordinatorEventMap.entrySet()) {
+                long[] o = other.get(e.getKey());
+                if (o == null || o.length != e.getValue().length || o[0] != e.getValue()[0] || o[1] != e.getValue()[1]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(phaseStartOffsetMicrosMap, phaseDurationMicrosMap);
+            for (Map.Entry<String, long[]> e : coordinatorEventMap.entrySet()) {
+                result = 31 * result + e.getKey().hashCode() + Long.hashCode(e.getValue()[0]) + Long.hashCode(e.getValue()[1]);
+            }
+            return result;
         }
     }
 
