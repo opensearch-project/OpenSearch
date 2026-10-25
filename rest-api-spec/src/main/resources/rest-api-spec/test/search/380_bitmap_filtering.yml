@@ -48,6 +48,8 @@ setup:
           -  { "enrolled": "OjAAAAEAAAAAAAAAEAAAAE0B" }     # 333
           -  { "index": { "_index": "classes", "_id": "104" } }
           -  { "enrolled": "OjAAAAEAAAAAAAEAEAAAAN4ATQE=" } # 222,333
+          -  { "index": { "_index": "classes", "_id": "105" } }
+          -  {} # "enrolled" stored field intentionally missing
   - do:
       cluster.health:
         wait_for_status: green
@@ -182,3 +184,24 @@ setup:
   - match: { hits.hits.1._source.student_id: 111 }
   - match: { hits.hits.2._source.name: John Doe }
   - match: { hits.hits.2._source.student_id: 333 }
+
+---
+"Terms lookup on a missing stored bitmap field returns no matches":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: students
+        body: {
+          "query": {
+            "terms": {
+              "student_id": {
+                "index": "classes",
+                "id": "105",
+                "path": "enrolled",
+                "store": true
+              },
+              "value_type": "bitmap"
+            }
+          }
+        }
+  - match: { hits.total: 0 }
