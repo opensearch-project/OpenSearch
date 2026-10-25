@@ -111,10 +111,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
     ClusterStatsNodes(Set<Metric> requestedMetrics, List<ClusterStatsNodeResponse> nodeResponses) {
         this.versions = new HashSet<>();
-        this.fs = requestedMetrics.contains(ClusterStatsRequest.Metric.FS) ? new FsInfo.Path() : null;
         this.plugins = requestedMetrics.contains(ClusterStatsRequest.Metric.PLUGINS) ? new HashSet<>() : null;
 
-        Set<InetAddress> seenAddresses = new HashSet<>(nodeResponses.size());
+        ClusterFsStatsDeduplicator fsDeduplicator = requestedMetrics.contains(ClusterStatsRequest.Metric.FS)
+            ? new ClusterFsStatsDeduplicator(nodeResponses.size())
+            : null;
         List<NodeInfo> nodeInfos = new ArrayList<>(nodeResponses.size());
         List<NodeStats> nodeStats = new ArrayList<>(nodeResponses.size());
         for (ClusterStatsNodeResponse nodeResponse : nodeResponses) {
@@ -125,16 +126,12 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 this.plugins.addAll(nodeResponse.nodeInfo().getInfo(PluginsAndModules.class).getPluginInfos());
             }
 
-            // now do the stats that should be deduped by hardware (implemented by ip deduping)
-            TransportAddress publishAddress = nodeResponse.nodeInfo().getInfo(TransportInfo.class).address().publishAddress();
-            final InetAddress inetAddress = publishAddress.address().getAddress();
-            if (!seenAddresses.add(inetAddress)) {
-                continue;
-            }
-            if (requestedMetrics.contains(ClusterStatsRequest.Metric.FS) && nodeResponse.nodeStats().getFs() != null) {
-                this.fs.add(nodeResponse.nodeStats().getFs().getTotal());
+            if (fsDeduplicator != null) {
+                TransportAddress publishAddress = nodeResponse.nodeInfo().getInfo(TransportInfo.class).address().publishAddress();
+                fsDeduplicator.add(publishAddress.address().getAddress(), nodeResponse.nodeStats().getFs());
             }
         }
+        this.fs = fsDeduplicator != null ? fsDeduplicator.getTotal() : null;
 
         this.counts = new Counts(nodeInfos);
         this.networkTypes = requestedMetrics.contains(ClusterStatsRequest.Metric.NETWORK_TYPES) ? new NetworkTypes(nodeInfos) : null;
@@ -893,6 +890,53 @@ public class ClusterStatsNodes implements ToXContentFragment {
             return builder;
         }
 
+    }
+
+    static class ClusterFsStatsDeduplicator {
+
+        private record DedupEntry(InetAddress inetAddress, String mount, String path) {
+        }
+
+        private final Set<DedupEntry> seenAddressesMountsPaths;
+
+        private final FsInfo.Path total = new FsInfo.Path();
+
+        ClusterFsStatsDeduplicator(int expectedSize) {
+            seenAddressesMountsPaths = new HashSet<>(2 * expectedSize);
+        }
+
+        void add(InetAddress inetAddress, FsInfo fsInfo) {
+            if (fsInfo == null) {
+                return;
+            }
+            for (FsInfo.Path p : fsInfo) {
+                final String mount = p.getMount();
+                final String path = p.getPath();
+
+                // this deduplication logic is hard to get right. it might be impossible to make it work correctly in
+                // *all* circumstances. this is best-effort only, but it's aimed at trying to solve 90%+ of cases.
+
+                // rule 0: we want to sum the unique mounts for each ip address, so if we *haven't* seen a particular
+                // address and mount, then definitely add that to the total.
+
+                // rule 1: however, as a special case, if we see the same address+mount+path triple more than once, then we
+                // override the ip+mount de-duplication logic -- using that as indicator that we're seeing a special
+                // containerization situation, in which case we assume the operator is maintaining different disks for each node.
+
+                boolean seenAddressMount = seenAddressesMountsPaths.add(new DedupEntry(inetAddress, mount, null)) == false;
+                boolean seenAddressMountPath = seenAddressesMountsPaths.add(new DedupEntry(inetAddress, mount, path)) == false;
+
+                if ((seenAddressMount == false) || seenAddressMountPath) {
+                    total.add(p);
+                }
+            }
+        }
+
+        FsInfo.Path getTotal() {
+            FsInfo.Path result = new FsInfo.Path();
+            result.add(total);
+            return result;
+        }
     }
 
 }
