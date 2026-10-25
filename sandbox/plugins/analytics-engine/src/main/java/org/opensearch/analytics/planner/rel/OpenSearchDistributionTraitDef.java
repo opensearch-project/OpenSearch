@@ -43,6 +43,13 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
         this.plannerContext = plannerContext;
     }
 
+    /** The query's {@link PlannerContext}. Exposed so a trait hook — which, unlike a rule, has no
+     *  {@code matches()} to gate on — can read the same settings / cluster state the split rules read
+     *  (see {@code OpenSearchJoin.deriveTraits}'s broadcast case). */
+    public PlannerContext getPlannerContext() {
+        return plannerContext;
+    }
+
     // ---- Factory methods ----
 
     /** COORDINATOR + SINGLETON — data gathered to coord. Stamped on ER output, FINAL
@@ -222,6 +229,14 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             return rel;
         }
 
+        // An UNRESOLVED input cannot be enforced: you cannot gather data whose location is undecided, and
+        // the exchange would have no source to read from. Declining is what stops the "put the exchange on
+        // top of the unresolved subtree" shape, which is always cheaper (it moves the operator's OUTPUT
+        // instead of its input) and would therefore always win.
+        if (fromTrait != null && fromTrait.getType() == RelDistribution.Type.ANY) {
+            return null;
+        }
+
         List<String> viableBackends = resolveViableBackendsFromRel(rel);
 
         LOGGER.debug(
@@ -322,12 +337,17 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             plannerContext.getCapabilityRegistry(),
             viableBackends
         );
+        // Stamp the output trait as EXCHANGE-MATERIALIZED: rows really moved through a shuffle here. That
+        // is what distinguishes this partitioning from one a join merely DERIVED, so a parent join's demand
+        // for a materialized partitioning is satisfied by this and not by a co-partitioned lower join (see
+        // OpenSearchDistribution#exchangeMaterialized — the binary transport needs one producer per input).
+        OpenSearchDistribution materialized = toTrait.asExchangeMaterialized();
         return new OpenSearchShuffleExchange(
             rel.getCluster(),
-            rel.getTraitSet().replace(toTrait),
+            rel.getTraitSet().replace(materialized),
             rel,
-            toTrait.getKeys(),
-            toTrait.getPartitionCount(),
+            materialized.getKeys(),
+            materialized.getPartitionCount(),
             shuffleViable
         );
     }

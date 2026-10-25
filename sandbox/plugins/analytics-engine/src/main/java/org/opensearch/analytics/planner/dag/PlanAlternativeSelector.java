@@ -101,7 +101,7 @@ public final class PlanAlternativeSelector {
      * scores (e.g. Lucene's COUNT(*) fast path) is a <em>blessed cross-backend producer</em>: it
      * emits output the differently-backed parent legitimately consumes (a count, not columns), so it
      * is kept even when the parent's StageInputScan doesn't list it. This is the count-fast-path
-     * case and is the opposite of the q15 bug, where an <em>unblessed</em> Lucene scan fed a
+     * case and is the opposite of the bug where an <em>unblessed</em> Lucene scan fed a
      * DataFusion join a 0-column batch — that one has no positive score and is correctly pruned.
      */
     private static void constrainToParentBackends(Stage parent, Stage child, CapabilityRegistry registry, ShardPreferenceContext ctx) {
