@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Main class to profile aggregations with concurrent execution
@@ -58,7 +59,7 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
         Map<String, Long> minSliceStartTimeMap = new HashMap<>();
         Map<String, Long> maxSliceEndTimeMap = new HashMap<>();
         Map<String, Long> countStatsMap = new HashMap<>();
-        Map<String, Object> debug = new HashMap<>();
+        Map<String, Object> debug;
         List<ProfileResult> children = new LinkedList<>();
 
         for (ProfileResult profileResult : profileResultsAcrossSlices) {
@@ -109,9 +110,9 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
                 );
             }
 
-            debug = profileResult.getDebugInfo();
             children.addAll(profileResult.getProfiledChildren());
         }
+        debug = mergeDebugInfo(profileResultsAcrossSlices);
         // nodeTime
         long nodeTime = maxSliceNodeEndTime - minSliceNodeStartTime;
         avgSliceNodeTime /= profileResultsAcrossSlices.size();
@@ -153,6 +154,48 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
             avgSliceNodeTime
         );
         return List.of(reducedResult);
+    }
+
+    /**
+     * Merges the per-slice debug maps for an aggregator into a single, deterministic map.
+     * <p>
+     * Debug info is an untyped {@code Map<String, Object>}, so there is no generic way to combine
+     * two slices' values for an arbitrary key. In practice, aggregators only ever populate two
+     * kinds of debug values:
+     * <ul>
+     *     <li>Numeric counters (e.g. {@code total_buckets}, {@code segments_with_single_valued_ords})
+     *     that measure per-slice work and should be summed across slices.</li>
+     *     <li>Static configuration flags (e.g. {@code collection_strategy}, {@code has_filter}) that
+     *     reflect the aggregator's configured behavior and are identical across every slice.</li>
+     * </ul>
+     * Numeric values are summed, preserving the reported type ({@code Integer}
+     * stays {@code Integer}, since some callers unbox debug values with a narrowing
+     * {@code (int)} cast, e.g. {@code segments_with_single_valued_ords}); any other
+     * value is taken from whichever slice is encountered first, since it is expected
+     * to be the same on every slice.
+     */
+    static Map<String, Object> mergeDebugInfo(List<ProfileResult> profileResultsAcrossSlices) {
+        Map<String, Object> mergedDebug = new HashMap<>();
+        for (ProfileResult profileResult : profileResultsAcrossSlices) {
+            for (Map.Entry<String, Object> entry : profileResult.getDebugInfo().entrySet()) {
+                mergedDebug.merge(entry.getKey(), entry.getValue(), ConcurrentAggregationProfiler::mergeDebugValue);
+            }
+        }
+        return mergedDebug;
+    }
+
+    private static Object mergeDebugValue(Object fromOtherSlices, Object fromThisSlice) {
+        if (fromOtherSlices instanceof Integer && fromThisSlice instanceof Integer) {
+            return (Integer) fromOtherSlices + (Integer) fromThisSlice;
+        }
+        if (fromOtherSlices instanceof Number && fromThisSlice instanceof Number) {
+            return ((Number) fromOtherSlices).longValue() + ((Number) fromThisSlice).longValue();
+        }
+        assert Objects.equals(fromOtherSlices, fromThisSlice) : "Non-numeric debug values differ across slices: "
+            + fromOtherSlices
+            + " vs "
+            + fromThisSlice;
+        return fromOtherSlices;
     }
 
     static void buildBreakdownMap(int treeSize, Map<String, Long> breakdown, Map<String, Long> statsMap, String breakdownType) {
