@@ -118,6 +118,15 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                             cancellableListener.onResponse(catShardsResponse);
                             return;
                         }
+                        // Fast path: if the REST layer determined that no requested column (h=/s=)
+                        // requires per-shard stats, skip the IndicesStats broadcast entirely. The
+                        // resulting Table has null cells for stats columns, which are not displayed
+                        // because they were not in h=.
+                        if (shardsRequest.isIndicesStatsRequired() == false) {
+                            catShardsResponse.setIndicesStatsResponse(IndicesStatsResponse.getEmptyResponse());
+                            cancellableListener.onResponse(catShardsResponse);
+                            return;
+                        }
                         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
                         indicesStatsRequest.setShouldCancelOnTimeout(true);
                         indicesStatsRequest.all();
