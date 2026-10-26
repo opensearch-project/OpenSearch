@@ -12,18 +12,28 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
+import org.opensearch.index.fielddata.LeafFieldData;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache.IndexFieldCache;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache.Key;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class IndicesFieldDataCacheTests extends OpenSearchTestCase {
 
@@ -108,6 +118,72 @@ public class IndicesFieldDataCacheTests extends OpenSearchTestCase {
 
                 assertTrue(hasThrownException.get());
                 assertEquals(1, fdCache.getCache().count());
+            }
+        } finally {
+            fdCache.close();
+        }
+    }
+
+    public void testDisabledCacheLoadsDirectlyAndReleasesBreaker() throws Exception {
+        final AtomicLong nodeReleasedBytes = new AtomicLong();
+        final AtomicLong shardCachedBytes = new AtomicLong();
+        final IndicesFieldDataCache fdCache = new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
+            @Override
+            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
+                nodeReleasedBytes.addAndGet(sizeInBytes);
+            }
+        }, null, null);
+        final IndexFieldDataCache.Listener shardListener = new IndexFieldDataCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
+                shardCachedBytes.addAndGet(ramUsage.ramBytesUsed());
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
+                shardCachedBytes.addAndGet(-sizeInBytes);
+            }
+        };
+        try (Directory directory = newDirectory(); IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig())) {
+            writer.addDocument(new Document());
+            ShardId shardId = new ShardId("test", "_na_", 0);
+            try (DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), shardId)) {
+                LeafReaderContext leaf = reader.leaves().get(0);
+                IndexFieldDataCache cache = fdCache.buildIndexFieldDataCache(shardListener, shardId.getIndex(), "field");
+                LeafFieldData leafFieldData = mock(LeafFieldData.class);
+                when(leafFieldData.ramBytesUsed()).thenReturn(42L);
+                @SuppressWarnings("unchecked")
+                IndexFieldData<LeafFieldData> indexFieldData = mock(IndexFieldData.class);
+                when(indexFieldData.loadDirect(leaf)).thenReturn(leafFieldData);
+
+                assertTrue(fdCache.isEnabled());
+                assertSame(leafFieldData, cache.load(leaf, indexFieldData));
+                assertSame(leafFieldData, cache.load(leaf, indexFieldData));
+                verify(indexFieldData, times(1)).loadDirect(leaf);
+                assertEquals(1, fdCache.getCache().count());
+                assertEquals(42L, shardCachedBytes.get());
+                assertEquals(0L, nodeReleasedBytes.get());
+
+                // disabling invalidates existing entries, releasing their memory
+                fdCache.setEnabled(false);
+                assertFalse(fdCache.isEnabled());
+                assertEquals(0, fdCache.getCache().count());
+                assertEquals(0L, shardCachedBytes.get());
+                assertEquals(42L, nodeReleasedBytes.get());
+
+                // each load goes to loadDirect, nothing is cached and the breaker is released immediately
+                assertSame(leafFieldData, cache.load(leaf, indexFieldData));
+                assertSame(leafFieldData, cache.load(leaf, indexFieldData));
+                verify(indexFieldData, times(3)).loadDirect(leaf);
+                assertEquals(0, fdCache.getCache().count());
+                assertEquals(0L, shardCachedBytes.get());
+                assertEquals(126L, nodeReleasedBytes.get());
+
+                // re-enabling resumes caching
+                fdCache.setEnabled(true);
+                assertSame(leafFieldData, cache.load(leaf, indexFieldData));
+                assertEquals(1, fdCache.getCache().count());
+                assertEquals(42L, shardCachedBytes.get());
             }
         } finally {
             fdCache.close();

@@ -94,7 +94,17 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         Property.NodeScope,
         Property.Dynamic
     );
+    /**
+     * Whether loaded field data is cached. Field data is still loaded when disabled, it is just not retained.
+     */
+    public static final Setting<Boolean> INDICES_FIELDDATA_CACHE_ENABLED_SETTING = Setting.boolSetting(
+        "indices.fielddata.cache.enabled",
+        true,
+        Property.NodeScope,
+        Property.Dynamic
+    );
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
+    private volatile boolean enabled;
     private final Cache<Key, Accountable> cache;
     private final ThreadPool threadPool;
     private Set<Index> indicesToClear;
@@ -121,8 +131,10 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             cacheBuilder.setMaximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
         }
         cache = cacheBuilder.build();
+        enabled = INDICES_FIELDDATA_CACHE_ENABLED_SETTING.get(settings);
         if (clusterService != null) {
             clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_FIELDDATA_CACHE_SIZE_KEY, this::updateMaximumWeight);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_FIELDDATA_CACHE_ENABLED_SETTING, this::setEnabled);
         } else {
             logger.warn(
                 "IndicesFieldDataCache ctor got null clusterService argument! Cluster setting updates for cache size will not work!"
@@ -163,6 +175,24 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
     public Cache<Key, Accountable> getCache() {
         return cache;
+    }
+
+    // Package-private for testing
+    boolean isEnabled() {
+        return enabled;
+    }
+
+    // Package-private for testing
+    void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+        if (enabled == false) {
+            // Invalidating releases the circuit breaker for every entry; do it off the cluster applier thread
+            if (threadPool != null) {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(cache::invalidateAll);
+            } else {
+                cache.invalidateAll();
+            }
+        }
     }
 
     @Override
@@ -335,6 +365,11 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             if (cacheHelper == null) {
                 throw new IllegalArgumentException("Reader " + context.reader() + " does not support caching");
             }
+            if (nodeLevelCache.enabled == false) {
+                final LeafFieldData fieldData = indexFieldData.loadDirect(context);
+                releaseUncached(shardId, fieldData);
+                return (FD) fieldData;
+            }
             final int shardIdentity = shardId == null ? Key.NO_SHARD_IDENTITY : shardIdentityResolver.applyAsInt(shardId);
             final Key key = new Key(this, cacheHelper.getKey(), shardId, shardIdentity);
             // noinspection unchecked
@@ -360,6 +395,11 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             if (cacheHelper == null) {
                 throw new IllegalArgumentException("Reader " + indexReader + " does not support caching");
             }
+            if (nodeLevelCache.enabled == false) {
+                final IFD ifd = (IFD) indexFieldData.loadGlobalDirect(indexReader);
+                releaseUncached(shardId, (Accountable) ifd);
+                return ifd;
+            }
             final int shardIdentity = shardId == null ? Key.NO_SHARD_IDENTITY : shardIdentityResolver.applyAsInt(shardId);
             final Key key = new Key(this, cacheHelper.getKey(), shardId, shardIdentity);
             // noinspection unchecked
@@ -372,6 +412,19 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
                 return ifd;
             });
             return (IFD) accountable;
+        }
+
+        /**
+         * Loading charges the field data circuit breaker on the assumption the result will be cached and released on
+         * removal. When caching is disabled, treat the result as evicted immediately so the breaker is not leaked.
+         * Per-shard listeners are not notified since nothing was cached for the shard.
+         */
+        private void releaseUncached(ShardId shardId, Accountable accountable) {
+            try {
+                nodeListener.onRemoval(shardId, fieldName, false, accountable.ramBytesUsed());
+            } catch (Exception e) {
+                logger.error("Failed to call node-level listener on uncached field data", e);
+            }
         }
 
         private void notifyOnCache(ShardId shardId, Accountable accountable) {

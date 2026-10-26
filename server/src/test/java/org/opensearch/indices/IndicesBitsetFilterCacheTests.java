@@ -441,4 +441,55 @@ public class IndicesBitsetFilterCacheTests extends OpenSearchTestCase {
             writer3.close();
         }
     }
+
+    public void testDynamicEnableDisable() throws Exception {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        AtomicLong cachedBytes = new AtomicLong();
+        BitsetFilterCache.Listener listener = new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+                cachedBytes.addAndGet(accountable.ramBytesUsed());
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+                cachedBytes.addAndGet(-accountable.ramBytesUsed());
+            }
+        };
+        try (
+            IndicesBitsetFilterCache cache = new IndicesBitsetFilterCache(Settings.EMPTY, clusterSettings);
+            IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new StandardAnalyzer()))
+        ) {
+            Document doc = new Document();
+            doc.add(new StringField("field", "value", Field.Store.NO));
+            writer.addDocument(doc);
+            writer.commit();
+            try (DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("test", "_na_", 0))) {
+                LeafReaderContext leaf = reader.leaves().get(0);
+                BitSetProducer producer = cache.getBitSetProducer(new TermQuery(new Term("field", "value")), listener);
+                assertTrue(cache.isEnabled());
+                assertThat(producer.getBitSet(leaf).cardinality(), equalTo(1));
+                assertThat(cache.getCache().count(), equalTo(1));
+                assertThat(cachedBytes.get(), greaterThan(0L));
+
+                // disabling clears existing entries; bitsets are still produced but not cached
+                clusterSettings.applySettings(
+                    Settings.builder().put(IndicesBitsetFilterCache.INDICES_BITSET_FILTER_CACHE_ENABLED_SETTING.getKey(), false).build()
+                );
+                assertFalse(cache.isEnabled());
+                assertThat(cache.getCache().count(), equalTo(0));
+                assertThat(cachedBytes.get(), equalTo(0L));
+                assertThat(producer.getBitSet(leaf).cardinality(), equalTo(1));
+                assertThat(cache.getCache().count(), equalTo(0));
+                assertThat(cachedBytes.get(), equalTo(0L));
+
+                // re-enabling resumes caching
+                clusterSettings.applySettings(
+                    Settings.builder().put(IndicesBitsetFilterCache.INDICES_BITSET_FILTER_CACHE_ENABLED_SETTING.getKey(), true).build()
+                );
+                assertThat(producer.getBitSet(leaf).cardinality(), equalTo(1));
+                assertThat(cache.getCache().count(), equalTo(1));
+            }
+        }
+    }
 }
