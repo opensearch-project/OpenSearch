@@ -200,4 +200,27 @@ public class TestPPLTransportActionTests extends OpenSearchTestCase {
         verify(mockUnifiedQueryService).execute("source=metrics | where status=500");
         verifyNoMoreInteractions(mockUnifiedQueryService);
     }
+
+    public void testTargetPartitionsForwardedToUnifiedQueryService() throws Exception {
+        PPLResponse response = new PPLResponse(Collections.emptyList(), Collections.emptyList());
+        when(mockUnifiedQueryService.execute("source=logs", 4)).thenReturn(response);
+
+        AtomicReference<PPLResponse> captured = new AtomicReference<>();
+        ActionListener<PPLResponse> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(PPLResponse r) {
+                captured.set(r);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("Should not fail");
+            }
+        };
+        action.execute(null, new PPLRequest("source=logs", false, 4), listener);
+
+        assertBusy(() -> assertNotNull(captured.get()));
+        verify(mockUnifiedQueryService).execute("source=logs", 4);
+        verifyNoMoreInteractions(mockUnifiedQueryService);
+    }
 }
