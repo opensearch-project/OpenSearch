@@ -42,6 +42,8 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
     private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     private final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, clusterSettings);
@@ -134,6 +136,24 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         assertEquals(25, (int) recoverySettings.getMergedSegmentReplicationTimeout().minutes());
     }
 
+    public void testPrimaryResyncTimeout() {
+        assertEquals(30, (int) recoverySettings.getPrimaryResyncTimeout().minutes());
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_PRIMARY_RESYNC_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5)).build()
+        );
+        assertEquals(5, (int) recoverySettings.getPrimaryResyncTimeout().minutes());
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterSettings.applySettings(
+                Settings.builder()
+                    .put(RecoverySettings.INDICES_PRIMARY_RESYNC_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(5))
+                    .build()
+            )
+        );
+        assertThat(e.getMessage(), containsString("indices.replication.resync_timeout"));
+        assertEquals(5, (int) recoverySettings.getPrimaryResyncTimeout().minutes());
+    }
+
     public void testRetryDelayStateSync() {
         long duration = between(1, 1000);
         TimeUnit timeUnit = randomFrom(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS);
@@ -187,6 +207,56 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
             Settings.builder().put(RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING.getKey(), chunkSize).build()
         );
         assertEquals(chunkSize, recoverySettings.getChunkSize());
+    }
+
+    public void testRemoteStoreParallelDownloadPartSize() {
+        assertEquals(new ByteSizeValue(16, ByteSizeUnit.MB), recoverySettings.getRemoteStoreParallelDownloadPartSize());
+        ByteSizeValue partSize = new ByteSizeValue(between(1, 1024), ByteSizeUnit.MB);
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_RECOVERY_REMOTE_STORE_PARALLEL_DOWNLOAD_PART_SIZE_SETTING.getKey(), partSize)
+                .build()
+        );
+        assertEquals(partSize, recoverySettings.getRemoteStoreParallelDownloadPartSize());
+
+        // below the 1mb floor
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterSettings.applySettings(
+                Settings.builder()
+                    .put(
+                        RecoverySettings.INDICES_RECOVERY_REMOTE_STORE_PARALLEL_DOWNLOAD_PART_SIZE_SETTING.getKey(),
+                        new ByteSizeValue(512, ByteSizeUnit.KB)
+                    )
+                    .build()
+            )
+        );
+    }
+
+    public void testRemoteStoreParallelDownloadMaxConcurrentParts() {
+        final int initial = recoverySettings.getRemoteStoreParallelDownloadPermits().getMaxPermits();
+        assertEquals(
+            RecoverySettings.INDICES_RECOVERY_REMOTE_STORE_PARALLEL_DOWNLOAD_MAX_CONCURRENT_PARTS_SETTING.get(Settings.EMPTY).intValue(),
+            initial
+        );
+
+        int maxParts = between(0, 64);
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_RECOVERY_REMOTE_STORE_PARALLEL_DOWNLOAD_MAX_CONCURRENT_PARTS_SETTING.getKey(), maxParts)
+                .build()
+        );
+        // The budget object is shared with in-flight downloads, so it must be resized in place rather than replaced.
+        assertEquals(maxParts, recoverySettings.getRemoteStoreParallelDownloadPermits().getMaxPermits());
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterSettings.applySettings(
+                Settings.builder()
+                    .put(RecoverySettings.INDICES_RECOVERY_REMOTE_STORE_PARALLEL_DOWNLOAD_MAX_CONCURRENT_PARTS_SETTING.getKey(), -1)
+                    .build()
+            )
+        );
     }
 
     public void testInternalActionRetryTimeout() {

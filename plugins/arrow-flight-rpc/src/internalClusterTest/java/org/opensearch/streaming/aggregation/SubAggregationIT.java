@@ -38,6 +38,8 @@ import org.opensearch.search.aggregations.bucket.terms.StreamStringTermsAggregat
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Cardinality;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregator;
 import org.opensearch.search.aggregations.metrics.Max;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.test.InternalSettingsPlugin;
@@ -536,6 +538,38 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
                 "Expected cardinality around 3 for bucket " + bucket.getKeyAsString() + ", got " + cardinalitySubAgg.getValue(),
                 cardinalitySubAgg.getValue() >= 2 && cardinalitySubAgg.getValue() <= 4
             );
+        }
+    }
+
+    /**
+     * The hybrid cardinality collector also applies to streaming: a threshold every BitArray and roaring bitmap exceeds
+     * falls back to direct hashing without changing the result, and every execution hint is honoured.
+     */
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testStreamingCardinalityAsSubAggregationWithHybridCollectorFallbacks() throws Exception {
+        String memoryThreshold = CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_MEMORY_THRESHOLD.getKey();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(memoryThreshold, "1b")).get();
+        try {
+            for (String hint : new String[] { null, "direct", "ordinals" }) {
+                CardinalityAggregationBuilder cardinality = AggregationBuilders.cardinality("cardinality_subagg").field("field3");
+                if (hint != null) {
+                    cardinality.executionHint(hint);
+                }
+                SearchResponse resp = client().prepareStreamSearch("index")
+                    .addAggregation(terms("terms_agg").field("field1").subAggregation(cardinality))
+                    .setSize(0)
+                    .setRequestCache(false)
+                    .get();
+                StringTerms termsAgg = resp.getAggregations().get("terms_agg");
+                assertEquals(3, termsAgg.getBuckets().size());
+                for (StringTerms.Bucket bucket : termsAgg.getBuckets()) {
+                    assertEquals(30, bucket.getDocCount());
+                    Cardinality cardinalitySubAgg = bucket.getAggregations().get("cardinality_subagg");
+                    assertEquals("hint " + hint + " bucket " + bucket.getKeyAsString(), 3, cardinalitySubAgg.getValue());
+                }
+            }
+        } finally {
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull(memoryThreshold)).get();
         }
     }
 

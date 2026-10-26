@@ -35,8 +35,10 @@ import org.apache.lucene.util.Constants;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.monitor.jvm.HotThreads;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.hamcrest.Matcher;
 
@@ -48,6 +50,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -185,6 +188,47 @@ public class HotThreadsIT extends OpenSearchIntegTestCase {
 
         // The filtered stacks should be smaller than unfiltered ones:
         assertThat(totSizeIgnoreIdle, lessThan(totSizeAll));
+    }
+
+    public void testExcessiveSnapshotsAreRejected() {
+        // A request asking for an excessive number of snapshots must be rejected before the node allocates the
+        // ThreadInfo[snapshots][] array.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().cluster().prepareNodesHotThreads().setSnapshots(500000000).get()
+        );
+        assertThat(e.getMessage(), containsString("[snapshots]"));
+        assertThat(e.getMessage(), containsString(HotThreads.MAX_HOT_THREADS_SNAPSHOTS_SETTING.getKey()));
+    }
+
+    public void testMaxSnapshotsSettingIsDynamic() {
+        // Lowering the configured maximum must take effect without a restart.
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(HotThreads.MAX_HOT_THREADS_SNAPSHOTS_SETTING.getKey(), 5))
+                .get()
+        );
+        try {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().cluster().prepareNodesHotThreads().setSnapshots(6).get()
+            );
+            assertThat(e.getMessage(), containsString("[snapshots]"));
+
+            // The new boundary value is still accepted.
+            NodesHotThreadsResponse response = client().admin().cluster().prepareNodesHotThreads().setSnapshots(5).get();
+            assertThat(response.getNodes(), not(empty()));
+        } finally {
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().putNull(HotThreads.MAX_HOT_THREADS_SNAPSHOTS_SETTING.getKey()))
+                    .get()
+            );
+        }
     }
 
     public void testTimestampAndParams() throws ExecutionException, InterruptedException {

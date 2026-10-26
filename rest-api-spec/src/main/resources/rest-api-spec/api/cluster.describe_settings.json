@@ -1,0 +1,21 @@
+{
+  "cluster.describe_settings": {
+    "documentation": {
+      "url": "https://opensearch.org/docs/latest/api-reference/cluster-api/cluster-settings/",
+      "description": "Describes exact registered cluster setting names using the receiving node's setting registry. Reports definition metadata, not configured values. Unknown and filtered names are omitted."
+    },
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {"path": "/_cluster/settings/_describe", "methods": ["GET"]}
+      ]
+    },
+    "params": {
+      "settings": {
+        "type": "list",
+        "required": true,
+        "description": "Exact setting names, including concrete affix keys. Wildcards are not supported."
+      }
+    }
+  }
+}

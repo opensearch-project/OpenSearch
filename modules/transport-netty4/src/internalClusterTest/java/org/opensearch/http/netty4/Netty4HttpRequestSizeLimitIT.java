@@ -95,9 +95,7 @@ public class Netty4HttpRequestSizeLimitIT extends OpenSearchNetty4IntegTestCase 
         }
 
         List<Tuple<String, CharSequence>> requests = new ArrayList<>();
-        // See please https://github.com/netty/netty/pull/17068 why 128 is the cap, we should be able to
-        // make it configurable in the Netty next release.
-        for (int i = 0; i < 150; i++) {
+        for (int i = 0; i < 1500; i++) {
             requests.add(Tuple.tuple("/index/_bulk", bulkRequest));
         }
 
@@ -128,16 +126,14 @@ public class Netty4HttpRequestSizeLimitIT extends OpenSearchNetty4IntegTestCase 
 
         List<Tuple<String, CharSequence>> requestUris = new ArrayList<>();
         for (int i = 0; i < 1500; i++) {
-            requestUris.add(
-                Tuple.tuple("/_cluster/settings?cluster_manager_timeout=10s", "{ \"transient\": {\"search.default_search_timeout\": -1 } }")
-            );
+            requestUris.add(Tuple.tuple("/_cache/clear", "{}"));
         }
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
         try (Netty4HttpClient nettyHttpClient = Netty4HttpClient.http()) {
-            Collection<FullHttpResponse> responses = nettyHttpClient.put(transportAddress.address(), requestUris);
+            Collection<FullHttpResponse> responses = nettyHttpClient.post(transportAddress.address(), requestUris);
             try {
                 assertThat(responses, hasSize(requestUris.size()));
                 assertAllInExpectedStatus(responses, HttpResponseStatus.OK);

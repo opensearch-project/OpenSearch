@@ -149,9 +149,11 @@ public interface StageExecution {
      *   no per-child resources); decrements a counter; on zero, collects
      *   {@link #publishedMetadata} from each child and hands off via {@link #consumeChildMetadata};
      *   default-mode parents are scheduled here (eager parents already scheduled).
-     *   <li>FAILED — invokes {@link #closeChildInput} then propagates via {@link #failWithCause}.
-     *   <li>CANCELLED — invokes {@link #closeChildInput} (so a parent reduce drain sees EOF and
-     *   unwinds) then propagates {@link #cancel} to the parent so it can't strand in RUNNING.
+     *   <li>FAILED — propagates via {@link #failWithCause} before invoking
+     *   {@link #closeChildInput}, so an eager parent cannot observe EOF and win the
+     *   terminal-state race as SUCCEEDED.
+     *   <li>CANCELLED — propagates {@link #cancel} before invoking
+     *   {@link #closeChildInput}, for the same reason.
      * </ul>
      *
      * <p>Parent→sibling cancel sweep: on FAILED / CANCELLED, sweep still-running children.
@@ -193,20 +195,23 @@ public interface StageExecution {
                         }
                     }
                     case FAILED -> {
-                        closeChildInput(childId);
                         Exception cause = child.getFailure();
+                        // Claim the terminal state before publishing EOF. For eager parents,
+                        // closeChildInput wakes a concurrent drain that may otherwise complete
+                        // successfully and make this failure transition a no-op.
                         failWithCause(
                             cause != null
                                 ? cause
                                 : new RuntimeException("child stage " + child.getStageId() + " failed without recorded cause")
                         );
+                        closeChildInput(childId);
                     }
                     case CANCELLED -> {
-                        closeChildInput(childId);
-                        // A cancelled child can't produce a complete result, so the parent must reach
-                        // terminal too — otherwise pending never drains and it strands in RUNNING (the
-                        // phantom-task leak). Idempotent; no-op if the parent is already terminal.
+                        // Claim CANCELLED before publishing EOF for the same eager-drain race.
+                        // The terminal transition performs stage-wide cleanup; the per-child
+                        // close remains necessary for sinks that own independent inputs.
                         cancel("child stage " + childId + " cancelled");
+                        closeChildInput(childId);
                     }
                     default -> {
                     }

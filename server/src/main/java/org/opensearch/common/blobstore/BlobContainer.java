@@ -265,6 +265,63 @@ public interface BlobContainer {
     };
 
     /**
+     * Returns {@code true} if conditional (compare-and-swap) writes via {@link #writeBlobConditionally} and versioned
+     * reads via {@link #readBlobWithVersion} are <b>enforced by the store</b>.
+     * <p>
+     * Store-enforced is the whole point of the flag, so it is stricter than "the methods do not throw". The precondition
+     * must be evaluated by the backing store, as S3 conditional writes, GCS generation preconditions and Azure ETag
+     * preconditions are - which is what makes the result hold against concurrent writers in other processes and on other
+     * hosts. A container may perfectly well implement the two methods using in-process locking and still return
+     * {@code false} here: the calls work, but the guarantee callers actually want does not hold. Emulation is not
+     * support.
+     * <p>
+     * The distinction matters because the one caller of this flag, remote store primary fencing, uses a conditional
+     * write to exclude a writer it cannot see. An emulated precondition would let two nodes both believe they hold the
+     * fence, which is worse than running unfenced, since the shard would report itself protected.
+     */
+    @ExperimentalApi
+    default boolean isConditionalWriteSupported() {
+        return false;
+    }
+
+    /**
+     * Reads the full content of a blob along with the opaque version token (e.g. ETag) it had when read. The token
+     * can be passed to {@link #writeBlobConditionally} to perform a compare-and-swap update.
+     * <p>
+     * Intended for small control blobs only; the full content is materialized in memory.
+     *
+     * @param   blobName The name of the blob to read.
+     * @return  the blob content and its version token
+     * @throws  NoSuchFileException if the blob does not exist
+     * @throws  IOException if the blob can not be read
+     */
+    @ExperimentalApi
+    default VersionedBlob readBlobWithVersion(String blobName) throws IOException {
+        throw new UnsupportedOperationException("readBlobWithVersion is not implemented yet");
+    }
+
+    /**
+     * Writes a blob only if it has not been modified since the supplied version token was read (compare-and-swap).
+     * A {@code null} expected version token means the blob is expected to not exist, i.e. create-if-absent.
+     * <p>
+     * Intended for small control blobs only (e.g. fencing tokens); implementations may reject large blobs.
+     *
+     * @param   blobName             The name of the blob to write.
+     * @param   inputStream          The input stream from which to retrieve the bytes to write.
+     * @param   blobSize             The size of the blob to be written, in bytes.
+     * @param   expectedVersionToken The version token the blob is expected to currently have, or {@code null} if the
+     *                               blob is expected to not exist.
+     * @return  the version token of the newly written blob
+     * @throws  BlobVersionConflictException if the precondition failed, i.e. another writer modified or created the blob
+     * @throws  IOException if the input stream could not be read, or the target blob could not be written to
+     */
+    @ExperimentalApi
+    default String writeBlobConditionally(String blobName, InputStream inputStream, long blobSize, @Nullable String expectedVersionToken)
+        throws IOException {
+        throw new UnsupportedOperationException("writeBlobConditionally is not implemented yet");
+    }
+
+    /**
      * Deletes this container and all its contents from the repository.
      *
      * @return delete result

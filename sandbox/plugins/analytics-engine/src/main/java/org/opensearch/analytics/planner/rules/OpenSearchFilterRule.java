@@ -19,6 +19,7 @@ import org.apache.calcite.sql.SqlKind;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.CapabilityRegistry;
+import org.opensearch.analytics.planner.FilterPredicateGuard;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
@@ -81,6 +82,9 @@ public class OpenSearchFilterRule extends RelOptRule {
 
         List<String> childViableBackends = openSearchInput.getViableBackends();
         List<FieldStorageInfo> childFieldStorage = openSearchInput.getOutputFieldStorage();
+
+        // Guard: reject excessively complex filter conditions early, before annotation.
+        FilterPredicateGuard.validate(filter.getCondition(), context.getMaxFilterPredicateCount());
 
         // Annotate every leaf predicate with viable backends.
         RexNode annotatedCondition = annotateCondition(filter.getCondition(), childFieldStorage, childViableBackends);

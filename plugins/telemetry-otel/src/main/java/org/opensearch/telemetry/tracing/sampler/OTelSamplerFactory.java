@@ -12,13 +12,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.SpecialPermission;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.security.AccessController;
-import java.security.PrivilegedExceptionAction;
 import java.util.List;
 import java.util.ListIterator;
 
@@ -63,7 +62,6 @@ public class OTelSamplerFactory {
         return fallbackSampler;
     }
 
-    @SuppressWarnings("removal")
     private static Sampler instantiateSampler(
         Class<Sampler> samplerClassName,
         TelemetrySettings telemetrySettings,
@@ -74,7 +72,7 @@ public class OTelSamplerFactory {
             // Check we ourselves are not being called by unprivileged code.
             SpecialPermission.check();
 
-            return AccessController.doPrivileged((PrivilegedExceptionAction<Sampler>) () -> {
+            return AccessController.doPrivileged(() -> {
                 try {
                     // Define the method type which receives TelemetrySettings & Sampler as arguments
                     MethodType methodType = MethodType.methodType(Sampler.class, TelemetrySettings.class, Settings.class, Sampler.class);
