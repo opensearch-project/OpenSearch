@@ -16,6 +16,10 @@ import org.opensearch.action.admin.cluster.wlm.WlmStatsAction;
 import org.opensearch.action.admin.cluster.wlm.WlmStatsRequest;
 import org.opensearch.action.admin.cluster.wlm.WlmStatsResponse;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.search.CreatePitAction;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.DeletePitAction;
+import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchResponse;
@@ -50,6 +54,7 @@ import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
+import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.lookup.LeafFieldsLookup;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -247,6 +252,68 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
             assertNotNull(client().prepareSearchScroll(sid).setScroll(TIMEOUT).get());
         } finally {
             client().prepareClearScroll().addScrollId(scrollId).get();
+        }
+    }
+
+    public void testCreatePitIsNotThrottledButItsSearchesAre() throws Exception {
+        String workloadGroupId = "wlm_pit_throttle_group";
+        String ruleId = "wlm_pit_throttle_rule";
+        String indexName = "pit_throttle_index";
+
+        setWlmMode("enabled");
+        WorkloadGroup workloadGroup = createThrottledWorkloadGroup("pit_throttle_test_group", workloadGroupId, 1);
+        updateWorkloadGroupInClusterState(PUT, workloadGroup);
+
+        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        createRule(ruleId, "pit throttle rule", indexName, featureType, workloadGroupId);
+
+        indexDocument(indexName);
+
+        assertBusy(() -> {
+            int before = getCompletions(workloadGroupId);
+            client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+            int after = getCompletions(workloadGroupId);
+            assertTrue("Expected search to be tagged to the throttled workload group", after > before);
+        }, 30, TimeUnit.SECONDS);
+
+        // Rules tag only searches and scroll pages, so a create point-in-time request reaches the group through the header.
+        Client groupClient = client().filterWithHeader(Map.of(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, workloadGroupId));
+        String pitId = null;
+        try {
+            List<ScriptedBlockPlugin> plugins = initBlockFactory();
+            ActionFuture<SearchResponse> blockedSearch;
+            try {
+                // Holds the only permit.
+                blockedSearch = blockingSearch(indexName).execute();
+                awaitForBlock(plugins);
+
+                int throttledBefore = getThrottled(workloadGroupId);
+
+                // Creating a point in time runs no query, so it is admitted while the group is at its limit.
+                pitId = groupClient.execute(CreatePitAction.INSTANCE, new CreatePitRequest(TIMEOUT, false, indexName))
+                    .actionGet(TIMEOUT)
+                    .getId();
+                assertEquals("creating a point in time must not be throttled", throttledBefore, getThrottled(workloadGroupId));
+
+                // A search that uses the point in time is still throttled.
+                final String id = pitId;
+                Throwable rejection = expectThrows(
+                    Throwable.class,
+                    () -> groupClient.prepareSearch().setPointInTime(new PointInTimeBuilder(id)).execute().actionGet(TIMEOUT)
+                );
+                assertTrue("Expected a point-in-time search to be throttled but was: " + rejection, hasRejectedExecutionCause(rejection));
+                assertEquals("a throttled point-in-time search must be counted", throttledBefore + 1, getThrottled(workloadGroupId));
+            } finally {
+                disableBlocks(plugins);
+            }
+            assertNotNull(blockedSearch.actionGet(TIMEOUT));
+
+            // Proves the rejection was the throttle, not a broken point in time.
+            assertNotNull(groupClient.prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).get());
+        } finally {
+            if (pitId != null) {
+                client().execute(DeletePitAction.INSTANCE, new DeletePitRequest(pitId)).actionGet(TIMEOUT);
+            }
         }
     }
 

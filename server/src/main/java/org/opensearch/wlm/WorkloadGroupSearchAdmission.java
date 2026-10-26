@@ -9,6 +9,7 @@
 package org.opensearch.wlm;
 
 import org.opensearch.action.ActionRequest;
+import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.SearchAdmission;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.cluster.service.ClusterService;
@@ -22,7 +23,8 @@ import java.util.function.BooleanSupplier;
 
 /**
  * Admits searches and scroll pages against workload group throttles, so the search actions depend only on the core
- * {@link SearchAdmission}. Active only while {@link WorkloadGroupService#isThrottlingActive()}.
+ * {@link SearchAdmission}. Creating a point in time is never throttled. Active only while
+ * {@link WorkloadGroupService#isThrottlingActive()}.
  *
  * @opensearch.internal
  */
@@ -45,7 +47,9 @@ public final class WorkloadGroupSearchAdmission implements SearchAdmission {
 
     @Override
     public void admit(Task task, ActionRequest request, ActionListener<Releasable> listener) {
-        if (task instanceof WorkloadGroupTask == false) {
+        // Creating a point in time is admitted uncharged: it only opens a reader context on each shard and runs no query.
+        // The searches that later use the point in time are throttled.
+        if (task instanceof WorkloadGroupTask == false || CreatePitAction.NAME.equals(task.getAction())) {
             listener.onResponse(NOOP_PERMIT);
             return;
         }

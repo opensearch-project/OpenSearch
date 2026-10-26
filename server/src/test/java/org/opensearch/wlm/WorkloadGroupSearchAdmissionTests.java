@@ -10,6 +10,7 @@ package org.opensearch.wlm;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
+import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.MultiSearchAction;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.SearchAction;
@@ -79,6 +80,13 @@ public class WorkloadGroupSearchAdmissionTests extends OpenSearchTestCase {
     public void testAdmitsATaskOutsideWorkloadManagementWithoutACharge() {
         Task task = new Task(1, "transport", SearchAction.NAME, "test", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
         assertSame(SearchAdmission.NOOP_PERMIT, admit(task, new SearchRequest()).get());
+        verify(workloadGroupService, never()).acquireThrottlePermit(any(), any(), any());
+    }
+
+    public void testCreatePitIsAdmittedWithoutACharge() {
+        // CreatePitController runs its shard fan-out on a SearchTask that carries the create point-in-time action.
+        SearchTask createPit = new SearchTask(1, "transport", CreatePitAction.NAME, () -> "test", TaskId.EMPTY_TASK_ID, Map.of());
+        assertSame(SearchAdmission.NOOP_PERMIT, admit(createPit, new SearchRequest()).get());
         verify(workloadGroupService, never()).acquireThrottlePermit(any(), any(), any());
     }
 
