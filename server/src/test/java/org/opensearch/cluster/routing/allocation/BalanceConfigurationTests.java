@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.EmptyClusterInfoService;
@@ -1109,6 +1110,90 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         for (RoutingNode routingNode : routingNodes) {
             for (ShardRouting shardRouting : routingNode) {
                 assertThat(shardRouting.state(), Matchers.equalTo(ShardRoutingState.STARTED));
+            }
+        }
+    }
+
+    /**
+     * Initial layout: one index with 6 primaries and 1 replica per shard, all STARTED.
+     * Nodes node3..node5 are excluded via cluster.routing.allocation.exclude._id.
+     * Pn denotes the primary of shard n; Rn denotes its replica (e.g. P1 is the primary
+     * of shard 1, R3 is the replica of shard 3). Shard IDs are zero-based; "." means empty.
+     *
+     *             eligible (allowed)                      | excluded (filter NO)
+     *             node0          node1          node2     | node3   node4   node5
+     * ---------   ------------   ------------   --------- | -----   -----   -----
+     * test        P0             R0             R2        | .       .       .
+     *             P1             R1             R3        | .       .       .
+     *             P2             P4             R4        | .       .       .
+     *             P3             R5             P5        | .       .       .
+     * ---------   ------------   ------------   --------- | -----   -----   -----
+     * primaries   4              1              1         | 0       0       0
+     * replicas    0              3              3         | 0       0       0
+     * total       4              4              4         | 0       0       0
+     *
+     * Explain should recommend moving P0 from node0 to node2: node1 already holds R0,
+     * and node3..node5 are excluded. Equal total shard counts isolate the primary-balance
+     * constraint. The test checks the recommendation without actually relocating P0.
+     */
+    public void testExplainPrimaryRebalanceExcludesFilteredNodes() {
+        Settings settings = getSettingsBuilderForPrimaryBalance().put("cluster.routing.allocation.exclude._id", "node3,node4,node5")
+            .put(BalancedShardsAllocator.CLUSTER_ALLOCATION_FILTER_AWARE_BALANCE.getKey(), true)
+            .build();
+        AllocationService service = createAllocationService(settings, new TestGatewayAllocator());
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        IndexMetadata index = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT).put("index.replication.type", "SEGMENT"))
+            .numberOfShards(6)
+            .numberOfReplicas(1)
+            .build();
+        IndexMetadata.Builder metadata = IndexMetadata.builder(index);
+        IndexRoutingTable.Builder routingTable = IndexRoutingTable.builder(index.getIndex());
+
+        int[] primaryOwners = { 0, 0, 0, 0, 1, 2 };
+        int[] replicaOwners = { 1, 1, 2, 2, 2, 1 };
+        for (int shard = 0; shard < primaryOwners.length; shard++) {
+            ShardId shardId = new ShardId(index.getIndex(), shard);
+            IndexShardRoutingTable shardTable = new IndexShardRoutingTable.Builder(shardId).addShard(
+                TestShardRouting.newShardRouting(shardId, "node" + primaryOwners[shard], true, STARTED)
+            ).addShard(TestShardRouting.newShardRouting(shardId, "node" + replicaOwners[shard], false, STARTED)).build();
+            routingTable.addIndexShard(shardTable);
+            metadata.putInSyncAllocationIds(shard, shardTable.getAllAllocationIds());
+        }
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
+        for (int node = 0; node < 6; node++) {
+            nodes.add(newNode("node" + node));
+        }
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(nodes)
+            .metadata(Metadata.builder().put(metadata))
+            .routingTable(RoutingTable.builder().add(routingTable).build())
+            .build();
+        ShardRouting primary = state.routingTable().index("test").shard(0).primaryShard();
+
+        for (RoutingAllocation.DebugMode debugMode : new RoutingAllocation.DebugMode[] {
+            RoutingAllocation.DebugMode.ON,
+            RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS }) {
+            RoutingAllocation allocation = new RoutingAllocation(
+                randomAllocationDeciders(settings, clusterSettings, random()),
+                state.getRoutingNodes(),
+                state,
+                ClusterInfo.EMPTY,
+                null,
+                0L
+            );
+            allocation.setDebugMode(debugMode);
+            MoveDecision decision = service.explainShardAllocation(primary, allocation).getMoveDecision();
+
+            assertTrue(decision.isDecisionTaken());
+            assertTrue(decision.canRemain());
+
+            assertEquals(debugMode.toString(), AllocationDecision.YES, decision.getAllocationDecision());
+            assertEquals("node2", decision.getTargetNode().getId());
+            for (NodeAllocationResult nodeDecision : decision.getNodeDecisions()) {
+                if (Set.of("node3", "node4", "node5").contains(nodeDecision.getNode().getId())) {
+                    assertEquals(AllocationDecision.NO, nodeDecision.getNodeDecision());
+                }
             }
         }
     }
