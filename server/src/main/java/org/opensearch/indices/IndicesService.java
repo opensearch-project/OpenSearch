@@ -1963,14 +1963,27 @@ public class IndicesService extends AbstractLifecycleComponent
      * filesystem a replica might not have been closed when the primary is deleted causing problems on delete calls so we
      * schedule there deletes later.
      * @param index the index to process the pending deletes for
-     * @param timeout the timeout used for processing pending deletes
+     * @param timeout the timeout used both for acquiring the shard locks and for retrying failed deletions
      */
-    @Override
     public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeout) throws IOException, InterruptedException,
         ShardLockObtainFailedException {
+        processPendingDeletes(index, indexSettings, timeout, timeout);
+    }
+
+    /**
+     * Same as {@link #processPendingDeletes(Index, IndexSettings, TimeValue)}, with the time spent waiting for the shard
+     * locks bounded separately from the time spent retrying deletions that fail with an {@link IOException}. A caller that
+     * reschedules itself while a lock is held can keep the lock wait short without shortening the deletion retries.
+     *
+     * @param lockTimeout how long to wait for the shard locks of the index
+     * @param deletionRetryTimeout how long to keep retrying deletions that fail once the locks are held
+     */
+    @Override
+    public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue lockTimeout, TimeValue deletionRetryTimeout)
+        throws IOException, InterruptedException, ShardLockObtainFailedException {
         logger.debug("{} processing pending deletes", index);
+        final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, "process pending deletes", lockTimeout.millis());
         final long startTimeNS = System.nanoTime();
-        final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, "process pending deletes", timeout.millis());
         int numRemoved = 0;
         try {
             Map<ShardId, ShardLock> locks = new HashMap<>();
@@ -2025,7 +2038,15 @@ public class IndicesService extends AbstractLifecycleComponent
                         sleepTime = Math.min(maxSleepTimeMs, sleepTime * 2); // increase the sleep time gradually
                         logger.debug("{} schedule pending delete retry after {} ms", index, sleepTime);
                     }
-                } while ((System.nanoTime() - startTimeNS) < timeout.nanos());
+                } while ((System.nanoTime() - startTimeNS) < deletionRetryTimeout.nanos());
+                if (remove.isEmpty() == false) {
+                    logger.warn(
+                        "{} giving up on pending deletes for shards {} after [{}] - their files may remain on disk",
+                        index,
+                        remove,
+                        deletionRetryTimeout
+                    );
+                }
             }
         } finally {
             IOUtils.close(shardLocks);

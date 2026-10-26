@@ -76,8 +76,8 @@ public class IndicesClusterStateServicePendingDeleteTests extends AbstractIndice
         }
 
         @Override
-        public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeValue) throws IOException,
-            InterruptedException, ShardLockObtainFailedException {
+        public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue lockTimeout, TimeValue deletionRetryTimeout)
+            throws IOException, InterruptedException, ShardLockObtainFailedException {
             calls++;
             if (calls <= failures) {
                 throw new ShardLockObtainFailedException(new ShardId(index, 2), "lock already held for [starting shard]");

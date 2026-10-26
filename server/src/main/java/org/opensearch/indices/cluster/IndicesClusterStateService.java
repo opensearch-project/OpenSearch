@@ -138,6 +138,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      * a generic thread; the retry backoff below spreads the attempts out instead.
      */
     static final TimeValue PENDING_DELETE_LOCK_TIMEOUT = TimeValue.timeValueSeconds(5);
+    /**
+     * How long, once the locks are held, deletions that fail with an I/O error are retried before the attempt returns.
+     * Such failures (a file still open by another process, for instance) usually clear within seconds; this keeps the
+     * window the deletion previously had.
+     */
+    static final TimeValue PENDING_DELETE_RETRY_TIMEOUT = TimeValue.timeValueMinutes(30);
     /** Delay before the second attempt; doubled on every further attempt. */
     static final TimeValue PENDING_DELETE_INITIAL_RETRY_DELAY = TimeValue.timeValueMinutes(1);
     /** Upper bound for the delay between attempts. */
@@ -457,7 +463,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // instance, runs to completion regardless of the cancellation - so we keep retrying until the holder releases
                 // it. A copy that is still open at deletion time removes its own files when it closes; the copies that were
                 // already closed can only be removed here.
-                indicesService.processPendingDeletes(index, indexSettings, PENDING_DELETE_LOCK_TIMEOUT);
+                indicesService.processPendingDeletes(index, indexSettings, PENDING_DELETE_LOCK_TIMEOUT, PENDING_DELETE_RETRY_TIMEOUT);
                 pendingIndexDeletions.remove(index);
                 if (attempt > 1) {
                     logger.info("[{}] completed pending deletion for index after [{}] attempts", index, attempt);
@@ -1195,8 +1201,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             return null;
         }
 
-        void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeValue) throws IOException, InterruptedException,
-            ShardLockObtainFailedException;
+        /**
+         * Processes all pending deletes for the given index. This method will acquire all locks for the given index and will
+         * process all pending deletes for this index. Pending deletes might occur if the OS doesn't allow deletion of files because
+         * they are used by a different process ie. on Windows where files might still be open by a virus scanner. On a shared
+         * filesystem a replica might not have been closed when the primary is deleted causing problems on delete calls so we
+         * schedule there deletes later.
+         * @param index the index to process the pending deletes for
+         * @param lockTimeout how long to wait for the shard locks of the index
+         * @param deletionRetryTimeout how long to keep retrying deletions that fail with an I/O error once the locks are held
+         */
+        void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue lockTimeout, TimeValue deletionRetryTimeout)
+            throws IOException, InterruptedException, ShardLockObtainFailedException;
 
         /**
          * Why the index was removed
