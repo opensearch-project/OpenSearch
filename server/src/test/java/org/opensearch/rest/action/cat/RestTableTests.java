@@ -32,9 +32,11 @@
 
 package org.opensearch.rest.action.cat;
 
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.pagination.PageToken;
 import org.opensearch.common.Table;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestResponse;
@@ -51,6 +53,7 @@ import java.util.Map;
 import static org.opensearch.rest.action.cat.RestTable.buildDisplayHeaders;
 import static org.opensearch.rest.action.cat.RestTable.buildResponse;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
@@ -412,14 +415,35 @@ public class RestTableTests extends OpenSearchTestCase {
         assertEquals(Arrays.asList(0, 2, 1), rowOrder);
     }
 
-    public void testLimitZeroOrNegativeIsIgnored() {
+    public void testLimitMustBeNaturalNumber() {
         Table table = buildSimpleSortableTable();
-        // limit=0 and any negative value are treated as "no limit" (only positive values apply).
-        restRequest.params().put("limit", "0");
-        assertThat(RestTable.getRowOrder(table, restRequest).size(), equalTo(3));
+        for (String invalid : Arrays.asList("0", "-1", "-5")) {
+            restRequest.params().put("limit", invalid);
+            OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> RestTable.getRowOrder(table, restRequest));
+            assertThat(e.getMessage(), containsString("Invalid value for 'limit'"));
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        }
+    }
 
-        restRequest.params().put("limit", "-5");
-        assertThat(RestTable.getRowOrder(table, restRequest).size(), equalTo(3));
+    public void testLimitMustBeAnInteger() {
+        Table table = buildSimpleSortableTable();
+        for (String invalid : Arrays.asList("abc", "1.5", "", "99999999999")) {
+            restRequest.params().put("limit", invalid);
+            expectThrows(IllegalArgumentException.class, () -> RestTable.getRowOrder(table, restRequest));
+        }
+    }
+
+    public void testInvalidLimitIsRejectedOnPaginatedTable() {
+        // limit is ignored for paginated responses, but an invalid value is still rejected
+        Table table = buildSimpleSortableTable(new PageToken("next", "entities"));
+        restRequest.params().put("limit", "0");
+        expectThrows(OpenSearchParseException.class, () -> RestTable.getRowOrder(table, restRequest));
+    }
+
+    public void testParseLimit() {
+        assertNull(RestTable.parseLimit(restRequest));
+        restRequest.params().put("limit", "7");
+        assertEquals(Integer.valueOf(7), RestTable.parseLimit(restRequest));
     }
 
     public void testNoLimitParamReturnsAll() {
