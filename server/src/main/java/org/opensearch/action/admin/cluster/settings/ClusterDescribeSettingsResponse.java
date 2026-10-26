@@ -12,7 +12,6 @@ import org.opensearch.common.Nullable;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -23,6 +22,9 @@ import java.util.Objects;
 import java.util.TreeMap;
 
 /** Definition metadata for registered settings; contains neither configured values nor validation results.
+ * <p>
+ * Local-only: the response is built and rendered on the node that received the request and is deliberately not
+ * serializable, so it can never be exchanged between nodes of different versions.
  * @opensearch.internal
  */
 public class ClusterDescribeSettingsResponse extends ActionResponse implements ToXContentObject {
@@ -32,8 +34,12 @@ public class ClusterDescribeSettingsResponse extends ActionResponse implements T
         this.settings = Collections.unmodifiableMap(new TreeMap<>(settings));
     }
 
-    public ClusterDescribeSettingsResponse(StreamInput in) throws IOException {
-        this(in.readMap(StreamInput::readString, SettingMetadata::new));
+    /**
+     * Not supported: the response is local-only. This constructor exists only because {@link org.opensearch.action.ActionType}
+     * requires a response reader; it fails loudly if the response is ever routed over the transport layer.
+     */
+    public ClusterDescribeSettingsResponse(StreamInput in) {
+        throw new UnsupportedOperationException("ClusterDescribeSettingsResponse is local-only and is not serializable");
     }
 
     public Map<String, SettingMetadata> settings() {
@@ -41,8 +47,8 @@ public class ClusterDescribeSettingsResponse extends ActionResponse implements T
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(settings, StreamOutput::writeString, (o, metadata) -> metadata.writeTo(o));
+    public void writeTo(StreamOutput out) {
+        throw new UnsupportedOperationException("ClusterDescribeSettingsResponse is local-only and is not serializable");
     }
 
     @Override
@@ -56,11 +62,12 @@ public class ClusterDescribeSettingsResponse extends ActionResponse implements T
     }
 
     /**
-     * Serializable projection of a single registered setting as reported by this API. This is deliberately separate from
-     * {@link org.opensearch.common.settings.Setting}, which holds parser and validator functions and is not {@code Writeable}.
+     * Response-only projection of a single registered setting as reported by this API. This is deliberately separate from
+     * {@link org.opensearch.common.settings.Setting}, which holds parser and validator functions. Like the enclosing
+     * response it is not serializable.
      * @opensearch.internal
      */
-    public static class SettingMetadata implements Writeable, ToXContentObject {
+    public static class SettingMetadata implements ToXContentObject {
         private final boolean dynamic;
         @Nullable
         private final String defaultValue;
@@ -84,10 +91,6 @@ public class ClusterDescribeSettingsResponse extends ActionResponse implements T
             return new SettingMetadata(dynamic, Objects.requireNonNull(defaultValue, "defaultValue"));
         }
 
-        public SettingMetadata(StreamInput in) throws IOException {
-            this(in.readBoolean(), in.readOptionalString());
-        }
-
         public boolean dynamic() {
             return dynamic;
         }
@@ -95,12 +98,6 @@ public class ClusterDescribeSettingsResponse extends ActionResponse implements T
         @Nullable
         public String defaultValue() {
             return defaultValue;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(dynamic);
-            out.writeOptionalString(defaultValue);
         }
 
         @Override
