@@ -1363,7 +1363,7 @@ public class MetadataCreateIndexService {
                 }
             }
         }
-        updateRemoteStoreFencingSetting(settingsBuilder, clusterSettings);
+        updateRemoteStoreFencingSetting(settingsBuilder, clusterSettings, indexName);
     }
 
     /**
@@ -1373,22 +1373,52 @@ public class MetadataCreateIndexService {
      * window in which a stale primary is checked against neither the fence nor the replicas. Baking the cluster value
      * in here means flipping the cluster setting only affects indices created afterwards.
      */
-    private static void updateRemoteStoreFencingSetting(Settings.Builder settingsBuilder, ClusterSettings clusterSettings) {
+    private static void updateRemoteStoreFencingSetting(
+        Settings.Builder settingsBuilder,
+        ClusterSettings clusterSettings,
+        String indexName
+    ) {
         final Settings current = settingsBuilder.build();
-        // Read the raw value rather than going through INDEX_REMOTE_STORE_ENABLED_SETTING.get(). That setting carries a
-        // validator which cross-checks index.replication.type, and this helper also runs from snapshot restore's
-        // override-settings step - where restoring a remote-store snapshot onto a document-replication index is a
-        // combination the restore path itself must reject, with a SnapshotRestoreException. Validating it here instead
-        // would pre-empt that with an IllegalArgumentException from a read that only ever wanted a boolean. Deciding
-        // whether to stamp a default is not this method's place to validate the settings it is handed.
+        // Read raw: this helper also runs from snapshot restore's override-settings step, where the typed setting's
+        // validator would pre-empt the restore path's own SnapshotRestoreException.
         final boolean remoteStoreEnabled = current.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
-        // Only materialized when the cluster default is enabled: an absent key already resolves to false forever
-        // (the index setting is final), so stamping an explicit false would add metadata without changing semantics.
+        final String translogRepository = current.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
+        final boolean hasRemoteTranslogRepository = translogRepository != null && translogRepository.isEmpty() == false;
+
         if (remoteStoreEnabled
+            && hasRemoteTranslogRepository == false
+            && current.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, false)) {
+            throw fencingRequiresRemoteTranslog(indexName);
+        }
+
+        // Stamping an explicit false would add metadata without changing semantics, since the index setting is final
+        // and an absent key already resolves to false forever.
+        if (remoteStoreEnabled
+            && hasRemoteTranslogRepository
             && IndexMetadata.INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING.exists(current) == false
             && clusterSettings.get(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED)) {
             settingsBuilder.put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true);
         }
+    }
+
+    /**
+     * The fence is a blob written by the translog upload, so an index that keeps its translog locally - which is how
+     * a {@code segments_only} index is configured - could never have one. Refused rather than ignored, because the
+     * flag is all {@code INDEX_REMOTE_STORE_AUTO_RESTORE_ENABLED_SETTING} checks before allowing a restore whose
+     * safety rests on the fence existing.
+     */
+    private static IndexCreationException fencingRequiresRemoteTranslog(String indexName) {
+        ValidationException validationException = new ValidationException();
+        validationException.addValidationErrors(
+            Collections.singletonList(
+                IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED
+                    + " requires a remote translog repository, because the fence is a blob in that"
+                    + " repository written by the translog upload, and this index keeps its translog"
+                    + " locally. When restoring a snapshot of a fencing-enabled index into such a cluster,"
+                    + " drop the setting with ignore_index_settings on the restore request"
+            )
+        );
+        return new IndexCreationException(indexName, validationException);
     }
 
     /**
