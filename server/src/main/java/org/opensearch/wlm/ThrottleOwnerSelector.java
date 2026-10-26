@@ -71,8 +71,13 @@ final class ThrottleOwnerSelector {
         return new ThrottleOwnerSelector(ring, nodesById);
     }
 
+    /** Whether the ring has no eligible node, so no bucket has an owner. */
+    boolean isEmpty() {
+        return ring.isEmpty();
+    }
+
     /**
-     * @return the node that owns the given bucket, or empty if the ring has no eligible node (shared tier unavailable).
+     * @return the node that owns the given bucket, or empty if the ring has no eligible node.
      */
     Optional<DiscoveryNode> ownerFor(String bucketKey) {
         if (ring.isEmpty()) {

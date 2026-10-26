@@ -202,8 +202,22 @@ public class WorkloadGroupSharedThrottleServiceTests extends OpenSearchTestCase 
         expectThrows(OpenSearchRejectedExecutionException.class, () -> awaitGrant(service, "b", 2));
     }
 
+    public void testHasEligibleOwnerOnlyWhileTheRingHasADataNode() {
+        WorkloadGroupSharedThrottleService service = new WorkloadGroupSharedThrottleService(clusterService, threadPool, transportService);
+        assertFalse("no cluster state applied yet", service.hasEligibleOwner());
+
+        DiscoveryNodes withData = DiscoveryNodes.builder().add(dataNode("data")).localNodeId("data").build();
+        deliverNodesChanged(service, DiscoveryNodes.EMPTY_NODES, withData);
+        assertTrue(service.hasEligibleOwner());
+
+        DiscoveryNodes withoutData = DiscoveryNodes.builder().add(coordinatingOnlyNode("coord")).localNodeId("coord").build();
+        deliverNodesChanged(service, withData, withoutData);
+        assertFalse("a cluster without data nodes has no owner", service.hasEligibleOwner());
+    }
+
     public void testEmptyRingIsUnavailable() {
-        // Cluster with no eligible data node (coordinating/manager-only) => empty ring => unavailable (caller rejects).
+        // Cluster with no eligible data node (coordinating/manager-only) => empty ring => unavailable. WorkloadGroupService
+        // checks hasEligibleOwner first and treats shared_limit as unset, so this covers a ring that empties after that check.
         DiscoveryNode managerOnly = new DiscoveryNode(
             "m",
             "m",

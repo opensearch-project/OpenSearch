@@ -64,10 +64,11 @@ import java.util.function.LongSupplier;
  * The acquire is asynchronous so the calling thread never blocks on the round trip; when the coordinator owns the
  * bucket itself it short-circuits to the local tracker with no network hop.
  * <p>
- * Fail-closed: if the owner gives no answer (timeout, disconnect, missing handler, empty ring), the caller is told the
- * shared tier is unavailable ({@link #isUnavailable}) and rejects the request (MONITOR still admits), so
- * {@code shared_limit} is never silently exceeded. The cost is that overflow for an unreachable owner's buckets is
- * rejected.
+ * Fail-closed: if the owner gives no answer (timeout, disconnect, missing handler), the caller is told the shared tier
+ * is unavailable ({@link #isUnavailable}) and rejects the request (MONITOR still admits), so {@code shared_limit} is
+ * never silently exceeded. The cost is that overflow for an unreachable owner's buckets is rejected. With no eligible
+ * owner at all ({@link #hasEligibleOwner}), no node counts {@code shared_limit}, so {@link WorkloadGroupService}
+ * treats it as unset instead.
  * <p>
  * Release ordering: an acquire answered too late is reported unavailable by the coordinator's own timer, but its
  * response handler stays registered and releases a late grant when it arrives. A release is therefore only ever sent
@@ -262,6 +263,17 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
     }
 
     /**
+     * Whether any node can own a shared bucket. The ring is empty only when this node's applied cluster state has no data
+     * node on {@link WorkloadGroupThrottleSettings#MIN_SUPPORTED_VERSION} or later: every data node is down, or the
+     * cluster has none (one that only coordinates cross-cluster searches). Then no node counts {@code shared_limit}, so
+     * rejecting would protect nothing. Unlike an owner that exists but cannot be reached, which may still be counting
+     * running searches.
+     */
+    boolean hasEligibleOwner() {
+        return ring.get().isEmpty() == false;
+    }
+
+    /**
      * Asynchronously acquires one shared permit for {@code bucketKey}, notifying {@code listener} with:
      * <ul>
      *   <li>{@code onResponse} with a {@link Releasable}: granted; close it when the request completes;</li>
@@ -292,7 +304,9 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         final ThrottleOwnerSelector currentRing = ring.get();
         final DiscoveryNode owner = currentRing.ownerFor(bucketKey).orElse(null);
         if (owner == null) {
-            listener.onFailure(unavailableMarker()); // empty ring: no owner to ask
+            // Empty ring: no owner to ask. The caller checks hasEligibleOwner first, so this only covers a ring that
+            // emptied after that check.
+            listener.onFailure(unavailableMarker());
             return;
         }
 

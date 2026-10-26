@@ -360,7 +360,9 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
     /**
      * Admits a search against the node-local allowance ({@code node_limit}), then the shared allowance
      * ({@code shared_limit}, a cluster-wide overflow pool on top of every node's local allowance) if the local bucket is
-     * full. Only shared admission can complete asynchronously. A counted parent exempts nested searches at both tiers.
+     * full. While no node can own a shared bucket ({@link WorkloadGroupSharedThrottleService#hasEligibleOwner}),
+     * {@code shared_limit} is treated as unset. Only shared admission can complete asynchronously. A counted parent exempts
+     * nested searches at both tiers.
      * MONITOR records would-be throttling without rejecting; SOFT and ENFORCED reject at the effective limit. Search actions
      * reach this through {@link SearchExecutionGate#execute} ({@link WorkloadGroupSearchAdmission}),
      * which owns releasing the permit.
@@ -517,6 +519,11 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
         }
         int nodeLimit = WorkloadGroupThrottleSettings.NODE_LIMIT.get(throttling);
         int sharedLimit = WorkloadGroupThrottleSettings.SHARED_LIMIT.get(throttling);
+        // With no eligible owner, no node counts shared_limit: treat it as unset, so node_limit alone decides.
+        final WorkloadGroupSharedThrottleService sharedService = sharedThrottleService;
+        if (sharedLimit >= 1 && sharedService != null && sharedService.hasEligibleOwner() == false) {
+            sharedLimit = WorkloadGroupThrottleSettings.UNSET_LIMIT;
+        }
         if (nodeLimit < 1 && sharedLimit < 1) {
             return null;
         }

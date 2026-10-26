@@ -542,12 +542,17 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     }
 
     private void stubLocalSharedService(WorkloadGroup workloadGroup) {
+        stubLocalSharedService(workloadGroup, Set.of(DiscoveryNodeRole.DATA_ROLE));
+    }
+
+    // A local node without the data role leaves the ring with no eligible owner.
+    private void stubLocalSharedService(WorkloadGroup workloadGroup, Set<DiscoveryNodeRole> localRoles) {
         DiscoveryNode localNode = new DiscoveryNode(
             "local",
             "local",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.DATA_ROLE),
+            localRoles,
             Version.CURRENT
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build();
@@ -1230,12 +1235,56 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         rootPermit.close();
     }
 
+    public void testSharedOnlyGroupIsNotThrottledWithoutAnEligibleOwner() {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
+        stubLocalSharedService(
+            throttledGroup("wg-1", Settings.builder().put("shared_limit", 1).build()),
+            Set.of(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)
+        );
+
+        // No node counts shared_limit, so the group acts as if it had none: every request runs, uncounted.
+        for (int i = 0; i < 3; i++) {
+            WorkloadGroupTask task = throttleTask("wg-1");
+            assertNull(acquireThrottlePermitSync(task, () -> false));
+            assertFalse(task.isThrottleCounted());
+        }
+        assertEquals(0, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalThrottled());
+    }
+
+    public void testNodeLimitAloneDecidesWithoutAnEligibleOwner() {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
+        stubLocalSharedService(
+            throttledGroup("wg-1", Settings.builder().put("node_limit", 1).put("shared_limit", 5).build()),
+            Set.of(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)
+        );
+
+        Releasable nodePermit = acquireThrottlePermitSync(throttleTask("wg-1"), () -> false);
+        assertNotNull(nodePermit);
+        // Rejected by node_limit alone, as if shared_limit were unset, rather than reported as an unavailable shared tier.
+        OpenSearchRejectedExecutionException rejection = expectThrows(
+            OpenSearchRejectedExecutionException.class,
+            () -> acquireThrottlePermitSync(throttleTask("wg-1"), () -> false)
+        );
+        assertEquals(
+            "Request throttled: workload group [wg-1-name] reached its per-node limit of 1 concurrent requests.",
+            rejection.getMessage()
+        );
+        assertEquals(1, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalThrottled());
+        nodePermit.close();
+        Releasable next = acquireThrottlePermitSync(throttleTask("wg-1"), () -> false);
+        assertNotNull("the freed node permit admits the next request", next);
+        next.close();
+    }
+
     public void testSearchPoolRejectionOfSharedHandOffIsNotCountedAsThrottle() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
         stubClusterStateWithGroup(throttledGroup("wg-1", Settings.builder().put("shared_limit", 1).build()));
         // The shared service delivers a search-pool rejection (not its denial marker) when the hand-off is rejected.
         WorkloadGroupSharedThrottleService sharedService = Mockito.mock(WorkloadGroupSharedThrottleService.class);
+        Mockito.when(sharedService.hasEligibleOwner()).thenReturn(true);
         OpenSearchRejectedExecutionException poolRejection = new OpenSearchRejectedExecutionException("search pool full");
         Mockito.doAnswer(invocation -> {
             ActionListener<Releasable> listener = invocation.getArgument(4);
@@ -1264,6 +1313,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
             throttledGroup("wg-1", Settings.builder().put("shared_limit", 1).build(), MutableWorkloadGroupFragment.ResiliencyMode.MONITOR)
         );
         WorkloadGroupSharedThrottleService sharedService = Mockito.mock(WorkloadGroupSharedThrottleService.class);
+        Mockito.when(sharedService.hasEligibleOwner()).thenReturn(true);
         AtomicBoolean proceedsOnDenial = new AtomicBoolean();
         Mockito.doAnswer(invocation -> {
             proceedsOnDenial.set(invocation.getArgument(3));
@@ -1369,6 +1419,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
         stubClusterStateWithGroup(throttledGroup("wg-1", Settings.builder().put("shared_limit", 1).build()));
         WorkloadGroupSharedThrottleService sharedService = Mockito.mock(WorkloadGroupSharedThrottleService.class);
+        Mockito.when(sharedService.hasEligibleOwner()).thenReturn(true);
         Mockito.doAnswer(invocation -> {
             ActionListener<Releasable> listener = invocation.getArgument(4);
             listener.onFailure(new IllegalStateException("boom"));
