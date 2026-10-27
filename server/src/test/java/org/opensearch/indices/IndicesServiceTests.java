@@ -37,10 +37,13 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Version;
+import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexGraveyard;
@@ -53,6 +56,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.util.FileSystemUtils;
@@ -84,8 +88,14 @@ import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchStatsContributor;
+import org.opensearch.search.SearchService;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ContextIndexSearcher;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.query.QueryPhase;
+import org.opensearch.search.query.QueryPhaseExecutionException;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.TestSearchContext;
@@ -693,6 +703,68 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
             TestSearchContext context = entry.getKey();
             setupMocksForCanCache(context, cacheHelper);
             assertEquals(entry.getValue(), indicesService.canCache(request, context));
+        }
+    }
+
+    public void testRequestCacheDisabledDuringInFlightSearch() throws Exception {
+        IndexService indexService = createIndex(
+            "test",
+            Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true).build()
+        );
+        client().prepareIndex("test").setId("1").setSource("f", "v").setRefreshPolicy(IMMEDIATE).get();
+        IndicesService indicesService = getIndicesService();
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        ShardSearchRequest request = new ShardSearchRequest(
+            new OriginalIndices(new String[] { "test" }, IndicesOptions.strictExpandOpen()),
+            new SearchRequest().source(new SearchSourceBuilder().size(0)).requestCache(true).allowPartialSearchResults(true),
+            new ShardId(indexService.index(), 0),
+            1,
+            AliasFilter.EMPTY,
+            1f,
+            System.currentTimeMillis(),
+            null,
+            Strings.EMPTY_ARRAY
+        );
+        // Disable the cache while the search runs, i.e. after canCache() passed but before the entry is written
+        QueryPhase queryPhase = new QueryPhase() {
+            @Override
+            public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+                super.execute(searchContext);
+                indicesService.setRequestCacheEnabled(false);
+            }
+        };
+        try (SearchContext context = searchService.createSearchContext(request, TimeValue.timeValueMinutes(1))) {
+            context.size(0);
+            queryPhase.preProcess(context);
+            assertTrue(indicesService.canCache(request, context));
+            // Hold the cleanup manager's lock so the async cleanup can't remove the entry for us;
+            // the search itself has to drop it
+            synchronized (indicesService.indicesRequestCache.cacheCleanupManager) {
+                indicesService.loadIntoContext(request, context, queryPhase);
+                assertEquals(0, indicesService.indicesRequestCache.count());
+            }
+        } finally {
+            indicesService.setRequestCacheEnabled(true);
+        }
+    }
+
+    public void testCanCacheRequestCacheDisabled() {
+        final IndexService indexService = createIndex("test");
+        IndicesService indicesService = getIndicesService();
+        TestSearchContext context = getTestContext(indexService, 0);
+        setupMocksForCanCache(context, mock(DelegatingCacheHelper.class));
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
+        try {
+            for (Boolean requestCacheParam : new Boolean[] { null, true }) {
+                when(request.requestCache()).thenReturn(requestCacheParam);
+                assertTrue(indicesService.canCache(request, context));
+                // the node-wide switch overrides both the index setting and the request parameter
+                indicesService.setRequestCacheEnabled(false);
+                assertFalse(indicesService.canCache(request, context));
+                indicesService.setRequestCacheEnabled(true);
+            }
+        } finally {
+            indicesService.setRequestCacheEnabled(true);
         }
     }
 

@@ -234,16 +234,20 @@ public class ExitablePostingsEnumTests extends OpenSearchTestCase {
 
     /** Even short bitset fills must check cancellation at the next call, regardless of the scalar sampling counter. */
     public void testCancellationBetweenBitSetCalls() throws IOException {
+        final int budget = 1 << 20; // MAX_DOCS_PER_BITSET_CHECK
         Cancellation cancellation = new Cancellation();
-        BulkPostingsEnum delegate = new BulkPostingsEnum(0, 30000, 1, 256);
+        BulkPostingsEnum delegate = new BulkPostingsEnum(0, 5_000_000, 1, 256);
         PostingsEnum postings = wrap(delegate, cancellation);
-        postings.nextDoc();
-        delegate.afterBulk = () -> cancellation.cancelled = true;
-        FixedBitSet bits = new FixedBitSet(30000);
-        postings.intoBitSet(10, bits, 0);
-        expectThrows(TaskCancelledException.class, () -> postings.intoBitSet(20, bits, 0));
-        assertEquals(10, postings.docID());
-        assertEquals(1, delegate.bitSetCalls);
+        FixedBitSet bits = new FixedBitSet(5_000_000);
+
+        postings.intoBitSet(1000, bits, 0);
+        assertEquals(1, cancellation.checks);
+        postings.intoBitSet(budget, bits, 0);
+        assertEquals(1, cancellation.checks);
+        postings.intoBitSet(budget + 100, bits, 0);
+        assertEquals(2, cancellation.checks);
+        postings.intoBitSet(budget + 200, bits, 0);
+        assertEquals(2, cancellation.checks);
     }
 
     /** Preserve the first-call check and 8192-call interval across interleaved nextDoc and advance operations. */

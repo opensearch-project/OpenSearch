@@ -128,6 +128,7 @@ import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 import org.opensearch.indices.ClusterMergeSchedulerConfig;
 import org.opensearch.indices.IndexingMemoryController;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.IndicesService;
@@ -311,12 +312,14 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 FsRepository.REPOSITORIES_CHUNK_SIZE_SETTING,
                 FsRepository.REPOSITORIES_COMPRESS_SETTING,
                 FsRepository.REPOSITORIES_LOCATION_SETTING,
+                IndicesBitsetFilterCache.INDICES_BITSET_FILTER_CACHE_SIZE_SETTING,
                 IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
                 IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
                 IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,
                 IndicesQueryCache.INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR,
                 IndicesQueryCache.INDICES_QUERY_CACHE_MIN_FREQUENCY,
                 IndicesQueryCache.INDICES_QUERY_CACHE_COSTLY_MIN_FREQUENCY,
+                IndicesQueryCache.INDICES_QUERIES_CACHE_ENABLED_SETTING,
                 ClusterMergeSchedulerConfig.CLUSTER_MAX_THREAD_COUNT_SETTING,
                 ClusterMergeSchedulerConfig.CLUSTER_MAX_MERGE_COUNT_SETTING,
                 ClusterMergeSchedulerConfig.CLUSTER_AUTO_THROTTLE_SETTING,
@@ -343,6 +346,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING,
                 RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING,
                 RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING,
+                RecoverySettings.INDICES_PRIMARY_RESYNC_TIMEOUT_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,
                 RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
@@ -568,6 +572,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING,
                 IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING,
                 IndicesRequestCache.INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING,
+                IndicesRequestCache.INDICES_REQUEST_CACHE_ENABLED_SETTING,
                 HunspellService.HUNSPELL_LAZY_LOAD,
                 HunspellService.HUNSPELL_IGNORE_CASE,
                 HunspellService.HUNSPELL_DICTIONARY_OPTIONS,

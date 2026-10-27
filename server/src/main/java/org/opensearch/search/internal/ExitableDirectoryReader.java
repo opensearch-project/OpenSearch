@@ -243,6 +243,8 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         private final QueryCancellation queryCancellation;
         private int calls;
+        // docs filled since the last cancellation check. Starts at the budget so we check before the first fill.
+        private int docsSinceBitSetCheck = MAX_DOCS_PER_BITSET_CHECK;
 
         ExitablePostingsEnum(PostingsEnum in, QueryCancellation queryCancellation) {
             super(in);
@@ -277,9 +279,13 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             // Delegate to the codec's bulk implementation, but bound each call since it bypasses
             // the cancellation checks in nextDoc() and advance().
             for (int doc = in.docID(); doc < upTo; doc = in.docID()) {
-                queryCancellation.checkCancelled();
+                if (docsSinceBitSetCheck >= MAX_DOCS_PER_BITSET_CHECK) {
+                    queryCancellation.checkCancelled();
+                    docsSinceBitSetCheck = 0;
+                }
                 final int limit = (int) Math.min((long) doc + MAX_DOCS_PER_BITSET_CHECK, upTo);
                 in.intoBitSet(limit, bitSet, offset);
+                docsSinceBitSetCheck += limit - doc;
             }
         }
 

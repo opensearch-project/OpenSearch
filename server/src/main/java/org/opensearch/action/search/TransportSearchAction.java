@@ -191,6 +191,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final MetricsRegistry metricsRegistry;
 
     private TaskResourceTrackingService taskResourceTrackingService;
+    private final SearchExecutionGate searchExecutionGate;
 
     private final SearchIndexPruningService searchIndexPruningService;
 
@@ -212,7 +213,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory,
         Tracer tracer,
         TaskResourceTrackingService taskResourceTrackingService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        SearchExecutionGate searchExecutionGate
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.client = client;
@@ -240,6 +242,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             clusterService.getClusterSettings(),
             new ClusterStateFieldDomainProvider()
         );
+        this.searchExecutionGate = searchExecutionGate;
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(
@@ -472,7 +475,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final Span requestSpan = tracer.startSpan(SpanBuilder.from(task, actionName));
         try (final SpanScope spanScope = tracer.withSpanInScope(requestSpan)) {
             SearchRequestOperationsListener.CompositeListener requestOperationsListeners;
-            final ActionListener<SearchResponse> updatedListener = TraceableActionListener.create(originalListener, requestSpan, tracer);
+            ActionListener<SearchResponse> updatedListener = TraceableActionListener.create(originalListener, requestSpan, tracer);
             requestOperationsListeners = searchRequestOperationsCompositeListenerFactory.buildCompositeListener(
                 originalSearchRequest,
                 logger,
@@ -483,13 +486,46 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 originalSearchRequest,
                 taskResourceTrackingService::getTaskResourceUsageFromThreadContext
             );
-            searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
 
             // At this point either the QUERY_GROUP_ID header will be present in ThreadContext either via ActionFilter
             // or HTTP header (HTTP header will be deprecated once ActionFilter is implemented)
             if (task instanceof WorkloadGroupTask) {
                 ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
             }
+            // Every outcome, including a rejection or an unexpected admission exception, completes updatedListener, so the
+            // request span always ends.
+            searchExecutionGate.execute(
+                task,
+                originalSearchRequest,
+                updatedListener,
+                admittedListener -> proceedWithSearch(
+                    task,
+                    originalSearchRequest,
+                    searchAsyncActionProvider,
+                    admittedListener,
+                    searchRequestContext,
+                    timeProvider,
+                    requestSpan
+                )
+            );
+        }
+    }
+
+    /**
+     * Runs the search once the node's {@link SearchAdmission} admits it, or directly while admission is inactive, inline or
+     * from an asynchronous admission callback. Re-enters the request span, which may not be active on the callback's thread.
+     */
+    private void proceedWithSearch(
+        Task task,
+        SearchRequest originalSearchRequest,
+        SearchAsyncActionProvider searchAsyncActionProvider,
+        ActionListener<SearchResponse> updatedListener,
+        SearchRequestContext searchRequestContext,
+        SearchTimeProvider timeProvider,
+        Span requestSpan
+    ) {
+        try (final SpanScope ignore = tracer.withSpanInScope(requestSpan)) {
+            searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
 
             PipelinedRequest searchRequest;
             ActionListener<SearchResponse> listener;
@@ -517,13 +553,33 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 } else {
                     Rewriteable.rewriteAndFetch(
                         sr.source(),
-                        searchService.getRewriteContext(timeProvider::getAbsoluteStartMillis, searchRequest),
+                        // Parent rewrite searches on this task only when it is counted, so a nested search isn't charged twice.
+                        searchService.getRewriteContext(
+                            timeProvider::getAbsoluteStartMillis,
+                            searchRequest,
+                            isThrottleCounted(task) ? localTaskId(task) : TaskId.EMPTY_TASK_ID
+                        ),
                         rewriteListener
                     );
                 }
             }, listener::onFailure);
-            searchRequest.transformRequest(requestTransformListener);
+            try {
+                searchRequest.transformRequest(requestTransformListener);
+            } catch (Exception e) {
+                // Same listener as the async failure path; it wraps updatedListener, so the permit is still released.
+                listener.onFailure(e);
+            }
         }
+    }
+
+    /** Whether {@code task}'s work is accounted for against a throttle bucket, so a nested search can inherit it. */
+    private static boolean isThrottleCounted(final Task task) {
+        return task instanceof WorkloadGroupTask && ((WorkloadGroupTask) task).isThrottleCounted();
+    }
+
+    /** A {@link TaskId} addressing {@code task} on this node. */
+    private TaskId localTaskId(final Task task) {
+        return new TaskId(clusterService.localNode().getId(), task.getId());
     }
 
     private Task extractParentTask(final SearchRequest searchRequest) {
