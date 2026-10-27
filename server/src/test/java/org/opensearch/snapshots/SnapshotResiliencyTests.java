@@ -252,7 +252,6 @@ import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.AdminClient;
 import org.opensearch.transport.client.node.NodeClient;
-import org.opensearch.wlm.WorkloadGroupService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -2415,8 +2414,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         NoopTracer.INSTANCE,
                         new TaskResourceTrackingService(settings, clusterSettings, threadPool),
                         mockIndicesService,
-                        SearchExecutionGate.NOOP,
-                        mock(WorkloadGroupService.class)
+                        SearchExecutionGate.NOOP
                     )
                 );
                 actions.put(

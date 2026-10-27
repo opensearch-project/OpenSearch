@@ -35,6 +35,7 @@ import java.util.function.BooleanSupplier;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -70,11 +71,45 @@ public class WorkloadGroupSearchAdmissionTests extends OpenSearchTestCase {
         admission = new WorkloadGroupSearchAdmission(workloadGroupService, clusterService, taskManager);
     }
 
-    public void testIsActiveFollowsWhetherThrottlingIsActive() {
-        when(workloadGroupService.isThrottlingActive()).thenReturn(true);
+    public void testIsActiveFollowsWhetherSearchAdmissionIsActive() {
+        when(workloadGroupService.isSearchAdmissionActive()).thenReturn(true);
         assertTrue(admission.isActive());
-        when(workloadGroupService.isThrottlingActive()).thenReturn(false);
+        when(workloadGroupService.isSearchAdmissionActive()).thenReturn(false);
         assertFalse(admission.isActive());
+    }
+
+    public void testResourceLimitRejectionFailsBeforeTheThrottle() {
+        OpenSearchRejectedExecutionException rejection = new OpenSearchRejectedExecutionException("contended");
+        doThrow(rejection).when(workloadGroupService).rejectIfNeeded(any());
+        SearchTask task = searchTask(TaskId.EMPTY_TASK_ID);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        admission.admit(task, new SearchRequest(), ActionListener.wrap(p -> fail("must not admit"), failure::set));
+        assertSame(rejection, failure.get());
+        // A rejected request must not take a throttle permit, and must not later count as a completion.
+        verify(workloadGroupService, never()).acquireThrottlePermit(any(), any(), any());
+        assertTrue(task.isAdmissionRejected());
+    }
+
+    public void testAnUnexpectedResourceLimitErrorFailsOpen() {
+        doThrow(new IllegalStateException("boom")).when(workloadGroupService).rejectIfNeeded(any());
+        SearchTask task = searchTask(TaskId.EMPTY_TASK_ID);
+        AtomicReference<Releasable> permit = admit(task, new SearchRequest());
+        serviceListener.get().onResponse(null);
+        assertSame(SearchAdmission.NOOP_PERMIT, permit.get());
+        assertFalse(task.isAdmissionRejected());
+    }
+
+    public void testScrollPageSkipsTheResourceLimitCheck() {
+        doThrow(new OpenSearchRejectedExecutionException("contended")).when(workloadGroupService).rejectIfNeeded(any());
+        admit(searchTask(TaskId.EMPTY_TASK_ID), new SearchScrollRequest("scroll-id"));
+        verify(workloadGroupService, never()).rejectIfNeeded(any());
+        verify(workloadGroupService).acquireThrottlePermit(any(), any(), any());
+    }
+
+    public void testCreatePitSkipsTheResourceLimitCheck() {
+        SearchTask createPit = new SearchTask(1, "transport", CreatePitAction.NAME, () -> "test", TaskId.EMPTY_TASK_ID, Map.of());
+        admit(createPit, new SearchRequest());
+        verify(workloadGroupService, never()).rejectIfNeeded(any());
     }
 
     public void testAdmitsATaskOutsideWorkloadManagementWithoutACharge() {
@@ -98,19 +133,20 @@ public class WorkloadGroupSearchAdmissionTests extends OpenSearchTestCase {
 
     public void testPassesThroughAPermitAndARejection() {
         Releasable charged = () -> {};
-        AtomicReference<Releasable> permit = admit(searchTask(TaskId.EMPTY_TASK_ID), new SearchRequest());
+        SearchTask admitted = searchTask(TaskId.EMPTY_TASK_ID);
+        AtomicReference<Releasable> permit = admit(admitted, new SearchRequest());
         serviceListener.get().onResponse(charged);
         assertSame(charged, permit.get());
+        assertFalse(admitted.isAdmissionRejected());
 
         OpenSearchRejectedExecutionException rejection = new OpenSearchRejectedExecutionException("throttled");
         AtomicReference<Exception> failure = new AtomicReference<>();
-        admission.admit(
-            searchTask(TaskId.EMPTY_TASK_ID),
-            new SearchRequest(),
-            ActionListener.wrap(p -> fail("must not admit"), failure::set)
-        );
+        SearchTask throttled = searchTask(TaskId.EMPTY_TASK_ID);
+        admission.admit(throttled, new SearchRequest(), ActionListener.wrap(p -> fail("must not admit"), failure::set));
         serviceListener.get().onFailure(rejection);
         assertSame(rejection, failure.get());
+        // A throttled request never ran, so it must not count as a completion.
+        assertTrue(throttled.isAdmissionRejected());
     }
 
     public void testSearchInheritsACountedLocalParentsCharge() {

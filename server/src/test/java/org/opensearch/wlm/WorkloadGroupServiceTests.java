@@ -128,6 +128,22 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         assertFalse("the throttled group was deleted", workloadGroupService.isThrottlingActive());
     }
 
+    public void testIsSearchAdmissionActiveFollowsWorkloadGroupsAndWlmMode() {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        assertFalse("no cluster state applied yet", workloadGroupService.isSearchAdmissionActive());
+
+        WorkloadGroup unthrottled = throttledGroup("wg-1", Settings.EMPTY);
+        applyWorkloadGroups(Map.of(), Map.of("wg-1", unthrottled));
+        assertTrue("a group without throttling can still reject on resource limits", workloadGroupService.isSearchAdmissionActive());
+        assertFalse(workloadGroupService.isThrottlingActive());
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.MONITOR_ONLY);
+        assertFalse("admission only applies in enabled mode", workloadGroupService.isSearchAdmissionActive());
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+
+        applyWorkloadGroups(Map.of("wg-1", unthrottled), Map.of());
+        assertFalse("the last group was deleted", workloadGroupService.isSearchAdmissionActive());
+    }
+
     private void applyWorkloadGroups(Map<String, WorkloadGroup> previous, Map<String, WorkloadGroup> current) {
         ClusterChangedEvent event = Mockito.mock(ClusterChangedEvent.class);
         ClusterState previousState = Mockito.mock(ClusterState.class);
@@ -548,6 +564,13 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         ((WorkloadGroupTask) task).setWorkloadGroupId(mockThreadPool.getThreadContext());
         workloadGroupService.onTaskCompleted(task);
 
+        assertEquals(1, workloadGroupState.totalCompletions.count());
+
+        // A task refused by search admission never ran, so it is not a completion.
+        WorkloadGroupTask rejected = new SearchTask(13, "", "", () -> "", null, null);
+        rejected.setWorkloadGroupId(mockThreadPool.getThreadContext());
+        rejected.markAdmissionRejected();
+        workloadGroupService.onTaskCompleted(rejected);
         assertEquals(1, workloadGroupState.totalCompletions.count());
 
         // test non WorkloadGroupTask
