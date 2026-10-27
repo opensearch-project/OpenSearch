@@ -1317,10 +1317,10 @@ public class Node implements Closeable {
                 workloadGroupService,
                 threadPool
             );
-            // Applies a workload group's search.cancel_after_time_interval to the coordinator's cancellation timer, which the search
-            // actions arm before the listener above runs; they depend only on the core interface.
+            // Applies a workload group's search.cancel_after_time_interval, which the search actions decide before admission, before the
+            // listener above runs, for both their cancellation timer and the request; they depend only on the core interface.
             final SearchCancelAfterTimeIntervalResolver searchCancelAfterTimeIntervalResolver =
-                new WorkloadGroupSearchCancelAfterTimeIntervalResolver(workloadGroupService, threadPool);
+                new WorkloadGroupSearchCancelAfterTimeIntervalResolver(workloadGroupService);
 
             // register all standard SearchRequestOperationsCompositeListenerFactory to the SearchRequestOperationsCompositeListenerFactory
             final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =

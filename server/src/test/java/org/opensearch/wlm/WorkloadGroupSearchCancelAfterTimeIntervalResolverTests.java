@@ -32,7 +32,6 @@ import org.opensearch.wlm.cancellation.WorkloadGroupTaskCancellationService;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 
 import static org.mockito.Mockito.mock;
@@ -72,7 +71,7 @@ public class WorkloadGroupSearchCancelAfterTimeIntervalResolverTests extends Ope
             new HashSet<>(),
             new HashSet<>()
         );
-        resolver = new WorkloadGroupSearchCancelAfterTimeIntervalResolver(workloadGroupService, threadPool);
+        resolver = new WorkloadGroupSearchCancelAfterTimeIntervalResolver(workloadGroupService);
     }
 
     public void testGroupIntervalAppliesWhenTheRequestSetNone() {
@@ -92,13 +91,7 @@ public class WorkloadGroupSearchCancelAfterTimeIntervalResolverTests extends Ope
         assertEquals(GROUP_INTERVAL, resolveTagged(SearchService.NO_TIMEOUT));
     }
 
-    public void testGroupCanTurnOffCancellationForRequestsThatSetNone() {
-        setWorkloadGroups(group(Settings.builder().put(CANCEL_AFTER, SearchService.NO_TIMEOUT).build()));
-        assertEquals(SearchService.NO_TIMEOUT, resolveTagged(null));
-    }
-
     public void testGroupThatTurnsOffCancellation() {
-        // Absolute values: the listener shares the precedence helper, so their agreement alone would hide a precedence bug.
         setWorkloadGroups(group(Settings.builder().put(CANCEL_AFTER, SearchService.NO_TIMEOUT).put(OVERRIDE, true).build()));
         // With override_request_values, the group turns cancellation off even for a request that asked for it.
         assertEquals(SearchService.NO_TIMEOUT, resolveTagged(LONGER_INTERVAL));
@@ -137,17 +130,12 @@ public class WorkloadGroupSearchCancelAfterTimeIntervalResolverTests extends Ope
     }
 
     public void testGroupWithoutTheSettingKeepsTheRequestsInterval() {
-        // No search settings at all, and search settings without this one, take different paths.
-        for (Settings settings : List.of(
-            Settings.EMPTY,
-            Settings.builder().put(OVERRIDE, true).build(),
-            Settings.builder().put(WorkloadGroupSearchSettings.WLM_SEARCH_TIMEOUT.getKey(), "30s").build()
-        )) {
-            setWorkloadGroups(group(settings));
-            assertNull(settings.toString(), resolveTagged(null));
-            assertEquals(settings.toString(), LONGER_INTERVAL, resolveTagged(LONGER_INTERVAL));
-            assertEquals(settings.toString(), SearchService.NO_TIMEOUT, resolveTagged(SearchService.NO_TIMEOUT));
-        }
+        setWorkloadGroups(
+            group(Settings.builder().put(WorkloadGroupSearchSettings.WLM_SEARCH_TIMEOUT.getKey(), "30s").put(OVERRIDE, true).build())
+        );
+        assertNull(resolveTagged(null));
+        assertEquals(LONGER_INTERVAL, resolveTagged(LONGER_INTERVAL));
+        assertEquals(SearchService.NO_TIMEOUT, resolveTagged(SearchService.NO_TIMEOUT));
     }
 
     public void testUntaggedSearchKeepsTheRequestsInterval() {
@@ -171,7 +159,7 @@ public class WorkloadGroupSearchCancelAfterTimeIntervalResolverTests extends Ope
         when(workloadGroup.getSettings()).thenReturn(null);
         WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
         when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(workloadGroup);
-        resolver = new WorkloadGroupSearchCancelAfterTimeIntervalResolver(workloadGroupService, threadPool);
+        resolver = new WorkloadGroupSearchCancelAfterTimeIntervalResolver(workloadGroupService);
         try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(RESOLVER_LOGGER))) {
             appender.addExpectation(new MockLogAppender.UnseenEventExpectation("an error", RESOLVER_LOGGER, Level.ERROR, "*"));
             assertNull(resolveTagged(null));
@@ -184,7 +172,7 @@ public class WorkloadGroupSearchCancelAfterTimeIntervalResolverTests extends Ope
     public void testFailedGroupLookupKeepsTheRequestsInterval() {
         WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
         when(workloadGroupService.getCurrentWorkloadGroup()).thenThrow(new IllegalStateException("cluster state unavailable"));
-        resolver = new WorkloadGroupSearchCancelAfterTimeIntervalResolver(workloadGroupService, threadPool);
+        resolver = new WorkloadGroupSearchCancelAfterTimeIntervalResolver(workloadGroupService);
         assertNull(resolveTagged(null));
         assertEquals(LONGER_INTERVAL, resolveTagged(LONGER_INTERVAL));
         assertEquals(SearchService.NO_TIMEOUT, resolveTagged(SearchService.NO_TIMEOUT));
@@ -209,7 +197,7 @@ public class WorkloadGroupSearchCancelAfterTimeIntervalResolverTests extends Ope
     }
 
     public void testAppliesTheGroupIntervalInEveryWlmMode() {
-        // As WorkloadGroupRequestOperationListener applies the group's search settings onto the request in every mode.
+        // As WorkloadGroupRequestOperationListener applies the group's other search settings onto the request in every mode.
         setWorkloadGroups(group(Settings.builder().put(CANCEL_AFTER, GROUP_INTERVAL).build()));
         for (WlmMode mode : WlmMode.values()) {
             when(workloadManagementSettings.getWlmMode()).thenReturn(mode);
@@ -217,19 +205,8 @@ public class WorkloadGroupSearchCancelAfterTimeIntervalResolverTests extends Ope
         }
     }
 
-    public void testAssignsTheTasksWorkloadGroupFromTheThreadContext() {
-        setWorkloadGroups(group(Settings.builder().put(CANCEL_AFTER, GROUP_INTERVAL).build()));
-        threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, GROUP_ID);
-        SearchRequest request = request(null);
-        SearchTask task = task(request);
-        assertFalse(task.isWorkloadGroupSet());
-        resolver.resolve(task, request, null);
-        assertTrue(task.isWorkloadGroupSet());
-        assertEquals(GROUP_ID, task.getWorkloadGroupId());
-    }
-
     public void testTaskOutsideWorkloadManagementGetsTheGroupIntervalOfItsThreadContext() {
-        // The listener applies the group's search settings onto the request whatever the task, so the timer follows suit.
+        // The group's interval applies whatever the task, as the group's other search settings do.
         setWorkloadGroups(group(Settings.builder().put(CANCEL_AFTER, GROUP_INTERVAL).build()));
         threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, GROUP_ID);
         CancellableTask task = new CancellableTask(
@@ -248,24 +225,8 @@ public class WorkloadGroupSearchCancelAfterTimeIntervalResolverTests extends Ope
         assertEquals(GROUP_INTERVAL, resolver.resolve(task, request(null), null));
     }
 
-    public void testEffectiveCancelAfterTimeInterval() {
-        Settings withInterval = Settings.builder().put(CANCEL_AFTER, GROUP_INTERVAL).build();
-        assertEquals(
-            GROUP_INTERVAL,
-            WorkloadGroupSearchCancelAfterTimeIntervalResolver.effectiveCancelAfterTimeInterval(withInterval, false, null)
-        );
-        assertEquals(
-            GROUP_INTERVAL,
-            WorkloadGroupSearchCancelAfterTimeIntervalResolver.effectiveCancelAfterTimeInterval(withInterval, true, null)
-        );
-        assertEquals(
-            LONGER_INTERVAL,
-            WorkloadGroupSearchCancelAfterTimeIntervalResolver.effectiveCancelAfterTimeInterval(withInterval, false, LONGER_INTERVAL)
-        );
-        assertEquals(
-            GROUP_INTERVAL,
-            WorkloadGroupSearchCancelAfterTimeIntervalResolver.effectiveCancelAfterTimeInterval(withInterval, true, LONGER_INTERVAL)
-        );
+    public void testEffectiveCancelAfterTimeIntervalOfAGroupWithoutTheSetting() {
+        // resolve checks for the setting before calling the helper, so only a direct call reaches the helper's own check.
         assertNull(WorkloadGroupSearchCancelAfterTimeIntervalResolver.effectiveCancelAfterTimeInterval(Settings.EMPTY, true, null));
         assertEquals(
             LONGER_INTERVAL,

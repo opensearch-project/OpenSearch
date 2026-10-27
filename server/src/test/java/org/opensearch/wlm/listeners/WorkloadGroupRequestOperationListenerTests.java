@@ -8,10 +8,8 @@
 
 package org.opensearch.wlm.listeners;
 
-import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchRequestContext;
-import org.opensearch.action.search.SearchTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WorkloadGroup;
@@ -20,14 +18,12 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.core.tasks.TaskId;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.ResourceType;
-import org.opensearch.wlm.WorkloadGroupSearchCancelAfterTimeIntervalResolver;
 import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupTask;
 import org.opensearch.wlm.WorkloadGroupsStateAccessor;
@@ -375,30 +371,30 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
         assertNull(mockSearchRequest.source()); // Should not throw, source remains null
     }
 
-    public void testApplySearchSettings_CancelAfterTimeInterval_WlmAppliedWhenNull() {
-        assertNull(mockSearchRequest.getCancelAfterTimeInterval());
-
+    public void testApplySearchSettings_CancelAfterTimeInterval_LeftToTransportSearchAction() {
+        // TransportSearchAction#doExecute applies the group's interval before admission, so this listener leaves the request's alone.
         String wgId = "test-wg";
-        WorkloadGroup wg = createWorkloadGroup(wgId, Settings.builder().put("search.cancel_after_time_interval", "30s").build());
-        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
+        for (String groupInterval : Arrays.asList("30s", "-1")) {
+            for (boolean override : new boolean[] { false, true }) {
+                for (TimeValue requested : Arrays.asList(null, TimeValue.timeValueSeconds(10), TimeValue.MINUS_ONE)) {
+                    WorkloadGroup wg = createWorkloadGroup(
+                        wgId,
+                        Settings.builder()
+                            .put("search.cancel_after_time_interval", groupInterval)
+                            .put("override_request_values", override)
+                            .build()
+                    );
+                    when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
+                    mockSearchRequest.setCancelAfterTimeInterval(requested);
 
-        sut.onRequestStart(mockSearchRequestContext);
+                    sut.onRequestStart(mockSearchRequestContext);
 
-        assertEquals(TimeValue.timeValueSeconds(30), mockSearchRequest.getCancelAfterTimeInterval());
-    }
-
-    public void testApplySearchSettings_CancelAfterTimeInterval_RequestAlreadySet() {
-        mockSearchRequest.setCancelAfterTimeInterval(TimeValue.timeValueSeconds(10));
-
-        String wgId = "test-wg";
-        WorkloadGroup wg = createWorkloadGroup(wgId, Settings.builder().put("search.cancel_after_time_interval", "30s").build());
-        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
-        testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
-
-        sut.onRequestStart(mockSearchRequestContext);
-
-        assertEquals(TimeValue.timeValueSeconds(10), mockSearchRequest.getCancelAfterTimeInterval()); // Request value preserved
+                    String cell = "group [" + groupInterval + "], override [" + override + "], request [" + requested + "]";
+                    assertSame(cell, requested, mockSearchRequest.getCancelAfterTimeInterval());
+                }
+            }
+        }
     }
 
     public void testApplySearchSettings_MaxConcurrentShardRequests_WlmAppliedWhenDefault() {
@@ -478,9 +474,9 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
 
         sut.onRequestStart(mockSearchRequestContext);
 
-        // All values should be overridden by WLM settings
+        // All values should be overridden by WLM settings, except the interval, which TransportSearchAction applies
         assertEquals(TimeValue.timeValueMinutes(1), mockSearchRequest.source().timeout());
-        assertEquals(TimeValue.timeValueMinutes(2), mockSearchRequest.getCancelAfterTimeInterval());
+        assertEquals(TimeValue.timeValueSeconds(10), mockSearchRequest.getCancelAfterTimeInterval());
         assertEquals(3, mockSearchRequest.getMaxConcurrentShardRequests());
         assertEquals(256, mockSearchRequest.getBatchedReduceSize());
     }
@@ -534,7 +530,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
         sut.onRequestStart(mockSearchRequestContext);
 
         assertEquals(TimeValue.timeValueSeconds(30), mockSearchRequest.source().timeout());
-        assertEquals(TimeValue.timeValueMinutes(1), mockSearchRequest.getCancelAfterTimeInterval());
+        assertNull(mockSearchRequest.getCancelAfterTimeInterval()); // TransportSearchAction applies it
         assertEquals(5, mockSearchRequest.getMaxConcurrentShardRequests());
         assertEquals(100, mockSearchRequest.getBatchedReduceSize());
     }
@@ -584,110 +580,12 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
 
         sut.onRequestStart(mockSearchRequestContext);
 
-        // WLM values applied (override=true, but nothing to override - same result as override=false)
+        // WLM values applied (override=true, but nothing to override - same result as override=false), except the interval,
+        // which TransportSearchAction applies
         assertEquals(TimeValue.timeValueMinutes(1), mockSearchRequest.source().timeout());
-        assertEquals(TimeValue.timeValueMinutes(2), mockSearchRequest.getCancelAfterTimeInterval());
+        assertNull(mockSearchRequest.getCancelAfterTimeInterval());
         assertEquals(3, mockSearchRequest.getMaxConcurrentShardRequests());
         assertEquals(256, mockSearchRequest.getBatchedReduceSize());
-    }
-
-    public void testCancelAfterTimeIntervalWrittenOntoTheRequestMatchesTheCoordinatorTimer() {
-        // The coordinator arms its cancellation timer with the resolver's interval before this listener runs.
-        WorkloadGroupSearchCancelAfterTimeIntervalResolver resolver = new WorkloadGroupSearchCancelAfterTimeIntervalResolver(
-            workloadGroupService,
-            testThreadPool
-        );
-        String wgId = "test-wg";
-        for (String groupInterval : Arrays.asList(null, "30s", "-1", "not-a-time-value")) {
-            for (String override : Arrays.asList(null, "false", "true", "not-a-boolean")) {
-                for (TimeValue requested : Arrays.asList(null, TimeValue.timeValueSeconds(10), TimeValue.MINUS_ONE)) {
-                    Settings.Builder searchSettings = Settings.builder();
-                    if (groupInterval != null) {
-                        searchSettings.put("search.cancel_after_time_interval", groupInterval);
-                    }
-                    if (override != null) {
-                        searchSettings.put("override_request_values", override);
-                    }
-                    // Unvalidated, so that a malformed interval can reach both.
-                    WorkloadGroup wg = new WorkloadGroup(
-                        "test-name",
-                        wgId,
-                        new MutableWorkloadGroupFragment(
-                            MutableWorkloadGroupFragment.ResiliencyMode.SOFT,
-                            Map.of(ResourceType.MEMORY, 0.5),
-                            searchSettings.build(),
-                            Settings.EMPTY,
-                            false
-                        ),
-                        System.currentTimeMillis()
-                    );
-                    when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(wg);
-                    SearchRequest request = new SearchRequest();
-                    request.setCancelAfterTimeInterval(requested);
-                    SearchRequestContext context = mock(SearchRequestContext.class);
-                    when(context.getRequest()).thenReturn(request);
-                    SearchTask task = request.createTask(1, "transport", SearchAction.NAME, TaskId.EMPTY_TASK_ID, Collections.emptyMap());
-                    String cell = "group [" + groupInterval + "], override [" + override + "], request [" + requested + "]";
-                    try (ThreadContext.StoredContext ignored = testThreadPool.getThreadContext().stashContext()) {
-                        testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
-                        TimeValue timer = resolver.resolve(task, request, requested);
-                        boolean threw = false;
-                        try {
-                            sut.onRequestStart(context);
-                        } catch (IllegalArgumentException e) {
-                            // CompositeListener logs and swallows it, so the search runs with the request unchanged.
-                            threw = true;
-                        }
-                        assertEquals(cell + ": only a malformed override_request_values throws", "not-a-boolean".equals(override), threw);
-                        assertEquals(cell, timer, request.getCancelAfterTimeInterval());
-                    }
-                }
-            }
-        }
-    }
-
-    public void testRejectedSearchKeepsItsIntervalWhileTheCoordinatorTimerTakesTheGroups() {
-        // Documents a divergence: when the coordinator rejection check throws (CompositeListener logs and swallows it), the
-        // listener writes none of the group's settings, but the coordinator already armed its timer with the group's interval.
-        String wgId = "test-wg";
-        when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(
-            createWorkloadGroup(wgId, Settings.builder().put("search.cancel_after_time_interval", "30s").build())
-        );
-        doThrow(OpenSearchRejectedExecutionException.class).when(workloadGroupService).rejectIfNeeded(wgId);
-        WorkloadGroupSearchCancelAfterTimeIntervalResolver resolver = new WorkloadGroupSearchCancelAfterTimeIntervalResolver(
-            workloadGroupService,
-            testThreadPool
-        );
-        testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
-        SearchTask task = mockSearchRequest.createTask(1, "transport", SearchAction.NAME, TaskId.EMPTY_TASK_ID, Collections.emptyMap());
-
-        assertEquals(TimeValue.timeValueSeconds(30), resolver.resolve(task, mockSearchRequest, null));
-        expectThrows(OpenSearchRejectedExecutionException.class, () -> sut.onRequestStart(mockSearchRequestContext));
-        assertNull(mockSearchRequest.getCancelAfterTimeInterval());
-    }
-
-    public void testGroupChangeAfterTheTimerIsArmedReachesOnlyTheRequest() {
-        // Documents a divergence: the listener reads the group after admission, so a change to the group, or its deletion, after
-        // the coordinator armed its timer reaches only the request.
-        String wgId = "test-wg";
-        WorkloadGroup armed = createWorkloadGroup(wgId, Settings.builder().put("search.cancel_after_time_interval", "30s").build());
-        WorkloadGroup changed = createWorkloadGroup(wgId, Settings.builder().put("search.cancel_after_time_interval", "2m").build());
-        WorkloadGroupSearchCancelAfterTimeIntervalResolver resolver = new WorkloadGroupSearchCancelAfterTimeIntervalResolver(
-            workloadGroupService,
-            testThreadPool
-        );
-        testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
-        for (WorkloadGroup atRequestStart : Arrays.asList(changed, null)) {
-            when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(armed, atRequestStart);
-            SearchRequest request = new SearchRequest();
-            SearchRequestContext context = mock(SearchRequestContext.class);
-            when(context.getRequest()).thenReturn(request);
-            SearchTask task = request.createTask(1, "transport", SearchAction.NAME, TaskId.EMPTY_TASK_ID, Collections.emptyMap());
-
-            assertEquals(TimeValue.timeValueSeconds(30), resolver.resolve(task, request, null));
-            sut.onRequestStart(context);
-            assertEquals(atRequestStart == null ? null : TimeValue.timeValueMinutes(2), request.getCancelAfterTimeInterval());
-        }
     }
 
     private WorkloadGroup createWorkloadGroup(String id, Settings searchSettings) {

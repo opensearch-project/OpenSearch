@@ -15,9 +15,9 @@ import org.opensearch.search.SearchService;
 import org.opensearch.tasks.Task;
 
 /**
- * Decides how long the coordinator lets a search run before cancelling it. {@link TransportSearchAction} consults the
- * node's resolver when it arms the search's cancellation timer, before admission, and only for a task whose cancellation
- * timeout came from the request. One per node, bound in {@code Node} and injected into the search actions.
+ * Decides a search's {@code cancel_after_time_interval}. {@link TransportSearchAction} consults the node's resolver once per
+ * search, before admission, writes the result onto the request, and arms the coordinator's cancellation timer with it unless the
+ * task's {@code createTask} chose its own timeout. One per node, bound in {@code Node} and injected into the search actions.
  *
  * @opensearch.internal
  */
@@ -29,8 +29,8 @@ public interface SearchCancelAfterTimeIntervalResolver {
     SearchCancelAfterTimeIntervalResolver NOOP = (task, request, requested) -> requested;
 
     /**
-     * Returns the interval after which the coordinator cancels the search. Called on the thread that runs the search
-     * action, with the request's thread context, so it must be cheap and must not block.
+     * Returns the search's {@code cancel_after_time_interval}. Called on the thread that runs the search action, with the
+     * request's thread context, so it must be cheap and must not block.
      * <p>
      * Implementations should not throw. An exception thrown here does not fail the search: {@link TransportSearchAction} logs
      * it and falls back to {@code requested}, the interval the search would run with under {@link #NOOP}.

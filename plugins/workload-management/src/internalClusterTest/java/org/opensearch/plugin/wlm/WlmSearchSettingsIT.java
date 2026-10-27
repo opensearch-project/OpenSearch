@@ -39,6 +39,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.TermsLookup;
 import org.opensearch.plugin.wlm.WlmNodeThrottlingIT.ScriptedBlockPlugin;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
+import org.opensearch.plugin.wlm.rule.sync.RefreshBasedSyncMechanism;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.rest.action.search.RestMultiSearchAction;
@@ -114,6 +115,15 @@ public class WlmSearchSettingsIT extends OpenSearchIntegTestCase {
         return plugins;
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        // A new rule tags searches only once the rule sync runs, so its shortest interval keeps each wait for tagging short.
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(RefreshBasedSyncMechanism.RULE_SYNC_REFRESH_INTERVAL_SETTING_NAME, 1000)
+            .build();
+    }
+
     @Before
     public void registerFeatureTypeIfMissingOnAllNodes() {
         // The registry is JVM-static but each test gets a new cluster, so re-register this cluster's feature type.
@@ -170,7 +180,7 @@ public class WlmSearchSettingsIT extends OpenSearchIntegTestCase {
             .add(client().prepareSearch(INDEX_NAME).setQuery(blockingQuery()))
             .execute();
         try {
-            List<BlockedSearch> blocked = awaitBlockedSearches(INDEX_NAME, WORKLOAD_GROUP_ID, 2);
+            List<BlockedSearch> blocked = awaitBlockedSearches(INDEX_NAME, WORKLOAD_GROUP_ID, 2, response);
             awaitCancelled(withTaskTimeout(blocked, null));
             assertOutlivesTheGroupInterval(withTaskTimeout(blocked, SearchService.NO_TIMEOUT), response);
         } finally {
@@ -192,7 +202,7 @@ public class WlmSearchSettingsIT extends OpenSearchIntegTestCase {
             .add(client().prepareSearch(INDEX_NAME).setQuery(blockingQuery()))
             .execute();
         try {
-            for (BlockedSearch blocked : awaitBlockedSearches(INDEX_NAME, WORKLOAD_GROUP_ID, 2)) {
+            for (BlockedSearch blocked : awaitBlockedSearches(INDEX_NAME, WORKLOAD_GROUP_ID, 2, response)) {
                 awaitCancelled(blocked);
             }
         } finally {
@@ -218,7 +228,7 @@ public class WlmSearchSettingsIT extends OpenSearchIntegTestCase {
         List<ScriptedBlockPlugin> plugins = enableBlocks();
         ActionFuture<MultiSearchResponse> response = client().multiSearch(request);
         try {
-            assertOutlivesTheGroupInterval(awaitBlockedSearch(INDEX_NAME, WORKLOAD_GROUP_ID), response);
+            assertOutlivesTheGroupInterval(awaitBlockedSearch(INDEX_NAME, WORKLOAD_GROUP_ID, response), response);
         } finally {
             disableBlocks(plugins);
         }
@@ -244,8 +254,8 @@ public class WlmSearchSettingsIT extends OpenSearchIntegTestCase {
             .add(client().prepareSearch(OTHER_INDEX_NAME).setQuery(blockingQuery()))
             .execute();
         try {
-            BlockedSearch inGroup = awaitBlockedSearch(INDEX_NAME, WORKLOAD_GROUP_ID);
-            BlockedSearch inOtherGroup = awaitBlockedSearch(OTHER_INDEX_NAME, OTHER_WORKLOAD_GROUP_ID);
+            BlockedSearch inGroup = awaitBlockedSearch(INDEX_NAME, WORKLOAD_GROUP_ID, response);
+            BlockedSearch inOtherGroup = awaitBlockedSearch(OTHER_INDEX_NAME, OTHER_WORKLOAD_GROUP_ID, response);
             awaitCancelled(inGroup);
             assertOutlivesTheGroupInterval(inOtherGroup, response);
         } finally {
@@ -270,13 +280,20 @@ public class WlmSearchSettingsIT extends OpenSearchIntegTestCase {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource(Map.of("field", "value")).get();
         }
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
-        // The block is released, so the initial search runs through.
-        String scrollId = client().prepareSearch(INDEX_NAME).setScroll(TIMEOUT).setSize(1).setQuery(blockingQuery()).get().getScrollId();
+        // The block is released, so the initial search runs through. It runs in a group without an interval, so it can't be cancelled
+        // on a slow machine; the page is still tagged to this test's group, by the rule, through the scroll's indices.
+        createWorkloadGroup(OTHER_WORKLOAD_GROUP_ID, Settings.EMPTY);
+        String scrollId = groupClient(OTHER_WORKLOAD_GROUP_ID).prepareSearch(INDEX_NAME)
+            .setScroll(TIMEOUT)
+            .setSize(1)
+            .setQuery(blockingQuery())
+            .get()
+            .getScrollId();
         try {
             List<ScriptedBlockPlugin> plugins = enableBlocks();
             ActionFuture<SearchResponse> page = client().prepareSearchScroll(scrollId).setScroll(TIMEOUT).execute();
             try {
-                BlockedSearch blocked = awaitBlockedScrollPage(scrollId);
+                BlockedSearch blocked = awaitBlockedScrollPage(scrollId, page);
                 assertEquals("the scroll page must run in the workload group", WORKLOAD_GROUP_ID, blocked.task().getWorkloadGroupId());
                 assertOutlivesTheGroupInterval(blocked, page);
             } finally {
@@ -317,13 +334,32 @@ public class WlmSearchSettingsIT extends OpenSearchIntegTestCase {
             .setQuery(QueryBuilders.termsLookupQuery("field", lookup))
             .execute();
         try {
-            BlockedSearch nested = awaitBlockedSearch(LOOKUP_INDEX_NAME, WORKLOAD_GROUP_ID);
+            BlockedSearch nested = awaitBlockedSearch(LOOKUP_INDEX_NAME, WORKLOAD_GROUP_ID, response);
             assertFalse("the nested search must not be a child of the outer one", nested.task().getParentTaskId().isSet());
             awaitCancelled(nested);
         } finally {
             disableBlocks(plugins);
         }
         assertFailedAsCancelled(expectThrows(Exception.class, () -> response.actionGet(TIMEOUT)));
+    }
+
+    public void testNestedRewriteSearchTakesTheOuterSearchsInterval() throws Exception {
+        createWorkloadGroupForIndex(Settings.builder().put(CANCEL_AFTER_TIME_INTERVAL, GROUP_CANCEL_AFTER).build());
+        indexDocument(LOOKUP_INDEX_NAME);
+        // Without override_request_values, the outer request's -1 beats the group's interval. The nested search runs with the outer
+        // search's interval as its own, so the group's interval doesn't cancel it, nor, through it, the outer search.
+        TermsLookup lookup = new TermsLookup(LOOKUP_INDEX_NAME, null, "field", blockingQuery());
+        List<ScriptedBlockPlugin> plugins = enableBlocks();
+        ActionFuture<SearchResponse> response = client().prepareSearch(INDEX_NAME)
+            .setCancelAfterTimeInterval(SearchService.NO_TIMEOUT)
+            .setQuery(QueryBuilders.termsLookupQuery("field", lookup))
+            .execute();
+        try {
+            assertOutlivesTheGroupInterval(awaitBlockedSearch(LOOKUP_INDEX_NAME, WORKLOAD_GROUP_ID, response), response);
+        } finally {
+            disableBlocks(plugins);
+        }
+        assertEquals(0, response.actionGet(TIMEOUT).getFailedShards());
     }
 
     public void testHeaderAssignsTheGroupWithoutARule() throws Exception {
@@ -353,7 +389,7 @@ public class WlmSearchSettingsIT extends OpenSearchIntegTestCase {
             INDEX_NAME,
             WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get()
         );
-        // Neither the resolver nor the listener checks the mode, so a header still applies the group's interval.
+        // The resolver doesn't check the mode, so a header still applies the group's interval.
         assertCancelledByGroup(groupClient(WORKLOAD_GROUP_ID).prepareSearch(INDEX_NAME));
     }
 
@@ -378,14 +414,16 @@ public class WlmSearchSettingsIT extends OpenSearchIntegTestCase {
     // Helpers
 
     /**
-     * Creates the workload group with {@code searchSettings} and a rule that assigns searches on {@link #INDEX_NAME} to it, indexes
-     * a document, and waits until searches are tagged to the group.
+     * Creates the workload group and a rule that assigns searches on {@link #INDEX_NAME} to it, indexes a document, waits until
+     * searches are tagged to the group, and only then gives the group {@code searchSettings}, so that the searches that probe the
+     * tagging can't be cancelled by the group's short interval on a slow machine.
      */
     private void createWorkloadGroupForIndex(Settings searchSettings) throws Exception {
         setWlmMode("enabled");
-        createWorkloadGroup(WORKLOAD_GROUP_ID, searchSettings);
+        createWorkloadGroup(WORKLOAD_GROUP_ID, Settings.EMPTY);
         indexDocument(INDEX_NAME);
         createRuleAndAwaitTagging("wlm_cancel_after_rule", INDEX_NAME, WORKLOAD_GROUP_ID);
+        createWorkloadGroup(WORKLOAD_GROUP_ID, searchSettings);
     }
 
     private void createWorkloadGroup(String workloadGroupId, Settings searchSettings) throws InterruptedException {
@@ -426,7 +464,7 @@ public class WlmSearchSettingsIT extends OpenSearchIntegTestCase {
         List<ScriptedBlockPlugin> plugins = enableBlocks();
         ActionFuture<SearchResponse> response = search.setQuery(blockingQuery()).execute();
         try {
-            awaitCancelled(awaitBlockedSearch(INDEX_NAME, WORKLOAD_GROUP_ID));
+            awaitCancelled(awaitBlockedSearch(INDEX_NAME, WORKLOAD_GROUP_ID, response));
         } finally {
             disableBlocks(plugins);
         }
@@ -446,7 +484,7 @@ public class WlmSearchSettingsIT extends OpenSearchIntegTestCase {
         List<ScriptedBlockPlugin> plugins = enableBlocks();
         ActionFuture<SearchResponse> response = search.setQuery(blockingQuery()).execute();
         try {
-            assertOutlivesTheGroupInterval(awaitBlockedSearch(indexName, workloadGroupId), response);
+            assertOutlivesTheGroupInterval(awaitBlockedSearch(indexName, workloadGroupId, response), response);
         } finally {
             disableBlocks(plugins);
         }
@@ -477,6 +515,15 @@ public class WlmSearchSettingsIT extends OpenSearchIntegTestCase {
         assertFalse("the search must still be blocked on its shard", response.isDone());
     }
 
+    /** Fails at once, with the search's own failure when it has one, if {@code response} has completed. */
+    private static void assertStillRunning(ActionFuture<?> response) {
+        if (response.isDone()) {
+            // assertBusy retries only assertion errors, so the search's failure, or this, ends the wait at once.
+            response.actionGet();
+            throw new IllegalStateException("the search completed before it reached its shard");
+        }
+    }
+
     private static void assertFailedAsCancelled(Exception e) {
         assertNotNull("expected the search to fail", e);
         assertNotNull("expected the search to fail as cancelled but got: " + e, ExceptionsHelper.unwrap(e, TaskCancelledException.class));
@@ -496,15 +543,20 @@ public class WlmSearchSettingsIT extends OpenSearchIntegTestCase {
     }
 
     /** The search on {@code indexName}, once its query has reached the shard, where it blocks; it must run in the group. */
-    private BlockedSearch awaitBlockedSearch(String indexName, String workloadGroupId) throws Exception {
-        return awaitBlockedSearches(indexName, workloadGroupId, 1).get(0);
+    private BlockedSearch awaitBlockedSearch(String indexName, String workloadGroupId, ActionFuture<?> response) throws Exception {
+        return awaitBlockedSearches(indexName, workloadGroupId, 1, response).get(0);
     }
 
-    /** The {@code count} searches on {@code indexName}, once their queries have reached the shard, where they block. */
-    private List<BlockedSearch> awaitBlockedSearches(String indexName, String workloadGroupId, int count) throws Exception {
+    /**
+     * The {@code count} searches on {@code indexName}, once their queries have reached the shard, where they block. Fails at once if
+     * {@code response}, which the searches complete, completes first.
+     */
+    private List<BlockedSearch> awaitBlockedSearches(String indexName, String workloadGroupId, int count, ActionFuture<?> response)
+        throws Exception {
         TaskManager taskManager = internalCluster().getInstance(TransportService.class).getTaskManager();
         List<BlockedSearch> blocked = new ArrayList<>();
         assertBusy(() -> {
+            assertStillRunning(response);
             blocked.clear();
             for (Task task : taskManager.getTasks().values()) {
                 if (task instanceof SearchShardTask shardTask && task.getDescription().contains("[" + indexName + "]")) {
@@ -532,11 +584,15 @@ public class WlmSearchSettingsIT extends OpenSearchIntegTestCase {
         return matching.get(0);
     }
 
-    /** The page of the scroll {@code scrollId}, once its query has reached the shard, where it blocks. */
-    private BlockedSearch awaitBlockedScrollPage(String scrollId) throws Exception {
+    /**
+     * The page of the scroll {@code scrollId}, once its query has reached the shard, where it blocks. Fails at once if {@code response},
+     * which the page completes, completes first.
+     */
+    private BlockedSearch awaitBlockedScrollPage(String scrollId, ActionFuture<?> response) throws Exception {
         TaskManager taskManager = internalCluster().getInstance(TransportService.class).getTaskManager();
         AtomicReference<BlockedSearch> blocked = new AtomicReference<>();
         assertBusy(() -> {
+            assertStillRunning(response);
             for (Task task : taskManager.getTasks().values()) {
                 if (task instanceof SearchShardTask shardTask
                     && taskManager.getTask(shardTask.getParentTaskId().getId()) instanceof SearchTask page

@@ -141,7 +141,6 @@ import org.opensearch.wlm.WorkloadGroupTask;
 import org.opensearch.wlm.WorkloadGroupsStateAccessor;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.opensearch.wlm.cancellation.WorkloadGroupTaskCancellationService;
-import org.opensearch.wlm.listeners.WorkloadGroupRequestOperationListener;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1261,55 +1260,35 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         assertNotSame(boom, failure.get());
     }
 
-    public void testResolverDecidesTheCancelAfterTimeIntervalOfARequestDerivedTimeout() {
+    public void testResolverDecidesTheCancelAfterTimeInterval() {
         SearchRequest request = new SearchRequest("index");
         TimeValue requested = randomFrom(TimeValue.timeValueHours(1), SearchService.NO_TIMEOUT, null);
         request.setCancelAfterTimeInterval(requested);
         SearchTask task = request.createTask(1, "transport", SearchAction.NAME, TaskId.EMPTY_TASK_ID, Collections.emptyMap());
         TimeValue resolved = randomFrom(TimeValue.timeValueSeconds(1), SearchService.NO_TIMEOUT, null);
-        AtomicBoolean consulted = new AtomicBoolean();
         TimeValue interval = TransportSearchAction.resolveCancelAfterTimeInterval((resolveTask, resolveRequest, resolveRequested) -> {
             assertSame(task, resolveTask);
             assertSame(request, resolveRequest);
             assertEquals(requested, resolveRequested);
-            consulted.set(true);
             return resolved;
         }, task, request);
-        assertTrue("the resolver decides a timeout that came from the request", consulted.get());
         assertEquals(resolved, interval);
+        assertEquals(
+            "the timer of a timeout that came from the request takes the resolved interval",
+            resolved,
+            TransportSearchAction.cancellationTimerInterval(task, requested, resolved)
+        );
         assertEquals(
             requested,
             TransportSearchAction.resolveCancelAfterTimeInterval(SearchCancelAfterTimeIntervalResolver.NOOP, task, request)
         );
     }
 
-    public void testTaskThatChoseItsOwnTimeoutKeepsIt() {
-        // A request with its own cancellation mechanism overrides createTask to opt out of timeout-based cancellation.
-        SearchRequest request = new SearchRequest("index");
-        request.setCancelAfterTimeInterval(randomFrom(TimeValue.timeValueHours(1), null));
-        SearchTask task = new SearchTask(
-            1,
-            "transport",
-            SearchAction.NAME,
-            () -> "test",
-            TaskId.EMPTY_TASK_ID,
-            Collections.emptyMap(),
-            SearchService.NO_TIMEOUT
-        );
-        AtomicBoolean consulted = new AtomicBoolean();
-        TimeValue interval = TransportSearchAction.resolveCancelAfterTimeInterval((resolveTask, resolveRequest, resolveRequested) -> {
-            consulted.set(true);
-            return TimeValue.timeValueSeconds(1);
-        }, task, request);
-        assertFalse("the resolver must not replace a timeout the task chose itself", consulted.get());
-        assertEquals(SearchService.NO_TIMEOUT, interval);
-    }
-
     public void testOptedOutTaskKeepsItsTimeoutWhenTheRequestSetsMinusOne() throws IOException {
         // Asynchronous search, which has its own cancellation mechanism, wraps the caller's request in one whose createTask builds
         // its SearchTask without a timeout, which opts out with SearchService.NO_TIMEOUT. A -1 set over REST equals that value but
-        // is a different instance, so the task's timeout did not come from the request, and not even a group that overrides
-        // request values replaces it.
+        // is a different instance, so the task's timeout did not come from the request, and no resolved interval replaces it, not
+        // even the interval of a group that overrides request values.
         SearchRequest callerRequest = searchRequestFromRest("-1");
         assertEquals(SearchService.NO_TIMEOUT, callerRequest.getCancelAfterTimeInterval());
         assertNotSame(SearchService.NO_TIMEOUT, callerRequest.getCancelAfterTimeInterval());
@@ -1320,34 +1299,39 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             }
         };
         SearchTask task = request.createTask(1, "transport", SearchAction.NAME, TaskId.EMPTY_TASK_ID, Collections.emptyMap());
-        AtomicBoolean consulted = new AtomicBoolean();
-        assertSame(SearchService.NO_TIMEOUT, resolveInOverridingGroup(task, request, consulted));
-        assertFalse("the resolver must not replace a timeout the task chose itself", consulted.get());
+        TimeValue resolved = TimeValue.timeValueSeconds(1);
+        assertSame(
+            SearchService.NO_TIMEOUT,
+            TransportSearchAction.cancellationTimerInterval(task, request.getCancelAfterTimeInterval(), resolved)
+        );
     }
 
     public void testResolverDecidesAMinusOneThatCameFromTheRequest() throws IOException {
-        // The other side of the reference comparison: SearchRequest#createTask passes the request's own -1 to the task, so the
-        // resolver is consulted, and a group that overrides request values replaces it.
+        // The other side of the reference comparison: SearchRequest#createTask passes the request's own -1 to the task, so a resolved
+        // interval, such as that of a group that overrides request values, replaces it on the timer too.
         SearchRequest request = searchRequestFromRest("-1");
         SearchTask task = request.createTask(1, "transport", SearchAction.NAME, TaskId.EMPTY_TASK_ID, Collections.emptyMap());
         assertSame(request.getCancelAfterTimeInterval(), task.getCancellationTimeout());
-        AtomicBoolean consulted = new AtomicBoolean();
-        assertEquals(TimeValue.timeValueSeconds(1), resolveInOverridingGroup(task, request, consulted));
-        assertTrue("the resolver decides a timeout that came from the request", consulted.get());
+        TimeValue resolved = TimeValue.timeValueSeconds(1);
+        assertEquals(
+            TimeValue.timeValueSeconds(1),
+            TransportSearchAction.cancellationTimerInterval(task, request.getCancelAfterTimeInterval(), resolved)
+        );
     }
 
     public void testTaskWhoseTimeoutDiffersFromItsRequestsKeepsIt() {
         // Besides an opt-out, an action filter that rewrites the request's interval after createTask, or a createTask that chooses
         // an interval of its own, leaves the task with a timeout that did not come from the request; the task keeps it.
-        AtomicBoolean consulted = new AtomicBoolean();
-        SearchCancelAfterTimeIntervalResolver resolver = oneSecondResolver(consulted);
+        TimeValue resolved = TimeValue.timeValueSeconds(1);
         SearchRequest rewritten = new SearchRequest("index");
         rewritten.setCancelAfterTimeInterval(TimeValue.timeValueHours(1));
         SearchTask rewrittenTask = rewritten.createTask(1, "transport", SearchAction.NAME, TaskId.EMPTY_TASK_ID, Collections.emptyMap());
         rewritten.setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30));
-        assertEquals(TimeValue.timeValueHours(1), TransportSearchAction.resolveCancelAfterTimeInterval(resolver, rewrittenTask, rewritten));
+        assertEquals(
+            TimeValue.timeValueHours(1),
+            TransportSearchAction.cancellationTimerInterval(rewrittenTask, rewritten.getCancelAfterTimeInterval(), resolved)
+        );
 
-        SearchRequest unset = new SearchRequest("index");
         SearchTask chosenTask = new SearchTask(
             1,
             "transport",
@@ -1357,28 +1341,14 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             TimeValue.timeValueMinutes(5)
         );
-        assertEquals(TimeValue.timeValueMinutes(5), TransportSearchAction.resolveCancelAfterTimeInterval(resolver, chosenTask, unset));
-        assertFalse("the resolver must not replace a timeout that did not come from the request", consulted.get());
+        assertEquals(TimeValue.timeValueMinutes(5), TransportSearchAction.cancellationTimerInterval(chosenTask, null, resolved));
     }
 
     public void testTaskThatChoseItsOwnTimeoutStillGetsTheGroupIntervalOnItsRequest() {
         // Pins behavior that predates the resolver: when createTask opted out of timeout-based cancellation, the coordinator arms
-        // no timer, yet WorkloadGroupRequestOperationListener still writes the group's interval onto the request, which carries it
-        // to the remote clusters of a ccs_minimize_roundtrips search. The resolver's promise that both sides choose the same
-        // interval covers only a timeout that came from the request.
-        ThreadPool threadPool = timerThreadPool(new CopyOnWriteArrayList<>());
-        WorkloadGroupService workloadGroupService = workloadGroupService(
-            threadPool,
-            Settings.builder().put(WLM_CANCEL_AFTER, "1s").put(WLM_OVERRIDE, true).build()
-        );
-        SearchCancelAfterTimeIntervalResolver resolver = new WorkloadGroupSearchCancelAfterTimeIntervalResolver(
-            workloadGroupService,
-            threadPool
-        );
-        SearchRequestOperationsListener.CompositeListener listeners = new SearchRequestOperationsListener.CompositeListener(
-            List.of(new WorkloadGroupRequestOperationListener(workloadGroupService, threadPool)),
-            LogManager.getLogger()
-        );
+        // no timer, yet the group's interval is still written onto the request, which carries it to the remote clusters of a
+        // ccs_minimize_roundtrips search.
+        Settings overridingGroup = Settings.builder().put(WLM_CANCEL_AFTER, "1s").put(WLM_OVERRIDE, true).build();
         for (TimeValue requested : Arrays.asList(null, TimeValue.timeValueHours(1), TimeValue.MINUS_ONE)) {
             SearchRequest request = new SearchRequest("index");
             request.setCancelAfterTimeInterval(requested);
@@ -1391,28 +1361,20 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 Collections.emptyMap(),
                 SearchService.NO_TIMEOUT
             );
-            ThreadContext threadContext = threadPool.getThreadContext();
-            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, GROUP_ID);
-                assertEquals(
-                    "request [" + requested + "]",
-                    SearchService.NO_TIMEOUT,
-                    TransportSearchAction.resolveCancelAfterTimeInterval(resolver, task, request)
-                );
-                listeners.onRequestStart(new SearchRequestContext(listeners, request, () -> null));
-                assertEquals("request [" + requested + "]", TimeValue.timeValueSeconds(1), request.getCancelAfterTimeInterval());
-            }
+            assertCancelAfterTimeInterval(task, request, overridingGroup, "-1", null, TimeValue.timeValueSeconds(1));
         }
     }
 
     public void testCancellationTimerIsArmedBeforeAdmission() {
         // The coordinator arms its timer with the resolver's interval before the search waits for admission, so the time spent in
-        // admission counts toward the interval, and a timer that fires there cancels the search before it fans out.
+        // admission counts toward the interval, and a timer that fires there cancels the search's task. The request carries the same
+        // interval from then on.
         TimeValue groupInterval = TimeValue.timeValueSeconds(1);
         List<Scheduled> scheduled = new CopyOnWriteArrayList<>();
         ThreadPool timerThreadPool = timerThreadPool(scheduled);
         CancelTasksRecordingClient client = new CancelTasksRecordingClient(timerThreadPool);
         AtomicReference<List<Scheduled>> scheduledAtAdmission = new AtomicReference<>();
+        AtomicReference<TimeValue> intervalAtAdmission = new AtomicReference<>();
         AtomicReference<ActionListener<Releasable>> waitingForAdmission = new AtomicReference<>();
         SearchAdmission admission = new SearchAdmission() {
             @Override
@@ -1423,6 +1385,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             @Override
             public void admit(Task task, ActionRequest request, ActionListener<Releasable> listener) {
                 scheduledAtAdmission.set(List.copyOf(scheduled));
+                intervalAtAdmission.set(((SearchRequest) request).getCancelAfterTimeInterval());
                 // Holds the search in admission, as a queue or a slow cluster-wide permit would.
                 waitingForAdmission.set(listener);
             }
@@ -1451,6 +1414,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         Scheduled timer = scheduledAtAdmission.get().get(0);
         assertEquals(groupInterval, timer.delay());
         assertEquals(ThreadPool.Names.GENERIC, timer.executor());
+        assertEquals("the request must carry the timer's interval before admission", groupInterval, intervalAtAdmission.get());
 
         // The timer fires while the search still waits for admission, and asks to cancel the search's task.
         timer.command().run();
@@ -1460,22 +1424,44 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         assertEquals("Cancellation timeout of " + groupInterval + " is expired", cancelTasksRequest.getReason());
         assertEquals("the search must not complete before it is admitted", 0, completions.get());
 
-        // Admitted once cancelled, the search still completes exactly once and returns its permit.
-        task.cancel(cancelTasksRequest.getReason());
+        // Once admitted, the search completes exactly once (with these mocks it fails past admission) and returns its permit, and
+        // nothing arms a second timer.
         AtomicInteger releases = new AtomicInteger();
         waitingForAdmission.get().onResponse(releases::incrementAndGet);
         assertEquals(1, completions.get());
         assertEquals("the permit must be released", 1, releases.get());
+        assertEquals("only doExecute arms a timer", 1, scheduled.size());
     }
 
-    public void testGroupIntervalTakesPrecedenceOverTheClusterSetting() {
-        // Searches that set no interval, through the WLM resolver that Node wires.
-        // The group's interval beats a cluster setting with a value.
-        assertCancellationTimer("1s", "1h", TimeValue.timeValueSeconds(1));
-        // A group can turn cancellation off on a cluster that turns it on.
-        assertCancellationTimer("-1", "1s", null);
-        // Guards existing behavior: a group without the interval leaves the cluster's.
-        assertCancellationTimer(null, "1s", TimeValue.timeValueSeconds(1));
+    public void testCancelAfterTimeIntervalPrecedence() {
+        // Through doExecute and the WLM resolver that Node wires: by default the request's interval beats its group's, which beats
+        // the cluster's; with override_request_values the group's beats the request's. Exactly -1 turns cancellation off at
+        // whichever level wins. The coordinator's timer and the request agree in every case.
+        Settings group = Settings.builder().put(WLM_CANCEL_AFTER, "30s").build();
+        Settings overridingGroup = Settings.builder().put(WLM_CANCEL_AFTER, "30s").put(WLM_OVERRIDE, true).build();
+        Settings disablingGroup = Settings.builder().put(WLM_CANCEL_AFTER, "-1").build();
+        Settings overridingDisablingGroup = Settings.builder().put(WLM_CANCEL_AFTER, "-1").put(WLM_OVERRIDE, true).build();
+        TimeValue tenSeconds = TimeValue.timeValueSeconds(10);
+        TimeValue thirtySeconds = TimeValue.timeValueSeconds(30);
+        TimeValue off = TimeValue.MINUS_ONE;
+        for (String cluster : Arrays.asList("-1", "1h")) {
+            TimeValue clusterTimer = "-1".equals(cluster) ? null : TimeValue.timeValueHours(1);
+            // Guards existing behavior: without the group's setting, the request's interval applies, else the cluster's.
+            assertCancelAfterTimeInterval(null, Settings.EMPTY, cluster, clusterTimer, null);
+            assertCancelAfterTimeInterval(tenSeconds, Settings.EMPTY, cluster, tenSeconds, tenSeconds);
+            assertCancelAfterTimeInterval(off, Settings.EMPTY, cluster, null, off);
+            // The group's interval applies to a request that sets none, whatever the cluster's.
+            assertCancelAfterTimeInterval(null, group, cluster, thirtySeconds, thirtySeconds);
+            assertCancelAfterTimeInterval(null, disablingGroup, cluster, null, off);
+            // A request's own interval beats its group's...
+            assertCancelAfterTimeInterval(tenSeconds, group, cluster, tenSeconds, tenSeconds);
+            assertCancelAfterTimeInterval(off, group, cluster, null, off);
+            assertCancelAfterTimeInterval(tenSeconds, disablingGroup, cluster, tenSeconds, tenSeconds);
+            // ...unless the group overrides request values.
+            assertCancelAfterTimeInterval(tenSeconds, overridingGroup, cluster, thirtySeconds, thirtySeconds);
+            assertCancelAfterTimeInterval(off, overridingGroup, cluster, thirtySeconds, thirtySeconds);
+            assertCancelAfterTimeInterval(tenSeconds, overridingDisablingGroup, cluster, null, off);
+        }
     }
 
     public void testCreatePitArmsNoCancellationTimer() {
@@ -1523,9 +1509,9 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
     }
 
     public void testResolverThatThrowsFallsBackToTheTaskTimeout() throws Exception {
-        // A resolver should not throw, but one that does must not fail the search: doExecute logs a warning naming the task and
-        // arms the timer with the task's own cancellation timeout, exactly as without a resolver, or with the cluster's interval
-        // when the task has none.
+        // A resolver should not throw, but one that does must not fail the search: doExecute logs a warning naming the task, leaves
+        // the request's interval as it was, and arms the timer with the task's own cancellation timeout, exactly as without a
+        // resolver, or with the cluster's interval when the task has none.
         IllegalStateException boom = new IllegalStateException("boom");
         TimeValue clusterInterval = TimeValue.timeValueMinutes(30);
         for (TimeValue requested : Arrays.asList(TimeValue.timeValueHours(1), null)) {
@@ -1580,6 +1566,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 assertNotSame(cell, boom, failures.get(0));
                 assertEquals(cell, 1, scheduled.size());
                 assertEquals(cell, requested == null ? clusterInterval : requested, scheduled.get(0).delay());
+                assertSame(cell, requested, request.getCancelAfterTimeInterval());
                 appender.assertAllExpectationsMatched();
             }
         }
@@ -1587,13 +1574,13 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
 
     public void testTaskThatCannotBeCancelledArmsNoTimer() {
         // Guards existing behavior: a SearchRequest whose createTask returns a task that can't be cancelled opts out of
-        // timeout-based cancellation altogether, so neither its own interval nor its group's arms a timer.
+        // timeout-based cancellation altogether, so neither its own interval nor its group's arms a timer. The resolved interval
+        // still reaches the request.
         List<Scheduled> scheduled = new CopyOnWriteArrayList<>();
         ThreadPool timerThreadPool = timerThreadPool(scheduled);
-        AtomicBoolean consulted = new AtomicBoolean();
         TransportSearchAction action = newSearchAction(
             SearchExecutionGate.NOOP,
-            oneSecondResolver(consulted),
+            (resolveTask, resolveRequest, requested) -> TimeValue.timeValueMinutes(1),
             new CancelTasksRecordingClient(timerThreadPool),
             timerThreadPool,
             Settings.EMPTY
@@ -1605,42 +1592,23 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         action.doExecute(task, request, ActionListener.wrap(r -> fail("must not succeed"), failure::set));
         // With these mocks the search fails past admission.
         assertNotNull(failure.get());
-        assertFalse(consulted.get());
         assertEquals(List.of(), scheduled);
+        assertEquals(TimeValue.timeValueMinutes(1), request.getCancelAfterTimeInterval());
     }
 
     public void testStreamingSearchArmsTheResolvedTimer() {
         // StreamTransportSearchAction inherits doExecute, so a streaming search gets its group's interval too.
         List<Scheduled> scheduled = new CopyOnWriteArrayList<>();
         ThreadPool timerThreadPool = timerThreadPool(scheduled);
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-        );
-        IndicesService indicesService = mock(IndicesService.class);
-        when(indicesService.getSearchResponseStatusStats()).thenReturn(new SearchResponseStatusStats());
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        TransportSearchAction action = new StreamTransportSearchAction(
+        TransportSearchAction action = newSearchAction(
+            SearchExecutionGate.NOOP,
+            (task, request, requested) -> TimeValue.timeValueSeconds(1),
             new CancelTasksRecordingClient(timerThreadPool),
             timerThreadPool,
-            mock(CircuitBreakerService.class),
-            mock(StreamTransportService.class),
-            mock(SearchService.class),
-            mock(StreamSearchTransportService.class),
-            new SearchPhaseController(namedWriteableRegistry, (searchSourceBuilder) -> null),
-            clusterService,
-            new ActionFilters(Collections.emptySet()),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            namedWriteableRegistry,
-            mock(SearchPipelineService.class),
-            mock(MetricsRegistry.class),
-            new SearchRequestOperationsCompositeListenerFactory(),
-            NoopTracer.INSTANCE,
-            mock(TaskResourceTrackingService.class),
-            indicesService,
-            SearchExecutionGate.NOOP,
-            (task, request, requested) -> TimeValue.timeValueSeconds(1)
+            Settings.EMPTY,
+            true
         );
+        assertTrue(action instanceof StreamTransportSearchAction);
         SearchRequest request = new SearchRequest("index");
         SearchTask task = request.createTask(1, "transport", StreamSearchAction.NAME, TaskId.EMPTY_TASK_ID, Collections.emptyMap());
         action.doExecute(task, request, ActionListener.wrap(r -> {}, e -> {}));
@@ -1649,8 +1617,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
     }
 
     public void testRemoteLegsCarryTheCancelAfterTimeIntervalOfTheRequest() throws Exception {
-        // Guards existing behavior: WorkloadGroupRequestOperationListener writes the group's interval onto the request before a
-        // ccs_minimize_roundtrips search fans out, and each remote leg copies it, so each remote cluster arms its own timer with it.
+        // Guards existing behavior: each leg of a ccs_minimize_roundtrips search copies the request's interval, which doExecute has
+        // settled by then, a workload group's included, so each remote cluster arms its own timer with it.
         int numClusters = 2;
         DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
         Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
@@ -1676,44 +1644,47 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             service.start();
             service.acceptIncomingRequests();
             RemoteClusterService remoteClusterService = service.getRemoteClusterService();
-            // A single remote cluster gets the request itself; otherwise each cluster gets a sub-request.
+            // A single remote cluster without local indices gets the request on its own path, and every other combination on the
+            // general one; each leg gets its own copy (SearchRequest#subSearchRequest) either way.
             for (boolean singleRemote : new boolean[] { true, false }) {
-                forwarded.clear();
-                Map<String, OriginalIndices> remoteIndices = singleRemote
-                    ? Map.of("remote0", remoteIndicesByCluster.get("remote0"))
-                    : remoteIndicesByCluster;
-                OriginalIndices localIndices = singleRemote == false && randomBoolean()
-                    ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS)
-                    : null;
-                SearchRequest searchRequest = new SearchRequest();
-                searchRequest.setCancelAfterTimeInterval(interval);
-                CountDownLatch latch = new CountDownLatch(1);
-                SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> localLeg = new SetOnce<>();
-                AtomicReference<Exception> failure = new AtomicReference<>();
-                TransportSearchAction.ccsRemoteReduce(
-                    searchRequest,
-                    localIndices,
-                    remoteIndices,
-                    timeProvider,
-                    emptyReduceContextBuilder(),
-                    remoteClusterService,
-                    threadPool,
-                    new LatchedActionListener<>(ActionListener.wrap(r -> {}, failure::set), latch),
-                    (r, l) -> localLeg.set(Tuple.tuple(r, l)),
-                    new SearchRequestContext(
-                        new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                for (boolean withLocalIndices : new boolean[] { false, true }) {
+                    forwarded.clear();
+                    Map<String, OriginalIndices> remoteIndices = singleRemote
+                        ? Map.of("remote0", remoteIndicesByCluster.get("remote0"))
+                        : remoteIndicesByCluster;
+                    OriginalIndices localIndices = withLocalIndices
+                        ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS)
+                        : null;
+                    SearchRequest searchRequest = new SearchRequest();
+                    searchRequest.setCancelAfterTimeInterval(interval);
+                    CountDownLatch latch = new CountDownLatch(1);
+                    SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> localLeg = new SetOnce<>();
+                    AtomicReference<Exception> failure = new AtomicReference<>();
+                    TransportSearchAction.ccsRemoteReduce(
                         searchRequest,
-                        () -> null
-                    )
-                );
-                if (localIndices != null) {
-                    // The local leg runs on the coordinator's own task, whose timer is already armed.
-                    assertEquals(interval, localLeg.get().v1().getCancelAfterTimeInterval());
-                    localLeg.get().v2().onResponse(emptySearchResponse());
+                        localIndices,
+                        remoteIndices,
+                        timeProvider,
+                        emptyReduceContextBuilder(),
+                        remoteClusterService,
+                        threadPool,
+                        new LatchedActionListener<>(ActionListener.wrap(r -> {}, failure::set), latch),
+                        (r, l) -> localLeg.set(Tuple.tuple(r, l)),
+                        new SearchRequestContext(
+                            new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                            searchRequest,
+                            () -> null
+                        )
+                    );
+                    if (localIndices != null) {
+                        // The local leg runs on the coordinator's own task, whose timer is already armed.
+                        assertEquals(interval, localLeg.get().v1().getCancelAfterTimeInterval());
+                        localLeg.get().v2().onResponse(emptySearchResponse());
+                    }
+                    awaitLatch(latch, 5, TimeUnit.SECONDS);
+                    assertNull(failure.get());
+                    assertEquals(Collections.nCopies(remoteIndices.size(), interval), forwarded);
                 }
-                awaitLatch(latch, 5, TimeUnit.SECONDS);
-                assertNull(failure.get());
-                assertEquals(Collections.nCopies(remoteIndices.size(), interval), forwarded);
             }
         } finally {
             for (MockTransportService mockTransportService : mockTransportServices) {
@@ -1723,41 +1694,61 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
     }
 
     /**
-     * Runs a search that sets no interval, in a workload group whose interval is {@code groupInterval} ({@code null} for none), on a
-     * cluster whose search.cancel_after_time_interval is {@code clusterInterval}, through doExecute and the WLM resolver, and asserts
-     * that the coordinator arms its timer with {@code expected}, or arms none when {@code expected} is {@code null}.
+     * Runs a search whose request asks for {@code requested}, in the workload group {@link #GROUP_ID} with {@code groupSettings}, on
+     * a cluster whose search.cancel_after_time_interval is {@code clusterInterval}, through doExecute and the WLM resolver, and
+     * asserts that the coordinator arms its timer with {@code expectedTimer}, or arms none when it is {@code null}, and that the
+     * request then carries {@code expectedOnRequest}.
      */
-    private void assertCancellationTimer(String groupInterval, String clusterInterval, TimeValue expected) {
+    private void assertCancelAfterTimeInterval(
+        TimeValue requested,
+        Settings groupSettings,
+        String clusterInterval,
+        TimeValue expectedTimer,
+        TimeValue expectedOnRequest
+    ) {
+        SearchRequest request = new SearchRequest("index");
+        request.setCancelAfterTimeInterval(requested);
+        SearchTask task = request.createTask(1, "transport", SearchAction.NAME, TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+        assertCancelAfterTimeInterval(task, request, groupSettings, clusterInterval, expectedTimer, expectedOnRequest);
+    }
+
+    /** Like {@link #assertCancelAfterTimeInterval(TimeValue, Settings, String, TimeValue, TimeValue)}, for {@code task}. */
+    private void assertCancelAfterTimeInterval(
+        CancellableTask task,
+        SearchRequest request,
+        Settings groupSettings,
+        String clusterInterval,
+        TimeValue expectedTimer,
+        TimeValue expectedOnRequest
+    ) {
         List<Scheduled> scheduled = new CopyOnWriteArrayList<>();
         ThreadPool timerThreadPool = timerThreadPool(scheduled);
-        Settings.Builder searchSettings = Settings.builder();
-        if (groupInterval != null) {
-            searchSettings.put(WLM_CANCEL_AFTER, groupInterval);
-        }
         TransportSearchAction action = newSearchAction(
             SearchExecutionGate.NOOP,
-            new WorkloadGroupSearchCancelAfterTimeIntervalResolver(
-                workloadGroupService(timerThreadPool, searchSettings.build()),
-                timerThreadPool
-            ),
+            new WorkloadGroupSearchCancelAfterTimeIntervalResolver(workloadGroupService(timerThreadPool, groupSettings)),
             new CancelTasksRecordingClient(timerThreadPool),
             timerThreadPool,
             Settings.builder().put(TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, clusterInterval).build()
         );
-        SearchRequest request = new SearchRequest("index");
-        SearchTask task = request.createTask(1, "transport", SearchAction.NAME, TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+        String cell = "request ["
+            + request.getCancelAfterTimeInterval()
+            + "], group "
+            + groupSettings
+            + ", cluster ["
+            + clusterInterval
+            + "]";
         ThreadContext threadContext = timerThreadPool.getThreadContext();
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
             threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, GROUP_ID);
             action.doExecute(task, request, ActionListener.wrap(r -> {}, e -> {}));
         }
-        String cell = "group [" + groupInterval + "], cluster [" + clusterInterval + "]";
-        if (expected == null) {
+        if (expectedTimer == null) {
             assertEquals(cell, List.of(), scheduled);
         } else {
             assertEquals(cell, 1, scheduled.size());
-            assertEquals(cell, expected, scheduled.get(0).delay());
+            assertEquals(cell, expectedTimer, scheduled.get(0).delay());
         }
+        assertEquals(cell, expectedOnRequest, request.getCancelAfterTimeInterval());
     }
 
     private static final String LOCAL_NODE_ID = "local_node";
@@ -1787,26 +1778,6 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             size -> {}
         );
         return request;
-    }
-
-    /**
-     * Resolves the interval of {@code task} through the WLM resolver for a search in the group {@link #GROUP_ID}, which cancels its
-     * searches after one second and overrides request values, and records in {@code consulted} whether the resolver was consulted.
-     */
-    private static TimeValue resolveInOverridingGroup(CancellableTask task, SearchRequest request, AtomicBoolean consulted) {
-        ThreadPool threadPool = timerThreadPool(new CopyOnWriteArrayList<>());
-        SearchCancelAfterTimeIntervalResolver groupResolver = new WorkloadGroupSearchCancelAfterTimeIntervalResolver(
-            workloadGroupService(threadPool, Settings.builder().put(WLM_CANCEL_AFTER, "1s").put(WLM_OVERRIDE, true).build()),
-            threadPool
-        );
-        ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-            threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, GROUP_ID);
-            return TransportSearchAction.resolveCancelAfterTimeInterval((resolveTask, resolveRequest, requested) -> {
-                consulted.set(true);
-                return groupResolver.resolve(resolveTask, resolveRequest, requested);
-            }, task, request);
-        }
     }
 
     /** What the cancellation timer scheduled. */
@@ -1895,6 +1866,21 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         ThreadPool threadPool,
         Settings clusterSettings
     ) {
+        return newSearchAction(searchExecutionGate, cancelAfterTimeIntervalResolver, client, threadPool, clusterSettings, false);
+    }
+
+    /**
+     * Like {@link #newSearchAction(SearchExecutionGate, SearchCancelAfterTimeIntervalResolver, NodeClient, ThreadPool, Settings)},
+     * but a {@link StreamTransportSearchAction} when {@code streaming}.
+     */
+    private TransportSearchAction newSearchAction(
+        SearchExecutionGate searchExecutionGate,
+        SearchCancelAfterTimeIntervalResolver cancelAfterTimeIntervalResolver,
+        NodeClient client,
+        ThreadPool threadPool,
+        Settings clusterSettings,
+        boolean streaming
+    ) {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -1902,6 +1888,29 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         IndicesService indicesService = mock(IndicesService.class);
         when(indicesService.getSearchResponseStatusStats()).thenReturn(new SearchResponseStatusStats());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+        if (streaming) {
+            return new StreamTransportSearchAction(
+                client,
+                threadPool,
+                mock(CircuitBreakerService.class),
+                mock(StreamTransportService.class),
+                mock(SearchService.class),
+                mock(StreamSearchTransportService.class),
+                new SearchPhaseController(namedWriteableRegistry, (searchSourceBuilder) -> null),
+                clusterService,
+                new ActionFilters(Collections.emptySet()),
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+                namedWriteableRegistry,
+                mock(SearchPipelineService.class),
+                mock(MetricsRegistry.class),
+                new SearchRequestOperationsCompositeListenerFactory(),
+                NoopTracer.INSTANCE,
+                mock(TaskResourceTrackingService.class),
+                indicesService,
+                searchExecutionGate,
+                cancelAfterTimeIntervalResolver
+            );
+        }
         return new TransportSearchAction(
             client,
             threadPool,

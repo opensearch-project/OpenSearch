@@ -343,6 +343,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // searchStatusStatsUpdateListener will execute the logic within the original listener but
         // also track the response status of the searchResponse.
         ActionListener<SearchResponse> searchStatusStatsUpdateListener;
+        // The search's cancel_after_time_interval is decided once, here, before admission: the timer below is armed with it, and the
+        // request carries it to the remote clusters of a ccs_minimize_roundtrips search.
+        final TimeValue requestedCancelAfterTimeInterval = searchRequest.getCancelAfterTimeInterval();
+        final TimeValue cancelAfterTimeInterval = resolveCancelAfterTimeInterval(cancelAfterTimeIntervalResolver, task, searchRequest);
+        searchRequest.setCancelAfterTimeInterval(cancelAfterTimeInterval);
         // only if task is of type CancellableTask and support cancellation on timeout, treat this request eligible for timeout based
         // cancellation. There may be other top level requests like AsyncSearch which is using SearchRequest internally and has it's own
         // cancellation mechanism. For such cases, the SearchRequest when created can override the createTask and set the
@@ -351,7 +356,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
                 client,
                 cancellableTask,
-                resolveCancelAfterTimeInterval(cancelAfterTimeIntervalResolver, cancellableTask, searchRequest),
+                cancellationTimerInterval(cancellableTask, requestedCancelAfterTimeInterval, cancelAfterTimeInterval),
                 clusterService.getClusterSettings().get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING),
                 listener,
                 e -> {}
@@ -375,26 +380,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * The interval after which the coordinator cancels the search running on {@code task}, or {@code null} to use the cluster's
-     * {@code search.cancel_after_time_interval}. The resolver is consulted only when the task's cancellation timeout came from the
-     * request; a task whose {@code createTask} chose its own timeout (such as {@link SearchService#NO_TIMEOUT} for a search with its
-     * own cancellation mechanism) keeps it. A resolver that throws does not fail the search: the exception is logged and the task
-     * keeps its own timeout, exactly as without a resolver.
+     * The search's {@code cancel_after_time_interval} as the node's resolver decides it from the request's own, or {@code null} to
+     * use the cluster's {@code search.cancel_after_time_interval}. A resolver that throws does not fail the search: the exception is
+     * logged and the search keeps the request's own interval, exactly as without a resolver.
      */
     @Nullable
     static TimeValue resolveCancelAfterTimeInterval(
         SearchCancelAfterTimeIntervalResolver resolver,
-        CancellableTask task,
+        Task task,
         SearchRequest searchRequest
     ) {
-        final TimeValue requested = task.getCancellationTimeout();
-        // By reference, not equals: SearchRequest#createTask passes the request's own TimeValue to the task, so only a task holding
-        // that very instance took its timeout from the request. A createTask that chose its own value keeps it even when the two are
-        // equal, so asynchronous search's SearchService.NO_TIMEOUT opt-out survives a request that sets -1, which holds an equal
-        // but distinct TimeValue (REST parses -1 to TimeValue.MINUS_ONE).
-        if (requested != searchRequest.getCancelAfterTimeInterval()) {
-            return requested;
-        }
+        final TimeValue requested = searchRequest.getCancelAfterTimeInterval();
         try {
             return resolver.resolve(task, searchRequest, requested);
         } catch (Exception e) {
@@ -407,6 +403,22 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
             return requested;
         }
+    }
+
+    /**
+     * The interval after which the coordinator cancels the search running on {@code task}, or {@code null} to use the cluster's
+     * {@code search.cancel_after_time_interval}: the {@code resolved} interval when the task took its timeout from the request,
+     * whose interval was {@code requested} before it was resolved; otherwise the timeout the task's {@code createTask} chose itself,
+     * such as {@link SearchService#NO_TIMEOUT} for a search with its own cancellation mechanism.
+     */
+    @Nullable
+    static TimeValue cancellationTimerInterval(CancellableTask task, @Nullable TimeValue requested, @Nullable TimeValue resolved) {
+        final TimeValue taskTimeout = task.getCancellationTimeout();
+        // By reference, not equals: SearchRequest#createTask passes the request's own TimeValue to the task, so only a task holding
+        // that very instance took its timeout from the request. A createTask that chose its own value keeps it even when the two are
+        // equal, so asynchronous search's SearchService.NO_TIMEOUT opt-out survives a request that sets -1, which holds an equal
+        // but distinct TimeValue (REST parses -1 to TimeValue.MINUS_ONE).
+        return taskTimeout == requested ? resolved : taskTimeout;
     }
 
     /**

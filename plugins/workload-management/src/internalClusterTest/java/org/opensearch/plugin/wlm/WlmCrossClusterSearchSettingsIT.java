@@ -73,11 +73,6 @@ public class WlmCrossClusterSearchSettingsIT extends AbstractMultiClustersTestCa
     }
 
     @Override
-    protected boolean reuseClusters() {
-        return false;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
         plugins.add(ScriptedBlockPlugin.class);
@@ -134,10 +129,10 @@ public class WlmCrossClusterSearchSettingsIT extends AbstractMultiClustersTestCa
         request.setCcsMinimizeRoundtrips(true);
         ActionFuture<SearchResponse> response = groupClient().search(request);
         try {
-            SearchShardTask remoteShardTask = awaitBlockedShardTask(REMOTE_CLUSTER, REMOTE_INDEX);
+            SearchShardTask remoteShardTask = awaitBlockedShardTask(REMOTE_CLUSTER, REMOTE_INDEX, response);
             SearchTask remoteLeg = (SearchTask) task(REMOTE_CLUSTER, remoteShardTask.getParentTaskId());
             assertFalse("a remote leg must not be a child of the coordinator's task", remoteLeg.getParentTaskId().isSet());
-            // The leg copies the interval that the local listener wrote onto the request, so the remote cluster, which has no such
+            // The leg copies the interval that the coordinator wrote onto the request, so the remote cluster, which has no such
             // group, creates its task with that interval and arms its own timer with it.
             assertEquals(GROUP_CANCEL_AFTER, remoteLeg.getCancellationTimeout());
             SearchTask coordinator = awaitLocalSearchTask().task();
@@ -158,7 +153,7 @@ public class WlmCrossClusterSearchSettingsIT extends AbstractMultiClustersTestCa
         request.setCcsMinimizeRoundtrips(false);
         ActionFuture<SearchResponse> response = groupClient().search(request);
         try {
-            SearchShardTask remoteShardTask = awaitBlockedShardTask(REMOTE_CLUSTER, REMOTE_INDEX);
+            SearchShardTask remoteShardTask = awaitBlockedShardTask(REMOTE_CLUSTER, REMOTE_INDEX, response);
             LocalSearch coordinator = awaitLocalSearchTask();
             // The remote shard runs a child request of the coordinator's task, and a shard request doesn't carry the interval, so the
             // coordinator's timer is the only one. Its cancellation can't ban children on a remote cluster's nodes, so the remote shard
@@ -176,6 +171,15 @@ public class WlmCrossClusterSearchSettingsIT extends AbstractMultiClustersTestCa
     }
 
     // Helpers
+
+    /** Fails at once, with the search's own failure when it has one, if {@code response} has completed. */
+    private static void assertStillRunning(ActionFuture<?> response) {
+        if (response.isDone()) {
+            // assertBusy retries only assertion errors, so the search's failure, or this, ends the wait at once.
+            response.actionGet();
+            throw new IllegalStateException("the search completed before it reached its shard");
+        }
+    }
 
     private static void assertFailedAsCancelled(Exception e) {
         assertNotNull("expected the search to fail as cancelled but got: " + e, ExceptionsHelper.unwrap(e, TaskCancelledException.class));
@@ -215,10 +219,14 @@ public class WlmCrossClusterSearchSettingsIT extends AbstractMultiClustersTestCa
         return found.get();
     }
 
-    /** The shard task of the search on {@code indexName} in {@code clusterAlias}, once it has reached the shard, where it blocks. */
-    private SearchShardTask awaitBlockedShardTask(String clusterAlias, String indexName) throws Exception {
+    /**
+     * The shard task of the search on {@code indexName} in {@code clusterAlias}, once it has reached the shard, where it blocks. Fails
+     * at once if {@code response}, which the search completes, completes first.
+     */
+    private SearchShardTask awaitBlockedShardTask(String clusterAlias, String indexName, ActionFuture<?> response) throws Exception {
         AtomicReference<SearchShardTask> found = new AtomicReference<>();
         assertBusy(() -> {
+            assertStillRunning(response);
             for (TransportService transportService : cluster(clusterAlias).getInstances(TransportService.class)) {
                 for (Task task : transportService.getTaskManager().getTasks().values()) {
                     if (task instanceof SearchShardTask shardTask && task.getDescription().contains("[" + indexName + "]")) {

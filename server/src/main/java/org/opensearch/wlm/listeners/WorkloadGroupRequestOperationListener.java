@@ -79,7 +79,7 @@ public class WorkloadGroupRequestOperationListener extends SearchRequestOperatio
         boolean overrideRequestValues = WorkloadGroupSearchSettings.WLM_OVERRIDE_REQUEST_VALUES.get(wlmSettings);
 
         applyTimeout(wlmSettings, searchRequest, overrideRequestValues);
-        applyCancelAfterTimeInterval(wlmSettings, searchRequest, overrideRequestValues);
+        applyCancelAfterTimeInterval();
         applyMaxConcurrentShardRequests(wlmSettings, searchRequest, overrideRequestValues);
         applyBatchedReduceSize(wlmSettings, searchRequest, overrideRequestValues);
     }
@@ -102,23 +102,12 @@ public class WorkloadGroupRequestOperationListener extends SearchRequestOperatio
     }
 
     /**
-     * Writing the group's interval onto the request carries it to the remote clusters of a {@code ccs_minimize_roundtrips}
-     * search. The coordinator arms its own cancellation timer earlier, with the interval from
-     * {@link WorkloadGroupSearchCancelAfterTimeIntervalResolver}, which uses the same precedence.
+     * Intentionally empty. The coordinator arms the search's cancellation timer before admission, before this listener runs, so
+     * {@code TransportSearchAction} applies the group's {@code search.cancel_after_time_interval} itself, through
+     * {@link WorkloadGroupSearchCancelAfterTimeIntervalResolver}, and writes it onto the request. Applying it again here, after
+     * admission, would decide it a second time, from a group that may have changed in between.
      */
-    private void applyCancelAfterTimeInterval(Settings wlmSettings, SearchRequest searchRequest, boolean overrideRequestValues) {
-        try {
-            searchRequest.setCancelAfterTimeInterval(
-                WorkloadGroupSearchCancelAfterTimeIntervalResolver.effectiveCancelAfterTimeInterval(
-                    wlmSettings,
-                    overrideRequestValues,
-                    searchRequest.getCancelAfterTimeInterval()
-                )
-            );
-        } catch (Exception e) {
-            logger.error("Failed to apply workload group setting [search.cancel_after_time_interval]", e);
-        }
-    }
+    private void applyCancelAfterTimeInterval() {}
 
     private void applyMaxConcurrentShardRequests(Settings wlmSettings, SearchRequest searchRequest, boolean overrideRequestValues) {
         if (wlmSettings.hasValue(WorkloadGroupSearchSettings.WLM_MAX_CONCURRENT_SHARD_REQUESTS.getKey()) == false) {

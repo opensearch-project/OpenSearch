@@ -41,9 +41,11 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionListener;
@@ -570,7 +572,12 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         return fieldType.termsQuery(values, context);
     }
 
-    private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
+    private void fetch(
+        TermsLookup termsLookup,
+        @Nullable TimeValue cancelAfterTimeInterval,
+        Client client,
+        ActionListener<List<Object>> actionListener
+    ) {
         if (termsLookup.id() != null) {
             GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
             getRequest.preference("_local").routing(termsLookup.routing());
@@ -626,6 +633,10 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
                             }
 
                             SearchRequest searchRequest = new SearchRequest(termsLookup.index()).source(sourceBuilder);
+                            // The lookup runs as a search of its own. It takes the cancel_after_time_interval decided for the search
+                            // it serves, so a default that the search's own interval overrode, a workload group's or the cluster's,
+                            // doesn't cancel the lookup, and through it the search, first.
+                            searchRequest.setCancelAfterTimeInterval(cancelAfterTimeInterval);
 
                             client.search(
                                 searchRequest,
@@ -693,6 +704,19 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         }
     }
 
+    /**
+     * The {@code cancel_after_time_interval} of the search whose query the coordinator is rewriting, or {@code null} when the query
+     * isn't being rewritten for a search on the coordinator.
+     */
+    @Nullable
+    private static TimeValue outerCancelAfterTimeInterval(QueryRewriteContext queryRewriteContext) {
+        QueryCoordinatorContext coordinatorContext = queryRewriteContext.convertToCoordinatorContext();
+        if (coordinatorContext != null && coordinatorContext.getSearchRequest() instanceof SearchRequest searchRequest) {
+            return searchRequest.getCancelAfterTimeInterval();
+        }
+        return null;
+    }
+
     @Override
     protected int doHashCode() {
         return Objects.hash(fieldName, values, termsLookup, supplier, valueType);
@@ -715,10 +739,13 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
         // Support: terms lookup by document id && Support: terms lookup by subquery
         else if (this.termsLookup != null && (this.termsLookup.id() != null || this.termsLookup.query() != null)) {
             SetOnce<List<?>> supplier = new SetOnce<>();
-            queryRewriteContext.registerAsyncAction((client, listener) -> fetch(termsLookup, client, ActionListener.map(listener, list -> {
-                supplier.set(list);
-                return null;
-            })));
+            final TimeValue cancelAfterTimeInterval = outerCancelAfterTimeInterval(queryRewriteContext);
+            queryRewriteContext.registerAsyncAction(
+                (client, listener) -> fetch(termsLookup, cancelAfterTimeInterval, client, ActionListener.map(listener, list -> {
+                    supplier.set(list);
+                    return null;
+                }))
+            );
             return new TermsQueryBuilder(this.fieldName, supplier::get, valueType);
         }
 

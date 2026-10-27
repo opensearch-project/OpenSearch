@@ -17,18 +17,13 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.tasks.Task;
-import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.wlm.listeners.WorkloadGroupRequestOperationListener;
 
 /**
- * Applies the {@code search.cancel_after_time_interval} of a search's workload group to the coordinator's cancellation timer,
- * so the search actions depend only on the core {@link SearchCancelAfterTimeIntervalResolver}. The timer is armed before
- * admission, before {@link WorkloadGroupRequestOperationListener} writes the group's search settings onto the request, so the
- * group is looked up here the same way, in every WLM mode, and with the same precedence
- * ({@link #effectiveCancelAfterTimeInterval}). For a cancellation timeout that came from the request, both therefore choose the
- * same interval, with two exceptions: when the listener's coordinator rejection check throws, the listener writes none of the
- * group's settings while the timer keeps the group's interval; and the listener reads the group after admission, so a change to
- * the group in between reaches only the request.
+ * Applies the {@code search.cancel_after_time_interval} of a search's workload group, in every WLM mode and with the precedence
+ * of the group's other search settings ({@link #effectiveCancelAfterTimeInterval}), so the search actions depend only on the core
+ * {@link SearchCancelAfterTimeIntervalResolver}. This is the only place the group's interval is applied: the coordinator arms the
+ * search's cancellation timer before admission, before {@code WorkloadGroupRequestOperationListener} applies the group's other
+ * search settings, so {@code TransportSearchAction} writes this interval onto the request itself.
  *
  * @opensearch.internal
  */
@@ -37,20 +32,15 @@ public final class WorkloadGroupSearchCancelAfterTimeIntervalResolver implements
     private static final Logger logger = LogManager.getLogger(WorkloadGroupSearchCancelAfterTimeIntervalResolver.class);
 
     private final WorkloadGroupService workloadGroupService;
-    private final ThreadPool threadPool;
 
-    public WorkloadGroupSearchCancelAfterTimeIntervalResolver(WorkloadGroupService workloadGroupService, ThreadPool threadPool) {
+    public WorkloadGroupSearchCancelAfterTimeIntervalResolver(WorkloadGroupService workloadGroupService) {
         this.workloadGroupService = workloadGroupService;
-        this.threadPool = threadPool;
     }
 
     @Override
     public TimeValue resolve(Task task, SearchRequest request, @Nullable TimeValue requested) {
-        if (task instanceof WorkloadGroupTask workloadGroupTask) {
-            // Idempotent: TransportSearchAction#executeRequest assigns the group again, from the same thread context.
-            workloadGroupTask.setWorkloadGroupId(threadPool.getThreadContext());
-        }
         try {
+            // The group named in the search's thread context.
             WorkloadGroup workloadGroup = workloadGroupService.getCurrentWorkloadGroup();
             if (workloadGroup == null) {
                 return requested;
@@ -63,7 +53,6 @@ public final class WorkloadGroupSearchCancelAfterTimeIntervalResolver implements
             boolean overrideRequestValues = WorkloadGroupSearchSettings.WLM_OVERRIDE_REQUEST_VALUES.get(wlmSettings);
             return effectiveCancelAfterTimeInterval(wlmSettings, overrideRequestValues, requested);
         } catch (Exception e) {
-            // The listener then leaves the request's interval unchanged as well.
             logger.error("Failed to apply workload group setting [search.cancel_after_time_interval]", e);
             return requested;
         }
@@ -81,11 +70,7 @@ public final class WorkloadGroupSearchCancelAfterTimeIntervalResolver implements
      * @throws IllegalArgumentException if the group's interval cannot be parsed
      */
     @Nullable
-    public static TimeValue effectiveCancelAfterTimeInterval(
-        Settings wlmSettings,
-        boolean overrideRequestValues,
-        @Nullable TimeValue requested
-    ) {
+    static TimeValue effectiveCancelAfterTimeInterval(Settings wlmSettings, boolean overrideRequestValues, @Nullable TimeValue requested) {
         if (wlmSettings.hasValue(WorkloadGroupSearchSettings.WLM_CANCEL_AFTER_TIME_INTERVAL.getKey()) == false) {
             return requested;
         }

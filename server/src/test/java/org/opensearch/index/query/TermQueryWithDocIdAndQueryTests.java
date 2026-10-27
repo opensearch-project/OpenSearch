@@ -11,9 +11,14 @@ package org.opensearch.index.query;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
+import org.opensearch.action.IndicesRequest;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.opensearch.action.get.GetRequest;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.index.IndexSettings;
@@ -27,6 +32,7 @@ import org.opensearch.transport.client.AdminClient;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.IndicesAdminClient;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -357,6 +363,55 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
 
         assertTrue("Async action should have been invoked", called[0]);
         // NOTE: Cannot assert on output list contents due to inability to mock static extractRawValues.
+    }
+
+    public void testTermsLookupSubqueryRunsWithTheOuterSearchsCancelAfterTimeInterval() throws Exception {
+        // The lookup's own search takes the interval of the search whose query the coordinator rewrites, so a default that the
+        // search's own interval overrode doesn't cancel the lookup first.
+        for (TimeValue outerInterval : Arrays.asList(TimeValue.timeValueHours(1), TimeValue.MINUS_ONE, null)) {
+            SearchRequest outer = new SearchRequest("students");
+            outer.setCancelAfterTimeInterval(outerInterval);
+            assertSame("outer [" + outerInterval + "]", outerInterval, lookupSearchRequest(outer).getCancelAfterTimeInterval());
+        }
+        // A query rewritten outside a search on the coordinator gives the lookup no interval of its own.
+        assertNull(lookupSearchRequest(null).getCancelAfterTimeInterval());
+        assertNull(lookupSearchRequest(new ValidateQueryRequest("students")).getCancelAfterTimeInterval());
+    }
+
+    /**
+     * Rewrites a terms lookup by subquery, on the coordinator for {@code outer} or, when it is {@code null}, outside the coordinator,
+     * and returns the search request that the lookup sends.
+     */
+    private static SearchRequest lookupSearchRequest(IndicesRequest outer) throws IOException {
+        Client client = mock(Client.class);
+        AdminClient adminClient = mock(AdminClient.class);
+        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
+        when(client.admin()).thenReturn(adminClient);
+        when(adminClient.indices()).thenReturn(indicesAdminClient);
+        doAnswer(invocation -> {
+            ActionListener<GetSettingsResponse> listener = invocation.getArgument(1);
+            GetSettingsResponse settingsResponse = mock(GetSettingsResponse.class);
+            when(settingsResponse.getIndexToSettings()).thenReturn(Collections.singletonMap("classes", Settings.EMPTY));
+            listener.onResponse(settingsResponse);
+            return null;
+        }).when(indicesAdminClient).getSettings(any(), any());
+        AtomicReference<SearchRequest> sent = new AtomicReference<>();
+        doAnswer(invocation -> {
+            sent.set(invocation.getArgument(0));
+            return null;
+        }).when(client).search(any(SearchRequest.class), any());
+        QueryRewriteContext rewriteContext = mock(QueryRewriteContext.class);
+        doAnswer(invocation -> {
+            BiConsumer<Client, ActionListener<?>> asyncAction = invocation.getArgument(0);
+            asyncAction.accept(client, ActionListener.wrap(r -> {}, e -> fail("the lookup must not fail: " + e)));
+            return null;
+        }).when(rewriteContext).registerAsyncAction(any());
+        TermsLookup termsLookup = new TermsLookup("classes", null, "enrolled", QueryBuilders.matchAllQuery());
+        new TermsQueryBuilder("student_id", null, termsLookup).doRewrite(
+            outer == null ? rewriteContext : new QueryCoordinatorContext(rewriteContext, outer)
+        );
+        assertNotNull("the lookup must send its search", sent.get());
+        return sent.get();
     }
 
     public void testTermsLookupSubqueryTotalHitsExceedsFetchSize() throws Exception {
