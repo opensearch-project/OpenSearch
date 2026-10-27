@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskCancelledException;
@@ -56,7 +57,28 @@ public class TimeoutTaskCancellationUtility {
         ActionListener<Response> listener,
         TimeoutHandler timeoutHandler
     ) {
-        final TimeValue timeoutInterval = (taskToCancel.getCancellationTimeout() == null) ? timeout : taskToCancel.getCancellationTimeout();
+        return wrapWithCancellationListener(client, taskToCancel, taskToCancel.getCancellationTimeout(), timeout, listener, timeoutHandler);
+    }
+
+    /**
+     * Like {@link #wrapWithCancellationListener(NodeClient, CancellableTask, TimeValue, ActionListener, TimeoutHandler)}, but
+     * cancels the task after {@code cancelAfterTimeInterval} instead of the task's own cancellation timeout.
+     * @param client - {@link NodeClient}
+     * @param taskToCancel - task to schedule cancellation for
+     * @param cancelAfterTimeInterval - interval after which to cancel the task, or {@code null} to use {@code timeout}
+     * @param timeout - {@link TimeValue} used when {@code cancelAfterTimeInterval} is {@code null}
+     * @param listener - original listener associated with the task
+     * @return wrapped listener
+     */
+    public static <Response> ActionListener<Response> wrapWithCancellationListener(
+        NodeClient client,
+        CancellableTask taskToCancel,
+        @Nullable TimeValue cancelAfterTimeInterval,
+        TimeValue timeout,
+        ActionListener<Response> listener,
+        TimeoutHandler timeoutHandler
+    ) {
+        final TimeValue timeoutInterval = (cancelAfterTimeInterval == null) ? timeout : cancelAfterTimeInterval;
         // Note: -1 (or no timeout) will help to turn off cancellation. The combinations will be request level set at -1 or request level
         // set to null and cluster level set to -1.
         ActionListener<Response> listenerToReturn = listener;

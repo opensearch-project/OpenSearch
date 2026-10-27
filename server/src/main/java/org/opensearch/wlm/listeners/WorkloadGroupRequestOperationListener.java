@@ -18,6 +18,7 @@ import org.opensearch.cluster.metadata.WorkloadGroup;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.WorkloadGroupSearchCancelAfterTimeIntervalResolver;
 import org.opensearch.wlm.WorkloadGroupSearchSettings;
 import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupTask;
@@ -100,15 +101,20 @@ public class WorkloadGroupRequestOperationListener extends SearchRequestOperatio
         }
     }
 
+    /**
+     * Writing the group's interval onto the request carries it to the remote clusters of a {@code ccs_minimize_roundtrips}
+     * search. The coordinator arms its own cancellation timer earlier, with the interval from
+     * {@link WorkloadGroupSearchCancelAfterTimeIntervalResolver}, which uses the same precedence.
+     */
     private void applyCancelAfterTimeInterval(Settings wlmSettings, SearchRequest searchRequest, boolean overrideRequestValues) {
-        if (wlmSettings.hasValue(WorkloadGroupSearchSettings.WLM_CANCEL_AFTER_TIME_INTERVAL.getKey()) == false) {
-            return;
-        }
         try {
-            TimeValue cancelAfter = WorkloadGroupSearchSettings.WLM_CANCEL_AFTER_TIME_INTERVAL.get(wlmSettings);
-            if (overrideRequestValues || searchRequest.getCancelAfterTimeInterval() == null) {
-                searchRequest.setCancelAfterTimeInterval(cancelAfter);
-            }
+            searchRequest.setCancelAfterTimeInterval(
+                WorkloadGroupSearchCancelAfterTimeIntervalResolver.effectiveCancelAfterTimeInterval(
+                    wlmSettings,
+                    overrideRequestValues,
+                    searchRequest.getCancelAfterTimeInterval()
+                )
+            );
         } catch (Exception e) {
             logger.error("Failed to apply workload group setting [search.cancel_after_time_interval]", e);
         }

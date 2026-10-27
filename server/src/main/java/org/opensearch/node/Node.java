@@ -45,6 +45,7 @@ import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
+import org.opensearch.action.search.SearchCancelAfterTimeIntervalResolver;
 import org.opensearch.action.search.SearchExecutionGate;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
@@ -324,6 +325,7 @@ import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.wlm.WorkloadGroupSearchAdmission;
+import org.opensearch.wlm.WorkloadGroupSearchCancelAfterTimeIntervalResolver;
 import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupSharedThrottleService;
 import org.opensearch.wlm.WorkloadGroupsStateAccessor;
@@ -1315,6 +1317,10 @@ public class Node implements Closeable {
                 workloadGroupService,
                 threadPool
             );
+            // Applies a workload group's search.cancel_after_time_interval to the coordinator's cancellation timer, which the search
+            // actions arm before the listener above runs; they depend only on the core interface.
+            final SearchCancelAfterTimeIntervalResolver searchCancelAfterTimeIntervalResolver =
+                new WorkloadGroupSearchCancelAfterTimeIntervalResolver(workloadGroupService, threadPool);
 
             // register all standard SearchRequestOperationsCompositeListenerFactory to the SearchRequestOperationsCompositeListenerFactory
             final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =
@@ -1790,6 +1796,7 @@ public class Node implements Closeable {
                 b.bind(WorkloadGroupService.class).toInstance(workloadGroupService);
                 b.bind(WorkloadGroupSharedThrottleService.class).toInstance(workloadGroupSharedThrottleService);
                 b.bind(SearchExecutionGate.class).toInstance(searchExecutionGate);
+                b.bind(SearchCancelAfterTimeIntervalResolver.class).toInstance(searchCancelAfterTimeIntervalResolver);
                 b.bind(AdmissionControlService.class).toInstance(admissionControlService);
                 b.bind(UsageService.class).toInstance(usageService);
                 b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());

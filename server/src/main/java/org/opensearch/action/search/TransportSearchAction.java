@@ -32,6 +32,9 @@
 
 package org.opensearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
@@ -173,6 +176,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Setting.Property.NodeScope
     );
 
+    // For static methods. A static field named logger would hide the logger that this class and its subclasses inherit.
+    private static final Logger staticLogger = LogManager.getLogger(TransportSearchAction.class);
+
     final NodeClient client;
     private final ThreadPool threadPool;
     final ClusterService clusterService;
@@ -192,6 +198,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private TaskResourceTrackingService taskResourceTrackingService;
     private final SearchExecutionGate searchExecutionGate;
+    private final SearchCancelAfterTimeIntervalResolver cancelAfterTimeIntervalResolver;
 
     private final SearchIndexPruningService searchIndexPruningService;
 
@@ -214,7 +221,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Tracer tracer,
         TaskResourceTrackingService taskResourceTrackingService,
         IndicesService indicesService,
-        SearchExecutionGate searchExecutionGate
+        SearchExecutionGate searchExecutionGate,
+        SearchCancelAfterTimeIntervalResolver cancelAfterTimeIntervalResolver
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.client = client;
@@ -243,6 +251,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             new ClusterStateFieldDomainProvider()
         );
         this.searchExecutionGate = searchExecutionGate;
+        this.cancelAfterTimeIntervalResolver = cancelAfterTimeIntervalResolver;
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(
@@ -338,10 +347,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // cancellation. There may be other top level requests like AsyncSearch which is using SearchRequest internally and has it's own
         // cancellation mechanism. For such cases, the SearchRequest when created can override the createTask and set the
         // cancelAfterTimeInterval to NO_TIMEOUT and bypass this mechanism
-        if (task instanceof CancellableTask) {
+        if (task instanceof CancellableTask cancellableTask) {
             listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
                 client,
-                (CancellableTask) task,
+                cancellableTask,
+                resolveCancelAfterTimeInterval(cancelAfterTimeIntervalResolver, cancellableTask, searchRequest),
                 clusterService.getClusterSettings().get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING),
                 listener,
                 e -> {}
@@ -362,6 +372,41 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         });
         executeRequest(task, searchRequest, this::searchAsyncAction, searchStatusStatsUpdateListener);
+    }
+
+    /**
+     * The interval after which the coordinator cancels the search running on {@code task}, or {@code null} to use the cluster's
+     * {@code search.cancel_after_time_interval}. The resolver is consulted only when the task's cancellation timeout came from the
+     * request; a task whose {@code createTask} chose its own timeout (such as {@link SearchService#NO_TIMEOUT} for a search with its
+     * own cancellation mechanism) keeps it. A resolver that throws does not fail the search: the exception is logged and the task
+     * keeps its own timeout, exactly as without a resolver.
+     */
+    @Nullable
+    static TimeValue resolveCancelAfterTimeInterval(
+        SearchCancelAfterTimeIntervalResolver resolver,
+        CancellableTask task,
+        SearchRequest searchRequest
+    ) {
+        final TimeValue requested = task.getCancellationTimeout();
+        // By reference, not equals: SearchRequest#createTask passes the request's own TimeValue to the task, so only a task holding
+        // that very instance took its timeout from the request. A createTask that chose its own value keeps it even when the two are
+        // equal, so asynchronous search's SearchService.NO_TIMEOUT opt-out survives a request that sets -1, which holds an equal
+        // but distinct TimeValue (REST parses -1 to TimeValue.MINUS_ONE).
+        if (requested != searchRequest.getCancelAfterTimeInterval()) {
+            return requested;
+        }
+        try {
+            return resolver.resolve(task, searchRequest, requested);
+        } catch (Exception e) {
+            staticLogger.warn(
+                () -> new ParameterizedMessage(
+                    "Failed to resolve the cancel_after_time_interval of task [{}], falling back to the requested interval",
+                    task.getId()
+                ),
+                e
+            );
+            return requested;
+        }
     }
 
     /**
