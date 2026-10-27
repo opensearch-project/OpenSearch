@@ -50,6 +50,8 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
+import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
@@ -59,6 +61,8 @@ import org.opensearch.core.index.Index;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -187,4 +191,77 @@ public class SameShardRoutingTests extends OpenSearchAllocationTestCase {
         decision = decider.canForceAllocatePrimary(newPrimary, unassignedNode, routingAllocation);
         assertEquals(Decision.Type.YES, decision.type());
     }
+
+    public void testRelocateBetweenNodesInSameHost() {
+        AllocationService strategy = createAllocationService(
+            Settings.builder().put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true).build()
+        );
+
+        Metadata metaData = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .build();
+
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metaData)
+            .routingTable(routingTable)
+            .build();
+
+        logger.info("--> adding two nodes with the same host");
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(
+                        new DiscoveryNode(
+                            "node1",
+                            "node1",
+                            "node1",
+                            "test1",
+                            "test1",
+                            buildNewFakeTransportAddress(),
+                            emptyMap(),
+                            CLUSTER_MANAGER_DATA_ROLES,
+                            Version.CURRENT
+                        )
+                    )
+                    .add(
+                        new DiscoveryNode(
+                            "node2",
+                            "node2",
+                            "node2",
+                            "test1",
+                            "test1",
+                            buildNewFakeTransportAddress(),
+                            emptyMap(),
+                            CLUSTER_MANAGER_DATA_ROLES,
+                            Version.CURRENT
+                        )
+                    )
+            )
+            .build();
+        clusterState = strategy.reroute(clusterState, "reroute");
+
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(1));
+
+        logger.info("--> start all primary shards, no replica will be started since its on the same host");
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.STARTED), equalTo(1));
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(0));
+
+        List<ShardRouting> shardRoutings = clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED);
+        String currentNodeId = shardRoutings.get(0).currentNodeId();
+
+        logger.info("--> move shard to the other node in the same host");
+        String targetNodeId = Objects.equals(currentNodeId, "node1") ? "node2" : "node1";
+        AllocationCommands commands = new AllocationCommands(new MoveAllocationCommand("test", 0, currentNodeId, targetNodeId));
+        AllocationService.CommandsResult reroute = strategy.reroute(clusterState, commands, true, false);
+        assertEquals(Decision.Type.YES, reroute.explanations().explanations().get(0).decisions().type());
+
+        clusterState = reroute.getClusterState();
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(1));
+        List<ShardRouting> initializings = clusterState.getRoutingNodes().shardsWithState(INITIALIZING);
+        assertEquals(targetNodeId, initializings.get(0).currentNodeId());
+    }
+
 }
