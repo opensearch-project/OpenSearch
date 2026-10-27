@@ -190,6 +190,79 @@ public class IndicesFieldDataCacheTests extends OpenSearchTestCase {
         }
     }
 
+    public void testDisableDuringInFlightLoadLeavesNoEntry() throws Exception {
+        assertNoEntryLeftWhenToggledDuringLoad(false);
+    }
+
+    public void testDisableAndReenableDuringInFlightLoadLeavesNoEntry() throws Exception {
+        assertNoEntryLeftWhenToggledDuringLoad(true);
+    }
+
+    private void assertNoEntryLeftWhenToggledDuringLoad(boolean reenable) throws Exception {
+        final AtomicLong nodeReleasedBytes = new AtomicLong();
+        final AtomicLong shardCachedBytes = new AtomicLong();
+        final IndicesFieldDataCache fdCache = new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
+            @Override
+            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
+                nodeReleasedBytes.addAndGet(sizeInBytes);
+            }
+        }, null, null);
+        final IndexFieldDataCache.Listener shardListener = new IndexFieldDataCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
+                shardCachedBytes.addAndGet(ramUsage.ramBytesUsed());
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
+                shardCachedBytes.addAndGet(-sizeInBytes);
+            }
+        };
+        try (Directory directory = newDirectory()) {
+            IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig());
+            writer.addDocument(new Document());
+            ShardId shardId = new ShardId("test", "_na_", 0);
+            DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), shardId);
+            LeafReaderContext leaf = reader.leaves().get(0);
+            IndexFieldDataCache cache = fdCache.buildIndexFieldDataCache(shardListener, shardId.getIndex(), "field");
+            LeafFieldData leafFieldData = mock(LeafFieldData.class);
+            when(leafFieldData.ramBytesUsed()).thenReturn(42L);
+            AtomicBoolean toggled = new AtomicBoolean();
+            @SuppressWarnings("unchecked")
+            IndexFieldData<LeafFieldData> indexFieldData = mock(IndexFieldData.class);
+            when(indexFieldData.loadDirect(leaf)).thenAnswer(invocation -> {
+                if (toggled.compareAndSet(false, true)) {
+                    fdCache.setEnabled(false);
+                    if (reenable) {
+                        fdCache.setEnabled(true);
+                    }
+                }
+                return leafFieldData;
+            });
+
+            assertSame(leafFieldData, cache.load(leaf, indexFieldData));
+            assertEquals(reenable, fdCache.isEnabled());
+            assertEquals(0, fdCache.getCache().count());
+            assertEquals(0L, shardCachedBytes.get());
+            assertEquals(42L, nodeReleasedBytes.get());
+
+            if (reenable) {
+                assertSame(leafFieldData, cache.load(leaf, indexFieldData));
+                assertEquals(1, fdCache.getCache().count());
+                writer.close();
+                reader.close();
+                assertEquals(0, fdCache.getCache().count());
+                assertEquals(0L, shardCachedBytes.get());
+                assertEquals(84L, nodeReleasedBytes.get());
+            } else {
+                writer.close();
+                reader.close();
+            }
+        } finally {
+            fdCache.close();
+        }
+    }
+
     private IndicesFieldDataCache newFieldDataCache(AtomicReference<Runnable> onFirstRemoval) {
         return new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
             @Override

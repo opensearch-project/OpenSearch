@@ -188,10 +188,17 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         if (enabled == false) {
             // Invalidating releases the circuit breaker for every entry; do it off the cluster applier thread
             if (threadPool != null) {
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(cache::invalidateAll);
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(this::invalidateEachKey);
             } else {
-                cache.invalidateAll();
+                invalidateEachKey();
             }
+        }
+    }
+
+    // Key by key rather than invalidateAll(), which can orphan an entry whose load is in flight
+    private void invalidateEachKey() {
+        for (Key key : cache.keysSnapshot()) {
+            removeKey(key);
         }
     }
 
@@ -381,6 +388,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
                 notifyOnCache(shardId, fieldData);
                 return fieldData;
             });
+            invalidateIfDisabledDuringLoad(key);
             return (FD) accountable;
         }
 
@@ -411,6 +419,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
                 notifyOnCache(shardId, ifd);
                 return ifd;
             });
+            invalidateIfDisabledDuringLoad(key);
             return (IFD) accountable;
         }
 
@@ -424,6 +433,13 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
                 nodeListener.onRemoval(shardId, fieldName, false, accountable.ramBytesUsed());
             } catch (Exception e) {
                 logger.error("Failed to call node-level listener on uncached field data", e);
+            }
+        }
+
+        private void invalidateIfDisabledDuringLoad(Key key) {
+            if (nodeLevelCache.enabled == false) {
+                // The cache was disabled while this load ran, so drop the entry it just added
+                nodeLevelCache.getCache().invalidate(key);
             }
         }
 
