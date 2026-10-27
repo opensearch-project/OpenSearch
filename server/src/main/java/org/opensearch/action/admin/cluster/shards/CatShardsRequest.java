@@ -11,6 +11,7 @@ package org.opensearch.action.admin.cluster.shards;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.pagination.PageParams;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -36,6 +37,8 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
     // requested shards. When the REST layer determines that no requested column (h= or s=) requires
     // per-shard stats, it sets this to false to skip the broadcast fan-out entirely.
     private boolean indicesStatsRequired = true;
+    // Matches ClusterStateRequest's default, so omitting expand_wildcards keeps the existing behavior.
+    private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
     public CatShardsRequest() {}
 
@@ -51,6 +54,7 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
         }
         if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
             indicesStatsRequired = in.readBoolean();
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
     }
 
@@ -72,6 +76,7 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
         }
         if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
             out.writeBoolean(indicesStatsRequired);
+            indicesOptions.writeIndicesOptions(out);
         }
     }
 
@@ -118,6 +123,14 @@ public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsReq
 
     public boolean isIndicesStatsRequired() {
         return this.indicesStatsRequired;
+    }
+
+    public void setIndicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+    }
+
+    public IndicesOptions getIndicesOptions() {
+        return this.indicesOptions;
     }
 
     @Override

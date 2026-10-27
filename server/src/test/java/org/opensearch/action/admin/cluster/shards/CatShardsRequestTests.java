@@ -10,6 +10,7 @@ package org.opensearch.action.admin.cluster.shards;
 
 import org.opensearch.Version;
 import org.opensearch.action.pagination.PageParams;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -153,6 +154,40 @@ public class CatShardsRequestTests extends OpenSearchTestCase {
                 CatShardsRequest deserialized = new CatShardsRequest(in);
                 // ...an old peer reads the safe default and fetches stats as before (no skip).
                 assertTrue(deserialized.isIndicesStatsRequired());
+            }
+        }
+    }
+
+    public void testIndicesOptionsRoundTripsOnCurrentVersion() throws Exception {
+        CatShardsRequest request = new CatShardsRequest();
+        IndicesOptions options = IndicesOptions.fromOptions(
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
+        );
+        request.setIndicesOptions(options);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.CURRENT);
+            request.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.CURRENT);
+                assertEquals(options, new CatShardsRequest(in).getIndicesOptions());
+            }
+        }
+    }
+
+    public void testIndicesOptionsDefaultWhenPeerBeforeGate() throws Exception {
+        Version oldVersion = VersionUtils.getPreviousVersion(Version.V_3_10_0);
+        CatShardsRequest request = new CatShardsRequest();
+        request.setIndicesOptions(IndicesOptions.strictExpandHidden());
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(oldVersion);
+            request.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(oldVersion);
+                assertEquals(IndicesOptions.lenientExpandOpen(), new CatShardsRequest(in).getIndicesOptions());
             }
         }
     }

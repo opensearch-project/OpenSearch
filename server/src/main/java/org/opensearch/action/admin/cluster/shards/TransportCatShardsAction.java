@@ -16,6 +16,7 @@ import org.opensearch.action.pagination.PageParams;
 import org.opensearch.action.pagination.ShardPaginationStrategy;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -62,6 +63,7 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
         clusterStateRequest.setShouldCancelOnTimeout(true);
         clusterStateRequest.local(shardsRequest.local());
         clusterStateRequest.clusterManagerNodeTimeout(shardsRequest.clusterManagerNodeTimeout());
+        clusterStateRequest.indicesOptions(shardsRequest.getIndicesOptions());
         if (Objects.isNull(shardsRequest.getPageParams())) {
             clusterStateRequest.clear().nodes(true).routingTable(true).indices(shardsRequest.getIndices());
         } else {
@@ -131,6 +133,9 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                         indicesStatsRequest.setShouldCancelOnTimeout(true);
                         indicesStatsRequest.all();
                         indicesStatsRequest.indices(indices);
+                        indicesStatsRequest.indicesOptions(
+                            statsIndicesOptions(shardsRequest.getIndicesOptions(), indicesStatsRequest.indicesOptions())
+                        );
                         indicesStatsRequest.setParentTask(client.getLocalNodeId(), parentTask.getId());
                         client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                             @Override
@@ -181,6 +186,25 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
 
     private boolean shouldSkipIndicesStatsRequest(ShardPaginationStrategy paginationStrategy, String[] indices) {
         return Objects.nonNull(paginationStrategy) && (indices == null || indices.length == 0);
+    }
+
+    /**
+     * Expands wildcards in the stats request to the same open and hidden indices as the cluster state request. Closed indices
+     * have no shard stats, so they stay out of the stats request and their rows show empty stats columns. Everything else
+     * keeps the stats request's defaults, so the default {@code expand_wildcards} gives the same options as before.
+     */
+    static IndicesOptions statsIndicesOptions(IndicesOptions requested, IndicesOptions defaults) {
+        return IndicesOptions.fromOptions(
+            defaults.ignoreUnavailable(),
+            defaults.allowNoIndices(),
+            requested.expandWildcardsOpen(),
+            false,
+            requested.expandWildcardsHidden(),
+            defaults.allowAliasesToMultipleIndices(),
+            defaults.forbidClosedIndices(),
+            defaults.ignoreAliases(),
+            defaults.ignoreThrottled()
+        );
     }
 
     /**

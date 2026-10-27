@@ -39,6 +39,7 @@ import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.pagination.PageToken;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
@@ -122,6 +123,15 @@ public class RestShardsAction extends AbstractListAction {
         shardsRequest.clusterManagerNodeTimeout(request.paramAsTime("cluster_manager_timeout", shardsRequest.clusterManagerNodeTimeout()));
         shardsRequest.setCancelAfterTimeInterval(request.paramAsTime("cancel_after_time_interval", NO_TIMEOUT));
         shardsRequest.setIndices(indices);
+        if (request.hasParam("expand_wildcards")) {
+            shardsRequest.setIndicesOptions(
+                IndicesOptions.fromParameters(request.param("expand_wildcards"), null, null, null, shardsRequest.getIndicesOptions())
+            );
+            // With no index names the cluster state returns every shard, so match all indices for the option to apply.
+            if (indices.length == 0) {
+                shardsRequest.setIndices(new String[] { "*" });
+            }
+        }
         shardsRequest.setRequestLimitCheckSupported(isRequestLimitCheckSupported());
         shardsRequest.setPageParams(pageParams);
         shardsRequest.setIndicesStatsRequired(requestNeedsIndicesStats(request));

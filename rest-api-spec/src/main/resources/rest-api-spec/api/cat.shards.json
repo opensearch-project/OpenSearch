@@ -49,6 +49,18 @@
           "pb"
         ]
       },
+      "expand_wildcards":{
+        "type":"enum",
+        "options":[
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default":"open",
+        "description":"Whether to expand wildcard expressions to open, closed, hidden, or all indices. Closed indices have no shard stats, so their stats columns are empty."
+      },
       "local":{
         "type":"boolean",
         "description":"Return local information, do not retrieve the state from master node (default: false)"

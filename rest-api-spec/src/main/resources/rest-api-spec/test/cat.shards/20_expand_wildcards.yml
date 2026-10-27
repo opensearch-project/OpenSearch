@@ -1,0 +1,140 @@
+setup:
+  - do:
+      indices.create:
+        index: foo_open
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+  - do:
+      indices.create:
+        index: foo_closed
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+  - do:
+      indices.create:
+        index: foo_hidden
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+            index:
+              hidden: true
+  - do:
+      cluster.health:
+        wait_for_status: green
+  - do:
+      indices.close:
+        index: foo_closed
+
+---
+"Test cat shards expand_wildcards":
+  - skip:
+      version: " - 3.9.99"
+      reason: "expand_wildcards was added to cat shards in 3.10.0"
+
+  - do:
+      cat.shards:
+        index: foo*
+        h: i
+        s: i
+  - match:
+      $body: |
+        /^foo_open\n$/
+
+  - do:
+      cat.shards:
+        index: foo*
+        expand_wildcards: open
+        h: i
+        s: i
+  - match:
+      $body: |
+        /^foo_open\n$/
+
+  - do:
+      cat.shards:
+        index: foo*
+        expand_wildcards: closed
+        h: i
+        s: i
+  - match:
+      $body: |
+        /^foo_closed\n$/
+
+  - do:
+      cat.shards:
+        index: foo*
+        expand_wildcards: open,hidden
+        h: i
+        s: i
+  - match:
+      $body: |
+        /^foo_hidden\nfoo_open\n$/
+
+  - do:
+      cat.shards:
+        index: foo*
+        expand_wildcards: all
+        h: i
+        s: i
+  - match:
+      $body: |
+        /^foo_closed\nfoo_hidden\nfoo_open\n$/
+
+  - do:
+      cat.shards:
+        index: foo*
+        expand_wildcards: none
+        h: i
+  - match:
+      $body: |
+        /^$/
+
+  - do:
+      cat.shards:
+        expand_wildcards: closed
+        h: i
+  - match:
+      $body: |
+        /^foo_closed\n$/
+
+---
+"Test cat shards expand_wildcards with stats columns":
+  - skip:
+      version: " - 3.9.99"
+      reason: "expand_wildcards was added to cat shards in 3.10.0"
+
+  - do:
+      index:
+        index: foo_hidden
+        body: { test: foo }
+        refresh: true
+
+  # Closed indices have no shard stats, so their docs column is empty.
+  - do:
+      cat.shards:
+        index: foo*
+        expand_wildcards: all
+        h: i,docs
+        s: i
+  - match:
+      $body: |
+        /^foo_closed \s+ \n
+           foo_hidden \s+ 1 \s* \n
+           foo_open   \s+ 0 \s* \n
+        $/
+
+---
+"Test cat shards rejects an invalid expand_wildcards value":
+  - skip:
+      version: " - 3.9.99"
+      reason: "expand_wildcards was added to cat shards in 3.10.0"
+
+  - do:
+      catch: bad_request
+      cat.shards:
+        index: foo*
+        expand_wildcards: bogus
