@@ -442,6 +442,9 @@ impl TableProvider for IndexedTableProvider {
         }))
     }
 
+    // TODO [df55-perf]: return real stats (num_rows + sort-col min/max from SegmentFileInfo) via DF55
+    // statistics_from_inputs (datafusion#21815/#23051), and answer targeted ScanArgs::with_statistics_requests from scan_with_args
+    // (B-5/B-6 in ../../implementation/df55-new-api-adoption-tasklist.md; OPT-2/PERF-A). Plan-changing → benchmark first.
     fn statistics(&self) -> Option<Statistics> {
         None
     }
@@ -544,6 +547,23 @@ impl ExecutionPlan for QueryShardExec {
     }
     fn children(&self) -> Vec<&Arc<dyn ExecutionPlan>> {
         vec![]
+    }
+    /// Expose the residual `predicate` and any accepted runtime `dynamic_filters`
+    /// as physical-expression roots. Required so dynamic-filter producers
+    /// (e.g. a parent TopK `SortExec`) can discover — via `plan_contains_expression_id`
+    /// — that this scan still holds the filter they pushed for statistics pruning.
+    fn apply_expressions(
+        &self,
+        f: &mut dyn FnMut(
+            &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
+        ) -> Result<datafusion::common::tree_node::TreeNodeRecursion>,
+    ) -> Result<datafusion::common::tree_node::TreeNodeRecursion> {
+        let mut roots: Vec<&Arc<dyn datafusion::physical_expr::PhysicalExpr>> = Vec::new();
+        if let Some(predicate) = &self.predicate {
+            roots.push(predicate);
+        }
+        roots.extend(self.dynamic_filters.iter());
+        datafusion::physical_plan::apply_expression_roots(roots, f)
     }
     fn with_new_children(
         self: Arc<Self>,

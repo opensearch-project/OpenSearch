@@ -66,7 +66,7 @@ use prost::bytes::Bytes;
 pub async fn load_parquet_metadata(
     store: Arc<dyn ObjectStore>,
     location: &object_store::path::Path,
-    metadata_cache: Arc<dyn FileMetadataCache>,
+    metadata_cache: Arc<FileMetadataCache>,
 ) -> std::result::Result<(SchemaRef, u64, Arc<ParquetMetaData>), String> {
     let meta = store
         .head(location)
@@ -84,7 +84,7 @@ pub async fn load_parquet_metadata_with_meta(
     store: Arc<dyn ObjectStore>,
     location: &object_store::path::Path,
     meta: object_store::ObjectMeta,
-    metadata_cache: Arc<dyn FileMetadataCache>,
+    metadata_cache: Arc<FileMetadataCache>,
 ) -> std::result::Result<(SchemaRef, u64, Arc<ParquetMetaData>), String> {
     let size = meta.size;
 
@@ -118,6 +118,8 @@ pub async fn load_parquet_metadata_with_meta(
     let pq_meta = match pq_meta {
         Some(m) => m,
         None => {
+            // TODO [df55-followup]: ParquetObjectReader is deprecated in parquet-59; migrate to
+            // implementing AsyncFileReader directly (M-4 in ../../implementation/df55-new-api-adoption-tasklist.md).
             let mut reader = ParquetObjectReader::new(Arc::clone(&store), location.clone());
             let fetched = Arc::new(
                 ParquetMetaDataReader::new()
@@ -235,6 +237,10 @@ fn create_stream_with_access_plan(
         Arc::clone(&config.io_stats),
     )) as Arc<dyn ParquetFileReaderFactory>;
 
+    // TODO [df55-perf]: evaluate ParquetSource predicate cache (with_max_predicate_cache_size) to avoid
+    // re-decoding predicate columns for surviving rows (B-1 in ../../implementation/df55-new-api-adoption-tasklist.md).
+    // Highest read lever; safe since parquet-59 #9982/#9983 fixed its panic/silent-row-drop. Needs
+    // benchmarking + interaction check with our collector-bitset (page index disabled below).
     let mut parquet_source = ParquetSource::new(config.full_schema.clone())
         .with_parquet_file_reader_factory(reader_factory)
         // cannot use page index because we have collector bitset matches that are not visible

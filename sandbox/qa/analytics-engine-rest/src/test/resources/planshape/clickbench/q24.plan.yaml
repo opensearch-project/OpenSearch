@@ -12,12 +12,12 @@ plans:
             OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
               OpenSearchSort(sort0=[$0], dir0=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
                 OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], ILIKE($1, '%google%', '\'))], viableBackends=[[lucene, datafusion]])
-                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+                  OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
       OpenSearchSort(sort0=[$0], dir0=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
         OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], ILIKE($1, '%google%', '\'))], viableBackends=[[lucene, datafusion]])
-          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+          OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
       [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
       OpenSearchSort(sort0=[$0], dir0=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
         OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
@@ -44,13 +44,13 @@ plans:
       OpenSearchSort(sort0=[$16], dir0=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
         OpenSearchSort(sort0=[$16], dir0=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], ILIKE($85, '%google%', '\'))], viableBackends=[[lucene, datafusion]])
-            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+            OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=CONJUNCTIVE]
       OpenSearchSort(sort0=[$16], dir0=[ASC-nulls-first], fetch=[10000], viableBackends=[[datafusion]])
         OpenSearchSort(sort0=[$16], dir0=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], ILIKE($85, '%google%', '\'))], viableBackends=[[lucene, datafusion]])
-            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+            OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     shard_physical_1seg: |
       SortExec: TopK(fetch=10), expr=[EventTime@16 ASC], preserve_partitioning=[false]
         CooperativeExec

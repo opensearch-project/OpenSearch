@@ -1,0 +1,70 @@
+diff --git a/src/arrow/arrow_reader/mod.rs b/src/arrow/arrow_reader/mod.rs
+index 2517e89..ffb4435 100644
+--- a/parquet/src/arrow/arrow_reader/mod.rs
++++ b/parquet/src/arrow/arrow_reader/mod.rs
+@@ -1625,6 +1625,49 @@ impl RecordBatchReader for ParquetRecordBatchReader {
+ }
+ 
+ impl ParquetRecordBatchReader {
++    /// Skip up to `num_rows` rows from the current reader position.
++    ///
++    /// This advances the existing column readers without materializing a
++    /// [`RecordBatch`]. When an offset index is available, complete pages in
++    /// the skipped range are discarded by the underlying page readers without
++    /// fetching or decoding their data.
++    ///
++    /// This method is only supported for readers without a [`RowSelection`].
++    /// A selection has its own logical cursor, which cannot be kept in sync
++    /// with an independent physical skip.
++    pub fn skip_rows(&mut self, num_rows: usize) -> Result<usize> {
++        if !matches!(
++            self.read_plan.row_selection_cursor_mut(),
++            RowSelectionCursor::All
++        ) {
++            return Err(general_err!(
++                "cannot skip rows on a reader with a row selection"
++            ));
++        }
++        self.array_reader.skip_records(num_rows)
++    }
++
++    /// Decode up to `num_rows` rows from the current reader position.
++    ///
++    /// This changes the batch size for this call without rebuilding the reader.
++    /// It is only supported for readers without a [`RowSelection`], matching
++    /// [`Self::skip_rows`].
++    pub fn read_next_batch(&mut self, num_rows: usize) -> Result<Option<RecordBatch>> {
++        if num_rows == 0 {
++            return Err(general_err!("cannot read a sized batch with zero rows"));
++        }
++        if !matches!(
++            self.read_plan.row_selection_cursor_mut(),
++            RowSelectionCursor::All
++        ) {
++            return Err(general_err!(
++                "cannot read a sized batch on a reader with a row selection"
++            ));
++        }
++        self.read_plan.set_batch_size(num_rows);
++        self.next_inner()
++    }
++
+     /// Create a new [`ParquetRecordBatchReader`] from the provided chunk reader
+     ///
+     /// See [`ParquetRecordBatchReaderBuilder`] for more options
+diff --git a/src/arrow/arrow_reader/read_plan.rs b/src/arrow/arrow_reader/read_plan.rs
+index 04f132e..eacbfb9 100644
+--- a/parquet/src/arrow/arrow_reader/read_plan.rs
++++ b/parquet/src/arrow/arrow_reader/read_plan.rs
+@@ -467,6 +467,11 @@ impl ReadPlan {
+     pub fn batch_size(&self) -> usize {
+         self.batch_size
+     }
++
++    /// Set the number of rows to read in the next output batch.
++    pub(crate) fn set_batch_size(&mut self, batch_size: usize) {
++        self.batch_size = batch_size;
++    }
+ }
+ 
+ #[cfg(test)]
