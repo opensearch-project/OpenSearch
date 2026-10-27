@@ -92,14 +92,17 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         // Drop null clear-markers; they only mean something during an update merge.
         Settings normalizedSettings = stripClearMarkers(mutableWorkloadGroupFragment.getSettings());
         Settings normalizedThrottling = stripClearMarkers(mutableWorkloadGroupFragment.getThrottling());
+        Settings normalizedQueue = stripClearMarkers(mutableWorkloadGroupFragment.getQueue());
         if (normalizedSettings.equals(mutableWorkloadGroupFragment.getSettings()) == false
-            || normalizedThrottling.equals(mutableWorkloadGroupFragment.getThrottling()) == false) {
-            // Skip re-validation here; validateMergedConfig below decides strict vs. lenient.
+            || normalizedThrottling.equals(mutableWorkloadGroupFragment.getThrottling()) == false
+            || normalizedQueue.equals(mutableWorkloadGroupFragment.getQueue()) == false) {
+            // Skip re-validation here; the merged-config checks below decide strict vs. lenient.
             mutableWorkloadGroupFragment = new MutableWorkloadGroupFragment(
                 mutableWorkloadGroupFragment.getResiliencyMode(),
                 mutableWorkloadGroupFragment.getResourceLimits(),
                 normalizedSettings,
                 normalizedThrottling,
+                normalizedQueue,
                 false
             );
         }
@@ -156,10 +159,14 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
             existingGroup.getMutableWorkloadGroupFragment().getThrottling(),
             mutableWorkloadGroupFragment.getThrottling()
         );
+        final Settings updatedQueue = mergeSettings(
+            existingGroup.getMutableWorkloadGroupFragment().getQueue(),
+            mutableWorkloadGroupFragment.getQueue()
+        );
         return new WorkloadGroup(
             existingGroup.getName(),
             existingGroup.get_id(),
-            new MutableWorkloadGroupFragment(mode, updatedResourceLimits, updatedSettings, updatedThrottling),
+            new MutableWorkloadGroupFragment(mode, updatedResourceLimits, updatedSettings, updatedThrottling, updatedQueue),
             Instant.now().getMillis()
         );
     }
@@ -370,7 +377,8 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
                     mutableWorkloadGroupFragment1.parseField(parser, fieldName);
                 } else if (token == XContentParser.Token.VALUE_NULL) {
                     if (fieldName.equals(MutableWorkloadGroupFragment.SETTINGS_STRING)
-                        || fieldName.equals(MutableWorkloadGroupFragment.THROTTLING_STRING)) {
+                        || fieldName.equals(MutableWorkloadGroupFragment.THROTTLING_STRING)
+                        || fieldName.equals(MutableWorkloadGroupFragment.QUEUE_STRING)) {
                         mutableWorkloadGroupFragment1.parseField(parser, fieldName);
                     }
                 }

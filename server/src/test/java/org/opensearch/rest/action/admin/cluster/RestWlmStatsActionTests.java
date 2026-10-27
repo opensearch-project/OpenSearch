@@ -115,6 +115,46 @@ public class RestWlmStatsActionTests extends OpenSearchTestCase {
         assertEquals(1, table.getRows().size());
     }
 
+    // The queue columns follow TOTAL_WOULD_THROTTLE, as the queue stats follow total_would_throttle in _wlm/stats.
+    public void testQueueColumns() {
+        Table table = action.createTableWithHeaders(null, true);
+        List<String> columns = table.getHeaders()
+            .stream()
+            .map(header -> header.value.toString())
+            .filter(header -> "|".equals(header) == false)
+            .collect(Collectors.toList());
+        int wouldThrottle = columns.indexOf("TOTAL_WOULD_THROTTLE");
+        assertEquals(
+            List.of("TOTAL_QUEUED", "TOTAL_QUEUE_REJECTIONS", "QUEUED_CURRENT", "CPU_USAGE"),
+            columns.subList(wouldThrottle + 1, wouldThrottle + 5)
+        );
+        assertEquals("Total Queued Queries", table.findHeaderByName("TOTAL_QUEUED").attr.get("desc"));
+        assertEquals(
+            "Total Queries Rejected Because The Queue Was Full",
+            table.findHeaderByName("TOTAL_QUEUE_REJECTIONS").attr.get("desc")
+        );
+        assertEquals("Queries Currently Queued", table.findHeaderByName("QUEUED_CURRENT").attr.get("desc"));
+
+        WorkloadGroupStats.WorkloadGroupStatsHolder stats = new WorkloadGroupStats.WorkloadGroupStatsHolder(
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            new HashMap<>()
+        );
+        action.addRow(table, "node1", "group1", stats);
+        assertEquals(7L, table.getAsMap().get("TOTAL_QUEUED").get(0).value);
+        assertEquals(8L, table.getAsMap().get("TOTAL_QUEUE_REJECTIONS").get(0).value);
+        assertEquals(9L, table.getAsMap().get("QUEUED_CURRENT").get(0).value);
+    }
+
     public void testAddFooterRow() {
         Table table = action.createTableWithHeaders(null, true);
         // Derive the width from the headers rather than hardcoding it, so adding a column cannot silently desync.
