@@ -42,7 +42,8 @@ public class WorkloadGroupRequestOperationListener extends SearchRequestOperatio
      */
     @Override
     protected void onRequestStart(SearchRequestContext searchRequestContext) {
-        // Do not reject here: CompositeListener swallows exceptions thrown in onRequestStart.
+        // Do not reject here: CompositeListener swallows exceptions thrown in onRequestStart, so WorkloadGroupSearchAdmission
+        // rejects before the search starts.
         WorkloadGroup workloadGroup = workloadGroupService.getCurrentWorkloadGroup();
         applyWorkloadGroupSearchSettings(workloadGroup, searchRequestContext.getRequest());
     }

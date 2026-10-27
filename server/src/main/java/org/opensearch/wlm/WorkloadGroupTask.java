@@ -143,8 +143,9 @@ public class WorkloadGroupTask extends CancellableTask {
     }
 
     /**
-     * Marks this task as refused by search admission (a resource-limit rejection or a throttle 429), so it never ran and
-     * {@link WorkloadGroupService#onTaskCompleted} does not count it as a completion.
+     * Marks this task as refused by search admission (a resource-limit rejection, a throttle 429, or a search-pool
+     * rejection while handing off a shared-tier permit), so it never ran and {@link WorkloadGroupService#onTaskCompleted}
+     * does not count it as a completion.
      */
     public void markAdmissionRejected() {
         this.admissionRejected = true;

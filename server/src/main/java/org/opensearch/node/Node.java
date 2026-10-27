@@ -1502,7 +1502,8 @@ public class Node implements Closeable {
                 transportService
             );
             workloadGroupService.setSharedThrottleService(workloadGroupSharedThrottleService);
-            // Admits searches and scroll pages against WLM throttles; the search actions depend only on the core interface.
+            // Admits searches against WLM resource limits and throttles, and scroll pages against throttles; the search actions
+            // depend only on the core interface.
             final SearchExecutionGate searchExecutionGate = new SearchExecutionGate(
                 new WorkloadGroupSearchAdmission(workloadGroupService, clusterService, transportService.getTaskManager())
             );

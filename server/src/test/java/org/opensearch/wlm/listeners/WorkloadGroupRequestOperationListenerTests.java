@@ -39,7 +39,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCase {
@@ -278,6 +281,15 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
         when(mockClusterService.state()).thenReturn(state);
         when(state.metadata()).thenReturn(metadata);
         when(metadata.workloadGroups()).thenReturn(Collections.emptyMap());
+    }
+
+    public void testRequestStartNeverRejects() {
+        try (ThreadContext.StoredContext ignored = testThreadPool.getThreadContext().stashContext()) {
+            testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, testWorkloadGroupId);
+            sut.onRequestStart(mockSearchRequestContext);
+        }
+        // CompositeListener swallows exceptions from onRequestStart, so a rejection here would only bump the counters.
+        verify(workloadGroupService, never()).rejectIfNeeded(any());
     }
 
     // Tests for applyWorkloadGroupSearchSettings

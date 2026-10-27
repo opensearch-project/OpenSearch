@@ -945,7 +945,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     }
 
     // A gate over this service's admission, consulted even though the fixture never applies cluster state (so
-    // isThrottlingActive() stays false).
+    // isSearchAdmissionActive() stays false).
     private SearchExecutionGate activeSearchGate() {
         return new SearchExecutionGate(
             new WorkloadGroupSearchAdmission(workloadGroupService, mockClusterService, Mockito.mock(TaskManager.class))::admit

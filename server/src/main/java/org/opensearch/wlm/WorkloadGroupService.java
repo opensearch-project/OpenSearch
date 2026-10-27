@@ -223,9 +223,8 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
 
     /**
      * Whether any request can currently be throttled: WLM is {@link WlmMode#ENABLED} and some workload group configures
-     * throttling. Backs {@link WorkloadGroupSearchAdmission#isActive()}: with the feature off, searches skip admission entirely
-     * (no admission work or listener wrapping). Like every admission input, a group's throttling takes effect once its
-     * cluster state is applied on this node.
+     * throttling. Like every admission input, a group's throttling takes effect once its cluster state is applied on this
+     * node.
      */
     public boolean isThrottlingActive() {
         return throttlingConfigured && workloadManagementSettings.getWlmMode() == WlmMode.ENABLED;
@@ -234,8 +233,8 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
     /**
      * Whether search admission has any work to do: WLM is {@link WlmMode#ENABLED} and some workload group exists, so a search
      * can be rejected on its group's resource limits ({@link #rejectIfNeeded}) or throttled. Backs
-     * {@link WorkloadGroupSearchAdmission#isActive()}; a superset of {@link #isThrottlingActive()}, since throttling is
-     * configured on a workload group.
+     * {@link WorkloadGroupSearchAdmission#isActive()}: otherwise searches skip admission entirely (no admission work or
+     * listener wrapping). Implied by {@link #isThrottlingActive()}, since throttling is configured on a workload group.
      */
     public boolean isSearchAdmissionActive() {
         return anyWorkloadGroupActive && workloadManagementSettings.getWlmMode() == WlmMode.ENABLED;
@@ -665,7 +664,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
         if (!(task instanceof WorkloadGroupTask workloadGroupTask) || !workloadGroupTask.isWorkloadGroupSet()) {
             return;
         }
-        // A task refused by search admission never ran; it is counted as a rejection or throttle, not a completion.
+        // A task refused by search admission never ran, so it is not a completion.
         if (workloadGroupTask.isAdmissionRejected()) {
             return;
         }

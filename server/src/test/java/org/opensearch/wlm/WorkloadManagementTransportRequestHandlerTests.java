@@ -9,6 +9,7 @@
 package org.opensearch.wlm;
 
 import org.opensearch.action.index.IndexRequest;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.tasks.Task;
@@ -26,8 +27,10 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 public class WorkloadManagementTransportRequestHandlerTests extends OpenSearchTestCase {
+    private static final String WORKLOAD_GROUP_ID = "wg";
     private WorkloadManagementTransportInterceptor.RequestHandler<TransportRequest> sut;
     private ThreadPool threadPool;
     private WorkloadGroupService workloadGroupService;
@@ -52,8 +55,13 @@ public class WorkloadManagementTransportRequestHandlerTests extends OpenSearchTe
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         WorkloadGroupTask spyTask = getSpyTask();
         doNothing().when(workloadGroupService).rejectIfNeeded(any());
-        sut.messageReceived(request, mock(TransportChannel.class), spyTask);
+        try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+            threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, WORKLOAD_GROUP_ID);
+            sut.messageReceived(request, mock(TransportChannel.class), spyTask);
+        }
         assertTrue(sut.isSearchWorkloadRequest(spyTask));
+        // The check reads the group from the request's header, not a null that would silently skip it.
+        verify(workloadGroupService).rejectIfNeeded(WORKLOAD_GROUP_ID);
         // Admitted task is tagged and forwarded to the wrapped handler.
         assertTrue(spyTask.isWorkloadGroupSet());
         assertEquals(1, actualHandler.invokeCount);
@@ -62,9 +70,15 @@ public class WorkloadManagementTransportRequestHandlerTests extends OpenSearchTe
     public void testMessageReceivedForSearchWorkload_RejectionCase() throws Exception {
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         WorkloadGroupTask spyTask = getSpyTask();
-        doThrow(OpenSearchRejectedExecutionException.class).when(workloadGroupService).rejectIfNeeded(any());
+        doThrow(OpenSearchRejectedExecutionException.class).when(workloadGroupService).rejectIfNeeded(WORKLOAD_GROUP_ID);
 
-        assertThrows(OpenSearchRejectedExecutionException.class, () -> sut.messageReceived(request, mock(TransportChannel.class), spyTask));
+        try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+            threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, WORKLOAD_GROUP_ID);
+            assertThrows(
+                OpenSearchRejectedExecutionException.class,
+                () -> sut.messageReceived(request, mock(TransportChannel.class), spyTask)
+            );
+        }
         // A rejected task must not be tagged (else onTaskCompleted would count it as a phantom completion) and must not be forwarded.
         assertFalse(spyTask.isWorkloadGroupSet());
         assertEquals(0, actualHandler.invokeCount);

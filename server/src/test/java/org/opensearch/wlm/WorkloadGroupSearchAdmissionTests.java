@@ -21,6 +21,8 @@ import org.opensearch.action.search.SearchTask;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.tasks.TaskId;
@@ -46,6 +48,7 @@ import static org.mockito.Mockito.when;
 public class WorkloadGroupSearchAdmissionTests extends OpenSearchTestCase {
 
     private static final long PARENT_ID = 7;
+    private static final String WORKLOAD_GROUP_ID = "wg-1";
 
     private WorkloadGroupService workloadGroupService;
     private TaskManager taskManager;
@@ -80,7 +83,7 @@ public class WorkloadGroupSearchAdmissionTests extends OpenSearchTestCase {
 
     public void testResourceLimitRejectionFailsBeforeTheThrottle() {
         OpenSearchRejectedExecutionException rejection = new OpenSearchRejectedExecutionException("contended");
-        doThrow(rejection).when(workloadGroupService).rejectIfNeeded(any());
+        doThrow(rejection).when(workloadGroupService).rejectIfNeeded(WORKLOAD_GROUP_ID);
         SearchTask task = searchTask(TaskId.EMPTY_TASK_ID);
         AtomicReference<Exception> failure = new AtomicReference<>();
         admission.admit(task, new SearchRequest(), ActionListener.wrap(p -> fail("must not admit"), failure::set));
@@ -91,7 +94,7 @@ public class WorkloadGroupSearchAdmissionTests extends OpenSearchTestCase {
     }
 
     public void testAnUnexpectedResourceLimitErrorFailsOpen() {
-        doThrow(new IllegalStateException("boom")).when(workloadGroupService).rejectIfNeeded(any());
+        doThrow(new IllegalStateException("boom")).when(workloadGroupService).rejectIfNeeded(WORKLOAD_GROUP_ID);
         SearchTask task = searchTask(TaskId.EMPTY_TASK_ID);
         AtomicReference<Releasable> permit = admit(task, new SearchRequest());
         serviceListener.get().onResponse(null);
@@ -106,10 +109,23 @@ public class WorkloadGroupSearchAdmissionTests extends OpenSearchTestCase {
         verify(workloadGroupService).acquireThrottlePermit(any(), any(), any());
     }
 
-    public void testCreatePitSkipsTheResourceLimitCheck() {
-        SearchTask createPit = new SearchTask(1, "transport", CreatePitAction.NAME, () -> "test", TaskId.EMPTY_TASK_ID, Map.of());
-        admit(createPit, new SearchRequest());
-        verify(workloadGroupService, never()).rejectIfNeeded(any());
+    public void testAFailingAdmittedListenerDoesNotMarkTheTaskRejected() {
+        SearchTask task = searchTask(TaskId.EMPTY_TASK_ID);
+        IllegalStateException boom = new IllegalStateException("boom");
+        // Not ActionListener.wrap, which would turn the throw into an onFailure of its own.
+        admission.admit(task, new SearchRequest(), new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable permit) {
+                throw boom;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("an admitted request must not be failed by admission", e);
+            }
+        });
+        expectThrows(IllegalStateException.class, () -> serviceListener.get().onResponse(null));
+        assertFalse("an admitted request that later fails is a completion, not a rejection", task.isAdmissionRejected());
     }
 
     public void testAdmitsATaskOutsideWorkloadManagementWithoutACharge() {
@@ -122,6 +138,7 @@ public class WorkloadGroupSearchAdmissionTests extends OpenSearchTestCase {
         // CreatePitController runs its shard fan-out on a SearchTask that carries the create point-in-time action.
         SearchTask createPit = new SearchTask(1, "transport", CreatePitAction.NAME, () -> "test", TaskId.EMPTY_TASK_ID, Map.of());
         assertSame(SearchAdmission.NOOP_PERMIT, admit(createPit, new SearchRequest()).get());
+        verify(workloadGroupService, never()).rejectIfNeeded(any());
         verify(workloadGroupService, never()).acquireThrottlePermit(any(), any(), any());
     }
 
@@ -208,7 +225,12 @@ public class WorkloadGroupSearchAdmissionTests extends OpenSearchTestCase {
         return permit;
     }
 
+    /** A search task tagged with {@link #WORKLOAD_GROUP_ID}, as {@code TransportSearchAction} tags it before admission. */
     private static SearchTask searchTask(TaskId parentTaskId) {
-        return new SearchTask(1, "transport", SearchAction.NAME, () -> "test", parentTaskId, Collections.emptyMap());
+        SearchTask task = new SearchTask(1, "transport", SearchAction.NAME, () -> "test", parentTaskId, Collections.emptyMap());
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, WORKLOAD_GROUP_ID);
+        task.setWorkloadGroupId(threadContext);
+        return task;
     }
 }
