@@ -126,8 +126,12 @@ public class IndicesBitsetFilterCache
         if (enabled == false) {
             // Cheap enough to run on the cluster applier thread. Entries are keyed by Lucene segment and parent filter,
             // and parent filters are the non-nested filter plus one per nested field (index.mapping.nested_fields.limit,
-            // 50 by default), so there are at most ~51 entries per segment
-            clear();
+            // 50 by default), so there are at most ~51 entries per segment.
+            // Invalidate key by key rather than invalidateAll(), which can orphan an entry whose load is in flight.
+            // keysByReader is left to drain as segments close, so no cached entry loses its registration.
+            for (BitsetCacheKey key : cache.keysSnapshot()) {
+                cache.invalidate(key);
+            }
         }
     }
 
@@ -178,12 +182,17 @@ public class IndicesBitsetFilterCache
             cacheHelper.addClosedListener(this);
             return ConcurrentCollections.newConcurrentSet();
         }).add(cacheKey);
-        return cache.computeIfAbsent(cacheKey, key -> {
-            final BitSet bitSet = bitsetFromQuery(query, context);
-            Value value = new Value(bitSet, shardId, listener);
+        final BitSet bitSet = cache.computeIfAbsent(cacheKey, key -> {
+            final BitSet loaded = bitsetFromQuery(query, context);
+            Value value = new Value(loaded, shardId, listener);
             listener.onCache(shardId, value.bitset);
             return value;
         }).bitset;
+        if (enabled == false) {
+            // The cache was disabled while this load ran, so drop the entry it just added
+            cache.invalidate(cacheKey);
+        }
+        return bitSet;
     }
 
     @Override

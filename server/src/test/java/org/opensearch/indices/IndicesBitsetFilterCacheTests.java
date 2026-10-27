@@ -31,6 +31,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -472,7 +473,6 @@ public class IndicesBitsetFilterCacheTests extends OpenSearchTestCase {
                 assertThat(cache.getCache().count(), equalTo(1));
                 assertThat(cachedBytes.get(), greaterThan(0L));
 
-                // disabling clears existing entries; bitsets are still produced but not cached
                 clusterSettings.applySettings(
                     Settings.builder().put(IndicesBitsetFilterCache.INDICES_BITSET_FILTER_CACHE_ENABLED_SETTING.getKey(), false).build()
                 );
@@ -483,7 +483,6 @@ public class IndicesBitsetFilterCacheTests extends OpenSearchTestCase {
                 assertThat(cache.getCache().count(), equalTo(0));
                 assertThat(cachedBytes.get(), equalTo(0L));
 
-                // re-enabling resumes caching
                 clusterSettings.applySettings(
                     Settings.builder().put(IndicesBitsetFilterCache.INDICES_BITSET_FILTER_CACHE_ENABLED_SETTING.getKey(), true).build()
                 );
@@ -491,5 +490,86 @@ public class IndicesBitsetFilterCacheTests extends OpenSearchTestCase {
                 assertThat(cache.getCache().count(), equalTo(1));
             }
         }
+    }
+
+    public void testDisableDuringInFlightLoadLeavesNoEntry() throws Exception {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        AtomicLong cachedBytes = new AtomicLong();
+        BitsetFilterCache.Listener listener = listenerTogglingCacheOnFirstLoad(clusterSettings, cachedBytes, false);
+        try (
+            IndicesBitsetFilterCache cache = new IndicesBitsetFilterCache(Settings.EMPTY, clusterSettings);
+            IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new StandardAnalyzer()))
+        ) {
+            DirectoryReader reader = openReaderWithOneDoc(writer);
+            BitSetProducer producer = cache.getBitSetProducer(new TermQuery(new Term("field", "value")), listener);
+            assertThat(producer.getBitSet(reader.leaves().get(0)).cardinality(), equalTo(1));
+            assertFalse(cache.isEnabled());
+            assertThat(cache.getCache().count(), equalTo(0));
+            assertThat(cachedBytes.get(), equalTo(0L));
+            reader.close();
+        }
+    }
+
+    public void testDisableAndReenableDuringInFlightLoadLeavesNoEntry() throws Exception {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        AtomicLong cachedBytes = new AtomicLong();
+        BitsetFilterCache.Listener listener = listenerTogglingCacheOnFirstLoad(clusterSettings, cachedBytes, true);
+        try (IndicesBitsetFilterCache cache = new IndicesBitsetFilterCache(Settings.EMPTY, clusterSettings)) {
+            IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new StandardAnalyzer()));
+            DirectoryReader reader = openReaderWithOneDoc(writer);
+            BitSetProducer producer = cache.getBitSetProducer(new TermQuery(new Term("field", "value")), listener);
+            assertThat(producer.getBitSet(reader.leaves().get(0)).cardinality(), equalTo(1));
+            assertTrue(cache.isEnabled());
+            assertThat(cache.getCache().count(), equalTo(0));
+            assertThat(cachedBytes.get(), equalTo(0L));
+
+            assertThat(producer.getBitSet(reader.leaves().get(0)).cardinality(), equalTo(1));
+            assertThat(cache.getCache().count(), equalTo(1));
+
+            writer.close();
+            reader.close();
+
+            assertThat(cache.getCache().count(), equalTo(0));
+            assertThat(cachedBytes.get(), equalTo(0L));
+        }
+    }
+
+    private static BitsetFilterCache.Listener listenerTogglingCacheOnFirstLoad(
+        ClusterSettings clusterSettings,
+        AtomicLong cachedBytes,
+        boolean reenable
+    ) {
+        AtomicBoolean toggled = new AtomicBoolean();
+        return new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+                cachedBytes.addAndGet(accountable.ramBytesUsed());
+                if (toggled.compareAndSet(false, true)) {
+                    applyEnabled(clusterSettings, false);
+                    if (reenable) {
+                        applyEnabled(clusterSettings, true);
+                    }
+                }
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+                cachedBytes.addAndGet(-accountable.ramBytesUsed());
+            }
+        };
+    }
+
+    private static void applyEnabled(ClusterSettings clusterSettings, boolean enabled) {
+        clusterSettings.applySettings(
+            Settings.builder().put(IndicesBitsetFilterCache.INDICES_BITSET_FILTER_CACHE_ENABLED_SETTING.getKey(), enabled).build()
+        );
+    }
+
+    private static DirectoryReader openReaderWithOneDoc(IndexWriter writer) throws Exception {
+        Document doc = new Document();
+        doc.add(new StringField("field", "value", Field.Store.NO));
+        writer.addDocument(doc);
+        writer.commit();
+        return OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("test", "_na_", 0));
     }
 }
