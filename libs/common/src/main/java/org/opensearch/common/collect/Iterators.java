@@ -50,6 +50,7 @@ public class Iterators {
      * @return a new {@link ConcatenatedIterator}
      * @throws NullPointerException if iterators is null
      */
+    @SafeVarargs
     public static <T> Iterator<T> concat(Iterator<? extends T>... iterators) {
         if (iterators == null) {
             throw new NullPointerException("iterators");
@@ -68,6 +69,7 @@ public class Iterators {
         private final Iterator<? extends T>[] iterators;
         private int index = 0;
 
+        @SafeVarargs
         ConcatenatedIterator(Iterator<? extends T>... iterators) {
             if (iterators == null) {
                 throw new NullPointerException("iterators");
