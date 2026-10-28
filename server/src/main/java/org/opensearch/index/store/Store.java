@@ -1552,18 +1552,29 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             final Map<String, List<StoreFileMetadata>> perSegment = new HashMap<>();
             final List<StoreFileMetadata> perCommitStoreFiles = new ArrayList<>();
             for (StoreFileMetadata meta : this) {
-                final String segmentId = IndexFileNames.parseSegmentName(meta.name());
-                final String extension = IndexFileNames.getExtension(meta.name());
-                if (IndexFileNames.SEGMENTS.equals(segmentId)
-                    || DEL_FILE_EXTENSION.equals(extension)
-                    || LIV_FILE_EXTENSION.equals(extension)) {
-                    // only treat del files as per-commit files fnm files are generational but only for upgradable DV
+                if (isPerCommitFile(meta.name())) {
                     perCommitStoreFiles.add(meta);
                 } else {
-                    perSegment.computeIfAbsent(segmentId, k -> new ArrayList<>()).add(meta);
+                    perSegment.computeIfAbsent(IndexFileNames.parseSegmentName(meta.name()), k -> new ArrayList<>()).add(meta);
                 }
             }
             return Iterables.concat(perSegment.values(), Collections.singleton(perCommitStoreFiles));
+        }
+
+        private static boolean isPerCommitFile(String fileName) {
+            final String extension = IndexFileNames.getExtension(fileName);
+            return IndexFileNames.SEGMENTS.equals(IndexFileNames.parseSegmentName(fileName))
+                || DEL_FILE_EXTENSION.equals(extension)
+                || LIV_FILE_EXTENSION.equals(extension);
+        }
+
+        /**
+         * Returns true for per-segment files that carry a generation, i.e. field infos and doc values updates such as
+         * {@code _x_N.fnm} or {@code _x_N_Lucene90_0.dvd}. Lucene writes these for every doc values update, including
+         * the soft-deletes marker written on each update or delete, while the rest of the segment stays unchanged.
+         */
+        private static boolean isGenerationalSegmentFile(String fileName) {
+            return fileName.startsWith("_") && isPerCommitFile(fileName) == false && IndexFileNames.parseGeneration(fileName) > 0;
         }
 
         /**
@@ -1575,20 +1586,24 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * <li>missing: files that exist in the source but not in the target</li>
          * </ul>
          * This method groups file into per-segment files and per-commit files. A file is treated as
-         * identical if and on if all files in it's group are identical. On a per-segment level files for a segment are treated
-         * as identical iff:
+         * identical if and on if all files in it's group are identical. On a per-segment level the non-generational files for a
+         * segment are treated as identical iff:
          * <ul>
-         * <li>all files in this segment have the same checksum</li>
-         * <li>all files in this segment have the same length</li>
+         * <li>all non-generational files in this segment have the same checksum</li>
+         * <li>all non-generational files in this segment have the same length</li>
          * <li>the segments {@code .si} files hashes are byte-identical Note: This is a using a perfect hash function,
          * The metadata transfers the {@code .si} file content as it's hash</li>
          * </ul>
          * <p>
-         * The {@code .si} file contains a lot of diagnostics including a timestamp etc. in the future there might be
-         * unique segment identifiers in there hardening this method further.
+         * The {@code .si} file contains the unique segment id, which Lucene also writes into the header of every file of the
+         * segment.
+         * <p>
+         * Generational files of a segment, i.e. field-info ({@code _x_y.fnm}) and doc values update ({@code _x_y_*.dvd})
+         * files, are compared one by one, but only once the non-generational files of the segment are identical. A missing
+         * or different generational file therefore does not cause the unchanged files of the segment to be recovered again.
          * <p>
          * The per-commit files handles very similar. A commit is composed of the {@code segments_N} files as well as generational files
-         * like deletes ({@code _x_y.del}) or field-info ({@code _x_y.fnm}) files. On a per-commit level files for a commit are treated
+         * like deletes ({@code _x_y.del}, {@code _x_y.liv}). On a per-commit level files for a commit are treated
          * as identical iff:
          * <ul>
          * <li>all files belonging to this commit have the same checksum</li>
@@ -1608,12 +1623,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 identicalFiles.clear();
                 boolean consistent = true;
                 for (StoreFileMetadata meta : segmentFiles) {
+                    // a missing or different generational file only needs to be recovered itself
+                    final boolean generational = isGenerationalSegmentFile(meta.name());
                     StoreFileMetadata storeFileMetadata = recoveryTargetSnapshot.get(meta.name());
                     if (storeFileMetadata == null) {
-                        consistent = false;
+                        consistent &= generational;
                         missing.add(meta);
                     } else if (storeFileMetadata.isSame(meta) == false) {
-                        consistent = false;
+                        consistent &= generational;
                         different.add(meta);
                     } else {
                         identicalFiles.add(meta);
