@@ -84,7 +84,7 @@ public class WorkloadGroupSearchAdmissionTests extends OpenSearchTestCase {
     public void testResourceLimitRejectionFailsBeforeTheThrottle() {
         OpenSearchRejectedExecutionException rejection = new OpenSearchRejectedExecutionException("contended");
         doThrow(rejection).when(workloadGroupService).rejectIfNeeded(WORKLOAD_GROUP_ID);
-        SearchTask task = searchTask(TaskId.EMPTY_TASK_ID);
+        WorkloadGroupTask task = searchTask(TaskId.EMPTY_TASK_ID);
         AtomicReference<Exception> failure = new AtomicReference<>();
         admission.admit(task, new SearchRequest(), ActionListener.wrap(p -> fail("must not admit"), failure::set));
         assertSame(rejection, failure.get());
@@ -95,7 +95,7 @@ public class WorkloadGroupSearchAdmissionTests extends OpenSearchTestCase {
 
     public void testAnUnexpectedResourceLimitErrorFailsOpen() {
         doThrow(new IllegalStateException("boom")).when(workloadGroupService).rejectIfNeeded(WORKLOAD_GROUP_ID);
-        SearchTask task = searchTask(TaskId.EMPTY_TASK_ID);
+        WorkloadGroupTask task = searchTask(TaskId.EMPTY_TASK_ID);
         AtomicReference<Releasable> permit = admit(task, new SearchRequest());
         serviceListener.get().onResponse(null);
         assertSame(SearchAdmission.NOOP_PERMIT, permit.get());
@@ -110,7 +110,7 @@ public class WorkloadGroupSearchAdmissionTests extends OpenSearchTestCase {
     }
 
     public void testAFailingAdmittedListenerDoesNotMarkTheTaskRejected() {
-        SearchTask task = searchTask(TaskId.EMPTY_TASK_ID);
+        WorkloadGroupTask task = searchTask(TaskId.EMPTY_TASK_ID);
         IllegalStateException boom = new IllegalStateException("boom");
         // Not ActionListener.wrap, which would turn the throw into an onFailure of its own.
         admission.admit(task, new SearchRequest(), new ActionListener<>() {
@@ -150,7 +150,7 @@ public class WorkloadGroupSearchAdmissionTests extends OpenSearchTestCase {
 
     public void testPassesThroughAPermitAndARejection() {
         Releasable charged = () -> {};
-        SearchTask admitted = searchTask(TaskId.EMPTY_TASK_ID);
+        WorkloadGroupTask admitted = searchTask(TaskId.EMPTY_TASK_ID);
         AtomicReference<Releasable> permit = admit(admitted, new SearchRequest());
         serviceListener.get().onResponse(charged);
         assertSame(charged, permit.get());
@@ -158,7 +158,7 @@ public class WorkloadGroupSearchAdmissionTests extends OpenSearchTestCase {
 
         OpenSearchRejectedExecutionException rejection = new OpenSearchRejectedExecutionException("throttled");
         AtomicReference<Exception> failure = new AtomicReference<>();
-        SearchTask throttled = searchTask(TaskId.EMPTY_TASK_ID);
+        WorkloadGroupTask throttled = searchTask(TaskId.EMPTY_TASK_ID);
         admission.admit(throttled, new SearchRequest(), ActionListener.wrap(p -> fail("must not admit"), failure::set));
         serviceListener.get().onFailure(rejection);
         assertSame(rejection, failure.get());

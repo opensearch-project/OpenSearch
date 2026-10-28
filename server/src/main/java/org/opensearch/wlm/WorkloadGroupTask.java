@@ -147,14 +147,14 @@ public class WorkloadGroupTask extends CancellableTask {
      * rejection while handing off a shared-tier permit), so it never ran and {@link WorkloadGroupService#onTaskCompleted}
      * does not count it as a completion.
      */
-    public void markAdmissionRejected() {
+    void markAdmissionRejected() {
         this.admissionRejected = true;
     }
 
     /**
      * Whether search admission refused this task; see {@link #markAdmissionRejected()}.
      */
-    public boolean isAdmissionRejected() {
+    boolean isAdmissionRejected() {
         return admissionRejected;
     }
 

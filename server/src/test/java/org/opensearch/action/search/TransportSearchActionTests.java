@@ -1429,9 +1429,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
 
         assertThat(failure.get(), instanceOf(OpenSearchRejectedExecutionException.class));
         assertFalse("onRequestStart must not run for a rejected request", requestStarted.get());
-        // A rejected task must not take a throttle permit, nor count as a phantom completion.
+        // A rejected task must not take a throttle permit.
         verify(workloadGroupService, never()).acquireThrottlePermit(any(), any(), any());
-        assertTrue(task.isAdmissionRejected());
         verify(workloadGroupService).rejectIfNeeded(eq("test-workload-group"));
     }
 }
