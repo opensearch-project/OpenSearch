@@ -8,8 +8,8 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
+import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.common.settings.AbstractScopedSettings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -21,7 +21,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /** Requests definitions for exact cluster setting names.
  * @opensearch.internal
  */
-public class ClusterDescribeSettingsRequest extends ClusterManagerNodeReadRequest<ClusterDescribeSettingsRequest> {
+public class ClusterDescribeSettingsRequest extends ActionRequest {
     private final String[] names;
 
     public ClusterDescribeSettingsRequest(String... names) {
