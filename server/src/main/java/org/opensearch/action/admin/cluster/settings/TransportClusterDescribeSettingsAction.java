@@ -100,9 +100,11 @@ public class TransportClusterDescribeSettingsAction extends HandledTransportActi
 
     /**
      * Derives the declared constraints of a setting from its parser, or {@code null} when the parser is an opaque function
-     * whose value type cannot be recognised. Factories such as {@code intSetting(key, default, props)} delegate to the
-     * ranged overload with the type's MIN/MAX as sentinels, so those sentinels are treated as "unbounded" and suppressed
-     * rather than reported as limits; the setting still reports its type.
+     * whose value type cannot be recognised. The unbounded integer and long factories delegate to the ranged overload with
+     * {@code MIN_VALUE}/{@code MAX_VALUE} as sentinels; those admit every value and are suppressed rather than reported as
+     * limits. {@code Float.MIN_VALUE} and {@code Double.MIN_VALUE} are positive, so a float or double parser carrying them
+     * rejects zero and negatives and the minimum is reported; only their {@code MAX_VALUE} is suppressed. The setting always
+     * reports its type.
      */
     @Nullable
     static SettingValidation validationOf(Setting<?> setting) {
@@ -125,18 +127,19 @@ public class TransportClusterDescribeSettingsAction extends HandledTransportActi
             );
         }
         if (parser instanceof Setting.FloatParser p) {
-            // The unbounded floatSetting/doubleSetting factories pass Float.MIN_VALUE / Double.MIN_VALUE (the smallest
-            // positive value, not the most negative) as the lower sentinel, so that is the value to suppress here.
+            // Float.MIN_VALUE is the smallest positive float, not the most negative, so a parser carrying it as its minimum really
+            // does reject zero and negatives and the minimum is reported. Only Float.MAX_VALUE is a genuine "no upper bound".
             return SettingValidation.of(
                 "float",
-                p.getMin() == Float.MIN_VALUE ? null : Float.toString(p.getMin()),
+                Float.toString(p.getMin()),
                 p.getMax() == Float.MAX_VALUE ? null : Float.toString(p.getMax())
             );
         }
         if (parser instanceof Setting.DoubleParser p) {
+            // Same as float: Double.MIN_VALUE is positive and therefore a real lower bound.
             return SettingValidation.of(
                 "double",
-                p.getMin() == Double.MIN_VALUE ? null : Double.toString(p.getMin()),
+                Double.toString(p.getMin()),
                 p.getMax() == Double.MAX_VALUE ? null : Double.toString(p.getMax())
             );
         }

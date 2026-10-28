@@ -169,8 +169,8 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
     }
 
     public void testValidationOfReportsTypeWithoutBoundsWhenSentinelsAreUsed() {
-        // The unbounded numeric factories delegate to the ranged overload with the type's MIN/MAX as sentinels; the type is
-        // still known, so it is reported, but the sentinels are not.
+        // The unbounded integer/long factories delegate to the ranged overload with the type's MIN/MAX as sentinels; those
+        // admit every value, so the type is reported but the sentinels are not.
         assertEquals(
             SettingValidation.ofType("integer"),
             TransportClusterDescribeSettingsAction.validationOf(Setting.intSetting("p.int", 5, NodeScope))
@@ -179,13 +179,23 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
             SettingValidation.ofType("long"),
             TransportClusterDescribeSettingsAction.validationOf(Setting.longSetting("p.long", 5L, NodeScope))
         );
+        // Float.MIN_VALUE and Double.MIN_VALUE are the smallest POSITIVE values, so the "unbounded" float/double factories
+        // actually reject zero and negatives. That lower bound is real and is reported; only MAX_VALUE is suppressed.
         assertEquals(
-            SettingValidation.ofType("float"),
+            SettingValidation.of("float", Float.toString(Float.MIN_VALUE), null),
             TransportClusterDescribeSettingsAction.validationOf(Setting.floatSetting("p.float", 1.5f, NodeScope))
         );
         assertEquals(
-            SettingValidation.ofType("double"),
+            SettingValidation.of("double", Double.toString(Double.MIN_VALUE), null),
             TransportClusterDescribeSettingsAction.validationOf(Setting.doubleSetting("p.double", 1.5, NodeScope))
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.floatSetting("p.float", 1.5f, NodeScope).get(Settings.builder().put("p.float", "0").build())
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.doubleSetting("p.double", 1.5, NodeScope).get(Settings.builder().put("p.double", "-1").build())
         );
         assertEquals(
             SettingValidation.ofType("byte_size"),
@@ -196,8 +206,9 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
             SettingValidation.of("long", null, "9"),
             TransportClusterDescribeSettingsAction.validationOf(Setting.longSetting("p.long.max", 5L, Long.MIN_VALUE, 9L, NodeScope))
         );
+        // A float declared with Float.MIN_VALUE as its minimum keeps that (positive) minimum alongside the maximum.
         assertEquals(
-            SettingValidation.of("float", null, "9.0"),
+            SettingValidation.of("float", Float.toString(Float.MIN_VALUE), "9.0"),
             TransportClusterDescribeSettingsAction.validationOf(Setting.floatSetting("p.float.max", 1.5f, Float.MIN_VALUE, 9.0f, NodeScope))
         );
     }
@@ -259,14 +270,14 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
                 assertNotNull(setting.getKey(), validation.type());
                 // A sentinel leaking through would surface as one of these strings. "-1" is only a sentinel for byte sizes;
                 // time settings legitimately declare -1 ("disabled") as their minimum and must report it.
+                // Integer/long MIN_VALUE and every MAX_VALUE mean "unbounded" and must be suppressed. Float/Double MIN_VALUE
+                // are positive and therefore real bounds; they are allowed to appear (no built-in setting declares them today).
                 for (String sentinel : List.of(
                     Integer.toString(Integer.MIN_VALUE),
                     Integer.toString(Integer.MAX_VALUE),
                     Long.toString(Long.MIN_VALUE),
                     Long.toString(Long.MAX_VALUE),
-                    Float.toString(Float.MIN_VALUE),
                     Float.toString(Float.MAX_VALUE),
-                    Double.toString(Double.MIN_VALUE),
                     Double.toString(Double.MAX_VALUE)
                 )) {
                     assertNotEquals(setting.getKey() + " min", sentinel, validation.min());
