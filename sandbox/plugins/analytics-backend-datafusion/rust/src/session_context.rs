@@ -52,6 +52,9 @@ pub struct SessionContextHandle {
     pub sort_fields: Vec<String>,
     /// Parallel to `sort_fields`. Each entry is `"asc"` or `"desc"` (lowercase).
     pub sort_orders: Vec<String>,
+    /// Missing-value placement parallel to `sort_fields`, sourced from
+    /// `index.sort.missing` with the writer's `_last` default applied.
+    pub sort_missing: Vec<String>,
     pub query_context: QueryTrackingContext,
     pub table_name: String,
     /// When true, the shard has deleted docs: the indexed executor ANDs a synthetic match-all
@@ -312,12 +315,6 @@ pub async unsafe fn create_session_context(
         .with_collect_stat(true)
         .with_target_partitions(effective_partitions);
 
-    if let Some(sort_exprs) =
-        build_file_sort_order(&shard_view.sort_fields, &shard_view.sort_orders)
-    {
-        listing_options = listing_options.with_file_sort_order(vec![sort_exprs]);
-    }
-
     // Register under the planner's logical table name (alias / index pattern / index), shipped
     // explicitly as logicalTableName on the shard-scan instruction node. See
     // resolve_register_name for why we do NOT reverse-engineer this from the plan bytes. The
@@ -368,6 +365,15 @@ pub async unsafe fn create_session_context(
     // expects (multi-index unions, or single-index cross-shard drift). No-op when the shard
     // already covers every base_schema column.
     let resolved_schema = widen_schema_from_plan(&ctx, plan_bytes, &register_name, &inferred);
+
+    if let Some(sort_exprs) = build_file_sort_order(
+        &shard_view.sort_fields,
+        &shard_view.sort_orders,
+        &shard_view.sort_missing,
+        &resolved_schema,
+    ) {
+        listing_options = listing_options.with_file_sort_order(vec![sort_exprs]);
+    }
 
     // If widening added columns, disable stat collection: the global stats cache is keyed by
     // path (not schema), so a narrow cached Statistics can be merged against the widened one,
@@ -425,6 +431,7 @@ pub async unsafe fn create_session_context(
         writer_generations: shard_view.writer_generations.clone(),
         sort_fields: shard_view.sort_fields.clone(),
         sort_orders: shard_view.sort_orders.clone(),
+        sort_missing: shard_view.sort_missing.clone(),
         query_context,
         table_name: table_name.to_string(),
         deleted_doc_filtering_required,
@@ -514,6 +521,7 @@ pub async unsafe fn create_worker_session_context(
         // index sort to plumb (upstream added these fields for the shard-scan path; empty here).
         sort_fields: Vec::new(),
         sort_orders: Vec::new(),
+        sort_missing: Vec::new(),
         table_name: String::new(),
         deleted_doc_filtering_required: false,
         indexed_config: None,
@@ -728,10 +736,12 @@ fn try_acquire_budget(
 /// `sort_fields` slice is empty), so the caller can skip
 /// `with_file_sort_order(...)` entirely.
 ///
-/// Caller contract: `sort_fields.len() == sort_orders.len()`. The Java side
-/// (`DataFusionPlugin.createReaderManager`) guarantees this — `IndexSortConfig`
-/// validates size match at index creation, so by the time we get here the
-/// lengths agree.
+/// Missing-value placement is forwarded from the writer's `index.sort.missing`
+/// setting. LIST sort keys are not advertised because Lucene orders them by
+/// `index.sort.mode` (min/max), which a raw DataFusion LIST sort expression does
+/// not represent.
+/// If missing-placement metadata is absent, the previous direction-based
+/// default is retained.
 ///
 /// Notes for readers:
 /// - `.sort(asc, nulls_first)` constructs a `SortExpr` — it does NOT execute a
@@ -739,30 +749,41 @@ fn try_acquire_budget(
 /// - `Column::from_name` (vs `col(&str)`): `col` lowercases via SQL identifier
 ///   normalization (`col("EventTime")` → `"eventtime"`), which silently fails
 ///   lookup against case-sensitive Arrow schemas. `from_name` preserves case.
-/// - Nulls placement mirrors Lucene's general default (ASC → NULLS FIRST,
-///   DESC → NULLS LAST). `index.sort.missing` can override this per field but
-///   the override isn't propagated yet. A wrong nulls claim at worst causes
-///   DataFusion's per-file chain validator to reject the ordering and fall back
-///   to a regular `SortExec` — never wrong results.
+/// - Fields must resolve in the inferred schema, and only scalar fields are
+///   advertised. Stop at the first unsupported key, preserving a valid prefix.
 pub(crate) fn build_file_sort_order(
     sort_fields: &[String],
     sort_orders: &[String],
+    sort_missing: &[String],
+    schema: &arrow::datatypes::SchemaRef,
 ) -> Option<Vec<datafusion::logical_expr::SortExpr>> {
     if sort_fields.is_empty() {
         return None;
     }
     use datafusion::common::Column;
     use datafusion::logical_expr::{Expr, SortExpr};
-    let sort_exprs: Vec<SortExpr> = sort_fields
-        .iter()
-        .zip(sort_orders.iter())
-        .map(|(name, order)| {
-            let ascending = order.eq_ignore_ascii_case("asc");
-            let nulls_first = ascending;
-            Expr::Column(Column::from_name(name.clone())).sort(ascending, nulls_first)
-        })
-        .collect();
-    Some(sort_exprs)
+    let mut sort_exprs: Vec<SortExpr> = Vec::with_capacity(sort_fields.len());
+    for (index, (name, order)) in sort_fields.iter().zip(sort_orders).enumerate() {
+        let Ok(field) = schema.field_with_name(name) else {
+            break;
+        };
+        if matches!(
+            field.data_type(),
+            arrow::datatypes::DataType::List(_)
+                | arrow::datatypes::DataType::LargeList(_)
+                | arrow::datatypes::DataType::FixedSizeList(_, _)
+        ) {
+            break;
+        }
+        let ascending = order.eq_ignore_ascii_case("asc");
+        let nulls_first = match sort_missing.get(index) {
+            Some(missing) if missing.eq_ignore_ascii_case("_first") => true,
+            Some(missing) if missing.eq_ignore_ascii_case("_last") => false,
+            _ => ascending,
+        };
+        sort_exprs.push(Expr::Column(Column::from_name(name.clone())).sort(ascending, nulls_first));
+    }
+    (!sort_exprs.is_empty()).then_some(sort_exprs)
 }
 
 #[cfg(test)]
@@ -781,6 +802,145 @@ mod tests {
 
     use crate::agg_mode::Mode;
     use crate::query_tracker::QueryTrackingContext;
+
+    #[test]
+    fn file_sort_order_uses_missing_setting_and_stops_at_list_keys() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("asc_last", DataType::Int64, true),
+            Field::new("desc_first", DataType::Int64, true),
+            Field::new(
+                "multi",
+                DataType::List(Arc::new(Field::new("item", DataType::Int64, true))),
+                true,
+            ),
+        ]));
+        let sort_exprs = build_file_sort_order(
+            &["asc_last".into(), "desc_first".into(), "multi".into()],
+            &["asc".into(), "desc".into(), "asc".into()],
+            &["_last".into(), "_first".into(), "_last".into()],
+            &schema,
+        )
+        .expect("scalar prefix has a valid ordering");
+
+        assert_eq!(sort_exprs.len(), 2);
+        assert!(!sort_exprs[0].nulls_first);
+        assert!(sort_exprs[1].nulls_first);
+        assert!(build_file_sort_order(
+            &["multi".into(), "asc_last".into()],
+            &["asc".into(), "asc".into()],
+            &["_last".into(), "_last".into()],
+            &schema,
+        )
+        .is_none());
+
+        let default_sort_exprs = build_file_sort_order(
+            &["asc_last".into(), "desc_first".into()],
+            &["asc".into(), "desc".into()],
+            &[],
+            &schema,
+        )
+        .expect("direction defaults produce an ordering");
+        assert!(default_sort_exprs[0].nulls_first);
+        assert!(!default_sort_exprs[1].nulls_first);
+    }
+
+    #[tokio::test]
+    async fn single_file_scan_keeps_sort_when_query_null_order_differs() {
+        use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
+        use datafusion::parquet::arrow::ArrowWriter;
+
+        async fn assert_query_order(
+            index_order: &str,
+            index_missing: &str,
+            file_ids: Vec<i64>,
+            file_values: Vec<Option<i64>>,
+            query: &str,
+            expected_ids: &[i64],
+        ) {
+            let dir = tempfile::tempdir().expect("tempdir");
+            let schema = Arc::new(Schema::new(vec![
+                Field::new("id", DataType::Int64, false),
+                Field::new("x", DataType::Int64, true),
+            ]));
+            let batch = RecordBatch::try_new(
+                Arc::clone(&schema),
+                vec![
+                    Arc::new(Int64Array::from(file_ids)),
+                    Arc::new(Int64Array::from(file_values)),
+                ],
+            )
+            .expect("record batch");
+            let file = std::fs::File::create(dir.path().join("part.parquet")).expect("file");
+            let mut writer = ArrowWriter::try_new(file, Arc::clone(&schema), None).expect("writer");
+            writer.write(&batch).expect("write batch");
+            writer.close().expect("close writer");
+
+            let sort_exprs = build_file_sort_order(
+                &["x".into()],
+                &[index_order.into()],
+                &[index_missing.into()],
+                &schema,
+            )
+            .expect("index sort ordering");
+            let options = ListingOptions::new(Arc::new(ParquetFormat::default()))
+                .with_file_extension(".parquet")
+                .with_collect_stat(true)
+                .with_file_sort_order(vec![sort_exprs]);
+            let table_url = ListingTableUrl::parse(format!("file://{}", dir.path().display()))
+                .expect("table URL");
+            let config = ListingTableConfig::new(table_url)
+                .with_listing_options(options)
+                .with_schema(Arc::clone(&schema));
+            let ctx = SessionContext::new();
+            ctx.register_table(
+                "t",
+                Arc::new(ListingTable::try_new(config).expect("listing table")),
+            )
+            .expect("register table");
+
+            let batches = ctx
+                .sql(query)
+                .await
+                .expect("plan query")
+                .collect()
+                .await
+                .expect("execute query");
+            let mut actual_ids = Vec::new();
+            for batch in &batches {
+                let ids = batch
+                    .column(0)
+                    .as_any()
+                    .downcast_ref::<Int64Array>()
+                    .expect("id column");
+                actual_ids.extend(ids.values().iter().copied());
+            }
+            assert_eq!(actual_ids, expected_ids);
+        }
+
+        // The sole file follows the index sort (ASC, missing last), while the query
+        // requests missing first. A false NULLS FIRST declaration used to drop the sort.
+        assert_query_order(
+            "asc",
+            "_last",
+            vec![3, 1, 2, 4],
+            vec![Some(-5), Some(1), Some(50), None],
+            "SELECT id FROM t ORDER BY x ASC NULLS FIRST",
+            &[4, 3, 1, 2],
+        )
+        .await;
+
+        // The sole file follows DESC with missing first, while the query requests
+        // missing last. The old hard-coded DESC NULLS LAST claim returned file order.
+        assert_query_order(
+            "desc",
+            "_first",
+            vec![4, 2, 1, 3],
+            vec![None, Some(50), Some(1), Some(-5)],
+            "SELECT id FROM t ORDER BY x DESC NULLS LAST",
+            &[2, 1, 3, 4],
+        )
+        .await;
+    }
 
     #[tokio::test]
     async fn test_widen_schema_noop_when_plan_empty() {
@@ -913,6 +1073,7 @@ mod tests {
             writer_generations: Arc::new(vec![]),
             sort_fields: vec![],
             sort_orders: vec![],
+            sort_missing: vec![],
             query_context,
             table_name: "t".to_string(),
             deleted_doc_filtering_required: false,
