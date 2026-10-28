@@ -45,6 +45,10 @@
         "description":"Return help information",
         "default":false
       },
+      "limit":{
+        "type":"number",
+        "description":"Maximum number of rows to return. Applied after sorting (s). Must be a positive integer."
+      },
       "s":{
         "type":"list",
         "description":"Comma-separated list of column names or column aliases to sort by"
