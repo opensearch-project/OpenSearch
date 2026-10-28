@@ -72,14 +72,14 @@ public class ClusterDescribeSettingsResponse extends ActionResponse implements T
         @Nullable
         private final String defaultValue;
         @Nullable
-        private final SettingBounds validation;
+        private final SettingValidation validation;
 
         /**
          * @param dynamic      whether the setting can be updated on a running cluster
          * @param defaultValue the declared default in its string form, or {@code null} when none should be reported
-         * @param validation   the declared bounds, or {@code null} when the setting declares none
+         * @param validation   the declared value type and bounds, or {@code null} when neither is known
          */
-        private SettingMetadata(boolean dynamic, @Nullable String defaultValue, @Nullable SettingBounds validation) {
+        private SettingMetadata(boolean dynamic, @Nullable String defaultValue, @Nullable SettingValidation validation) {
             this.dynamic = dynamic;
             this.defaultValue = defaultValue;
             this.validation = validation;
@@ -95,8 +95,8 @@ public class ClusterDescribeSettingsResponse extends ActionResponse implements T
             return new SettingMetadata(dynamic, Objects.requireNonNull(defaultValue, "defaultValue"), null);
         }
 
-        /** Returns a copy of this metadata carrying the given declared bounds; {@code null} leaves {@code validation} unset. */
-        public SettingMetadata withValidation(@Nullable SettingBounds validation) {
+        /** Returns a copy of this metadata carrying the given validation metadata; {@code null} leaves {@code validation} unset. */
+        public SettingMetadata withValidation(@Nullable SettingValidation validation) {
             return new SettingMetadata(dynamic, defaultValue, validation);
         }
 
@@ -110,7 +110,7 @@ public class ClusterDescribeSettingsResponse extends ActionResponse implements T
         }
 
         @Nullable
-        public SettingBounds validation() {
+        public SettingValidation validation() {
             return validation;
         }
 
@@ -154,14 +154,14 @@ public class ClusterDescribeSettingsResponse extends ActionResponse implements T
      * {@link org.opensearch.common.settings.Setting}. Like the enclosing response it is not serializable.
      * @opensearch.internal
      */
-    public static final class SettingBounds implements ToXContentObject {
+    public static final class SettingValidation implements ToXContentObject {
         private final String type;
         @Nullable
         private final String min;
         @Nullable
         private final String max;
 
-        private SettingBounds(String type, @Nullable String min, @Nullable String max) {
+        private SettingValidation(String type, @Nullable String min, @Nullable String max) {
             this.type = Objects.requireNonNull(type, "type");
             this.min = min;
             this.max = max;
@@ -174,13 +174,13 @@ public class ClusterDescribeSettingsResponse extends ActionResponse implements T
          * @param min  the inclusive lower bound in its string form, or {@code null} when none is declared
          * @param max  the inclusive upper bound in its string form, or {@code null} when none is declared
          */
-        public static SettingBounds of(String type, @Nullable String min, @Nullable String max) {
-            return new SettingBounds(type, min, max);
+        public static SettingValidation of(String type, @Nullable String min, @Nullable String max) {
+            return new SettingValidation(type, min, max);
         }
 
         /** Constraints for a setting whose value type is known but which declares no bounds. */
-        public static SettingBounds ofType(String type) {
-            return new SettingBounds(type, null, null);
+        public static SettingValidation ofType(String type) {
+            return new SettingValidation(type, null, null);
         }
 
         public String type() {
@@ -213,7 +213,7 @@ public class ClusterDescribeSettingsResponse extends ActionResponse implements T
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            SettingBounds that = (SettingBounds) o;
+            SettingValidation that = (SettingValidation) o;
             return type.equals(that.type) && Objects.equals(min, that.min) && Objects.equals(max, that.max);
         }
 
@@ -224,7 +224,7 @@ public class ClusterDescribeSettingsResponse extends ActionResponse implements T
 
         @Override
         public String toString() {
-            return "SettingBounds{type=" + type + ", min=" + min + ", max=" + max + "}";
+            return "SettingValidation{type=" + type + ", min=" + min + ", max=" + max + "}";
         }
     }
 }

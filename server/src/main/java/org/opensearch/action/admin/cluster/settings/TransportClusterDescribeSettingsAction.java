@@ -8,8 +8,8 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
-import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsResponse.SettingBounds;
 import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsResponse.SettingMetadata;
+import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsResponse.SettingValidation;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.cluster.service.ClusterService;
@@ -95,7 +95,7 @@ public class TransportClusterDescribeSettingsAction extends HandledTransportActi
         SettingMetadata metadata = defaultValue.isEmpty()
             ? SettingMetadata.withoutDefault(dynamic)
             : SettingMetadata.withDefault(dynamic, defaultValue);
-        return metadata.withValidation(boundsOf(setting));
+        return metadata.withValidation(validationOf(setting));
     }
 
     /**
@@ -105,20 +105,20 @@ public class TransportClusterDescribeSettingsAction extends HandledTransportActi
      * rather than reported as limits; the setting still reports its type.
      */
     @Nullable
-    static SettingBounds boundsOf(Setting<?> setting) {
+    static SettingValidation validationOf(Setting<?> setting) {
         Function<String, ?> parser = setting.getParser();
         if (parser instanceof Setting.BooleanParser) {
-            return SettingBounds.ofType("boolean");
+            return SettingValidation.ofType("boolean");
         }
         if (parser instanceof Setting.IntegerParser p) {
-            return SettingBounds.of(
+            return SettingValidation.of(
                 "integer",
                 p.getMin() == Integer.MIN_VALUE ? null : Integer.toString(p.getMin()),
                 p.getMax() == Integer.MAX_VALUE ? null : Integer.toString(p.getMax())
             );
         }
         if (parser instanceof Setting.LongParser p) {
-            return SettingBounds.of(
+            return SettingValidation.of(
                 "long",
                 p.getMin() == Long.MIN_VALUE ? null : Long.toString(p.getMin()),
                 p.getMax() == Long.MAX_VALUE ? null : Long.toString(p.getMax())
@@ -127,14 +127,14 @@ public class TransportClusterDescribeSettingsAction extends HandledTransportActi
         if (parser instanceof Setting.FloatParser p) {
             // The unbounded floatSetting/doubleSetting factories pass Float.MIN_VALUE / Double.MIN_VALUE (the smallest
             // positive value, not the most negative) as the lower sentinel, so that is the value to suppress here.
-            return SettingBounds.of(
+            return SettingValidation.of(
                 "float",
                 p.getMin() == Float.MIN_VALUE ? null : Float.toString(p.getMin()),
                 p.getMax() == Float.MAX_VALUE ? null : Float.toString(p.getMax())
             );
         }
         if (parser instanceof Setting.DoubleParser p) {
-            return SettingBounds.of(
+            return SettingValidation.of(
                 "double",
                 p.getMin() == Double.MIN_VALUE ? null : Double.toString(p.getMin()),
                 p.getMax() == Double.MAX_VALUE ? null : Double.toString(p.getMax())
@@ -142,7 +142,7 @@ public class TransportClusterDescribeSettingsAction extends HandledTransportActi
         }
         if (parser instanceof Setting.ByteSizeValueParser p) {
             // ByteSizeValueParser(key) declares -1 and Long.MAX_VALUE bytes when no bounds are given.
-            return SettingBounds.of(
+            return SettingValidation.of(
                 "byte_size",
                 p.getMin().getBytes() < 0 ? null : p.getMin().getStringRep(),
                 p.getMax().getBytes() == Long.MAX_VALUE ? null : p.getMax().getStringRep()
@@ -152,13 +152,13 @@ public class TransportClusterDescribeSettingsAction extends HandledTransportActi
             // Accepts an absolute byte size or a percentage of heap (or native memory). The percentage form is hard-bounded
             // to [0, 100] by MemorySizeValue; absolute sizes carry no declared bound. The bounds reported here describe the
             // percentage form.
-            return SettingBounds.of("memory_size", "0%", "100%");
+            return SettingValidation.of("memory_size", "0%", "100%");
         }
         if (parser instanceof Setting.MinTimeValueParser p) {
-            return SettingBounds.of("time", p.getMin().getStringRep(), null);
+            return SettingValidation.of("time", p.getMin().getStringRep(), null);
         }
         if (parser instanceof Setting.MinMaxTimeValueParser p) {
-            return SettingBounds.of("time", p.getMin().getStringRep(), p.getMax().getStringRep());
+            return SettingValidation.of("time", p.getMin().getStringRep(), p.getMax().getStringRep());
         }
         // Everything else (strings, enums, lists, plain timeSetting, secure settings) is an opaque function: neither the
         // value type nor any bound can be read from it.

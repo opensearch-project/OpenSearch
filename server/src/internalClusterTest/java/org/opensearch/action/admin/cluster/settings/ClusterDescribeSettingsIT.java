@@ -8,8 +8,8 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
-import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsResponse.SettingBounds;
 import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsResponse.SettingMetadata;
+import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsResponse.SettingValidation;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -41,14 +41,14 @@ public class ClusterDescribeSettingsIT extends OpenSearchIntegTestCase {
         assertEquals(
             Map.of(
                 "plugin.example.dynamic_setting",
-                SettingMetadata.withDefault(true, "false").withValidation(SettingBounds.ofType("boolean")),
+                SettingMetadata.withDefault(true, "false").withValidation(SettingValidation.ofType("boolean")),
                 "plugin.example.static_setting",
-                SettingMetadata.withDefault(false, "false").withValidation(SettingBounds.ofType("boolean")),
+                SettingMetadata.withDefault(false, "false").withValidation(SettingValidation.ofType("boolean")),
                 "plugin.example.bounded_setting",
-                SettingMetadata.withDefault(false, "5").withValidation(SettingBounds.of("integer", "1", "10")),
+                SettingMetadata.withDefault(false, "5").withValidation(SettingValidation.of("integer", "1", "10")),
                 // A real core setting declared with a lower bound only (ShardLimitValidator).
                 "cluster.max_shards_per_node",
-                SettingMetadata.withDefault(true, "1000").withValidation(SettingBounds.of("integer", "1", null))
+                SettingMetadata.withDefault(true, "1000").withValidation(SettingValidation.of("integer", "1", null))
             ),
             response.settings()
         );
