@@ -95,7 +95,7 @@ public class TransportClusterDescribeSettingsAction extends HandledTransportActi
         SettingMetadata metadata = defaultValue.isEmpty()
             ? SettingMetadata.withoutDefault(dynamic)
             : SettingMetadata.withDefault(dynamic, defaultValue);
-        return metadata.withValidation(validationOf(setting));
+        return metadata.withValidation(validationOf(setting)).withDescription(setting.getDescription());
     }
 
     /**
