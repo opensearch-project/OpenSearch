@@ -33,9 +33,13 @@ package org.opensearch.indices;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.Lock;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
@@ -58,12 +62,14 @@ import org.opensearch.common.lucene.index.OpenSearchDirectoryReader.DelegatingCa
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.gateway.LocalAllocateDangledIndices;
@@ -87,8 +93,10 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.NonNegativeScoresSimilarity;
+import org.opensearch.index.store.IndexStoreListener;
 import org.opensearch.indices.IndicesService.ShardDeletionCheckResult;
 import org.opensearch.plugins.EnginePlugin;
+import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchStatsContributor;
@@ -106,6 +114,9 @@ import org.opensearch.test.TestSearchContext;
 import org.opensearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -115,6 +126,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -141,8 +153,10 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Stream.concat(super.getPlugins().stream(), Stream.of(TestPlugin.class, FooEnginePlugin.class, BarEnginePlugin.class))
-            .collect(Collectors.toList());
+        return Stream.concat(
+            super.getPlugins().stream(),
+            Stream.of(TestPlugin.class, FooEnginePlugin.class, BarEnginePlugin.class, DeletionBlockingPlugin.class)
+        ).collect(Collectors.toList());
     }
 
     public static class FooEnginePlugin extends Plugin implements EnginePlugin {
@@ -209,6 +223,70 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
             }
         }
 
+    }
+
+    /**
+     * Makes shard directory deletion fail with an {@link IOException} for a while, the way a file that is still open in
+     * another process does on some platforms. {@link NodeEnvironment#deleteShardDirectoryUnderLock} acquires the Lucene
+     * {@code write.lock} of the shard before removing its files; holding that lock from here makes the deletion fail
+     * until the configured release time elapses, and the listener is invoked before every deletion attempt.
+     */
+    public static class DeletionBlockingPlugin extends Plugin implements IndexStorePlugin {
+        static volatile ShardId blockedShard;
+        static volatile long releaseAtNanos;
+        private static final AtomicInteger attempts = new AtomicInteger();
+        private static volatile Lock heldLock;
+        private static volatile Directory heldDirectory;
+
+        static void block(ShardId shardId, TimeValue releaseAfter) {
+            attempts.set(0);
+            releaseAtNanos = System.nanoTime() + releaseAfter.nanos();
+            blockedShard = shardId;
+        }
+
+        static int attempts() {
+            return attempts.get();
+        }
+
+        static synchronized void release() throws IOException {
+            blockedShard = null;
+            IOUtils.close(heldLock, heldDirectory);
+            heldLock = null;
+            heldDirectory = null;
+        }
+
+        @Override
+        public Map<String, DirectoryFactory> getDirectoryFactories() {
+            return Collections.emptyMap();
+        }
+
+        @Override
+        public Optional<IndexStoreListener> getIndexStoreListener() {
+            return Optional.of(new IndexStoreListener() {
+                @Override
+                public void beforeShardPathDeleted(ShardId shardId, IndexSettings indexSettings, NodeEnvironment env) {
+                    if (shardId.equals(blockedShard) == false) {
+                        return;
+                    }
+                    attempts.incrementAndGet();
+                    synchronized (DeletionBlockingPlugin.class) {
+                        try {
+                            if (System.nanoTime() >= releaseAtNanos) {
+                                release();
+                            } else if (heldLock == null) {
+                                final Path indexDir = env.availableShardPaths(shardId)[0].resolve("index");
+                                if (Files.isDirectory(indexDir)) {
+                                    heldDirectory = FSDirectory.open(indexDir);
+                                    heldLock = heldDirectory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
+                                }
+                            }
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    }
+                }
+            });
+        }
     }
 
     public static class TestPlugin extends Plugin implements MapperPlugin {
@@ -387,6 +465,116 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
             assertThat(indicesService.hasUncompletedPendingDeletes(), equalTo(hasBogus)); // "bogus" index has not been removed
             assertFalse(shardPath.exists());
         });
+    }
+
+    /**
+     * A deleted index whose shard directories are still on disk, with one shard lock held (as a recovery that is still
+     * writing files would). The shards whose lock is free must be removed immediately; the locked one is deferred to the
+     * pending deletes and removed once the lock is released.
+     */
+    public void testDeleteIndexStoreRemovesUnlockedShardsWhenAShardIsLocked() throws Exception {
+        final Index index = new Index("orphan", UUIDs.randomBase64UUID());
+        final IndicesService indicesService = getIndicesService();
+        final NodeEnvironment nodeEnv = getNodeEnvironment();
+        final Settings idxSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .build();
+        final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName()).settings(idxSettings)
+            .numberOfShards(3)
+            .numberOfReplicas(0)
+            .build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+
+        // fabricate on-disk shard copies 0, 1 and 2 of an index that is no longer part of the cluster
+        final ShardId[] shardIds = new ShardId[3];
+        for (int i = 0; i < shardIds.length; i++) {
+            shardIds[i] = new ShardId(index, i);
+            for (Path shardPath : nodeEnv.availableShardPaths(shardIds[i])) {
+                Files.createDirectories(shardPath.resolve("index"));
+                Files.write(shardPath.resolve("index").resolve("_0.cfs"), new byte[] { 1, 2, 3 });
+            }
+        }
+        for (ShardId shardId : shardIds) {
+            assertTrue(FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId)));
+        }
+
+        // shard 1 is "in use" - its lock is held, as it would be by an in-flight recovery
+        try (ShardLock held = nodeEnv.shardLock(shardIds[1], "test: simulated in-flight recovery", 0)) {
+            indicesService.deleteIndexStore("test", indexMetadata);
+
+            assertFalse("unlocked shard 0 should be deleted immediately", FileSystemUtils.exists(nodeEnv.availableShardPaths(shardIds[0])));
+            assertFalse("unlocked shard 2 should be deleted immediately", FileSystemUtils.exists(nodeEnv.availableShardPaths(shardIds[2])));
+            assertTrue("locked shard 1 must not be touched", FileSystemUtils.exists(nodeEnv.availableShardPaths(shardIds[1])));
+            assertEquals(1, indicesService.numPendingDeletes(index));
+
+            // while the lock is still held the pending delete cannot complete
+            expectThrows(
+                ShardLockObtainFailedException.class,
+                () -> indicesService.processPendingDeletes(index, indexSettings, TimeValue.timeValueMillis(0))
+            );
+            assertTrue(FileSystemUtils.exists(nodeEnv.availableShardPaths(shardIds[1])));
+            assertEquals(1, indicesService.numPendingDeletes(index));
+        }
+
+        // lock released: the retried pending delete removes the remaining shard and the index directory
+        indicesService.processPendingDeletes(index, indexSettings, TimeValue.timeValueMillis(0));
+        assertEquals(0, indicesService.numPendingDeletes(index));
+        assertFalse(FileSystemUtils.exists(nodeEnv.availableShardPaths(shardIds[1])));
+        assertFalse("index directory should be gone", FileSystemUtils.exists(nodeEnv.indexPaths(index)));
+    }
+
+    /**
+     * The pending deletion of an index must keep retrying a deletion that fails with an I/O error (a file still held open
+     * elsewhere, for instance) for the full deletion-retry window, even though the wait for the shard locks themselves
+     * is short.
+     */
+    public void testPendingDeleteRetriesTransientDeletionFailureBeyondLockTimeout() throws Exception {
+        final Index index = new Index("flaky", UUIDs.randomBase64UUID());
+        final IndicesService indicesService = getIndicesService();
+        final NodeEnvironment nodeEnv = getNodeEnvironment();
+        final IndexMetadata indexMetadata = new IndexMetadata.Builder(index.getName()).settings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                .build()
+        ).numberOfShards(1).numberOfReplicas(0).build();
+        final IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        final ShardId shardId = new ShardId(index, 0);
+        for (Path shardPath : nodeEnv.availableShardPaths(shardId)) {
+            Files.createDirectories(shardPath.resolve("index"));
+            Files.write(shardPath.resolve("index").resolve("_0.cfs"), new byte[] { 1, 2, 3 });
+        }
+        indicesService.addPendingDelete(shardId, indexSettings);
+
+        // the shard deletion keeps failing for longer than the lock wait; the shard locks are free the whole time
+        final TimeValue lockTimeout = TimeValue.timeValueMillis(100);
+        final TimeValue failFor = TimeValue.timeValueMillis(1500);
+        DeletionBlockingPlugin.block(shardId, failFor);
+        try {
+            // bounding the deletion retries by the lock timeout, as the previous caller did, gives up too early and
+            // silently drops the pending delete
+            indicesService.processPendingDeletes(index, indexSettings, lockTimeout, lockTimeout);
+            assertTrue("deletion should have been attempted", DeletionBlockingPlugin.attempts() > 0);
+            assertTrue(
+                "shard directory should survive the short retry window",
+                FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId))
+            );
+            assertEquals(0, indicesService.numPendingDeletes(index));
+
+            // with a separate, longer deletion-retry window the transient failure is outlived and the data removed
+            indicesService.addPendingDelete(shardId, indexSettings);
+            final int attemptsBefore = DeletionBlockingPlugin.attempts();
+            indicesService.processPendingDeletes(index, indexSettings, lockTimeout, TimeValue.timeValueSeconds(30));
+            assertTrue("deletion should have been retried", DeletionBlockingPlugin.attempts() > attemptsBefore + 1);
+            assertFalse("shard directory should be gone", FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId)));
+            assertEquals(0, indicesService.numPendingDeletes(index));
+        } finally {
+            DeletionBlockingPlugin.release();
+        }
+        indicesService.addPendingDelete(index, indexSettings);
+        indicesService.processPendingDeletes(index, indexSettings, lockTimeout, lockTimeout);
+        assertFalse("index directory should be gone", FileSystemUtils.exists(nodeEnv.indexPaths(index)));
     }
 
     public void testVerifyIfIndexContentDeleted() throws Exception {
