@@ -72,6 +72,10 @@
         "type":"list",
         "description":"Comma-separated list or wildcard expression of index names to limit the returned information"
       },
+      "limit":{
+        "type":"number",
+        "description":"Maximum number of rows to return. Applied after sorting (s). A value of 0 or less means no limit."
+      },
       "s":{
         "type":"list",
         "description":"Comma-separated list of column names or column aliases to sort by"
