@@ -65,6 +65,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lease.Releasable;
@@ -1361,7 +1362,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 Collections.emptyMap(),
                 SearchService.NO_TIMEOUT
             );
-            assertCancelAfterTimeInterval(task, request, overridingGroup, "-1", null, TimeValue.timeValueSeconds(1));
+            assertCancelAfterTimeInterval(task, request, GROUP_ID, overridingGroup, "-1", null, TimeValue.timeValueSeconds(1));
         }
     }
 
@@ -1446,6 +1447,11 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         TimeValue off = TimeValue.MINUS_ONE;
         for (String cluster : Arrays.asList("-1", "1h")) {
             TimeValue clusterTimer = "-1".equals(cluster) ? null : TimeValue.timeValueHours(1);
+            // Guards existing behavior: a search that names no workload group keeps the request's interval, else the cluster's,
+            // even where a group would override it.
+            assertUntaggedCancelAfterTimeInterval(null, cluster, clusterTimer);
+            assertUntaggedCancelAfterTimeInterval(tenSeconds, cluster, tenSeconds);
+            assertUntaggedCancelAfterTimeInterval(off, cluster, null);
             // Guards existing behavior: without the group's setting, the request's interval applies, else the cluster's.
             assertCancelAfterTimeInterval(null, Settings.EMPTY, cluster, clusterTimer, null);
             assertCancelAfterTimeInterval(tenSeconds, Settings.EMPTY, cluster, tenSeconds, tenSeconds);
@@ -1709,13 +1715,31 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         SearchRequest request = new SearchRequest("index");
         request.setCancelAfterTimeInterval(requested);
         SearchTask task = request.createTask(1, "transport", SearchAction.NAME, TaskId.EMPTY_TASK_ID, Collections.emptyMap());
-        assertCancelAfterTimeInterval(task, request, groupSettings, clusterInterval, expectedTimer, expectedOnRequest);
+        assertCancelAfterTimeInterval(task, request, GROUP_ID, groupSettings, clusterInterval, expectedTimer, expectedOnRequest);
     }
 
-    /** Like {@link #assertCancelAfterTimeInterval(TimeValue, Settings, String, TimeValue, TimeValue)}, for {@code task}. */
+    /**
+     * Runs a search that names no workload group, whose request asks for {@code requested}, on a cluster whose group
+     * {@link #GROUP_ID} overrides request values with an interval of its own, and asserts that the coordinator arms its timer with
+     * {@code expectedTimer}, or arms none when it is {@code null}, and that the request keeps its own interval.
+     */
+    private void assertUntaggedCancelAfterTimeInterval(TimeValue requested, String clusterInterval, TimeValue expectedTimer) {
+        SearchRequest request = new SearchRequest("index");
+        request.setCancelAfterTimeInterval(requested);
+        SearchTask task = request.createTask(1, "transport", SearchAction.NAME, TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+        Settings overridingGroup = Settings.builder().put(WLM_CANCEL_AFTER, "30s").put(WLM_OVERRIDE, true).build();
+        assertCancelAfterTimeInterval(task, request, null, overridingGroup, clusterInterval, expectedTimer, requested);
+        assertSame("the request keeps its own interval", requested, request.getCancelAfterTimeInterval());
+    }
+
+    /**
+     * Like {@link #assertCancelAfterTimeInterval(TimeValue, Settings, String, TimeValue, TimeValue)}, for {@code task}, tagged to
+     * {@code workloadGroupId}, or to no workload group when it is {@code null}.
+     */
     private void assertCancelAfterTimeInterval(
         CancellableTask task,
         SearchRequest request,
+        @Nullable String workloadGroupId,
         Settings groupSettings,
         String clusterInterval,
         TimeValue expectedTimer,
@@ -1732,14 +1756,18 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         );
         String cell = "request ["
             + request.getCancelAfterTimeInterval()
-            + "], group "
+            + "], group ["
+            + workloadGroupId
+            + "] "
             + groupSettings
             + ", cluster ["
             + clusterInterval
             + "]";
         ThreadContext threadContext = timerThreadPool.getThreadContext();
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-            threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, GROUP_ID);
+            if (workloadGroupId != null) {
+                threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, workloadGroupId);
+            }
             action.doExecute(task, request, ActionListener.wrap(r -> {}, e -> {}));
         }
         if (expectedTimer == null) {

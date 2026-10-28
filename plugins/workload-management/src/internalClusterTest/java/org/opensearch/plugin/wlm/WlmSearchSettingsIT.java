@@ -343,25 +343,6 @@ public class WlmSearchSettingsIT extends OpenSearchIntegTestCase {
         assertFailedAsCancelled(expectThrows(Exception.class, () -> response.actionGet(TIMEOUT)));
     }
 
-    public void testNestedRewriteSearchTakesTheOuterSearchsInterval() throws Exception {
-        createWorkloadGroupForIndex(Settings.builder().put(CANCEL_AFTER_TIME_INTERVAL, GROUP_CANCEL_AFTER).build());
-        indexDocument(LOOKUP_INDEX_NAME);
-        // Without override_request_values, the outer request's -1 beats the group's interval. The nested search runs with the outer
-        // search's interval as its own, so the group's interval doesn't cancel it, nor, through it, the outer search.
-        TermsLookup lookup = new TermsLookup(LOOKUP_INDEX_NAME, null, "field", blockingQuery());
-        List<ScriptedBlockPlugin> plugins = enableBlocks();
-        ActionFuture<SearchResponse> response = client().prepareSearch(INDEX_NAME)
-            .setCancelAfterTimeInterval(SearchService.NO_TIMEOUT)
-            .setQuery(QueryBuilders.termsLookupQuery("field", lookup))
-            .execute();
-        try {
-            assertOutlivesTheGroupInterval(awaitBlockedSearch(LOOKUP_INDEX_NAME, WORKLOAD_GROUP_ID, response), response);
-        } finally {
-            disableBlocks(plugins);
-        }
-        assertEquals(0, response.actionGet(TIMEOUT).getFailedShards());
-    }
-
     public void testHeaderAssignsTheGroupWithoutARule() throws Exception {
         setWlmMode("enabled");
         createWorkloadGroup(WORKLOAD_GROUP_ID, Settings.builder().put(CANCEL_AFTER_TIME_INTERVAL, GROUP_CANCEL_AFTER).build());

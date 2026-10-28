@@ -344,7 +344,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // also track the response status of the searchResponse.
         ActionListener<SearchResponse> searchStatusStatsUpdateListener;
         // The search's cancel_after_time_interval is decided once, here, before admission: the timer below is armed with it, and the
-        // request carries it to the remote clusters of a ccs_minimize_roundtrips search.
+        // request carries it to the requests copied from it, such as the remote legs of a ccs_minimize_roundtrips search and the
+        // sub-searches of a collapse expansion.
         final TimeValue requestedCancelAfterTimeInterval = searchRequest.getCancelAfterTimeInterval();
         final TimeValue cancelAfterTimeInterval = resolveCancelAfterTimeInterval(cancelAfterTimeIntervalResolver, task, searchRequest);
         searchRequest.setCancelAfterTimeInterval(cancelAfterTimeInterval);
