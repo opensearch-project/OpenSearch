@@ -148,6 +148,7 @@ import org.opensearch.index.engine.PrimaryOperationPolicy;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.engine.SearcherSupplierProvider;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
@@ -2752,9 +2753,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope) {
         readAllowed();
         markSearcherAccessed();
-        // Read-side dispatch: engine-backed shards delegate to the wrapped engine, data-format-aware
-        // shards build a searcher from their own reader.
-        return getReaderProvider().acquireSearcherSupplier(this::wrapSearcher, scope);
+        return searcherSupplierProvider().acquireSearcherSupplier(this::wrapSearcher, scope);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
@@ -2771,8 +2770,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope) {
         readAllowed();
         markSearcherAccessed();
-        // Read-side dispatch; see acquireSearcherSupplier above.
-        return getReaderProvider().acquireSearcher(source, scope, this::wrapSearcher);
+        return Engine.acquireSearcher(source, searcherSupplierProvider().acquireSearcherSupplier(this::wrapSearcher, scope));
+    }
+
+    /** The indexer's searcher capability; an indexer without one cannot serve {@code _search}. */
+    private SearcherSupplierProvider searcherSupplierProvider() {
+        final Indexer indexer = getIndexer();
+        if (indexer instanceof SearcherSupplierProvider provider) {
+            return provider;
+        }
+        throw SearcherSupplierProvider.searchNotSupported(shardId, indexer.getClass().getSimpleName() + " has no searcher");
     }
 
     /**

@@ -8,8 +8,8 @@
 
 package org.opensearch.index.engine;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
@@ -22,22 +22,32 @@ import org.opensearch.index.store.Store;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
  * Builds the Lucene {@link Engine.SearcherSupplier} that lets {@code _search} reach a data-format-aware
  * shard.
  *
- * <p>Shared by every data-format-aware engine that can serve searches, {@link DataFormatAwareEngine} for a
- * hot shard and {@link DataFormatAwareReadOnlyEngine} for one tiered to warm, so both expose the same
- * point-in-time contract. The searchable reader is found by what it can do, not by format name: it is the
- * one format reader implementing {@link SearchableDirectoryReaderProvider}. Anything a format needs to
- * attach to that reader is the format plugin's responsibility.
+ * <p>One instance per engine, shared by {@link DataFormatAwareEngine} for a hot shard and
+ * {@link DataFormatAwareReadOnlyEngine} for one tiered to warm, so both expose the same point-in-time
+ * contract. The searchable format is the one whose reader implements {@link SearchableDirectoryReaderProvider};
+ * it is resolved once among the shard's own formats and then reused.
  */
 @SuppressForbidden(reason = "reference counting is required here")
 final class DataFormatAwareSearcherSupport {
 
-    private DataFormatAwareSearcherSupport() {}
+    private final ShardId shardId;
+    private final EngineConfig engineConfig;
+    private final List<DataFormat> shardFormats;
+    private volatile DataFormat searchableFormat;
+
+    DataFormatAwareSearcherSupport(ShardId shardId, EngineConfig engineConfig, Set<DataFormat> shardFormats) {
+        this.shardId = shardId;
+        this.engineConfig = engineConfig;
+        this.shardFormats = List.copyOf(shardFormats);
+    }
 
     /**
      * Builds a point-in-time searcher supplier over the {@link OpenSearchDirectoryReader} exposed by
@@ -46,13 +56,10 @@ final class DataFormatAwareSearcherSupport {
      * <p>Like {@link Engine#acquireSearcherSupplier}, the supplier pins the store and the reader until it is
      * closed, so an open scroll or PIT survives engine close. Takes ownership of {@code readerRef}: it is
      * released by the returned supplier's {@code close()}, or immediately if this method throws.
+     *
+     * @throws OpenSearchStatusException with {@code 400} if none of the shard's data formats can serve {@code _search}
      */
-    static Engine.SearcherSupplier acquireSearcherSupplier(
-        ShardId shardId,
-        EngineConfig engineConfig,
-        GatedCloseable<Reader> readerRef,
-        Function<Engine.Searcher, Engine.Searcher> wrapper
-    ) {
+    Engine.SearcherSupplier acquireSearcherSupplier(GatedCloseable<Reader> readerRef, Function<Engine.Searcher, Engine.Searcher> wrapper) {
         final Store store = engineConfig.getStore();
         if (store.tryIncRef() == false) {
             IOUtils.closeWhileHandlingException(readerRef);
@@ -60,7 +67,7 @@ final class DataFormatAwareSearcherSupport {
         }
         boolean success = false;
         try {
-            final OpenSearchDirectoryReader directoryReader = searchableDirectoryReader(readerRef.get(), engineConfig, shardId);
+            final OpenSearchDirectoryReader directoryReader = searchableDirectoryReader(readerRef.get());
             if (directoryReader.tryIncRef() == false) {
                 throw new AlreadyClosedException(shardId + " reader is closed");
             }
@@ -89,7 +96,7 @@ final class DataFormatAwareSearcherSupport {
             };
             success = true;
             return supplier;
-        } catch (AlreadyClosedException e) {
+        } catch (AlreadyClosedException | OpenSearchStatusException e) {
             throw e;
         } catch (Exception e) {
             throw new EngineException(shardId, "failed to build searcher supplier from data format reader", e);
@@ -109,39 +116,44 @@ final class DataFormatAwareSearcherSupport {
         }
     }
 
+    private OpenSearchDirectoryReader searchableDirectoryReader(Reader reader) {
+        DataFormat format = searchableFormat;
+        if (format == null) {
+            format = searchableFormat = resolveSearchableFormat(reader);
+        }
+        if (reader.reader(format) instanceof SearchableDirectoryReaderProvider provider) {
+            // Reuse the format's wrapper: a fresh wrap gets a new cache key and defeats the request cache.
+            if (provider.directoryReader() instanceof OpenSearchDirectoryReader openSearchReader) {
+                return openSearchReader;
+            }
+            throw new IllegalStateException("Data format [" + format.name() + "] must expose an OpenSearchDirectoryReader for " + shardId);
+        }
+        throw new IllegalStateException("Data format [" + format.name() + "] has no searchable reader for this snapshot of " + shardId);
+    }
+
     /**
-     * Returns the {@link DirectoryReader} of the single format reader implementing
-     * {@link SearchableDirectoryReaderProvider}. Fails if none does, because the shard could not serve
-     * {@code _search}, or if more than one does, because picking one would be arbitrary.
+     * Finds the single shard format whose reader implements {@link SearchableDirectoryReaderProvider}. More than
+     * one is a bug, because picking one would be arbitrary.
      */
-    private static OpenSearchDirectoryReader searchableDirectoryReader(Reader reader, EngineConfig engineConfig, ShardId shardId) {
-        SearchableDirectoryReaderProvider searchable = null;
-        DataFormat searchableFormat = null;
-        for (DataFormat format : engineConfig.getDataFormatRegistry().getRegisteredFormats()) {
-            if (reader.reader(format) instanceof SearchableDirectoryReaderProvider provider) {
-                if (searchable != null) {
+    private DataFormat resolveSearchableFormat(Reader reader) {
+        DataFormat found = null;
+        for (DataFormat format : shardFormats) {
+            if (reader.reader(format) instanceof SearchableDirectoryReaderProvider) {
+                if (found != null) {
                     throw new IllegalStateException(
-                        "Data formats ["
-                            + searchableFormat.name()
-                            + "] and ["
-                            + format.name()
-                            + "] both expose a searchable DirectoryReader for "
-                            + shardId
+                        "Data formats [" + found.name() + "] and [" + format.name() + "] both expose a searchable reader for " + shardId
                     );
                 }
-                searchable = provider;
-                searchableFormat = format;
+                found = format;
             }
         }
-        if (searchable == null) {
-            throw new IllegalStateException("No data format reader exposes a searchable DirectoryReader for " + shardId);
+        if (found == null) {
+            throw SearcherSupplierProvider.searchNotSupported(shardId, "none of its data formats " + formatNames() + " can serve it");
         }
-        // Reuse the format's wrapper: a fresh wrap gets a new cache key and defeats the request cache.
-        if (searchable.directoryReader() instanceof OpenSearchDirectoryReader openSearchReader) {
-            return openSearchReader;
-        }
-        throw new IllegalStateException(
-            "Data format [" + searchableFormat.name() + "] must expose an OpenSearchDirectoryReader for " + shardId
-        );
+        return found;
+    }
+
+    private List<String> formatNames() {
+        return shardFormats.stream().map(DataFormat::name).sorted().toList();
     }
 }
