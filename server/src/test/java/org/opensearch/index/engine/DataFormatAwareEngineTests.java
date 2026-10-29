@@ -8,12 +8,12 @@
 
 package org.opensearch.index.engine;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
@@ -96,14 +96,12 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -1590,6 +1588,77 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     }
 
     /**
+     * Searchers on one snapshot must expose the format's own {@link OpenSearchDirectoryReader}, so the
+     * request cache key id stays the same across suppliers and repeat searches hit the cache.
+     */
+    public void testSearchersOnSameSnapshotShareRequestCacheKey() throws Exception {
+        SearchableStubReaderManager readerManager = useSearchableReaderManager();
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            try (
+                Engine.SearcherSupplier first = engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL);
+                Engine.SearcherSupplier second = engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL);
+                Engine.Searcher a = first.acquireSearcher("test");
+                Engine.Searcher b = second.acquireSearcher("test")
+            ) {
+                assertSame(readerManager.currentReader(), a.getDirectoryReader());
+                assertEquals(requestCacheKeyId(a), requestCacheKeyId(b));
+            }
+        }
+    }
+
+    /**
+     * An open scroll or PIT must keep working after the engine closes: the supplier pins the store and the
+     * reader, and releases both only when it is closed.
+     */
+    public void testOpenSearcherSupplierSurvivesEngineClose() throws Exception {
+        SearchableStubReaderManager readerManager = useSearchableReaderManager();
+        final int storeRefsBefore = store.refCount();
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        final Engine.SearcherSupplier supplier;
+        final OpenSearchDirectoryReader reader;
+        try {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+            supplier = engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL);
+            reader = readerManager.currentReader();
+        } finally {
+            engine.close();
+        }
+        try {
+            assertThat(reader.getRefCount(), greaterThan(0));
+            assertEquals(storeRefsBefore + 1, store.refCount());
+            try (Engine.Searcher searcher = supplier.acquireSearcher("next_page")) {
+                searcher.search(new MatchAllDocsQuery(), 1);
+            }
+        } finally {
+            supplier.close();
+        }
+        assertEquals(0, reader.getRefCount());
+        assertEquals(storeRefsBefore, store.refCount());
+    }
+
+    private SearchableStubReaderManager useSearchableReaderManager() {
+        SearchableStubReaderManager readerManager = new SearchableStubReaderManager(store, shardId);
+        mockPlugin.withIndexingEngine(cfg -> new MockIndexingExecutionEngine(mockDataFormat) {
+            @Override
+            public Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) {
+                return Map.of(getDataFormat(), readerManager);
+            }
+        });
+        return readerManager;
+    }
+
+    static String requestCacheKeyId(Engine.Searcher searcher) {
+        return OpenSearchDirectoryReader.getOpenSearchDirectoryReader(searcher.getDirectoryReader())
+            .getDelegatingCacheHelper()
+            .getDelegatingCacheKey()
+            .getId();
+    }
+
+    /**
      * {@link DataFormatAwareEngine#acquireSearcherSupplier} is the entry through which the standard
      * {@code _search} path reaches a composite shard (via the {@link org.opensearch.index.engine.exec.IndexReaderProvider}
      * dispatch in {@code IndexShard}), and the {@link org.opensearch.index.engine.exec.IndexReaderProvider#acquireSearcher}
@@ -1627,57 +1696,6 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             AlreadyClosedException.class,
             () -> engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
         );
-    }
-
-    /**
-     * Test-only reader manager whose format reader exposes a real Lucene
-     * {@link DirectoryReader} (over the store's bootstrap commit) via
-     * {@link SearchableDirectoryReaderProvider}, wrapped in {@link OpenSearchDirectoryReader}
-     * as the production contract requires.
-     */
-    private static final class SearchableStubReaderManager implements EngineReaderManager<SearchableDirectoryReaderProvider> {
-        private final Store store;
-        private final ShardId shardId;
-        private volatile DirectoryReader reader;
-        final Set<Long> deletedSnapshotIds = ConcurrentHashMap.newKeySet();
-
-        SearchableStubReaderManager(Store store, ShardId shardId) {
-            this.store = store;
-            this.shardId = shardId;
-        }
-
-        @Override
-        public synchronized SearchableDirectoryReaderProvider getReader(CatalogSnapshot catalogSnapshot) throws IOException {
-            if (reader == null) {
-                reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(store.directory()), shardId);
-            }
-            return () -> reader;
-        }
-
-        @Override
-        public void beforeRefresh() {}
-
-        @Override
-        public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) {}
-
-        @Override
-        public void onDeleted(CatalogSnapshot catalogSnapshot) {
-            deletedSnapshotIds.add(catalogSnapshot.getId());
-        }
-
-        @Override
-        public void onFilesDeleted(Collection<String> files) {}
-
-        @Override
-        public void onFilesAdded(Collection<String> files) {}
-
-        @Override
-        public synchronized void close() throws IOException {
-            if (reader != null) {
-                reader.close();
-                reader = null;
-            }
-        }
     }
 
     public void testAcquireReaderBeforeRefreshReturnsEmptyReaders() throws IOException {

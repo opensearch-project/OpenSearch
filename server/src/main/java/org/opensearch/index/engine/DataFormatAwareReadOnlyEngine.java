@@ -320,8 +320,8 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
      * to {@link DataFormatAwareEngine#acquireSearcherSupplier}, so a warm shard serves searches the same way
      * a hot one does.
      *
-     * <p>The supplier closing {@link #acquireReader()}'s reference is harmless here: this engine's
-     * reference carries a no-op close over a reader pinned for the engine's lifetime.
+     * <p>{@link #acquireReader()} returns a no-op reference here, so the supplier pins the store and the
+     * Lucene reader itself; an open scroll or PIT keeps working after this engine closes.
      */
     @Override
     public Engine.SearcherSupplier acquireSearcherSupplier(Function<Engine.Searcher, Engine.Searcher> wrapper, Engine.SearcherScope scope) {

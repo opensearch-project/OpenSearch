@@ -26,8 +26,10 @@ public interface SearchableDirectoryReaderProvider {
     /**
      * Returns the {@link DirectoryReader} that can be used to build an
      * {@link org.opensearch.index.engine.Engine.Searcher} for the standard search path.
+     * Must be the same {@link org.opensearch.common.lucene.index.OpenSearchDirectoryReader} for every call
+     * on one snapshot, so the request cache keys stay stable.
      *
-     * @return a non-null directory reader
+     * @return a non-null {@link org.opensearch.common.lucene.index.OpenSearchDirectoryReader}
      */
     DirectoryReader directoryReader();
 }
