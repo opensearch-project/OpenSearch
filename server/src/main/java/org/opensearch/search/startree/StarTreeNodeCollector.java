@@ -8,13 +8,13 @@
 
 package org.opensearch.search.startree;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 
 /**
  * Collects one or more @{@link StarTreeNode}'s
  */
-@ExperimentalApi
+@PublicApi(since = "2.18.0")
 public interface StarTreeNodeCollector {
     /**
      * Called to collect a @{@link StarTreeNode}
