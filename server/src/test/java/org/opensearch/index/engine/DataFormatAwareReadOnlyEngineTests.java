@@ -11,11 +11,14 @@ package org.opensearch.index.engine;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
@@ -23,13 +26,16 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.dataformat.stub.InMemoryCommitter;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
 import org.opensearch.index.engine.exec.DataFormatAwareIndexerFactory;
+import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
@@ -41,6 +47,7 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
@@ -69,9 +76,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.opensearch.index.engine.EngineTestCase.tombstoneDocSupplier;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -90,6 +99,8 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
     private AtomicLong primaryTerm;
     private MockDataFormat mockDataFormat;
     private MockDataFormatPlugin mockPlugin;
+    /** When set, the engine's format reader is searchable. */
+    private SearchableStubReaderManager searchableReaderManager;
 
     @Override
     public void setUp() throws Exception {
@@ -220,6 +231,8 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
             .indexSettings(indexSettings)
             .store(store)
             .mergePolicy(NoMergePolicy.INSTANCE)
+            .queryCache(IndexSearcher.getDefaultQueryCache())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
             .translogConfig(translogConfig)
             .flushMergesAfter(TimeValue.timeValueMinutes(5))
             .externalRefreshListener(List.of())
@@ -240,9 +253,16 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
     private DataFormatRegistry createMockRegistry() {
         PluginsService pluginsService = mock(PluginsService.class);
         when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(mockPlugin));
-        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(
-            List.of(new MockSearchBackEndPlugin(List.of(mockDataFormat.name())))
-        );
+        SearchableStubReaderManager searchable = searchableReaderManager;
+        SearchBackEndPlugin<?> backend = searchable == null
+            ? new MockSearchBackEndPlugin(List.of(mockDataFormat.name()))
+            : new MockSearchBackEndPlugin(List.of(mockDataFormat.name())) {
+                @Override
+                public EngineReaderManager<?> createReaderManager(ReaderManagerConfig settings) {
+                    return searchable;
+                }
+            };
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(List.of(backend));
         return new DataFormatRegistry(pluginsService);
     }
 
@@ -1015,5 +1035,63 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
             AlreadyClosedException.class,
             () -> engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
         );
+    }
+
+    /** A warm shard reuses the format's {@link OpenSearchDirectoryReader}, so request cache keys stay stable. */
+    public void testSearchersShareRequestCacheKey() throws IOException {
+        useSearchableReaderManager();
+        try (
+            DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine();
+            Engine.SearcherSupplier first = engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL);
+            Engine.SearcherSupplier second = engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL);
+            Engine.Searcher a = first.acquireSearcher("test");
+            Engine.Searcher b = second.acquireSearcher("test")
+        ) {
+            assertSame(searchableReaderManager.currentReader(), a.getDirectoryReader());
+            assertEquals(DataFormatAwareEngineTests.requestCacheKeyId(a), DataFormatAwareEngineTests.requestCacheKeyId(b));
+        }
+    }
+
+    /**
+     * The warm engine's reader reference has a no-op close, so the supplier itself must pin the store and the
+     * reader for an open scroll or PIT to survive engine close.
+     */
+    public void testOpenSearcherSupplierSurvivesEngineClose() throws IOException {
+        useSearchableReaderManager();
+        final int storeRefsBefore = store.refCount();
+        final Engine.SearcherSupplier supplier;
+        final OpenSearchDirectoryReader reader;
+        try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine()) {
+            supplier = engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL);
+            reader = searchableReaderManager.currentReader();
+        }
+        try {
+            assertThat(reader.getRefCount(), greaterThan(0));
+            assertEquals(storeRefsBefore + 1, store.refCount());
+            try (Engine.Searcher searcher = supplier.acquireSearcher("next_page")) {
+                searcher.search(new MatchAllDocsQuery(), 1);
+            }
+        } finally {
+            supplier.close();
+        }
+        assertEquals(0, reader.getRefCount());
+        assertEquals(storeRefsBefore, store.refCount());
+    }
+
+    /** Gives the warm engine one searchable format reader; the default mock plugin describes no formats. */
+    private void useSearchableReaderManager() {
+        searchableReaderManager = new SearchableStubReaderManager(store, shardId);
+        mockPlugin = new MockDataFormatPlugin(mockDataFormat) {
+            @Override
+            public Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(
+                IndexSettings indexSettings,
+                DataFormatRegistry dataFormatRegistry
+            ) {
+                return Map.of(
+                    mockDataFormat.name(),
+                    () -> new DataFormatDescriptor(mockDataFormat.name(), new PrecomputedChecksumStrategy())
+                );
+            }
+        };
     }
 }
