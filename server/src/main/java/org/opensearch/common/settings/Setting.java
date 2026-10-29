@@ -474,6 +474,14 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
+     * Returns the function this setting uses to parse a raw string value. Callers that need declared bounds can check the
+     * returned instance against the bounded parser types such as {@link IntegerParser} or {@link ByteSizeValueParser}.
+     */
+    public Function<String, T> getParser() {
+        return parser;
+    }
+
+    /**
      * Returns true if and only if this setting is present in the given settings instance. Note that fallback settings are excluded.
      *
      * @param settings the settings
@@ -2058,11 +2066,11 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Property... properties) {
-        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), b -> parseBoolean(b, key, isFiltered(properties)), properties);
+        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), new BooleanParser(key, isFiltered(properties)), properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, Property... properties) {
-        return new Setting<>(key, fallbackSetting, b -> parseBoolean(b, key, isFiltered(properties)), properties);
+        return new Setting<>(key, fallbackSetting, new BooleanParser(key, isFiltered(properties)), properties);
     }
 
     public static Setting<Boolean> boolSetting(
@@ -2075,18 +2083,44 @@ public class Setting<T> implements ToXContentObject {
             new SimpleKey(key),
             fallbackSetting,
             fallbackSetting::getRaw,
-            b -> parseBoolean(b, key, isFiltered(properties)),
+            new BooleanParser(key, isFiltered(properties)),
             validator,
             properties
         );
     }
 
     public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Validator<Boolean> validator, Property... properties) {
-        return new Setting<>(key, Boolean.toString(defaultValue), b -> parseBoolean(b, key, isFiltered(properties)), validator, properties);
+        return new Setting<>(key, Boolean.toString(defaultValue), new BooleanParser(key, isFiltered(properties)), validator, properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Function<Settings, String> defaultValueFn, Property... properties) {
-        return new Setting<>(key, defaultValueFn, b -> parseBoolean(b, key, isFiltered(properties)), properties);
+        return new Setting<>(key, defaultValueFn, new BooleanParser(key, isFiltered(properties)), properties);
+    }
+
+    /**
+     * Parser for boolean settings. Exists as a named type (rather than a lambda) so that the setting's value type can be
+     * recognised by inspection; it is deliberately not {@link Writeable}, since {@link WriteableSetting} reconstructs boolean
+     * settings from their type alone.
+     *
+     * @opensearch.internal
+     */
+    public static final class BooleanParser implements Function<String, Boolean> {
+        private final String key;
+        private final boolean isFiltered;
+
+        public BooleanParser(String key, boolean isFiltered) {
+            this.key = key;
+            this.isFiltered = isFiltered;
+        }
+
+        public String getKey() {
+            return key;
+        }
+
+        @Override
+        public Boolean apply(String b) {
+            return parseBoolean(b, key, isFiltered);
+        }
     }
 
     static boolean parseBoolean(String b, String key, boolean isFiltered) {
