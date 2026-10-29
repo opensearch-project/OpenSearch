@@ -17,6 +17,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.Version;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -32,6 +33,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
@@ -1459,23 +1461,32 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     }
 
     /**
-     * With only the default mock format, whose reader does not implement
-     * {@link SearchableDirectoryReaderProvider}, {@code acquireSearcherSupplier} must fail loudly instead
-     * of returning an unsearchable supplier: no format reader exposes a searchable DirectoryReader, and
-     * the failure is wrapped in an {@link EngineException}. The failure path must also release the
-     * acquired reader/snapshot reference — verified implicitly by the leak checks in tear-down.
+     * A shard whose formats expose no searchable reader rejects {@code _search} with a 400, releases what it
+     * acquired, and a closed engine refuses before touching the reader.
      */
-    public void testAcquireSearcherSupplierFailsWithoutSearchableLuceneReader() throws IOException {
-        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+    public void testSearchWithoutSearchableFormatIsBadRequest() throws IOException {
+        final int storeRefsBefore = store.refCount();
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        try {
             engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.refresh("test");
+            final int storeRefsOpen = store.refCount();
 
-            EngineException e = expectThrows(
-                EngineException.class,
+            OpenSearchStatusException e = expectThrows(
+                OpenSearchStatusException.class,
                 () -> engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
             );
-            assertThat(e.getMessage(), containsString("failed to build searcher supplier"));
+            assertEquals(RestStatus.BAD_REQUEST, e.status());
+            assertThat(e.getMessage(), containsString("does not support _search"));
+            assertEquals(storeRefsOpen, store.refCount());
+        } finally {
+            engine.close();
         }
+        assertEquals(storeRefsBefore, store.refCount());
+        expectThrows(
+            AlreadyClosedException.class,
+            () -> engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
+        );
     }
 
     /**
@@ -1519,9 +1530,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     }
 
     /**
-     * The one-shot {@code acquireSearcher} default ties the supplier's lifetime to the returned
-     * searcher: closing the searcher releases the supplier and the underlying reader/snapshot
-     * reference (leak-checked in tear-down).
+     * {@link Engine#acquireSearcher(String, Engine.SearcherSupplier)} ties the supplier's lifetime to the
+     * returned searcher: closing the searcher releases the supplier and its reader reference.
      */
     public void testAcquireSearcherOneShotReleasesSupplierOnClose() throws Exception {
         SearchableStubReaderManager readerManager = new SearchableStubReaderManager(store, shardId);
@@ -1535,9 +1545,17 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.refresh("test");
 
-            Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL, Function.identity());
+            final int refsBefore = readerManager.currentReader() == null ? -1 : readerManager.currentReader().getRefCount();
+            Engine.Searcher searcher = Engine.acquireSearcher(
+                "test",
+                engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
+            );
             assertThat(searcher.getIndexReader(), notNullValue());
+            final OpenSearchDirectoryReader reader = readerManager.currentReader();
+            final int refsOpen = reader.getRefCount();
             searcher.close();
+            assertEquals("closing the searcher releases the supplier's reader ref", refsOpen - 1, reader.getRefCount());
+            assertTrue(refsBefore == -1 || refsBefore == reader.getRefCount());
         }
     }
 
@@ -1656,46 +1674,6 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             .getDelegatingCacheHelper()
             .getDelegatingCacheKey()
             .getId();
-    }
-
-    /**
-     * {@link DataFormatAwareEngine#acquireSearcherSupplier} is the entry through which the standard
-     * {@code _search} path reaches a composite shard (via the {@link org.opensearch.index.engine.exec.IndexReaderProvider}
-     * dispatch in {@code IndexShard}), and the {@link org.opensearch.index.engine.exec.IndexReaderProvider#acquireSearcher}
-     * default delegates to it.
-     */
-    public void testAcquireSearcherSupplierContract() throws IOException {
-        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
-        try {
-            int numDocs = randomIntBetween(1, 5);
-            for (int i = 0; i < numDocs; i++) {
-                engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
-            }
-            engine.refresh("test");
-
-            // The default mock format's reader is not searchable, so the pinned contract is the failure
-            // shape: a live engine surfaces the missing searchable reader as EngineException (never a raw
-            // NPE or a silent null). The happy path is covered by the composite-engine cluster ITs.
-            EngineException e = expectThrows(
-                EngineException.class,
-                () -> engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
-            );
-            assertThat(e.getMessage(), containsString("failed to build searcher supplier"));
-
-            // The Indexer default acquireSearcher delegates to the supplier, so it must surface the same failure.
-            EngineException viaDefault = expectThrows(
-                EngineException.class,
-                () -> engine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL, Function.identity())
-            );
-            assertThat(viaDefault.getMessage(), containsString("failed to build searcher supplier"));
-        } finally {
-            engine.close();
-        }
-        // A closed engine must refuse before touching the reader.
-        expectThrows(
-            AlreadyClosedException.class,
-            () -> engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
-        );
     }
 
     public void testAcquireReaderBeforeRefreshReturnsEmptyReaders() throws IOException {

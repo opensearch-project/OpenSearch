@@ -92,7 +92,7 @@ import java.util.function.Supplier;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class DataFormatAwareReadOnlyEngine implements Indexer {
+public class DataFormatAwareReadOnlyEngine implements Indexer, SearcherSupplierProvider {
 
     private final Logger logger;
     private final EngineConfig engineConfig;
@@ -102,6 +102,7 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     // Core state
     private final CatalogSnapshotManager catalogSnapshotManager;
     private final Map<DataFormat, EngineReaderManager<?>> readerManagers;
+    private final DataFormatAwareSearcherSupport searcherSupport;
     private final LocalCheckpointTracker localCheckpointTracker;
     private final NoOpTranslogManager translogManager;
     private final Committer committer;
@@ -187,6 +188,7 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
             }
             readerManagersRef = Map.copyOf(aggregated);
             this.readerManagers = readerManagersRef;
+            this.searcherSupport = new DataFormatAwareSearcherSupport(shardId, engineConfig, readerManagers.keySet());
 
             // Register reader managers as BOTH files listeners and snapshot lifecycle listeners.
             // Files listeners make IndexFileDeleter fire onFilesAdded for the committed snapshot
@@ -325,6 +327,8 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
      */
     @Override
     public Engine.SearcherSupplier acquireSearcherSupplier(Function<Engine.Searcher, Engine.Searcher> wrapper, Engine.SearcherScope scope) {
+        // One point-in-time view per catalog snapshot, so there is no separate INTERNAL reader; IndexShard only asks for EXTERNAL.
+        assert scope == Engine.SearcherScope.EXTERNAL : "unexpected searcher scope " + scope;
         ensureOpen();
         final GatedCloseable<Reader> readerRef;
         try {
@@ -332,7 +336,7 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
         } catch (IOException e) {
             throw new EngineException(shardId, "failed to acquire reader for searcher", e);
         }
-        return DataFormatAwareSearcherSupport.acquireSearcherSupplier(shardId, engineConfig, readerRef, wrapper);
+        return searcherSupport.acquireSearcherSupplier(readerRef, wrapper);
     }
 
     // ---- IndexerEngineOperations (Task 3 — write rejection) ----

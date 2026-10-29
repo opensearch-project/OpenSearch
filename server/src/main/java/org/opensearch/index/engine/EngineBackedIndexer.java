@@ -41,7 +41,7 @@ import java.util.function.Function;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class EngineBackedIndexer implements Indexer {
+public class EngineBackedIndexer implements Indexer, SearcherSupplierProvider {
 
     private final Engine engine;
 
@@ -517,12 +517,5 @@ public class EngineBackedIndexer implements Indexer {
     public Engine.SearcherSupplier acquireSearcherSupplier(Function<Engine.Searcher, Engine.Searcher> wrapper, Engine.SearcherScope scope)
         throws EngineException {
         return engine.acquireSearcherSupplier(wrapper, scope);
-    }
-
-    /** Delegates to {@link Engine#acquireSearcher(String, Engine.SearcherScope, Function)} on the wrapped engine. */
-    @Override
-    public Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope, Function<Engine.Searcher, Engine.Searcher> wrapper)
-        throws EngineException {
-        return engine.acquireSearcher(source, scope, wrapper);
     }
 }
