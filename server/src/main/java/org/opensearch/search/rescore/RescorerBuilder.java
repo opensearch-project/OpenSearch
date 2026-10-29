@@ -32,6 +32,7 @@
 
 package org.opensearch.search.rescore;
 
+import org.opensearch.Version;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
@@ -64,7 +65,11 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
 
     protected Integer windowSize;
 
+    protected RescoreReorderMode reorderMode;
+
     private static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
+
+    private static final ParseField REORDER_MODE_FIELD = new ParseField("reorder_mode");
 
     /**
      * Construct an empty RescoreBuilder.
@@ -76,11 +81,17 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
      */
     protected RescorerBuilder(StreamInput in) throws IOException {
         windowSize = in.readOptionalVInt();
+        if (in.getVersion().onOrAfter(Version.V_3_8_0)) {
+            reorderMode = in.readOptionalWriteable(RescoreReorderMode::readFromStream);
+        }
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalVInt(this.windowSize);
+        if (out.getVersion().onOrAfter(Version.V_3_8_0)) {
+            out.writeOptionalWriteable(reorderMode);
+        }
         doWriteTo(out);
     }
 
@@ -96,10 +107,28 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
         return windowSize;
     }
 
+    /**
+     * Sets how hits are reordered after rescoring relative to hits beyond the
+     * rescore window. Defaults to {@link RescoreReorderMode#LEGACY} when unset.
+     */
+    @SuppressWarnings("unchecked")
+    public RB reorderMode(RescoreReorderMode reorderMode) {
+        this.reorderMode = reorderMode;
+        return (RB) this;
+    }
+
+    /**
+     * How hits are reordered after rescoring, or {@code null} if not explicitly set.
+     */
+    public RescoreReorderMode reorderMode() {
+        return reorderMode;
+    }
+
     public static RescorerBuilder<?> parseFromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
         RescorerBuilder<?> rescorer = null;
         Integer windowSize = null;
+        RescoreReorderMode reorderMode = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -107,6 +136,8 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
             } else if (token.isValue()) {
                 if (WINDOW_SIZE_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                     windowSize = parser.intValue();
+                } else if (REORDER_MODE_FIELD.match(fieldName, parser.getDeprecationHandler())) {
+                    reorderMode = RescoreReorderMode.fromString(parser.text());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "rescore doesn't support [" + fieldName + "]");
                 }
@@ -122,6 +153,9 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
         if (windowSize != null) {
             rescorer.windowSize(windowSize.intValue());
         }
+        if (reorderMode != null) {
+            rescorer.reorderMode(reorderMode);
+        }
         return rescorer;
     }
 
@@ -130,6 +164,9 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
         builder.startObject();
         if (windowSize != null) {
             builder.field("window_size", windowSize);
+        }
+        if (reorderMode != null) {
+            builder.field("reorder_mode", reorderMode.toString());
         }
         doXContent(builder, params);
         builder.endObject();
@@ -145,6 +182,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
     public final RescoreContext buildContext(QueryShardContext context) throws IOException {
         int finalWindowSize = windowSize == null ? DEFAULT_WINDOW_SIZE : windowSize;
         RescoreContext rescoreContext = innerBuildContext(finalWindowSize, context);
+        rescoreContext.setReorderMode(reorderMode == null ? RescoreReorderMode.LEGACY : reorderMode);
         return rescoreContext;
     }
 
@@ -155,7 +193,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
 
     @Override
     public int hashCode() {
-        return Objects.hash(windowSize);
+        return Objects.hash(windowSize, reorderMode);
     }
 
     @Override
@@ -167,7 +205,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
             return false;
         }
         RescorerBuilder<?> other = (RescorerBuilder<?>) obj;
-        return Objects.equals(windowSize, other.windowSize);
+        return Objects.equals(windowSize, other.windowSize) && Objects.equals(reorderMode, other.reorderMode);
     }
 
     @Override

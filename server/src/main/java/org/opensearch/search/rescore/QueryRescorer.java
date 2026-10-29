@@ -85,8 +85,11 @@ public final class QueryRescorer implements Rescorer {
             }
         };
 
-        // First take top slice of incoming docs, to be rescored:
-        TopDocs topNFirstPass = topN(topDocs, rescoreContext.getWindowSize());
+        // First take the slice of incoming docs to be rescored: all collected hits for ALL_HITS
+        // (window_size only sets the minimum via the collection size), otherwise the top window_size hits.
+        final boolean rescoreAllHits = rescore.getReorderMode() == RescoreReorderMode.ALL_HITS;
+        TopDocs topNFirstPass = rescoreAllHits ? topDocs : topN(topDocs, rescoreContext.getWindowSize());
+        final int rescoreN = rescoreAllHits ? topDocs.scoreDocs.length : rescoreContext.getWindowSize();
 
         // Save doc IDs for which rescoring was applied to be used in score explanation
         Set<Integer> topNDocIDs = Collections.unmodifiableSet(
@@ -95,7 +98,7 @@ public final class QueryRescorer implements Rescorer {
         rescoreContext.setRescoredDocs(topNDocIDs);
 
         // Rescore them:
-        TopDocs rescored = rescorer.rescore(searcher, topNFirstPass, rescoreContext.getWindowSize());
+        TopDocs rescored = rescorer.rescore(searcher, topNFirstPass, rescoreN);
 
         // Splice back to non-topN hits and resort all of them:
         return combine(topDocs, rescored, (QueryRescoreContext) rescoreContext);
@@ -166,7 +169,8 @@ public final class QueryRescorer implements Rescorer {
         return new TopDocs(in.totalHits, subset);
     }
 
-    /** Modifies incoming TopDocs (in) by replacing the top hits with resorted's hits, and then resorting all hits. */
+    /** Modifies incoming TopDocs (in) by replacing the top hits with resorted's hits, and then reordering according to the
+     *  {@link RescoreReorderMode} of the context. */
     private TopDocs combine(TopDocs in, TopDocs resorted, QueryRescoreContext ctx) {
 
         System.arraycopy(resorted.scoreDocs, 0, in.scoreDocs, 0, resorted.scoreDocs.length);
@@ -179,11 +183,46 @@ public final class QueryRescorer implements Rescorer {
                 in.scoreDocs[i].score *= ctx.queryWeight();
             }
 
-            // TODO: this is wrong, i.e. we are comparing apples and oranges at this point. It would be better if we always rescored all
-            // incoming first pass hits, instead of allowing recoring of just the top subset:
-            Arrays.sort(in.scoreDocs, SCORE_DOC_COMPARATOR);
+            if (ctx.getReorderMode() == RescoreReorderMode.WINDOW_ONLY) {
+                // Keep the rescored window strictly ahead of the non-rescored tail. The window hits are already sorted among
+                // themselves by combined score and the tail keeps its first-pass order; only the scores may need adjusting so
+                // that the overall list stays sorted (shard responses must be sorted by score for the coordinator level merge).
+                ensureWindowAheadOfTail(in.scoreDocs, resorted.scoreDocs.length);
+            } else {
+                // LEGACY: mixing rescored scores with non-rescored first-pass scores is comparing apples and oranges, and because
+                // the set of collected hits depends on from + size, this ordering is not consistent across pages when the rescore
+                // lowers scores. Kept as the default for backwards compatibility; use reorder_mode all_hits or window_only instead.
+                Arrays.sort(in.scoreDocs, SCORE_DOC_COMPARATOR);
+            }
         }
         return in;
+    }
+
+    /**
+     * Adjusts scores so that the rescored window (hits {@code 0..windowLength-1}, sorted descending) always sorts ahead of the
+     * non-rescored tail (hits {@code windowLength..}, sorted descending). When the rescore dropped window scores below the tail,
+     * all window scores are shifted up by the same amount, which preserves the relative order within the window.
+     */
+    private static void ensureWindowAheadOfTail(ScoreDoc[] hits, int windowLength) {
+        if (windowLength == 0 || windowLength >= hits.length) {
+            return;
+        }
+        float maxTailScore = hits[windowLength].score;
+        float minWindowScore = hits[windowLength - 1].score;
+        if (minWindowScore <= maxTailScore) {
+            float delta = maxTailScore - minWindowScore;
+            // Walk the window backwards (from its lowest to its highest score), clamping each score to stay above the
+            // previous one, so the resulting list is non-increasing even in the face of floating point rounding.
+            float floor = Math.nextUp(maxTailScore);
+            for (int i = windowLength - 1; i >= 0; i--) {
+                float adjusted = hits[i].score + delta;
+                if (adjusted < floor) {
+                    adjusted = floor;
+                }
+                hits[i].score = adjusted;
+                floor = adjusted;
+            }
+        }
     }
 
     /**
