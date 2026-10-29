@@ -101,6 +101,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
     private TestPeerFinder peerFinder;
     private List<TransportAddress> providedAddresses;
     private long addressResolveDelay; // -1 means address resolution fails
+    private int resolveConfiguredHostsCount; // counts find-peers wakeups, one resolve per wakeup
 
     private Set<DiscoveryNode> disconnectedNodes = new HashSet<>();
     private Set<DiscoveryNode> connectedNodes = new HashSet<>();
@@ -193,6 +194,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
     }
 
     private void resolveConfiguredHosts(Consumer<List<TransportAddress>> onResult) {
+        resolveConfiguredHostsCount++;
         if (addressResolveDelay >= 0) {
             deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + addressResolveDelay, new Runnable() {
                 @Override
@@ -262,6 +264,155 @@ public class PeerFinderTests extends OpenSearchTestCase {
     public void deactivateAndRunRemainingTasks() {
         peerFinder.deactivate(localNode);
         deterministicTaskQueue.runAllRunnableTasks();
+    }
+
+    private static final long FIND_PEERS_INTERVAL_MILLIS = 1000L;
+    private static final int FLAP_COUNT = 5;
+
+    /** Drives CANDIDATE -&gt; FOLLOWER -&gt; CANDIDATE transitions, spacing each cycle by {@code staggerMillis} to vary the chain phase. */
+    private void flapCandidateToFollower(int cycles, long staggerMillis) {
+        for (int i = 0; i < cycles; i++) {
+            peerFinder.deactivate(localNode);
+            peerFinder.activate(lastAcceptedNodes);
+            runAllRunnableTasks();
+            respondToAllPeersRequests();
+            if (staggerMillis > 0) {
+                advanceTimeBy(staggerMillis);
+            }
+        }
+    }
+
+    /** Advances the clock by exactly {@code millis}, running everything that comes due on the way. */
+    private void advanceTimeBy(long millis) {
+        final long target = deterministicTaskQueue.getCurrentTimeMillis() + millis;
+        deterministicTaskQueue.scheduleAt(target, new Runnable() {
+            @Override
+            public void run() {}
+
+            @Override
+            public String toString() {
+                return "clock marker at " + target;
+            }
+        });
+        while (deterministicTaskQueue.getCurrentTimeMillis() < target) {
+            deterministicTaskQueue.advanceTime();
+            runAllRunnableTasks();
+        }
+    }
+
+    /** Responds to every outstanding peers request so none is left in flight, returning how many there were. */
+    private int respondToAllPeersRequests() {
+        final CapturedRequest[] capturedRequests = capturingTransport.getCapturedRequestsAndClear();
+        for (final CapturedRequest capturedRequest : capturedRequests) {
+            assertThat(capturedRequest.action, is(REQUEST_PEERS_ACTION_NAME));
+            capturingTransport.handleResponse(
+                capturedRequest.requestId,
+                new PeersResponse(Optional.empty(), emptyList(), randomNonNegativeLong())
+            );
+        }
+        return capturedRequests.length;
+    }
+
+    /**
+     * A wakeup left over from a previous activation must not reschedule itself alongside the current activation's chain, which would
+     * leak one extra chain per activation and permanently multiply the find-peers rate.
+     */
+    public void testFindPeersWakeupChainIsNotDuplicatedOnReactivation() {
+        final DiscoveryNode otherNode = newDiscoveryNode("node-1");
+        providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.addReachableNode(otherNode);
+
+        peerFinder.activate(lastAcceptedNodes);
+        runAllRunnableTasks();
+        assertFoundPeers(otherNode);
+
+        // Flap without advancing the clock, so every stale wakeup is still pending when the next activation happens.
+        flapCandidateToFollower(FLAP_COUNT, 0L);
+
+        // The chain count is stable once leaked, so measure several consecutive intervals.
+        final int[] wakeupsPerInterval = new int[3];
+        for (int i = 0; i < wakeupsPerInterval.length; i++) {
+            resolveConfiguredHostsCount = 0;
+            advanceTimeBy(FIND_PEERS_INTERVAL_MILLIS);
+            wakeupsPerInterval[i] = resolveConfiguredHostsCount;
+            logger.info("--> find-peers wakeups in interval {}: {}", i + 1, wakeupsPerInterval[i]);
+        }
+
+        for (int i = 0; i < wakeupsPerInterval.length; i++) {
+            assertThat(
+                "expected exactly one find-peers wakeup per interval in interval " + (i + 1) + " after " + FLAP_COUNT + " activations",
+                wakeupsPerInterval[i],
+                equalTo(1)
+            );
+        }
+    }
+
+    /**
+     * The visible consequence of leaked chains: peers polled once per chain per interval instead of once. Activations are staggered
+     * so each chain fires at a distinct moment and sends its own request, as in a real cluster.
+     */
+    public void testPeersRequestsAreNotAmplifiedOnReactivation() {
+        final DiscoveryNode otherNode = newDiscoveryNode("node-1");
+        providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.addReachableNode(otherNode);
+
+        peerFinder.activate(lastAcceptedNodes);
+        runAllRunnableTasks();
+        assertFoundPeers(otherNode);
+        respondToAllPeersRequests();
+
+        flapCandidateToFollower(FLAP_COUNT, FIND_PEERS_INTERVAL_MILLIS / 10);
+
+        // Let the staggered chains settle into their steady state before measuring.
+        advanceTimeBy(2 * FIND_PEERS_INTERVAL_MILLIS);
+        respondToAllPeersRequests();
+
+        // Half-open window [now, now + interval) so a chain on either boundary is counted once.
+        int peersRequests = 0;
+        final long deadline = deterministicTaskQueue.getCurrentTimeMillis() + FIND_PEERS_INTERVAL_MILLIS;
+        while (true) {
+            deterministicTaskQueue.advanceTime();
+            if (deterministicTaskQueue.getCurrentTimeMillis() >= deadline) {
+                break;
+            }
+            runAllRunnableTasks();
+            peersRequests += respondToAllPeersRequests();
+        }
+        logger.info("--> {} requests to {} in one find_peers_interval", peersRequests, REQUEST_PEERS_ACTION_NAME);
+
+        assertThat(
+            "expected one " + REQUEST_PEERS_ACTION_NAME + " per peer per interval after " + FLAP_COUNT + " activations",
+            peersRequests,
+            equalTo(1)
+        );
+    }
+
+    /**
+     * Control for {@link #testFindPeersWakeupChainIsNotDuplicatedOnReactivation}: identical flapping, but each stale wakeup fires
+     * while inactive and declines to reschedule. Pins the leak to surviving stale wakeups; passes with and without the fix.
+     */
+    public void testWakeupChainIsNotDuplicatedWhenStaleWakeupsAreDrained() {
+        final DiscoveryNode otherNode = newDiscoveryNode("node-1");
+        providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.addReachableNode(otherNode);
+
+        peerFinder.activate(lastAcceptedNodes);
+        runAllRunnableTasks();
+        assertFoundPeers(otherNode);
+
+        for (int i = 0; i < FLAP_COUNT; i++) {
+            peerFinder.deactivate(localNode);
+            // Drain the pending wakeup while inactive: it fires, sees active == false, and does not reschedule.
+            advanceTimeBy(FIND_PEERS_INTERVAL_MILLIS);
+            peerFinder.activate(lastAcceptedNodes);
+            runAllRunnableTasks();
+        }
+
+        resolveConfiguredHostsCount = 0;
+        advanceTimeBy(FIND_PEERS_INTERVAL_MILLIS);
+        logger.info("--> control: find-peers wakeups in one interval: {}", resolveConfiguredHostsCount);
+
+        assertThat(resolveConfiguredHostsCount, equalTo(1));
     }
 
     public void testAddsReachableNodesFromUnicastHostsList() {
