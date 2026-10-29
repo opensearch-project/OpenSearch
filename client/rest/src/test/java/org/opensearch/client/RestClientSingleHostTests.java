@@ -44,6 +44,7 @@ import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.classic.methods.HttpPut;
 import org.apache.hc.client5.http.classic.methods.HttpTrace;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
+import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
 import org.apache.hc.core5.concurrent.FutureCallback;
 import org.apache.hc.core5.function.Supplier;
@@ -644,6 +645,9 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 break;
             case "TRACE":
                 expectedRequest = new HttpTrace(uri);
+                break;
+            case "QUERY":
+                expectedRequest = new HttpUriRequestBase("QUERY", uri);
                 break;
             default:
                 throw new UnsupportedOperationException("method not supported: " + method);
