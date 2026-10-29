@@ -427,7 +427,12 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             logger.warn("Exception while reading latest metadata file from remote store");
                             listener.onFailure(e);
                         } else {
-                            wrappedSnapshot.close();
+                            // The acquisition above can itself throw, in which case there is no commit point to
+                            // release yet and closing unconditionally would raise an NPE that masks the real
+                            // failure. Clear the handle afterwards so that if the retry below also fails, the
+                            // outer catch does not close the same commit point a second time.
+                            IOUtils.close(wrappedSnapshot);
+                            wrappedSnapshot = null;
                             logger.warn(
                                 "Exception while acquiring lock on primaryTerm = {} and generation = {}",
                                 primaryTerm,
