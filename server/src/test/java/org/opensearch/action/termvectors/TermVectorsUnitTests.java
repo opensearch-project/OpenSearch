@@ -56,6 +56,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.action.document.RestTermVectorsAction;
 import org.opensearch.test.OpenSearchTestCase;
@@ -104,6 +105,35 @@ public class TermVectorsUnitTests extends OpenSearchTestCase {
         inResponse = new TermVectorsResponse(esBuffer);
         assertTrue(inResponse.isExists());
 
+    }
+
+    public void testTermStatisticsForTermNotInIndex() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(new StandardAnalyzer()));
+        FieldType type = new FieldType(TextField.TYPE_NOT_STORED);
+        type.setStoreTermVectors(true);
+        type.freeze();
+        Document doc = new Document();
+        doc.add(new Field("title", "quick fox", type));
+        writer.addDocument(doc);
+        Document other = new Document();
+        other.add(new Field("title", "lazy dog", type));
+        writer.addDocument(other);
+        writer.close();
+        DirectoryReader dr = DirectoryReader.open(dir);
+        Fields termVectors = dr.termVectors().get(0);
+        // The top level statistics come from a document that has none of the terms of the first one.
+        Fields topLevelFields = dr.termVectors().get(1);
+
+        TermVectorsResponse response = new TermVectorsResponse("index", "id");
+        response.setExists(true);
+        response.setFields(termVectors, null, EnumSet.of(Flag.TermStatistics), topLevelFields);
+        dr.close();
+        dir.close();
+
+        String json = BytesReference.bytes(response.toXContent(JsonXContent.contentBuilder(), ToXContent.EMPTY_PARAMS)).utf8ToString();
+        assertThat(json, Matchers.containsString("\"fox\":{\"doc_freq\":0,\"ttf\":0,\"term_freq\":1}"));
+        assertThat(json, Matchers.containsString("\"quick\":{\"doc_freq\":0,\"ttf\":0,\"term_freq\":1}"));
     }
 
     private void writeEmptyTermVector(TermVectorsResponse outResponse) throws IOException {
