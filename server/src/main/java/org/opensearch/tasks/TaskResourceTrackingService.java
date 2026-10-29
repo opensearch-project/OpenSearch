@@ -8,7 +8,8 @@
 
 package org.opensearch.tasks;
 
-import com.sun.management.ThreadMXBean;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -82,6 +83,8 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     static final Version BINARY_RESOURCE_USAGE_HEADER_VERSION = Version.V_3_8_0;
 
     private static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
+    private static final ThreadAllocatedMemoryProvider threadAllocatedMemoryProvider =
+        new ReflectionThreadAllocatedMemoryProvider(threadMXBean);
 
     private final ConcurrentMapLong<Task> resourceAwareTasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
     private final List<TaskCompletionListener> taskCompletionListeners = new ArrayList<>();
@@ -128,7 +131,8 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     }
 
     public boolean isTaskResourceTrackingSupported() {
-        return threadMXBean.isThreadAllocatedMemorySupported() && threadMXBean.isThreadAllocatedMemoryEnabled();
+        return threadAllocatedMemoryProvider.isSupported()
+            && threadAllocatedMemoryProvider.isEnabled();
     }
 
     /**
@@ -265,12 +269,27 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     }
 
     private ResourceUsageMetric[] getResourceUsageMetricsForThread(long threadId) {
-        ResourceUsageMetric currentMemoryUsage = new ResourceUsageMetric(
-            ResourceStats.MEMORY,
-            threadMXBean.getThreadAllocatedBytes(threadId)
+        List<ResourceUsageMetric> metrics = new ArrayList<>();
+
+        metrics.add(
+            new ResourceUsageMetric(
+                ResourceStats.CPU,
+                threadMXBean.getThreadCpuTime(threadId)
+            )
         );
-        ResourceUsageMetric currentCPUUsage = new ResourceUsageMetric(ResourceStats.CPU, threadMXBean.getThreadCpuTime(threadId));
-        return new ResourceUsageMetric[] { currentMemoryUsage, currentCPUUsage };
+
+        if (threadAllocatedMemoryProvider.isSupported()
+            && threadAllocatedMemoryProvider.isEnabled()) {
+
+            metrics.add(
+                new ResourceUsageMetric(
+                    ResourceStats.MEMORY,
+                    threadAllocatedMemoryProvider.getThreadAllocatedBytes(threadId)
+                )
+            );
+        }
+
+        return metrics.toArray(new ResourceUsageMetric[0]);
     }
 
     private boolean isCurrentThreadWorkingOnTask(Task task) {
