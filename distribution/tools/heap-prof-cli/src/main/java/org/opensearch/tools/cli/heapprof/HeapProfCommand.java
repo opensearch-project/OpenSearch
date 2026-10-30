@@ -3,7 +3,6 @@
  */
 package org.opensearch.tools.cli.heapprof;
 
-import joptsimple.OptionSet;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.tools.cli.jmx.JmxCommand;
@@ -24,7 +23,7 @@ abstract class HeapProfCommand extends JmxCommand {
     }
 
     @Override
-    protected void execute(MBeanServerConnection mbs, Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(MBeanServerConnection mbs, Terminal terminal) throws Exception {
         ObjectName mbean = new ObjectName(MBEAN_NAME);
         if (!mbs.isRegistered(mbean)) {
             throw new UserException(
@@ -33,9 +32,8 @@ abstract class HeapProfCommand extends JmxCommand {
                     + "and the native library was built with profiling support."
             );
         }
-        invokeOnMBean(mbs, mbean, terminal, options);
+        invokeOnMBean(mbs, mbean, terminal);
     }
 
-    protected abstract void invokeOnMBean(MBeanServerConnection mbs, ObjectName mbean, Terminal terminal, OptionSet options)
-        throws Exception;
+    protected abstract void invokeOnMBean(MBeanServerConnection mbs, ObjectName mbean, Terminal terminal) throws Exception;
 }

@@ -89,6 +89,17 @@ public class OpenSearchCliTests extends OpenSearchCliTestCase {
         }, args);
     }
 
+    public void testDaemonizeAndQuietAreMutuallyExclusive() throws Exception {
+        runTest(
+            ExitCodes.USAGE,
+            false,
+            (output, error) -> assertThat(error, containsString("are unavailable given other options on the command line")),
+            (foreground, pidFile, quiet, esSettings) -> {},
+            "--daemonize",
+            "--quiet"
+        );
+    }
+
     private void runTestVersion(int expectedStatus, BiConsumer<String, String> outputConsumer, String... args) throws Exception {
         runTest(expectedStatus, false, outputConsumer, (foreground, pidFile, quiet, esSettings) -> {}, args);
     }
@@ -128,7 +139,7 @@ public class OpenSearchCliTests extends OpenSearchCliTestCase {
         runPidFileTest(
             ExitCodes.USAGE,
             false,
-            (output, error) -> assertThat(error, containsString("Option p/pidfile requires an argument")),
+            (output, error) -> assertThat(error, containsString("Missing required parameter for option")),
             pidFile,
             "-p"
         );
@@ -220,7 +231,7 @@ public class OpenSearchCliTests extends OpenSearchCliTestCase {
         runTest(
             ExitCodes.USAGE,
             false,
-            (output, error) -> assertThat(error, containsString("network.host is not a recognized option")),
+            (output, error) -> assertThat(error, containsString("Unknown option: '--network.host'")),
             (foreground, pidFile, quiet, esSettings) -> {},
             "--network.host"
         );
