@@ -13,6 +13,7 @@ import org.opensearch.analytics.qa.DatasetProvisioner;
 
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
+import org.opensearch.client.ResponseException;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.junit.Before;
 
@@ -77,6 +78,33 @@ public class DslSearchBehaviorIT extends OpenSearchRestTestCase {
         }
     }
 
+    /**
+     * Verifies that a field-based cardinality aggregation executes through the parquet DSL path
+     * and is rendered with the same integer response shape as native OpenSearch. The five people
+     * documents contain two distinct city values.
+     */
+    public void testCardinalityAggregation() throws IOException {
+        Map<String, Object> response = search(
+            "{\"size\":0,\"aggs\":{\"unique_cities\":{\"cardinality\":{\"field\":\"city\"}}}}",
+            null
+        );
+
+        assertEquals(5, totalHits(response));
+        assertEquals(2L, cardinalityValue(response, "unique_cities"));
+    }
+
+    /** Unsupported cardinality options must fail explicitly instead of being silently ignored. */
+    public void testCardinalityRejectsUnsupportedPrecisionThreshold() throws IOException {
+        Request request = new Request("POST", "/" + PEOPLE.indexName + "/_search");
+        request.setJsonEntity(
+            "{\"size\":0,\"aggs\":{\"unique_cities\":{\"cardinality\":"
+                + "{\"field\":\"city\",\"precision_threshold\":100}}}}"
+        );
+
+        Response response = expectThrows(ResponseException.class, () -> client().performRequest(request)).getResponse();
+        assertEquals(400, response.getStatusLine().getStatusCode());
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     /** Run a search with an optional {@code preference} query param. */
@@ -96,5 +124,12 @@ public class DslSearchBehaviorIT extends OpenSearchRestTestCase {
         Map<String, Object> hits = (Map<String, Object>) response.get("hits");
         Map<String, Object> total = (Map<String, Object>) hits.get("total");
         return ((Number) total.get("value")).intValue();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static long cardinalityValue(Map<String, Object> response, String aggregationName) {
+        Map<String, Object> aggregations = (Map<String, Object>) response.get("aggregations");
+        Map<String, Object> cardinality = (Map<String, Object>) aggregations.get(aggregationName);
+        return ((Number) cardinality.get("value")).longValue();
     }
 }
