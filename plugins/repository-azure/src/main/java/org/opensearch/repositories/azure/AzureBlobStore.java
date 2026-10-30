@@ -48,6 +48,7 @@ import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.BlobRequestConditions;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.ListBlobsOptions;
+import com.azure.storage.blob.options.BlobInputStreamOptions;
 import com.azure.storage.blob.options.BlobParallelUploadOptions;
 import com.azure.storage.common.implementation.Constants;
 import org.apache.logging.log4j.LogManager;
@@ -81,6 +82,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -90,11 +92,10 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
-
 public class AzureBlobStore implements BlobStore {
 
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
+    private static final int LIST_PAGE_SIZE = 5_000;
 
     private final AzureStorageService service;
     private final ThreadPool threadPool;
@@ -113,9 +114,6 @@ public class AzureBlobStore implements BlobStore {
         this.threadPool = threadPool;
         // locationMode is set per repository, not per client
         this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
-        final Map<String, AzureStorageSettings> prevSettings = this.service.refreshAndClearCache(emptyMap());
-        final Map<String, AzureStorageSettings> newSettings = AzureStorageSettings.overrideLocationMode(prevSettings, this.locationMode);
-        this.service.refreshAndClearCache(newSettings);
 
         this.metricsCollector = (request, response) -> {
             if (response.getStatusCode() >= 300) {
@@ -177,18 +175,34 @@ public class AzureBlobStore implements BlobStore {
 
     @Override
     public void close() throws IOException {
-        service.close();
+        // The storage service is node-wide and is closed by AzureRepositoryPlugin.
     }
 
-    public boolean blobExists(String blob) throws URISyntaxException, BlobStorageException {
-        // Container name must be lower case.
-        final Tuple<BlobServiceClient, Supplier<Context>> client = client();
-        final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
-        return AccessController.doPrivileged(() -> {
-            final BlobClient azureBlob = blobContainer.getBlobClient(blob);
-            final Response<Boolean> response = azureBlob.existsWithResponse(timeout(), client.v2().get());
-            return response.getValue();
-        });
+    public boolean blobExists(String blob) throws URISyntaxException, BlobStorageException, IOException {
+        for (int attempt = 0; attempt < 2; attempt++) {
+            final Tuple<BlobServiceClient, Supplier<Context>> client = client();
+            final BlobClient azureBlob = client.v1().getBlobContainerClient(container).getBlobClient(blob);
+            try {
+                AccessController.doPrivileged(() -> azureBlob.getPropertiesWithResponse(null, timeout(), client.v2().get()));
+                beforeExistenceResultValidation();
+                if (service.isLocationClientCurrent(clientName, locationMode, client.v1())) {
+                    return true;
+                }
+            } catch (BlobStorageException e) {
+                if (e.getStatusCode() != HttpURLConnection.HTTP_NOT_FOUND
+                    || BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode()) == false) {
+                    throw e;
+                }
+                beforeExistenceResultValidation();
+                if (service.isLocationClientCurrent(clientName, locationMode, client.v1())) {
+                    return false;
+                }
+            }
+            if (attempt == 1) {
+                throw new IOException("Azure client settings changed while checking if blob [" + blob + "] exists");
+            }
+        }
+        throw new AssertionError("blob existence operation did not complete");
     }
 
     public void deleteBlob(String blob) throws URISyntaxException, BlobStorageException {
@@ -280,12 +294,22 @@ public class AzureBlobStore implements BlobStore {
         logger.trace(() -> new ParameterizedMessage("reading container [{}], blob [{}]", container, blob));
 
         return AccessController.doPrivileged(() -> {
+            final Integer readBlockSize = service.getReadBlockSize(clientName);
+            if (readBlockSize != null) {
+                final BlobRange range = length == null ? new BlobRange(position) : new BlobRange(position, length);
+                return azureBlob.openInputStream(new BlobInputStreamOptions().setRange(range).setBlockSize(readBlockSize));
+            }
             if (length == null) {
                 return azureBlob.openInputStream(new BlobRange(position), null);
             } else {
                 return azureBlob.openInputStream(new BlobRange(position, length), null);
             }
         });
+    }
+
+    public long getReadBlobPreferredLength() {
+        final Integer readBlockSize = service.getReadBlockSize(clientName);
+        return readBlockSize == null ? AzureBlobContainer.DEFAULT_MINIMUM_READ_SIZE_IN_BYTES : readBlockSize;
     }
 
     public Map<String, BlobMetadata> listBlobsByPrefix(String keyPath, String prefix) throws URISyntaxException, BlobStorageException {
@@ -317,6 +341,37 @@ public class AzureBlobStore implements BlobStore {
         });
 
         return MapBuilder.newMapBuilder(blobsBuilder).immutableMap();
+    }
+
+    public List<BlobMetadata> listBlobsByPrefixInSortedOrder(String keyPath, String prefix, int limit) throws URISyntaxException,
+        BlobStorageException {
+        if (limit == 0) {
+            return List.of();
+        }
+
+        final List<BlobMetadata> blobs = new ArrayList<>(Math.min(limit, LIST_PAGE_SIZE));
+        final Tuple<BlobServiceClient, Supplier<Context>> client = client();
+        final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
+        final ListBlobsOptions listBlobsOptions = new ListBlobsOptions().setDetails(new BlobListDetails().setRetrieveMetadata(true))
+            .setPrefix(keyPath + (prefix == null ? "" : prefix))
+            .setMaxResultsPerPage(Math.min(limit, LIST_PAGE_SIZE));
+
+        AccessController.doPrivilegedChecked(() -> {
+            for (final BlobItem blobItem : blobContainer.listBlobsByHierarchy("/", listBlobsOptions, timeout())) {
+                if (blobItem.isPrefix() != null && blobItem.isPrefix()) {
+                    continue;
+                }
+
+                final String name = getBlobName(blobItem.getName(), container, keyPath);
+                final BlobItemProperties properties = blobItem.getProperties();
+                blobs.add(new PlainBlobMetadata(name, properties.getContentLength()));
+                if (blobs.size() == limit) {
+                    break;
+                }
+            }
+        });
+
+        return List.copyOf(blobs);
     }
 
     public Map<String, BlobContainer> children(BlobPath path) throws URISyntaxException, BlobStorageException {
@@ -365,7 +420,7 @@ public class AzureBlobStore implements BlobStore {
             AccessController.doPrivilegedChecked(() -> {
                 final Response<?> response = blob.uploadWithResponse(
                     new BlobParallelUploadOptions(inputStream, blobSize).setRequestConditions(blobRequestConditions)
-                        .setParallelTransferOptions(service.getBlobRequestOptionsForWriteBlob()),
+                        .setParallelTransferOptions(service.getBlobRequestOptionsForWriteBlob(clientName)),
                     timeout(),
                     client.v2().get()
                 );
@@ -394,8 +449,11 @@ public class AzureBlobStore implements BlobStore {
     }
 
     private Tuple<BlobServiceClient, Supplier<Context>> client() {
-        return service.client(clientName, metricsCollector);
+        return service.client(clientName, locationMode, metricsCollector);
     }
+
+    // Package-private no-op hook for deterministic reload tests.
+    void beforeExistenceResultValidation() {}
 
     private Duration timeout() {
         return service.getBlobRequestTimeout(clientName);

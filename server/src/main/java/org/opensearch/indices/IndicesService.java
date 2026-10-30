@@ -96,6 +96,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -190,6 +191,7 @@ import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.storage.slowlogs.TieredStorageSearchSlowLog;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.ParentTaskAssigningClient;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -483,6 +485,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Consumer<IndexShard> replicator;
     private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
     private volatile int maxSizeInRequestCache;
+    private volatile boolean requestCacheEnabled;
     private volatile int defaultMaxMergeAtOnce;
     private final StatusCounterStats statusCounterStats;
     private volatile List<SearchStatsContributor> searchStatsContributors = Collections.emptyList();
@@ -675,6 +678,9 @@ public class IndicesService extends AbstractLifecycleComponent
         this.maxSizeInRequestCache = INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING, this::setMaxSizeInRequestCache);
+        this.requestCacheEnabled = IndicesRequestCache.INDICES_REQUEST_CACHE_ENABLED_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(IndicesRequestCache.INDICES_REQUEST_CACHE_ENABLED_SETTING, this::setRequestCacheEnabled);
 
         this.defaultMaxMergeAtOnce = CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING.get(clusterService.getSettings());
         this.clusterMergeSchedulerConfig = new ClusterMergeSchedulerConfig(this);
@@ -1651,6 +1657,11 @@ public class IndicesService extends AbstractLifecycleComponent
                 () -> new ParameterizedMessage("{} failed to delete index store - at least one shards is still locked", index),
                 ex
             );
+            // Locking the whole index is all-or-nothing: a single locked shard (for example a copy whose recovery is still
+            // downloading files) prevents every other shard directory of the deleted index from being removed, even though
+            // those directories have no owner any more. Remove what can be removed right now so that disk is reclaimed
+            // immediately; the locked shards are handled by the pending delete scheduled below.
+            deleteUnlockedShardDirectories(index, indexSettings);
         } catch (Exception ex) {
             logger.warn(() -> new ParameterizedMessage("{} failed to delete index", index), ex);
         } finally {
@@ -1660,6 +1671,38 @@ public class IndicesService extends AbstractLifecycleComponent
             // this is a pure protection to make sure this index doesn't get re-imported as a dangling index.
             // we should in the future rather write a tombstone rather than wiping the metadata.
             MetadataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
+        }
+    }
+
+    /**
+     * Best-effort removal of the shard directories of a deleted index whose shard locks are free. Shards whose lock is
+     * currently held (for example by a recovery that is still writing files) are left in place; they are deleted later
+     * by {@link #processPendingDeletes(Index, IndexSettings, TimeValue)} once the lock is released.
+     * <p>
+     * Only shards that actually have a directory on this node and are not allocated to it are considered, so this never
+     * creates directories for shards that were never here.
+     */
+    private void deleteUnlockedShardDirectories(final Index index, final IndexSettings indexSettings) {
+        for (int shard = 0; shard < indexSettings.getNumberOfShards(); shard++) {
+            final ShardId shardId = new ShardId(index, shard);
+            final ShardDeletionCheckResult check = canDeleteShardContent(shardId, indexSettings);
+            if (check != ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE) {
+                logger.trace("{} not deleting shard directory of deleted index: {}", shardId, check);
+                continue;
+            }
+            try (ShardLock lock = nodeEnv.shardLock(shardId, "deleting unlocked shard of deleted index", 0)) {
+                // the index is no longer part of the cluster state, so no shard of it can be allocated here; re-checking
+                // under the lock all the same costs nothing and makes the deletion safe against anything racing the check
+                if (canDeleteShardContent(shardId, indexSettings) != ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE) {
+                    continue;
+                }
+                nodeEnv.deleteShardDirectoryUnderLock(lock, indexSettings);
+                logger.debug("{} deleted shard directory of deleted index", shardId);
+            } catch (ShardLockObtainFailedException ex) {
+                logger.debug(() -> new ParameterizedMessage("{} shard of deleted index is still locked, deferring deletion", shardId), ex);
+            } catch (Exception ex) {
+                logger.warn(() -> new ParameterizedMessage("{} failed to delete shard directory of deleted index", shardId), ex);
+            }
         }
     }
 
@@ -1920,14 +1963,27 @@ public class IndicesService extends AbstractLifecycleComponent
      * filesystem a replica might not have been closed when the primary is deleted causing problems on delete calls so we
      * schedule there deletes later.
      * @param index the index to process the pending deletes for
-     * @param timeout the timeout used for processing pending deletes
+     * @param timeout the timeout used both for acquiring the shard locks and for retrying failed deletions
      */
-    @Override
     public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeout) throws IOException, InterruptedException,
         ShardLockObtainFailedException {
+        processPendingDeletes(index, indexSettings, timeout, timeout);
+    }
+
+    /**
+     * Same as {@link #processPendingDeletes(Index, IndexSettings, TimeValue)}, with the time spent waiting for the shard
+     * locks bounded separately from the time spent retrying deletions that fail with an {@link IOException}. A caller that
+     * reschedules itself while a lock is held can keep the lock wait short without shortening the deletion retries.
+     *
+     * @param lockTimeout how long to wait for the shard locks of the index
+     * @param deletionRetryTimeout how long to keep retrying deletions that fail once the locks are held
+     */
+    @Override
+    public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue lockTimeout, TimeValue deletionRetryTimeout)
+        throws IOException, InterruptedException, ShardLockObtainFailedException {
         logger.debug("{} processing pending deletes", index);
+        final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, "process pending deletes", lockTimeout.millis());
         final long startTimeNS = System.nanoTime();
-        final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, "process pending deletes", timeout.millis());
         int numRemoved = 0;
         try {
             Map<ShardId, ShardLock> locks = new HashMap<>();
@@ -1982,7 +2038,15 @@ public class IndicesService extends AbstractLifecycleComponent
                         sleepTime = Math.min(maxSleepTimeMs, sleepTime * 2); // increase the sleep time gradually
                         logger.debug("{} schedule pending delete retry after {} ms", index, sleepTime);
                     }
-                } while ((System.nanoTime() - startTimeNS) < timeout.nanos());
+                } while ((System.nanoTime() - startTimeNS) < deletionRetryTimeout.nanos());
+                if (remove.isEmpty() == false) {
+                    logger.warn(
+                        "{} giving up on pending deletes for shards {} after [{}] - their files may remain on disk",
+                        index,
+                        remove,
+                        deletionRetryTimeout
+                    );
+                }
             }
         } finally {
             IOUtils.close(shardLocks);
@@ -2072,6 +2136,10 @@ public class IndicesService extends AbstractLifecycleComponent
      * Can the shard request be cached at all?
      */
     public boolean canCache(ShardSearchRequest request, SearchContext context) {
+        if (requestCacheEnabled == false) {
+            return false;
+        }
+
         // Queries that create a scroll context cannot use the cache.
         // They modify the search context during their execution so using the cache
         // may invalidate the scroll for the next query.
@@ -2164,6 +2232,9 @@ public class IndicesService extends AbstractLifecycleComponent
                     request.source()
                 );
             }
+        } else if (requestCacheEnabled == false) {
+            // The cache got disabled while this search was running, so drop the entry it just added
+            indicesRequestCache.invalidate(new IndexShardCacheEntity(context.indexShard()), directoryReader, request.cacheKey());
         }
     }
 
@@ -2285,6 +2356,21 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
+     * Returns a new {@link QueryRewriteContext} whose async actions issue their requests as children of
+     * {@code parentTaskId}. Rewriting can issue real requests -- a terms lookup with a subquery runs a search -- and
+     * without a parent those look like fresh top-level requests to anything that tracks the task tree.
+     */
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, TaskId parentTaskId) {
+        return new BaseQueryRewriteContext(
+            xContentRegistry,
+            namedWriteableRegistry,
+            parentTaskId != null && parentTaskId.isSet() ? new ParentTaskAssigningClient(client, parentTaskId) : client,
+            nowInMillis,
+            false
+        );
+    }
+
+    /**
      * Returns a new {@link QueryRewriteContext} for query validation with the given {@code now} provider
      */
     public QueryRewriteContext getValidationRewriteContext(LongSupplier nowInMillis) {
@@ -2323,11 +2409,18 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Returns a function which given an index name, returns a predicate which fields must match in order to be returned by get mappings,
-     * get index, get field mappings and field capabilities API. Useful to filter the fields that such API return.
-     * The predicate receives the field name as input argument. In case multiple plugins register a field filter through
-     * {@link org.opensearch.plugins.MapperPlugin#getFieldFilter()}, only fields that match all the registered filters will be
-     * returned by get mappings, get index, get field mappings and field capabilities API.
+     * Returns a function that, given a concrete index name, returns a predicate that determines field visibility. Consumers include
+     * metadata APIs such as get mappings, get index, get field mappings, and field capabilities, as well as APIs that access field values
+     * or otherwise operate on payload data. The predicate receives the field name as its input.
+     *
+     * <p>In case multiple plugins register a field filter through
+     * {@link org.opensearch.plugins.MapperPlugin#getFieldFilter()}, only fields that match all registered filters are returned by get
+     * mappings, get index, get field mappings, and field capabilities APIs. Other consumers, including payload-data APIs, must likewise
+     * make only fields matching all registered filters available. The same aggregated filter is exposed to query-schema and query-planning
+     * implementations.
+     *
+     * <p>Plugins may use these filters to implement authorization access controls such as field-level security. Consumers must therefore
+     * treat the result as an access-control boundary and must not bypass it or reintroduce rejected fields.
      */
     public Function<String, Predicate<String>> getFieldFilter() {
         return mapperRegistry.getFieldFilter();
@@ -2498,6 +2591,22 @@ public class IndicesService extends AbstractLifecycleComponent
     // Package-private for testing
     void setMaxSizeInRequestCache(Integer maxSizeInRequestCache) {
         this.maxSizeInRequestCache = maxSizeInRequestCache;
+    }
+
+    // Package-private for testing
+    void setRequestCacheEnabled(boolean requestCacheEnabled) {
+        this.requestCacheEnabled = requestCacheEnabled;
+        if (requestCacheEnabled == false) {
+            // Clean up the same way the clear cache API does
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                for (IndexService indexService : this) {
+                    for (IndexShard indexShard : indexService) {
+                        indicesRequestCache.clear(new IndexShardCacheEntity(indexShard));
+                    }
+                }
+                indicesRequestCache.forceCleanCache();
+            });
+        }
     }
 
     public void setFixedRefreshIntervalSchedulingEnabled(boolean fixedRefreshIntervalSchedulingEnabled) {

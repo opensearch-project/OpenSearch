@@ -26,8 +26,8 @@ import io.opentelemetry.sdk.metrics.InstrumentSelector;
 import io.opentelemetry.sdk.metrics.InstrumentType;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.View;
+import io.opentelemetry.sdk.metrics.export.MetricReader;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
-import io.opentelemetry.sdk.metrics.internal.view.Base2ExponentialHistogramAggregation;
 import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
@@ -35,6 +35,7 @@ import io.opentelemetry.sdk.trace.export.SpanExporter;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.semconv.ServiceAttributes;
 
+import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.OTEL_SERVICE_NAME_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_BATCH_SIZE_SETTING;
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING;
@@ -93,16 +94,20 @@ public final class OTelResourceProvider {
     }
 
     private static SdkMeterProvider createSdkMetricProvider(Settings settings, Resource resource) {
+        MetricReader reader = PeriodicMetricReader.builder(OTelMetricsExporterFactory.create(settings))
+            .setInterval(TelemetrySettings.METRICS_PUBLISH_INTERVAL_SETTING.get(settings).getSeconds(), TimeUnit.SECONDS)
+            .build();
+        return createSdkMetricProvider(settings, resource, reader);
+    }
+
+    // The explicit view is registered in both modes so the setting, not the exporter's default aggregation, decides.
+    static SdkMeterProvider createSdkMetricProvider(Settings settings, Resource resource, MetricReader reader) {
         return SdkMeterProvider.builder()
             .setResource(resource)
-            .registerMetricReader(
-                PeriodicMetricReader.builder(OTelMetricsExporterFactory.create(settings))
-                    .setInterval(TelemetrySettings.METRICS_PUBLISH_INTERVAL_SETTING.get(settings).getSeconds(), TimeUnit.SECONDS)
-                    .build()
-            )
+            .registerMetricReader(reader)
             .registerView(
                 InstrumentSelector.builder().setType(InstrumentType.HISTOGRAM).build(),
-                View.builder().setAggregation(Base2ExponentialHistogramAggregation.getDefault()).build()
+                View.builder().setAggregation(OTEL_METRICS_HISTOGRAM_AGGREGATION_DEFAULT_SETTING.get(settings).toAggregation()).build()
             )
             .build();
     }

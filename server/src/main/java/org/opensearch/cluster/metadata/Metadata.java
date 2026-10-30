@@ -857,10 +857,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             .orElse(Collections.emptyMap());
     }
 
-    public Map<String, View> views() {
-        return Optional.ofNullable((ViewMetadata) this.custom(ViewMetadata.TYPE)).map(ViewMetadata::views).orElse(Collections.emptyMap());
-    }
-
     public Map<String, WorkloadGroup> workloadGroups() {
         return Optional.ofNullable((WorkloadGroupMetadata) this.custom(WorkloadGroupMetadata.TYPE))
             .map(WorkloadGroupMetadata::workloadGroups)
@@ -1426,36 +1422,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 .map(o -> (WorkloadGroupMetadata) o)
                 .map(WorkloadGroupMetadata::workloadGroups)
                 .orElse(Collections.emptyMap());
-        }
-
-        private Map<String, View> getViews() {
-            return Optional.ofNullable(customs.get(ViewMetadata.TYPE))
-                .map(o -> (ViewMetadata) o)
-                .map(vmd -> vmd.views())
-                .orElse(new HashMap<>());
-        }
-
-        public View view(final String viewName) {
-            return getViews().get(viewName);
-        }
-
-        public Builder views(final Map<String, View> views) {
-            this.customs.put(ViewMetadata.TYPE, new ViewMetadata(views));
-            return this;
-        }
-
-        public Builder put(final View view) {
-            Objects.requireNonNull(view, "view cannot be null");
-            final var replacementViews = new HashMap<>(getViews());
-            replacementViews.put(view.getName(), view);
-            return views(replacementViews);
-        }
-
-        public Builder removeView(final String viewName) {
-            Objects.requireNonNull(viewName, "viewName cannot be null");
-            final var replacementViews = new HashMap<>(getViews());
-            replacementViews.remove(viewName);
-            return views(replacementViews);
         }
 
         public Custom getCustom(String type) {

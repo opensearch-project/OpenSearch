@@ -230,6 +230,10 @@ public class EngineConfigFactory {
             codecServiceToUse = newCodecServiceOrDefault(indexSettings, null, null, null);
         }
 
+        // The config re-resolves the policy on every read so a shard picks up a setting change when it is
+        // promoted, but resolve once here so a plugin conflict fails the engine build instead of the first read.
+        resolvePrimaryOperationPolicy(indexSettings, enginePlugins);
+
         return new EngineConfig.Builder().shardId(shardId)
             .threadPool(threadPool)
             .indexSettings(indexSettings)
@@ -267,7 +271,7 @@ public class EngineConfigFactory {
             .checksumStrategies(checksumStrategies)
             .documentLookupProvider(documentLookupProvider)
             .documentMetadataResolver(documentMetadataResolver)
-            .primaryOperationPolicy(resolvePrimaryOperationPolicy(indexSettings, enginePlugins))
+            .primaryOperationPolicySupplier(() -> resolvePrimaryOperationPolicy(indexSettings, enginePlugins))
             .build();
     }
 

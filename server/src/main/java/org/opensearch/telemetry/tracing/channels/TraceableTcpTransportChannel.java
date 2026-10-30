@@ -9,7 +9,6 @@
 package org.opensearch.telemetry.tracing.channels;
 
 import org.opensearch.Version;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanScope;
@@ -20,6 +19,7 @@ import org.opensearch.transport.TransportChannel;
 
 import java.io.IOException;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 
 /**
  * Tracer wrapped {@link TransportChannel}
@@ -29,6 +29,7 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
     private final TransportChannel delegate;
     private final Span span;
     private final Tracer tracer;
+    private final BiConsumer<Void, Exception> closeListener;
 
     /**
      * Constructor.
@@ -41,6 +42,14 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
         this.delegate = delegate;
         this.span = span;
         this.tracer = tracer;
+        this.closeListener = (unused, e) -> {
+            span.addEvent("The TransportChannel was closed without sending the response");
+            if (e != null) {
+                span.setError(e);
+            }
+            span.endSpan();
+        };
+        delegate.getChannel().addCloseListener(closeListener);
     }
 
     /**
@@ -53,20 +62,6 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
      */
     public static TransportChannel create(TcpTransportChannel delegate, final Span span, final Tracer tracer) {
         if (tracer.isRecording() == true) {
-            delegate.getChannel().addCloseListener(new ActionListener<Void>() {
-                @Override
-                public void onResponse(Void unused) {
-                    onFailure(null);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    span.addEvent("The TransportChannel was closed without sending the response");
-                    span.setError(e);
-                    span.endSpan();
-                }
-            });
-
             return new TraceableTcpTransportChannel(delegate, span, tracer);
         } else {
             return delegate;
@@ -91,7 +86,7 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
             span.setError(ex);
             throw ex;
         } finally {
-            span.endSpan();
+            endSpan();
         }
     }
 
@@ -99,7 +94,7 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
         try (SpanScope scope = tracer.withSpanInScope(span)) {
             delegate.sendResponseBatch(response);
         } finally {
-            span.endSpan();
+            endSpan();
         }
     }
 
@@ -107,7 +102,7 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
         try (SpanScope scope = tracer.withSpanInScope(span)) {
             delegate.completeStream();
         } finally {
-            span.endSpan();
+            endSpan();
         }
     }
 
@@ -117,7 +112,7 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
             delegate.sendResponse(exception);
         } finally {
             span.setError(exception);
-            span.endSpan();
+            endSpan();
         }
     }
 
@@ -129,5 +124,15 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
     @Override
     public <T> Optional<T> get(String name, Class<T> clazz) {
         return delegate.get(name, clazz);
+    }
+
+    /**
+     * Ends the span of this request. The close listener is given back first: the channel is shared by every request
+     * received over the connection and outlives them by a long way, so a listener that has done its job must not stay
+     * registered on it. Removing it before the span is ended also keeps a concurrent close from ending it twice.
+     */
+    private void endSpan() {
+        getChannel().removeCloseListener(closeListener);
+        span.endSpan();
     }
 }
