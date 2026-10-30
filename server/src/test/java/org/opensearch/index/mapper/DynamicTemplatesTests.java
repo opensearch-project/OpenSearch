@@ -43,6 +43,28 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class DynamicTemplatesTests extends MapperServiceTestCase {
 
+    public void testPathPatternArrays() throws Exception {
+        MapperService m = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates").startObject().startObject("paths");
+            b.field("match_mapping_type", "string");
+            b.array("path_match", "a.*", "b.*");
+            b.array("path_unmatch", "a.skip", "b.skip");
+            b.startObject("mapping").field("type", "keyword").endObject();
+            b.endObject().endObject().endArray();
+        }));
+        ParsedDocument d = m.documentMapper().parse(source(b -> {
+            b.startObject("a").field("value", "a").field("skip", "s").endObject();
+            b.startObject("b").field("value", "b").field("skip", "s").endObject();
+            b.startObject("c").field("value", "c").endObject();
+        }));
+        merge(m, dynamicMapping(d.dynamicMappingsUpdate()));
+        assertEquals("keyword", m.fieldType("a.value").typeName());
+        assertEquals("keyword", m.fieldType("b.value").typeName());
+        assertEquals("text", m.fieldType("a.skip").typeName());
+        assertEquals("text", m.fieldType("b.skip").typeName());
+        assertEquals("text", m.fieldType("c.value").typeName());
+    }
+
     public void testMatchTypeOnly() throws Exception {
         MapperService mapperService = createMapperService(topMapping(b -> {
             b.startArray("dynamic_templates");

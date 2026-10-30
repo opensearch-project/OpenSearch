@@ -217,9 +217,9 @@ public class DynamicTemplate implements ToXContentObject {
     static DynamicTemplate parse(String name, Map<String, Object> conf, Map<String, DynamicTemplateTypeHandler> knownPluginTypes)
         throws MapperParsingException {
         String match = null;
-        String pathMatch = null;
+        PathPatterns pathMatch = null;
         String unmatch = null;
-        String pathUnmatch = null;
+        PathPatterns pathUnmatch = null;
         Map<String, Object> mapping = null;
         String matchMappingType = null;
         String matchPattern = MatchType.SIMPLE.toString();
@@ -229,11 +229,11 @@ public class DynamicTemplate implements ToXContentObject {
             if ("match".equals(propName)) {
                 match = entry.getValue().toString();
             } else if ("path_match".equals(propName)) {
-                pathMatch = entry.getValue().toString();
+                pathMatch = PathPatterns.parse(entry.getValue(), propName);
             } else if ("unmatch".equals(propName)) {
                 unmatch = entry.getValue().toString();
             } else if ("path_unmatch".equals(propName)) {
-                pathUnmatch = entry.getValue().toString();
+                pathUnmatch = PathPatterns.parse(entry.getValue(), propName);
             } else if ("match_mapping_type".equals(propName)) {
                 matchMappingType = entry.getValue().toString();
             } else if ("match_pattern".equals(propName)) {
@@ -282,7 +282,16 @@ public class DynamicTemplate implements ToXContentObject {
         final MatchType matchType = MatchType.fromString(matchPattern);
 
         // Validate the pattern
-        for (String regex : new String[] { pathMatch, match, pathUnmatch, unmatch }) {
+        List<String> patterns = new ArrayList<>();
+        if (pathMatch != null) {
+            patterns.addAll(pathMatch.patterns());
+        }
+        patterns.add(match);
+        if (pathUnmatch != null) {
+            patterns.addAll(pathUnmatch.patterns());
+        }
+        patterns.add(unmatch);
+        for (String regex : patterns) {
             if (regex == null) {
                 continue;
             }
@@ -301,9 +310,9 @@ public class DynamicTemplate implements ToXContentObject {
 
     private final String name;
 
-    private final String pathMatch;
+    private final PathPatterns pathMatch;
 
-    private final String pathUnmatch;
+    private final PathPatterns pathUnmatch;
 
     private final String match;
 
@@ -319,8 +328,8 @@ public class DynamicTemplate implements ToXContentObject {
 
     private DynamicTemplate(
         String name,
-        String pathMatch,
-        String pathUnmatch,
+        PathPatterns pathMatch,
+        PathPatterns pathUnmatch,
         String match,
         String unmatch,
         XContentFieldType xcontentFieldType,
@@ -344,15 +353,44 @@ public class DynamicTemplate implements ToXContentObject {
     }
 
     public String pathMatch() {
-        return pathMatch;
+        return pathMatch == null ? null : pathMatch.value().toString();
     }
 
     private boolean matchesPathAndName(String path, String name) {
-        if (pathMatch != null && !matchType.matches(pathMatch, path)) return false;
+        if (pathMatch != null && pathMatch.matches(matchType, path) == false) return false;
         if (match != null && !matchType.matches(match, name)) return false;
-        if (pathUnmatch != null && matchType.matches(pathUnmatch, path)) return false;
+        if (pathUnmatch != null && pathUnmatch.matches(matchType, path)) return false;
         if (unmatch != null && matchType.matches(unmatch, name)) return false;
         return true;
+    }
+
+    private record PathPatterns(List<String> patterns, boolean array) {
+        private static PathPatterns parse(Object value, String name) {
+            if (value instanceof List<?> list) {
+                List<String> p = new ArrayList<>(list.size());
+                for (Object v : list) {
+                    if (v instanceof String == false) {
+                        throw new IllegalArgumentException("[" + name + "] must be a string or an array of strings");
+                    }
+                    p.add((String) v);
+                }
+                return new PathPatterns(List.copyOf(p), true);
+            }
+            return new PathPatterns(List.of(value.toString()), false);
+        }
+
+        private boolean matches(MatchType type, String value) {
+            for (String p : patterns) {
+                if (type.matches(p, value)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private Object value() {
+            return array ? patterns : patterns.get(0);
+        }
     }
 
     public boolean match(String path, String name, XContentFieldType xcontentFieldType) {
@@ -462,13 +500,13 @@ public class DynamicTemplate implements ToXContentObject {
             builder.field("match", match);
         }
         if (pathMatch != null) {
-            builder.field("path_match", pathMatch);
+            builder.field("path_match", pathMatch.value());
         }
         if (unmatch != null) {
             builder.field("unmatch", unmatch);
         }
         if (pathUnmatch != null) {
-            builder.field("path_unmatch", pathUnmatch);
+            builder.field("path_unmatch", pathUnmatch.value());
         }
         if (xcontentFieldType != null) {
             builder.field("match_mapping_type", xcontentFieldType);
