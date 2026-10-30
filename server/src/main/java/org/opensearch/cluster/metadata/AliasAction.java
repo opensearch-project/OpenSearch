@@ -108,8 +108,11 @@ public abstract class AliasAction {
         @Nullable
         final Boolean isHidden;
 
+        @Nullable
+        private final String enforcement;
+
         /**
-         * Build the operation.
+         * Build the operation without an explicit enforcement mode (defaults to {@code null}).
          */
         public Add(
             String index,
@@ -120,9 +123,28 @@ public abstract class AliasAction {
             @Nullable Boolean writeIndex,
             @Nullable Boolean isHidden
         ) {
+            this(index, alias, filter, indexRouting, searchRouting, writeIndex, isHidden, null);
+        }
+
+        /**
+         * Build the operation.
+         */
+        public Add(
+            String index,
+            String alias,
+            @Nullable String filter,
+            @Nullable String indexRouting,
+            @Nullable String searchRouting,
+            @Nullable Boolean writeIndex,
+            @Nullable Boolean isHidden,
+            @Nullable String enforcement
+        ) {
             super(index);
             if (false == Strings.hasText(alias)) {
                 throw new IllegalArgumentException("[alias] is required");
+            }
+            if (enforcement != null && Strings.hasText(filter) == false) {
+                throw new IllegalArgumentException("[enforcement] requires a [filter] on alias [" + alias + "]");
             }
             this.alias = alias;
             this.filter = filter;
@@ -130,6 +152,7 @@ public abstract class AliasAction {
             this.searchRouting = searchRouting;
             this.writeIndex = writeIndex;
             this.isHidden = isHidden;
+            this.enforcement = enforcement;
         }
 
         /**
@@ -160,6 +183,11 @@ public abstract class AliasAction {
             return isHidden;
         }
 
+        @Nullable
+        public String getEnforcement() {
+            return enforcement;
+        }
+
         @Override
         boolean removeIndex() {
             return false;
@@ -175,6 +203,7 @@ public abstract class AliasAction {
                 .searchRouting(searchRouting)
                 .writeIndex(writeIndex)
                 .isHidden(isHidden)
+                .enforcement(enforcement)
                 .build();
 
             // Check if this alias already exists
