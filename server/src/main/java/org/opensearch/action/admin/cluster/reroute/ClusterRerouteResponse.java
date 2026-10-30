@@ -34,6 +34,8 @@ package org.opensearch.action.admin.cluster.reroute;
 
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.allocation.RoutingExplanations;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -57,14 +59,29 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
 
     ClusterRerouteResponse(StreamInput in) throws IOException {
         super(in);
-        state = ClusterState.readFrom(in, null);
+        state = filterIndexCustomData(ClusterState.readFrom(in, null));
         explanations = RoutingExplanations.readFrom(in);
     }
 
     ClusterRerouteResponse(boolean acknowledged, ClusterState state, RoutingExplanations explanations) {
         super(acknowledged);
-        this.state = state;
+        this.state = filterIndexCustomData(state);
         this.explanations = explanations;
+    }
+
+    private static ClusterState filterIndexCustomData(ClusterState state) {
+        Metadata.Builder metadata = null;
+        for (IndexMetadata index : state.metadata()) {
+            IndexMetadata filtered = index.filterCustomDataForContext(Metadata.XContentContext.API);
+            if (filtered != index) {
+                if (metadata == null) {
+                    metadata = Metadata.builder(state.metadata());
+                }
+                metadata.put(filtered, false);
+            }
+        }
+        // Only the response is filtered; the state applied by reroute must retain the original metadata.
+        return metadata == null ? state : ClusterState.builder(state).metadata(metadata).build();
     }
 
     /**
