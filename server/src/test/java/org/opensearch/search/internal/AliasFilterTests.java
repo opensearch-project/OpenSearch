@@ -170,6 +170,17 @@ public class AliasFilterTests extends OpenSearchTestCase {
         }
     }
 
+    public void testEnforcementIsWrittenByName() throws Exception {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            AliasFilter.Enforcement.PRE_FILTER.writeTo(out);
+            assertEquals(
+                "a mode is sent by name, so adding one later needs no wire version",
+                "pre_filter",
+                out.bytes().streamInput().readString()
+            );
+        }
+    }
+
     public void testEnforcementIsPartOfIdentityAndSurvivesRewrite() throws Exception {
         AliasFilter post = new AliasFilter(QueryBuilders.termQuery("f", "v"), AliasFilter.Enforcement.POST_FILTER, "a");
         AliasFilter pre = new AliasFilter(QueryBuilders.termQuery("f", "v"), AliasFilter.Enforcement.PRE_FILTER, "a");

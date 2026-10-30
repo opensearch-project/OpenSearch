@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.alias;
 
 import org.opensearch.Version;
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentType;
@@ -378,6 +379,20 @@ public class AliasActionsTests extends OpenSearchTestCase {
             assertThat(root.getMessage(), containsString("unknown alias enforcement [filter_stats]"));
         }
         expectThrows(IllegalArgumentException.class, () -> AliasActions.add().enforcement("filter_stats"));
+    }
+
+    public void testEnforcementRequiresAFilter() {
+        IndicesAliasesRequest request = new IndicesAliasesRequest().addAliasAction(
+            AliasActions.add().index("i").alias("a").enforcement("pre_filter")
+        );
+        ActionRequestValidationException e = request.validate();
+        assertNotNull(e);
+        assertThat(e.getMessage(), containsString("[enforcement] requires a [filter]"));
+
+        IndicesAliasesRequest filtered = new IndicesAliasesRequest().addAliasAction(
+            AliasActions.add().index("i").alias("a").filter("{\"term\":{\"f\":\"v\"}}").enforcement("pre_filter")
+        );
+        assertNull(filtered.validate());
     }
 
     public void testEnforcementRoundTripsAndIsDroppedForAnOlderNode() throws IOException {

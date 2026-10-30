@@ -143,6 +143,9 @@ public abstract class AliasAction {
             if (false == Strings.hasText(alias)) {
                 throw new IllegalArgumentException("[alias] is required");
             }
+            if (enforcement != null && Strings.hasText(filter) == false) {
+                throw new IllegalArgumentException("[enforcement] requires a [filter] on alias [" + alias + "]");
+            }
             this.alias = alias;
             this.filter = filter;
             this.indexRouting = indexRouting;
