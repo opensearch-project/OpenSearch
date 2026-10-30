@@ -313,8 +313,19 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
         var described = Setting.boolSetting("plugin.described", false, Dynamic, NodeScope).withDescription("Enables the plugin.");
         var bare = Setting.boolSetting("plugin.bare", false, NodeScope);
         var hidden = Setting.simpleString("plugin.hidden", NodeScope, Filtered).withDescription("Never shown.");
-        var registry = new ClusterSettings(Settings.EMPTY, Set.of(described, bare, hidden));
-        var response = describe(registry, NO_FILTER, "plugin.described", "plugin.bare", "plugin.hidden");
+        // Keystore settings take the early no-default path in metadataOf; their descriptions must still be reported.
+        var secret = SecureSetting.secureString("plugin.password", null).withDescription("Password used to authenticate to the service.");
+        var certificate = SecureSetting.secureFile("plugin.certificate", null).withDescription("Client certificate.");
+        var registry = new ClusterSettings(Settings.EMPTY, Set.of(described, bare, hidden, secret, certificate));
+        var response = describe(
+            registry,
+            NO_FILTER,
+            "plugin.described",
+            "plugin.bare",
+            "plugin.hidden",
+            "plugin.password",
+            "plugin.certificate"
+        );
         assertEquals(
             Map.of(
                 "plugin.described",
@@ -322,7 +333,11 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
                     .withValidation(SettingValidation.ofType("boolean"))
                     .withDescription("Enables the plugin."),
                 "plugin.bare",
-                SettingMetadata.withDefault(false, "false").withValidation(SettingValidation.ofType("boolean"))
+                SettingMetadata.withDefault(false, "false").withValidation(SettingValidation.ofType("boolean")),
+                "plugin.password",
+                SettingMetadata.withoutDefault(false).withDescription("Password used to authenticate to the service."),
+                "plugin.certificate",
+                SettingMetadata.withoutDefault(false).withDescription("Client certificate.")
             ),
             response.settings()
         );
