@@ -67,6 +67,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
@@ -91,6 +92,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     private final RerouteService rerouteService;
 
     private final RemoteStoreNodeService remoteStoreNodeService;
+
+    // Whether this node still has a connection to a node whose join is being processed
+    private final Predicate<DiscoveryNode> isJoiningNodeConnected;
 
     /**
      * Task for the join task executor.
@@ -137,12 +141,14 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         AllocationService allocationService,
         Logger logger,
         RerouteService rerouteService,
-        RemoteStoreNodeService remoteStoreNodeService
+        RemoteStoreNodeService remoteStoreNodeService,
+        Predicate<DiscoveryNode> isJoiningNodeConnected
     ) {
         this.allocationService = allocationService;
         JoinTaskExecutor.logger = logger;
         this.rerouteService = rerouteService;
         this.remoteStoreNodeService = remoteStoreNodeService;
+        this.isJoiningNodeConnected = isJoiningNodeConnected;
     }
 
     @Override
@@ -224,6 +230,15 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                 logger.debug("received a join request for an existing node [{}]", node);
             } else {
                 try {
+                    // The join was validated over a connection from this node to the joining node. If that connection
+                    // has closed since then, for example because a node-left task that was queued ahead of this join
+                    // disconnected the node, adding the node now would fail its first follower check at once and
+                    // remove it again. Reject the join instead, so the node retries and reconnects first.
+                    if (isJoiningNodeConnected.test(node) == false) {
+                        throw new IllegalStateException(
+                            "cluster-manager is no longer connected to joining node [" + node + "], node must retry the join"
+                        );
+                    }
                     if (enforceMajorVersion) {
                         ensureMajorVersionBarrier(node.getVersion(), minClusterNodeVersion);
                     }
@@ -537,8 +552,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     public static void ensureRemoteRepositoryCompatibility(DiscoveryNode joiningNode, DiscoveryNodes currentNodes, Metadata metadata) {
         List<DiscoveryNode> existingNodes = new ArrayList<>(currentNodes.getNodes().values());
 
-        boolean isClusterRemoteStoreEnabled = existingNodes.stream().anyMatch(DiscoveryNode::isRemoteStoreNode);
-        if (isClusterRemoteStoreEnabled || joiningNode.isRemoteStoreNode()) {
+        // Not isRemoteStoreNode(): it also requires a cluster state repository, which segments_only has none of.
+        boolean isClusterRemoteSegmentStoreEnabled = existingNodes.stream().anyMatch(DiscoveryNode::isRemoteSegmentStoreNode);
+        if (isClusterRemoteSegmentStoreEnabled || joiningNode.isRemoteSegmentStoreNode()) {
             ensureRemoteStoreNodesCompatibility(joiningNode, currentNodes, metadata);
         } else {
             ensureRemoteClusterStateNodesCompatibility(joiningNode, currentNodes);
@@ -601,10 +617,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         if (STRICT.equals(remoteStoreCompatibilityMode)) {
             DiscoveryNode existingNode = remoteRoutingTableNode.orElseGet(() -> existingNodes.get(0));
-            if (joiningNode.isRemoteStoreNode()) {
+            if (joiningNode.isRemoteSegmentStoreNode()) {
                 ensureRemoteStoreNodesCompatibility(joiningNode, existingNode, reposToSkip);
             } else {
-                if (existingNode.isRemoteStoreNode()) {
+                if (existingNode.isRemoteSegmentStoreNode()) {
                     throw new IllegalStateException(
                         "a non remote store node [" + joiningNode + "] is trying to join a remote store cluster"
                     );
@@ -623,10 +639,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     logger.warn(reason);
                     throw new IllegalStateException(reason);
                 }
-                if (joiningNode.isRemoteStoreNode()) {
+                if (joiningNode.isRemoteSegmentStoreNode()) {
                     Optional<DiscoveryNode> remoteDN = remoteRoutingTableNode.isPresent()
                         ? remoteRoutingTableNode
-                        : existingNodes.stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
+                        : existingNodes.stream().filter(DiscoveryNode::isRemoteSegmentStoreNode).findFirst();
                     remoteDN.ifPresent(discoveryNode -> ensureRemoteStoreNodesCompatibility(joiningNode, discoveryNode, reposToSkip));
                 }
             }
@@ -638,8 +654,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         DiscoveryNode existingNode,
         List<String> reposToSkip
     ) {
-        if (joiningNode.isRemoteStoreNode()) {
-            if (existingNode.isRemoteStoreNode()) {
+        if (joiningNode.isRemoteSegmentStoreNode()) {
+            if (existingNode.isRemoteSegmentStoreNode()) {
                 RemoteStoreNodeAttribute joiningRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(joiningNode);
                 RemoteStoreNodeAttribute existingRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(existingNode);
                 if (existingRemoteStoreNodeAttribute.equalsWithRepoSkip(joiningRemoteStoreNodeAttribute, reposToSkip) == false) {
