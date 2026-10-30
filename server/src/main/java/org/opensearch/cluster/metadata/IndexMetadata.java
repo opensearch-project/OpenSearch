@@ -457,6 +457,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * every writer acknowledges through the remote translog upload path, and a docrep-backed writer during
      * migration never touches the fence, so it could not be fenced by it. Enable only on indices that are
      * remote-store-backed end to end.
+     * <p>
+     * Not expressible as a validator: the translog repository is derived from node attributes after validation runs,
+     * so {@code MetadataCreateIndexService#updateRemoteStoreFencingSetting} enforces it instead.
      */
     public static final Setting<Boolean> INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING = Setting.boolSetting(
         SETTING_REMOTE_STORE_FENCING_ENABLED,

@@ -12,6 +12,7 @@ apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.standalone-rest-test'
 apply plugin: 'opensearch.rest-test'
 apply plugin: 'opensearch.rest-resources'
+apply from: "$rootDir/gradle/sandbox-testclusters.gradle"
 
 def arrowPlugins = ['arrow-base', 'arrow-flight-rpc'] as Set
 
@@ -28,8 +29,17 @@ testClusters.integTest {
       pluginsCount += 1
     }
   }
+  // Adds the 6 sandbox mustang plugins on top; arrow-base/arrow-flight-rpc are already
+  // installed above, so they are passed as alreadyInstalled to avoid a double-install.
+  installSandboxStack(delegate, ['arrow-base', 'arrow-flight-rpc'])
 }
 assert pluginsCount > 0
+
+// When the sandbox stack is enabled, installSandboxStack adds 6 sandbox plugins on top of
+// the 2 arrow plugins counted above, so the expected node plugin count grows by 6.
+if (sandboxStackEnabled) {
+  pluginsCount += 6
+}
 
 ext.expansions = [
   'expected.plugins.count': pluginsCount

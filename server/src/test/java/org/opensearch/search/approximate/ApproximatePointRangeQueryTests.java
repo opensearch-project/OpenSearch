@@ -18,20 +18,28 @@ import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.bkd.BKDConfig;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -477,6 +485,51 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                 }
             }
         }
+    }
+
+    public void testApproximateRangeShortCircuitWithBulkVisits() throws IOException {
+        try (Directory directory = newDirectory()) {
+            // Production codec: leaves use the all-equal and low-cardinality encodings that emit bulk visits.
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()))) {
+                // 20 distinct values with 1000 docs each, so leaves at value boundaries cross the query
+                for (int i = 0; i < 20_000; i++) {
+                    Document doc = new Document();
+                    numericType.addField(doc, numericType.fieldName, i / 1000);
+                    iw.addDocument(doc);
+                }
+                iw.forceMerge(1);
+            }
+            try (IndexReader reader = DirectoryReader.open(directory)) {
+                assertShortCircuitsWithinOneLeaf(reader, 1, 19, SortOrder.ASC);
+                assertShortCircuitsWithinOneLeaf(reader, 0, 18, SortOrder.DESC);
+            }
+        }
+    }
+
+    private void assertShortCircuitsWithinOneLeaf(IndexReader reader, long lower, long upper, SortOrder sortOrder) throws IOException {
+        final int size = 10;
+        ApproximatePointRangeQuery query = new ApproximatePointRangeQuery(
+            numericType.fieldName,
+            numericType.encode(lower),
+            numericType.encode(upper),
+            1,
+            size,
+            sortOrder,
+            numericType.format
+        );
+        IndexSearcher searcher = new IndexSearcher(reader);
+        searcher.setQueryCache(null);
+        Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        DocIdSetIterator iterator = weight.scorer(reader.leaves().get(0)).iterator();
+        int collected = 0;
+        while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+            collected++;
+        }
+        assertTrue("collected " + collected + " docs, expected at least " + size, collected >= size);
+        assertTrue(
+            "collected " + collected + " docs, expected traversal to stop within about one leaf",
+            collected <= 2 * BKDConfig.DEFAULT_MAX_POINTS_IN_LEAF_NODE
+        );
     }
 
     public void testApproximateRangeWithSizeDefault() throws IOException {

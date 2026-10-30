@@ -32,10 +32,18 @@ apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.standalone-rest-test'
 apply plugin: 'opensearch.rest-test'
 apply plugin: 'opensearch.test-with-dependencies'
+apply from: "$rootDir/gradle/sandbox-testclusters.gradle"
 
 dependencies {
   testImplementation project(path: ':modules:transport-netty4') // for http
   testImplementation project(path: ':plugins:transport-reactor-netty4') // for http
+}
+
+// Only the 2 OpenSearchRestTestCase ITs run against this Gradle testcluster; the 14
+// HttpSmokeTestCase ITs boot in-JVM nodes via OpenSearchIntegTestCase and are NOT covered
+// by this wiring (different seam: OpenSearchIntegTestCase.nodePlugins).
+testClusters.integTest {
+  installSandboxStack(delegate)
 }
 
 integTest {

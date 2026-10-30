@@ -228,12 +228,12 @@ public final class IndexSettings {
     /**
      * When enabled on a remote-backed index using segment replication and a remote translog, the primary bulk path
      * appends successful primary index operations in bounded batches instead of one write per operation. Local-store
-     * and document-replication engines retain the normal per-operation path regardless of this setting. Default true,
-     * so eligible indexes batch unless an operator opts out; dynamic for controlled rollout.
+     * and document-replication engines retain the normal per-operation path regardless of this setting. Default false:
+     * an eligible index keeps the per-operation path until an operator opts in; dynamic for controlled rollout.
      */
     public static final Setting<Boolean> INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING = Setting.boolSetting(
         "index.translog.batch_append.enabled",
-        true,
+        false,
         Property.Dynamic,
         Property.IndexScope
     );
@@ -1719,10 +1719,22 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns if remote translog store is enabled for this index.
+     * Returns if remote translog store is enabled for this index. Reads only the index setting, so it is false for a
+     * migrating shard whose translog is already remote; use {@link #isTranslogDurableInRemoteStore()} for durability
+     * decisions.
      */
     public boolean isRemoteTranslogStoreEnabled() {
         return remoteStoreTranslogRepository != null && remoteStoreTranslogRepository.isEmpty() == false;
+    }
+
+    /**
+     * Whether the remote store rather than the local file holds the durable copy of an operation. The node attribute
+     * is consulted too, because a migrating shard's translog becomes remote before the setting is stamped on it; this
+     * is the pair {@code IndicesService#getTranslogFactorySupplier} uses to install the remote translog factory. Not
+     * {@link #isAssignedOnRemoteNode()}, which a segment repository alone satisfies.
+     */
+    public boolean isTranslogDurableInRemoteStore() {
+        return isRemoteTranslogStoreEnabled() || RemoteStoreNodeAttribute.isTranslogRepoConfigured(getNodeSettings());
     }
 
     /**
