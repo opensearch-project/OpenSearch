@@ -112,13 +112,14 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
             );
         }
 
+        // By name rather than ordinal, so a mode added later does not need a wire version of its own.
         public static Enforcement readFrom(StreamInput in) throws IOException {
-            return in.readEnum(Enforcement.class);
+            return fromString(in.readString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeEnum(this);
+            out.writeString(value);
         }
     }
 
@@ -150,7 +151,7 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
         // BWC: older nodes never write the enforcement field. Default to
         // POST_FILTER (today's behavior) so mixed-version clusters keep working.
         if (input.getVersion().onOrAfter(ENFORCEMENT_VERSION)) {
-            enforcement = input.readEnum(Enforcement.class);
+            enforcement = Enforcement.readFrom(input);
         } else {
             enforcement = Enforcement.POST_FILTER;
         }
@@ -173,7 +174,7 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
         out.writeStringArray(aliases);
         out.writeOptionalNamedWriteable(filter);
         if (out.getVersion().onOrAfter(ENFORCEMENT_VERSION)) {
-            out.writeEnum(enforcement);
+            enforcement.writeTo(out);
         }
         // Pre-3.8 receivers implicitly treat the field as POST_FILTER.
     }
