@@ -94,6 +94,7 @@ public class IndicesBitsetFilterCache
 
     private final Cache<BitsetCacheKey, Value> cache;
     private volatile boolean enabled;
+    private final ThreadPool threadPool;
     /**
      * Every key cached for a reader, so {@link #onClose(IndexReader.CacheKey)} can invalidate the
      * exact keys when the reader closes. Keys are only removed on reader close: trimming on
@@ -109,6 +110,10 @@ public class IndicesBitsetFilterCache
     }
 
     public IndicesBitsetFilterCache(Settings settings, ClusterSettings clusterSettings) {
+        this(settings, clusterSettings, null);
+    }
+
+    public IndicesBitsetFilterCache(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         long sizeInBytes = INDICES_BITSET_FILTER_CACHE_SIZE_SETTING.get(settings).getBytes();
         CacheBuilder<BitsetCacheKey, Value> cacheBuilder = CacheBuilder.<BitsetCacheKey, Value>builder().removalListener(this);
         if (sizeInBytes > 0) {
@@ -116,6 +121,7 @@ public class IndicesBitsetFilterCache
         }
         this.cache = cacheBuilder.build();
         this.enabled = INDICES_BITSET_FILTER_CACHE_ENABLED_SETTING.get(settings);
+        this.threadPool = threadPool;
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(INDICES_BITSET_FILTER_CACHE_ENABLED_SETTING, this::setEnabled);
         }
@@ -124,14 +130,20 @@ public class IndicesBitsetFilterCache
     private void setEnabled(boolean enabled) {
         this.enabled = enabled;
         if (enabled == false) {
-            // Cheap enough to run on the cluster applier thread. Entries are keyed by Lucene segment and parent filter,
-            // and parent filters are the non-nested filter plus one per nested field (index.mapping.nested_fields.limit,
-            // 50 by default), so there are at most ~51 entries per segment.
-            // Invalidate key by key rather than invalidateAll(), which can orphan an entry whose load is in flight.
-            // keysByReader is left to drain as segments close, so no cached entry loses its registration.
-            for (BitsetCacheKey key : cache.keysSnapshot()) {
-                cache.invalidate(key);
+            // The cache is shared by every index on the node, so do it off the cluster applier thread
+            if (threadPool != null) {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(this::invalidateEachKey);
+            } else {
+                invalidateEachKey();
             }
+        }
+    }
+
+    // Key by key rather than invalidateAll(), which can orphan an entry whose load is in flight. keysByReader is
+    // left to drain as segments close, so no cached entry loses its registration.
+    private void invalidateEachKey() {
+        for (BitsetCacheKey key : cache.keysSnapshot()) {
+            cache.invalidate(key);
         }
     }
 
