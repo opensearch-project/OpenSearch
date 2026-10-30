@@ -57,10 +57,10 @@ public class TimeoutTaskCancellationUtility {
         TimeoutHandler timeoutHandler
     ) {
         final TimeValue timeoutInterval = (taskToCancel.getCancellationTimeout() == null) ? timeout : taskToCancel.getCancellationTimeout();
-        // Note: -1 (or no timeout) will help to turn off cancellation. The combinations will be request level set at -1 or request level
+        // Note: -1 (or no timeout) or values <= 0 will help to turn off cancellation. The combinations will be request level set at -1 or request level
         // set to null and cluster level set to -1.
         ActionListener<Response> listenerToReturn = listener;
-        if (timeoutInterval.equals(SearchService.NO_TIMEOUT)) {
+        if (timeoutInterval == null || timeoutInterval.nanos() <= 0) {
             return listenerToReturn;
         }
 
