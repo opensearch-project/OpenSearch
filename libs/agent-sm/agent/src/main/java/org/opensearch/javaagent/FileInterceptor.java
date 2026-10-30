@@ -47,7 +47,7 @@ public class FileInterceptor {
     @SuppressWarnings({ "removal", "deprecation" })
     public static void intercept(@Advice.AllArguments Object[] args, @Advice.Origin Method method) throws Exception {
         final Policy policy = AgentPolicy.getPolicy();
-        if (policy == null) {
+        if (policy == null || AgentPolicy.isEnforcementEnabled() == false) {
             return; /* noop */
         }
 

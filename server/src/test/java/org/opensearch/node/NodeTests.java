@@ -34,12 +34,14 @@ package org.opensearch.node;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
+import org.opensearch.bootstrap.BootstrapSettings;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.network.NetworkModule;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.util.FeatureFlags;
@@ -106,6 +108,20 @@ import static org.hamcrest.Matchers.nullValue;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class NodeTests extends OpenSearchTestCase {
+
+    public void testJavaAgentEnforcementSettingUpdatesAndResets() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final AtomicBoolean enforcementEnabled = new AtomicBoolean();
+        Node.registerJavaAgentEnforcementSettings(Settings.EMPTY, clusterSettings, enforcementEnabled::set);
+
+        assertTrue(enforcementEnabled.get());
+
+        clusterSettings.applySettings(Settings.builder().put(BootstrapSettings.JAVA_AGENT_ENFORCEMENT_ENABLED.getKey(), false).build());
+        assertFalse(enforcementEnabled.get());
+
+        clusterSettings.applySettings(Settings.EMPTY);
+        assertTrue(enforcementEnabled.get());
+    }
 
     public static class CheckPlugin extends Plugin {
         public static final BootstrapCheck CHECK = context -> BootstrapCheck.BootstrapCheckResult.success();
