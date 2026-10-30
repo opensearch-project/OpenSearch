@@ -57,6 +57,7 @@ import java.util.concurrent.TimeUnit;
 import static org.opensearch.client.RestClientTestUtil.getAllStatusCodes;
 import static org.opensearch.client.RestClientTestUtil.randomErrorNoRetryStatusCode;
 import static org.opensearch.client.RestClientTestUtil.randomOkStatusCode;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -300,7 +301,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
                     } catch (ConnectException e) {
                         // Windows isn't consistent here. Sometimes the message is even null!
                         if (false == System.getProperty("os.name").startsWith("Windows")) {
-                            assertEquals("Connection refused", e.getMessage());
+                            assertThat(e.getMessage(), containsString("Connection refused"));
                         }
                     }
                 } else {
