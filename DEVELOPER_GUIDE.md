@@ -337,6 +337,8 @@ To include sandbox modules in snapshot distributions, use the `sandbox.enabled` 
 
     ./gradlew assemble -Dsandbox.enabled=true
 
+For a walkthrough of the experimental composite data format (Parquet primary + Lucene secondary indexing, and the analytics query path built on it), see [`sandbox/plugins/composite-engine/GETTING_STARTED.md`](sandbox/plugins/composite-engine/GETTING_STARTED.md).
+
 ### `qa`
 
 Honestly this is kind of in flux and we're not 100% sure where we'll end up. We welcome your thoughts and help.
