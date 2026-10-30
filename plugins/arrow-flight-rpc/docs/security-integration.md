@@ -81,13 +81,14 @@ The Flight transport supports all security plugin features:
 - Field-level security (FLS)
 - Action-level permissions
 
-These security controls are enforced at the action filter layer (SecurityFilter) and apply regardless of the transport type. RBAC, DLS, and FLS protections work correctly when the cluster is properly configured with `FLIGHT-SECURE`.
+These security controls are enforced by the security plugin's action filter (SecurityFilter) and transport interceptor. RBAC, DLS, and FLS protections work correctly when the cluster is properly configured with `FLIGHT-SECURE`.
 
 ## How Security Is Enforced
 
 The Flight transport reuses the same security enforcement as the standard Netty transport:
 
 1. **Connection layer (TLS/mTLS):** When `FLIGHT-SECURE` is used with `flight.ssl.enable: true`, mutual TLS authenticates nodes at the connection level — the same model as port `9300` with `plugins.security.ssl.transport.enabled: true`.
-2. **Action layer (SecurityFilter):** RBAC, DLS, and FLS are enforced by the security plugin's action filter, which runs independently of the transport channel type.
+2. **Transport layer:** The Flight server channel exposes the caller's TLS session to transport interceptors through `TransportChannel#get("ssl_session", SSLSession.class)`, the counterpart of the Netty transport's `ssl_server` handler, so the security plugin applies the same transport-level checks as on port `9300`.
+3. **Action layer (SecurityFilter):** RBAC, DLS, and FLS are enforced by the security plugin's action filter, which runs independently of the transport channel type.
 
-Both layers are required for a fully secure deployment. TLS ensures only trusted nodes can connect; the action filter ensures authorized access to data.
+All layers are required for a fully secure deployment. TLS ensures only trusted nodes can connect; the action filter ensures authorized access to data.
