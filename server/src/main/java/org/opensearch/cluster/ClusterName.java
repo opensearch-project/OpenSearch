@@ -59,7 +59,7 @@ public class ClusterName implements Writeable {
             throw new IllegalArgumentException("[cluster.name] must not contain ':'");
         }
         return new ClusterName(s);
-    }, Setting.Property.NodeScope);
+    }, Setting.Property.NodeScope).withDescription("The cluster name.");
 
     public static final ClusterName DEFAULT = CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
 

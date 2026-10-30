@@ -84,6 +84,11 @@ public class TransportClusterDescribeSettingsAction extends HandledTransportActi
      * from this cluster's configuration.
      */
     private static SettingMetadata metadataOf(Setting<?> setting) {
+        return baseMetadataOf(setting).withDescription(setting.getDescription());
+    }
+
+    /** Dynamic flag, declared default and validation; everything except the description, which applies to every kind of setting. */
+    private static SettingMetadata baseMetadataOf(Setting<?> setting) {
         boolean dynamic = setting.isDynamic();
         // SecureSetting overrides getDefaultRaw to throw UnsupportedOperationException; never call it.
         if (setting instanceof SecureSetting) {
