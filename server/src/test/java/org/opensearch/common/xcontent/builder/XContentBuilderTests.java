@@ -353,6 +353,12 @@ public class XContentBuilderTests extends OpenSearchTestCase {
             }""", string.trim());
     }
 
+    public void testWriteMapWithCharacterValue() throws IOException {
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
+        builder.map(Collections.singletonMap("char", 'a'));
+        assertThat(builder.toString(), equalTo("{\"char\":\"a\"}"));
+    }
+
     public void testWriteMapWithNullKeys() throws IOException {
         XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         try {
