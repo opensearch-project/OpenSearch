@@ -196,6 +196,12 @@ public class RestWlmStatsAction extends BaseRestHandler {
         table.addCell("|");
         table.addCell("TOTAL_WOULD_THROTTLE", verbose ? "desc:Total Queries That Would Be Throttled In Monitor Mode" : "");
         table.addCell("|");
+        table.addCell("TOTAL_QUEUED", verbose ? "desc:Total Queued Queries" : "");
+        table.addCell("|");
+        table.addCell("TOTAL_QUEUE_REJECTIONS", verbose ? "desc:Total Queries Rejected Because The Queue Was Full" : "");
+        table.addCell("|");
+        table.addCell("QUEUED_CURRENT", verbose ? "desc:Queries Currently Queued" : "");
+        table.addCell("|");
         table.addCell("CPU_USAGE", verbose ? "desc:CPU Usage" : "");
         table.addCell("|");
         table.addCell("MEMORY_USAGE", verbose ? "desc:Memory Usage" : "");
@@ -220,6 +226,12 @@ public class RestWlmStatsAction extends BaseRestHandler {
         table.addCell(statsHolder.getThrottled());
         table.addCell("|");
         table.addCell(statsHolder.getWouldThrottle());
+        table.addCell("|");
+        table.addCell(statsHolder.getQueued());
+        table.addCell("|");
+        table.addCell(statsHolder.getQueueRejections());
+        table.addCell("|");
+        table.addCell(statsHolder.getQueuedCurrent());
         table.addCell("|");
 
         WorkloadGroupStats.ResourceStats cpuStats = statsHolder.getResourceStats().get(ResourceType.CPU);

@@ -47,6 +47,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -83,6 +85,14 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
     static final String ACQUIRE_ACTION_NAME = "internal:wlm/throttle/shared/acquire";
     static final String RELEASE_ACTION_NAME = "internal:wlm/throttle/shared/release";
     static final String CHECK_TASKS_ACTION_NAME = "internal:wlm/throttle/shared/check_tasks";
+    // Owner -> coordinator, reserved for request queueing: pushes a reserved permit to a coordinator registered as a waiter
+    // for the bucket. This version never registers a waiter, so it never sends one, and answers any it receives with
+    // nothing admitted (see handleGrant).
+    static final String GRANT_ACTION_NAME = "internal:wlm/throttle/shared/grant";
+    // Coordinator -> the bucket's current owner, reserved for request queueing: registers the coordinator as a waiter for
+    // a bucket where it retains requests. This version never sends one, and refuses any it receives (see
+    // handleRegisterWaiter).
+    static final String REGISTER_WAITER_ACTION_NAME = "internal:wlm/throttle/shared/register_waiter";
 
     // Fixed constants rather than cluster settings: internal coordination knobs an operator should not need to tune.
     //
@@ -175,7 +185,7 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         // clusterChanged populates it (see there).
         this.ring.set(ThrottleOwnerSelector.fromDiscoveryNodes(DiscoveryNodes.EMPTY_NODES));
         clusterService.addListener(this);
-        // These handlers do not trip the in-flight breaker: messages are small and bounded, and tripping it would turn one
+        // None of the handlers trips the in-flight breaker: messages are small and bounded, and tripping it would turn one
         // owner's heap pressure into fail-closed 429s for every bucket it owns and strand breaker-rejected releases.
         transportService.registerRequestHandler(
             ACQUIRE_ACTION_NAME,
@@ -192,9 +202,17 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
             false,
             ReleasePermitRequest::new,
             (request, channel, task) -> {
-                tracker.release(request.bucketKey, request.permitId);
+                handleRelease(request);
                 channel.sendResponse(ReleasePermitResponse.INSTANCE);
             }
+        );
+        transportService.registerRequestHandler(
+            GRANT_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            false,
+            false,
+            GrantPermitRequest::new,
+            (request, channel, task) -> channel.sendResponse(handleGrant(request))
         );
         transportService.registerRequestHandler(
             CHECK_TASKS_ACTION_NAME,
@@ -203,6 +221,14 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
             false,
             TaskCheckRequest::new,
             (request, channel, task) -> channel.sendResponse(checkTasks(request))
+        );
+        transportService.registerRequestHandler(
+            REGISTER_WAITER_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            false,
+            false,
+            RegisterWaiterRequest::new,
+            (request, channel, task) -> channel.sendResponse(handleRegisterWaiter(request))
         );
     }
 
@@ -314,13 +340,15 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
 
         // Local-owner short-circuit; the post-acquire fence re-reads the live ring.
         final DiscoveryNode localNode = clusterService.localNode();
+        // wants_queue is always false: this version never retains a request, so it never asks to be registered as a waiter.
         final AcquirePermitRequest request = new AcquirePermitRequest(
             bucketKey,
             sharedLimit,
             permitId,
             PERMIT_TTL_NANOS,
             localNode.getEphemeralId(),
-            coordinatorTaskId
+            coordinatorTaskId,
+            false
         );
         if (owner.equals(localNode)) {
             if (tracker.tryAcquire(request) == false) {
@@ -776,6 +804,25 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         return UUIDs.base64UUID();
     }
 
+    // OWNER-SIDE, reserved for request queueing (see REGISTER_WAITER_ACTION_NAME): this version keeps no waiters, so it
+    // refuses every registration. A coordinator told NOT_REGISTERED gets no grant for the bucket. Package-private for tests.
+    RegisterWaiterResponse handleRegisterWaiter(RegisterWaiterRequest request) {
+        return RegisterWaiterResponse.NOT_REGISTERED;
+    }
+
+    // OWNER-SIDE release of a permit this node granted. A release of a permit it does not hold is a no-op. Package-private
+    // for tests.
+    void handleRelease(ReleasePermitRequest request) {
+        tracker.release(request.bucketKey, request.permitId);
+    }
+
+    // COORDINATOR-SIDE, reserved for request queueing (see GRANT_ACTION_NAME): this version holds no queued request to
+    // admit with a pushed permit, so it answers every grant with nothing admitted, telling the owner that issued it that
+    // the reserved permit went unused. Package-private for tests.
+    GrantPermitResponse handleGrant(GrantPermitRequest request) {
+        return GrantPermitResponse.NOT_ADMITTED;
+    }
+
     // Message-less markers; WorkloadGroupService composes the user-facing 429. "Denied": the bucket is at its shared limit.
     private static OpenSearchRejectedExecutionException deniedMarker() {
         return new DeniedMarkerException();
@@ -873,12 +920,12 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         throw new IllegalStateException("wlm shared-throttle: key [" + key + "] missing or not a Boolean [" + value + "]");
     }
 
-    // A task check carries at most MAX_TASKS_PER_CHECK entries.
-    private static List<?> requireTaskCheckList(Map<String, Object> body, String key) throws IOException {
+    // A bounded list: a task check carries at most MAX_TASKS_PER_CHECK entries, a grant's reply at most one admitted task.
+    private static List<?> requireList(Map<String, Object> body, String key, int maxSize) throws IOException {
         final Object value = body.get(key);
         if (value instanceof List<?> list) {
-            if (list.size() > MAX_TASKS_PER_CHECK) {
-                throw new IOException("Invalid shared throttle task check size: " + list.size());
+            if (list.size() > maxSize) {
+                throw new IOException("Invalid shared throttle [" + key + "] size: " + list.size() + " > " + maxSize);
             }
             return list;
         }
@@ -899,8 +946,11 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
     }
 
     /**
-     * {@code owner -> coord}: which of these coordinator tasks are still registered. Task ids only, at most
-     * {@link #MAX_TASKS_PER_CHECK}, so the coordinator performs map lookups without constructing task information.
+     * {@code owner -> coord}: which of these coordinator tasks are still active. Task ids only, at most
+     * {@link #MAX_TASKS_PER_CHECK}, so the coordinator performs map lookups without constructing task information. This
+     * version reports a task active while it is registered. A later version may also report a registered task inactive
+     * while it waits in that coordinator's request queue, since a waiting task holds no permit; either way an inactive
+     * task's permit is freed.
      */
     static final class TaskCheckRequest extends TransportRequest {
         static final String KEY_COORDINATOR = "coordinator_node_id";
@@ -918,7 +968,7 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
             super(in);
             final Map<String, Object> body = readBody(in);
             this.coordinatorId = requireString(body, KEY_COORDINATOR);
-            final List<?> ids = requireTaskCheckList(body, KEY_TASK_IDS);
+            final List<?> ids = requireList(body, KEY_TASK_IDS, MAX_TASKS_PER_CHECK);
             this.taskIds = new long[ids.size()];
             for (int i = 0; i < taskIds.length; i++) {
                 taskIds[i] = requireElement(ids.get(i), Number.class, KEY_TASK_IDS).longValue();
@@ -932,7 +982,7 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         }
     }
 
-    /** {@code coord -> owner}: whether each task is still registered, in request order. */
+    /** {@code coord -> owner}: whether each task is still active (see {@link TaskCheckRequest}), in request order. */
     static final class TaskCheckResponse extends TransportResponse {
         static final String KEY_ACTIVE = "active";
 
@@ -944,7 +994,7 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
 
         TaskCheckResponse(StreamInput in) throws IOException {
             final Map<String, Object> body = readBody(in);
-            final List<?> flags = requireTaskCheckList(body, KEY_ACTIVE);
+            final List<?> flags = requireList(body, KEY_ACTIVE, MAX_TASKS_PER_CHECK);
             this.active = new boolean[flags.size()];
             for (int i = 0; i < active.length; i++) {
                 active[i] = requireElement(flags.get(i), Boolean.class, KEY_ACTIVE);
@@ -970,6 +1020,10 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         static final String KEY_COORDINATOR = "coordinator_node_id";
         // The coordinator's search task, checked with CHECK_TASKS once the permit outlives its TTL.
         static final String KEY_COORDINATOR_TASK_ID = "coordinator_task_id";
+        // Reserved for request queueing: whether the coordinator retained the request and asks to be registered as a
+        // waiter for the bucket on a denial (see AcquirePermitResponse#registered). This version always sends false and
+        // ignores it on receipt.
+        static final String KEY_WANTS_QUEUE = "wants_queue";
 
         final String bucketKey;
         final int sharedLimit;
@@ -979,6 +1033,7 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         final long ttlNanos;
         final String coordinatorId;
         final long coordinatorTaskId;
+        final boolean wantsQueue;
 
         AcquirePermitRequest(
             String bucketKey,
@@ -986,7 +1041,8 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
             String permitId,
             long ttlNanos,
             String coordinatorId,
-            long coordinatorTaskId
+            long coordinatorTaskId,
+            boolean wantsQueue
         ) {
             this.bucketKey = bucketKey;
             this.sharedLimit = sharedLimit;
@@ -994,6 +1050,7 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
             this.ttlNanos = ttlNanos;
             this.coordinatorId = coordinatorId;
             this.coordinatorTaskId = coordinatorTaskId;
+            this.wantsQueue = wantsQueue;
         }
 
         AcquirePermitRequest(StreamInput in) throws IOException {
@@ -1005,12 +1062,14 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
             this.ttlNanos = PERMIT_TTL_NANOS;
             this.coordinatorId = requireString(body, KEY_COORDINATOR);
             this.coordinatorTaskId = requireNumber(body, KEY_COORDINATOR_TASK_ID).longValue();
+            this.wantsQueue = requireBoolean(body, KEY_WANTS_QUEUE);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(
+            writeBody(
+                out,
                 Map.of(
                     KEY_BUCKET,
                     bucketKey,
@@ -1021,41 +1080,56 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
                     KEY_COORDINATOR,
                     coordinatorId,
                     KEY_COORDINATOR_TASK_ID,
-                    coordinatorTaskId
-                ),
-                StreamOutput::writeString,
-                StreamOutput::writeGenericValue
+                    coordinatorTaskId,
+                    KEY_WANTS_QUEUE,
+                    wantsQueue
+                )
             );
         }
     }
 
-    /** {@code owner -> coord}: granted, denied, or {@code not_owner} (the answering node no longer owns the bucket). */
+    /**
+     * {@code owner -> coord}: granted, denied, or {@code not_owner} (the answering node no longer owns the bucket), and
+     * whether a denial registered the asking coordinator as a waiter ({@code registered}).
+     */
     static final class AcquirePermitResponse extends TransportResponse {
         static final String KEY_GRANTED = "granted";
         static final String KEY_NOT_OWNER = "not_owner";
+        static final String KEY_REGISTERED = "registered";
 
-        static final AcquirePermitResponse GRANTED = new AcquirePermitResponse(true, false);
-        static final AcquirePermitResponse DENIED = new AcquirePermitResponse(false, false);
-        static final AcquirePermitResponse NOT_OWNER = new AcquirePermitResponse(false, true);
+        static final AcquirePermitResponse GRANTED = new AcquirePermitResponse(true, false, false);
+        static final AcquirePermitResponse DENIED = new AcquirePermitResponse(false, false, false);
+        static final AcquirePermitResponse DENIED_AND_REGISTERED = new AcquirePermitResponse(false, false, true);
+        static final AcquirePermitResponse NOT_OWNER = new AcquirePermitResponse(false, true, false);
 
         final boolean granted;
         final boolean notOwner;
+        /**
+         * Reserved for request queueing. On a denial of an acquire that set {@code wants_queue}: {@code true} means the
+         * owner registered the coordinator as a waiter for the bucket and will push it a grant when a slot frees,
+         * {@code false} that no grant follows from this denial. This version registers no waiters: it always sends
+         * {@code false} and ignores it on receipt.
+         */
+        final boolean registered;
 
-        AcquirePermitResponse(boolean granted, boolean notOwner) {
+        AcquirePermitResponse(boolean granted, boolean notOwner, boolean registered) {
             assert (granted && notOwner) == false : "a grant cannot also be a not-owner refusal";
+            assert registered == false || (granted == false && notOwner == false) : "only a denial can register a waiter";
             this.granted = granted;
             this.notOwner = notOwner;
+            this.registered = registered;
         }
 
         AcquirePermitResponse(StreamInput in) throws IOException {
             final Map<String, Object> body = readBody(in);
             this.granted = requireBoolean(body, KEY_GRANTED);
             this.notOwner = requireBoolean(body, KEY_NOT_OWNER);
+            this.registered = requireBoolean(body, KEY_REGISTERED);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            writeBody(out, Map.of(KEY_GRANTED, granted, KEY_NOT_OWNER, notOwner));
+            writeBody(out, Map.of(KEY_GRANTED, granted, KEY_NOT_OWNER, notOwner, KEY_REGISTERED, registered));
         }
     }
 
@@ -1082,11 +1156,7 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(
-                Map.of(KEY_BUCKET, bucketKey, KEY_PERMIT_ID, permitId),
-                StreamOutput::writeString,
-                StreamOutput::writeGenericValue
-            );
+            writeBody(out, Map.of(KEY_BUCKET, bucketKey, KEY_PERMIT_ID, permitId));
         }
     }
 
@@ -1103,6 +1173,126 @@ public class WorkloadGroupSharedThrottleService implements ClusterStateListener 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             writeBody(out, Map.of());
+        }
+    }
+
+    /**
+     * {@code coord -> owner}, reserved for request queueing: register this coordinator as a waiter for a bucket where it
+     * retains requests. The coordinator is named by its ephemeral id, as on an acquire. This version never sends one and
+     * refuses every one it receives ({@link RegisterWaiterResponse#NOT_REGISTERED}).
+     */
+    static final class RegisterWaiterRequest extends TransportRequest {
+        static final String KEY_BUCKET = "bucket_key";
+        // The coordinator's ephemeral id, as on an acquire: the exact process to register.
+        static final String KEY_COORDINATOR = "coordinator_node_id";
+
+        final String bucketKey;
+        final String coordinatorId;
+
+        RegisterWaiterRequest(String bucketKey, String coordinatorId) {
+            this.bucketKey = bucketKey;
+            this.coordinatorId = coordinatorId;
+        }
+
+        RegisterWaiterRequest(StreamInput in) throws IOException {
+            super(in);
+            final Map<String, Object> body = readBody(in);
+            this.bucketKey = requireString(body, KEY_BUCKET);
+            this.coordinatorId = requireString(body, KEY_COORDINATOR);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            writeBody(out, Map.of(KEY_BUCKET, bucketKey, KEY_COORDINATOR, coordinatorId));
+        }
+    }
+
+    /** {@code owner -> coord}. Whether the receiving node accepted the waiter registration. */
+    static final class RegisterWaiterResponse extends TransportResponse {
+        static final String KEY_REGISTERED = "registered";
+
+        static final RegisterWaiterResponse REGISTERED = new RegisterWaiterResponse(true);
+        static final RegisterWaiterResponse NOT_REGISTERED = new RegisterWaiterResponse(false);
+
+        final boolean registered;
+
+        RegisterWaiterResponse(boolean registered) {
+            this.registered = registered;
+        }
+
+        RegisterWaiterResponse(StreamInput in) throws IOException {
+            final Map<String, Object> body = readBody(in);
+            this.registered = requireBoolean(body, KEY_REGISTERED);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            writeBody(out, Map.of(KEY_REGISTERED, registered));
+        }
+    }
+
+    /**
+     * {@code owner -> coord}, reserved for request queueing. Grant: a reserved shared permit for a bucket the coordinator
+     * is registered as a waiter for. Carries no limit: the coordinator needs none. This version never sends one and admits
+     * nothing with one it receives.
+     */
+    static final class GrantPermitRequest extends TransportRequest {
+        static final String KEY_BUCKET = "bucket_key";
+        static final String KEY_PERMIT_ID = "permit_id";
+
+        final String bucketKey;
+        final String permitId;
+
+        GrantPermitRequest(String bucketKey, String permitId) {
+            this.bucketKey = bucketKey;
+            this.permitId = permitId;
+        }
+
+        GrantPermitRequest(StreamInput in) throws IOException {
+            super(in);
+            final Map<String, Object> body = readBody(in);
+            this.bucketKey = requireString(body, KEY_BUCKET);
+            this.permitId = requireString(body, KEY_PERMIT_ID);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            writeBody(out, Map.of(KEY_BUCKET, bucketKey, KEY_PERMIT_ID, permitId));
+        }
+    }
+
+    /**
+     * {@code coord -> owner}: the outcome of a grant. Either the coordinator task the grant admitted, which then holds the
+     * reserved permit, or none: the coordinator had no request to admit, so the permit went unused. This version always
+     * answers none ({@link #NOT_ADMITTED}).
+     */
+    static final class GrantPermitResponse extends TransportResponse {
+        // The admitted coordinator task as a list of zero or one ids: empty means nothing was admitted, so no task id value
+        // has to be reserved to say so.
+        static final String KEY_ADMITTED_TASK_IDS = "admitted_task_ids";
+
+        static final GrantPermitResponse NOT_ADMITTED = new GrantPermitResponse(OptionalLong.empty());
+
+        final OptionalLong admittedTaskId;
+
+        GrantPermitResponse(OptionalLong admittedTaskId) {
+            this.admittedTaskId = Objects.requireNonNull(admittedTaskId);
+        }
+
+        GrantPermitResponse(StreamInput in) throws IOException {
+            final Map<String, Object> body = readBody(in);
+            final List<?> ids = requireList(body, KEY_ADMITTED_TASK_IDS, 1);
+            this.admittedTaskId = ids.isEmpty()
+                ? OptionalLong.empty()
+                : OptionalLong.of(requireElement(ids.get(0), Number.class, KEY_ADMITTED_TASK_IDS).longValue());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            final List<Long> ids = admittedTaskId.isPresent() ? List.of(admittedTaskId.getAsLong()) : List.of();
+            writeBody(out, Map.of(KEY_ADMITTED_TASK_IDS, ids));
         }
     }
 }
