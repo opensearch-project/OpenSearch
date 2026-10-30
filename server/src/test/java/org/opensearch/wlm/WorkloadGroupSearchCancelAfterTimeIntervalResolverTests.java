@@ -8,8 +8,6 @@
 
 package org.opensearch.wlm;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchTask;
@@ -24,7 +22,6 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.search.SearchService;
 import org.opensearch.tasks.CancellableTask;
-import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.cancellation.WorkloadGroupTaskCancellationService;
@@ -44,7 +41,6 @@ public class WorkloadGroupSearchCancelAfterTimeIntervalResolverTests extends Ope
     private static final String OVERRIDE = WorkloadGroupSearchSettings.WLM_OVERRIDE_REQUEST_VALUES.getKey();
     private static final TimeValue GROUP_INTERVAL = TimeValue.timeValueSeconds(1);
     private static final TimeValue LONGER_INTERVAL = TimeValue.timeValueHours(1);
-    private static final String RESOLVER_LOGGER = WorkloadGroupSearchCancelAfterTimeIntervalResolver.class.getCanonicalName();
 
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
     private ThreadPool threadPool;
@@ -160,40 +156,30 @@ public class WorkloadGroupSearchCancelAfterTimeIntervalResolverTests extends Ope
         WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
         when(workloadGroupService.getCurrentWorkloadGroup()).thenReturn(workloadGroup);
         resolver = new WorkloadGroupSearchCancelAfterTimeIntervalResolver(workloadGroupService);
-        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(RESOLVER_LOGGER))) {
-            appender.addExpectation(new MockLogAppender.UnseenEventExpectation("an error", RESOLVER_LOGGER, Level.ERROR, "*"));
-            assertNull(resolveTagged(null));
-            assertEquals(LONGER_INTERVAL, resolveTagged(LONGER_INTERVAL));
-            assertEquals(SearchService.NO_TIMEOUT, resolveTagged(SearchService.NO_TIMEOUT));
-            appender.assertAllExpectationsMatched();
-        }
-    }
-
-    public void testFailedGroupLookupKeepsTheRequestsInterval() {
-        WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
-        when(workloadGroupService.getCurrentWorkloadGroup()).thenThrow(new IllegalStateException("cluster state unavailable"));
-        resolver = new WorkloadGroupSearchCancelAfterTimeIntervalResolver(workloadGroupService);
         assertNull(resolveTagged(null));
         assertEquals(LONGER_INTERVAL, resolveTagged(LONGER_INTERVAL));
         assertEquals(SearchService.NO_TIMEOUT, resolveTagged(SearchService.NO_TIMEOUT));
     }
 
-    public void testMalformedGroupIntervalKeepsTheRequestsInterval() {
-        // Search settings are validated when a group is created, so only a group built without validation gets here.
-        setWorkloadGroups(unvalidatedGroup(Settings.builder().put(CANCEL_AFTER, "not-a-time-value").put(OVERRIDE, true).build()));
-        assertNull(resolveTagged(null));
-        assertEquals(LONGER_INTERVAL, resolveTagged(LONGER_INTERVAL));
+    public void testFailedGroupLookupIsLeftToTheSearchAction() {
+        // TransportSearchAction logs a resolver's failure and keeps the request's interval.
+        WorkloadGroupService workloadGroupService = mock(WorkloadGroupService.class);
+        when(workloadGroupService.getCurrentWorkloadGroup()).thenThrow(new IllegalStateException("cluster state unavailable"));
+        resolver = new WorkloadGroupSearchCancelAfterTimeIntervalResolver(workloadGroupService);
+        expectThrows(IllegalStateException.class, () -> resolveTagged(LONGER_INTERVAL));
     }
 
-    public void testGroupWithoutTheSettingDoesNotReadOverrideRequestValues() throws Exception {
-        // A malformed override_request_values would log an error on every search had it been read for a group without an interval.
+    public void testMalformedGroupIntervalIsLeftToTheSearchAction() {
+        // Search settings are validated when a group is created, so only a group built without validation gets here.
+        setWorkloadGroups(unvalidatedGroup(Settings.builder().put(CANCEL_AFTER, "not-a-time-value").put(OVERRIDE, true).build()));
+        expectThrows(IllegalArgumentException.class, () -> resolveTagged(LONGER_INTERVAL));
+    }
+
+    public void testGroupWithoutTheSettingDoesNotReadOverrideRequestValues() {
+        // A malformed override_request_values would fail to resolve every search had it been read for a group without an interval.
         setWorkloadGroups(unvalidatedGroup(Settings.builder().put(OVERRIDE, "not-a-boolean").build()));
-        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(RESOLVER_LOGGER))) {
-            appender.addExpectation(new MockLogAppender.UnseenEventExpectation("an error", RESOLVER_LOGGER, Level.ERROR, "*"));
-            assertNull(resolveTagged(null));
-            assertEquals(LONGER_INTERVAL, resolveTagged(LONGER_INTERVAL));
-            appender.assertAllExpectationsMatched();
-        }
+        assertNull(resolveTagged(null));
+        assertEquals(LONGER_INTERVAL, resolveTagged(LONGER_INTERVAL));
     }
 
     public void testAppliesTheGroupIntervalInEveryWlmMode() {
@@ -223,15 +209,6 @@ public class WorkloadGroupSearchCancelAfterTimeIntervalResolverTests extends Ope
             }
         };
         assertEquals(GROUP_INTERVAL, resolver.resolve(task, request(null), null));
-    }
-
-    public void testEffectiveCancelAfterTimeIntervalOfAGroupWithoutTheSetting() {
-        // resolve checks for the setting before calling the helper, so only a direct call reaches the helper's own check.
-        assertNull(WorkloadGroupSearchCancelAfterTimeIntervalResolver.effectiveCancelAfterTimeInterval(Settings.EMPTY, true, null));
-        assertEquals(
-            LONGER_INTERVAL,
-            WorkloadGroupSearchCancelAfterTimeIntervalResolver.effectiveCancelAfterTimeInterval(Settings.EMPTY, true, LONGER_INTERVAL)
-        );
     }
 
     /** Resolves a search tagged to {@link #GROUP_ID} whose request asked for {@code requested}. */

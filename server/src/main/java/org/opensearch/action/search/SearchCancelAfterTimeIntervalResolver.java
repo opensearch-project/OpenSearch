@@ -32,8 +32,8 @@ public interface SearchCancelAfterTimeIntervalResolver {
      * Returns the search's {@code cancel_after_time_interval}. Called on the thread that runs the search action, with the
      * request's thread context, so it must be cheap and must not block.
      * <p>
-     * Implementations should not throw. An exception thrown here does not fail the search: {@link TransportSearchAction} logs
-     * it and falls back to {@code requested}, the interval the search would run with under {@link #NOOP}.
+     * An exception thrown here does not fail the search: {@link TransportSearchAction} logs it and falls back to
+     * {@code requested}, the interval the search would run with under {@link #NOOP}.
      *
      * @param task      the search's task
      * @param request   the search request

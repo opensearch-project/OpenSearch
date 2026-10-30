@@ -1277,7 +1277,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         assertEquals(
             "the timer of a timeout that came from the request takes the resolved interval",
             resolved,
-            TransportSearchAction.cancellationTimerInterval(task, requested, resolved)
+            TransportSearchAction.cancellationTimerInterval(task, resolved)
         );
         assertEquals(
             requested,
@@ -1287,12 +1287,11 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
 
     public void testOptedOutTaskKeepsItsTimeoutWhenTheRequestSetsMinusOne() throws IOException {
         // Asynchronous search, which has its own cancellation mechanism, wraps the caller's request in one whose createTask builds
-        // its SearchTask without a timeout, which opts out with SearchService.NO_TIMEOUT. A -1 set over REST equals that value but
-        // is a different instance, so the task's timeout did not come from the request, and no resolved interval replaces it, not
-        // even the interval of a group that overrides request values.
+        // its SearchTask without a timeout, which opts out with SearchService.NO_TIMEOUT. That task's timeout did not come from the
+        // request, even when the request sets the same -1, so no resolved interval replaces it, not even the interval of a group that
+        // overrides request values.
         SearchRequest callerRequest = searchRequestFromRest("-1");
         assertEquals(SearchService.NO_TIMEOUT, callerRequest.getCancelAfterTimeInterval());
-        assertNotSame(SearchService.NO_TIMEOUT, callerRequest.getCancelAfterTimeInterval());
         SearchRequest request = new SearchRequest(callerRequest) {
             @Override
             public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
@@ -1300,39 +1299,26 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             }
         };
         SearchTask task = request.createTask(1, "transport", SearchAction.NAME, TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+        assertFalse(task.isCancellationTimeoutFromRequest());
         TimeValue resolved = TimeValue.timeValueSeconds(1);
-        assertSame(
-            SearchService.NO_TIMEOUT,
-            TransportSearchAction.cancellationTimerInterval(task, request.getCancelAfterTimeInterval(), resolved)
-        );
+        assertSame(SearchService.NO_TIMEOUT, TransportSearchAction.cancellationTimerInterval(task, resolved));
     }
 
     public void testResolverDecidesAMinusOneThatCameFromTheRequest() throws IOException {
-        // The other side of the reference comparison: SearchRequest#createTask passes the request's own -1 to the task, so a resolved
-        // interval, such as that of a group that overrides request values, replaces it on the timer too.
+        // The other side of the opt-out: SearchRequest#createTask takes the task's -1 from the request, so a resolved interval, such
+        // as that of a group that overrides request values, replaces it on the timer too.
         SearchRequest request = searchRequestFromRest("-1");
         SearchTask task = request.createTask(1, "transport", SearchAction.NAME, TaskId.EMPTY_TASK_ID, Collections.emptyMap());
-        assertSame(request.getCancelAfterTimeInterval(), task.getCancellationTimeout());
+        assertTrue(task.isCancellationTimeoutFromRequest());
         TimeValue resolved = TimeValue.timeValueSeconds(1);
-        assertEquals(
-            TimeValue.timeValueSeconds(1),
-            TransportSearchAction.cancellationTimerInterval(task, request.getCancelAfterTimeInterval(), resolved)
-        );
+        assertEquals(TimeValue.timeValueSeconds(1), TransportSearchAction.cancellationTimerInterval(task, resolved));
     }
 
-    public void testTaskWhoseTimeoutDiffersFromItsRequestsKeepsIt() {
-        // Besides an opt-out, an action filter that rewrites the request's interval after createTask, or a createTask that chooses
-        // an interval of its own, leaves the task with a timeout that did not come from the request; the task keeps it.
+    public void testTaskThatChoseItsOwnTimeoutKeepsIt() {
+        // A createTask that builds its own SearchTask keeps the timeout it chose, even when it passes the request's own interval.
         TimeValue resolved = TimeValue.timeValueSeconds(1);
-        SearchRequest rewritten = new SearchRequest("index");
-        rewritten.setCancelAfterTimeInterval(TimeValue.timeValueHours(1));
-        SearchTask rewrittenTask = rewritten.createTask(1, "transport", SearchAction.NAME, TaskId.EMPTY_TASK_ID, Collections.emptyMap());
-        rewritten.setCancelAfterTimeInterval(TimeValue.timeValueSeconds(30));
-        assertEquals(
-            TimeValue.timeValueHours(1),
-            TransportSearchAction.cancellationTimerInterval(rewrittenTask, rewritten.getCancelAfterTimeInterval(), resolved)
-        );
-
+        SearchRequest request = new SearchRequest("index");
+        request.setCancelAfterTimeInterval(TimeValue.timeValueMinutes(5));
         SearchTask chosenTask = new SearchTask(
             1,
             "transport",
@@ -1340,9 +1326,10 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             () -> "test",
             TaskId.EMPTY_TASK_ID,
             Collections.emptyMap(),
-            TimeValue.timeValueMinutes(5)
+            request.getCancelAfterTimeInterval()
         );
-        assertEquals(TimeValue.timeValueMinutes(5), TransportSearchAction.cancellationTimerInterval(chosenTask, null, resolved));
+        assertFalse(chosenTask.isCancellationTimeoutFromRequest());
+        assertEquals(TimeValue.timeValueMinutes(5), TransportSearchAction.cancellationTimerInterval(chosenTask, resolved));
     }
 
     public void testTaskThatChoseItsOwnTimeoutStillGetsTheGroupIntervalOnItsRequest() {
@@ -1515,9 +1502,9 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
     }
 
     public void testResolverThatThrowsFallsBackToTheTaskTimeout() throws Exception {
-        // A resolver should not throw, but one that does must not fail the search: doExecute logs a warning naming the task, leaves
-        // the request's interval as it was, and arms the timer with the task's own cancellation timeout, exactly as without a
-        // resolver, or with the cluster's interval when the task has none.
+        // A resolver that throws, as the workload group resolver does on a failed lookup, must not fail the search: doExecute logs a
+        // warning naming the task, leaves the request's interval as it was, and arms the timer with the task's own cancellation
+        // timeout, exactly as without a resolver, or with the cluster's interval when the task has none.
         IllegalStateException boom = new IllegalStateException("boom");
         TimeValue clusterInterval = TimeValue.timeValueMinutes(30);
         for (TimeValue requested : Arrays.asList(TimeValue.timeValueHours(1), null)) {

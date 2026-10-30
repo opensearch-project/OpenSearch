@@ -18,7 +18,6 @@ import org.opensearch.cluster.metadata.WorkloadGroup;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.wlm.WorkloadGroupSearchCancelAfterTimeIntervalResolver;
 import org.opensearch.wlm.WorkloadGroupSearchSettings;
 import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupTask;
@@ -79,7 +78,7 @@ public class WorkloadGroupRequestOperationListener extends SearchRequestOperatio
         boolean overrideRequestValues = WorkloadGroupSearchSettings.WLM_OVERRIDE_REQUEST_VALUES.get(wlmSettings);
 
         applyTimeout(wlmSettings, searchRequest, overrideRequestValues);
-        applyCancelAfterTimeInterval();
+        // search.cancel_after_time_interval is applied by TransportSearchAction before admission, where the cancellation timer is armed.
         applyMaxConcurrentShardRequests(wlmSettings, searchRequest, overrideRequestValues);
         applyBatchedReduceSize(wlmSettings, searchRequest, overrideRequestValues);
     }
@@ -100,14 +99,6 @@ public class WorkloadGroupRequestOperationListener extends SearchRequestOperatio
             logger.error("Failed to apply workload group setting [search.default_search_timeout]", e);
         }
     }
-
-    /**
-     * Intentionally empty. The coordinator arms the search's cancellation timer before admission, before this listener runs, so
-     * {@code TransportSearchAction} applies the group's {@code search.cancel_after_time_interval} itself, through
-     * {@link WorkloadGroupSearchCancelAfterTimeIntervalResolver}, and writes it onto the request. Applying it again here, after
-     * admission, would decide it a second time, from a group that may have changed in between.
-     */
-    private void applyCancelAfterTimeInterval() {}
 
     private void applyMaxConcurrentShardRequests(Settings wlmSettings, SearchRequest searchRequest, boolean overrideRequestValues) {
         if (wlmSettings.hasValue(WorkloadGroupSearchSettings.WLM_MAX_CONCURRENT_SHARD_REQUESTS.getKey()) == false) {
