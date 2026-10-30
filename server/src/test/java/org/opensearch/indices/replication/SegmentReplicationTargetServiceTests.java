@@ -655,6 +655,40 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     }
 
     /**
+     * After a successful round that stamps term/gen into the replica tracker (IndexShard.finalizeReplication),
+     * a same-version higher-term checkpoint is no longer ahead of the achieved checkpoint, so we must not
+     * loop {@code processLatestReceivedCheckpoint} / getCheckpointMetadata. See #18605.
+     */
+    public void testStartReplicationDoesNotRetriggerWhenTermAdvancesWithoutInfosVersion() throws InterruptedException {
+        ReplicationCheckpoint higherTermSameVersion = new ReplicationCheckpoint(
+            initialCheckpoint.getShardId(),
+            initialCheckpoint.getPrimaryTerm() + 1,
+            initialCheckpoint.getSegmentsGen() + 1,
+            initialCheckpoint.getSegmentInfosVersion(),
+            initialCheckpoint.getCodec()
+        );
+        sut.updateLatestReceivedCheckpoint(higherTermSameVersion, replicaShard);
+        SegmentReplicationTargetService spy = spy(sut);
+        IndexShard spyReplicaShard = spy(replicaShard);
+        AtomicReference<ReplicationCheckpoint> achieved = new AtomicReference<>(replicaShard.getLatestReplicationCheckpoint());
+        doAnswer(i -> achieved.get()).when(spyReplicaShard).getLatestReplicationCheckpoint();
+        CountDownLatch latch = new CountDownLatch(1);
+        doAnswer(i -> {
+            // Simulate IndexShard updating the tracker after finalize (term/gen catch-up, no new files).
+            achieved.set(i.getArgument(1));
+            ((SegmentReplicationTargetService.SegmentReplicationListener) i.getArgument(3)).onReplicationDone(state);
+            latch.countDown();
+            return null;
+        }).when(spy).startReplication(any(), any(), anyBoolean(), any());
+        doNothing().when(spy).updateVisibleCheckpoint(eq(0L), any());
+        spy.afterIndexShardStarted(spyReplicaShard);
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        verify(spy, times(1)).startReplication(eq(spyReplicaShard), any(), anyBoolean(), any());
+        verify(spy, times(1)).processLatestReceivedCheckpoint(any(), any());
+    }
+
+    /**
      * Regression test for the scenario described in #20550 / #20551. After a failed round is retried, the retry may
      * finalize against a stale metadata checkpoint returned by the primary, leaving the replica behind the checkpoint
      * it was asked to sync to. The done-handler must detect that the replica is still behind the primary's latest
