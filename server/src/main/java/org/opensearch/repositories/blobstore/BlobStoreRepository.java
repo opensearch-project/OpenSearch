@@ -3878,7 +3878,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     ) {
         final CatalogSnapshot catalogSnapshot;
         try {
-            catalogSnapshot = snapshotIndexCommit == null ? null : toCatalogSnapshot(snapshotIndexCommit, store);
+            catalogSnapshot = snapshotIndexCommit == null ? null : store.toCatalogSnapshot(snapshotIndexCommit);
         } catch (IOException e) {
             listener.onFailure(new IndexShardSnapshotFailedException(store.shardId(), "Failed to read commit point", e));
             return;
@@ -3992,15 +3992,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
-     * Builds the {@link CatalogSnapshot} view of a Lucene {@link IndexCommit}, mirroring what
-     * {@link Store#getMetadata(IndexCommit)} does internally: a multi-format snapshot is recovered from commit
-     * user data when present, otherwise the {@link org.apache.lucene.index.SegmentInfos} is wrapped as-is.
-     */
-    private static CatalogSnapshot toCatalogSnapshot(IndexCommit snapshotIndexCommit, Store store) throws IOException {
-        return Store.fromSegmentInfos(Lucene.readSegmentInfos(snapshotIndexCommit), store.shardFormatDirectoryResolver());
-    }
-
-    /**
      * Adapts the deprecated {@link IndexCommit}-based entry point onto the catalog-based implementation.
      * Retained for repository callers that have not been converted to
      * {@link org.opensearch.index.engine.exec.coord.CatalogSnapshot}.
@@ -4021,7 +4012,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     ) {
         final CatalogSnapshot catalogSnapshot;
         try {
-            catalogSnapshot = toCatalogSnapshot(snapshotIndexCommit, store);
+            catalogSnapshot = store.toCatalogSnapshot(snapshotIndexCommit);
         } catch (IOException e) {
             listener.onFailure(new IndexShardSnapshotFailedException(store.shardId(), "Failed to read commit point", e));
             return;
