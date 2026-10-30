@@ -189,7 +189,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> implement
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, source, routingRequired);
+        return 31 * (31 * type.hashCode() + source.hashCode()) + Boolean.hashCode(routingRequired);
     }
 
     public MappingMetadata(StreamInput in) throws IOException {
