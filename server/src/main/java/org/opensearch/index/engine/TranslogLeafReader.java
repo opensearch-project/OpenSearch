@@ -216,7 +216,7 @@ public final class TranslogLeafReader extends LeafReader {
                 }
 
                 @Override
-                public StoredFieldsReader getSequentialStoredFieldsReader() {
+                public StoredFieldsReader getSequentialStoredFieldsReader() throws IOException {
                     return Lucene.segmentReader(leafReader).getFieldsReader().getMergeInstance();
                 }
 
