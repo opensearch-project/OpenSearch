@@ -36,14 +36,19 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.AliasMetadata.Builder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.function.Predicate;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> {
 
@@ -69,11 +74,21 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
     }
 
     public void testEnforcementIsPartOfIdentity() {
-        AliasMetadata with = AliasMetadata.builder("alias").enforcement("filtered_stats").build();
-        AliasMetadata without = AliasMetadata.builder("alias").build();
+        AliasMetadata with = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").enforcement("filtered_stats").build();
+        AliasMetadata without = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").build();
         assertNotEquals(with, without);
         assertNotEquals(with.hashCode(), without.hashCode());
         assertEquals(with, AliasMetadata.newAliasMetadata(with, "alias"));
+    }
+
+    public void testEnforcementIsNotKeptWithoutAFilter() throws IOException {
+        AliasMetadata unfiltered = AliasMetadata.builder("alias").enforcement("pre_filter").build();
+        assertNull("the mode is part of the filter, so an alias without one carries none", unfiltered.enforcement());
+        assertEquals(AliasMetadata.builder("alias").build(), unfiltered);
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        AliasMetadata.Builder.toXContent(unfiltered, builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        assertThat(builder.toString(), not(containsString("enforcement")));
     }
 
     public void testEnforcementRoundTripsOnCurrentVersion() throws IOException {

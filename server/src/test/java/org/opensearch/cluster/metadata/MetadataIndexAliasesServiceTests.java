@@ -90,14 +90,12 @@ public class MetadataIndexAliasesServiceTests extends OpenSearchTestCase {
         });
     }
 
-    public void testAddKeepsTheEnforcementMode() {
-        String index = randomAlphaOfLength(5);
-        ClusterState before = createIndex(ClusterState.builder(ClusterName.DEFAULT).build(), index);
-        ClusterState after = service.applyAliasActions(
-            before,
-            singletonList(new AliasAction.Add(index, "scoped", null, null, null, null, null, "filtered_stats"))
+    public void testAddRejectsEnforcementWithoutAFilter() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AliasAction.Add(randomAlphaOfLength(5), "scoped", null, null, null, null, null, "filtered_stats")
         );
-        assertEquals("filtered_stats", after.metadata().index(index).getAliases().get("scoped").enforcement());
+        assertThat(e.getMessage(), containsString("[enforcement] requires a [filter] on alias [scoped]"));
     }
 
     public void testAddAndRemove() {

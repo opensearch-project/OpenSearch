@@ -107,7 +107,8 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
         this.writeIndex = writeIndex;
         this.isHidden = isHidden;
-        this.enforcement = enforcement;
+        // The mode is part of the filter: an alias without a filter carries none, so its metadata is unchanged.
+        this.enforcement = filter == null ? null : enforcement;
     }
 
     private AliasMetadata(AliasMetadata aliasMetadata, String alias) {

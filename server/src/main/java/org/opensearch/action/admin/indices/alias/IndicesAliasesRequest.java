@@ -692,6 +692,15 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         if (allAliasActions.isEmpty()) {
             return addValidationError("Must specify at least one alias action", validationException);
         }
+        for (AliasActions action : allAliasActions) {
+            if (action.enforcement() != null && action.filter() == null) {
+                // The mode says how the alias filter is applied, so it means nothing without one.
+                validationException = addValidationError(
+                    "[enforcement] requires a [filter] on alias action " + action,
+                    validationException
+                );
+            }
+        }
         return validationException;
     }
 
