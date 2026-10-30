@@ -30,6 +30,7 @@ import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -84,7 +85,16 @@ public class IndicesBitsetFilterCache
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> INDICES_BITSET_FILTER_CACHE_ENABLED_SETTING = Setting.boolSetting(
+        "indices.cache.bitset.enabled",
+        true,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     private final Cache<BitsetCacheKey, Value> cache;
+    private volatile boolean enabled;
+    private final ThreadPool threadPool;
     /**
      * Every key cached for a reader, so {@link #onClose(IndexReader.CacheKey)} can invalidate the
      * exact keys when the reader closes. Keys are only removed on reader close: trimming on
@@ -96,12 +106,50 @@ public class IndicesBitsetFilterCache
     private final ConcurrentMap<IndexReader.CacheKey, Set<BitsetCacheKey>> keysByReader = ConcurrentCollections.newConcurrentMap();
 
     public IndicesBitsetFilterCache(Settings settings) {
+        this(settings, null);
+    }
+
+    public IndicesBitsetFilterCache(Settings settings, ClusterSettings clusterSettings) {
+        this(settings, clusterSettings, null);
+    }
+
+    public IndicesBitsetFilterCache(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         long sizeInBytes = INDICES_BITSET_FILTER_CACHE_SIZE_SETTING.get(settings).getBytes();
         CacheBuilder<BitsetCacheKey, Value> cacheBuilder = CacheBuilder.<BitsetCacheKey, Value>builder().removalListener(this);
         if (sizeInBytes > 0) {
             cacheBuilder.setMaximumWeight(sizeInBytes).weigher(new BitsetWeigher());
         }
         this.cache = cacheBuilder.build();
+        this.enabled = INDICES_BITSET_FILTER_CACHE_ENABLED_SETTING.get(settings);
+        this.threadPool = threadPool;
+        if (clusterSettings != null) {
+            clusterSettings.addSettingsUpdateConsumer(INDICES_BITSET_FILTER_CACHE_ENABLED_SETTING, this::setEnabled);
+        }
+    }
+
+    private void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+        if (enabled == false) {
+            // The cache is shared by every index on the node, so do it off the cluster applier thread
+            if (threadPool != null) {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(this::invalidateEachKey);
+            } else {
+                invalidateEachKey();
+            }
+        }
+    }
+
+    // Key by key rather than invalidateAll(), which can orphan an entry whose load is in flight. keysByReader is
+    // left to drain as segments close, so no cached entry loses its registration.
+    private void invalidateEachKey() {
+        for (BitsetCacheKey key : cache.keysSnapshot()) {
+            cache.invalidate(key);
+        }
+    }
+
+    // Package-private for testing
+    boolean isEnabled() {
+        return enabled;
     }
 
     public BitSetProducer getBitSetProducer(Query query, BitsetFilterCache.Listener listener) {
@@ -126,7 +174,11 @@ public class IndicesBitsetFilterCache
     }
 
     BitSet getAndLoadIfNotPresent(final Query query, final LeafReaderContext context, final BitsetFilterCache.Listener listener)
-        throws ExecutionException {
+        throws ExecutionException, IOException {
+        if (enabled == false) {
+            // Bitsets are required for correctness (e.g. nested queries), so build them on every call without caching
+            return bitsetFromQuery(query, context);
+        }
         final IndexReader.CacheHelper cacheHelper = FilterLeafReader.unwrap(context.reader()).getCoreCacheHelper();
         if (cacheHelper == null) {
             throw new IllegalArgumentException("Reader " + context.reader() + " does not support caching");
@@ -142,12 +194,17 @@ public class IndicesBitsetFilterCache
             cacheHelper.addClosedListener(this);
             return ConcurrentCollections.newConcurrentSet();
         }).add(cacheKey);
-        return cache.computeIfAbsent(cacheKey, key -> {
-            final BitSet bitSet = bitsetFromQuery(query, context);
-            Value value = new Value(bitSet, shardId, listener);
+        final BitSet bitSet = cache.computeIfAbsent(cacheKey, key -> {
+            final BitSet loaded = bitsetFromQuery(query, context);
+            Value value = new Value(loaded, shardId, listener);
             listener.onCache(shardId, value.bitset);
             return value;
         }).bitset;
+        if (enabled == false) {
+            // The cache was disabled while this load ran, so drop the entry it just added
+            cache.invalidate(cacheKey);
+        }
+        return bitSet;
     }
 
     @Override
@@ -285,7 +342,7 @@ public class IndicesBitsetFilterCache
 
         @Override
         public IndexWarmer.TerminationHandle warmReader(final IndexShard indexShard, final OpenSearchDirectoryReader reader) {
-            if (!indexShard.indexSettings().getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING)) {
+            if (enabled == false || !indexShard.indexSettings().getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING)) {
                 return TerminationHandle.NO_WAIT;
             }
 
