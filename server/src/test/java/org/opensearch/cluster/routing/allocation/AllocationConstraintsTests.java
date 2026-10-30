@@ -16,10 +16,11 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 
 import static org.opensearch.cluster.routing.allocation.ConstraintTypes.CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID;
+import static org.opensearch.cluster.routing.allocation.ConstraintTypes.CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID;
 import static org.opensearch.cluster.routing.allocation.ConstraintTypes.CONSTRAINT_WEIGHT;
 import static org.opensearch.cluster.routing.allocation.ConstraintTypes.INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID;
 import static org.opensearch.cluster.routing.allocation.ConstraintTypes.INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID;
-import static org.mockito.Mockito.anyString;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -168,6 +169,65 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
         constraints.updateAllocationConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, false);
         constraints.updateAllocationConstraint(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, false);
         assertEquals(0, constraints.weight(balancer, node, indexName, constraintWeight));
+    }
+
+    public void testPrimaryConstraintWeightsAtAllocationAndRebalanceThresholds() {
+        ShardsBalancer balancer = mock(ShardsBalancer.class);
+        BalancedShardsAllocator.ModelNode node = mock(BalancedShardsAllocator.ModelNode.class);
+        AllocationConstraints allocation = new AllocationConstraints();
+        RebalanceConstraints rebalance = new RebalanceConstraints(new RebalanceParameter(0.0f));
+        allocation.updateAllocationConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, true);
+        rebalance.updateRebalanceConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, true);
+        when(balancer.avgPrimaryShardsPerNode("index")).thenReturn(1.5f);
+
+        // Three primaries across two nodes have a ceiling of two. A node with two primaries
+        // should discourage another allocation, but its existing primary count is balanced.
+        int[] counts = { 1, 2, 3 };
+        long[] allocationWeights = { 0, CONSTRAINT_WEIGHT, CONSTRAINT_WEIGHT };
+        long[] rebalanceWeights = { 0, 0, CONSTRAINT_WEIGHT };
+        for (int i = 0; i < counts.length; i++) {
+            when(node.numPrimaryShards("index")).thenReturn(counts[i]);
+            assertEquals(
+                "per-index allocation with " + counts[i] + " primaries",
+                allocationWeights[i],
+                allocation.weight(balancer, node, "index", constraintWeight)
+            );
+            assertEquals(
+                "per-index rebalance with " + counts[i] + " primaries",
+                rebalanceWeights[i],
+                rebalance.weight(balancer, node, "index", constraintWeight)
+            );
+        }
+        rebalance.updateRebalanceConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, false);
+        assertEquals(0, rebalance.weight(balancer, node, "index", constraintWeight));
+
+        // Use fresh constraints so the per-index penalty cannot mask the global boundary.
+        allocation = new AllocationConstraints();
+        rebalance = new RebalanceConstraints(new RebalanceParameter(0.5f));
+        allocation.updateAllocationConstraint(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, true);
+        rebalance.updateRebalanceConstraint(CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID, true);
+        when(balancer.avgPrimaryShardsPerNode()).thenReturn(2.5f);
+
+        // Five primaries across two nodes: allocation penalizes counts at ceil(2.5) = 3.
+        // Rebalance tolerates ceil(2.5 * 1.5) = 4 primaries, including equality at that limit.
+        counts = new int[] { 2, 3, 4, 5 };
+        allocationWeights = new long[] { 0, constraintWeight, constraintWeight, constraintWeight };
+        rebalanceWeights = new long[] { 0, 0, 0, constraintWeight };
+        for (int i = 0; i < counts.length; i++) {
+            when(node.numPrimaryShards()).thenReturn(counts[i]);
+            assertEquals(
+                "global allocation with " + counts[i] + " primaries",
+                allocationWeights[i],
+                allocation.weight(balancer, node, "index", constraintWeight)
+            );
+            assertEquals(
+                "global rebalance with " + counts[i] + " primaries",
+                rebalanceWeights[i],
+                rebalance.weight(balancer, node, "index", constraintWeight)
+            );
+        }
+        rebalance.updateRebalanceConstraint(CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID, false);
+        assertEquals(0, rebalance.weight(balancer, node, "index", constraintWeight));
     }
 
     /**
