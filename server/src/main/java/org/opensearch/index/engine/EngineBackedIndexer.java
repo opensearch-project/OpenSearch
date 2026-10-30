@@ -33,6 +33,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 /**
  * An indexer implementation that uses an engine to perform indexing operations.
@@ -40,7 +41,7 @@ import java.util.function.BiFunction;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class EngineBackedIndexer implements Indexer {
+public class EngineBackedIndexer implements Indexer, SearcherSupplierProvider {
 
     private final Engine engine;
 
@@ -509,5 +510,12 @@ public class EngineBackedIndexer implements Indexer {
     public Engine.GetResult getById(Engine.Get get, BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory)
         throws IOException {
         return engine.get(get, searcherFactory);
+    }
+
+    /** Delegates to {@link Engine#acquireSearcherSupplier(Function, Engine.SearcherScope)} on the wrapped engine. */
+    @Override
+    public Engine.SearcherSupplier acquireSearcherSupplier(Function<Engine.Searcher, Engine.Searcher> wrapper, Engine.SearcherScope scope)
+        throws EngineException {
+        return engine.acquireSearcherSupplier(wrapper, scope);
     }
 }

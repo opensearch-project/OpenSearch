@@ -12,9 +12,12 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.Version;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -22,6 +25,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -29,14 +33,17 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.DeleteResult;
 import org.opensearch.index.engine.dataformat.NoOpDeleteExecutionEngine;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.RowIdAwareWriter;
 import org.opensearch.index.engine.dataformat.WriteResult;
@@ -50,7 +57,9 @@ import org.opensearch.index.engine.dataformat.stub.MockDocumentInput;
 import org.opensearch.index.engine.dataformat.stub.MockIndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockWriter;
+import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
+import org.opensearch.index.engine.exec.SearchableDirectoryReaderProvider;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
@@ -103,6 +112,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.engine.EngineTestCase.tombstoneDocSupplier;
@@ -311,6 +321,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             .indexSettings(indexSettings)
             .store(store)
             .mergePolicy(NoMergePolicy.INSTANCE)
+            .queryCache(IndexSearcher.getDefaultQueryCache())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
             .translogConfig(translogConfig)
             .flushMergesAfter(TimeValue.timeValueMinutes(5))
             .externalRefreshListener(externalListeners)
@@ -1448,6 +1460,222 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * A shard whose formats expose no searchable reader rejects {@code _search} with a 400, releases what it
+     * acquired, and a closed engine refuses before touching the reader.
+     */
+    public void testSearchWithoutSearchableFormatIsBadRequest() throws IOException {
+        final int storeRefsBefore = store.refCount();
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        try {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+            final int storeRefsOpen = store.refCount();
+
+            OpenSearchStatusException e = expectThrows(
+                OpenSearchStatusException.class,
+                () -> engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
+            );
+            assertEquals(RestStatus.BAD_REQUEST, e.status());
+            assertThat(e.getMessage(), containsString("does not support _search"));
+            assertEquals(storeRefsOpen, store.refCount());
+        } finally {
+            engine.close();
+        }
+        assertEquals(storeRefsBefore, store.refCount());
+        expectThrows(
+            AlreadyClosedException.class,
+            () -> engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
+        );
+    }
+
+    /**
+     * Wires a format reader implementing {@link SearchableDirectoryReaderProvider} and verifies
+     * the point-in-time supplier contract that scroll/PIT depend on: every searcher acquired
+     * from one supplier shares the same reader (even across a refresh), and acquisition after
+     * close is rejected.
+     */
+    public void testAcquireSearcherSupplierProvidesPointInTimeSearchers() throws Exception {
+        SearchableStubReaderManager readerManager = new SearchableStubReaderManager(store, shardId);
+        mockPlugin.withIndexingEngine(cfg -> new MockIndexingExecutionEngine(mockDataFormat) {
+            @Override
+            public Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) {
+                return Map.of(getDataFormat(), readerManager);
+            }
+        });
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            Engine.SearcherSupplier supplier = engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL);
+            try {
+                try (Engine.Searcher first = supplier.acquireSearcher("test")) {
+                    assertThat(first.getIndexReader(), notNullValue());
+                    // a refresh between two acquisitions must not change the point-in-time view
+                    engine.index(indexOp(createParsedDocWithInput("2", null)));
+                    engine.refresh("test");
+                    try (Engine.Searcher second = supplier.acquireSearcher("test")) {
+                        assertSame(
+                            "all searchers from one supplier must share the point-in-time reader",
+                            first.getIndexReader(),
+                            second.getIndexReader()
+                        );
+                    }
+                }
+            } finally {
+                supplier.close();
+            }
+            expectThrows(AlreadyClosedException.class, () -> supplier.acquireSearcher("test"));
+        }
+    }
+
+    /**
+     * {@link Engine#acquireSearcher(String, Engine.SearcherSupplier)} ties the supplier's lifetime to the
+     * returned searcher: closing the searcher releases the supplier and its reader reference.
+     */
+    public void testAcquireSearcherOneShotReleasesSupplierOnClose() throws Exception {
+        SearchableStubReaderManager readerManager = new SearchableStubReaderManager(store, shardId);
+        mockPlugin.withIndexingEngine(cfg -> new MockIndexingExecutionEngine(mockDataFormat) {
+            @Override
+            public Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) {
+                return Map.of(getDataFormat(), readerManager);
+            }
+        });
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            final int refsBefore = readerManager.currentReader() == null ? -1 : readerManager.currentReader().getRefCount();
+            Engine.Searcher searcher = Engine.acquireSearcher(
+                "test",
+                engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
+            );
+            assertThat(searcher.getIndexReader(), notNullValue());
+            final OpenSearchDirectoryReader reader = readerManager.currentReader();
+            final int refsOpen = reader.getRefCount();
+            searcher.close();
+            assertEquals("closing the searcher releases the supplier's reader ref", refsOpen - 1, reader.getRefCount());
+            assertTrue(refsBefore == -1 || refsBefore == reader.getRefCount());
+        }
+    }
+
+    /**
+     * The PIT-critical guarantee: while a {@link Engine.SearcherSupplier} is open, the
+     * {@link CatalogSnapshot} it was acquired on must not be deleted, no matter how many
+     * refreshes supersede it. Closing the supplier releases the last reference and the
+     * snapshot becomes deletable.
+     */
+    public void testOpenSearcherSupplierPinsCatalogSnapshotAgainstDeletion() throws Exception {
+        SearchableStubReaderManager readerManager = new SearchableStubReaderManager(store, shardId);
+        mockPlugin.withIndexingEngine(cfg -> new MockIndexingExecutionEngine(mockDataFormat) {
+            @Override
+            public Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) {
+                return Map.of(getDataFormat(), readerManager);
+            }
+        });
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            final long pinnedSnapshotId;
+            try (GatedCloseable<CatalogSnapshot> current = engine.acquireSnapshot()) {
+                pinnedSnapshotId = current.get().getId();
+            }
+
+            Engine.SearcherSupplier supplier = engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL);
+            try {
+                // supersede the pinned snapshot several times
+                for (int i = 2; i <= 4; i++) {
+                    engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                    engine.refresh("test");
+                }
+                assertFalse(
+                    "snapshot pinned by an open supplier must not be deleted (PIT correctness)",
+                    readerManager.deletedSnapshotIds.contains(pinnedSnapshotId)
+                );
+            } finally {
+                supplier.close();
+            }
+            assertBusy(
+                () -> assertTrue(
+                    "closing the supplier must release the snapshot so it becomes deletable",
+                    readerManager.deletedSnapshotIds.contains(pinnedSnapshotId)
+                )
+            );
+        }
+    }
+
+    /**
+     * Searchers on one snapshot must expose the format's own {@link OpenSearchDirectoryReader}, so the
+     * request cache key id stays the same across suppliers and repeat searches hit the cache.
+     */
+    public void testSearchersOnSameSnapshotShareRequestCacheKey() throws Exception {
+        SearchableStubReaderManager readerManager = useSearchableReaderManager();
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            try (
+                Engine.SearcherSupplier first = engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL);
+                Engine.SearcherSupplier second = engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL);
+                Engine.Searcher a = first.acquireSearcher("test");
+                Engine.Searcher b = second.acquireSearcher("test")
+            ) {
+                assertSame(readerManager.currentReader(), a.getDirectoryReader());
+                assertEquals(requestCacheKeyId(a), requestCacheKeyId(b));
+            }
+        }
+    }
+
+    /**
+     * An open scroll or PIT must keep working after the engine closes: the supplier pins the store and the
+     * reader, and releases both only when it is closed.
+     */
+    public void testOpenSearcherSupplierSurvivesEngineClose() throws Exception {
+        SearchableStubReaderManager readerManager = useSearchableReaderManager();
+        final int storeRefsBefore = store.refCount();
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        final Engine.SearcherSupplier supplier;
+        final OpenSearchDirectoryReader reader;
+        try {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+            supplier = engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL);
+            reader = readerManager.currentReader();
+        } finally {
+            engine.close();
+        }
+        try {
+            assertThat(reader.getRefCount(), greaterThan(0));
+            assertEquals(storeRefsBefore + 1, store.refCount());
+            try (Engine.Searcher searcher = supplier.acquireSearcher("next_page")) {
+                searcher.search(new MatchAllDocsQuery(), 1);
+            }
+        } finally {
+            supplier.close();
+        }
+        assertEquals(0, reader.getRefCount());
+        assertEquals(storeRefsBefore, store.refCount());
+    }
+
+    private SearchableStubReaderManager useSearchableReaderManager() {
+        SearchableStubReaderManager readerManager = new SearchableStubReaderManager(store, shardId);
+        mockPlugin.withIndexingEngine(cfg -> new MockIndexingExecutionEngine(mockDataFormat) {
+            @Override
+            public Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) {
+                return Map.of(getDataFormat(), readerManager);
+            }
+        });
+        return readerManager;
+    }
+
+    static String requestCacheKeyId(Engine.Searcher searcher) {
+        return OpenSearchDirectoryReader.getOpenSearchDirectoryReader(searcher.getDirectoryReader())
+            .getDelegatingCacheHelper()
+            .getDelegatingCacheKey()
+            .getId();
+    }
+
     public void testAcquireReaderBeforeRefreshReturnsEmptyReaders() throws IOException {
         try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
             // Acquire reader before any refresh — the initial catalog snapshot
@@ -2400,6 +2628,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             .indexSettings(indexSettings)
             .store(store)
             .mergePolicy(NoMergePolicy.INSTANCE)
+            .queryCache(IndexSearcher.getDefaultQueryCache())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
             .translogConfig(translogConfig)
             .flushMergesAfter(TimeValue.timeValueMinutes(5))
             .externalRefreshListener(List.of())
@@ -2462,6 +2692,8 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             .indexSettings(indexSettings)
             .store(store)
             .mergePolicy(NoMergePolicy.INSTANCE)
+            .queryCache(IndexSearcher.getDefaultQueryCache())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
             .translogConfig(translogConfig)
             .flushMergesAfter(TimeValue.timeValueMinutes(5))
             .externalRefreshListener(List.of())

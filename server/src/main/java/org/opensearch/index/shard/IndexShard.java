@@ -148,6 +148,7 @@ import org.opensearch.index.engine.PrimaryOperationPolicy;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.engine.SearcherSupplierProvider;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
@@ -2752,8 +2753,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope) {
         readAllowed();
         markSearcherAccessed();
-        final Indexer engine = getIndexer();
-        return applyOnEngine(engine, eng -> eng.acquireSearcherSupplier(this::wrapSearcher, scope));
+        return searcherSupplierProvider().acquireSearcherSupplier(this::wrapSearcher, scope);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
@@ -2770,8 +2770,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope) {
         readAllowed();
         markSearcherAccessed();
+        return Engine.acquireSearcher(source, searcherSupplierProvider().acquireSearcherSupplier(this::wrapSearcher, scope));
+    }
+
+    /** The indexer's searcher capability; an indexer without one cannot serve {@code _search}. */
+    private SearcherSupplierProvider searcherSupplierProvider() {
         final Indexer indexer = getIndexer();
-        return applyOnEngine(indexer, engine -> engine.acquireSearcher(source, scope, this::wrapSearcher));
+        if (indexer instanceof SearcherSupplierProvider provider) {
+            return provider;
+        }
+        throw SearcherSupplierProvider.searchNotSupported(shardId, indexer.getClass().getSimpleName() + " has no searcher");
     }
 
     /**

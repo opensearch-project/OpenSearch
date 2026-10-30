@@ -882,10 +882,17 @@ public abstract class Engine implements LifecycleAware, Closeable {
     }
 
     public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {
-        SearcherSupplier releasable = null;
+        return acquireSearcher(source, acquireSearcherSupplier(wrapper, scope));
+    }
+
+    /**
+     * Acquires one searcher from {@code supplier} and ties the supplier's lifetime to it. Takes ownership of
+     * {@code supplier}: it is closed with the returned searcher, or immediately if acquisition fails.
+     */
+    public static Searcher acquireSearcher(String source, SearcherSupplier supplier) {
+        SearcherSupplier releasable = supplier;
         try {
-            SearcherSupplier reader = releasable = acquireSearcherSupplier(wrapper, scope);
-            Searcher searcher = reader.acquireSearcher(source);
+            Searcher searcher = supplier.acquireSearcher(source);
             releasable = null;
             return new Searcher(
                 source,
@@ -893,7 +900,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 searcher.getSimilarity(),
                 searcher.getQueryCache(),
                 searcher.getQueryCachingPolicy(),
-                () -> Releasables.close(searcher, reader)
+                () -> Releasables.close(searcher, supplier)
             );
         } finally {
             Releasables.close(releasable);
