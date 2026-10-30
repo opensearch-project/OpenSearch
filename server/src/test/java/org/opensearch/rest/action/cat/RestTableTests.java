@@ -514,4 +514,97 @@ public class RestTableTests extends OpenSearchTestCase {
         }
         return table;
     }
+
+    public void testHeaderAggregationTriggersSummarizedJsonOutput() throws Exception {
+        Table t = new Table();
+        t.startHeaders();
+        t.addCell("index", "desc:index name");
+        t.addCell("docs", "text-align:right;desc:doc count");
+        t.endHeaders();
+        for (Object[] row : Arrays.asList(new Object[] { "idx-a", 100L }, new Object[] { "idx-a", 200L }, new Object[] { "idx-b", 50L })) {
+            t.startRow();
+            t.addCell(row[0]);
+            t.addCell(row[1]);
+            t.endRow();
+        }
+
+        FakeRestRequest req = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_JSON))
+        ).build();
+        // A function token in h= triggers summarization; `index` is inferred as the GROUP BY key.
+        req.params().put("h", "index,sum(docs)");
+        RestResponse response = buildResponse(t, new AbstractRestChannel(req, true) {
+            @Override
+            public void sendResponse(RestResponse response) {}
+        });
+        assertThat(
+            response.content().utf8ToString(),
+            equalTo("[{\"index\":\"idx-a\",\"sum(docs)\":\"300\"},{\"index\":\"idx-b\",\"sum(docs)\":\"50\"}]")
+        );
+    }
+
+    public void testHeaderWithoutAggregationIsNotSummarized() throws Exception {
+        Table t = new Table();
+        t.startHeaders();
+        t.addCell("index", "desc:index name");
+        t.addCell("docs", "text-align:right;desc:doc count");
+        t.endHeaders();
+        for (Object[] row : Arrays.asList(new Object[] { "idx-a", 100L }, new Object[] { "idx-a", 200L }, new Object[] { "idx-b", 50L })) {
+            t.startRow();
+            t.addCell(row[0]);
+            t.addCell(row[1]);
+            t.endRow();
+        }
+
+        FakeRestRequest req = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_JSON))
+        ).build();
+        // Bare columns only => ordinary listing, all three rows preserved (no grouping).
+        req.params().put("h", "index");
+        RestResponse response = buildResponse(t, new AbstractRestChannel(req, true) {
+            @Override
+            public void sendResponse(RestResponse response) {}
+        });
+        assertThat(response.content().utf8ToString(), equalTo("[{\"index\":\"idx-a\"},{\"index\":\"idx-a\"},{\"index\":\"idx-b\"}]"));
+    }
+
+    public void testSortAndLimitApplyToAggregatedRows() throws Exception {
+        Table t = new Table();
+        t.startHeaders();
+        t.addCell("index", "desc:index name");
+        t.addCell("docs", "text-align:right;desc:doc count");
+        t.endHeaders();
+        for (Object[] row : Arrays.asList(
+            new Object[] { "idx-a", 100L },
+            new Object[] { "idx-a", 200L },
+            new Object[] { "idx-b", 50L },
+            new Object[] { "idx-c", 400L }
+        )) {
+            t.startRow();
+            t.addCell(row[0]);
+            t.addCell(row[1]);
+            t.endRow();
+        }
+
+        // groups: idx-a => 300, idx-b => 50, idx-c => 400. Sorted by the aggregate, limit counts groups, not source rows.
+        assertEquals("[{\"index\":\"idx-c\",\"sum(docs)\":\"400\"}]", summarizedJson(t, "index,sum(docs)", "sum(docs):desc", "1"));
+        assertEquals(
+            "[{\"index\":\"idx-c\",\"sum(docs)\":\"400\"},{\"index\":\"idx-a\",\"sum(docs)\":\"300\"}]",
+            summarizedJson(t, "index,sum(docs)", "sum(docs):desc", "2")
+        );
+        assertEquals("[{\"index\":\"idx-b\",\"sum(docs)\":\"50\"}]", summarizedJson(t, "index,sum(docs)", "sum(docs):asc", "1"));
+    }
+
+    private String summarizedJson(Table table, String h, String s, String limit) throws Exception {
+        FakeRestRequest req = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_JSON))
+        ).build();
+        req.params().put("h", h);
+        req.params().put("s", s);
+        req.params().put("limit", limit);
+        return buildResponse(table, new AbstractRestChannel(req, true) {
+            @Override
+            public void sendResponse(RestResponse response) {}
+        }).content().utf8ToString();
+    }
 }
