@@ -23,6 +23,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SmallFloat;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.settings.Setting;
@@ -181,6 +182,15 @@ public final class VisibleSubsetStatistics {
         }
         return docFreq == 0 ? null : new long[] { docFreq, totalTermFreq };
     }
+
+    /** Heap bytes of the visible-doc bitset for a segment with {@code maxDoc} documents. */
+    public static long visibleBitSetBytes(int maxDoc) {
+        return FIXED_BIT_SET_SHALLOW_BYTES + RamUsageEstimator.alignObjectSize(
+            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) FixedBitSet.bits2words(maxDoc) * Long.BYTES
+        );
+    }
+
+    private static final long FIXED_BIT_SET_SHALLOW_BYTES = RamUsageEstimator.shallowSizeOfInstance(FixedBitSet.class);
 
     private VisibleSubsetStatistics() {}
 }

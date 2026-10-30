@@ -70,6 +70,10 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.cache.filteredstats.FilteredSegmentStats;
 import org.opensearch.index.cache.filteredstats.FilteredStatsCache;
@@ -131,6 +135,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     private FilteredSegmentStats[] visibleDocsPerSegment;
     private boolean visibleDocsInitialized = false;
+    /** Bytes charged to the request breaker for the visible bitsets this searcher built; returned when its context closes. */
+    private long visibleDocsChargedBytes;
 
     public ContextIndexSearcher(
         IndexReader reader,
@@ -664,9 +670,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         final FilteredStatsCache cache = filteredStatsCache();
         for (LeafReaderContext ctx : leaves) {
             if (cache != null) {
-                segments[ctx.ord] = cache.segment(ctx, filter, () -> VisibleSubsetStatistics.computeVisibleBitSet(weight, ctx));
+                segments[ctx.ord] = cache.segment(ctx, filter, () -> buildVisibleDocs(weight, ctx));
             } else {
-                segments[ctx.ord] = FilteredSegmentStats.uncached(VisibleSubsetStatistics.computeVisibleBitSet(weight, ctx));
+                segments[ctx.ord] = FilteredSegmentStats.uncached(buildVisibleDocs(weight, ctx));
             }
         }
         this.visibleDocsPerSegment = segments;
@@ -676,6 +682,33 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private FilteredStatsCache filteredStatsCache() {
         return searchContext == null ? null : searchContext.filteredStatsCache();
+    }
+
+    /**
+     * Builds one segment's visible bitset after charging its size to the request breaker, so a burst of builds is
+     * rejected with a {@link CircuitBreakingException} rather than filling the heap. The charge lasts as long as this
+     * searcher's context.
+     */
+    private BitSet buildVisibleDocs(Weight weight, LeafReaderContext ctx) throws IOException {
+        final CircuitBreaker breaker = requestBreaker();
+        if (breaker != null) {
+            final long bytes = VisibleSubsetStatistics.visibleBitSetBytes(ctx.reader().maxDoc());
+            breaker.addEstimateBytesAndMaybeBreak(bytes, "filtered_stats_visible_docs");
+            if (visibleDocsChargedBytes == 0) {
+                searchContext.addReleasable(() -> {
+                    breaker.addWithoutBreaking(-visibleDocsChargedBytes);
+                    visibleDocsChargedBytes = 0;
+                });
+            }
+            visibleDocsChargedBytes += bytes;
+        }
+        return VisibleSubsetStatistics.computeVisibleBitSet(weight, ctx);
+    }
+
+    private CircuitBreaker requestBreaker() {
+        final BigArrays bigArrays = searchContext.bigArrays();
+        final CircuitBreakerService breakers = bigArrays == null ? null : bigArrays.breakerService();
+        return breakers == null ? null : breakers.getBreaker(CircuitBreaker.REQUEST);
     }
 
     /**

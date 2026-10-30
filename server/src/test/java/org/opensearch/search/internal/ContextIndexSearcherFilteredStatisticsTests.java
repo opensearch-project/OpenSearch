@@ -16,6 +16,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
@@ -24,21 +25,32 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.store.Directory;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.cache.filteredstats.FilteredStatsCache;
 import org.opensearch.index.cache.filteredstats.IndicesFilteredStatsCache;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
+import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -172,6 +184,55 @@ public class ContextIndexSearcherFilteredStatisticsTests extends OpenSearchTestC
         int docFreq = scopedReader.docFreq(alpha);
         long ttf = scopedReader.totalTermFreq(alpha);
         assertEquals(docFreq, searcher.visibleSubsetTermStatistics(alpha, docFreq, ttf).docFreq());
+    }
+
+    public void testVisibleDocsAreChargedToTheRequestBreakerUntilTheContextCloses() throws IOException {
+        final CircuitBreakerService breakers = breakerService(Settings.EMPTY);
+        final List<Releasable> releasables = new ArrayList<>();
+        final ContextIndexSearcher searcher = searcher(chargedContext(breakers, releasables));
+        final CircuitBreaker request = breakers.getBreaker(CircuitBreaker.REQUEST);
+
+        searcher.collectionStatistics("body");
+        long expected = 0;
+        for (LeafReaderContext leaf : scopedReader.leaves()) {
+            expected += VisibleSubsetStatistics.visibleBitSetBytes(leaf.reader().maxDoc());
+        }
+        assertEquals("every segment's bitset is charged before it is built", expected, request.getUsed());
+
+        // The bitsets are kept for the request, so later statistics do not charge again.
+        searcher.termStatistics(new Term("body", "alpha"), 1, 1);
+        assertEquals(expected, request.getUsed());
+        assertEquals("one releasable returns the whole charge", 1, releasables.size());
+
+        Releasables.close(releasables);
+        assertEquals(0L, request.getUsed());
+    }
+
+    public void testABuildOverTheRequestBreakerFailsTheRequest() {
+        final CircuitBreakerService breakers = breakerService(
+            Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "1b").build()
+        );
+        final List<Releasable> releasables = new ArrayList<>();
+        final SearchContext context = chargedContext(breakers, releasables);
+        expectThrows(CircuitBreakingException.class, () -> searcher(context).collectionStatistics("body"));
+        Releasables.close(releasables);
+        assertEquals("a refused build leaves nothing charged", 0L, breakers.getBreaker(CircuitBreaker.REQUEST).getUsed());
+    }
+
+    private static CircuitBreakerService breakerService(Settings settings) {
+        return new HierarchyCircuitBreakerService(
+            Settings.builder().put(settings).put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false).build(),
+            Collections.emptyList(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+    }
+
+    /** A scoped context whose request breaker is the given service's, collecting the releasables it is handed. */
+    private static SearchContext chargedContext(CircuitBreakerService breakers, List<Releasable> releasables) {
+        final SearchContext context = contextScopedTo(VISIBLE, null);
+        when(context.bigArrays()).thenReturn(new BigArrays(null, breakers, CircuitBreaker.REQUEST));
+        doAnswer(invocation -> releasables.add(invocation.getArgument(0))).when(context).addReleasable(any());
+        return context;
     }
 
     private void assertMatchesReference(ContextIndexSearcher searcher) throws IOException {
