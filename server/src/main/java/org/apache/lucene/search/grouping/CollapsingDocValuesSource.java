@@ -48,6 +48,7 @@ import org.opensearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 
 /**
  * Utility class that ensures that a single collapse key is extracted per document.
@@ -165,6 +166,11 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
     static class Keyword extends CollapsingDocValuesSource<BytesRef> {
         private SortedDocValues values;
         private int ord;
+        // Segment ordinals are leaf-local. lookupOrd decompresses the terms dictionary (LZ4), so
+        // resolve each ord at most once per leaf and keep T = BytesRef for reduce/search_after.
+        // HashMap (not a dense BytesRef[getValueCount()]) so memory is O(unique ords seen on
+        // this leaf), not O(dictionary size). Collapse fields are typically low cardinality.
+        private final HashMap<Integer, BytesRef> ordToValue = new HashMap<>();
 
         Keyword(MappedFieldType fieldType) {
             super(fieldType.name());
@@ -185,13 +191,18 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
         public BytesRef currentValue() {
             if (ord == -1) {
                 return null;
-            } else {
+            }
+            BytesRef cached = ordToValue.get(ord);
+            if (cached == null) {
                 try {
-                    return values.lookupOrd(ord);
+                    // lookupOrd returns a shared scratch; copy so the cache stays stable
+                    cached = BytesRef.deepCopyOf(values.lookupOrd(ord));
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
+                ordToValue.put(ord, cached);
             }
+            return cached;
         }
 
         @Override
@@ -206,6 +217,7 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
 
         @Override
         public void setNextReader(LeafReaderContext readerContext) throws IOException {
+            ordToValue.clear();
             LeafReader reader = readerContext.reader();
             DocValuesType type = getDocValuesType(reader, field);
             if (type == null || type == DocValuesType.NONE) {
