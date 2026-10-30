@@ -8,7 +8,7 @@
 
 package org.opensearch.rule.autotagging;
 
-import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -17,9 +17,7 @@ import static org.opensearch.rule.autotagging.RuleTests.FEATURE_TYPE;
 import static org.opensearch.rule.autotagging.RuleTests.INVALID_ATTRIBUTE;
 import static org.opensearch.rule.autotagging.RuleTests.TEST_ATTR1_NAME;
 import static org.opensearch.rule.autotagging.RuleTests.TestAttribute.TEST_ATTRIBUTE_1;
-import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 public class FeatureTypeTests extends OpenSearchTestCase {
     public void testIsValidAttribute() {
@@ -32,9 +30,13 @@ public class FeatureTypeTests extends OpenSearchTestCase {
         assertNull(FEATURE_TYPE.getAttributeFromName(INVALID_ATTRIBUTE));
     }
 
-    public void testWriteTo() throws IOException {
-        StreamOutput mockOutput = mock(StreamOutput.class);
-        FEATURE_TYPE.writeTo(mockOutput);
-        verify(mockOutput).writeString(anyString());
+    public void testNamedSerializationWritesOnlyFeatureName() throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeNamedWriteable(FEATURE_TYPE);
+            try (var in = out.bytes().streamInput()) {
+                assertEquals(FEATURE_TYPE.getName(), in.readString());
+                assertEquals(0, in.available());
+            }
+        }
     }
 }

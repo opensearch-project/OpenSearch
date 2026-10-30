@@ -8,10 +8,12 @@
 
 package org.opensearch.rule.rest;
 
+import org.opensearch.rule.autotagging.AutoTaggingRegistry;
+
 import org.opensearch.test.OpenSearchTestCase;
 
 public class RestUpdateRuleActionTests extends OpenSearchTestCase {
-    RestUpdateRuleAction action = new RestUpdateRuleAction();;
+    RestUpdateRuleAction action = new RestUpdateRuleAction(new AutoTaggingRegistry());
 
     public void testGetName() {
         assertEquals("update_rule", action.getName());

@@ -43,9 +43,6 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.rest.RestHeaderDefinition;
 import org.opensearch.rule.RuleAttribute;
-import org.opensearch.rule.RuleFrameworkPlugin;
-import org.opensearch.rule.RulePersistenceServiceRegistry;
-import org.opensearch.rule.RuleRoutingServiceRegistry;
 import org.opensearch.rule.action.CreateRuleAction;
 import org.opensearch.rule.action.CreateRuleRequest;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
@@ -68,7 +65,6 @@ import org.opensearch.wlm.stats.WlmStats;
 import org.opensearch.wlm.stats.WorkloadGroupStats.WorkloadGroupStatsHolder;
 import org.joda.time.Instant;
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -105,29 +101,14 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(WlmAutoTaggingIT.TestWorkloadManagementPlugin.class);
-        plugins.add(RuleFrameworkPlugin.class);
         plugins.add(ScriptedBlockPlugin.class);
         plugins.add(TestPrincipalPlugin.class);
         return plugins;
     }
 
-    @Before
-    public void registerFeatureTypeIfMissingOnAllNodes() {
-        // The registry is JVM-static but each test gets a new cluster, so re-register this cluster's feature type.
-        AutoTaggingRegistry.featureTypesRegistryMap.remove(WorkloadGroupFeatureType.NAME);
-        FeatureType featureType = WlmAutoTaggingIT.TestWorkloadManagementPlugin.featureType;
-        AutoTaggingRegistry.registerFeatureType(featureType);
-
-        for (String node : internalCluster().getNodeNames()) {
-            RulePersistenceServiceRegistry persistenceRegistry = internalCluster().getInstance(RulePersistenceServiceRegistry.class, node);
-            RuleRoutingServiceRegistry routingRegistry = internalCluster().getInstance(RuleRoutingServiceRegistry.class, node);
-            try {
-                routingRegistry.getRuleRoutingService(featureType);
-            } catch (IllegalArgumentException ex) {
-                persistenceRegistry.register(featureType, WlmAutoTaggingIT.TestWorkloadManagementPlugin.rulePersistenceService);
-                routingRegistry.register(featureType, WlmAutoTaggingIT.TestWorkloadManagementPlugin.ruleRoutingService);
-            }
-        }
+    private FeatureType featureType() {
+        return internalCluster().getInstance(AutoTaggingRegistry.class, internalCluster().getClusterManagerName())
+            .getFeatureType(WorkloadGroupFeatureType.NAME);
     }
 
     @After
@@ -146,7 +127,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
         WorkloadGroup workloadGroup = createThrottledWorkloadGroup("throttle_test_group", workloadGroupId, 1);
         updateWorkloadGroupInClusterState(PUT, workloadGroup);
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        FeatureType featureType = featureType();
         createRule(ruleId, "throttle rule", indexName, featureType, workloadGroupId);
 
         indexDocument(indexName);
@@ -207,7 +188,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
         WorkloadGroup workloadGroup = createThrottledWorkloadGroup("scroll_throttle_test_group", workloadGroupId, 1);
         updateWorkloadGroupInClusterState(PUT, workloadGroup);
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        FeatureType featureType = featureType();
         createRule(ruleId, "scroll throttle rule", indexName, featureType, workloadGroupId);
 
         indexDocument(indexName);
@@ -328,7 +309,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
         WorkloadGroup workloadGroup = createThrottledWorkloadGroup("user_throttle_test_group", workloadGroupId, 1, "username");
         updateWorkloadGroupInClusterState(PUT, workloadGroup);
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        FeatureType featureType = featureType();
         // Rule validation reads applied cluster state, so wait for the group before creating the rule.
         assertBusy(() -> {
             boolean present = client().admin()
@@ -400,7 +381,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
         WorkloadGroup workloadGroup = createThrottledWorkloadGroup("role_throttle_test_group", workloadGroupId, 1, "role");
         updateWorkloadGroupInClusterState(PUT, workloadGroup);
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        FeatureType featureType = featureType();
         assertBusy(() -> {
             boolean present = client().admin()
                 .cluster()
@@ -533,7 +514,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
             TimeUnit.SECONDS
         );
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        FeatureType featureType = featureType();
         createRule(ruleId, "nested rule", indexName, featureType, workloadGroupId);
 
         indexDocument(indexName);
