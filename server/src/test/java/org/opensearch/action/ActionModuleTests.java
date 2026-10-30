@@ -72,6 +72,8 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
@@ -270,6 +272,118 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 })
             );
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_dummy] for method: GET"));
+        } finally {
+            threadPool.shutdown();
+        }
+    }
+
+    public void testGetPluginActionPrefixesIsEmptyWithNoPlugins() throws IOException {
+        SettingsModule settings = new SettingsModule(Settings.EMPTY);
+        ActionModule actionModule = new ActionModule(
+            settings.getSettings(),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            settings.getIndexScopedSettings(),
+            settings.getClusterSettings(),
+            settings.getSettingsFilter(),
+            null,
+            emptyList(),
+            null,
+            null,
+            new UsageService(),
+            null,
+            new IdentityService(Settings.EMPTY, mock(ThreadPool.class), new ArrayList<>()),
+            new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of()))
+        );
+        assertThat(actionModule.getPluginActionPrefixes(), empty());
+    }
+
+    public void testGetPluginActionPrefixesExtractsNovelPrefix() throws IOException {
+        class FakeRequest extends ActionRequest {
+            @Override
+            public ActionRequestValidationException validate() {
+                return null;
+            }
+        }
+        class FakeTransportAction extends TransportAction<FakeRequest, ActionResponse> {
+            protected FakeTransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
+                super(actionName, actionFilters, taskManager);
+            }
+
+            @Override
+            protected void doExecute(Task task, FakeRequest request, ActionListener<ActionResponse> listener) {}
+        }
+        ActionPlugin pluginWithNovelPrefix = new ActionPlugin() {
+            @Override
+            public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+                return singletonList(new ActionHandler<>(new ActionType<ActionResponse>("report_definition:data/read/get", null) {
+                }, FakeTransportAction.class));
+            }
+        };
+        SettingsModule settings = new SettingsModule(Settings.EMPTY);
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            ActionModule actionModule = new ActionModule(
+                settings.getSettings(),
+                new IndexNameExpressionResolver(threadPool.getThreadContext()),
+                settings.getIndexScopedSettings(),
+                settings.getClusterSettings(),
+                settings.getSettingsFilter(),
+                threadPool,
+                singletonList(pluginWithNovelPrefix),
+                null,
+                null,
+                new UsageService(),
+                null,
+                new IdentityService(Settings.EMPTY, mock(ThreadPool.class), new ArrayList<>()),
+                new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of()))
+            );
+            assertThat(actionModule.getPluginActionPrefixes(), containsInAnyOrder("report_definition"));
+        } finally {
+            threadPool.shutdown();
+        }
+    }
+
+    public void testGetPluginActionPrefixesExcludesKnownPrefixes() throws IOException {
+        class FakeRequest extends ActionRequest {
+            @Override
+            public ActionRequestValidationException validate() {
+                return null;
+            }
+        }
+        class FakeTransportAction extends TransportAction<FakeRequest, ActionResponse> {
+            protected FakeTransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
+                super(actionName, actionFilters, taskManager);
+            }
+
+            @Override
+            protected void doExecute(Task task, FakeRequest request, ActionListener<ActionResponse> listener) {}
+        }
+        ActionPlugin pluginWithKnownPrefix = new ActionPlugin() {
+            @Override
+            public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+                return singletonList(new ActionHandler<>(new ActionType<ActionResponse>("indices:data/read/custom", null) {
+                }, FakeTransportAction.class));
+            }
+        };
+        SettingsModule settings = new SettingsModule(Settings.EMPTY);
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            ActionModule actionModule = new ActionModule(
+                settings.getSettings(),
+                new IndexNameExpressionResolver(threadPool.getThreadContext()),
+                settings.getIndexScopedSettings(),
+                settings.getClusterSettings(),
+                settings.getSettingsFilter(),
+                threadPool,
+                singletonList(pluginWithKnownPrefix),
+                null,
+                null,
+                new UsageService(),
+                null,
+                new IdentityService(Settings.EMPTY, mock(ThreadPool.class), new ArrayList<>()),
+                new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of()))
+            );
+            assertThat(actionModule.getPluginActionPrefixes(), empty());
         } finally {
             threadPool.shutdown();
         }
