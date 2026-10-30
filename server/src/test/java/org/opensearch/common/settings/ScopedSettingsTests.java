@@ -893,6 +893,37 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         assertThat(diff.getAsInt(dependentSettingName, null), equalTo(11));
     }
 
+    public void testGetMatchingReturnsConcreteKeysOnly() {
+        Setting<Integer> fooBarBaz = Setting.intSetting("foo.bar.baz", 1, Property.NodeScope);
+        Setting<Integer> fooBar = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Integer> fooOther = Setting.intSetting("foo.other", 1, Property.NodeScope);
+        Setting<List<String>> fooList = Setting.listSetting("foo.list", List.of("a"), Function.identity(), Property.NodeScope);
+        Setting<Integer> bar = Setting.intSetting("bar.baz", 1, Property.NodeScope);
+        Setting<Settings> fooGroup = Setting.groupSetting("foo.group.", Property.Dynamic, Property.NodeScope);
+        Setting<Boolean> fooAffix = Setting.affixKeySetting(
+            "foo.prefix.",
+            "enabled",
+            (key) -> Setting.boolSetting(key, true, Property.NodeScope)
+        );
+        ClusterSettings settings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(Arrays.asList(fooBar, fooBarBaz, fooOther, fooList, bar, fooGroup, fooAffix))
+        );
+        // A trailing wildcard spans dots, so every depth under the prefix is returned. A list setting is stored with the
+        // templates because it also accepts the legacy foo.list.0 form, but its declared key is concrete and is returned.
+        assertEquals(Set.of("foo.bar", "foo.bar.baz", "foo.other", "foo.list"), keysOf(settings.getMatching("foo.*")));
+        assertEquals(Set.of("foo.bar", "foo.bar.baz"), keysOf(settings.getMatching("foo.bar*")));
+        assertEquals(Set.of("foo.bar.baz"), keysOf(settings.getMatching("foo.bar.*")));
+        assertEquals(Set.of(), keysOf(settings.getMatching("nothing.*")));
+        // Group and affix templates are registered under foo.* too, but they have no concrete key and are never returned.
+        assertFalse(keysOf(settings.getMatching("foo.*")).contains("foo.group."));
+        assertFalse(keysOf(settings.getMatching("foo.*")).contains("foo.prefix.*.enabled"));
+    }
+
+    private static Set<String> keysOf(Set<Setting<?>> settings) {
+        return settings.stream().map(Setting::getKey).collect(Collectors.toSet());
+    }
+
     public void testDiffWithAffixAndComplexMatcher() {
         Setting<Integer> fooBarBaz = Setting.intSetting("foo.bar.baz", 1, Property.NodeScope);
         Setting<Integer> fooBar = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);

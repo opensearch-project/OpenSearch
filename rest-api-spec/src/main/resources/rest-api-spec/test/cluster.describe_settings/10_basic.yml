@@ -9,13 +9,81 @@
   - match: { settings.indices\.recovery\.max_bytes_per_sec.dynamic: true }
   - match: { settings.cluster\.name.dynamic: false }
   - is_false: settings.unknown\.setting
+  - is_false: next_token
   - length: { settings: 2 }
 ---
-"Reject wildcard names":
+"Reject wildcard shapes other than a trailing prefix":
   - skip:
       version: " - 3.9.99"
-      reason: "Settings description API introduced in 3.10.0"
+      reason: "Prefix wildcards and pagination introduced in 3.10.0"
   - do:
       catch: bad_request
       cluster.describe_settings:
-        settings: "cluster.*"
+        settings: "*"
+  - do:
+      catch: bad_request
+      cluster.describe_settings:
+        settings: "*.enabled"
+  - do:
+      catch: bad_request
+      cluster.describe_settings:
+        settings: "cluster.*.enabled"
+  - do:
+      catch: bad_request
+      cluster.describe_settings:
+        settings: "cluster.?"
+---
+"Expand a prefix":
+  - skip:
+      version: " - 3.9.99"
+      reason: "Prefix wildcards and pagination introduced in 3.10.0"
+  - do:
+      cluster.describe_settings:
+        settings: "cluster.routing.allocation.disk.watermark.*"
+  - match: { settings.cluster\.routing\.allocation\.disk\.watermark\.low.dynamic: true }
+  - match: { settings.cluster\.routing\.allocation\.disk\.watermark\.high.dynamic: true }
+  - match: { settings.cluster\.routing\.allocation\.disk\.watermark\.flood_stage.dynamic: true }
+  - is_false: next_token
+---
+"Page through a prefix":
+  - skip:
+      version: " - 3.9.99"
+      reason: "Prefix wildcards and pagination introduced in 3.10.0"
+  - do:
+      cluster.describe_settings:
+        settings: "cluster.routing.allocation.disk.watermark.*"
+        size: 2
+  - length: { settings: 2 }
+  - is_true: next_token
+  - set: { next_token: token }
+  - do:
+      cluster.describe_settings:
+        settings: "cluster.routing.allocation.disk.watermark.*"
+        size: 2
+        next_token: $token
+  - is_true: settings
+---
+"Reject invalid page parameters":
+  - skip:
+      version: " - 3.9.99"
+      reason: "Prefix wildcards and pagination introduced in 3.10.0"
+  - do:
+      catch: bad_request
+      cluster.describe_settings:
+        settings: "cluster.name"
+        size: 0
+  - do:
+      catch: bad_request
+      cluster.describe_settings:
+        settings: "cluster.name"
+        size: 1001
+  - do:
+      catch: bad_request
+      cluster.describe_settings:
+        settings: "cluster.name"
+        sort: "up"
+  - do:
+      catch: bad_request
+      cluster.describe_settings:
+        settings: "cluster.name"
+        next_token: "not a token"
