@@ -263,7 +263,9 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
     }
 
     /**
-     * Zero replicas: the object store is the only witness, so every acknowledged write must advance the CAS chain.
+     * Zero replicas: the object store is the only witness, so every acknowledged write is gated by the fence. The gate is
+     * a read: once the translog instance has claimed the chain, acknowledged writes must leave the fence object as it
+     * is, because a write per acknowledgement is what GCS throttles to about one per second per object.
      */
     public void testFenceIsExercisedWithZeroReplicas() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
@@ -280,18 +282,16 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
         assertEquals("fence term should be the primary term", primary.getOperationPrimaryTerm(), bootstrapped.term);
         assertThat(bootstrapped.seq, greaterThanOrEqualTo(0L));
 
-        // Each acknowledged write advances the chain. The exact delta is not asserted: background syncs may also
-        // upload, and the guarantee being verified is that the chain moves forward, never that it moves by one.
-        Fence previous = bootstrapped;
+        // The first acknowledged write already passed through the translog instance's claim, so from here on the
+        // chain only changes on ownership events. Acknowledged writes check it without writing it.
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             indexSingleDoc(INDEX_NAME);
-            Fence current = readFence(fenceDir);
-            assertThat("fence did not advance after an acknowledged write", current.seq, greaterThan(previous.seq));
-            assertEquals(previous.nodeId, current.nodeId);
-            assertEquals(previous.allocationId, current.allocationId);
-            assertEquals(previous.term, current.term);
-            previous = current;
+            assertFenceUnchanged("an acknowledged write rewrote the fence", bootstrapped, readFence(fenceDir));
         }
+    }
+
+    private static void assertFenceUnchanged(String message, Fence expected, Fence actual) {
+        assertEquals(message + ": " + expected + " -> " + actual, expected.toString(), actual.toString());
     }
 
     /**
@@ -335,7 +335,8 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
 
     /**
      * One or more replicas: fencing takes replicas off the primary term validation path, but segment replication and
-     * replica bookkeeping must be unaffected, and the fence must still advance on every acknowledged write.
+     * replica bookkeeping must be unaffected, and acknowledged writes must still pass through the fence without
+     * writing it.
      */
     public void testFenceIsExercisedWithReplicas() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
@@ -354,6 +355,8 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             indexSingleDoc(INDEX_NAME);
         }
+        // Force an upload so that the translog instance's claim has happened whatever the durability.
+        primary.sync();
         Fence fence = awaitFence(fenceDir);
         assertEquals("fence owner should be the primary's node", nodeId(primaryNode), fence.nodeId);
         assertEquals("fence term should be the primary term", primary.getOperationPrimaryTerm(), fence.term);
@@ -362,7 +365,8 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
             indexSingleDoc(INDEX_NAME);
             numDocs++;
         }
-        assertBusy(() -> assertThat("fence did not advance with replicas present", readFence(fenceDir).seq, greaterThan(fence.seq)));
+        primary.sync();
+        assertFenceUnchanged("an acknowledged upload rewrote the fence with replicas present", fence, readFence(fenceDir));
 
         // Replicas are still fed by segment replication and converge on the same doc count.
         refresh(INDEX_NAME);
@@ -686,7 +690,9 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
 
         // The target acknowledges writes through its own chain, and the source is still intact behind it.
         indexSingleDoc(targetIndex);
-        assertBusy(() -> assertThat(readFence(translogMetadataDirectory(targetIndex)).seq, greaterThan(targetFence.seq)));
+        Fence afterAck = readFence(translogMetadataDirectory(targetIndex));
+        assertEquals(targetFence.indexUUID, afterAck.indexUUID);
+        assertEquals("the target's chain must still be the target's own", targetFence.allocationId, afterAck.allocationId);
         assertEquals(sourceFence.indexUUID, readFence(translogMetadataDirectory(INDEX_NAME)).indexUUID);
 
         assertAcked(client().admin().indices().prepareDelete(targetIndex, INDEX_NAME));

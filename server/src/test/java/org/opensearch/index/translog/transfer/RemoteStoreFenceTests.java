@@ -10,6 +10,7 @@ package org.opensearch.index.translog.transfer;
 
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.core.index.shard.ShardId;
@@ -63,43 +64,126 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         return new RemoteStoreFence(blobContainer, allocationIdOf(ownerNodeId), ownerNodeId, shardId);
     }
 
-    /**
-     * A conditional write whose response is lost must not fence a healthy primary.
-     * <p>
-     * The write lands, the response does not, so this copy still holds the previous token. Retrying would fail its
-     * If-Match for exactly the same reason a genuinely fenced writer's would, and the copy would fail its shard on a
-     * network blip. The ambiguity is resolved by identity: the object records the writing copy and its seq, so a blob
-     * carrying ours at the seq we attempted can only be the write we just issued.
-     */
-    public void testLostResponseOnTheAckCasDoesNotFenceAHealthyPrimary() throws IOException {
-        final long term = 7;
-        final AtomicBoolean swallowNextResponse = new AtomicBoolean();
+    /** Counts fence reads and writes, and can fail the next one before it reaches the store. */
+    private static class InstrumentedContainer extends FsBlobContainer {
+        final AtomicInteger conditionalWrites = new AtomicInteger();
+        final AtomicInteger versionedReads = new AtomicInteger();
+        final AtomicBoolean failNextWriteBeforeItLands = new AtomicBoolean();
+        final AtomicBoolean failNextRead = new AtomicBoolean();
 
-        final FsBlobContainer losingResponses = new FsBlobContainer(blobStore, BlobPath.cleanPath(), repoPath) {
-            @Override
-            public String writeBlobConditionally(String blobName, java.io.InputStream in, long size, String expectedToken)
-                throws IOException {
-                final String token = super.writeBlobConditionally(blobName, in, size, expectedToken);
-                if (swallowNextResponse.compareAndSet(true, false)) {
-                    // Landed server-side; the caller never learns the new token.
-                    throw new IOException("connection reset before the response was read");
-                }
-                return token;
+        InstrumentedContainer(FsBlobStore blobStore, Path repoPath) {
+            super(blobStore, BlobPath.cleanPath(), repoPath);
+        }
+
+        @Override
+        public String writeBlobConditionally(String blobName, java.io.InputStream in, long size, String expectedToken) throws IOException {
+            if (failNextWriteBeforeItLands.compareAndSet(true, false)) {
+                throw new IOException("connection refused before the request was sent");
             }
-        };
+            conditionalWrites.incrementAndGet();
+            return super.writeBlobConditionally(blobName, in, size, expectedToken);
+        }
 
-        final RemoteStoreFence fence = new RemoteStoreFence(losingResponses, allocationIdOf("node-1"), "node-1", shardId);
-        fence.validateAndAdvance(term);
-        final long seqBeforeLoss = fence.getSeq();
+        @Override
+        public VersionedBlob readBlobWithVersion(String blobName) throws IOException {
+            if (failNextRead.compareAndSet(true, false)) {
+                throw new IOException("connection reset during a fence read");
+            }
+            versionedReads.incrementAndGet();
+            return super.readBlobWithVersion(blobName);
+        }
+    }
 
-        // The next advance lands but its response is lost. It must be reported as retryable, not as fencing.
-        swallowNextResponse.set(true);
-        fence.validateAndAdvance(term);
-        assertEquals("the landed write should have been adopted", seqBeforeLoss + 1, fence.getSeq());
+    /**
+     * The point of the read-based ownership check: once a copy has claimed its chain, acknowledging writes nothing.
+     * Stores can throttle updates to one object name - GCS allows about one per second - and a write per upload capped
+     * every fenced shard's translog syncs at that rate.
+     */
+    public void testSteadyStateAcksReadTheFenceWithoutWritingIt() throws IOException {
+        final InstrumentedContainer container = new InstrumentedContainer(blobStore, repoPath);
+        final RemoteStoreFence fence = new RemoteStoreFence(container, allocationIdOf("node-1"), "node-1", shardId);
+        fence.validateAndAdvance(1);
+        final VersionedBlob claimed = container.readBlobWithVersion(RemoteStoreFence.fenceBlobName(1));
+        final int writesAfterClaim = container.conditionalWrites.get();
+        final int readsAfterClaim = container.versionedReads.get();
 
-        // And the chain must still be usable afterwards - a stale token here would surface as a spurious fencing.
-        fence.validateAndAdvance(term);
-        assertEquals(seqBeforeLoss + 2, fence.getSeq());
+        final int acks = randomIntBetween(1, 20);
+        for (int i = 0; i < acks; i++) {
+            fence.validateAndAdvance(1);
+        }
+
+        assertEquals("an acknowledgement must not write the fence", writesAfterClaim, container.conditionalWrites.get());
+        assertEquals("each acknowledgement reads the fence exactly once", readsAfterClaim + acks, container.versionedReads.get());
+        assertEquals(0, fence.getSeq());
+        assertEquals(
+            "the object must be exactly as the claim left it",
+            claimed.versionToken(),
+            blobContainer.readBlobWithVersion(RemoteStoreFence.fenceBlobName(1)).versionToken()
+        );
+    }
+
+    /** A failed ownership read is not a verdict: nothing is acknowledged, nothing is fenced, and the next upload retries. */
+    public void testFailedOwnershipReadIsRetryableNotFencing() throws IOException {
+        final InstrumentedContainer container = new InstrumentedContainer(blobStore, repoPath);
+        final RemoteStoreFence fence = new RemoteStoreFence(container, allocationIdOf("node-1"), "node-1", shardId);
+        fence.validateAndAdvance(1);
+
+        container.failNextRead.set(true);
+        final IOException e = expectThrows(IOException.class, () -> fence.validateAndAdvance(1));
+        assertFalse("a transient read failure must not fence the shard", e instanceof TranslogFencedException);
+
+        fence.validateAndAdvance(1);
+    }
+
+    /**
+     * A revert that fails without landing leaves the source serving on an object that still records the TARGET. Its
+     * token still matches, so a plain read would pass - but the target is then authorized to adopt the chain and serve
+     * from a primary context that lacks whatever the source acknowledges next. So the source's first acknowledgement
+     * writes its own ownership back, which shuts the target out. Relaxed to a read, {@code FenceHandoff.tla} finds the
+     * acked-write loss.
+     */
+    public void testFirstAckAfterAnUnresolvedRevertReclaimsTheChain() throws IOException {
+        final InstrumentedContainer container = new InstrumentedContainer(blobStore, repoPath);
+        final RemoteStoreFence source = new RemoteStoreFence(container, allocationIdOf("node-source"), "node-source", shardId);
+        source.validateAndAdvance(1);
+        source.transferOwnershipTo(1, allocationIdOf("node-target"));
+
+        container.failNextWriteBeforeItLands.set(true);
+        expectThrows(IOException.class, () -> source.revertOwnership(1));
+
+        final int writesBefore = container.conditionalWrites.get();
+        source.validateAndAdvance(1);
+        assertEquals(
+            "the first ack after an unreclaimed transfer must write the chain back",
+            writesBefore + 1,
+            container.conditionalWrites.get()
+        );
+        assertEquals(
+            allocationIdOf("node-source"),
+            RemoteStoreFence.FenceState.parse(blobContainer.readBlobWithVersion(RemoteStoreFence.fenceBlobName(1)).content()).allocationId
+        );
+
+        // The target is shut out, and the source is back to read-only acknowledgements.
+        expectThrows(TranslogFencedException.class, () -> newRelocationTarget("node-target").validateAndAdvance(1));
+        source.validateAndAdvance(1);
+        assertEquals(writesBefore + 1, container.conditionalWrites.get());
+    }
+
+    /** The other outcome of the same race: a target that adopted first owns the chain, and the source stands down. */
+    public void testFirstAckAfterAnUnresolvedRevertIsFencedIfTheTargetAdoptedFirst() throws IOException {
+        final InstrumentedContainer container = new InstrumentedContainer(blobStore, repoPath);
+        final RemoteStoreFence source = new RemoteStoreFence(container, allocationIdOf("node-source"), "node-source", shardId);
+        source.validateAndAdvance(1);
+        source.transferOwnershipTo(1, allocationIdOf("node-target"));
+
+        container.failNextWriteBeforeItLands.set(true);
+        expectThrows(IOException.class, () -> source.revertOwnership(1));
+
+        final RemoteStoreFence target = newRelocationTarget("node-target");
+        target.validateAndAdvance(1);
+
+        expectThrows(TranslogFencedException.class, () -> source.validateAndAdvance(1));
+        target.validateAndAdvance(1);
     }
 
     /**
@@ -154,12 +238,12 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         assertTrue(blobContainer.blobExists(RemoteStoreFence.fenceBlobName(1)));
     }
 
-    public void testAdvanceIncrementsSeq() throws IOException {
+    public void testAcksDoNotAdvanceSeq() throws IOException {
         RemoteStoreFence fence = newFence("node-1");
         fence.validateAndAdvance(1);
         fence.validateAndAdvance(1);
         fence.validateAndAdvance(1);
-        assertEquals(2, fence.getSeq());
+        assertEquals(0, fence.getSeq());
     }
 
     public void testTermBumpSealsOverOldOwner() throws IOException {
@@ -212,12 +296,11 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         oldPrimary.validateAndAdvance(1);
         RemoteStoreFence newPrimary = newFence("node-new");
         newPrimary.validateAndAdvance(2);
-        // Even if the stale primary claims a higher local term, its CAS token is stale
+        // The stale primary's path is gone, so its ownership read fails
         expectThrows(TranslogFencedException.class, () -> oldPrimary.validateAndAdvance(1));
-        // And the new primary continues on its chain
+        // And the new primary continues on its chain, which acknowledgements read without advancing.
         newPrimary.validateAndAdvance(2);
-        // Each term's chain starts at seq 0, so one advance after claiming leaves seq 1.
-        assertEquals(1, newPrimary.getSeq());
+        assertEquals(0, newPrimary.getSeq());
     }
 
     /**

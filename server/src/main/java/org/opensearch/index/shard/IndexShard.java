@@ -1252,7 +1252,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Whether a strictly higher primary term has taken the remote store fence, i.e. this copy has been superseded.
      * <p>
      * Gates operations that mutate shared remote state without being on the acknowledgement path - publishing segment
-     * metadata, and garbage collection. Those are not covered by the fence CAS, which sits on the translog upload, yet a
+     * metadata, and garbage collection. Those are not covered by the fence check, which sits on the translog upload, yet a
      * superseded copy performing either can break a legitimate owner: an unfenced segment metadata publish moves the
      * reference set that garbage collection prunes to, so the owner's own collection then deletes files it is still
      * hydrating. {@code FenceSegmentFlow.tla} measures each gate: either one alone suffices to hold
@@ -1313,7 +1313,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } else {
                 // The target took the chain up, so the handoff effectively completed even though this copy saw it fail.
                 // The cluster will otherwise keep this copy as primary on the rethrown failure, and it would serve
-                // until its next upload lost the CAS - so fail it here instead of leaving it to discover that on the
+                // until its next upload failed the fence check - so fail it here instead of leaving it to discover that on the
                 // write path. Standing down is not optional: the target owns the chain now.
                 final String reason = "relocation handoff completed at the target, which now owns the remote store fence";
                 logger.warn("{}; failing this copy", reason);
