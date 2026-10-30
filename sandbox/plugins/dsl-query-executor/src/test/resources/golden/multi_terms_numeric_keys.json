@@ -1,0 +1,53 @@
+{
+  "testName": "multi_terms_numeric_keys",
+  "indexName": "test-index",
+  "indexMapping": {
+    "brand": "VARCHAR",
+    "count_i": "INTEGER",
+    "rating": "DOUBLE"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "combo": {
+        "multi_terms": {
+          "terms": [
+            { "field": "brand" },
+            { "field": "count_i" },
+            { "field": "rating" }
+          ]
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalSort(sort0=[$3], sort1=[$0], sort2=[$1], sort3=[$2], dir0=[DESC], dir1=[ASC], dir2=[ASC], dir3=[ASC])",
+    "  LogicalAggregate(group=[{0, 1, 2}], _count=[COUNT()])",
+    "    LogicalFilter(condition=[AND(IS NOT NULL($0), IS NOT NULL($1), IS NOT NULL($2))])",
+    "      LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["brand", "count_i", "rating", "_count"],
+  "mockResultRows": [
+    ["BrandA", 42, 3.5, 5],
+    ["BrandB", 7, 1.25, 3]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": { "value": 0, "relation": "eq" },
+      "max_score": null,
+      "hits": []
+    },
+    "aggregations": {
+      "combo": {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": [
+          { "key": ["BrandA", 42, 3.5], "key_as_string": "BrandA|42|3.5", "doc_count": 5 },
+          { "key": ["BrandB", 7, 1.25], "key_as_string": "BrandB|7|1.25", "doc_count": 3 }
+        ]
+      }
+    }
+  }
+}
