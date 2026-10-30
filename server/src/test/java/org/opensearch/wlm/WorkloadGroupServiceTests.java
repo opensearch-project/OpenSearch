@@ -106,26 +106,26 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         mockThreadPool.shutdown();
     }
 
-    public void testIsThrottlingActiveFollowsGroupThrottlingAndWlmMode() {
+    public void testIsSearchAdmissionActiveFollowsWorkloadGroupsAndWlmMode() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
-        assertFalse("no cluster state applied yet", workloadGroupService.isThrottlingActive());
+        assertFalse("no cluster state applied yet", workloadGroupService.isSearchAdmissionActive());
 
         WorkloadGroup unthrottled = throttledGroup("wg-1", Settings.EMPTY);
         WorkloadGroup throttled = throttledGroup("wg-1", Settings.builder().put("node_limit", 1).build());
         applyWorkloadGroups(Map.of(), Map.of("wg-1", unthrottled));
-        assertFalse("no group configures throttling", workloadGroupService.isThrottlingActive());
+        assertTrue("a group without throttling can still reject on resource limits", workloadGroupService.isSearchAdmissionActive());
 
         applyWorkloadGroups(Map.of("wg-1", unthrottled), Map.of("wg-1", throttled));
-        assertTrue(workloadGroupService.isThrottlingActive());
+        assertTrue(workloadGroupService.isSearchAdmissionActive());
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.MONITOR_ONLY);
-        assertFalse("throttling only applies in enabled mode", workloadGroupService.isThrottlingActive());
+        assertFalse("admission only applies in enabled mode", workloadGroupService.isSearchAdmissionActive());
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.DISABLED);
-        assertFalse(workloadGroupService.isThrottlingActive());
+        assertFalse(workloadGroupService.isSearchAdmissionActive());
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
-        assertTrue(workloadGroupService.isThrottlingActive());
+        assertTrue(workloadGroupService.isSearchAdmissionActive());
 
         applyWorkloadGroups(Map.of("wg-1", throttled), Map.of());
-        assertFalse("the throttled group was deleted", workloadGroupService.isThrottlingActive());
+        assertFalse("the last group was deleted", workloadGroupService.isSearchAdmissionActive());
     }
 
     private void applyWorkloadGroups(Map<String, WorkloadGroup> previous, Map<String, WorkloadGroup> current) {
@@ -550,6 +550,13 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
 
         assertEquals(1, workloadGroupState.totalCompletions.count());
 
+        // A task refused by search admission never ran, so it is not a completion.
+        WorkloadGroupTask rejected = new SearchTask(13, "", "", () -> "", null, null);
+        rejected.setWorkloadGroupId(mockThreadPool.getThreadContext());
+        rejected.markAdmissionRejected();
+        workloadGroupService.onTaskCompleted(rejected);
+        assertEquals(1, workloadGroupState.totalCompletions.count());
+
         // test non WorkloadGroupTask
         task = new Task(1, "simple", "test", "mock task", null, null);
         workloadGroupService.onTaskCompleted(task);
@@ -922,7 +929,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     }
 
     // A gate over this service's admission, consulted even though the fixture never applies cluster state (so
-    // isThrottlingActive() stays false).
+    // isSearchAdmissionActive() stays false).
     private SearchExecutionGate activeSearchGate() {
         return new SearchExecutionGate(
             new WorkloadGroupSearchAdmission(workloadGroupService, mockClusterService, Mockito.mock(TaskManager.class))::admit

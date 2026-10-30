@@ -44,6 +44,7 @@ public class WorkloadGroupTask extends CancellableTask {
     private boolean isWorkloadGroupSet = false;
     private volatile String throttlePrincipal;
     private volatile boolean throttleCounted;
+    private volatile boolean admissionRejected;
 
     public WorkloadGroupTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         this(id, type, action, description, parentTaskId, headers, NO_TIMEOUT, System::nanoTime);
@@ -139,6 +140,22 @@ public class WorkloadGroupTask extends CancellableTask {
      */
     public boolean isThrottleCounted() {
         return throttleCounted;
+    }
+
+    /**
+     * Marks this task as refused by search admission (a resource-limit rejection, a throttle 429, or a search-pool
+     * rejection while handing off a shared-tier permit), so it never ran and {@link WorkloadGroupService#onTaskCompleted}
+     * does not count it as a completion.
+     */
+    void markAdmissionRejected() {
+        this.admissionRejected = true;
+    }
+
+    /**
+     * Whether search admission refused this task; see {@link #markAdmissionRejected()}.
+     */
+    boolean isAdmissionRejected() {
+        return admissionRejected;
     }
 
     public long getElapsedTime() {

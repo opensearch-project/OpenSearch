@@ -56,9 +56,9 @@ public class WorkloadManagementTransportInterceptor implements TransportIntercep
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             if (isSearchWorkloadRequest(task)) {
+                // Reject before setWorkloadGroupId so a rejected task is not tagged and thus not counted as a phantom completion.
+                workloadGroupService.rejectIfNeeded(threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER));
                 ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
-                final String workloadGroupId = ((WorkloadGroupTask) (task)).getWorkloadGroupId();
-                workloadGroupService.rejectIfNeeded(workloadGroupId);
             }
             actualHandler.messageReceived(request, channel, task);
         }

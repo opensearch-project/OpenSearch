@@ -8,6 +8,8 @@
 
 package org.opensearch.wlm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.SearchAdmission;
@@ -15,6 +17,7 @@ import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
@@ -22,13 +25,16 @@ import org.opensearch.tasks.TaskManager;
 import java.util.function.BooleanSupplier;
 
 /**
- * Admits searches and scroll pages against workload group throttles, so the search actions depend only on the core
- * {@link SearchAdmission}. Creating a point in time is never throttled. Active only while
- * {@link WorkloadGroupService#isThrottlingActive()}.
+ * Admits searches against workload group resource limits and throttles, and scroll pages against throttles, so the search
+ * actions depend only on the core {@link SearchAdmission}. A search is first rejected if its group breaches a resource
+ * limit, then throttled; creating a point in time is admitted unchecked. Active only while
+ * {@link WorkloadGroupService#isSearchAdmissionActive()}.
  *
  * @opensearch.internal
  */
 public final class WorkloadGroupSearchAdmission implements SearchAdmission {
+
+    private static final Logger logger = LogManager.getLogger(WorkloadGroupSearchAdmission.class);
 
     private final WorkloadGroupService workloadGroupService;
     private final ClusterService clusterService;
@@ -42,27 +48,56 @@ public final class WorkloadGroupSearchAdmission implements SearchAdmission {
 
     @Override
     public boolean isActive() {
-        return workloadGroupService.isThrottlingActive();
+        return workloadGroupService.isSearchAdmissionActive();
     }
 
     @Override
     public void admit(Task task, ActionRequest request, ActionListener<Releasable> listener) {
-        // Creating a point in time is admitted uncharged: it only opens a reader context on each shard and runs no query.
-        // The searches that later use the point in time are throttled.
+        // Creating a point in time is admitted unchecked: it only opens a reader context on each shard and runs no query.
+        // The searches that later use the point in time are checked and throttled.
         if (task instanceof WorkloadGroupTask == false || CreatePitAction.NAME.equals(task.getAction())) {
             listener.onResponse(NOOP_PERMIT);
             return;
         }
-        // The service reports "nothing to charge" as a null permit; the admission contract wants a non-null one.
-        final ActionListener<Releasable> permitListener = ActionListener.delegateFailure(
-            listener,
-            (l, permit) -> l.onResponse(permit == null ? NOOP_PERMIT : permit)
-        );
+        final WorkloadGroupTask workloadGroupTask = (WorkloadGroupTask) task;
+        // A scroll page belongs to a search checked when the scroll began, so only the throttle applies here; its shard
+        // requests are still checked against resource limits by WorkloadManagementTransportInterceptor.
+        if (request instanceof SearchScrollRequest == false) {
+            try {
+                workloadGroupService.rejectIfNeeded(workloadGroupTask.getWorkloadGroupId());
+            } catch (OpenSearchRejectedExecutionException e) {
+                workloadGroupTask.markAdmissionRejected();
+                listener.onFailure(e);
+                return;
+            } catch (Exception e) {
+                // Fail open, like the throttle: an error evaluating resource limits must not fail the search.
+                logger.debug(
+                    () -> "Skipping resource limit check for workload group ["
+                        + workloadGroupTask.getWorkloadGroupId()
+                        + "] due to an error",
+                    e
+                );
+            }
+        }
+        // The service reports "nothing to charge" as a null permit; the admission contract wants a non-null one. Not
+        // ActionListener.wrap: an exception from an admitted request's listener must not mark the task as rejected.
+        final ActionListener<Releasable> permitListener = new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable permit) {
+                listener.onResponse(permit == null ? NOOP_PERMIT : permit);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                workloadGroupTask.markAdmissionRejected();
+                listener.onFailure(e);
+            }
+        };
         // A scroll page is never a nested search, so it never inherits a parent's charge.
         final BooleanSupplier parentAlreadyCounted = request instanceof SearchScrollRequest
             ? () -> false
             : () -> parentAlreadyCounted(task);
-        workloadGroupService.acquireThrottlePermit((WorkloadGroupTask) task, parentAlreadyCounted, permitListener);
+        workloadGroupService.acquireThrottlePermit(workloadGroupTask, parentAlreadyCounted, permitListener);
     }
 
     /**

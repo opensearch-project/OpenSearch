@@ -17,7 +17,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -40,9 +39,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCase {
@@ -80,21 +80,6 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
     public void tearDown() throws Exception {
         super.tearDown();
         testThreadPool.shutdown();
-    }
-
-    public void testRejectionCase() {
-        final String testWorkloadGroupId = "asdgasgkajgkw3141_3rt4t";
-        testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, testWorkloadGroupId);
-        doThrow(OpenSearchRejectedExecutionException.class).when(workloadGroupService).rejectIfNeeded(testWorkloadGroupId);
-        assertThrows(OpenSearchRejectedExecutionException.class, () -> sut.onRequestStart(mockSearchRequestContext));
-    }
-
-    public void testNonRejectionCase() {
-        final String testWorkloadGroupId = "asdgasgkajgkw3141_3rt4t";
-        testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, testWorkloadGroupId);
-        doNothing().when(workloadGroupService).rejectIfNeeded(testWorkloadGroupId);
-
-        sut.onRequestStart(mockSearchRequestContext);
     }
 
     public void testValidWorkloadGroupRequestFailure() throws IOException {
@@ -296,6 +281,15 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
         when(mockClusterService.state()).thenReturn(state);
         when(state.metadata()).thenReturn(metadata);
         when(metadata.workloadGroups()).thenReturn(Collections.emptyMap());
+    }
+
+    public void testRequestStartNeverRejects() {
+        try (ThreadContext.StoredContext ignored = testThreadPool.getThreadContext().stashContext()) {
+            testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, testWorkloadGroupId);
+            sut.onRequestStart(mockSearchRequestContext);
+        }
+        // CompositeListener swallows exceptions from onRequestStart, so a rejection here would only bump the counters.
+        verify(workloadGroupService, never()).rejectIfNeeded(any());
     }
 
     // Tests for applyWorkloadGroupSearchSettings
