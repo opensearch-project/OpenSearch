@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.exec.stage;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 import org.apache.calcite.plan.RelOptCluster;
@@ -25,6 +26,7 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
+import org.opensearch.analytics.planner.dag.InputSinkDecorator;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.spi.ExchangeSink;
@@ -78,6 +80,38 @@ public class LateMaterializationStageExecutionTests extends OpenSearchTestCase {
         assertFalse("LM stage must not close parentSink on K=0; parent stage owns close via onTerminalTransition", parentSink.closed);
     }
 
+    /**
+     * Single-shard QTF: the LM stage's child is the shard fragment, so DAGBuilder installs the
+     * {@code ___ugsi} decorator on the LM stage itself. {@code inputSink} must hand shards the
+     * decorated sink, wrapped around the stage's own child buffer.
+     */
+    public void testInputSink_appliesStageDecorator() {
+        BufferAllocator allocator = mock(BufferAllocator.class);
+        ExchangeSink decorated = new CapturingSink();
+        ExchangeSink[] wrapped = new ExchangeSink[1];
+        BufferAllocator[] usedAllocator = new BufferAllocator[1];
+        InputSinkDecorator decorator = (sink, alloc) -> {
+            wrapped[0] = sink;
+            usedAllocator[0] = alloc;
+            return decorated;
+        };
+        LateMaterializationStageExecution exec = newLmStage(new CapturingSink(), decorator, allocator);
+
+        assertSame(decorated, exec.inputSink(0));
+        assertNotNull("decorator must wrap the LM stage's child buffer", wrapped[0]);
+        assertNotSame(decorated, wrapped[0]);
+        assertSame(allocator, usedAllocator[0]);
+    }
+
+    /** Multi-shard QTF: the reduce stage stamps {@code ___ugsi}; the LM stage returns its buffer undecorated. */
+    public void testInputSink_withoutDecoratorReturnsSameBuffer() {
+        LateMaterializationStageExecution exec = newLmStage(new CapturingSink(), null, mock(BufferAllocator.class));
+        ExchangeSink first = exec.inputSink(0);
+        assertNotNull(first);
+        assertSame("undecorated input sink is the stage's single child buffer", first, exec.inputSink(0));
+        assertFalse(first instanceof CapturingSink);
+    }
+
     // ── Fixture builders ─────────────────────────────────────────────────────
 
     /**
@@ -87,6 +121,10 @@ public class LateMaterializationStageExecutionTests extends OpenSearchTestCase {
      * fires.
      */
     private LateMaterializationStageExecution newLmStage(ExchangeSink parentSink) {
+        return newLmStage(parentSink, null, null);
+    }
+
+    private LateMaterializationStageExecution newLmStage(ExchangeSink parentSink, InputSinkDecorator decorator, BufferAllocator allocator) {
         RelDataType rowType = cluster.getTypeFactory()
             .builder()
             .add(OpenSearchLateMaterialization.ROW_ID_FIELD, cluster.getTypeFactory().createSqlType(SqlTypeName.BIGINT))
@@ -113,12 +151,14 @@ public class LateMaterializationStageExecutionTests extends OpenSearchTestCase {
         Stage stage = mock(Stage.class);
         when(stage.getStageId()).thenReturn(2);
         when(stage.getFragment()).thenReturn((RelNode) wrapper);
+        when(stage.getInputSinkDecorator()).thenReturn(decorator);
 
         QueryContext config = mock(QueryContext.class);
         when(config.queryId()).thenReturn("test-query");
         when(config.operationListeners()).thenReturn(List.of());
         when(config.parentTask()).thenReturn(mock(AnalyticsQueryTask.class));
         when(config.localTaskExecutor()).thenReturn(inlineExecutor());
+        when(config.bufferAllocator()).thenReturn(allocator);
 
         return new LateMaterializationStageExecution(
             stage,
