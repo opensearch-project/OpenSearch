@@ -42,6 +42,7 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Lock;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
@@ -83,6 +84,7 @@ import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.shard.IllegalIndexShardStateException;
 import org.opensearch.index.shard.IndexShard;
@@ -120,6 +122,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -1011,4 +1014,40 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
             indicesService.setSearchStatsContributors(Collections.emptyList());
         }
     }
+
+    public void testAliasFilterTakesTheStrongestEnforcementOfItsAliases() {
+        createIndex("enforcement_idx");
+        client().admin()
+            .indices()
+            .prepareAliases()
+            .addAliasAction(AliasActions.add().index("enforcement_idx").alias("post").filter(QueryBuilders.termQuery("f", "a")))
+            .addAliasAction(
+                AliasActions.add().index("enforcement_idx").alias("pre").filter(QueryBuilders.termQuery("f", "b")).enforcement("pre_filter")
+            )
+            .addAliasAction(
+                AliasActions.add()
+                    .index("enforcement_idx")
+                    .alias("stats")
+                    .filter(QueryBuilders.termQuery("f", "c"))
+                    .enforcement("filtered_stats")
+            )
+            .get();
+        IndicesService indicesService = getIndicesService();
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+
+        assertSame(
+            AliasFilter.Enforcement.POST_FILTER,
+            indicesService.buildAliasFilter(state, "enforcement_idx", Set.of("post")).getEnforcement()
+        );
+        assertSame(
+            AliasFilter.Enforcement.PRE_FILTER,
+            indicesService.buildAliasFilter(state, "enforcement_idx", Set.of("post", "pre")).getEnforcement()
+        );
+        // filtered_stats outranks pre_filter: a request reaching both must not score over documents either excludes.
+        assertSame(
+            AliasFilter.Enforcement.FILTERED_STATS,
+            indicesService.buildAliasFilter(state, "enforcement_idx", Set.of("post", "pre", "stats")).getEnforcement()
+        );
+    }
+
 }

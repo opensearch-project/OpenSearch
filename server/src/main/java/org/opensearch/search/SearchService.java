@@ -781,6 +781,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, true)
         ) {
+            context.indexShard().getSearchOperationListener().onPreDfsPhase(context);
             dfsPhase.execute(context);
             return context.dfsResult();
         } catch (Exception e) {

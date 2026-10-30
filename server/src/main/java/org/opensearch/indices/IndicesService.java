@@ -53,6 +53,7 @@ import org.opensearch.action.admin.indices.stats.StatusCounterStats;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -2345,7 +2346,28 @@ public class IndicesService extends AbstractLifecycleComponent
         };
         IndexMetadata indexMetadata = state.metadata().index(index);
         String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions);
-        return new AliasFilter(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
+        // Determine the enforcement mode for the resolved aliases. If any alias in the set opts into
+        // pre-filtering, the whole filter is applied before scoring so BM25 statistics reflect only the visible subset.
+        // The strongest mode any alias in the set asks for wins, because a request reaching several aliases must not
+        // score over documents that any one of them excludes: filtered_stats outranks pre_filter, which outranks the
+        // historical post_filter.
+        AliasFilter.Enforcement enforcement = AliasFilter.Enforcement.POST_FILTER;
+        if (aliases != null && indexMetadata != null) {
+            for (String alias : aliases) {
+                AliasMetadata aliasMetadata = indexMetadata.getAliases().get(alias);
+                if (aliasMetadata == null) {
+                    continue;
+                }
+                if (AliasFilter.Enforcement.FILTERED_STATS.value().equals(aliasMetadata.enforcement())) {
+                    enforcement = AliasFilter.Enforcement.FILTERED_STATS;
+                    break;
+                }
+                if (AliasFilter.Enforcement.PRE_FILTER.value().equals(aliasMetadata.enforcement())) {
+                    enforcement = AliasFilter.Enforcement.PRE_FILTER;
+                }
+            }
+        }
+        return new AliasFilter(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), enforcement, aliases);
     }
 
     /**
