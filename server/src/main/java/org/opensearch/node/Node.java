@@ -45,6 +45,8 @@ import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
+import org.opensearch.action.search.SearchCancelAfterTimeIntervalResolver;
+import org.opensearch.action.search.SearchExecutionGate;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.SearchRequestOperationsCompositeListenerFactory;
@@ -322,7 +324,10 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
 import org.opensearch.watcher.ResourceWatcherService;
+import org.opensearch.wlm.WorkloadGroupSearchAdmission;
+import org.opensearch.wlm.WorkloadGroupSearchCancelAfterTimeIntervalResolver;
 import org.opensearch.wlm.WorkloadGroupService;
+import org.opensearch.wlm.WorkloadGroupSharedThrottleService;
 import org.opensearch.wlm.WorkloadGroupsStateAccessor;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.opensearch.wlm.WorkloadManagementTransportInterceptor;
@@ -1312,6 +1317,9 @@ public class Node implements Closeable {
                 workloadGroupService,
                 threadPool
             );
+            // Applies a workload group's search.cancel_after_time_interval; the search actions depend only on the core interface.
+            final SearchCancelAfterTimeIntervalResolver searchCancelAfterTimeIntervalResolver =
+                new WorkloadGroupSearchCancelAfterTimeIntervalResolver(workloadGroupService);
 
             // register all standard SearchRequestOperationsCompositeListenerFactory to the SearchRequestOperationsCompositeListenerFactory
             final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =
@@ -1489,6 +1497,20 @@ public class Node implements Closeable {
                     )
                 )
                 : Optional.empty();
+
+            // Cluster-level (shared_limit) WLM throttle tier. Built here because it needs the transport service for
+            // the owner round-trip; late-bound into the WorkloadGroupService (constructed earlier) so the two-tier
+            // WorkloadGroupService#acquireThrottlePermit path can reach it.
+            final WorkloadGroupSharedThrottleService workloadGroupSharedThrottleService = new WorkloadGroupSharedThrottleService(
+                clusterService,
+                threadPool,
+                transportService
+            );
+            workloadGroupService.setSharedThrottleService(workloadGroupSharedThrottleService);
+            // Admits searches and scroll pages against WLM throttles; the search actions depend only on the core interface.
+            final SearchExecutionGate searchExecutionGate = new SearchExecutionGate(
+                new WorkloadGroupSearchAdmission(workloadGroupService, clusterService, transportService.getTaskManager())
+            );
 
             TopNSearchTasksLogger taskConsumer = new TopNSearchTasksLogger(settings, settingsModule.getClusterSettings());
             transportService.getTaskManager().registerTaskResourceConsumer(taskConsumer);
@@ -1771,6 +1793,9 @@ public class Node implements Closeable {
                 b.bind(TaskResourceTrackingService.class).toInstance(taskResourceTrackingService);
                 b.bind(SearchBackpressureService.class).toInstance(searchBackpressureService);
                 b.bind(WorkloadGroupService.class).toInstance(workloadGroupService);
+                b.bind(WorkloadGroupSharedThrottleService.class).toInstance(workloadGroupSharedThrottleService);
+                b.bind(SearchExecutionGate.class).toInstance(searchExecutionGate);
+                b.bind(SearchCancelAfterTimeIntervalResolver.class).toInstance(searchCancelAfterTimeIntervalResolver);
                 b.bind(AdmissionControlService.class).toInstance(admissionControlService);
                 b.bind(UsageService.class).toInstance(usageService);
                 b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
@@ -2031,6 +2056,7 @@ public class Node implements Closeable {
         nodeService.getSearchBackpressureService().start();
         nodeService.getTaskCancellationMonitoringService().start();
         injector.getInstance(WorkloadGroupService.class).start();
+        injector.getInstance(WorkloadGroupSharedThrottleService.class).start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
 
@@ -2221,6 +2247,7 @@ public class Node implements Closeable {
         injector.getInstance(NodeResourceUsageTracker.class).stop();
         injector.getInstance(ResourceUsageCollectorService.class).stop();
         injector.getInstance(WorkloadGroupService.class).stop();
+        injector.getInstance(WorkloadGroupSharedThrottleService.class).stop();
         nodeService.getMonitorService().stop();
         nodeService.getSearchBackpressureService().stop();
         injector.getInstance(GatewayService.class).stop();

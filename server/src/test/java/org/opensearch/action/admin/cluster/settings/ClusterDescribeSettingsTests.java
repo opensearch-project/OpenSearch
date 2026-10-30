@@ -9,6 +9,7 @@
 package org.opensearch.action.admin.cluster.settings;
 
 import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsResponse.SettingMetadata;
+import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsResponse.SettingValidation;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.SecureSetting;
@@ -17,6 +18,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchTestCase;
@@ -57,11 +59,11 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
         assertEquals(
             Map.of(
                 "plugin.dynamic",
-                SettingMetadata.withDefault(true, "false"),
+                SettingMetadata.withDefault(true, "false").withValidation(SettingValidation.ofType("boolean")),
                 "plugin.static",
-                SettingMetadata.withDefault(false, "false"),
+                SettingMetadata.withDefault(false, "false").withValidation(SettingValidation.ofType("boolean")),
                 "plugin.remote.analytics.enabled",
-                SettingMetadata.withDefault(true, "false")
+                SettingMetadata.withDefault(true, "false").withValidation(SettingValidation.ofType("boolean"))
             ),
             response.settings()
         );
@@ -86,13 +88,273 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
         assertEquals(
             Map.of(
                 "plugin.count",
-                SettingMetadata.withDefault(true, "1000"),
+                SettingMetadata.withDefault(true, "1000").withValidation(SettingValidation.of("integer", "1", null)),
                 "plugin.size",
-                SettingMetadata.withDefault(false, "41943040b"),
+                SettingMetadata.withDefault(false, "41943040b").withValidation(SettingValidation.ofType("byte_size")),
                 "plugin.interval",
                 SettingMetadata.withDefault(false, "30s"),
                 "plugin.name",
                 SettingMetadata.withDefault(false, "shard-aware")
+            ),
+            response.settings()
+        );
+    }
+
+    public void testValidationOfBoundedParsers() {
+        assertEquals(
+            SettingValidation.of("integer", "1", "10"),
+            TransportClusterDescribeSettingsAction.validationOf(Setting.intSetting("p.int", 5, 1, 10, NodeScope))
+        );
+        assertEquals(
+            SettingValidation.of("long", "2", null),
+            TransportClusterDescribeSettingsAction.validationOf(Setting.longSetting("p.long", 5L, 2L, NodeScope))
+        );
+        assertEquals(
+            SettingValidation.of("float", "0.5", null),
+            TransportClusterDescribeSettingsAction.validationOf(Setting.floatSetting("p.float", 1.5f, 0.5f, NodeScope))
+        );
+        assertEquals(
+            SettingValidation.of("double", "0.5", "2.0"),
+            TransportClusterDescribeSettingsAction.validationOf(Setting.doubleSetting("p.double", 1.5, 0.5, 2.0, NodeScope))
+        );
+        assertEquals(
+            SettingValidation.of("byte_size", "1kb", "1gb"),
+            TransportClusterDescribeSettingsAction.validationOf(
+                Setting.byteSizeSetting(
+                    "p.bytes",
+                    new ByteSizeValue(1, ByteSizeUnit.MB),
+                    new ByteSizeValue(1, ByteSizeUnit.KB),
+                    new ByteSizeValue(1, ByteSizeUnit.GB),
+                    NodeScope
+                )
+            )
+        );
+        // Bytes may be bounded on one side only; -1 bytes is the "no minimum" sentinel.
+        assertEquals(
+            SettingValidation.of("byte_size", null, "1gb"),
+            TransportClusterDescribeSettingsAction.validationOf(
+                Setting.byteSizeSetting(
+                    "p.bytes.max",
+                    new ByteSizeValue(1, ByteSizeUnit.MB),
+                    new ByteSizeValue(-1),
+                    new ByteSizeValue(1, ByteSizeUnit.GB),
+                    NodeScope
+                )
+            )
+        );
+        assertEquals(
+            SettingValidation.of("time", "0ms", null),
+            TransportClusterDescribeSettingsAction.validationOf(
+                Setting.positiveTimeSetting("p.time.min", TimeValue.timeValueSeconds(5), NodeScope)
+            )
+        );
+        assertEquals(
+            SettingValidation.of("time", "1s", "1m"),
+            TransportClusterDescribeSettingsAction.validationOf(
+                Setting.timeSetting(
+                    "p.time.minmax",
+                    TimeValue.timeValueSeconds(5),
+                    TimeValue.timeValueSeconds(1),
+                    TimeValue.timeValueMinutes(1),
+                    NodeScope
+                )
+            )
+        );
+        // A concrete affix key resolves to its delegate's bounded parser.
+        var affix = Setting.affixKeySetting("p.remote.", "count", key -> Setting.intSetting(key, 1, 0, 100, NodeScope));
+        assertEquals(
+            SettingValidation.of("integer", "0", "100"),
+            TransportClusterDescribeSettingsAction.validationOf(affix.getConcreteSettingForNamespace("ns"))
+        );
+    }
+
+    public void testValidationOfReportsTypeWithoutBoundsWhenSentinelsAreUsed() {
+        // The unbounded integer/long factories delegate to the ranged overload with the type's MIN/MAX as sentinels; those
+        // admit every value, so the type is reported but the sentinels are not.
+        assertEquals(
+            SettingValidation.ofType("integer"),
+            TransportClusterDescribeSettingsAction.validationOf(Setting.intSetting("p.int", 5, NodeScope))
+        );
+        assertEquals(
+            SettingValidation.ofType("long"),
+            TransportClusterDescribeSettingsAction.validationOf(Setting.longSetting("p.long", 5L, NodeScope))
+        );
+        // Float.MIN_VALUE and Double.MIN_VALUE are the smallest POSITIVE values, so the "unbounded" float/double factories
+        // actually reject zero and negatives. That lower bound is real and is reported; only MAX_VALUE is suppressed.
+        assertEquals(
+            SettingValidation.of("float", Float.toString(Float.MIN_VALUE), null),
+            TransportClusterDescribeSettingsAction.validationOf(Setting.floatSetting("p.float", 1.5f, NodeScope))
+        );
+        assertEquals(
+            SettingValidation.of("double", Double.toString(Double.MIN_VALUE), null),
+            TransportClusterDescribeSettingsAction.validationOf(Setting.doubleSetting("p.double", 1.5, NodeScope))
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.floatSetting("p.float", 1.5f, NodeScope).get(Settings.builder().put("p.float", "0").build())
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.doubleSetting("p.double", 1.5, NodeScope).get(Settings.builder().put("p.double", "-1").build())
+        );
+        assertEquals(
+            SettingValidation.ofType("byte_size"),
+            TransportClusterDescribeSettingsAction.validationOf(Setting.byteSizeSetting("p.bytes", new ByteSizeValue(1), NodeScope))
+        );
+        // Upper bounds declared on their own are kept.
+        assertEquals(
+            SettingValidation.of("long", null, "9"),
+            TransportClusterDescribeSettingsAction.validationOf(Setting.longSetting("p.long.max", 5L, Long.MIN_VALUE, 9L, NodeScope))
+        );
+        // A float declared with Float.MIN_VALUE as its minimum keeps that (positive) minimum alongside the maximum.
+        assertEquals(
+            SettingValidation.of("float", Float.toString(Float.MIN_VALUE), "9.0"),
+            TransportClusterDescribeSettingsAction.validationOf(Setting.floatSetting("p.float.max", 1.5f, Float.MIN_VALUE, 9.0f, NodeScope))
+        );
+    }
+
+    public void testValidationOfTypeOnlyParsers() {
+        // Boolean settings accept only true/false; the type is the whole constraint.
+        assertEquals(
+            SettingValidation.ofType("boolean"),
+            TransportClusterDescribeSettingsAction.validationOf(Setting.boolSetting("p.bool", false, NodeScope))
+        );
+        assertEquals(
+            SettingValidation.ofType("boolean"),
+            TransportClusterDescribeSettingsAction.validationOf(
+                Setting.boolSetting("p.bool.fallback", Setting.boolSetting("p.bool", false, NodeScope), NodeScope)
+            )
+        );
+        // Memory size accepts an absolute byte size or a percentage of heap; the percentage form is bounded to [0, 100].
+        assertEquals(
+            SettingValidation.of("memory_size", "0%", "100%"),
+            TransportClusterDescribeSettingsAction.validationOf(Setting.memorySizeSetting("p.memory", "50%", NodeScope))
+        );
+        assertEquals(
+            SettingValidation.of("memory_size", "0%", "100%"),
+            TransportClusterDescribeSettingsAction.validationOf(
+                Setting.memorySizeSetting("p.memory.bytes", new ByteSizeValue(1, ByteSizeUnit.GB), NodeScope)
+            )
+        );
+    }
+
+    public void testValidationOfReturnsNullForOpaqueParsers() {
+        // These factories wrap a lambda; neither the type nor any bound can be read from it.
+        assertNull(
+            TransportClusterDescribeSettingsAction.validationOf(Setting.timeSetting("p.time", TimeValue.timeValueSeconds(1), NodeScope))
+        );
+        assertNull(TransportClusterDescribeSettingsAction.validationOf(Setting.simpleString("p.string", NodeScope)));
+        assertNull(
+            TransportClusterDescribeSettingsAction.validationOf(
+                new Setting<>("p.enum", "all", s -> s.toUpperCase(java.util.Locale.ROOT), NodeScope)
+            )
+        );
+        assertNull(TransportClusterDescribeSettingsAction.validationOf(SecureSetting.secureString("p.secret", null)));
+    }
+
+    public void testEveryBuiltInSettingDescribesWithoutError() throws Exception {
+        // Exhaustive guard against null validation or unexpected parser shapes. validationOf runs over every cluster and index
+        // setting core registers; the full describe/render path runs over every cluster setting (index settings
+        // cannot be placed in a ClusterSettings registry). Affix templates are skipped: describe() only sees concrete keys.
+        var all = new java.util.ArrayList<Setting<?>>();
+        all.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        all.addAll(org.opensearch.common.settings.IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        int bounded = 0;
+        for (Setting<?> setting : all) {
+            if (setting instanceof Setting.AffixSetting) {
+                continue;
+            }
+            SettingValidation validation = TransportClusterDescribeSettingsAction.validationOf(setting);
+            if (validation != null) {
+                bounded++;
+                assertNotNull(setting.getKey(), validation.type());
+                // A sentinel leaking through would surface as one of these strings. "-1" is only a sentinel for byte sizes;
+                // time settings legitimately declare -1 ("disabled") as their minimum and must report it.
+                // Integer/long MIN_VALUE and every MAX_VALUE mean "unbounded" and must be suppressed. Float/Double MIN_VALUE
+                // are positive and therefore real bounds; they are allowed to appear (no built-in setting declares them today).
+                for (String sentinel : List.of(
+                    Integer.toString(Integer.MIN_VALUE),
+                    Integer.toString(Integer.MAX_VALUE),
+                    Long.toString(Long.MIN_VALUE),
+                    Long.toString(Long.MAX_VALUE),
+                    Float.toString(Float.MAX_VALUE),
+                    Double.toString(Double.MAX_VALUE)
+                )) {
+                    assertNotEquals(setting.getKey() + " min", sentinel, validation.min());
+                    assertNotEquals(setting.getKey() + " max", sentinel, validation.max());
+                }
+                if ("byte_size".equals(validation.type())) {
+                    assertNotEquals(setting.getKey() + " min", "-1", validation.min());
+                }
+            }
+        }
+        assertTrue("expected some built-in settings to declare bounds, got " + bounded, bounded > 50);
+
+        int described = 0;
+        for (Setting<?> setting : ClusterSettings.BUILT_IN_CLUSTER_SETTINGS) {
+            if (setting instanceof Setting.AffixSetting) {
+                continue;
+            }
+            var registry = new ClusterSettings(Settings.EMPTY, Set.of(setting));
+            var response = describe(registry, NO_FILTER, setting.getKey());
+            assertEquals(setting.getKey(), 1, response.settings().size());
+            assertNotNull(org.opensearch.core.common.Strings.toString(MediaTypeRegistry.JSON, response));
+            described++;
+        }
+        logger.info(
+            "--> validationOf over {} built-in settings ({} with declared bounds); full describe path over {}",
+            all.size(),
+            bounded,
+            described
+        );
+    }
+
+    public void testDescriptionFlowsThroughDescribeAndFilterGate() {
+        var described = Setting.boolSetting("plugin.described", false, Dynamic, NodeScope).withDescription("Enables the plugin.");
+        var bare = Setting.boolSetting("plugin.bare", false, NodeScope);
+        var hidden = Setting.simpleString("plugin.hidden", NodeScope, Filtered).withDescription("Never shown.");
+        // Keystore settings take the early no-default path in metadataOf; their descriptions must still be reported.
+        var secret = SecureSetting.secureString("plugin.password", null).withDescription("Password used to authenticate to the service.");
+        var certificate = SecureSetting.secureFile("plugin.certificate", null).withDescription("Client certificate.");
+        var registry = new ClusterSettings(Settings.EMPTY, Set.of(described, bare, hidden, secret, certificate));
+        var response = describe(
+            registry,
+            NO_FILTER,
+            "plugin.described",
+            "plugin.bare",
+            "plugin.hidden",
+            "plugin.password",
+            "plugin.certificate"
+        );
+        assertEquals(
+            Map.of(
+                "plugin.described",
+                SettingMetadata.withDefault(true, "false")
+                    .withValidation(SettingValidation.ofType("boolean"))
+                    .withDescription("Enables the plugin."),
+                "plugin.bare",
+                SettingMetadata.withDefault(false, "false").withValidation(SettingValidation.ofType("boolean")),
+                "plugin.password",
+                SettingMetadata.withoutDefault(false).withDescription("Password used to authenticate to the service."),
+                "plugin.certificate",
+                SettingMetadata.withoutDefault(false).withDescription("Client certificate.")
+            ),
+            response.settings()
+        );
+    }
+
+    public void testValidationFlowsThroughDescribeAndFilterGate() {
+        var bounded = Setting.intSetting("plugin.bounded", 5, 1, 10, Dynamic, NodeScope);
+        var unbounded = Setting.intSetting("plugin.unbounded", 5, NodeScope);
+        var hidden = Setting.intSetting("plugin.hidden", 5, 1, 10, NodeScope, Filtered);
+        var registry = new ClusterSettings(Settings.EMPTY, Set.of(bounded, unbounded, hidden));
+        var response = describe(registry, NO_FILTER, "plugin.bounded", "plugin.unbounded", "plugin.hidden");
+        assertEquals(
+            Map.of(
+                "plugin.bounded",
+                SettingMetadata.withDefault(true, "5").withValidation(SettingValidation.of("integer", "1", "10")),
+                "plugin.unbounded",
+                SettingMetadata.withDefault(false, "5").withValidation(SettingValidation.ofType("integer"))
             ),
             response.settings()
         );
@@ -139,18 +401,87 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
             }
         }
         var response = new ClusterDescribeSettingsResponse(
-            Map.of("plugin.static", SettingMetadata.withDefault(false, "false"), "plugin.dynamic", SettingMetadata.withoutDefault(true))
+            Map.of(
+                "plugin.static",
+                SettingMetadata.withDefault(false, "false"),
+                "plugin.dynamic",
+                SettingMetadata.withoutDefault(true),
+                "plugin.bounded",
+                SettingMetadata.withDefault(true, "5").withValidation(SettingValidation.of("integer", "1", null)),
+                "plugin.capped",
+                SettingMetadata.withoutDefault(false).withValidation(SettingValidation.of("byte_size", null, "1gb"))
+            )
         );
         // The response is local-only: it is rendered with toXContent on the receiving node and never put on the wire.
         expectThrows(UnsupportedOperationException.class, () -> response.writeTo(new BytesStreamOutput()));
         expectThrows(UnsupportedOperationException.class, () -> new ClusterDescribeSettingsResponse((StreamInput) null));
     }
 
+    public void testValueObjectContracts() {
+        var validation = SettingValidation.of("integer", "1", "10");
+        assertEquals("integer", validation.type());
+        assertEquals("1", validation.min());
+        assertEquals("10", validation.max());
+        assertEquals(validation, SettingValidation.of("integer", "1", "10"));
+        assertEquals(validation.hashCode(), SettingValidation.of("integer", "1", "10").hashCode());
+        assertNotEquals(validation, SettingValidation.of("integer", "1", null));
+        assertNotEquals(validation, SettingValidation.of("long", "1", "10"));
+        assertNotEquals(validation, null);
+        assertNotEquals(validation, "integer");
+        assertEquals("SettingValidation{type=integer, min=1, max=10}", validation.toString());
+
+        var metadata = SettingMetadata.withDefault(true, "5").withValidation(validation);
+        assertTrue(metadata.dynamic());
+        assertEquals("5", metadata.defaultValue());
+        assertEquals(validation, metadata.validation());
+        assertNull(SettingMetadata.withoutDefault(false).defaultValue());
+        assertNull(SettingMetadata.withoutDefault(false).validation());
+        assertEquals(validation, validation);
+        assertEquals(metadata, metadata);
+        assertEquals(SettingValidation.ofType("boolean"), SettingValidation.of("boolean", null, null));
+        assertNull(SettingValidation.ofType("boolean").min());
+        assertNull(SettingValidation.ofType("boolean").max());
+        assertEquals(metadata, SettingMetadata.withDefault(true, "5").withValidation(SettingValidation.of("integer", "1", "10")));
+        assertEquals(metadata.hashCode(), SettingMetadata.withDefault(true, "5").withValidation(validation).hashCode());
+        assertNotEquals(metadata, SettingMetadata.withDefault(true, "5"));
+        assertNotEquals(metadata, SettingMetadata.withDefault(false, "5").withValidation(validation));
+        assertNotEquals(metadata, SettingMetadata.withDefault(true, "6").withValidation(validation));
+        assertNotEquals(metadata, null);
+        assertNotEquals(metadata, validation);
+        assertNull(metadata.description());
+        assertEquals("Text.", metadata.withDescription("Text.").description());
+        assertNotEquals(metadata, metadata.withDescription("Text."));
+        assertEquals(
+            "SettingMetadata{dynamic=true, default=5, validation=SettingValidation{type=integer, min=1, max=10}, description=null}",
+            metadata.toString()
+        );
+        expectThrows(NullPointerException.class, () -> SettingMetadata.withDefault(true, null));
+    }
+
     public void testToXContentOmitsAbsentDefault() throws Exception {
         var response = new ClusterDescribeSettingsResponse(
-            Map.of("plugin.with", SettingMetadata.withDefault(true, "5"), "plugin.without", SettingMetadata.withoutDefault(false))
+            Map.of(
+                "plugin.with",
+                SettingMetadata.withDefault(true, "5"),
+                "plugin.without",
+                SettingMetadata.withoutDefault(false),
+                "plugin.bounded",
+                SettingMetadata.withDefault(true, "5").withValidation(SettingValidation.of("integer", "1", null)),
+                "plugin.flag",
+                SettingMetadata.withDefault(false, "true").withValidation(SettingValidation.ofType("boolean")),
+                "plugin.described",
+                SettingMetadata.withoutDefault(true).withDescription("Described.")
+            )
         );
         String json = org.opensearch.core.common.Strings.toString(MediaTypeRegistry.JSON, response);
-        assertEquals("{\"settings\":{\"plugin.with\":{\"dynamic\":true,\"default\":\"5\"},\"plugin.without\":{\"dynamic\":false}}}", json);
+        assertEquals(
+            "{\"settings\":{"
+                + "\"plugin.bounded\":{\"dynamic\":true,\"default\":\"5\",\"validation\":{\"type\":\"integer\",\"min\":\"1\"}},"
+                + "\"plugin.described\":{\"dynamic\":true,\"description\":\"Described.\"},"
+                + "\"plugin.flag\":{\"dynamic\":false,\"default\":\"true\",\"validation\":{\"type\":\"boolean\"}},"
+                + "\"plugin.with\":{\"dynamic\":true,\"default\":\"5\"},"
+                + "\"plugin.without\":{\"dynamic\":false}}}",
+            json
+        );
     }
 }

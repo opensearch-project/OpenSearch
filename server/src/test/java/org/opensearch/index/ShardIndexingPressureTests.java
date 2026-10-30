@@ -921,6 +921,33 @@ public class ShardIndexingPressureTests extends OpenSearchTestCase {
         assertEquals(10, shardStats.getCurrentPrimaryAndCoordinatingLimits());
     }
 
+    public void testShardLimitIncreaseAfterTrackerRestoredFromColdStoreWithEqualShardIdInstances() {
+        ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
+        Index index = new Index("IndexName", "UUID");
+        // Each operation carries its own ShardId instance, as happens on a primary where every transport request is
+        // deserialized independently. The instances are equal but not identical.
+        long bytes = 2 * 1024;
+
+        // A completed operation moves the tracker from the hot store to the cold store
+        shardIndexingPressure.markPrimaryOperationStarted(new ShardId(index, 0), bytes, false).close();
+        assertNull(shardIndexingPressure.shardStats().getIndexingPressureShardStats(new ShardId(index, 0)));
+
+        // Three concurrent operations on the same shard total 6KB, well within the 10KB node limit, so the shard limit must be
+        // allowed to grow to accommodate them. The first operation restores the tracker into the hot store.
+        try (
+            Releasable primary1 = shardIndexingPressure.markPrimaryOperationStarted(new ShardId(index, 0), bytes, false);
+            Releasable primary2 = shardIndexingPressure.markPrimaryOperationStarted(new ShardId(index, 0), bytes, false);
+            Releasable primary3 = shardIndexingPressure.markPrimaryOperationStarted(new ShardId(index, 0), bytes, false)
+        ) {
+            IndexingPressurePerShardStats shardStats = shardIndexingPressure.shardStats()
+                .getIndexingPressureShardStats(new ShardId(index, 0));
+            assertEquals(3 * bytes, shardStats.getCurrentPrimaryBytes());
+            assertEquals((long) (3 * bytes / 0.85), shardStats.getCurrentPrimaryAndCoordinatingLimits());
+            assertEquals(0, shardStats.getPrimaryNodeLimitsBreachedRejections());
+        }
+        assertEquals(0, shardIndexingPressure.stats().getPrimaryRejections());
+    }
+
     public void testForceExecutionOnCoordinating() {
         ShardIndexingPressure shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
         Index index = new Index("IndexName", "UUID");
