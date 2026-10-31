@@ -59,12 +59,15 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.opensearch.index.mapper.TypeParsers.parseDateTimeFormatter;
@@ -461,7 +464,15 @@ public class RootObjectMapper extends ObjectMapper {
         if (typeParser == null) {
             throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + name + "]");
         }
-        return typeParser.parse(name, dynamicTemplate.mappingForName(name, dynamicType), parserContext);
+        Map<String, Object> mappingConfig = dynamicTemplate.mappingForName(name, dynamicType);
+        Mapper.Builder builder = typeParser.parse(name, mappingConfig, parserContext);
+        // A parser removes each key it consumes, so a leftover multi_value means the type ignored it. This also
+        // covers templates that could not be checked when they were created, such as those using {name}.
+        if (mappingConfig.containsKey(ParametrizedFieldMapper.MULTI_VALUE_PARAMETER)
+            && Mapper.isPluggableDataFormatEnabled(parserContext.getSettings())) {
+            throw multiValueNotSupported(dynamicTemplate.getName(), Set.of(mappingType));
+        }
+        return builder;
     }
 
     public DynamicTemplate findTemplate(ContentPath path, String name, XContentFieldType matchType) {
@@ -682,6 +693,12 @@ public class RootObjectMapper extends ObjectMapper {
 
         Exception lastError = null;
         boolean dynamicTemplateInvalid = true;
+        // On a pluggable data format index, multi_value on a type that does not support it is an error, as in a
+        // static mapping. On other indices multi_value is just an unknown key and keeps the deprecation warning.
+        boolean checkMultiValue = dynamicTemplate.getMapping().containsKey(ParametrizedFieldMapper.MULTI_VALUE_PARAMETER)
+            && Mapper.isPluggableDataFormatEnabled(parserContext.getSettings());
+        boolean multiValueAccepted = false;
+        Set<String> multiValueRejectingTypes = new TreeSet<>();
 
         for (XContentFieldType contentFieldType : types) {
             String defaultDynamicType = contentFieldType.defaultMappingType();
@@ -694,6 +711,13 @@ public class RootObjectMapper extends ObjectMapper {
 
             String templateName = DYNAMIC_TEMPLATE_NAME_PREFIX + dynamicTemplate.name();
             Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName(templateName, defaultDynamicType);
+            if (checkMultiValue) {
+                if (typeAcceptsMultiValue(typeParser, templateName, fieldTypeConfig, parserContext)) {
+                    multiValueAccepted = true;
+                } else {
+                    multiValueRejectingTypes.add(mappingType);
+                }
+            }
             try {
                 Mapper.Builder<?> dummyBuilder = typeParser.parse(templateName, fieldTypeConfig, parserContext);
                 fieldTypeConfig.remove("type");
@@ -709,6 +733,10 @@ public class RootObjectMapper extends ObjectMapper {
             } catch (Exception e) {
                 lastError = e;
             }
+        }
+
+        if (checkMultiValue && multiValueAccepted == false && multiValueRejectingTypes.isEmpty() == false) {
+            throw multiValueNotSupported(dynamicTemplate.getName(), multiValueRejectingTypes);
         }
 
         if (dynamicTemplateInvalid) {
@@ -789,6 +817,42 @@ public class RootObjectMapper extends ObjectMapper {
             return;
         }
         typeParser.parse(templateName, fieldTypeConfig, parserContext);
+    }
+
+    private static MapperParsingException multiValueNotSupported(String templateName, Set<String> types) {
+        return new MapperParsingException(
+            "dynamic template ["
+                + templateName
+                + "] maps to type "
+                + new TreeSet<>(types)
+                + ", which does not support ["
+                + ParametrizedFieldMapper.MULTI_VALUE_PARAMETER
+                + "]"
+        );
+    }
+
+    /**
+     * Parses only {@code type} and {@code multi_value} with the type's own parser. A parser removes each key it
+     * consumes, so the key is left behind when the type does not support it, whether the parser ignores it or
+     * throws on it. Probing alone keeps an unrelated invalid parameter from being reported as a multi_value error.
+     */
+    private static boolean typeAcceptsMultiValue(
+        Mapper.TypeParser typeParser,
+        String templateName,
+        Map<String, Object> fieldTypeConfig,
+        Mapper.TypeParser.ParserContext parserContext
+    ) {
+        Map<String, Object> probe = new HashMap<>();
+        if (fieldTypeConfig.containsKey("type")) {
+            probe.put("type", fieldTypeConfig.get("type"));
+        }
+        probe.put(ParametrizedFieldMapper.MULTI_VALUE_PARAMETER, fieldTypeConfig.get(ParametrizedFieldMapper.MULTI_VALUE_PARAMETER));
+        try {
+            typeParser.parse(templateName, probe, parserContext);
+        } catch (Exception e) {
+            // Only the leftover key decides; e.g. scaled_float consumes multi_value, then fails on its missing scaling_factor.
+        }
+        return probe.containsKey(ParametrizedFieldMapper.MULTI_VALUE_PARAMETER) == false;
     }
 
     private static boolean containsSnippet(Map<?, ?> map, String snippet) {

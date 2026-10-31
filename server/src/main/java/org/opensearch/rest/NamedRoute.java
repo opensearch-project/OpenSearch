@@ -42,6 +42,7 @@ public class NamedRoute extends RestHandler.Route {
         private String path;
         private String uniqueName;
         private final Set<String> legacyActionNames = new HashSet<>();
+        private final Set<Property> properties = new HashSet<>();
         private Function<RestRequest, RestResponse> handler;
 
         /**
@@ -88,6 +89,17 @@ public class NamedRoute extends RestHandler.Route {
          */
         public Builder legacyActionNames(Set<String> legacyActionNames) {
             this.legacyActionNames.addAll(validateLegacyActionNames(legacyActionNames));
+            return this;
+        }
+
+        /**
+         * Sets properties that describe how the route should be handled.
+         *
+         * @param properties the route properties
+         * @return the builder instance
+         */
+        public Builder properties(Property... properties) {
+            this.properties.addAll(Set.of(properties));
             return this;
         }
 
@@ -140,7 +152,7 @@ public class NamedRoute extends RestHandler.Route {
     }
 
     private NamedRoute(Builder builder) {
-        super(builder.method, builder.path);
+        super(builder.method, builder.path, builder.properties.toArray(Property[]::new));
         if (!isValidRouteName(builder.uniqueName)) {
             throw new OpenSearchException(
                 "Invalid route name specified. The route name may include the following characters"

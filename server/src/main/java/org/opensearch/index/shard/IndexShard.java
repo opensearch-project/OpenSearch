@@ -66,6 +66,7 @@ import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngestionState;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.opensearch.action.support.ListenerTimeouts;
 import org.opensearch.action.support.replication.PendingReplicationActions;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.DataStream;
@@ -230,7 +231,6 @@ import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationTimer;
-import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -501,7 +501,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger,
             threadPool,
             this::getIndexer,
-            indexSettings.isAssignedOnRemoteNode(),
+            indexSettings.isTranslogDurableInRemoteStore(),
             () -> getRemoteTranslogUploadBufferInterval(remoteStoreSettings::getClusterRemoteTranslogBufferInterval)
         );
         this.mergedSegmentTransferTracker = new MergedSegmentTransferTracker();
@@ -990,12 +990,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             engine.translogManager().rollTranslogGeneration();
                             engine.fillSeqNoGaps(newPrimaryTerm);
                             replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
-                            primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
+
+                            final TimeValue resyncTimeout = recoverySettings.getPrimaryResyncTimeout();
+                            // The listener below is wrapped by ListenerTimeouts.wrapWithTimeout, which uses a single
+                            // fire-once guard: exactly one of onResponse, onFailure, or the timeout consumer ever runs for
+                            // a given promotion. Because the resync is dispatched only after primaryReplicaResyncInProgress
+                            // was set to true, whichever of these three runs first always observes the flag as true, so the
+                            // compareAndSet(true, false) below is guaranteed to succeed and the assert holds.
+                            final ActionListener<ResyncTask> resyncListener = new ActionListener<>() {
                                 @Override
                                 public void onResponse(ResyncTask resyncTask) {
-                                    logger.info("primary-replica resync completed with {} operations", resyncTask.getResyncedOperations());
                                     boolean resyncCompleted = primaryReplicaResyncInProgress.compareAndSet(true, false);
                                     assert resyncCompleted : "primary-replica resync finished but was not started";
+                                    logger.info("primary-replica resync completed with {} operations", resyncTask.getResyncedOperations());
                                 }
 
                                 @Override
@@ -1008,7 +1015,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                         failShard("exception during primary-replica resync", e);
                                     }
                                 }
-                            });
+                            };
+
+                            // Watchdog for a lost resync response: if neither onResponse nor onFailure fires within
+                            // resyncTimeout, clear the flag so this promoted primary can still be relocated instead of being
+                            // stuck forever. Trade-off: because wrapWithTimeout shares one fire-once guard between the real
+                            // listener and the timeout, a genuine resync failure that only arrives after the timeout has
+                            // fired is swallowed here rather than failing the shard. This is accepted deliberately: failing a
+                            // primary that has otherwise served traffic healthily for the full timeout is worse than keeping
+                            // it, and in the common case a real failure completes well before the timeout and still fails the
+                            // shard via onFailure above.
+                            final ActionListener<ResyncTask> timeoutListener = ListenerTimeouts.wrapWithTimeout(
+                                threadPool,
+                                resyncTimeout,
+                                ThreadPool.Names.GENERIC,
+                                resyncListener,
+                                (l) -> {
+                                    if (primaryReplicaResyncInProgress.compareAndSet(true, false)) {
+                                        logger.error(
+                                            "[{}] primary-replica resync timed out after [{}], forcibly clearing "
+                                                + "primaryReplicaResyncInProgress flag to unblock primary relocation",
+                                            shardId,
+                                            resyncTimeout
+                                        );
+                                    }
+                                }
+                            );
+                            primaryReplicaSyncer.accept(this, timeoutListener);
+
                         } catch (final AlreadyClosedException e) {
                             // okay, the index was deleted
                         }
@@ -1070,6 +1104,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private final AtomicBoolean primaryReplicaResyncInProgress = new AtomicBoolean();
+
+    /**
+     * Returns whether a primary-replica resync is currently in progress on this shard.
+     */
+    boolean isPrimaryReplicaResyncInProgress() {
+        return primaryReplicaResyncInProgress.get();
+    }
 
     /**
      * Completes the relocation. Operations are blocked and current operations are drained before changing state to
@@ -3476,8 +3517,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private boolean recoversTranslogFromPeer() {
         return shardRouting.primary() == false
             && shardRouting.isSearchOnly() == false
-            && indexSettings.isRemoteTranslogStoreEnabled() == false
-            && RemoteStoreNodeAttribute.isTranslogRepoConfigured(indexSettings.getNodeSettings()) == false;
+            && indexSettings.isTranslogDurableInRemoteStore() == false;
     }
 
     private void innerOpenEngineAndTranslog(LongSupplier globalCheckpointSupplier, boolean syncFromRemote) throws IOException {
@@ -3497,8 +3537,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 + recoveryState.getRecoverySource()
                 + "] but got "
                 + getRetentionLeases();
-        final boolean hydrateFromRemote = (indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded())
-            && recoversTranslogFromPeer() == false;
+        // Hydrating rewrites the Lucene commit from the remote segment infos, which drops operations that were
+        // acknowledged but not yet flushed. A remote translog replays them afterwards; a local translog is their only
+        // durable copy, so a primary that owns one keeps its commit instead.
+        final boolean hasRemoteSegments = indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded();
+        final boolean wouldLoseAcknowledgedOperations = shardRouting.primary() && indexSettings.isTranslogDurableInRemoteStore() == false;
+        final boolean hydrateFromRemote = hasRemoteSegments
+            && recoversTranslogFromPeer() == false
+            && wouldLoseAcknowledgedOperations == false;
         if (hydrateFromRemote) {
             hydrateFromRemoteStore(syncFromRemote);
         }

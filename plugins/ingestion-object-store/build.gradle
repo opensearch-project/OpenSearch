@@ -1,0 +1,64 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+apply plugin: 'opensearch.internal-cluster-test'
+apply from: "$rootDir/gradle/fips.gradle"
+
+opensearchplugin {
+  description = 'Pull-based ingestion plugin to consume objects at rest in object storage through a registered repository (S3/GCS/Azure/Fs) via the BlobStore abstraction'
+  classname = 'org.opensearch.plugin.ingestion.objectstore.ObjectStorePlugin'
+}
+
+versions << [
+  'docker': '3.3.6',
+  'testcontainers': '1.19.7',
+  'ducttape': '1.0.8',
+]
+
+dependencies {
+  internalClusterTestImplementation project(path: ':plugins:repository-s3')
+  internalClusterTestImplementation "com.github.docker-java:docker-java-api:${versions.docker}"
+  internalClusterTestImplementation "com.github.docker-java:docker-java-transport:${versions.docker}"
+  internalClusterTestImplementation "com.github.docker-java:docker-java-transport-zerodep:${versions.docker}"
+  internalClusterTestImplementation("org.testcontainers:testcontainers:${versions.testcontainers}") {
+    exclude group: 'junit', module: 'junit'
+  }
+  internalClusterTestImplementation("org.testcontainers:localstack:${versions.testcontainers}") {
+    exclude group: 'junit', module: 'junit'
+  }
+  internalClusterTestImplementation "org.rnorth.duct-tape:duct-tape:${versions.ducttape}"
+  internalClusterTestImplementation 'org.awaitility:awaitility:4.2.0'
+}
+
+configurations.named("internalClusterTestRuntimeClasspath").configure {
+  resolutionStrategy {
+    force "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+    force "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+    force "org.slf4j:slf4j-api:${versions.slf4j}"
+    force "net.java.dev.jna:jna:${versions.jna}"
+  }
+}
+
+configurations.named("internalClusterTestCompileClasspath").configure {
+  resolutionStrategy {
+    force "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+    force "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+    force "org.slf4j:slf4j-api:${versions.slf4j}"
+    force "net.java.dev.jna:jna:${versions.jna}"
+  }
+}
+
+internalClusterTest {
+  environment 'TESTCONTAINERS_RYUK_DISABLED', 'true'
+  // TODO: Adding permission in plugin-security.policy doesn't seem to work.
+  systemProperty 'tests.security.manager', 'false'
+  // repository-s3 copies opensearch.path.conf into the AWS SDK v2 profile-file system properties when building a
+  // client (S3Service#setDefaultAwsProfilePath); set it on the test JVM so the test code needs no System.setProperty
+  // (a forbidden API) and no forbidden-API suppression annotation.
+  systemProperty 'opensearch.path.conf', 'config'
+}

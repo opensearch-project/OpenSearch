@@ -1,0 +1,21 @@
+---
+"Describe configured and unconfigured settings":
+  - skip:
+      version: " - 3.9.99"
+      reason: "Settings description API introduced in 3.10.0"
+  - do:
+      cluster.describe_settings:
+        settings: "indices.recovery.max_bytes_per_sec,cluster.name,unknown.setting"
+  - match: { settings.indices\.recovery\.max_bytes_per_sec.dynamic: true }
+  - match: { settings.cluster\.name.dynamic: false }
+  - is_false: settings.unknown\.setting
+  - length: { settings: 2 }
+---
+"Reject wildcard names":
+  - skip:
+      version: " - 3.9.99"
+      reason: "Settings description API introduced in 3.10.0"
+  - do:
+      catch: bad_request
+      cluster.describe_settings:
+        settings: "cluster.*"

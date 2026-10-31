@@ -3557,6 +3557,39 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     }
 
     /**
+     * {@code updateRemoteStoreSettings} also runs from snapshot restore's override-settings step, so a snapshot
+     * taken of a fencing-enabled index can reach it. Restoring one into a segments_only cluster is refused for the
+     * same reason creating such an index is: there is no translog repository for the fence to live in. The restore
+     * is recoverable from, which the message has to say, because unlike index creation the operator did not choose
+     * these settings and can only drop them through the restore request.
+     */
+    public void testRestoringAFencedSnapshotIntoASegmentsOnlyClusterIsRefused() {
+        Settings nodeSettings = Settings.builder().put("node.attr.remote_store.segment.repository", "my-segment-repo-1").build();
+        ClusterSettings strictClusterSettings = new ClusterSettings(
+            Settings.builder()
+                .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
+                .build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+        Settings.Builder restored = Settings.builder()
+            .put(SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true);
+
+        IndexCreationException e = expectThrows(
+            IndexCreationException.class,
+            () -> MetadataCreateIndexService.updateRemoteStoreSettings(
+                restored,
+                clusterStateWithSegmentsOnlyNode(),
+                strictClusterSettings,
+                nodeSettings,
+                "restored-index"
+            )
+        );
+        assertThat(e.getCause().getMessage(), containsString("requires a remote translog repository"));
+        assertThat(e.getCause().getMessage(), containsString("ignore_index_settings"));
+    }
+
+    /**
      * A segments-only index should use the cluster's configured remote store path type rather than falling back to
      * FIXED paths, even though there is no translog repository.
      */
@@ -4862,7 +4895,10 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         // The invalid pairing on purpose: remote store on, document replication.
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
+        // The translog repository is only here to get past the segments_only guard; the point of the test is that
+        // the incompatible replication type below is not validated by the stamp.
 
         MetadataCreateIndexService.updateRemoteStoreSettings(
             settingsBuilder,
@@ -4877,6 +4913,113 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             "fencing default should still be stamped for a remote-store index",
             settingsBuilder.build().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, false)
         );
+    }
+
+    /**
+     * In {@code segments_only} mode the segments are remote backed and the translog is not. The fence lives in the
+     * translog repository and is written by the translog upload, so there is nothing there to fence with and the
+     * cluster default must not be stamped. Were it stamped, index creation would fail on the setting's own
+     * validator, and before that validator existed it would have left a flag that nothing reads while still
+     * satisfying the auto-restore precondition.
+     */
+    public void testFencingDefaultIsNotStampedWithoutARemoteTranslogRepository() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED.getKey(), true).build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "segment-repo")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+
+        MetadataCreateIndexService.updateRemoteStoreSettings(
+            settingsBuilder,
+            ClusterState.builder(ClusterName.DEFAULT).build(),
+            clusterSettings,
+            Settings.EMPTY,
+            "test-index"
+        );
+
+        assertFalse(
+            "fencing must not be stamped on an index whose translog is local",
+            settingsBuilder.build().hasValue(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED)
+        );
+    }
+
+    /** An empty repository name is no repository at all, and has to be read the same way as an absent one. */
+    public void testFencingDefaultIsNotStampedForAnEmptyRemoteTranslogRepository() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED.getKey(), true).build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "segment-repo")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+
+        MetadataCreateIndexService.updateRemoteStoreSettings(
+            settingsBuilder,
+            ClusterState.builder(ClusterName.DEFAULT).build(),
+            clusterSettings,
+            Settings.EMPTY,
+            "test-index"
+        );
+
+        assertFalse(
+            "fencing must not be stamped against a repository that is named by an empty string",
+            settingsBuilder.build().hasValue(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED)
+        );
+    }
+
+    /**
+     * Asking for fencing explicitly is refused for the same reason the default is not stamped, and refused rather
+     * than ignored. This is what keeps auto-restore out of reach of a {@code segments_only} index: its validator
+     * only asks whether fencing is enabled, so an operator who set both would otherwise get an auto-restore whose
+     * entire safety argument rests on a fence that was never written.
+     */
+    public void testFencingCannotBeEnabledWithoutARemoteTranslogRepository() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "segment-repo")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true);
+
+        IndexCreationException e = expectThrows(
+            IndexCreationException.class,
+            () -> MetadataCreateIndexService.updateRemoteStoreSettings(
+                settingsBuilder,
+                ClusterState.builder(ClusterName.DEFAULT).build(),
+                clusterSettings,
+                Settings.EMPTY,
+                "test-index"
+            )
+        );
+        assertThat(e.getCause().getMessage(), containsString("requires a remote translog repository"));
+    }
+
+    /**
+     * The same request is fine once the translog is remote backed too, which is the ordinary fully remote index.
+     */
+    public void testFencingIsAcceptedWithARemoteTranslogRepository() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "segment-repo")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true);
+
+        MetadataCreateIndexService.updateRemoteStoreSettings(
+            settingsBuilder,
+            ClusterState.builder(ClusterName.DEFAULT).build(),
+            clusterSettings,
+            Settings.EMPTY,
+            "test-index"
+        );
+
+        assertTrue(settingsBuilder.build().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, false));
     }
 
 }
