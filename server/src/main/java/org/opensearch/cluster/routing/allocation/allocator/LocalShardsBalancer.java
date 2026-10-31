@@ -72,9 +72,11 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final Metadata metadata;
 
     private final float avgPrimaryShardsPerNode;
+    private final int balanceNodeCount;
     private final BalancedShardsAllocator.NodeSorter sorter;
     private final Set<RoutingNode> inEligibleTargetNode;
     private final Supplier<Boolean> timedOutFunc;
+    private final Set<String> clusterExcludedNodeIds;
     private int totalShardCount = 0;
 
     public LocalShardsBalancer(
@@ -85,6 +87,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         float threshold,
         boolean preferPrimaryBalance,
         boolean preferPrimaryRebalance,
+        boolean clusterAllocationFilterAwareBalanceEnabled,
         boolean ignoreThrottleInRestore,
         Supplier<Boolean> timedOutFunc
     ) {
@@ -94,9 +97,31 @@ public class LocalShardsBalancer extends ShardsBalancer {
         this.threshold = threshold;
         this.routingNodes = allocation.routingNodes();
         this.metadata = allocation.metadata();
-        avgPrimaryShardsPerNode = (float) (StreamSupport.stream(metadata.spliterator(), false)
-            .mapToInt(IndexMetadata::getNumberOfShards)
-            .sum()) / routingNodes.size();
+        int primaryShardCount = StreamSupport.stream(metadata.spliterator(), false).mapToInt(IndexMetadata::getNumberOfShards).sum();
+        int balanceNodeCount = routingNodes.size();
+        final Set<String> excludedNodeIds = new HashSet<>();
+        if (clusterAllocationFilterAwareBalanceEnabled) {
+            int eligibleNodeCount = 0;
+            for (RoutingNode routingNode : routingNodes) {
+                if (allocation.deciders().canAllocateAnyShardToNode(routingNode, allocation).type() != Decision.Type.NO) {
+                    eligibleNodeCount++;
+                } else {
+                    excludedNodeIds.add(routingNode.nodeId());
+                }
+            }
+            if (eligibleNodeCount > 0) {
+                balanceNodeCount = eligibleNodeCount;
+            }
+            // When every node is excluded (eligibleNodeCount == 0), balanceNodeCount deliberately
+            // falls back to the full node count to avoid a zero/negative balance denominator, while
+            // clusterExcludedNodeIds still contains every node. Weight ordering then keeps only the excluded
+            // nodes that still hold shards, but no relocation is possible because there is
+            // no eligible target; balanceByWeights() additionally rejects each move via canAllocate(). The two
+            // views therefore differ on purpose: the fallback only keeps averages computable in a no-op round.
+        }
+        this.clusterExcludedNodeIds = Collections.unmodifiableSet(excludedNodeIds);
+        this.balanceNodeCount = balanceNodeCount;
+        avgPrimaryShardsPerNode = ((float) primaryShardCount) / this.balanceNodeCount;
         nodes = Collections.unmodifiableMap(buildModelFromAssigned());
         sorter = newNodeSorter();
         inEligibleTargetNode = new HashSet<>();
@@ -119,12 +144,12 @@ public class LocalShardsBalancer extends ShardsBalancer {
      */
     @Override
     public float avgShardsPerNode(String index) {
-        return ((float) metadata.index(index).getTotalNumberOfShards()) / nodes.size();
+        return ((float) metadata.index(index).getTotalNumberOfShards()) / balanceNodeCount;
     }
 
     @Override
     public float avgPrimaryShardsPerNode(String index) {
-        return ((float) metadata.index(index).getNumberOfShards()) / nodes.size();
+        return ((float) metadata.index(index).getNumberOfShards()) / balanceNodeCount;
     }
 
     @Override
@@ -137,7 +162,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
      */
     @Override
     public float avgShardsPerNode() {
-        return totalShardCount / nodes.size();
+        return ((float) totalShardCount) / balanceNodeCount;
     }
 
     /**
@@ -507,8 +532,19 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
         final float[] deltas = new float[indices.length];
         for (int i = 0; i < deltas.length; i++) {
-            sorter.reset(indices[i]);
-            deltas[i] = sorter.delta();
+            final String index = indices[i];
+            float minWeight = Float.POSITIVE_INFINITY;
+            float maxWeight = Float.NEGATIVE_INFINITY;
+            int relevantNodes = 0;
+            for (BalancedShardsAllocator.ModelNode node : nodes.values()) {
+                if (node.getIndex(index) != null || clusterExcludedNodeIds.contains(node.getNodeId()) == false) {
+                    float nodeWeight = weight.weightWithRebalanceConstraints(this, node, index);
+                    minWeight = Math.min(minWeight, nodeWeight);
+                    maxWeight = Math.max(maxWeight, nodeWeight);
+                    relevantNodes++;
+                }
+            }
+            deltas[i] = relevantNodes < 2 ? 0.0f : maxWeight - minWeight;
         }
         new IntroSorter() {
 
