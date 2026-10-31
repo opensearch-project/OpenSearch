@@ -14,7 +14,7 @@ Everything below leans on these, so they are worth pinning down first.
 |---|---|
 | **control flow** | The path carrying decisions about *who may write*. The fence object is the only thing on it. |
 | **translog flow** | Translog files and their metadata — the acknowledgement path, gated directly by the fence: every ack first checks the writer's token against the object. |
-| **segment flow** | Segment files and their metadata — what a recovering copy hydrates from, gated by a supersession check rather than by the writer's token. |
+| **segment flow** | Segment files and their metadata — what a recovering copy hydrates from, gated by an ownership check rather than by the fence check. |
 | **fence** | The small mutable object that records who currently holds the right to acknowledge writes. |
 | **CAS** | Compare-and-swap: a write the store accepts only if the object's current version is the one you present, and refuses otherwise. S3 `If-Match`, GCS generations, Azure ETags. Presenting no version means "only if absent". |
 | **CAS chain** | The succession of version tokens one fence object passes through. A successful write must present the current token and hands back the next, so links cannot be skipped — holding the current token *is* ownership, and a writer that misses one can never rejoin. Defined in full on `RemoteStoreFence`. |
@@ -29,8 +29,8 @@ Everything below leans on these, so they are worth pinning down first.
 | **partitioned writer** | A previous primary that has dropped out of the cluster's view but can still reach the object store. The case this protocol exists for. |
 
 The two shard-data paths are named separately throughout rather than lumped together as "the data
-flow", because they are fenced by different means — the writer's token on the translog flow, a
-supersession check on the segment flow — so which one is meant always matters.
+flow", because they are fenced by different means — the fence check on the translog flow, an
+ownership check on the segment flow — so which one is meant always matters.
 
 ### Acks read the fence; only ownership changes write it
 
@@ -38,7 +38,7 @@ Acknowledging an upload checks that the fence object still carries the token of 
 write, with one read. The object is written only when ownership changes: a claim, an equal-term
 arbitration, a relocation transfer or revert. An earlier version wrote it on every ack, which GCS
 throttles at about one update per second per object. What makes an ack safe is the order — metadata
-visible, then ownership checked, then ack — and a read checks ownership as well as a write did,
+visible, then the fence checked, then ack — and a read checks the fence as well as a write did,
 provided the store:
 
 - shows a read every write and delete of the fence object that completed before it (S3, GCS and
@@ -78,7 +78,7 @@ and a restore point `restore(w)` read from the store; and a global set
    invariant is a `⊆`, so surfacing a never-acknowledged operation is
    always permitted; that direction is load-bearing. What `visible` cannot
    contain is metadata still in flight, and that gap is why the module
-   splits the acknowledgement into a metadata PUT, a fence ownership check
+   splits the acknowledgement into a metadata PUT, a fence check
    and a join (`SEQUENCED` selects the ordering): run concurrently, the
    check can pass against the incumbent's object *before* a takeover's
    claim while the metadata lands only *after* the takeover read its

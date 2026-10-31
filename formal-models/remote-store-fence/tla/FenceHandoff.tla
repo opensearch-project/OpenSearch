@@ -87,10 +87,10 @@ Init ==
   /\ handoff = "none" /\ attempts = 0 /\ superseded = FALSE
   /\ acked = {} /\ ackedBySource = {} /\ nextOp = 1
 
-(* What a conditional write or an ownership read can see: the object exists and carries the token of
+(* What a conditional write or a fence read can see: the object exists and carries the token of
    this copy's own last write. Which owner that write recorded is the copy's own knowledge, not
    something the token check tests. *)
-SourceHolds == fenceExists /\ srcToken = fenceToken
+SourceOwns == fenceExists /\ srcToken = fenceToken
 TargetOwns(a) == fenceExists /\ fenceOwner = a /\ tgtToken[a] = fenceToken
 
 (***************************************************************************)
@@ -103,7 +103,7 @@ TargetOwns(a) == fenceExists /\ fenceOwner = a /\ tgtToken[a] = fenceToken
 SourceAck ==
   /\ srcState \in {"serving", "resumed", "reclaiming"}
   /\ nextOp <= MaxOps
-  /\ IF SourceHolds
+  /\ IF SourceOwns
        THEN /\ IF srcState = "reclaiming"
                  THEN /\ fenceOwner' = Source
                       /\ fenceToken' = fenceToken + 1
@@ -133,7 +133,7 @@ Drain ==
    the transfer. *)
 TransferOwnership ==
   /\ srcState = "drained"
-  /\ IF SourceHolds
+  /\ IF SourceOwns
        THEN /\ fenceOwner' = attempts
             /\ fenceToken' = fenceToken + 1
             /\ srcToken' = fenceToken + 1
@@ -231,7 +231,7 @@ AbortHandoff ==
   \* leaving it outside the spec.
   /\ handoff \in {"none", "lost"}
   /\ srcState = "transferred"
-  /\ IF SourceHolds
+  /\ IF SourceOwns
        THEN \* The target never wrote, so it never took over: reclaim and resume. The target is left
             \* running; the object no longer records it, so it cannot take the chain.
          /\ fenceOwner' = Source
@@ -281,7 +281,7 @@ Spec == Init /\ [][Next]_vars
 (* SAFETY                                                                  *)
 (***************************************************************************)
 
-SourceLive == srcState \in {"serving", "resumed", "reclaiming"} /\ SourceHolds
+SourceLive == srcState \in {"serving", "resumed", "reclaiming"} /\ SourceOwns
 TargetLive(a) == tgtState[a] \in {"activated", "serving"} /\ TargetOwns(a)
 
 MutualExclusion ==

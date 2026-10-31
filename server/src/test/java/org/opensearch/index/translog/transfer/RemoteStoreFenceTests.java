@@ -100,7 +100,7 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
     }
 
     /**
-     * The point of the read-based ownership check: once a copy has claimed its chain, acknowledging writes nothing.
+     * The point of the read-based fence check: once a copy has claimed its chain, acknowledging writes nothing.
      * Stores can throttle updates to one object name - GCS allows about one per second - and a write per upload capped
      * every fenced shard's translog syncs at that rate.
      */
@@ -127,7 +127,7 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         );
     }
 
-    /** A failed ownership read is not a verdict: nothing is acknowledged, nothing is fenced, and the next upload retries. */
+    /** A failed fence read is not a verdict: nothing is acknowledged, nothing is fenced, and the next upload retries. */
     public void testFailedOwnershipReadIsRetryableNotFencing() throws IOException {
         final InstrumentedContainer container = new InstrumentedContainer(blobStore, repoPath);
         final RemoteStoreFence fence = new RemoteStoreFence(container, allocationIdOf("node-1"), "node-1", shardId);
@@ -328,7 +328,7 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         oldPrimary.validateAndAdvance(1);
         RemoteStoreFence newPrimary = newFence("node-new");
         newPrimary.validateAndAdvance(2);
-        // The stale primary's path is gone, so its ownership read fails
+        // The stale primary's path is gone, so its fence read fails
         expectThrows(TranslogFencedException.class, () -> oldPrimary.validateAndAdvance(1));
         // And the new primary continues on its chain, which acknowledgements read without advancing.
         newPrimary.validateAndAdvance(2);

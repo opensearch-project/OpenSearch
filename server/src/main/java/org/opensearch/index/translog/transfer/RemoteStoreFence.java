@@ -59,7 +59,7 @@ import java.util.Set;
  * of that, a successor deletes the superseded writer's object, and it is the delete rather than the CAS that makes a
  * higher-term takeover certain instead of a race - a CAS alone would only be a fair race between the two.
  * <p>
- * The ownership check runs only <b>after</b> the immutable translog metadata upload has completed, and the upload
+ * The fence check runs only <b>after</b> the immutable translog metadata upload has completed, and the upload
  * is acknowledged only once both have succeeded. The ordering is load-bearing: a check that passes then proves this
  * writer's object was unchanged when the read was served, so a takeover's write or sweep - and the restore-point
  * read behind it - can only come later, when the metadata is already visible. Run concurrently instead, the check
@@ -289,7 +289,7 @@ public class RemoteStoreFence {
     }
 
     /**
-     * Checks ownership with one read: the object must still carry the token of this instance's own last write. Only
+     * Checks the fence with one read: the object must still carry the token of this instance's own last write. Only
      * ownership changes write the object, so an unchanged token proves the same thing a successful CAS did.
      * <p>
      * Safe for the same reason the CAS was: the read starts after this upload's metadata is visible, so any takeover

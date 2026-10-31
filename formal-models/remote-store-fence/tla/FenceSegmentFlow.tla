@@ -10,7 +10,7 @@
 (*     path, gated directly by the fence: every ack checks the writer's     *)
 (*     token against the fence object.                                      *)
 (*   SEGMENT FLOW  - segment files and their metadata. What a recovering    *)
-(*     copy hydrates from, gated by a supersession check instead.           *)
+(*     copy hydrates from, gated by an ownership check instead.             *)
 (*   CONTROL FLOW  - decisions about who may write. The fence object is the *)
 (*     only thing on it, and nothing reading shard data ever looks at it.   *)
 (*                                                                          *)

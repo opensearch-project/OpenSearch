@@ -601,7 +601,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         // takeover's sweep while the metadata PUT is still in flight; the takeover then reads a restore point
         // without this generation and the writer acknowledges an operation no recovery will ever resolve -
         // acked-write loss (RemoteStoreFence.tla in formal-models/ exhibits the trace with SEQUENCED = FALSE).
-        // The same holds for the read that checks ownership on every later upload.
+        // The same holds for the fence read on every later upload.
         AtomicBoolean metadataUploaded = new AtomicBoolean();
         AtomicBoolean fenceRanBeforeMetadata = new AtomicBoolean();
         AtomicInteger fenceWrites = new AtomicInteger();
@@ -651,7 +651,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertFalse("the fence claim ran before the metadata upload completed", fenceRanBeforeMetadata.get());
         assertEquals(0, fence.getSeq());
 
-        // A later upload checks ownership by reading, still strictly after its own metadata, and writes nothing.
+        // A later upload checks the fence by reading, still strictly after its own metadata, and writes nothing.
         final int writesAfterClaim = fenceWrites.get();
         final int readsAfterClaim = fenceReads.get();
         metadataUploaded.set(false);

@@ -40,7 +40,7 @@
 (* An acknowledgement is NOT one atomic step here. The implementation runs  *)
 (* a metadata PUT and then a fence READ, and acks once both are done, so    *)
 (* the model splits them: StartUpload reserves the op, MetaPut makes its    *)
-(* metadata visible, CheckOwnership compares the fence token with the one   *)
+(* metadata visible, CasAdvance compares the fence token with the one       *)
 (* this writer's own last write produced, JoinAck acknowledges. The ack     *)
 (* path never writes the fence; only claims do. The read is atomic, as a    *)
 (* strongly consistent store's read is: it sees every write and delete that *)
@@ -112,15 +112,15 @@ VARIABLES
   (* Per-writer in-flight upload: the reserved op (0 = none) and which of *)
   (* its two store operations are done. One upload at a time per writer,  *)
   (* which is the implementation's sync permit.                           *)
-  upOp, upMetaDone, upCheckDone
+  upOp, upMetaDone, upCasDone
 
 vars == <<fenceToken, fenceTerm, fenceSeq, fenceOwner,
           wTerm, wState, wHeld, wObserved, restore, hasRead,
-          acked, ackedBy, nextOp, visible, upOp, upMetaDone, upCheckDone>>
+          acked, ackedBy, nextOp, visible, upOp, upMetaDone, upCasDone>>
 
 fenceVars  == <<fenceToken, fenceTerm, fenceSeq, fenceOwner>>
 ackVars    == <<acked, ackedBy, nextOp>>
-upVars     == <<visible, upOp, upMetaDone, upCheckDone>>
+upVars     == <<visible, upOp, upMetaDone, upCasDone>>
 
 Max(S) == CHOOSE x \in S : \A y \in S : y <= x
 
@@ -141,7 +141,7 @@ TypeOK ==
   /\ visible \subseteq 1..MaxOps
   /\ upOp \in [Writers -> 0..MaxOps]
   /\ upMetaDone \in [Writers -> BOOLEAN]
-  /\ upCheckDone \in [Writers -> BOOLEAN]
+  /\ upCasDone \in [Writers -> BOOLEAN]
 
 Init ==
   /\ fenceToken = 0 /\ fenceTerm = 0 /\ fenceSeq = 0 /\ fenceOwner = NoWriter
@@ -156,7 +156,7 @@ Init ==
   /\ visible = {}
   /\ upOp = [w \in Writers |-> 0]
   /\ upMetaDone = [w \in Writers |-> FALSE]
-  /\ upCheckDone = [w \in Writers |-> FALSE]
+  /\ upCasDone = [w \in Writers |-> FALSE]
 
 (***************************************************************************)
 (* Appointments. This is the cluster manager's only contribution. Terms     *)
@@ -246,7 +246,7 @@ StartUpload(w) ==
   /\ upOp' = [upOp EXCEPT ![w] = nextOp]
   /\ nextOp' = nextOp + 1
   /\ UNCHANGED <<fenceVars, wTerm, wState, wHeld, wObserved, restore, hasRead,
-                 acked, ackedBy, visible, upMetaDone, upCheckDone>>
+                 acked, ackedBy, visible, upMetaDone, upCasDone>>
 
 (* The metadata PUT lands. Deliberately enabled even for a writer that has  *)
 (* been fenced in the meantime: an in-flight PUT completes regardless of    *)
@@ -258,7 +258,7 @@ MetaPut(w) ==
   /\ upMetaDone' = [upMetaDone EXCEPT ![w] = TRUE]
   /\ visible' = visible \cup {upOp[w]}
   /\ UNCHANGED <<fenceVars, wTerm, wState, wHeld, wObserved, restore, hasRead,
-                 ackVars, upOp, upCheckDone>>
+                 ackVars, upOp, upCasDone>>
 
 (* The fence check: a read, compared against the token of this writer's    *)
 (* own last write. It changes nothing in the store. Under SEQUENCED it runs *)
@@ -266,14 +266,15 @@ MetaPut(w) ==
 (* against the incumbent's object, before a takeover claims it - which is   *)
 (* the refuted interleaving. A writer with a stale token finds out here and *)
 (* is fenced for good - "fenced is terminal" - so it never acknowledges the *)
-(* write.                                                                   *)
-CheckOwnership(w) ==
+(* write. The name is kept from when this step was a CAS that advanced the  *)
+(* chain; it now only reads.                                                *)
+CasAdvance(w) ==
   /\ wState[w] = "active"
   /\ upOp[w] /= 0
-  /\ ~upCheckDone[w]
+  /\ ~upCasDone[w]
   /\ (SEQUENCED => upMetaDone[w])
   /\ IF wHeld[w] = fenceToken
-       THEN /\ upCheckDone' = [upCheckDone EXCEPT ![w] = TRUE]
+       THEN /\ upCasDone' = [upCasDone EXCEPT ![w] = TRUE]
             /\ UNCHANGED <<fenceVars, wTerm, wState, wHeld, wObserved, restore, hasRead,
                            ackVars, visible, upOp, upMetaDone>>
        ELSE /\ wState' = [wState EXCEPT ![w] = "fenced"]
@@ -288,12 +289,12 @@ JoinAck(w) ==
   /\ wState[w] = "active"
   /\ upOp[w] /= 0
   /\ upMetaDone[w]
-  /\ upCheckDone[w]
+  /\ upCasDone[w]
   /\ acked'      = acked \cup {upOp[w]}
   /\ ackedBy'    = [ackedBy EXCEPT ![w] = @ \cup {upOp[w]}]
   /\ upOp'       = [upOp EXCEPT ![w] = 0]
   /\ upMetaDone' = [upMetaDone EXCEPT ![w] = FALSE]
-  /\ upCheckDone'  = [upCheckDone EXCEPT ![w] = FALSE]
+  /\ upCasDone'  = [upCasDone EXCEPT ![w] = FALSE]
   /\ UNCHANGED <<fenceVars, wTerm, wState, wHeld, wObserved, restore, hasRead,
                  nextOp, visible>>
 
@@ -306,7 +307,7 @@ Next ==
     \/ ReadRestorePoint(w)
     \/ StartUpload(w)
     \/ MetaPut(w)
-    \/ CheckOwnership(w)
+    \/ CasAdvance(w)
     \/ JoinAck(w)
 
 Spec == Init /\ [][Next]_vars
