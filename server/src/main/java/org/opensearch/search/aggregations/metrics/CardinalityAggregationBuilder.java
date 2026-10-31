@@ -157,9 +157,23 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         return this;
     }
 
+    /**
+     * Get the configured precision threshold, or {@code null} when unset.
+     */
+    public Long precisionThreshold() {
+        return precisionThreshold;
+    }
+
     public CardinalityAggregationBuilder executionHint(String executionHint) {
         this.executionHint = executionHint;
         return this;
+    }
+
+    /**
+     * Get the configured execution hint, or {@code null} when unset.
+     */
+    public String executionHint() {
+        return executionHint;
     }
 
     @Override

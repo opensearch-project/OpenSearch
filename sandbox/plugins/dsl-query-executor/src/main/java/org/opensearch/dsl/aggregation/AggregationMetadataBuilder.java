@@ -155,12 +155,14 @@ public class AggregationMetadataBuilder {
             allGroupFieldNames.addAll(g.getFieldNames());
         }
 
-        // For no-GROUP-BY, metric results could be null (e.g., AVG of empty set).
-        // COUNT stays non-nullable (returns 0).
+        // For no-GROUP-BY, most metric results could be null (e.g., AVG of empty set).
+        // Count-family functions stay non-nullable and return 0.
         boolean noGroupBy = groupings.isEmpty();
         List<AggregateCall> allCalls = new ArrayList<>();
         for (AggregateCall call : aggregateCalls) {
-            if (noGroupBy) {
+            boolean countFamily = call.getAggregation() == SqlStdOperatorTable.COUNT
+                || call.getAggregation() == SqlStdOperatorTable.APPROX_COUNT_DISTINCT;
+            if (noGroupBy && countFamily == false) {
                 RelDataType nullableType = typeFactory.createTypeWithNullability(call.getType(), true);
                 allCalls.add(
                     AggregateCall.create(

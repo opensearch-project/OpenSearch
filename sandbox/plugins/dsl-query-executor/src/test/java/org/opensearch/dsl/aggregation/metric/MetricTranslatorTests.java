@@ -10,10 +10,16 @@ package org.opensearch.dsl.aggregation.metric;
 
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.dsl.TestUtils;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.script.Script;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.Cardinality;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
@@ -27,7 +33,11 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
 
     public void testAvgTranslator() throws ConversionException {
         AvgMetricTranslator translator = new AvgMetricTranslator();
-        AggregateCall call = translator.toAggregateCall(new AvgAggregationBuilder("avg_price").field("price"), ctx.getRowType());
+        AggregateCall call = translator.toAggregateCall(
+            new AvgAggregationBuilder("avg_price").field("price"),
+            ctx.getRowType(),
+            ctx.getCluster().getTypeFactory()
+        );
 
         assertEquals(SqlKind.AVG, call.getAggregation().getKind());
         assertEquals("avg_price", call.getName());
@@ -37,7 +47,11 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
 
     public void testSumTranslator() throws ConversionException {
         SumMetricTranslator translator = new SumMetricTranslator();
-        AggregateCall call = translator.toAggregateCall(new SumAggregationBuilder("total").field("price"), ctx.getRowType());
+        AggregateCall call = translator.toAggregateCall(
+            new SumAggregationBuilder("total").field("price"),
+            ctx.getRowType(),
+            ctx.getCluster().getTypeFactory()
+        );
 
         assertEquals(SqlKind.SUM, call.getAggregation().getKind());
         assertEquals("total", call.getName());
@@ -45,7 +59,11 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
 
     public void testMinTranslator() throws ConversionException {
         MinMetricTranslator translator = new MinMetricTranslator();
-        AggregateCall call = translator.toAggregateCall(new MinAggregationBuilder("min_price").field("price"), ctx.getRowType());
+        AggregateCall call = translator.toAggregateCall(
+            new MinAggregationBuilder("min_price").field("price"),
+            ctx.getRowType(),
+            ctx.getCluster().getTypeFactory()
+        );
 
         assertEquals(SqlKind.MIN, call.getAggregation().getKind());
         assertEquals("min_price", call.getName());
@@ -53,7 +71,11 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
 
     public void testMaxTranslator() throws ConversionException {
         MaxMetricTranslator translator = new MaxMetricTranslator();
-        AggregateCall call = translator.toAggregateCall(new MaxAggregationBuilder("max_price").field("price"), ctx.getRowType());
+        AggregateCall call = translator.toAggregateCall(
+            new MaxAggregationBuilder("max_price").field("price"),
+            ctx.getRowType(),
+            ctx.getCluster().getTypeFactory()
+        );
 
         assertEquals(SqlKind.MAX, call.getAggregation().getKind());
         assertEquals("max_price", call.getName());
@@ -64,8 +86,67 @@ public class MetricTranslatorTests extends OpenSearchTestCase {
 
         expectThrows(
             ConversionException.class,
-            () -> translator.toAggregateCall(new AvgAggregationBuilder("bad").field("nonexistent"), ctx.getRowType())
+            () -> translator.toAggregateCall(
+                new AvgAggregationBuilder("bad").field("nonexistent"),
+                ctx.getRowType(),
+                ctx.getCluster().getTypeFactory()
+            )
         );
+    }
+
+    public void testCardinalityTranslator() throws ConversionException {
+        CardinalityMetricTranslator translator = new CardinalityMetricTranslator();
+        AggregateCall call = translator.toAggregateCall(
+            new CardinalityAggregationBuilder("unique_brands").field("brand"),
+            ctx.getRowType(),
+            ctx.getCluster().getTypeFactory()
+        );
+
+        assertSame(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, call.getAggregation());
+        assertEquals(SqlTypeName.BIGINT, call.getType().getSqlTypeName());
+        assertEquals("unique_brands", call.getName());
+        assertEquals(1, call.getArgList().size());
+        assertEquals(2, call.getArgList().get(0).intValue());
+    }
+
+    public void testCardinalityResponse() {
+        CardinalityMetricTranslator translator = new CardinalityMetricTranslator();
+        Map<String, Object> meta = Map.of("owner", "observability");
+
+        InternalAggregation result = translator.toInternalAggregation("unique_brands", 7L, meta);
+        assertTrue(result instanceof Cardinality);
+        assertEquals(7L, ((Cardinality) result).getValue());
+        assertEquals(meta, result.getMetadata());
+
+        InternalAggregation empty = translator.toInternalAggregation("unique_brands", null, null);
+        assertEquals(0L, ((Cardinality) empty).getValue());
+        assertNull(empty.getMetadata());
+    }
+
+    public void testCardinalityRejectsUnsupportedParameters() {
+        CardinalityMetricTranslator translator = new CardinalityMetricTranslator();
+
+        assertRejected(translator, new CardinalityAggregationBuilder("c").field("brand").missing("unknown"), "missing");
+        assertRejected(
+            translator,
+            new CardinalityAggregationBuilder("c").field("brand").script(new Script("doc['brand'].value")),
+            "script"
+        );
+        assertRejected(translator, new CardinalityAggregationBuilder("c").field("brand").precisionThreshold(100), "precision_threshold");
+        assertRejected(
+            translator,
+            new CardinalityAggregationBuilder("c").field("brand").executionHint("global_ordinals"),
+            "execution_hint"
+        );
+    }
+
+    private static void assertRejected(
+        CardinalityMetricTranslator translator,
+        CardinalityAggregationBuilder aggregation,
+        String parameter
+    ) {
+        ConversionException exception = expectThrows(ConversionException.class, () -> translator.validate(aggregation));
+        assertTrue(exception.getMessage(), exception.getMessage().contains(parameter));
     }
 
     public void testAggregateFieldName() {
