@@ -35,7 +35,6 @@ package org.opensearch.repositories.azure;
 import com.azure.core.http.policy.HttpPipelinePolicy;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.models.ParallelTransferOptions;
-import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RequestRetryPolicy;
 import com.azure.storage.common.policy.StorageBearerTokenChallengeAuthorizationPolicy;
 import com.azure.storage.common.policy.StorageSharedKeyCredentialPolicy;
@@ -512,6 +511,98 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         try (final AzureStorageService azureStorageService = storageServiceWithSettingsValidation(timeoutSettings)) {
             final BlobServiceClient client1 = azureStorageService.client("azure1").v1();
             assertThat(requestRetryOptions(client1), is(notNullValue()));
+        }
+    }
+
+    public void testPrimaryClientsAreDistinctAndRebuiltOnRefresh() throws IOException {
+        final Settings settings = buildSettings();
+        try (AzureStorageService service = storageServiceWithSettingsValidation(settings)) {
+            final Map<String, AzureStorageSettings> secondarySettings = AzureStorageSettings.overrideLocationMode(
+                AzureStorageSettings.load(settings),
+                LocationMode.SECONDARY_ONLY
+            );
+            service.refreshAndClearCache(secondarySettings);
+
+            final BlobServiceClient locationAware = service.client("azure1").v1();
+            final BlobServiceClient repositoryClient = service.client("azure1", LocationMode.SECONDARY_ONLY, (request, response) -> {})
+                .v1();
+            final BlobServiceClient versionedRead = service.clientForVersionedRead("azure1", (request, response) -> {}).v1();
+            final BlobServiceClient conditionalWrite = service.clientForConditionalWrite("azure1", (request, response) -> {}).v1();
+
+            assertEquals("https://myaccount1-secondary.blob.core.windows.net", locationAware.getAccountUrl());
+            assertEquals("https://myaccount1-secondary.blob.core.windows.net", repositoryClient.getAccountUrl());
+            assertEquals("https://myaccount1.blob.core.windows.net", versionedRead.getAccountUrl());
+            assertEquals("https://myaccount1.blob.core.windows.net", conditionalWrite.getAccountUrl());
+            assertNotSame(versionedRead, conditionalWrite);
+            assertSame(versionedRead, service.clientForVersionedRead("azure1", (request, response) -> {}).v1());
+            assertSame(conditionalWrite, service.clientForConditionalWrite("azure1", (request, response) -> {}).v1());
+
+            service.refreshAndClearCache(secondarySettings);
+            assertEquals(0, service.ordinaryClientCount());
+            assertEquals(0, service.locationClientCount());
+            assertEquals(0, service.versionedReadClientCount());
+            assertEquals(0, service.conditionalWriteClientCount());
+            assertNotSame(repositoryClient, service.client("azure1", LocationMode.SECONDARY_ONLY, (request, response) -> {}).v1());
+            final BlobServiceClient refreshedVersionedRead = service.clientForVersionedRead("azure1", (request, response) -> {}).v1();
+            final BlobServiceClient refreshedConditionalWrite = service.clientForConditionalWrite("azure1", (request, response) -> {}).v1();
+            assertNotSame(versionedRead, refreshedVersionedRead);
+            assertNotSame(conditionalWrite, refreshedConditionalWrite);
+            assertNotSame(refreshedVersionedRead, refreshedConditionalWrite);
+        }
+    }
+
+    public void testVersionedReadClientAcquisitionCannotPublishOldSettingsAfterReload() throws Exception {
+        final BlockingClientService service = new BlockingClientService(buildSettings());
+        final ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            final Future<?> acquisition = executor.submit(() -> service.clientForVersionedRead("azure1", (request, response) -> {}));
+            assertTrue(service.buildStarted.await(10, TimeUnit.SECONDS));
+
+            final MockSecureSettings reloadedSecureSettings = buildSecureSettings();
+            reloadedSecureSettings.setString("azure.client.azure1.account", "reloadedaccount");
+            final Settings reloadedSettings = Settings.builder().setSecureSettings(reloadedSecureSettings).build();
+            final CountDownLatch reloadQueued = service.expectRefresh();
+            final Future<?> reload = executor.submit(() -> service.refreshAndClearCache(AzureStorageSettings.load(reloadedSettings)));
+            assertTrue(reloadQueued.await(10, TimeUnit.SECONDS));
+
+            service.releaseBuild.countDown();
+            acquisition.get(10, TimeUnit.SECONDS);
+            reload.get(10, TimeUnit.SECONDS);
+            assertEquals(0, service.versionedReadClientCount());
+            assertThat(
+                service.clientForVersionedRead("azure1", (request, response) -> {}).v1().getAccountUrl(),
+                containsString("reloadedaccount")
+            );
+        } finally {
+            service.releaseBuild.countDown();
+            executor.shutdownNow();
+            service.close();
+        }
+    }
+
+    public void testConditionalWriteClientAcquisitionCannotPublishAfterClose() throws Exception {
+        final BlockingClientService service = new BlockingClientService(buildSettings());
+        final ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            final Future<?> acquisition = executor.submit(() -> service.clientForConditionalWrite("azure1", (request, response) -> {}));
+            assertTrue(service.buildStarted.await(10, TimeUnit.SECONDS));
+
+            final CountDownLatch closeQueued = service.expectClose();
+            final Future<?> close = executor.submit(() -> {
+                service.close();
+                return null;
+            });
+            assertTrue(closeQueued.await(10, TimeUnit.SECONDS));
+
+            service.releaseBuild.countDown();
+            acquisition.get(10, TimeUnit.SECONDS);
+            close.get(10, TimeUnit.SECONDS);
+            assertEquals(0, service.conditionalWriteClientCount());
+            expectThrows(IllegalStateException.class, () -> service.clientForConditionalWrite("azure1", (request, response) -> {}));
+        } finally {
+            service.releaseBuild.countDown();
+            executor.shutdownNow();
+            service.close();
         }
     }
 
@@ -995,6 +1086,21 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         }
 
         @Override
+        void beforeClientBuild() {
+            if (blockNextBuild.compareAndSet(true, false)) {
+                buildStarted.countDown();
+                try {
+                    if (releaseBuild.await(10, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("timed out waiting to release client build");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
+                }
+            }
+        }
+
+        @Override
         void beforeRefresh() {
             final CountDownLatch expected = refreshExpected;
             if (expected != null) {
@@ -1008,22 +1114,6 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             if (expected != null) {
                 expected.countDown();
             }
-        }
-
-        @Override
-        RequestRetryOptions createRetryPolicy(AzureStorageSettings azureStorageSettings, String secondaryHost) {
-            if (blockNextBuild.compareAndSet(true, false)) {
-                buildStarted.countDown();
-                try {
-                    if (releaseBuild.await(10, TimeUnit.SECONDS) == false) {
-                        throw new AssertionError("timed out waiting to release client build");
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new AssertionError(e);
-                }
-            }
-            return super.createRetryPolicy(azureStorageSettings, secondaryHost);
         }
     }
 
