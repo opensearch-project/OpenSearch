@@ -14,6 +14,7 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
+import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.util.ArrayList;
@@ -25,6 +26,10 @@ import java.util.regex.Pattern;
 /**
  * Converts {@code _source} field selection to a {@link LogicalProject}.
  * Handles exact field names, wildcard patterns, and {@code _source: false}.
+ *
+ * <p>The {@code _id} metadata column is not part of {@code _source} and always survives
+ * source filtering, including {@code _source: false} (which suppresses source but not ids,
+ * matching classic search).
  */
 public class ProjectConverter extends AbstractDslConverter {
 
@@ -41,7 +46,11 @@ public class ProjectConverter extends AbstractDslConverter {
         FetchSourceContext fetchSource = ctx.getSearchSource().fetchSource();
 
         if (!fetchSource.fetchSource()) {
-            return LogicalProject.create(input, List.of(), List.of(), List.of());
+            // _source: false still returns hits with ids; keep only the metadata column if present.
+            List<RexNode> projects = new ArrayList<>();
+            List<String> fieldNames = new ArrayList<>();
+            appendMetadataColumns(input, ctx.getRexBuilder(), projects, fieldNames);
+            return LogicalProject.create(input, List.of(), projects, fieldNames);
         }
 
         String[] includes = fetchSource.includes();
@@ -54,6 +63,19 @@ public class ProjectConverter extends AbstractDslConverter {
         }
 
         return createProjection(input, includes, excludes, ctx.getRexBuilder());
+    }
+
+    /**
+     * Appends metadata columns that survive source filtering (currently only {@code _id}) to the
+     * given projection lists, skipping any already present. The response builder renders these
+     * outside {@code _source}.
+     */
+    private static void appendMetadataColumns(RelNode input, RexBuilder rexBuilder, List<RexNode> projects, List<String> fieldNames) {
+        RelDataTypeField id = input.getRowType().getField(IdFieldMapper.NAME, false, false);
+        if (id != null && !fieldNames.contains(IdFieldMapper.NAME)) {
+            projects.add(rexBuilder.makeInputRef(id.getType(), id.getIndex()));
+            fieldNames.add(IdFieldMapper.NAME);
+        }
     }
 
     private RelNode createProjection(RelNode input, String[] includes, String[] excludes, RexBuilder rexBuilder)
@@ -85,6 +107,9 @@ public class ProjectConverter extends AbstractDslConverter {
                 }
             }
         }
+
+        // _id survives source filtering; the response builder keeps it out of _source.
+        appendMetadataColumns(input, rexBuilder, projects, fieldNames);
 
         return LogicalProject.create(input, List.of(), projects, fieldNames);
     }
