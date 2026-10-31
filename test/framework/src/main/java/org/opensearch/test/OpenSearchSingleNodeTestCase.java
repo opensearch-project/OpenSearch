@@ -87,6 +87,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -199,9 +200,11 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
     @AfterClass
     public static void tearDownClass() throws Exception {
         stopNode();
-        // The sandbox feature flags we merge into node settings mutate the process-wide FeatureFlags singleton via
-        // Node -> FeatureFlags.initializeFeatureFlags(settings), and that state survives node stop. Re-initialise from
-        // empty settings so a subsequent flag-off suite reusing the same fork does not observe leaked true flags.
+        // Node's constructor calls FeatureFlags.initializeFeatureFlags(settings) (server Node.java), which mutates the
+        // process-wide FeatureFlags singleton from the merged node settings and leaves it set after the node stops. A
+        // single-node suite that installed the stack therefore leaves STREAM_TRANSPORT / PLUGGABLE_DATAFORMAT true in
+        // that singleton; a later suite in the same fork that reads a flag before building its own node (or that never
+        // builds one) would observe the leaked true. Re-initialise from empty settings to restore defaults.
         // FlagWriteLock-locked flags are skipped by initializeFeatureFlags, so @LockFeatureFlag tests are unaffected.
         if (sandboxFlagsInjected) {
             FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
@@ -227,21 +230,26 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
     /**
      * Whether the sandbox engine stack (resolved by {@link SandboxStackPlugins}) should be loaded on top of
      * {@link #getPlugins()} when {@code -Dsandbox.enabled=true} is forwarded into the test fork. Defaults to
-     * {@code true}. Override to return {@code false} only when a test genuinely cannot run with the stack (e.g. it
-     * registers a conflicting stream transport, or asserts on node internals the stack changes). This is the intended
-     * opt-out — overriding {@link #getPlugins()} alone does not remove the stack.
+     * {@link SandboxStackPlugins#isEnabled()}. A test overrides this to return {@code false} only when it genuinely
+     * cannot run with the stack (e.g. it asserts on node thread names, or registers a conflicting stream transport).
+     * <p>
+     * When the stack is loaded the sandbox feature flags (e.g. {@link FeatureFlags#STREAM_TRANSPORT} and
+     * {@link FeatureFlags#PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG}) are dictated by plugin presence and cannot be turned
+     * off by a test's own settings: {@link SandboxStackPlugins#applyNodeSettings} forces them on so the loaded plugins
+     * can start. This is the intended opt-out — overriding {@link #getPlugins()} alone does not remove the stack.
      */
     protected boolean installSandboxPlugins() {
-        return true;
+        return SandboxStackPlugins.isEnabled();
     }
 
     /**
-     * The plugins actually loaded on the node: the test's {@link #getPlugins()} plus, when
-     * {@link SandboxStackPlugins#isEnabled()} and {@link #installSandboxPlugins()} are both true, the resolved sandbox
-     * stack. De-duplicated via a {@link LinkedHashSet} with the test's own plugins first; PluginsService still orders
-     * plugins by their {@code extendedPlugins} declarations at load time, so this insertion order only controls
-     * de-duplication precedence, not the classloader parent ordering. Returns a fresh mutable list so callers may add
-     * the framework's mock transport/script/telemetry plugins.
+     * The plugin classes loaded on the node: the test's {@link #getPlugins()} plus, when
+     * {@link #shouldInstallSandboxStack()} is true, the resolved sandbox stack, de-duplicated via a
+     * {@link LinkedHashSet} with the test's own plugins first. This is the presence-check set that couples the sandbox
+     * feature flags and the Flight port range to the plugins actually loaded (matching
+     * {@code OpenSearchIntegTestCase#effectiveNodePlugins()}); the stack members themselves reach the node as
+     * {@link SandboxStackPlugins#pluginInfos()}, which carry their {@code extendedPlugins} metadata. Returns a fresh
+     * mutable list.
      */
     protected final Collection<Class<? extends Plugin>> effectiveNodePlugins() {
         Collection<Class<? extends Plugin>> testPlugins = getPlugins();
@@ -291,13 +299,22 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
         final Path tempDir = createTempDir();
         final String nodeName = nodeSettings().get(Node.NODE_NAME_SETTING.getKey(), "node_s_0");
 
-        // Resolve the plugins actually loaded on the node up front so we can couple the sandbox feature flags to
-        // plugin presence: the stack is installed only when the build forwarded -Dsandbox.enabled=true, the test did
-        // not opt out, and the plugin classes are actually on the test classpath.
-        final Collection<Class<? extends Plugin>> effectivePlugins = effectiveNodePlugins();
+        // Resolve up front whether the stack is installed and which plugin classes the node loads, so the sandbox
+        // feature flags can be coupled to plugin presence: the stack is installed only when the build forwarded
+        // -Dsandbox.enabled=true, the test did not opt out, and the plugin classes are actually on the test classpath.
         final boolean sandboxStackInstalled = shouldInstallSandboxStack();
+        // Presence-check set driving the feature-flag / Flight-port coupling: the test's own plugins plus the stack.
+        // Matches OpenSearchIntegTestCase#effectiveNodePlugins() so flag and plugin stay in lockstep.
+        final Collection<Class<? extends Plugin>> effectivePlugins = effectiveNodePlugins();
 
-        final Settings featureFlagSettings = featureFlagSettings();
+        Settings featureFlagSettings = featureFlagSettings();
+        if (sandboxStackInstalled) {
+            // Mirror OpenSearchIntegTestCase.featureFlagSettings(): drop the sandbox flags the stack owns so this base
+            // class's default-false emission does not reach applyNodeSettings()'s warn snapshot (which would then warn
+            // on every suite); applyNodeSettings() forces them true below.
+            featureFlagSettings = SandboxStackPlugins.suppressOwnedFlags(featureFlagSettings, effectivePlugins);
+        }
+
         Settings.Builder settingsBuilder = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", random().nextLong()))
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
@@ -330,52 +347,67 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             .put(featureFlagSettings);
 
         if (sandboxStackInstalled) {
-            // Enable the sandbox feature flags via node settings LAST, so they win over both a subclass's
-            // nodeSettings() and the default-valued flags emitted by featureFlagSettings(). The flags must be in the
-            // settings before PluginsService starts the loaded plugins: Node's constructor calls
-            // FeatureFlags.initializeFeatureFlags(settings) early, and the loaded plugins (FlightStreamPlugin, the
-            // data-format plugins) only wire themselves up when their flag is enabled. Feature flags deliberately win
-            // this merge (matching the ICT branch) so a test cannot silently disable a flag whose plugin is loaded —
-            // override installSandboxPlugins() to run without the stack instead.
-            settingsBuilder.put(SandboxStackPlugins.featureFlagSettings());
+            // Couple the sandbox feature flags to the loaded plugins AFTER nodeSettings() and featureFlagSettings() so
+            // the coupling wins and is un-overridable (opt out via installSandboxPlugins() instead). Forces
+            // STREAM_TRANSPORT / PLUGGABLE_DATAFORMAT true and gives Flight a per-worker getPortRange() slice.
+            SandboxStackPlugins.applyNodeSettings(settingsBuilder, effectivePlugins, getPortRange(), logger);
+            // Node's constructor calls FeatureFlags.initializeFeatureFlags(settings), mutating the process-wide
+            // singleton; record it so tearDownClass() can reset the leaked flags for later suites in this fork.
             sandboxFlagsInjected = true;
+            final Collection<Class<? extends Plugin>> sandboxStack = SandboxStackPlugins.resolve();
             logger.info(
-                "Injecting sandbox engine stack into single-node test node: {}",
-                SandboxStackPlugins.resolve().stream().map(Class::getName).collect(Collectors.toList())
+                "Injecting sandbox engine stack into single-node test node: {} plugin(s) {}",
+                sandboxStack.size(),
+                sandboxStack.stream().map(Class::getName).collect(Collectors.toList())
             );
         }
 
-        Collection<Class<? extends Plugin>> plugins = effectivePlugins;
+        // The test's own classpath plugins (empty extendedPlugins, as before) plus the framework mock plugins. When the
+        // stack is installed, a stack class the test lists itself is dropped here so it is not wrapped twice: it is
+        // added once below as a stack PluginInfo carrying its extendedPlugins. Without the stack the test's plugins
+        // pass through unchanged.
+        Collection<Class<? extends Plugin>> testPlugins = getPlugins();
+        if (testPlugins == null) {
+            testPlugins = Collections.emptyList();
+        }
+        Collection<Class<? extends Plugin>> plugins = new ArrayList<>();
+        for (Class<? extends Plugin> p : testPlugins) {
+            if (sandboxStackInstalled == false || SandboxStackPlugins.isStackPlugin(p) == false) {
+                plugins.add(p);
+            }
+        }
         if (plugins.contains(getTestTransportPlugin()) == false) {
-            plugins = new ArrayList<>(plugins);
             plugins.add(getTestTransportPlugin());
         }
         if (addMockHttpTransport()) {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
-
         plugins.add(MockTelemetryPlugin.class);
-        Node node = new MockNode(
-            settingsBuilder.build(),
-            plugins.stream()
-                .map(
-                    p -> new PluginInfo(
-                        p.getName(),
-                        "classpath plugin",
-                        "NA",
-                        Version.CURRENT,
-                        "1.8",
-                        p.getName(),
-                        null,
-                        Collections.emptyList(),
-                        false
-                    )
+
+        List<PluginInfo> pluginInfos = plugins.stream()
+            .map(
+                p -> new PluginInfo(
+                    p.getName(),
+                    "classpath plugin",
+                    "NA",
+                    Version.CURRENT,
+                    "1.8",
+                    p.getName(),
+                    null,
+                    Collections.emptyList(),
+                    false
                 )
-                .collect(Collectors.toList()),
-            null,
-            forbidPrivateIndexSettings()
-        );
+            )
+            .collect(Collectors.toCollection(ArrayList::new));
+        // Test plugins first, stack after — matching the ICT buildNode order where additionalNodePlugins() (the stack
+        // PluginInfos) come after nodePlugins(). The stack PluginInfos carry extendedPlugins metadata so PluginsService
+        // wires the analytics backends to AnalyticsPlugin (a bare class would be wrapped with empty extendedPlugins).
+        if (sandboxStackInstalled) {
+            pluginInfos.addAll(SandboxStackPlugins.pluginInfos());
+        }
+
+        Node node = new MockNode(settingsBuilder.build(), pluginInfos, null, forbidPrivateIndexSettings());
         try {
             node.start();
         } catch (NodeValidationException e) {
