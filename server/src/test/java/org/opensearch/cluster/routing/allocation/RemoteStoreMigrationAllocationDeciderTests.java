@@ -68,7 +68,9 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_MODE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.Direction.NONE;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.Direction.REMOTE_STORE;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
@@ -95,6 +97,8 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
         .build();
 
     private Boolean isRemoteStoreBackedIndex = null, isMixedMode;
+    // a segments_only index is remote store backed, but only its segments are: it has no translog repository
+    private boolean isSegmentsOnlyIndex = false;
     private int shardCount, replicaCount;
     private IndexMetadata.Builder indexMetadataBuilder;
     private Settings customSettings;
@@ -552,7 +556,11 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
     // prepare index metadata for test-index
     private IndexMetadata.Builder getIndexMetadataBuilder(boolean isRemoteStoreBackedIndex, int shardCount, int replicaCount) {
         Settings.Builder builder = settings(Version.CURRENT);
-        if (isRemoteStoreBackedIndex) {
+        if (isSegmentsOnlyIndex) {
+            builder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, TEST_REPO)
+                .put(SETTING_REMOTE_STORE_ENABLED, true);
+        } else if (isRemoteStoreBackedIndex) {
             builder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .put(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, TEST_REPO)
                 .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, TEST_REPO)
@@ -602,6 +610,92 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
         return ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).nodes(discoveryNodes).build();
     }
 
+    // tests for segments_only, whose nodes hold a segment repository and no translog or cluster state repository
+
+    /**
+     * A segments_only node is not a {@code DiscoveryNode#isRemoteStoreNode()}, because that additionally requires a
+     * cluster state repository. Reading that predicate as "this node can hold remote store data" made every node in
+     * a segments_only cluster look like a docrep node, and left the shard unallocatable anywhere.
+     */
+    public void testAllocateSegmentsOnlyIndexOnSegmentsOnlyNode() {
+        shardCount = 1;
+        replicaCount = 0;
+        isMixedMode = true;
+        isRemoteStoreBackedIndex = true;
+        isSegmentsOnlyIndex = true;
+
+        DiscoveryNode segmentsOnlyNode = getSegmentsOnlyNode();
+        discoveryNodes = DiscoveryNodes.builder().add(segmentsOnlyNode).localNodeId(segmentsOnlyNode.getId()).build();
+
+        beforeAllocation(NONE.direction);
+
+        ShardRouting primaryShardRouting = clusterState.getRoutingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard();
+        RoutingNode routingNode = clusterState.getRoutingNodes().node(segmentsOnlyNode.getId());
+
+        Decision decision = remoteStoreMigrationAllocationDecider.canAllocate(primaryShardRouting, routingNode, routingAllocation);
+        assertThat(decision.type(), is(Decision.Type.YES));
+    }
+
+    public void testDontAllocateSegmentsOnlyIndexOnNonRemoteNode() {
+        shardCount = 1;
+        replicaCount = 0;
+        isMixedMode = true;
+        isRemoteStoreBackedIndex = true;
+        isSegmentsOnlyIndex = true;
+
+        DiscoveryNode segmentsOnlyNode = getSegmentsOnlyNode();
+        DiscoveryNode nonRemoteNode = getNonRemoteNode();
+        discoveryNodes = DiscoveryNodes.builder()
+            .add(segmentsOnlyNode)
+            .localNodeId(segmentsOnlyNode.getId())
+            .add(nonRemoteNode)
+            .localNodeId(nonRemoteNode.getId())
+            .build();
+
+        beforeAllocation(NONE.direction);
+
+        ShardRouting primaryShardRouting = clusterState.getRoutingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard();
+        RoutingNode routingNode = clusterState.getRoutingNodes().node(nonRemoteNode.getId());
+
+        Decision decision = remoteStoreMigrationAllocationDecider.canAllocate(primaryShardRouting, routingNode, routingAllocation);
+        assertThat(decision.type(), is(Decision.Type.NO));
+    }
+
+    /** The reverse: a segments_only node cannot serve an index whose translog is remote backed. */
+    public void testDontAllocateRemoteStoreBackedIndexOnSegmentsOnlyNode() {
+        shardCount = 1;
+        replicaCount = 0;
+        isMixedMode = true;
+        isRemoteStoreBackedIndex = true;
+
+        DiscoveryNode segmentsOnlyNode = getSegmentsOnlyNode();
+        DiscoveryNode remoteNode = getRemoteNode();
+        discoveryNodes = DiscoveryNodes.builder()
+            .add(segmentsOnlyNode)
+            .localNodeId(segmentsOnlyNode.getId())
+            .add(remoteNode)
+            .localNodeId(remoteNode.getId())
+            .build();
+
+        beforeAllocation(NONE.direction);
+
+        ShardRouting primaryShardRouting = clusterState.getRoutingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard();
+
+        Decision onSegmentsOnly = remoteStoreMigrationAllocationDecider.canAllocate(
+            primaryShardRouting,
+            clusterState.getRoutingNodes().node(segmentsOnlyNode.getId()),
+            routingAllocation
+        );
+        assertThat(onSegmentsOnly.type(), is(Decision.Type.NO));
+
+        Decision onRemote = remoteStoreMigrationAllocationDecider.canAllocate(
+            primaryShardRouting,
+            clusterState.getRoutingNodes().node(remoteNode.getId()),
+            routingAllocation
+        );
+        assertThat(onRemote.type(), is(Decision.Type.YES));
+    }
+
     // get a dummy non-remote node
     private DiscoveryNode getNonRemoteNode() {
         return new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
@@ -614,6 +708,23 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
             REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY,
             "REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_VALUE"
         );
+        attributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_VALUE");
+        // A remote node cannot have a segment repository without a translog repository: RemoteStoreNodeAttribute
+        // rejects that combination unless the node is running in segments_only mode.
+        attributes.put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_VALUE");
+        return new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            attributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+    }
+
+    // get a dummy node running in segments_only mode, which has a segment repository and nothing else
+    private DiscoveryNode getSegmentsOnlyNode() {
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put(REMOTE_STORE_MODE_KEY, "segments_only");
         attributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_VALUE");
         return new DiscoveryNode(
             UUIDs.base64UUID(),

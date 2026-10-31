@@ -171,6 +171,17 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         Property.Dynamic
     );
 
+    /**
+     * Node-wide switch for the request cache. When false, no request is cached regardless of index settings or the
+     * request_cache request parameter.
+     */
+    public static final Setting<Boolean> INDICES_REQUEST_CACHE_ENABLED_SETTING = Setting.boolSetting(
+        "indices.requests.cache.enabled",
+        true,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     private final static long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
 
     private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();

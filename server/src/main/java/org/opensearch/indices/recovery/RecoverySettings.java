@@ -64,7 +64,7 @@ public class RecoverySettings {
         new ByteSizeValue(40, ByteSizeUnit.MB),
         Property.Dynamic,
         Property.NodeScope
-    );
+    ).withDescription("Limits the total inbound and outbound recovery traffic for each node, for peer and snapshot recoveries.");
 
     /**
      * Individual speed setting for segment replication, default -1B to reuse the setting of recovery.
@@ -114,6 +114,19 @@ public class RecoverySettings {
         "indices.replication.merges.warmer.timeout",
         TimeValue.timeValueMinutes(15),
         TimeValue.timeValueMinutes(0),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * Timeout for the primary-replica resync that runs after a replica is promoted to primary. If the resync listener does
+     * not fire within this duration, the shard's {@code primaryReplicaResyncInProgress} flag is forcibly cleared so that it
+     * cannot permanently block primary relocation. Defaults to 30 minutes.
+     */
+    public static final Setting<TimeValue> INDICES_PRIMARY_RESYNC_TIMEOUT_SETTING = Setting.timeSetting(
+        "indices.replication.resync_timeout",
+        TimeValue.timeValueMinutes(30),
+        TimeValue.timeValueSeconds(10),
         Property.Dynamic,
         Property.NodeScope
     );
@@ -302,6 +315,7 @@ public class RecoverySettings {
     private volatile ByteSizeValue chunkSize;
     private volatile TimeValue internalRemoteUploadTimeout;
     private volatile TimeValue mergedSegmentReplicationTimeout;
+    private volatile TimeValue primaryResyncTimeout;
 
     private volatile boolean isTranslogConcurrentRecoveryEnable;
     private volatile int translogConcurrentRecoveryBatchSize;
@@ -334,6 +348,7 @@ public class RecoverySettings {
         this.mergedSegmentReplicationWarmerEnabled = INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.get(settings);
         this.mergedSegmentReplicationMaxBytesPerSec = INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING.get(settings);
         this.mergedSegmentReplicationTimeout = INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING.get(settings);
+        this.primaryResyncTimeout = INDICES_PRIMARY_RESYNC_TIMEOUT_SETTING.get(settings);
         this.mergedSegmentWarmerMinSegmentSizeThreshold = INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.get(
             settings
         );
@@ -361,6 +376,7 @@ public class RecoverySettings {
             INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING,
             this::setMergedSegmentReplicationTimeout
         );
+        clusterSettings.addSettingsUpdateConsumer(INDICES_PRIMARY_RESYNC_TIMEOUT_SETTING, this::setPrimaryResyncTimeout);
         clusterSettings.addSettingsUpdateConsumer(
             INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING,
             this::setMergedSegmentWarmerMinSegmentSizeThreshold
@@ -533,6 +549,14 @@ public class RecoverySettings {
 
     public void setMergedSegmentReplicationTimeout(TimeValue mergedSegmentReplicationTimeout) {
         this.mergedSegmentReplicationTimeout = mergedSegmentReplicationTimeout;
+    }
+
+    public TimeValue getPrimaryResyncTimeout() {
+        return primaryResyncTimeout;
+    }
+
+    private void setPrimaryResyncTimeout(TimeValue primaryResyncTimeout) {
+        this.primaryResyncTimeout = primaryResyncTimeout;
     }
 
     public int getMaxConcurrentFileChunks() {
