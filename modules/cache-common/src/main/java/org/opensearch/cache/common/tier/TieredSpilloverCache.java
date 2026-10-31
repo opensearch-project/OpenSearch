@@ -10,6 +10,7 @@ package org.opensearch.cache.common.tier;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.cache.common.policy.FrequencySketch;
 import org.opensearch.cache.common.policy.TookTimePolicy;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.CacheType;
@@ -49,7 +50,9 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.ToLongBiFunction;
 
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK_ADMISSION_MIN_FREQUENCY_SETTING_MAP;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK_CACHE_ENABLED_SETTING_MAP;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_ADMISSION_MIN_FREQUENCY;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_STORE_SIZE;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS;
@@ -75,6 +78,20 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
     // Used to avoid caching stale entries in lower tiers.
     private static final List<RemovalReason> SPILLOVER_REMOVAL_REASONS = List.of(RemovalReason.EVICTED, RemovalReason.CAPACITY);
+
+    // This is an approx cache entry size in bytes. This is used to size our approximate frequency based sketch. A rough value is fine here.
+    // As if we overstimate the entry size, the sketch will a bit small which results in more hash collisions and frequencies are slightly
+    // over-counted. This will result in few entries being wrongly admitted into disk cache which is acceptable and assumed.
+    // If we underestimate ie there are too many entries, then our frequency sketch might be a bit large, fewer collisions and more
+    // accurate.
+    // The only tradeoff being that we consume a bit more memory and but it is anyway capped at a max value.
+    private static final long APPROX_ENTRY_SIZE_IN_BYTES = 1024;
+    // This is used to bound the size of our approximate frequency sketch capacity. MIN is a per partition floor so tiny caches still
+    // get a usable sketch to work with. MAX is a whole cache ceiling and divided across partitions, so we bound the total memory consumed
+    // by this
+    // ie ~8mb/node at ~8 bytes/entry regardless of the partition count for this cache.
+    private static final long MIN_ADMISSION_SKETCH_ENTRIES = 1024;
+    private static final long MAX_TOTAL_ADMISSION_SKETCH_ENTRIES = 1L << 20;
     private static final Logger logger = LogManager.getLogger(TieredSpilloverCache.class);
 
     static final String ZERO_SEGMENT_COUNT_EXCEPTION_MESSAGE = "Segment count cannot be less than one for tiered cache";
@@ -127,6 +144,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         }
         builder.cacheConfig.getClusterSettings()
             .addSettingsUpdateConsumer(DISK_CACHE_ENABLED_SETTING_MAP.get(builder.cacheType), this::enableDisableDiskCache);
+        builder.cacheConfig.getClusterSettings()
+            .addSettingsUpdateConsumer(DISK_ADMISSION_MIN_FREQUENCY_SETTING_MAP.get(builder.cacheType), this::setAdmissionMinFrequency);
     }
 
     static class TieredSpilloverCacheSegment<K, V> implements ICache<K, V> {
@@ -157,6 +176,21 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
         private final long onHeapCacheMaxWeight;
         private final long diskCacheMaxWeight;
+
+        // This is our frequency based admissiont control logic. This is used to estimate approximate frequency for our cache keys
+        // on access. This is done to avoid disk cache write ampliciation where scan based queries might access the cache keys only once.
+        // So we do admit such cache keys onto heap tier but while those keys are evicted, we use this frequency based mechanism to decide
+        // whether its worth putting such keys onto disk. If the frequency < threshold(configurable), we decide not to add such keys onto
+        // disk cache
+        // which helps us improving the hit rate of disk cache by avoiding storing such keys whose chances of being accessed later is very
+        // less.
+        // Also note that this only kicks in when disk cache indicates that it is full so that we are not over conservative. Though
+        // frequnency of keys
+        // are calculated from the start.
+        private volatile FrequencySketch<ICacheKey<K>> admissionSketch;
+        private volatile int admissionMinFrequency;
+        private final long admissionSketchCapacity;
+        private final AtomicBoolean diskTierHasEvicted = new AtomicBoolean(false);
 
         /**
          * This map is used to handle concurrent requests for same key in computeIfAbsent() to ensure we load the value
@@ -229,6 +263,16 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             this.diskPolicies = builder.diskPolicies; // Will never be null; builder initializes it to an empty list
             this.onHeapCacheMaxWeight = onHeapCacheSizeInBytes;
             this.diskCacheMaxWeight = diskCacheSizeInBytes;
+
+            long estimatedEntries = (onHeapCacheSizeInBytes + diskCacheSizeInBytes) / APPROX_ENTRY_SIZE_IN_BYTES;
+            // Divide the whole-cache ceiling across segments so total sketch memory is bounded regardless of the
+            // segment count (per-segment capacities already sum to the cache total in the unclamped case).
+            long perSegmentMax = Math.max(MIN_ADMISSION_SKETCH_ENTRIES, MAX_TOTAL_ADMISSION_SKETCH_ENTRIES / numberOfSegments);
+            this.admissionSketchCapacity = Math.max(MIN_ADMISSION_SKETCH_ENTRIES, Math.min(estimatedEntries, perSegmentMax));
+            int initialMinFrequency = TIERED_SPILLOVER_DISK_ADMISSION_MIN_FREQUENCY.getConcreteSettingForNamespace(
+                builder.cacheType.getSettingPrefix()
+            ).get(builder.cacheConfig.getSettings());
+            setAdmissionMinFrequency(initialMinFrequency);
         }
 
         // Package private for testing
@@ -246,10 +290,26 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             // separate cache/clear API.
             this.caches.put(diskCache, new TierInfo(isDiskCacheEnabled, TIER_DIMENSION_VALUE_DISK));
             this.statsHolder.setDiskCacheEnabled(isDiskCacheEnabled);
+            if (isDiskCacheEnabled) {
+                // Disk was just (re)enabled. We don't update the sketch while disk is off, so it may be cold now. Let
+                // it warm again before the doorkeeper starts denying (same reasoning as a fresh enable).
+                diskTierHasEvicted.set(false);
+            }
+        }
+
+        // Increments the frequency for a cache key. But only when disk cache is enabled.
+        private void recordAdmissionAccess(ICacheKey<K> key) {
+            FrequencySketch<ICacheKey<K>> sketch = admissionSketch;
+            if (sketch != null && caches.get(diskCache).isEnabled()) {
+                sketch.increment(key);
+            }
         }
 
         @Override
         public V get(ICacheKey<K> key) {
+            // Record the access for scan-resistant disk admission, same as computeIfAbsent. computeIfAbsent uses the
+            // internal getValueFromTieredCache() rather than this method, so there is no double counting.
+            recordAdmissionAccess(key);
             Tuple<V, String> cacheValueTuple = getValueFromTieredCache(true).apply(key);
             if (cacheValueTuple == null) {
                 return null;
@@ -283,6 +343,9 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
 
         @Override
         public V computeIfAbsent(ICacheKey<K> key, LoadAwareCacheLoader<ICacheKey<K>, V> loader) throws Exception {
+            // Record the access for scan-resistant disk admission. Best-effort and lock-free: a race can only lose an
+            // increment (a slight under-count), which is acceptable for a frequency estimate.
+            recordAdmissionAccess(key);
             // Don't capture stats in the initial getValueFromTieredCache(). If we have concurrent requests for the same key,
             // and it only has to be loaded one time, we should report one miss and the rest hits. But, if we do stats in
             // getValueFromTieredCache(),
@@ -476,7 +539,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             boolean exceptionOccurredOnDiskCachePut = false;
             boolean canCacheOnDisk = caches.get(diskCache).isEnabled()
                 && wasEvicted
-                && evaluatePoliciesList(notification.getValue(), diskPolicies);
+                && evaluatePoliciesList(notification.getValue(), diskPolicies)
+                && admitToDiskTier(key);
             if (canCacheOnDisk) {
                 try (ReleasableLock ignore = writeLock.acquire()) {
                     diskCache.put(key, notification.getValue()); // spill over to the disk tier and increment its stats
@@ -506,6 +570,31 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 }
             }
             return true;
+        }
+
+        // Logic to admit a cache key onto disk cache. We admit all the keys when disk cache has not seen an eviction
+        // to avoid being over-conservative. Once disk cache has seen an eviction, we use frequency based logic to put
+        // this key on disk cache and thereby avoiding disk cache churn.
+        private boolean admitToDiskTier(ICacheKey<K> key) {
+            FrequencySketch<ICacheKey<K>> sketch = admissionSketch;
+            int minFrequency = admissionMinFrequency;
+            if (sketch == null || minFrequency <= 1) {
+                return true;
+            }
+            if (!diskTierHasEvicted.get()) {
+                return true;
+            }
+            return sketch.frequency(key) >= minFrequency;
+        }
+
+        // Updates the admission threshold. Allocates the sketch on first enable (so disabled caches pay nothing) and
+        // lets it warm before it starts denying.
+        void setAdmissionMinFrequency(int minFrequency) {
+            if (minFrequency > 1 && admissionSketch == null) {
+                admissionSketch = new FrequencySketch<>(admissionSketchCapacity);
+                diskTierHasEvicted.set(false);
+            }
+            admissionMinFrequency = minFrequency;
         }
 
         /**
@@ -541,6 +630,10 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             // Values removed from the disk tier leave the TSC entirely
             removalListener.onRemoval(notification);
             boolean wasEvicted = SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason());
+            if (wasEvicted) {
+                // The disk tier is at capacity, so from now on the admission filter is enforced.
+                diskTierHasEvicted.set(true);
+            }
             updateStatsOnRemoval(TIER_DIMENSION_VALUE_DISK, wasEvicted, notification.getKey(), notification.getValue(), true);
         }
 
@@ -573,6 +666,21 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         // pkg-private for testing
         long getDiskCacheMaxWeight() {
             return diskCacheMaxWeight;
+        }
+
+        // pkg-private for testing
+        int getAdmissionMinFrequency() {
+            return admissionMinFrequency;
+        }
+
+        // pkg-private for testing
+        boolean isAdmissionSketchAllocated() {
+            return admissionSketch != null;
+        }
+
+        // pkg-private for testing
+        FrequencySketch<ICacheKey<K>> getAdmissionSketch() {
+            return admissionSketch;
         }
 
         /**
@@ -614,6 +722,13 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             tieredSpilloverCacheSegments[iter].enableDisableDiskCache(isDiskCacheEnabled);
         }
         this.statsHolder.setDiskCacheEnabled(isDiskCacheEnabled);
+    }
+
+    // Package private for testing.
+    void setAdmissionMinFrequency(Integer minFrequency) {
+        for (int iter = 0; iter < this.numberOfSegments; iter++) {
+            tieredSpilloverCacheSegments[iter].setAdmissionMinFrequency(minFrequency);
+        }
     }
 
     // Package private for testing.

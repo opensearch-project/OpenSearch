@@ -101,6 +101,18 @@ public class TieredSpilloverCacheSettings {
     );
 
     /**
+     * Setting which defines the minimum estimated access frequency a key must have to be admitted to the disk tier.
+     * The default of 1 admits every heap-evicted entry onto disk cache. Raise/change it according to the usecase.
+     * This policy is only enforced when the disk tier is at capacity so that entries are not needlessly rejected while
+     * the disk tier has free space. Capped at 15 since our internal approximate frequency counter data structure
+     * saturate there.
+     */
+    public static final Setting.AffixSetting<Integer> TIERED_SPILLOVER_DISK_ADMISSION_MIN_FREQUENCY = Setting.suffixKeySetting(
+        TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME + ".disk.store.admission.min_frequency",
+        (key) -> Setting.intSetting(key, 1, 1, 15, NodeScope, Setting.Property.Dynamic)
+    );
+
+    /**
      * Setting which defines the onHeap cache size to be used within tiered cache.
      * This setting overrides size settings from the heap tier implementation.
      * For example, if OpenSearchOnHeapCache is the heap tier in the request cache, and
@@ -172,13 +184,24 @@ public class TieredSpilloverCacheSettings {
     public static final Map<CacheType, Setting<Boolean>> DISK_CACHE_ENABLED_SETTING_MAP;
 
     /**
+     * Stores the disk-admission minimum-frequency settings for various cache types as these are dynamic so they can be
+     * registered and retrieved accordingly.
+     */
+    public static final Map<CacheType, Setting<Integer>> DISK_ADMISSION_MIN_FREQUENCY_SETTING_MAP;
+
+    /**
      * Fetches concrete took time policy and disk cache settings.
      */
     static {
         Map<CacheType, Setting<TimeValue>> concreteTookTimePolicySettingMap = new HashMap<>();
         Map<CacheType, Setting<TimeValue>> concreteDiskTookTimePolicySettingMap = new HashMap<>();
         Map<CacheType, Setting<Boolean>> diskCacheSettingMap = new HashMap<>();
+        Map<CacheType, Setting<Integer>> diskAdmissionMinFrequencySettingMap = new HashMap<>();
         for (CacheType cacheType : CacheType.values()) {
+            diskAdmissionMinFrequencySettingMap.put(
+                cacheType,
+                TIERED_SPILLOVER_DISK_ADMISSION_MIN_FREQUENCY.getConcreteSettingForNamespace(cacheType.getSettingPrefix())
+            );
             concreteTookTimePolicySettingMap.put(
                 cacheType,
                 TIERED_SPILLOVER_TOOK_TIME_THRESHOLD.getConcreteSettingForNamespace(cacheType.getSettingPrefix())
@@ -195,6 +218,7 @@ public class TieredSpilloverCacheSettings {
         TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP = concreteTookTimePolicySettingMap;
         TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP = concreteDiskTookTimePolicySettingMap;
         DISK_CACHE_ENABLED_SETTING_MAP = diskCacheSettingMap;
+        DISK_ADMISSION_MIN_FREQUENCY_SETTING_MAP = diskAdmissionMinFrequencySettingMap;
     }
 
     /**
