@@ -801,6 +801,30 @@ public abstract class AbstractScopedSettings {
     }
 
     /**
+     * Returns the registered settings with a concrete key whose key matches a simple wildcard pattern such as
+     * {@code cluster.routing.allocation.*}: ordinary settings and list settings. Affix and group templates are not
+     * included, since they have no concrete key and nothing can be described or configured under the matched name
+     * itself. The pattern is not constrained here; callers decide which shapes they accept. The returned set is a
+     * snapshot taken at call time.
+     */
+    public Set<Setting<?>> getMatching(String pattern) {
+        Set<Setting<?>> matches = new HashSet<>();
+        for (Setting<?> setting : keySettings.values()) {
+            if (Regex.simpleMatch(pattern, setting.getKey())) {
+                matches.add(setting);
+            }
+        }
+        // List settings are filed with the templates because they also accept the legacy indexed form (key.0, key.1),
+        // but their declared key is concrete and is the one callers configure and describe.
+        for (Setting<?> setting : complexMatchers.values()) {
+            if (setting.isListSetting() && Regex.simpleMatch(pattern, setting.getKey())) {
+                matches.add(setting);
+            }
+        }
+        return matches;
+    }
+
+    /**
      * Returns the value for the given setting.
      */
     public <T> T get(Setting<T> setting) {

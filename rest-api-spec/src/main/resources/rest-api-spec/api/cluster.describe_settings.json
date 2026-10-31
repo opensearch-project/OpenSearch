@@ -2,7 +2,7 @@
   "cluster.describe_settings": {
     "documentation": {
       "url": "https://opensearch.org/docs/latest/api-reference/cluster-api/cluster-settings/",
-      "description": "Describes exact registered cluster setting names using the receiving node's setting registry. Reports definition metadata, not configured values. Unknown and filtered names are omitted."
+      "description": "Describes registered cluster settings using the receiving node's setting registry. Reports definition metadata, not configured values. Unknown and filtered names are omitted. Results are paginated."
     },
     "stability": "experimental",
     "url": {
@@ -14,7 +14,21 @@
       "settings": {
         "type": "list",
         "required": true,
-        "description": "Exact setting names, including concrete affix keys. Wildcards are not supported."
+        "description": "Setting names to describe. Each entry is either an exact name (including a concrete affix key such as cluster.remote.alpha.seeds) or a prefix ending in .* such as cluster.routing.allocation.*, which expands to every setting registered under it. Concrete affix keys are not registered settings and are reachable only by exact name. Exact names and prefixes may be mixed."
+      },
+      "size": {
+        "type": "number",
+        "description": "Maximum number of settings per page, between 1 and 1000. Defaults to 100. Applies to the merged result, so a list of more than this many exact names is paged as well."
+      },
+      "sort": {
+        "type": "enum",
+        "options": ["asc", "desc"],
+        "default": "asc",
+        "description": "Order of setting names within and across pages. A next_token is bound to the sort it was issued under and is rejected if replayed with the other one."
+      },
+      "next_token": {
+        "type": "string",
+        "description": "Opaque cursor from a previous response; continues the listing after the last key of that page. Omitted from the response on the last page."
       }
     }
   }

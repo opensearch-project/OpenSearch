@@ -10,6 +10,7 @@ package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsAction;
 import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsRequest;
+import org.opensearch.action.pagination.PageParams;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -35,7 +36,14 @@ public class RestClusterDescribeSettingsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        var describeRequest = new ClusterDescribeSettingsRequest(request.paramAsStringArray("settings", new String[0]));
+        // Always paginated: missing page parameters mean the first DEFAULT_PAGE_SIZE keys in ascending order, so every
+        // response is bounded whether or not the caller asked for paging. The upper bound is enforced in validate().
+        PageParams pageParams = validateAndGetPageParams(
+            request,
+            PageParams.PARAM_ASC_SORT_VALUE,
+            ClusterDescribeSettingsRequest.DEFAULT_PAGE_SIZE
+        );
+        var describeRequest = new ClusterDescribeSettingsRequest(pageParams, request.paramAsStringArray("settings", new String[0]));
         return channel -> client.execute(ClusterDescribeSettingsAction.INSTANCE, describeRequest, new RestToXContentListener<>(channel));
     }
 }

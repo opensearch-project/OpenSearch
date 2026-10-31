@@ -8,6 +8,7 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
+import org.opensearch.action.pagination.PageToken;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -17,6 +18,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
@@ -29,9 +31,21 @@ import java.util.TreeMap;
  */
 public class ClusterDescribeSettingsResponse extends ActionResponse implements ToXContentObject {
     private final Map<String, SettingMetadata> settings;
+    @Nullable
+    private final PageToken nextToken;
 
+    /** A complete, unpaginated result; entries are rendered in ascending key order. */
     public ClusterDescribeSettingsResponse(Map<String, SettingMetadata> settings) {
-        this.settings = Collections.unmodifiableMap(new TreeMap<>(settings));
+        this(new TreeMap<>(settings), null);
+    }
+
+    /**
+     * One page of a result. {@code settings} is rendered in its own iteration order, so a descending page stays
+     * descending; {@code nextToken} is {@code null} on the last page.
+     */
+    public ClusterDescribeSettingsResponse(Map<String, SettingMetadata> settings, @Nullable PageToken nextToken) {
+        this.settings = Collections.unmodifiableMap(new LinkedHashMap<>(settings));
+        this.nextToken = nextToken;
     }
 
     /**
@@ -46,6 +60,12 @@ public class ClusterDescribeSettingsResponse extends ActionResponse implements T
         return settings;
     }
 
+    /** Cursor for the next page, or {@code null} when this is the last page. */
+    @Nullable
+    public PageToken nextToken() {
+        return nextToken;
+    }
+
     @Override
     public void writeTo(StreamOutput out) {
         throw new UnsupportedOperationException("ClusterDescribeSettingsResponse is local-only and is not serializable");
@@ -58,7 +78,12 @@ public class ClusterDescribeSettingsResponse extends ActionResponse implements T
             builder.field(entry.getKey());
             entry.getValue().toXContent(builder, params);
         }
-        return builder.endObject().endObject();
+        builder.endObject();
+        if (nextToken != null) {
+            // Omitted on the last page rather than emitted as null, matching how default and validation are handled.
+            builder.field(PageToken.PAGINATED_RESPONSE_NEXT_TOKEN_KEY, nextToken.getNextToken());
+        }
+        return builder.endObject();
     }
 
     /**
