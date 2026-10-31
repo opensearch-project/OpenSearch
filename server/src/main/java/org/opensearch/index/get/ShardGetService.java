@@ -43,6 +43,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.opensearch.OpenSearchException;
+import org.opensearch.action.support.ReadAccessPolicy;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
@@ -123,7 +124,40 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         VersionType versionType,
         FetchSourceContext fetchSourceContext
     ) {
-        return get(id, gFields, realtime, version, versionType, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, fetchSourceContext);
+        return get(
+            id,
+            gFields,
+            realtime,
+            version,
+            versionType,
+            UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            fetchSourceContext,
+            ReadAccessPolicy.unrestricted()
+        );
+    }
+
+    /** Gets a document while enforcing the supplied request-scoped read-access policy. */
+    public GetResult get(
+        String id,
+        String[] gFields,
+        boolean realtime,
+        long version,
+        VersionType versionType,
+        FetchSourceContext fetchSourceContext,
+        ReadAccessPolicy readAccessPolicy
+    ) {
+        return get(
+            id,
+            gFields,
+            realtime,
+            version,
+            versionType,
+            UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            fetchSourceContext,
+            readAccessPolicy
+        );
     }
 
     private GetResult get(
@@ -134,12 +168,23 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         VersionType versionType,
         long ifSeqNo,
         long ifPrimaryTerm,
-        FetchSourceContext fetchSourceContext
+        FetchSourceContext fetchSourceContext,
+        ReadAccessPolicy readAccessPolicy
     ) {
         currentMetric.inc();
         try {
             long now = System.nanoTime();
-            GetResult getResult = innerGet(id, gFields, realtime, version, versionType, ifSeqNo, ifPrimaryTerm, fetchSourceContext);
+            GetResult getResult = innerGet(
+                id,
+                gFields,
+                realtime,
+                version,
+                versionType,
+                ifSeqNo,
+                ifPrimaryTerm,
+                fetchSourceContext,
+                readAccessPolicy
+            );
 
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
@@ -161,7 +206,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             VersionType.INTERNAL,
             ifSeqNo,
             ifPrimaryTerm,
-            FetchSourceContext.FETCH_SOURCE
+            FetchSourceContext.FETCH_SOURCE,
+            ReadAccessPolicy.unrestricted()
         );
     }
 
@@ -226,7 +272,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         VersionType versionType,
         long ifSeqNo,
         long ifPrimaryTerm,
-        FetchSourceContext fetchSourceContext
+        FetchSourceContext fetchSourceContext,
+        ReadAccessPolicy readAccessPolicy
     ) {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
 
@@ -237,7 +284,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 new Engine.Get(realtime, true, id, uidTerm).version(version)
                     .versionType(versionType)
                     .setIfSeqNo(ifSeqNo)
-                    .setIfPrimaryTerm(ifPrimaryTerm)
+                    .setIfPrimaryTerm(ifPrimaryTerm),
+                readAccessPolicy
             )
         ) {
             if (get == null || get.exists() == false) {

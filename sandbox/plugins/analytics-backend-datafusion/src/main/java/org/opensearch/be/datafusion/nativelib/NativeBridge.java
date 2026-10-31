@@ -1094,6 +1094,8 @@ public final class NativeBridge {
     public static final long INTERNAL_SEARCH_BY_ROW_ID = 1L;
     /** {@code internal_search_mode}: seq-no scan — native plan filters {@code _seq_no > bound}, {@code substraitPlan} ignored. */
     public static final long INTERNAL_SEARCH_SEQ_NO_ABOVE = 2L;
+    /** {@code internal_search_mode}: decode the supplied secured lookup plan on the ListingTable path. */
+    public static final long INTERNAL_SEARCH_PLANNED_DOCUMENT_LOOKUP = 3L;
 
     public static void executeQueryAsync(
         long readerPtr,

@@ -912,7 +912,14 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
     /** Calls the new getById(Engine.Get, searcherFactory) and unwraps the pre-materialized lookup.
      *  DFA engines ignore the searcher factory, so a no-op factory is supplied. */
     private static DocumentLookupResult getByIdLookup(DataFormatAwareReadOnlyEngine engine, Engine.Get get) throws IOException {
-        Engine.GetResult result = engine.getById(get, (source, scope) -> null);
+        Engine.GetResult result = engine.getById(
+            org.opensearch.index.engine.exec.DocumentLookupContext.of(
+                get,
+                engine.config().getShardId().getIndex(),
+                org.opensearch.action.support.ReadAccessPolicy.unrestricted()
+            ),
+            (source, scope) -> null
+        );
         return result.exists() ? ((DocumentLookupResult.PreMaterialized) result).lookup() : DocumentLookupResult.notFound(get.id());
     }
 
@@ -938,9 +945,7 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
 
     public void testGetByIdReturnsDocWhenNoConflict() throws IOException {
         DocumentLookupProvider provider = mock(DocumentLookupProvider.class);
-        when(provider.getById(any(), any(), any(), any())).thenReturn(
-            new DocumentLookupResult("1", 1L, true, null, 0L, 1L, Map.of(), Map.of())
-        );
+        when(provider.getById(any(), any(), any())).thenReturn(new DocumentLookupResult("1", 1L, true, null, 0L, 1L, Map.of(), Map.of()));
         try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngineWithProvider(provider)) {
             Engine.Get get = realtimeGet("1");
             DocumentLookupResult result = getByIdLookup(engine, get);
@@ -951,9 +956,7 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
 
     public void testGetByIdThrowsVersionConflictForReads() throws IOException {
         DocumentLookupProvider provider = mock(DocumentLookupProvider.class);
-        when(provider.getById(any(), any(), any(), any())).thenReturn(
-            new DocumentLookupResult("1", 5L, true, null, 0L, 1L, Map.of(), Map.of())
-        );
+        when(provider.getById(any(), any(), any())).thenReturn(new DocumentLookupResult("1", 5L, true, null, 0L, 1L, Map.of(), Map.of()));
         try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngineWithProvider(provider)) {
             Engine.Get get = realtimeGet("1").version(3L).versionType(org.opensearch.index.VersionType.EXTERNAL);
             expectThrows(VersionConflictEngineException.class, () -> getByIdLookup(engine, get));
@@ -962,9 +965,7 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
 
     public void testGetByIdThrowsOnSeqNoMismatch() throws IOException {
         DocumentLookupProvider provider = mock(DocumentLookupProvider.class);
-        when(provider.getById(any(), any(), any(), any())).thenReturn(
-            new DocumentLookupResult("1", 1L, true, null, 5L, 1L, Map.of(), Map.of())
-        );
+        when(provider.getById(any(), any(), any())).thenReturn(new DocumentLookupResult("1", 1L, true, null, 5L, 1L, Map.of(), Map.of()));
         try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngineWithProvider(provider)) {
             Engine.Get get = realtimeGet("1").setIfSeqNo(99L).setIfPrimaryTerm(1L);
             expectThrows(VersionConflictEngineException.class, () -> getByIdLookup(engine, get));
@@ -973,9 +974,7 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
 
     public void testGetByIdThrowsOnPrimaryTermMismatch() throws IOException {
         DocumentLookupProvider provider = mock(DocumentLookupProvider.class);
-        when(provider.getById(any(), any(), any(), any())).thenReturn(
-            new DocumentLookupResult("1", 1L, true, null, 5L, 1L, Map.of(), Map.of())
-        );
+        when(provider.getById(any(), any(), any())).thenReturn(new DocumentLookupResult("1", 1L, true, null, 5L, 1L, Map.of(), Map.of()));
         try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngineWithProvider(provider)) {
             Engine.Get get = realtimeGet("1").setIfSeqNo(5L).setIfPrimaryTerm(99L);
             expectThrows(VersionConflictEngineException.class, () -> getByIdLookup(engine, get));

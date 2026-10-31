@@ -49,14 +49,14 @@ public final class DocumentLookupSupport {
      *
      * @throws UnsupportedOperationException if no {@link DocumentLookupProvider} is installed
      */
-    public DocumentLookupResult lookupFromReader(Engine.Get get, IndexReaderProvider.Reader reader) throws IOException {
+    public DocumentLookupResult lookupFromReader(DocumentLookupContext context, IndexReaderProvider.Reader reader) throws IOException {
         if (provider == null) {
             throw new UnsupportedOperationException("getById not supported: no DocumentLookupProvider installed");
         }
         if (reader.catalogSnapshot().getSegments().isEmpty()) {
-            return DocumentLookupResult.notFound(get.id());
+            return DocumentLookupResult.notFound(context.get().id());
         }
-        return provider.getById(get, reader, shardId.getIndex(), resolver);
+        return provider.getById(context, reader, resolver);
     }
 
     /**
@@ -95,9 +95,9 @@ public final class DocumentLookupSupport {
      * Used by the read-only and NRT replica engines, which read directly from the segment
      * snapshot without a live version map.
      */
-    public DocumentLookupResult getById(Engine.Get get, IndexReaderProvider.Reader reader) throws IOException {
-        DocumentLookupResult result = lookupFromReader(get, reader);
-        applyReadVersionConflicts(get, result);
+    public DocumentLookupResult getById(DocumentLookupContext context, IndexReaderProvider.Reader reader) throws IOException {
+        DocumentLookupResult result = lookupFromReader(context, reader);
+        applyReadVersionConflicts(context.get(), result);
         return result;
     }
 }
