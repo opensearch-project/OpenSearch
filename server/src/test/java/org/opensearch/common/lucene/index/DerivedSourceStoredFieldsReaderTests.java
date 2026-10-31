@@ -96,7 +96,7 @@ public class DerivedSourceStoredFieldsReaderTests extends OpenSearchTestCase {
         reader.checkIntegrity();
     }
 
-    public void testGetMergeInstance() {
+    public void testGetMergeInstance() throws IOException {
         StoredFieldsReader mergeInstance = reader.getMergeInstance();
         assertNotNull("Merge instance should not be null", mergeInstance);
     }
