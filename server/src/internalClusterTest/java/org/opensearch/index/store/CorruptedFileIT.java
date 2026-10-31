@@ -788,11 +788,10 @@ public class CorruptedFileIT extends OpenSearchIntegTestCase {
         // For this test our previous corrupt commit "segments_2" will remain on the primary.
         // This asserts this is the case, and then resets check index status.
         assertEquals("Check index has a single failure", 1, checkIndexFailures.size());
-        assertTrue(
-            checkIndexFailures.get(0)
-                .getMessage()
-                .contains("could not read old (not latest) commit point segments file \"segments_2\" in directory")
-        );
+        // Lucene 10.6 words this differently depending on whether the commit or one of its .si files is unreadable
+        final String checkIndexMessage = checkIndexFailures.get(0).getMessage();
+        assertTrue(checkIndexMessage, checkIndexMessage.contains("old (not latest) commit point"));
+        assertTrue(checkIndexMessage, checkIndexMessage.contains("segments file \"segments_2\""));
         resetCheckIndexStatus();
     }
 
