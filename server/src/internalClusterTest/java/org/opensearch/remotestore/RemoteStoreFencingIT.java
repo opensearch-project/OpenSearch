@@ -627,7 +627,7 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
         Fence competing = readFence(fenceDir);
         assertEquals("competing-node", competing.nodeId);
 
-        // The incumbent holds a stale token, so its next upload loses the CAS and the write is never acknowledged.
+        // The incumbent's path is gone, so its next upload's fence check fails and the write is never acknowledged.
         Exception failure = expectThrows(Exception.class, () -> indexSingleDoc(INDEX_NAME));
         String stackTrace = ExceptionsHelper.stackTrace(failure);
         assertTrue("expected a fencing failure but got:\n" + stackTrace, stackTrace.contains("primary fenced by remote store"));

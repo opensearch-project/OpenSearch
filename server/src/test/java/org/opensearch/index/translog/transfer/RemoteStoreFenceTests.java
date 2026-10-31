@@ -201,6 +201,37 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         source.validateAndAdvance(1);
     }
 
+    /**
+     * A revert that landed with both its response and the follow-up read lost. The source still holds the transfer's
+     * token, so its write-back loses the CAS - but the object records the source, at exactly the seq the write-back
+     * attempts, so the source adopts it rather than fencing itself. The target stays shut out.
+     */
+    public void testRevertThatLandedUnseenIsAdoptedNotFenced() throws IOException {
+        final InstrumentedContainer container = new InstrumentedContainer(blobStore, repoPath);
+        final RemoteStoreFence source = new RemoteStoreFence(container, allocationIdOf("node-source"), "node-source", shardId);
+        source.validateAndAdvance(1);
+        source.transferOwnershipTo(1, allocationIdOf("node-target"));
+
+        container.loseNextWriteResponse.set(true);
+        container.failNextRead.set(true);
+        expectThrows(IOException.class, () -> source.revertOwnership(1));
+        final VersionedBlob reverted = blobContainer.readBlobWithVersion(RemoteStoreFence.fenceBlobName(1));
+        assertEquals(allocationIdOf("node-source"), RemoteStoreFence.FenceState.parse(reverted.content()).allocationId);
+
+        source.validateAndAdvance(1);
+        final int writesAfterAdopt = container.conditionalWrites.get();
+        assertEquals(
+            "adopting the revert must not write the fence",
+            reverted.versionToken(),
+            blobContainer.readBlobWithVersion(RemoteStoreFence.fenceBlobName(1)).versionToken()
+        );
+
+        source.validateAndAdvance(1);
+        assertEquals("acks after the adopted revert must only read", writesAfterAdopt, container.conditionalWrites.get());
+        expectThrows(TranslogFencedException.class, () -> newRelocationTarget("node-target").validateAndAdvance(1));
+        source.validateAndAdvance(1);
+    }
+
     /** The other outcome of the same race: a target that adopted first owns the chain, and the source stands down. */
     public void testFirstAckAfterAnUnresolvedRevertIsFencedIfTheTargetAdoptedFirst() throws IOException {
         final InstrumentedContainer container = new InstrumentedContainer(blobStore, repoPath);

@@ -266,16 +266,22 @@ public class RemoteStoreFence {
             validateByRead(primaryTerm);
             return;
         }
-        // Our last write handed the chain to a relocation target and no revert has landed since: a revert that
-        // failed before reaching the store leaves exactly this state. A read would pass, yet the object still lets
-        // that target take the chain and serve without what we acknowledge next. So write ourselves back as owner
-        // first, which also shuts the target out (FenceHandoff.tla).
+        // Our last write handed the chain to a relocation target, and we have not seen a revert land since: either it
+        // failed before reaching the store, or it landed and both its response and the read that would have shown it
+        // were lost. In the first case a read would pass, yet the object still lets that target take the chain and
+        // serve without what we acknowledge next. So write ourselves back as owner first, which also shuts the target
+        // out (FenceHandoff.tla).
         final long attemptedSeq = seq + 1;
         try {
             cas(primaryTerm, versionToken, attemptedSeq);
         } catch (BlobVersionConflictException e) {
-            // Fenced is terminal: our acknowledgement path was either taken over by an equal-term twin or deleted by a
-            // higher-term successor, so this instance can never acknowledge again. Re-read to report who superseded us.
+            // The revert writes exactly what this write-back would: our allocation and node at this seq. If that is
+            // what the object holds, the revert landed unseen, so adopt it rather than fence a copy the object
+            // records as owner. Otherwise fenced is terminal: the target took the chain, an equal-term twin took our
+            // path over, or a higher-term successor deleted it. Re-read to report who superseded us.
+            if (adoptOwnWriteIfItLanded(primaryTerm, attemptedSeq)) {
+                return;
+            }
             throw fencedException(e);
         } catch (IOException e) {
             // Ambiguous rather than failed: the conditional write may have landed with only the response lost. Our
