@@ -273,19 +273,19 @@ public class TranslogTransferManager {
                 throw exception;
             }
             if (exceptionList.isEmpty()) {
-                // Invariant (see RemoteStoreFence): the chain gates the ack, and the CAS is issued only AFTER the
-                // metadata upload below has completed. The ordering is load-bearing, not a simplification - it is
-                // what makes "seal before restore" airtight. A successful CAS proves this writer's fence object
-                // still existed, so a takeover's sweep - and the restore-point read behind it - can only happen
-                // after the CAS, by which point the metadata is already visible (read-after-write). Issued
-                // concurrently instead, the CAS can win before the sweep while the metadata PUT is still in
-                // flight; the takeover then reads a restore point without this generation, the PUT lands, both
-                // halves report success, and an acknowledged operation ends up in a metadata file no recovery
-                // will ever resolve - it sorts below every file the new owner publishes. Acked-write loss:
-                // RemoteStoreFence.tla in formal-models/ refutes the interleaving (SEQUENCED = FALSE), and the cost of
-                // sequencing is one small conditional PUT per sync on the ack path.
+                // Invariant (see RemoteStoreFence): the chain gates the ack, and the fence check runs only AFTER
+                // the metadata upload below has completed. The ordering is load-bearing, not a simplification - it
+                // is what makes "seal before restore" airtight. A passing check proves this writer's fence object
+                // was unchanged when read, so a takeover's write or sweep - and the restore-point read behind it -
+                // can only happen after the check, by which point the metadata is already visible
+                // (read-after-write). Run concurrently instead, the check can pass before the sweep while the
+                // metadata PUT is still in flight; the takeover then reads a restore point without this
+                // generation, the PUT lands, both halves report success, and an acknowledged operation ends up in
+                // a metadata file no recovery will ever resolve - it sorts below every file the new owner
+                // publishes. Acked-write loss: RemoteStoreFence.tla in formal-models/ refutes the interleaving
+                // (SEQUENCED = FALSE), and the cost of sequencing is one small fence read per sync on the ack path.
                 //
-                // A fenced writer may still publish one orphan metadata file (CAS refused after the PUT landed).
+                // A fenced writer may still publish one orphan metadata file (check failed after the PUT landed).
                 // Readers are safe against it:
                 // (1) the metadata file is only uploaded after every data file it references succeeded (the
                 // exceptionList check above), so an orphan is an internally consistent restore point;

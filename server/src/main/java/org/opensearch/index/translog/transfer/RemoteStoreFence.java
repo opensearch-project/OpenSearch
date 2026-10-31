@@ -49,22 +49,25 @@ import java.util.Set;
  * is the whole mechanism - staleness is detectable because there is no way to write without proving you saw the
  * previous state.</li>
  * </ul>
- * The fencing token is therefore this chain, not the primary term. Every acknowledged translog upload advances it
- * through {@link #validateAndAdvance}, so a second writer holds a stale token and its next CAS fails with a
+ * The fencing token is therefore this chain, not the primary term. The chain advances only when ownership changes - a
+ * claim, an equal-term arbitration, a relocation handoff or its revert - and each such write invalidates every other
+ * holder's token. A translog upload does not advance it: {@link #validateAndAdvance} reads the object and checks it
+ * still carries the token of this writer's own last write, so a second writer is caught with a
  * {@link TranslogFencedException} before the write is acknowledged. That covers both a stale primary after failover
- * and a zombie relocation source. On top of that, a successor deletes the superseded writer's object, and it is the
- * delete rather than the CAS that makes a higher-term takeover certain instead of a race - a CAS alone would only be
- * a fair race between the two.
+ * and a zombie relocation source. Uploads read rather than write because some stores limit how often one object can
+ * be updated (GCS allows about once per second), which would throttle every fenced shard's translog syncs. On top
+ * of that, a successor deletes the superseded writer's object, and it is the delete rather than the CAS that makes a
+ * higher-term takeover certain instead of a race - a CAS alone would only be a fair race between the two.
  * <p>
- * The CAS is issued only <b>after</b> the immutable translog metadata upload has completed, and the upload is
- * acknowledged only once both have succeeded. The ordering is load-bearing: a successful CAS then proves this
- * writer's object still existed, so a takeover's sweep - and the restore-point read behind it - can only come
- * later, when the metadata is already visible. Run concurrently instead, the CAS can win before the sweep while
- * the metadata is still in flight, and an acknowledged operation lands in a metadata file no recovery will ever
- * resolve ({@code RemoteStoreFence.tla} in {@code formal-models/} exhibits the trace with {@code SEQUENCED = FALSE}). One consequence
- * remains: a fenced writer can leave a single orphan metadata file behind - published, then refused at the CAS. It
- * was never acknowledged, it is term-scoped, and readers that follow the highest-term lineage ignore it. Cleaning
- * those up is a follow-up.
+ * The fence check runs only <b>after</b> the immutable translog metadata upload has completed, and the upload
+ * is acknowledged only once both have succeeded. The ordering is load-bearing: a check that passes then proves this
+ * writer's object was unchanged when the read was served, so a takeover's write or sweep - and the restore-point
+ * read behind it - can only come later, when the metadata is already visible. Run concurrently instead, the check
+ * can pass before the sweep while the metadata is still in flight, and an acknowledged operation lands in a
+ * metadata file no recovery will ever resolve ({@code RemoteStoreFence.tla} in {@code formal-models/} exhibits the
+ * trace with {@code SEQUENCED = FALSE}). One consequence remains: a fenced writer can leave a single orphan metadata
+ * file behind - published, then refused at the check. It was never acknowledged, it is term-scoped, and readers
+ * that follow the highest-term lineage ignore it. Cleaning those up is a follow-up.
  * <p>
  * The fence blob sits on the <b>control flow</b>: it carries decisions about who may write, and never any shard
  * data. Shard data travels on two other paths, named separately throughout because they are fenced by different
@@ -81,9 +84,10 @@ import java.util.Set;
  * <p>
  * <b>Invariants.</b> Referenced by name from the code that enforces them:
  * <ul>
- * <li><b>The chain gates the ack.</b> An upload is acknowledged only if its fence CAS succeeded, and the CAS is
- * issued only after the upload's metadata is visible. {@code TranslogTransferManager#transferSnapshot} runs the
- * CAS after the metadata upload and before it acknowledges.</li>
+ * <li><b>The chain gates the ack.</b> An upload is acknowledged only if the fence object still carries the token of
+ * this writer's own last write, and that is checked only after the upload's metadata is visible.
+ * {@code TranslogTransferManager#transferSnapshot} runs the check after the metadata upload and before it
+ * acknowledges.</li>
  * <li><b>One writer at a time.</b> Any successful fence write invalidates every other holder's token. The
  * repository's conditional writes are what provide this, so {@code RemoteFsTranslog#buildFence} refuses a repository
  * that lacks them rather than running unfenced.</li>
@@ -169,6 +173,11 @@ public class RemoteStoreFence {
     private long term = -1;
     private long seq = -1;
     /**
+     * The allocation id this instance's last fence write recorded as owner. Our own, except after
+     * {@link #transferOwnershipTo} hands the chain to a relocation target, until a revert reclaims it.
+     */
+    private String recordedAllocationId;
+    /**
      * Set once this instance has been fenced, and never cleared. Terminality has to be explicit state rather than a
      * consequence of holding a stale token: a fenced instance asked to act at a <i>different</i> term must not be able
      * to claim that term's path, since it was never granted it - doing so would let it delete its own successor's
@@ -218,13 +227,14 @@ public class RemoteStoreFence {
     }
 
     /**
-     * Validates that this shard copy still owns its term's acknowledgement path and advances the CAS chain. Must be
-     * called on every translog upload strictly AFTER the metadata upload has completed and before the upload is
-     * acknowledged (invariant: the chain gates the ack, and the CAS follows the metadata). The ordering is what makes
-     * a successful CAS a proof of visibility: the fence object still existed, so a takeover's sweep - and the
-     * restore-point read behind it - can only come later, when this upload's metadata has already landed. The
-     * first call claims the path for {@code primaryTerm} (see {@link #claim}); every later call advances the chain with
-     * the token retained from the previous write.
+     * Validates that this shard copy still owns its term's acknowledgement path. Must be called on every translog
+     * upload strictly AFTER the metadata upload has completed and before the upload is acknowledged (invariant: the
+     * chain gates the ack, and the check follows the metadata). The ordering is what makes a passing check a proof of
+     * visibility: the fence object was unchanged when read, so a takeover's write or sweep - and the restore-point
+     * read behind it - can only come later, when this upload's metadata has already landed.
+     * <p>
+     * The first call claims the path for {@code primaryTerm} (see {@link #claim}). Later calls only read it - except
+     * right after an unreclaimed relocation handoff, see below.
      *
      * @param primaryTerm the primary term this upload is being performed at
      * @throws TranslogFencedException if another shard copy owns the fence — fatal, the caller must stop acking
@@ -252,12 +262,26 @@ public class RemoteStoreFence {
                 )
             );
         }
+        if (ownerAllocationId.equals(recordedAllocationId)) {
+            validateByRead(primaryTerm);
+            return;
+        }
+        // Our last write handed the chain to a relocation target, and we have not seen a revert land since: either it
+        // failed before reaching the store, or it landed and both its response and the read that would have shown it
+        // were lost. In the first case a read would pass, yet the object still lets that target take the chain and
+        // serve without what we acknowledge next. So write ourselves back as owner first, which also shuts the target
+        // out (FenceHandoff.tla).
         final long attemptedSeq = seq + 1;
         try {
             cas(primaryTerm, versionToken, attemptedSeq);
         } catch (BlobVersionConflictException e) {
-            // Fenced is terminal: our acknowledgement path was either taken over by an equal-term twin or deleted by a
-            // higher-term successor, so this instance can never acknowledge again. Re-read to report who superseded us.
+            // The revert writes exactly what this write-back would: our allocation and node at this seq. If that is
+            // what the object holds, the revert landed unseen, so adopt it rather than fence a copy the object
+            // records as owner. Otherwise fenced is terminal: the target took the chain, an equal-term twin took our
+            // path over, or a higher-term successor deleted it. Re-read to report who superseded us.
+            if (adoptOwnWriteIfItLanded(primaryTerm, attemptedSeq)) {
+                return;
+            }
             throw fencedException(e);
         } catch (IOException e) {
             // Ambiguous rather than failed: the conditional write may have landed with only the response lost. Our
@@ -267,6 +291,33 @@ public class RemoteStoreFence {
             if (adoptOwnWriteIfItLanded(primaryTerm, attemptedSeq) == false) {
                 throw e;
             }
+        }
+    }
+
+    /**
+     * Checks the fence with one read: the object must still carry the token of this instance's own last write. Only
+     * ownership changes write the object, so an unchanged token proves the same thing a successful CAS did.
+     * <p>
+     * Safe for the same reason the CAS was: the read starts after this upload's metadata is visible, so any takeover
+     * the read missed wrote later, and reads its restore point later still, when the metadata is already there. This
+     * relies on the store showing a read every write and delete that completed before it - which S3, GCS and Azure
+     * (primary region) document; never read the fence from an asynchronous replica - and on a token not repeating for
+     * a different writer. GCS generations and Azure ETags never repeat. S3 ETags hash the content, which names the
+     * term, allocation id, node id and seq, so a repeat takes the same copy on the same node rewriting the same seq,
+     * which only happens after a remote translog wipe, when the engine holding the old token is already closed.
+     */
+    private void validateByRead(long primaryTerm) throws IOException {
+        final VersionedBlob current;
+        try {
+            current = blobContainer.readBlobWithVersion(fenceBlobName(primaryTerm));
+        } catch (NoSuchFileException e) {
+            // A higher term swept our path: fenced, exactly as a CAS against the deleted object would be.
+            throw fencedException(e);
+        }
+        // Any other IOException propagates and stays retryable: nothing was acknowledged and nothing changed.
+        if (versionToken.equals(current.versionToken()) == false) {
+            // An equal-term twin took our path over. Fenced is terminal.
+            throw fencedException(null);
         }
     }
 
@@ -299,6 +350,7 @@ public class RemoteStoreFence {
                 this.versionToken = current.versionToken();
                 this.term = primaryTerm;
                 this.seq = attemptedSeq;
+                this.recordedAllocationId = recordedAllocationId;
                 logger.info(
                     "Fence write at term [{}] seq [{}] had landed; adopted its token after a lost response",
                     primaryTerm,
@@ -617,6 +669,7 @@ public class RemoteStoreFence {
         versionToken = null;
         term = -1;
         seq = -1;
+        recordedAllocationId = null;
     }
 
     /**
@@ -659,6 +712,7 @@ public class RemoteStoreFence {
         this.versionToken = newToken;
         this.term = primaryTerm;
         this.seq = nextSeq;
+        this.recordedAllocationId = recordedAllocationId;
     }
 
     private TranslogFencedException fencedException(Exception cause) {

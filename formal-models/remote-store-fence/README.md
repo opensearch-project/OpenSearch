@@ -2,9 +2,9 @@
 
 TLA+ models of the object-store-backed primary fencing protocol
 (`RemoteStoreFence.java`, PR #22774 / RFC #22768). One mutable
-`fence__<term>` object per primary term, written only by compare-and-swap.
-The fencing token is the CAS chain — the object's version token, or ETag —
-and not the primary term itself.
+`fence__<term>` object per primary term, written only by compare-and-swap,
+and only when ownership changes. The fencing token is the CAS chain — the
+object's version token, or ETag — and not the primary term itself.
 
 ## Terms
 
@@ -13,15 +13,15 @@ Everything below leans on these, so they are worth pinning down first.
 | Term | What it means |
 |---|---|
 | **control flow** | The path carrying decisions about *who may write*. The fence object is the only thing on it. |
-| **translog flow** | Translog files and their metadata — the acknowledgement path, gated directly by the fence CAS. |
-| **segment flow** | Segment files and their metadata — what a recovering copy hydrates from, gated by an ownership check rather than a CAS. |
+| **translog flow** | Translog files and their metadata — the acknowledgement path, gated directly by the fence: every ack first checks the writer's token against the object. |
+| **segment flow** | Segment files and their metadata — what a recovering copy hydrates from, gated by an ownership check rather than by the fence check. |
 | **fence** | The small mutable object that records who currently holds the right to acknowledge writes. |
 | **CAS** | Compare-and-swap: a write the store accepts only if the object's current version is the one you present, and refuses otherwise. S3 `If-Match`, GCS generations, Azure ETags. Presenting no version means "only if absent". |
 | **CAS chain** | The succession of version tokens one fence object passes through. A successful write must present the current token and hands back the next, so links cannot be skipped — holding the current token *is* ownership, and a writer that misses one can never rejoin. Defined in full on `RemoteStoreFence`. |
 | **fencing token** | Whatever a writer has to present to prove it may still write. Here that is the current CAS token. |
 | **seal**, or **claim** | Take the fence over at your own term: create your own key, then delete every lower-term key. |
 | **sweep** | The delete step of a claim — removing every acknowledgement path below your own term. |
-| **acknowledgement path** | The per-term fence object a writer advances on every ack. Deleting it is what stops a stale writer. |
+| **acknowledgement path** | The per-term fence object a writer checks on every ack. Deleting it is what stops a stale writer. |
 | **superseded** | A strictly higher term now holds the fence, so this copy has to stop touching shared state. |
 | **restore point** | The latest translog metadata a recovering copy replays from. |
 | **hydration** | Downloading the segment files named by the latest segment metadata. |
@@ -29,8 +29,24 @@ Everything below leans on these, so they are worth pinning down first.
 | **partitioned writer** | A previous primary that has dropped out of the cluster's view but can still reach the object store. The case this protocol exists for. |
 
 The two shard-data paths are named separately throughout rather than lumped together as "the data
-flow", because they are fenced by different means — a CAS on the translog flow, an ownership check on
-the segment flow — so which one is meant always matters.
+flow", because they are fenced by different means — the fence check on the translog flow, an
+ownership check on the segment flow — so which one is meant always matters.
+
+### Acks read the fence; only ownership changes write it
+
+Acknowledging an upload checks that the fence object still carries the token of the writer's own last
+write, with one read. The object is written only when ownership changes: a claim, an equal-term
+arbitration, a relocation transfer or revert. An earlier version wrote it on every ack, which GCS
+throttles at about one update per second per object. What makes an ack safe is the order — metadata
+visible, then the fence checked, then ack — and a read checks the fence as well as a write did,
+provided the store:
+
+- shows a read every write and delete of the fence object that completed before it (S3, GCS and
+  Azure's primary region document this; never read the fence from an asynchronous replica), and
+- never hands a different writer the same token. GCS generations and Azure ETags never repeat. S3
+  ETags hash the content, which names term, allocation id, node id and seq, so a repeat needs the same
+  copy on the same node rewriting the same seq — only possible after a remote translog wipe, when the
+  engine holding the old token is already closed.
 
 ## The invariants
 
@@ -62,17 +78,19 @@ and a restore point `restore(w)` read from the store; and a global set
    invariant is a `⊆`, so surfacing a never-acknowledged operation is
    always permitted; that direction is load-bearing. What `visible` cannot
    contain is metadata still in flight, and that gap is why the module
-   splits the acknowledgement into a metadata PUT, a fence CAS and a join
-   (`SEQUENCED` selects the write-side ordering): issued concurrently, the
-   CAS can win against the incumbent's object *before* a takeover's sweep
-   while the metadata lands only *after* the takeover read its restore
-   point — the acknowledged operation is then in no successor's restore
-   point, ever. Setting the module's `SEQUENCED` constant to `FALSE`
-   reproduces that refuted design and TLC exhibits the trace in a
-   13-state counterexample; the shipped ordering — the CAS is issued only
+   splits the acknowledgement into a metadata PUT, a fence check
+   and a join (`SEQUENCED` selects the ordering): run concurrently, the
+   check can pass against the incumbent's object *before* a takeover's
+   claim while the metadata lands only *after* the takeover read its
+   restore point — the acknowledged operation is then in no successor's
+   restore point, ever. Setting the module's `SEQUENCED` constant to
+   `FALSE` reproduces that refuted design and TLC exhibits the trace in a
+   13-state counterexample; the shipped ordering — the check runs only
    after the metadata PUT completed — restores the invariant by
    happens-before and is what `RemoteStoreFence.cfg` checks
-   (`SEQUENCED = TRUE`).
+   (`SEQUENCED = TRUE`). The argument, and the counterexample, are the same
+   whether the check is a read or a CAS: the CAS only added a write per
+   ack.
 
 3. **Ack attribution.** `⋃_w ackedBy(w) = acked`, and the `ackedBy(w)` are
    pairwise disjoint — every ack belongs to exactly one writer.
@@ -92,7 +110,9 @@ and a restore point `restore(w)` read from the store; and a global set
 
 These follow from five protocol rules:
 
-- an ack is a successful CAS on the chain (*the chain gates the ack*);
+- an ack requires the object to still carry the token of the writer's own
+  last write, checked after its metadata landed (*the chain gates the
+  ack*); only ownership events write the object;
 - a takeover claims the chain **before** reading its restore point
   (*seal before restore*), and that ordering on its own is what makes (2)
   hold;
@@ -119,9 +139,9 @@ Four modules, each modeling the protocol **as implemented**:
 
 | Module | Question | Bound | States |
 |---|---|---|---|
-| `RemoteStoreFence.tla` | seal ordering and acked-write loss | 3 writers, 3 terms, 3 ops | 19,846 |
-| `FenceTakeover.tla` | cross-term takeover: is a higher-term victory deterministic, and is the window between the seal claim and the translog's re-adoption safe? | 4 writers, 4 terms, 3 ops, symmetry | 4,460,896 |
-| `FenceHandoff.tla` | equal-term relocation handoff, retried relocation, concurrent higher-term takeover, target loss | 4 ops, 3 attempts | 591 |
+| `RemoteStoreFence.tla` | seal ordering and acked-write loss | 3 writers, 3 terms, 3 ops | 143,197 |
+| `FenceTakeover.tla` | cross-term takeover: is a higher-term victory deterministic, and is the window between the seal claim and the translog's re-adoption safe? | 4 writers, 4 terms, 3 ops, symmetry | 4,223,247 |
+| `FenceHandoff.tla` | equal-term relocation handoff, retried relocation, concurrent higher-term takeover, target loss, a revert that fails without landing | 4 ops, 3 attempts | 108,244 |
 | `FenceSegmentFlow.tla` | the segment flow as a second path needing the fence, plus garbage collection | 3 writers, 3 files, 3 terms | 20,008 |
 | `FenceAutoRestore.tla` | the auto-restore trigger for a primary with no surviving copy: node-left is a view change, the departed writer keeps running, and the fence — not the trigger — is what makes that safe; `FENCED = FALSE` (the ungated trigger) is refuted in a 7-state `NoAckedWriteLoss` counterexample; the operator's `_remotestore/_restore` is modeled as the same mutation under its weaker only-unassigned guard, racing the trigger and the rejoin; the node-left grace window (`index.unassigned.node_left.delayed_timeout`) gates the trigger but not the operator API nor the rejoin, with its expiry weakly fair (`DelayedAllocationService`'s promise); health is modeled RED-until-started (never overstating availability) | 3 writers, 2 nodes, 3 ops, 4 terms | 165,936 |
 
@@ -133,14 +153,16 @@ within these bounds. Larger bounds were probed out of band:
 - **Takeover saturates in `MaxTerm`.** With N writers the failover chain can reach at most term N,
   since each appointment consumes one unborn writer, so `MaxTerm ≥ |Writers|` adds no reachable
   behaviour. Confirmed exactly: 4 writers at `MaxTerm` 4, 5 and 8 each explore the *identical*
-  4,460,896 distinct states (9,616,026 generated, 0 left on queue, depth 38), all clean.
+  4,223,247 distinct states (9,149,217 generated, 0 left on queue, depth 38), all clean.
   **Writers, not terms, is the scaling dimension.**
 - **5 writers exceeds this machine**, not the protocol. The run was still exploring with ~18M
   states queued when it was stopped. That is a resource limit and *not* a violation: no invariant
   was reported violated at any bound.
-- **Seal ordering** was verified at 4 writers / 4 terms / 4 ops out of band: 3,691,705 distinct
-  states from 8,200,777 generated, 0 left on queue, all properties holding. The committed bound is
-  smaller only because that module checks *liveness*, whose cost dominates state count.
+- **Seal ordering** was verified at 4 writers / 4 terms / 4 ops out of band, all properties holding,
+  for the version of the module in which every ack was a CAS (3,691,705 distinct states). That bound
+  has not been re-run since acks became reads: a run was stopped at 36M distinct states with 10M
+  still queued, a resource limit rather than a violation. The committed bound is smaller because that
+  module checks *liveness*, whose cost dominates state count.
 
 > Every count here is TLC's **final** summary. Do not read the first `distinct states found` in TLC's
 > output: that is a mid-run `Progress(...)` line and varies run to run, understating the total.
@@ -206,14 +228,28 @@ ownership transfer itself as its last act before handing off, and keeps the resu
 target is authorized by **recorded ownership**. On abort the source attempts a revert with that
 token: success means the target never wrote, so the source resumes; failure means the target took
 over, so the source stands down. The object store settles an ambiguity the two copies cannot settle
-by talking to each other.
+by talking to each other. Each retried relocation hands off to a fresh target, and the object records
+the owner by identity, so a target from an earlier attempt that is still running cannot take the chain.
 
-**NoSpuriousFencing** — an aborted handoff must not fence a healthy source:
+**NoSpuriousFencing** — an aborted handoff must not fence a healthy source. The source may end up
+fenced only if some target actually took the chain over, or a higher term superseded both:
 
-`state(source) = fenced ⇒ ackedBy(target) ≠ ∅`
+`state(source) = fenced ⇒ (∃t: adopted(t)) ∨ superseded`
 
-together with the symmetric **TargetAcksAreDurable** — `ackedBy(target) ≠ ∅ ⇒ state(source) ≠ resumed`
-— so a late revert cannot displace a target that already acknowledged.
+together with the symmetric **TargetAcksAreDurable** — `(∃t: ackedBy(t) ≠ ∅) ⇒ state(source) ≠ resumed`
+— so a late revert cannot displace a target that already acknowledged; and **NoAckedWriteLoss** —
+`live(t) ⇒ acked \ ackedBy(t) ⊆ restore(t)` — nothing anyone else acknowledged is missing from the
+primary context a serving target recovered with.
+
+#### The one ack that still writes
+
+If a revert fails before reaching the store, the source keeps serving (state `reclaiming`) while the
+object still records the target. A plain read would pass, and a target that had already activated
+could then take the chain and serve without what the source acknowledged meanwhile. So the source's
+first ack after that writes itself back as owner. This was **measured**: make that ack a plain read
+and TLC violates `NoAckedWriteLoss` in 9 steps. It is also why `NoSpuriousFencing` asks that the
+target *took the chain*, rather than that it acknowledged: here the target can take it before its
+first ack.
 
 ### The segment flow and GC — `FenceSegmentFlow.tla`
 
