@@ -1020,6 +1020,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
             true,
             false,
             true,
+            false,
             DateFormatter.forPattern("date"),
             DateFieldMapper.Resolution.MILLISECONDS,
             null,
