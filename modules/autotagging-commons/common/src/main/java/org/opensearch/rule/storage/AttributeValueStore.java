@@ -19,14 +19,14 @@ import java.util.Optional;
  */
 public interface AttributeValueStore<K, V> {
     /**
-     * Adds the value to attribute value store
+     * Adds the value to attribute value store. A value put more than once stays until it is removed as many times.
      * @param key to be added
      * @param value to be added
      */
     void put(K key, V value);
 
     /**
-     * removes the key and associated value from attribute value store
+     * Removes one put of the value for the key from attribute value store
      * @param key key of the value to be removed
      * @param value to be removed
      */

@@ -12,10 +12,10 @@ import org.apache.commons.collections4.trie.PatriciaTrie;
 import org.opensearch.rule.MatchLabel;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
@@ -30,7 +30,10 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
      * without this character is matched exactly.
      */
     private static final String WILDCARD = "*";
-    private final PatriciaTrie<Set<V>> trie;
+    /**
+     * Values per key, with the number of puts not yet removed; each put needs a matching remove
+     */
+    private final PatriciaTrie<Map<V, Integer>> trie;
     private static final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private static final ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
     private static final ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
@@ -46,7 +49,7 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
      * Main constructor
      * @param trie A Patricia Trie
      */
-    public DefaultAttributeValueStore(PatriciaTrie<Set<V>> trie) {
+    public DefaultAttributeValueStore(PatriciaTrie<Map<V, Integer>> trie) {
         this.trie = trie;
     }
 
@@ -54,7 +57,7 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
     public void put(K key, V value) {
         writeLock.lock();
         try {
-            trie.computeIfAbsent(key, k -> new HashSet<>()).add(value);
+            trie.computeIfAbsent(key, k -> new HashMap<>()).merge(value, 1, Integer::sum);
         } finally {
             writeLock.unlock();
         }
@@ -64,9 +67,9 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
     public void remove(K key, V value) {
         writeLock.lock();
         try {
-            trie.computeIfPresent(key, (k, values) -> {
-                values.remove(value);
-                return values.isEmpty() ? null : values;
+            trie.computeIfPresent(key, (k, counts) -> {
+                counts.computeIfPresent(value, (v, count) -> count > 1 ? count - 1 : null);
+                return counts.isEmpty() ? null : counts;
             });
         } finally {
             writeLock.unlock();
@@ -114,7 +117,7 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
             if (!key.isEmpty()) {
                 StringBuilder prefixBuilder = new StringBuilder(key);
                 for (int i = key.length(); i >= 0; i--) {
-                    Set<V> values = trie.get(prefixBuilder.toString() + WILDCARD);
+                    Map<V, Integer> values = trie.get(prefixBuilder.toString() + WILDCARD);
                     if (values != null && !values.isEmpty()) {
                         float score = (float) prefixBuilder.length() / key.length();
                         addMatches(results, values, score);
@@ -134,11 +137,11 @@ public class DefaultAttributeValueStore<K extends String, V> implements Attribut
         }
     }
 
-    private void addMatches(List<MatchLabel<V>> results, Set<V> values, float score) {
+    private void addMatches(List<MatchLabel<V>> results, Map<V, Integer> values, float score) {
         if (values == null || values.isEmpty()) {
             return;
         }
-        for (V label : values) {
+        for (V label : values.keySet()) {
             results.add(new MatchLabel<>(label, score));
         }
     }
