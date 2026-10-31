@@ -70,6 +70,7 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         final AtomicInteger versionedReads = new AtomicInteger();
         final AtomicBoolean failNextWriteBeforeItLands = new AtomicBoolean();
         final AtomicBoolean failNextRead = new AtomicBoolean();
+        final AtomicBoolean loseNextWriteResponse = new AtomicBoolean();
 
         InstrumentedContainer(FsBlobStore blobStore, Path repoPath) {
             super(blobStore, BlobPath.cleanPath(), repoPath);
@@ -81,7 +82,11 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
                 throw new IOException("connection refused before the request was sent");
             }
             conditionalWrites.incrementAndGet();
-            return super.writeBlobConditionally(blobName, in, size, expectedToken);
+            final String token = super.writeBlobConditionally(blobName, in, size, expectedToken);
+            if (loseNextWriteResponse.compareAndSet(true, false)) {
+                throw new IOException("connection reset before the response was read");
+            }
+            return token;
         }
 
         @Override
@@ -167,6 +172,33 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         expectThrows(TranslogFencedException.class, () -> newRelocationTarget("node-target").validateAndAdvance(1));
         source.validateAndAdvance(1);
         assertEquals(writesBefore + 1, container.conditionalWrites.get());
+    }
+
+    /**
+     * The write-back with a lost response: it landed recording the source as owner, so the source adopts it by
+     * identity and goes back to read-only acknowledgements, and the target stays shut out.
+     */
+    public void testLostResponseOnTheReclaimRecordsTheSourceAsOwner() throws IOException {
+        final InstrumentedContainer container = new InstrumentedContainer(blobStore, repoPath);
+        final RemoteStoreFence source = new RemoteStoreFence(container, allocationIdOf("node-source"), "node-source", shardId);
+        source.validateAndAdvance(1);
+        source.transferOwnershipTo(1, allocationIdOf("node-target"));
+
+        container.failNextWriteBeforeItLands.set(true);
+        expectThrows(IOException.class, () -> source.revertOwnership(1));
+
+        container.loseNextWriteResponse.set(true);
+        source.validateAndAdvance(1);
+        final int writesAfterReclaim = container.conditionalWrites.get();
+        assertEquals(
+            allocationIdOf("node-source"),
+            RemoteStoreFence.FenceState.parse(blobContainer.readBlobWithVersion(RemoteStoreFence.fenceBlobName(1)).content()).allocationId
+        );
+
+        source.validateAndAdvance(1);
+        assertEquals("acks after an adopted reclaim must only read", writesAfterReclaim, container.conditionalWrites.get());
+        expectThrows(TranslogFencedException.class, () -> newRelocationTarget("node-target").validateAndAdvance(1));
+        source.validateAndAdvance(1);
     }
 
     /** The other outcome of the same race: a target that adopted first owns the chain, and the source stands down. */
