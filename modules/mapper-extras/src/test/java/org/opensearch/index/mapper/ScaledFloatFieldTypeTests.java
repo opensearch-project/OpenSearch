@@ -34,15 +34,24 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopFieldCollectorManager;
+import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -53,6 +62,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.fielddata.LeafNumericFieldData;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.IndexSettingsModule;
 
@@ -399,6 +409,43 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         // Test 5: Terms query with multiple values should work
         Query termsQuery = ft.termsQuery(Arrays.asList(largeValue, otherValue), MOCK_QSC);
         assertEquals("Terms query should find both documents", 2, searcher.count(termsQuery));
+        IOUtils.close(reader, dir);
+    }
+
+    /**
+     * A filtered top-1 descending sort must return the decoded maximum. Competitive skipping used to
+     * drop it once the queue filled, because indexed points are scaled longs and the comparator sorts
+     * decoded doubles.
+     */
+    public void testFilteredSortMatchesFullOrder() throws IOException {
+        final double scalingFactor = 100d;
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType("amount", scalingFactor);
+        IndexNumericFieldData fieldData = (IndexNumericFieldData) ft.fielddataBuilder(
+            "index",
+            () -> { throw new UnsupportedOperationException(); }
+        ).build(null, null);
+
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
+        // Small values first so the top-1 queue fills before the true maximum. Eight matches make the
+        // filter selective enough for competitive skipping.
+        for (int i = 0; i < 8; i++) {
+            long scaled = Math.round((i == 7 ? 1_000_000d : 1d) * scalingFactor);
+            Document doc = new Document();
+            doc.add(new LongPoint("amount", scaled));
+            doc.add(new SortedNumericDocValuesField("amount", scaled));
+            doc.add(new StringField("scope", "keep", Store.NO));
+            w.addDocument(doc);
+        }
+        w.forceMerge(1);
+        DirectoryReader reader = DirectoryReader.open(w);
+        w.close();
+        IndexSearcher searcher = newSearcher(reader);
+        Sort sort = new Sort(fieldData.sortField(null, MultiValueMode.MIN, null, true));
+        Query filtered = new ConstantScoreQuery(new TermQuery(new Term("scope", "keep")));
+        // A hit threshold below the matching set is what enables competitive skipping.
+        TopFieldDocs topDocs = searcher.search(filtered, new TopFieldCollectorManager(sort, 1, null, 1));
+        assertEquals(1_000_000d, (Double) ((FieldDoc) topDocs.scoreDocs[0]).fields[0], 0d);
         IOUtils.close(reader, dir);
     }
 }
