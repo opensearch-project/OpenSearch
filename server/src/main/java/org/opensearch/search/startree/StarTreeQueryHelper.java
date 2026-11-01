@@ -68,10 +68,19 @@ public class StarTreeQueryHelper {
     }
 
     /**
+     * Returns whether star-tree segment pre-computation should be used for the given search context.
+     * Segment pre-computation is only valid for sequential, whole-segment collection; under concurrent
+     * search or intra-segment partitioning, slices collect via doc-id ranges instead.
+     */
+    public static boolean canPrecomputeWithStarTree(SearchContext context) {
+        return context.shouldUseConcurrentSearch() == false && context.shouldUseIntraSegmentSearch() == false;
+    }
+
+    /**
      * Get the star-tree leaf collector
      * This collector computes the aggregation prematurely and invokes an early termination collector
      */
-    public static void precomputeLeafUsingStarTree(
+    public static boolean precomputeLeafUsingStarTree(
         SearchContext context,
         ValuesSource.Numeric valuesSource,
         LeafReaderContext ctx,
@@ -80,6 +89,9 @@ public class StarTreeQueryHelper {
         Consumer<Long> valueConsumer,
         Runnable finalConsumer
     ) throws IOException {
+        if (canPrecomputeWithStarTree(context) == false) {
+            return false;
+        }
         StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
         assert starTreeValues != null;
         String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
@@ -112,6 +124,7 @@ public class StarTreeQueryHelper {
 
         // Call the final consumer after processing all entries
         finalConsumer.run();
+        return true;
     }
 
     /**
@@ -128,8 +141,8 @@ public class StarTreeQueryHelper {
                 context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter(),
                 context
             );
+            context.getQueryShardContext().getStarTreeQueryContext().maybeSetCachedNodeIdsForSegment(ctx.ord, result);
         }
-        context.getQueryShardContext().getStarTreeQueryContext().maybeSetCachedNodeIdsForSegment(ctx.ord, result);
         return result;
     }
 
@@ -193,6 +206,18 @@ public class StarTreeQueryHelper {
             MetricStat.DOC_COUNT.getTypeName()
         );
         return (SortedNumericStarTreeValuesIterator) starTreeValues.getMetricValuesIterator(metricName);
+    }
+
+    /**
+     * For a StarTreeBucketCollector, get matching star-tree entries and update relevant buckets in aggregator
+     */
+    public static boolean preComputeBucketsWithStarTree(SearchContext context, StarTreeBucketCollector starTreeBucketCollector)
+        throws IOException {
+        if (canPrecomputeWithStarTree(context) == false) {
+            return false;
+        }
+        preComputeBucketsWithStarTree(starTreeBucketCollector);
+        return true;
     }
 
     /**

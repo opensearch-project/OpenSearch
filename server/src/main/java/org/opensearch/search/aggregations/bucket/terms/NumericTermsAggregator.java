@@ -173,10 +173,9 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
 
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         CompositeIndexFieldInfo supportedStarTree = StarTreeQueryHelper.getSupportedStarTree(this.context.getQueryShardContext());
-        if (supportedStarTree != null) {
+        if (supportedStarTree != null && StarTreeQueryHelper.canPrecomputeWithStarTree(this.context)) {
             StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
-            StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
-            return true;
+            return StarTreeQueryHelper.preComputeBucketsWithStarTree(this.context, starTreeBucketCollector);
         }
         return false;
     }
