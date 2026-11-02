@@ -385,17 +385,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 throw new IndexShardSnapshotFailedException(shardId, "shard didn't fully recover yet");
             }
 
-            // The catalog-based shard snapshot path is not validated for multi-format (pluggable data format) shards
-            // yet: checksum comparison, format-qualified blob naming and the restore path are still outstanding.
-            // Fail at the API boundary with an actionable message rather than deeper in the engine.
-            if (indexShard.indexSettings().isPluggableDataFormatEnabled()) {
-                throw new IndexShardSnapshotFailedException(
-                    shardId,
-                    "snapshots are not yet supported for indices using a pluggable data format ["
-                        + IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey()
-                        + "=true]"
-                );
-            }
+            ensurePluggableDataFormatSnapshotSupported(shardId, indexShard.indexSettings());
 
             final Repository repository = repositoriesService.repository(snapshot.getRepository());
             GatedCloseable<CatalogSnapshot> wrappedSnapshot = null;
@@ -511,6 +501,26 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             }
         } catch (Exception e) {
             listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Rejects shard snapshots for indices using a pluggable data format.
+     * <p>
+     * The catalog-based shard snapshot path is not validated for multi-format shards yet: checksum comparison,
+     * format-qualified blob naming and the restore path are still outstanding. Failing here, at the API boundary,
+     * produces an actionable message instead of an obscure failure deeper in the engine.
+     *
+     * @throws IndexShardSnapshotFailedException if the shard uses a pluggable data format
+     */
+    static void ensurePluggableDataFormatSnapshotSupported(ShardId shardId, IndexSettings indexSettings) {
+        if (indexSettings.isPluggableDataFormatEnabled()) {
+            throw new IndexShardSnapshotFailedException(
+                shardId,
+                "snapshots are not yet supported for indices using a pluggable data format ["
+                    + IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey()
+                    + "=true]"
+            );
         }
     }
 
