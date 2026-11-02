@@ -12,17 +12,23 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.KeywordField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
@@ -40,6 +46,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.IntPredicate;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -377,6 +384,69 @@ public class DerivedFieldQueryTests extends OpenSearchTestCase {
                 Query rewritten = derivedFieldQuery.rewrite(searcher);
                 // Since TermQuery doesn't rewrite to something different, we still get the same DerivedFieldQuery back
                 assertSame(derivedFieldQuery, rewritten);
+            }
+        }
+    }
+
+    /**
+     * A derived field whose script fails on docs that a cheaper filter clause already excludes must not
+     * be evaluated on those docs. Sorting on a field skips scoring, so the conjunction runs through
+     * Lucene's dense bulk scorer, which confirmed two-phase clauses on every doc of a window before
+     * Lucene 10.6. See https://github.com/opensearch-project/OpenSearch/issues/23432
+     */
+    public void testDerivedFieldNotEvaluatedOnDocsExcludedByFilter() throws IOException {
+        int numDocs = 10_000;
+        // Every 4th doc is invalid and has no expiry value, so ~75% of docs pass the filter.
+        IntPredicate isValid = docId -> docId % 4 != 0;
+
+        SearchLookup searchLookup = mock(SearchLookup.class);
+        SourceLookup sourceLookup = new SourceLookup();
+        LeafSearchLookup leafLookup = mock(LeafSearchLookup.class);
+        when(leafLookup.source()).thenReturn(sourceLookup);
+
+        DerivedFieldScript.Factory factory = (params, lookup) -> (DerivedFieldScript.LeafFactory) ctx -> {
+            when(searchLookup.getLeafSearchLookup(ctx)).thenReturn(leafLookup);
+            return new DerivedFieldScript(params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    if (isValid.test(sourceLookup.docId()) == false) {
+                        throw new IllegalStateException("A document doesn't have a value for a field!");
+                    }
+                    addEmittedValue("valid");
+                }
+            };
+        };
+        DerivedFieldScript.LeafFactory leafFactory = factory.newFactory((new Script("")).getParams(), searchLookup);
+        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(leafFactory, null);
+        DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
+            new TermQuery(new Term("derived", "valid")),
+            () -> valueFetcher,
+            searchLookup,
+            Lucene.STANDARD_ANALYZER,
+            DerivedFieldSupportedTypes.getIndexableFieldGeneratorType("keyword", "derived"),
+            false
+        );
+        Query query = new BooleanQuery.Builder().add(new TermQuery(new Term("is_valid", "true")), BooleanClause.Occur.FILTER)
+            .add(derivedFieldQuery, BooleanClause.Occur.FILTER)
+            .build();
+
+        try (Directory dir = newDirectory()) {
+            // No merges, so all docs land in one segment in insertion order and doc ids match isValid.
+            IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setMergePolicy(NoMergePolicy.INSTANCE));
+            for (int i = 0; i < numDocs; i++) {
+                Document document = new Document();
+                document.add(new KeywordField("is_valid", Boolean.toString(isValid.test(i)), Field.Store.NO));
+                if (isValid.test(i)) {
+                    document.add(new NumericDocValuesField("expiry", i));
+                }
+                iw.addDocument(document);
+            }
+            try (IndexReader reader = DirectoryReader.open(iw)) {
+                iw.close();
+                assertEquals(1, reader.leaves().size());
+                IndexSearcher searcher = new IndexSearcher(reader);
+                TopDocs topDocs = searcher.search(query, 10, new Sort(new SortField("expiry", SortField.Type.LONG, true)));
+                assertEquals(numDocs * 3 / 4, topDocs.totalHits.value());
             }
         }
     }
