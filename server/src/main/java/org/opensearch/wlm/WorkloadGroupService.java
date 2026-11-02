@@ -78,6 +78,8 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
     private volatile WorkloadGroupSharedThrottleService sharedThrottleService;
     // Whether any workload group in the applied cluster state configures throttling; see isThrottlingActive.
     private volatile boolean throttlingConfigured;
+    // Whether the applied cluster state has any workload group; see isResourceLimitCheckActive.
+    private volatile boolean hasWorkloadGroups;
 
     public WorkloadGroupService(
         WorkloadGroupTaskCancellationService taskCancellationService,
@@ -131,6 +133,8 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
         this.workloadManagementSettings = workloadManagementSettings;
         this.nodeDuressTrackers = nodeDuressTrackers;
         this.activeWorkloadGroups = activeWorkloadGroups;
+        this.throttlingConfigured = anyGroupConfiguresThrottling(activeWorkloadGroups);
+        this.hasWorkloadGroups = activeWorkloadGroups.isEmpty() == false;
         this.deletedWorkloadGroups = deletedWorkloadGroups;
         this.workloadGroupsStateAccessor = workloadGroupsStateAccessor;
         activeWorkloadGroups.forEach(workloadGroup -> this.workloadGroupsStateAccessor.addNewWorkloadGroup(workloadGroup.get_id()));
@@ -205,6 +209,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
         }
         this.activeWorkloadGroups = new HashSet<>(currentMetadata.workloadGroups().values());
         this.throttlingConfigured = anyGroupConfiguresThrottling(currentWorkloadGroups.values());
+        this.hasWorkloadGroups = activeWorkloadGroups.isEmpty() == false;
     }
 
     private static boolean anyGroupConfiguresThrottling(Iterable<WorkloadGroup> workloadGroups) {
@@ -219,12 +224,19 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
 
     /**
      * Whether any request can currently be throttled: WLM is {@link WlmMode#ENABLED} and some workload group configures
-     * throttling. Backs {@link WorkloadGroupSearchAdmission#isActive()}: with the feature off, searches skip admission entirely
-     * (no admission work or listener wrapping). Like every admission input, a group's throttling takes effect once its
-     * cluster state is applied on this node.
+     * throttling. Backs {@link ThrottleAdmissionPolicy#isActive()}, so searches skip the throttle while no group configures
+     * one. Like every admission input, a group's throttling takes effect once its cluster state is applied on this node.
      */
     public boolean isThrottlingActive() {
         return throttlingConfigured && workloadManagementSettings.getWlmMode() == WlmMode.ENABLED;
+    }
+
+    /**
+     * Whether a search may be rejected on resource limits ({@link #rejectIfNeeded}): WLM is {@link WlmMode#ENABLED} and some
+     * workload group exists. Backs {@link ResourceLimitAdmissionPolicy#isActive()}.
+     */
+    public boolean isResourceLimitCheckActive() {
+        return hasWorkloadGroups && workloadManagementSettings.getWlmMode() == WlmMode.ENABLED;
     }
 
     /**
@@ -368,8 +380,7 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
      * {@code shared_limit} is treated as unset. Only shared admission can complete asynchronously. A counted parent exempts
      * nested searches at both tiers.
      * MONITOR records would-be throttling without rejecting; SOFT and ENFORCED reject at the effective limit. Search actions
-     * reach this through {@link SearchExecutionGate#execute} ({@link WorkloadGroupSearchAdmission}),
-     * which owns releasing the permit.
+     * reach this through {@link ThrottleAdmissionPolicy}; {@link SearchExecutionGate#execute} releases the permit.
      *
      * @param task the search task to mark as counted when admitted against a throttle
      * @param parentAlreadyCounted supplies whether this task inherits an existing throttle charge
@@ -605,6 +616,11 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
         return activeWorkloadGroups;
     }
 
+    // Package-private so tests can set a group's recorded usage.
+    WorkloadGroupsStateAccessor getWorkloadGroupsStateAccessor() {
+        return workloadGroupsStateAccessor;
+    }
+
     /**
      * Returns the workload group with the given ID, or null if not found.
      * @param workloadGroupId the workload group identifier
@@ -612,6 +628,32 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
      */
     public WorkloadGroup getWorkloadGroupById(String workloadGroupId) {
         return clusterService.state().metadata().workloadGroups().get(workloadGroupId);
+    }
+
+    /**
+     * Whether {@code workloadGroupId} names a workload group whose resource limits can reject a search: it exists and is
+     * not in MONITOR mode. Backs {@link ResourceLimitAdmissionPolicy#appliesTo}.
+     */
+    public boolean enforcesResourceLimits(String workloadGroupId) {
+        WorkloadGroup workloadGroup = getNonDefaultWorkloadGroup(workloadGroupId);
+        return workloadGroup != null && workloadGroup.getResiliencyMode() != MutableWorkloadGroupFragment.ResiliencyMode.MONITOR;
+    }
+
+    /**
+     * Whether {@code workloadGroupId} names a workload group that configures throttling. Backs
+     * {@link ThrottleAdmissionPolicy#appliesTo}; keep in step with the first checks of {@code resolveThrottlePlan}.
+     */
+    public boolean configuresThrottling(String workloadGroupId) {
+        WorkloadGroup workloadGroup = getNonDefaultWorkloadGroup(workloadGroupId);
+        Settings throttling = workloadGroup == null ? null : workloadGroup.getMutableWorkloadGroupFragment().getThrottling();
+        return throttling != null && throttling.isEmpty() == false;
+    }
+
+    private WorkloadGroup getNonDefaultWorkloadGroup(String workloadGroupId) {
+        if (workloadGroupId == null || workloadGroupId.equals(WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get())) {
+            return null;
+        }
+        return getWorkloadGroupById(workloadGroupId);
     }
 
     /**
@@ -649,6 +691,10 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
     @Override
     public void onTaskCompleted(Task task) {
         if (!(task instanceof WorkloadGroupTask workloadGroupTask) || !workloadGroupTask.isWorkloadGroupSet()) {
+            return;
+        }
+        // A task refused by search admission never ran, so it is not a completion.
+        if (workloadGroupTask.isAdmissionRejected()) {
             return;
         }
         String workloadGroupId = workloadGroupTask.getWorkloadGroupId();
