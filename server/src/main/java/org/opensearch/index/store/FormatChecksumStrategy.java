@@ -112,7 +112,7 @@ public interface FormatChecksumStrategy {
      * @param input the underlying index input to wrap
      * @return a verifying input that checks integrity on {@code verify()}
      */
-    default Store.VerifyingIndexInput createVerifyingInput(StoreFileMetadata metadata, IndexInput input) {
+    default VerifyingIndexInput createVerifyingInput(StoreFileMetadata metadata, IndexInput input) {
         return new Store.DataFormatVerifyingIndexInput(metadata, input);
     }
 

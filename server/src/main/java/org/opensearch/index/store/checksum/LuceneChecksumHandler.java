@@ -18,6 +18,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.index.store.VerifyingIndexInput;
 import org.opensearch.index.store.VerifyingIndexOutput;
 
 import java.io.IOException;
@@ -52,7 +53,7 @@ public class LuceneChecksumHandler implements FormatChecksumStrategy {
      */
     @ExperimentalApi
     @Override
-    public Store.VerifyingIndexInput createVerifyingInput(StoreFileMetadata metadata, IndexInput input) {
-        return Store.newLuceneVerifyingIndexInput(input);
+    public VerifyingIndexInput createVerifyingInput(StoreFileMetadata metadata, IndexInput input) {
+        return new Store.LuceneVerifyingIndexInput(input);
     }
 }

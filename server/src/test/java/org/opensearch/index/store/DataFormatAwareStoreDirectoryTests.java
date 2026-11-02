@@ -1285,7 +1285,7 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
 
         StoreFileMetadata md = metadataFor(id, data.length, crc.getValue());
         try (IndexInput raw = dataFormatAwareStoreDirectory.openInput(id, IOContext.DEFAULT)) {
-            Store.VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
+            VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
             drain(verifying);
             assertEquals("whole-file CRC32 must verify", crc.getValue(), verifying.verify());
         }
@@ -1299,7 +1299,7 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
         }
         StoreFileMetadata md = metadataFor(id, data.length, 12345L); // deliberately wrong
         try (IndexInput raw = dataFormatAwareStoreDirectory.openInput(id, IOContext.DEFAULT)) {
-            Store.VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
+            VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
             drain(verifying);
             CorruptIndexException e = expectThrows(CorruptIndexException.class, verifying::verify);
             assertTrue(e.getMessage(), e.getMessage().contains("verification failed"));
@@ -1317,7 +1317,7 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
         crc.update(data);
         StoreFileMetadata md = metadataFor(id, data.length, crc.getValue());
         try (IndexInput raw = dataFormatAwareStoreDirectory.openInput(id, IOContext.DEFAULT)) {
-            Store.VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
+            VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
             byte[] buf = new byte[5];
             verifying.readBytes(buf, 0, buf.length);
             CorruptIndexException e = expectThrows(CorruptIndexException.class, verifying::verify);
@@ -1338,7 +1338,7 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
         // Correct checksum, but metadata claims a different length.
         StoreFileMetadata md = metadataFor(id, data.length + 10, crc.getValue());
         try (IndexInput raw = dataFormatAwareStoreDirectory.openInput(id, IOContext.DEFAULT)) {
-            Store.VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
+            VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
             drain(verifying);
             CorruptIndexException e = expectThrows(CorruptIndexException.class, verifying::verify);
             assertTrue(e.getMessage(), e.getMessage().contains("does not match expected length"));
@@ -1360,7 +1360,7 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
 
         StoreFileMetadata md = metadataFor(id, data.length, crc.getValue());
         try (IndexInput raw = dataFormatAwareStoreDirectory.openInput(id, IOContext.DEFAULT)) {
-            Store.VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
+            VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
             byte[] buf = new byte[7]; // deliberately not a divisor of 1024
             long remaining = verifying.length();
             while (remaining > 0) {
@@ -1387,7 +1387,7 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
 
         StoreFileMetadata md = metadataFor(id, data.length, crc.getValue());
         try (IndexInput raw = dataFormatAwareStoreDirectory.openInput(id, IOContext.DEFAULT)) {
-            Store.VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
+            VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
             for (int i = 0; i < data.length; i++) {
                 assertEquals("byte " + i, data[i], verifying.readByte());
             }
@@ -1407,7 +1407,7 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
 
         StoreFileMetadata md = metadataFor(id, data.length, crc.getValue());
         try (IndexInput raw = dataFormatAwareStoreDirectory.openInput(id, IOContext.DEFAULT)) {
-            Store.VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
+            VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
             drain(verifying);
             assertEquals(crc.getValue(), verifying.verify());
         }
@@ -1446,7 +1446,7 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
                 assertEquals(
                     "parquet must verify against the recorded whole-file checksum",
                     parquetCrc.getValue(),
-                    ((Store.VerifyingIndexInput) in).verify()
+                    ((VerifyingIndexInput) in).verify()
                 );
             }
 
@@ -1454,7 +1454,7 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
             StoreFileMetadata luceneMd = metadataFor("_via_store.si", store.directory().fileLength("_via_store.si"), 777L);
             try (IndexInput in = store.openVerifyingInput("_via_store.si", IOContext.DEFAULT, luceneMd)) {
                 drain(in);
-                assertEquals("lucene must verify against its codec footer", luceneFooter, ((Store.VerifyingIndexInput) in).verify());
+                assertEquals("lucene must verify against its codec footer", luceneFooter, ((VerifyingIndexInput) in).verify());
             }
         }
     }
@@ -1472,7 +1472,7 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
         // Deliberately pass a bogus metadata checksum: the Lucene strategy must ignore it and use the footer.
         StoreFileMetadata md = metadataFor(name, dataFormatAwareStoreDirectory.fileLength(name), 999L);
         try (IndexInput raw = dataFormatAwareStoreDirectory.openInput(name, IOContext.DEFAULT)) {
-            Store.VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
+            VerifyingIndexInput verifying = dataFormatAwareStoreDirectory.createVerifyingInput(md, raw);
             drain(verifying);
             assertEquals("lucene must verify against its codec footer", footerChecksum, verifying.verify());
         }

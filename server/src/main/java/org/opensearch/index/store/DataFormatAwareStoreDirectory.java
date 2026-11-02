@@ -396,7 +396,7 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
      * @return a format-appropriate verifying input
      */
     @ExperimentalApi
-    public Store.VerifyingIndexInput createVerifyingInput(StoreFileMetadata metadata, IndexInput input) {
+    public VerifyingIndexInput createVerifyingInput(StoreFileMetadata metadata, IndexInput input) {
         String format = FileMetadata.parseDataFormat(metadata.name());
         FormatChecksumStrategy strategy = checksumStrategies.getOrDefault(format, DEFAULT_CHECKSUM_STRATEGY);
         return strategy.createVerifyingInput(metadata, input);
