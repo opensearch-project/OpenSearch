@@ -309,6 +309,40 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
         );
     }
 
+    public void testDescriptionFlowsThroughDescribeAndFilterGate() {
+        var described = Setting.boolSetting("plugin.described", false, Dynamic, NodeScope).withDescription("Enables the plugin.");
+        var bare = Setting.boolSetting("plugin.bare", false, NodeScope);
+        var hidden = Setting.simpleString("plugin.hidden", NodeScope, Filtered).withDescription("Never shown.");
+        // Keystore settings take the early no-default path in metadataOf; their descriptions must still be reported.
+        var secret = SecureSetting.secureString("plugin.password", null).withDescription("Password used to authenticate to the service.");
+        var certificate = SecureSetting.secureFile("plugin.certificate", null).withDescription("Client certificate.");
+        var registry = new ClusterSettings(Settings.EMPTY, Set.of(described, bare, hidden, secret, certificate));
+        var response = describe(
+            registry,
+            NO_FILTER,
+            "plugin.described",
+            "plugin.bare",
+            "plugin.hidden",
+            "plugin.password",
+            "plugin.certificate"
+        );
+        assertEquals(
+            Map.of(
+                "plugin.described",
+                SettingMetadata.withDefault(true, "false")
+                    .withValidation(SettingValidation.ofType("boolean"))
+                    .withDescription("Enables the plugin."),
+                "plugin.bare",
+                SettingMetadata.withDefault(false, "false").withValidation(SettingValidation.ofType("boolean")),
+                "plugin.password",
+                SettingMetadata.withoutDefault(false).withDescription("Password used to authenticate to the service."),
+                "plugin.certificate",
+                SettingMetadata.withoutDefault(false).withDescription("Client certificate.")
+            ),
+            response.settings()
+        );
+    }
+
     public void testValidationFlowsThroughDescribeAndFilterGate() {
         var bounded = Setting.intSetting("plugin.bounded", 5, 1, 10, Dynamic, NodeScope);
         var unbounded = Setting.intSetting("plugin.unbounded", 5, NodeScope);
@@ -414,8 +448,11 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
         assertNotEquals(metadata, SettingMetadata.withDefault(true, "6").withValidation(validation));
         assertNotEquals(metadata, null);
         assertNotEquals(metadata, validation);
+        assertNull(metadata.description());
+        assertEquals("Text.", metadata.withDescription("Text.").description());
+        assertNotEquals(metadata, metadata.withDescription("Text."));
         assertEquals(
-            "SettingMetadata{dynamic=true, default=5, validation=SettingValidation{type=integer, min=1, max=10}}",
+            "SettingMetadata{dynamic=true, default=5, validation=SettingValidation{type=integer, min=1, max=10}, description=null}",
             metadata.toString()
         );
         expectThrows(NullPointerException.class, () -> SettingMetadata.withDefault(true, null));
@@ -431,13 +468,16 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
                 "plugin.bounded",
                 SettingMetadata.withDefault(true, "5").withValidation(SettingValidation.of("integer", "1", null)),
                 "plugin.flag",
-                SettingMetadata.withDefault(false, "true").withValidation(SettingValidation.ofType("boolean"))
+                SettingMetadata.withDefault(false, "true").withValidation(SettingValidation.ofType("boolean")),
+                "plugin.described",
+                SettingMetadata.withoutDefault(true).withDescription("Described.")
             )
         );
         String json = org.opensearch.core.common.Strings.toString(MediaTypeRegistry.JSON, response);
         assertEquals(
             "{\"settings\":{"
                 + "\"plugin.bounded\":{\"dynamic\":true,\"default\":\"5\",\"validation\":{\"type\":\"integer\",\"min\":\"1\"}},"
+                + "\"plugin.described\":{\"dynamic\":true,\"description\":\"Described.\"},"
                 + "\"plugin.flag\":{\"dynamic\":false,\"default\":\"true\",\"validation\":{\"type\":\"boolean\"}},"
                 + "\"plugin.with\":{\"dynamic\":true,\"default\":\"5\"},"
                 + "\"plugin.without\":{\"dynamic\":false}}}",

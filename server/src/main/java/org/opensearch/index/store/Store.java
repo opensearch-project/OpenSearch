@@ -66,6 +66,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
@@ -416,15 +417,47 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         java.util.concurrent.locks.Lock lock = lockDirectory ? metadataLock.writeLock() : metadataLock.readLock();
         lock.lock();
         try (Closeable ignored = lockDirectory ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : () -> {}) {
-
-            final SegmentInfos segmentInfos = readSegmentsInfo(commit, directory);
-            final CatalogSnapshot catalogSnapshot = fromSegmentInfos(segmentInfos, shardFormatDirectoryResolver());
-            return new MetadataSnapshot(catalogSnapshot, directory, logger);
+            return new MetadataSnapshot(catalogSnapshotFrom(commit), directory, logger);
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             markStoreCorrupted(ex);
             throw ex;
         } finally {
             lock.unlock();
+        }
+    }
+
+    /**
+     * Reads {@code segments_N} for the given commit, or the latest commit when {@code commit} is {@code null},
+     * and builds the {@link CatalogSnapshot} view of it. The caller owns locking and corruption handling.
+     */
+    private CatalogSnapshot catalogSnapshotFrom(@Nullable IndexCommit commit) throws IOException {
+        return fromSegmentInfos(readSegmentsInfo(commit, directory), shardFormatDirectoryResolver());
+    }
+
+    /**
+     * Builds the {@link CatalogSnapshot} view of the given Lucene {@link IndexCommit}, or of the latest commit
+     * when {@code commit} is {@code null}.
+     * <p>
+     * Callers holding only an {@link IndexCommit} need this to reach the catalog-based APIs, such as
+     * {@link #getMetadata(CatalogSnapshot)}. Reading through {@link #readSegmentsInfo} rather than Lucene
+     * directly is what makes a torn or truncated commit surface as a {@link CorruptIndexException} and mark the
+     * store corrupt, matching {@link #getMetadata(IndexCommit)}.
+     *
+     * @throws CorruptIndexException if the commit cannot be read as a valid Lucene commit.
+     * @throws IOException on any other I/O error.
+     */
+    @ExperimentalApi
+    public CatalogSnapshot toCatalogSnapshot(@Nullable IndexCommit commit) throws IOException {
+        ensureOpen();
+        failIfCorrupted();
+        metadataLock.readLock().lock();
+        try {
+            return catalogSnapshotFrom(commit);
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            markStoreCorrupted(ex);
+            throw ex;
+        } finally {
+            metadataLock.readLock().unlock();
         }
     }
 
