@@ -16,6 +16,9 @@ rem use a small heap size for the CLI tools, and thus the serial collector to
 rem avoid stealing many CPU cycles; a user can override by setting OPENSEARCH_JAVA_OPTS
 set OPENSEARCH_JAVA_OPTS=-Xms4m -Xmx64m -XX:+UseSerialGC %OPENSEARCH_JAVA_OPTS%
 
+rem libraries on the class path (for example bc-fips) load native code
+set OPENSEARCH_JAVA_OPTS=--enable-native-access=ALL-UNNAMED %OPENSEARCH_JAVA_OPTS%
+
 "%JAVA%" ^
   %OPENSEARCH_JAVA_OPTS% ^
   -Dopensearch.path.home="%OPENSEARCH_HOME%" ^
