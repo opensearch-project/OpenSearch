@@ -8,11 +8,29 @@
 
 package org.opensearch.wlm.cancellation;
 
+import org.opensearch.Version;
 import org.opensearch.action.search.SearchAction;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.action.search.SearchTask;
+import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.cluster.metadata.WorkloadGroup;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.tasks.CancellableTask;
+import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskAwareRequest;
 import org.opensearch.tasks.TaskCancellation;
+import org.opensearch.tasks.TaskCancellationService;
+import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.MutableWorkloadGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.ResourceType;
@@ -34,11 +52,19 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCase {
@@ -54,6 +80,7 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
     private WorkloadManagementSettings workloadManagementSettings;
     private WorkloadGroupResourceUsageTrackerService resourceUsageTrackerService;
     private WorkloadGroupsStateAccessor stateAccessor;
+    private TaskManager taskManager;
 
     @Before
     public void setup() {
@@ -68,12 +95,20 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
         resourceUsageTrackerService = mock(WorkloadGroupResourceUsageTrackerService.class);
         stateAccessor = mock(WorkloadGroupsStateAccessor.class);
         when(stateAccessor.getWorkloadGroupState(any())).thenReturn(new WorkloadGroupState());
+        taskManager = mock(TaskManager.class);
+        // Like the real TaskManager for a registered task without children, cancel the task itself with the given reason.
+        doAnswer(invocation -> {
+            CancellableTask task = invocation.getArgument(0);
+            task.cancel(invocation.getArgument(1));
+            return null;
+        }).when(taskManager).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
         taskCancellation = new WorkloadGroupTaskCancellationService(
             workloadManagementSettings,
             new MaximumResourceTaskSelectionStrategy(),
             resourceUsageTrackerService,
             stateAccessor
         );
+        taskCancellation.setTaskManager(taskManager);
     }
 
     public void testGetCancellableTasksFrom_setupAppropriateCancellationReasonAndScore() {
@@ -231,6 +266,7 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
             resourceUsageTrackerService,
             stateAccessor
         );
+        taskCancellation.setTaskManager(taskManager);
 
         taskCancellation.workloadGroupLevelResourceUsageViews = workloadGroupLevelViews;
 
@@ -296,6 +332,7 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
             resourceUsageTrackerService,
             stateAccessor
         );
+        taskCancellation.setTaskManager(taskManager);
         taskCancellation.workloadGroupLevelResourceUsageViews = workloadGroupLevelViews;
 
         List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(
@@ -371,6 +408,7 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
             resourceUsageTrackerService,
             stateAccessor
         );
+        taskCancellation.setTaskManager(taskManager);
         taskCancellation.workloadGroupLevelResourceUsageViews = workloadGroupLevelViews;
 
         List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks(
@@ -435,6 +473,7 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
             resourceUsageTrackerService,
             stateAccessor
         );
+        taskCancellation.setTaskManager(taskManager);
 
         taskCancellation.workloadGroupLevelResourceUsageViews = workloadGroupLevelViews;
 
@@ -458,6 +497,173 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
         assertTrue(cancellableTasksFrom.get(1).getTask().isCancelled());
         assertTrue(cancellableTasksFrom1.get(0).getTask().isCancelled());
         assertTrue(cancellableTasksFrom1.get(1).getTask().isCancelled());
+    }
+
+    public void testCancelTasks_cancelsTaskAndDescendantsWithWorkloadGroupReason() {
+        ResourceType resourceType = ResourceType.CPU;
+        double cpuUsage = 0.11;
+        Double threshold = 0.01;
+
+        WorkloadGroup workloadGroup1 = new WorkloadGroup(
+            "testWorkloadGroup",
+            workloadGroupId1,
+            new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
+            1L
+        );
+
+        WorkloadGroupLevelResourceUsageView mockView = createResourceUsageViewMock();
+        when(mockView.getResourceUsageData()).thenReturn(Map.of(ResourceType.CPU, cpuUsage, ResourceType.MEMORY, 0.0));
+        workloadGroupLevelViews.put(workloadGroupId1, mockView);
+        activeWorkloadGroups.add(workloadGroup1);
+        List<WorkloadGroupTask> tasks = mockView.getActiveTasks();
+
+        when(resourceUsageTrackerService.constructWorkloadGroupLevelUsageViews()).thenReturn(workloadGroupLevelViews);
+        when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        taskCancellation.cancelTasks(() -> false, activeWorkloadGroups, deletedWorkloadGroups);
+
+        String expectedReason = "WorkloadGroup ID : "
+            + workloadGroupId1
+            + " breached the resource limit: ("
+            + cpuUsage
+            + " > "
+            + threshold
+            + ") for resource type : "
+            + resourceType.getName();
+        for (WorkloadGroupTask task : tasks) {
+            verify(taskManager).cancelTaskAndDescendants(eq(task), eq(expectedReason), eq(false), any());
+            assertEquals(expectedReason, task.getReasonCancelled());
+        }
+        verify(taskManager, times(tasks.size())).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
+    }
+
+    public void testCancelTasks_runsOnCancelCallbacksOncePerCancelledTask() {
+        ResourceType resourceType = ResourceType.CPU;
+        Double threshold = 0.01;
+
+        WorkloadGroup workloadGroup1 = new WorkloadGroup(
+            "testWorkloadGroup",
+            workloadGroupId1,
+            new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
+            1L
+        );
+
+        WorkloadGroupLevelResourceUsageView mockView = createResourceUsageViewMock();
+        when(mockView.getResourceUsageData()).thenReturn(Map.of(ResourceType.CPU, 0.11, ResourceType.MEMORY, 0.0));
+        workloadGroupLevelViews.put(workloadGroupId1, mockView);
+        activeWorkloadGroups.add(workloadGroup1);
+        WorkloadGroupState workloadGroupState = new WorkloadGroupState();
+        when(stateAccessor.getWorkloadGroupState(workloadGroupId1)).thenReturn(workloadGroupState);
+
+        when(resourceUsageTrackerService.constructWorkloadGroupLevelUsageViews()).thenReturn(workloadGroupLevelViews);
+        when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        taskCancellation.cancelTasks(() -> false, activeWorkloadGroups, deletedWorkloadGroups);
+
+        assertEquals(2, workloadGroupState.totalCancellations.count());
+        assertEquals(2, workloadGroupState.getResourceState().get(ResourceType.CPU).cancellations.count());
+        assertEquals(0, workloadGroupState.getResourceState().get(ResourceType.MEMORY).cancellations.count());
+
+        // The next run still sees the same tasks, but they are already cancelled, so neither the TaskManager nor the callbacks run again.
+        taskCancellation.cancelTasks(() -> false, activeWorkloadGroups, deletedWorkloadGroups);
+
+        assertEquals(2, workloadGroupState.totalCancellations.count());
+        assertEquals(2, workloadGroupState.getResourceState().get(ResourceType.CPU).cancellations.count());
+        verify(taskManager, times(2)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
+    }
+
+    public void testCancelTasks_cancelsChildTasksThroughRealTaskManager() throws Exception {
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        MockTransportService transportService = MockTransportService.createNewService(
+            Settings.EMPTY,
+            Version.CURRENT,
+            threadPool,
+            NoopTracer.INSTANCE
+        );
+        try {
+            transportService.start();
+            transportService.acceptIncomingRequests();
+            TaskManager realTaskManager = transportService.getTaskManager();
+            realTaskManager.setTaskCancellationService(new TaskCancellationService(transportService));
+            DiscoveryNode localNode = transportService.getLocalNode();
+
+            // A coordinator search task, which cancels its children, with a shard task running under it on this node.
+            SearchTask parent = (SearchTask) realTaskManager.register("transport", SearchAction.NAME, new SearchRequest());
+            TaskId parentTaskId = new TaskId(localNode.getId(), parent.getId());
+            SearchShardTask child = (SearchShardTask) realTaskManager.register(
+                "transport",
+                SearchTransportService.QUERY_ACTION_NAME,
+                new TaskAwareRequest() {
+                    @Override
+                    public void setParentTask(TaskId taskId) {}
+
+                    @Override
+                    public TaskId getParentTask() {
+                        return parentTaskId;
+                    }
+
+                    @Override
+                    public Task createTask(long id, String type, String action, TaskId parentId, Map<String, String> headers) {
+                        return new SearchShardTask(id, type, action, "shard search", parentId, headers);
+                    }
+                }
+            );
+            Releasable childNode = realTaskManager.registerChildNode(parent.getId(), localNode);
+
+            ResourceType resourceType = ResourceType.CPU;
+            double cpuUsage = 0.11;
+            Double threshold = 0.01;
+
+            WorkloadGroup workloadGroup1 = new WorkloadGroup(
+                "testWorkloadGroup",
+                workloadGroupId1,
+                new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(resourceType, threshold)),
+                1L
+            );
+
+            // Only the coordinator task is in the group's view, so WLM selects the parent and the child is reached by the cascade.
+            WorkloadGroupLevelResourceUsageView mockView = mock(WorkloadGroupLevelResourceUsageView.class);
+            when(mockView.getResourceUsageData()).thenReturn(Map.of(ResourceType.CPU, cpuUsage, ResourceType.MEMORY, 0.0));
+            when(mockView.getActiveTasks()).thenReturn(List.of(parent));
+            workloadGroupLevelViews.put(workloadGroupId1, mockView);
+            activeWorkloadGroups.add(workloadGroup1);
+
+            when(resourceUsageTrackerService.constructWorkloadGroupLevelUsageViews()).thenReturn(workloadGroupLevelViews);
+            when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+            WorkloadGroupTaskCancellationService taskCancellation = new WorkloadGroupTaskCancellationService(
+                workloadManagementSettings,
+                new MaximumResourceTaskSelectionStrategy(),
+                resourceUsageTrackerService,
+                stateAccessor
+            );
+            taskCancellation.setTaskManager(realTaskManager);
+            taskCancellation.cancelTasks(() -> false, activeWorkloadGroups, deletedWorkloadGroups);
+
+            String expectedReason = "WorkloadGroup ID : "
+                + workloadGroupId1
+                + " breached the resource limit: ("
+                + cpuUsage
+                + " > "
+                + threshold
+                + ") for resource type : "
+                + resourceType.getName();
+            assertTrue(parent.isCancelled());
+            assertEquals(expectedReason, parent.getReasonCancelled());
+            assertBusy(() -> assertTrue(child.isCancelled()));
+            assertEquals(expectedReason, child.getReasonCancelled());
+            // The parent is banned from starting new children, so it can't fan out to more shards after the cancellation.
+            TaskCancelledException e = expectThrows(
+                TaskCancelledException.class,
+                () -> realTaskManager.registerChildNode(parent.getId(), localNode)
+            );
+            assertThat(e.getMessage(), containsString(expectedReason));
+
+            // Finish both tasks, so the cancellation's completion listener runs and lifts the ban.
+            realTaskManager.unregister(child);
+            childNode.close();
+            realTaskManager.unregister(parent);
+        } finally {
+            transportService.close();
+            ThreadPool.terminate(threadPool, 5, TimeUnit.SECONDS);
+        }
     }
 
     public void testGetAllCancellableTasks_ReturnsNoTasksWhenNotBreachingThresholds() {

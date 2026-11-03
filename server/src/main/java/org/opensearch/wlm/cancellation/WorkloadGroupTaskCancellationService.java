@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.WorkloadGroup;
 import org.opensearch.tasks.TaskCancellation;
+import org.opensearch.tasks.TaskManager;
 import org.opensearch.wlm.MutableWorkloadGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WlmMode;
@@ -61,6 +62,7 @@ public class WorkloadGroupTaskCancellationService {
     // a map of WorkloadGroupId to its corresponding WorkloadGroupLevelResourceUsageView object
     Map<String, WorkloadGroupLevelResourceUsageView> workloadGroupLevelResourceUsageViews;
     private final WorkloadGroupsStateAccessor workloadGroupStateAccessor;
+    private volatile TaskManager taskManager;
 
     public WorkloadGroupTaskCancellationService(
         WorkloadManagementSettings workloadManagementSettings,
@@ -72,6 +74,11 @@ public class WorkloadGroupTaskCancellationService {
         this.taskSelectionStrategy = taskSelectionStrategy;
         this.resourceUsageTrackerService = resourceUsageTrackerService;
         this.workloadGroupStateAccessor = workloadGroupStateAccessor;
+    }
+
+    /** Late-binds the {@link TaskManager}, which is owned by the transport service built after this one. */
+    public void setTaskManager(TaskManager taskManager) {
+        this.taskManager = taskManager;
     }
 
     /**
@@ -224,9 +231,11 @@ public class WorkloadGroupTaskCancellationService {
         });
         Consumer<TaskCancellation> cancellationConsumer = cancellationLoggingConsumer;
         if (workloadManagementSettings.getWlmMode() == WlmMode.ENABLED) {
+            assert taskManager != null : "TaskManager must be bound before cancelling tasks";
+            // Cancel descendants too, so a cancelled coordinator task doesn't leave its shard tasks running on other nodes.
             cancellationConsumer = (taskCancellation -> {
                 cancellationLoggingConsumer.accept(taskCancellation);
-                taskCancellation.cancel();
+                taskCancellation.cancelTaskAndDescendants(taskManager);
             });
         }
         cancellableTasks.forEach(cancellationConsumer);
