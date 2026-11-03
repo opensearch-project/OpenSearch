@@ -9,9 +9,9 @@
 package org.opensearch.javaagent;
 
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
+import org.opensearch.secure_sm.policy.Policy;
 import org.junit.BeforeClass;
 
-import java.security.Policy;
 import java.util.Set;
 
 public abstract class AgentTestCase {

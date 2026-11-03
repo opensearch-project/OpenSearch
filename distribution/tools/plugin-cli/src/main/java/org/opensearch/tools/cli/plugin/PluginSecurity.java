@@ -38,6 +38,7 @@ import org.opensearch.cli.Terminal.Verbosity;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.secure_sm.policy.Policy;
 import org.opensearch.secure_sm.policy.PolicyFile;
 
 import java.io.IOException;
@@ -46,7 +47,6 @@ import java.nio.file.Path;
 import java.security.Permission;
 import java.security.PermissionCollection;
 import java.security.Permissions;
-import java.security.Policy;
 import java.security.UnresolvedPermission;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -136,7 +136,6 @@ class PluginSecurity {
     /**
      * Parses plugin policy into a set of permissions. Each permission is formatted for output to users.
      */
-    @SuppressWarnings("removal")
     static Set<String> parsePermissions(Path file, Path tmpDir) throws IOException {
         // create a zero byte file for "comparison"
         // this is necessary because the default policy impl automatically grants two permissions:
@@ -151,7 +150,7 @@ class PluginSecurity {
         final Policy policy = new PolicyFile(file.toUri().toURL());
         final PermissionCollection permissions = policy.getPermissions(PluginSecurity.class.getProtectionDomain());
         // this method is supported with the specific implementation we use, but just check for safety.
-        if (permissions == Policy.UNSUPPORTED_EMPTY_COLLECTION) {
+        if (permissions == Policy.EMPTY_PERMISSION_COLLECTION) {
             throw new UnsupportedOperationException("JavaPolicy implementation does not support retrieving permissions");
         }
         PermissionCollection actualPermissions = new Permissions();

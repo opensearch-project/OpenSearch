@@ -44,6 +44,7 @@ import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
+import org.opensearch.secure_sm.policy.Policy;
 import org.opensearch.secure_sm.policy.PolicyFile;
 import org.opensearch.transport.TcpTransport;
 
@@ -59,7 +60,6 @@ import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.security.Permissions;
-import java.security.Policy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;

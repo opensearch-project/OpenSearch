@@ -53,13 +53,13 @@ import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.monitor.process.ProcessProbe;
 import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.node.NodeValidationException;
+import org.opensearch.secure_sm.policy.Policy;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AllPermission;
-import java.security.Policy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -746,7 +746,6 @@ final class BootstrapChecks {
             return BootstrapCheckResult.success();
         }
 
-        @SuppressWarnings("removal")
         boolean isAllPermissionGranted() {
             final Policy policy = AgentPolicy.getPolicy();
             assert policy != null;
