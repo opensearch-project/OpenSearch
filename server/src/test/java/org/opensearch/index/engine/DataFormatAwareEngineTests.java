@@ -4726,9 +4726,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     public void testGetByIdFromSegmentsEnforcesStaleIfSeqNo() throws IOException {
         DocumentLookupProvider provider = mockLookupProvider();
         // The stored document is at seqNo 7 / term 1.
-        when(provider.getById(any(), any(), any())).thenReturn(
-            new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
-        );
+        when(provider.getById(any(), any(), any())).thenReturn(new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of()));
         try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
             engine.index(indexOp(createParsedDocWithInput("1", null)));
             // Refresh so the get cannot be answered from the version map.
@@ -4743,9 +4741,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     /** Control: a matching {@code if_seq_no} on the segment path must still be served. */
     public void testGetByIdFromSegmentsAcceptsCurrentIfSeqNo() throws IOException {
         DocumentLookupProvider provider = mockLookupProvider();
-        when(provider.getById(any(), any(), any())).thenReturn(
-            new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
-        );
+        when(provider.getById(any(), any(), any())).thenReturn(new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of()));
         try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
             engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.refresh("test");
@@ -4759,9 +4755,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     /** And a get carrying no precondition at all must be unaffected by the enforcement. */
     public void testGetByIdFromSegmentsWithoutPreconditionIsUnaffected() throws IOException {
         DocumentLookupProvider provider = mockLookupProvider();
-        when(provider.getById(any(), any(), any())).thenReturn(
-            new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
-        );
+        when(provider.getById(any(), any(), any())).thenReturn(new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of()));
         try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
             engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.refresh("test");
@@ -4781,9 +4775,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     public void testGetByIdFromSegmentsEnforcesStaleVersion() throws IOException {
         DocumentLookupProvider provider = mockLookupProvider();
         // Stored document is at version 2.
-        when(provider.getById(any(), any(), any())).thenReturn(
-            new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
-        );
+        when(provider.getById(any(), any(), any())).thenReturn(new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of()));
         try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
             engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.refresh("test");
@@ -4800,9 +4792,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     /** Control: the matching version on the segment path must still be served. */
     public void testGetByIdFromSegmentsAcceptsCurrentVersion() throws IOException {
         DocumentLookupProvider provider = mockLookupProvider();
-        when(provider.getById(any(), any(), any())).thenReturn(
-            new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
-        );
+        when(provider.getById(any(), any(), any())).thenReturn(new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of()));
         try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
             engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.refresh("test");
