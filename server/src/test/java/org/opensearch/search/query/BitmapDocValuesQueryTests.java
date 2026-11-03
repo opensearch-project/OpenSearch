@@ -15,6 +15,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.opensearch.test.OpenSearchTestCase;
@@ -44,9 +45,15 @@ public class BitmapDocValuesQueryTests extends OpenSearchTestCase {
 
     @After
     public void closeAllTheReaders() throws IOException {
-        reader.close();
-        w.close();
-        dir.close();
+        if (reader != null) {
+            reader.close();
+        }
+        if (w != null) {
+            w.close();
+        }
+        if (dir != null) {
+            dir.close();
+        }
     }
 
     public void testScore() throws IOException {
@@ -113,5 +120,38 @@ public class BitmapDocValuesQueryTests extends OpenSearchTestCase {
         Set<Integer> actual = new HashSet<>(getMatchingValues(weight, searcher.getIndexReader()));
         Set<Integer> expected = Set.of(2, 3);
         assertEquals(expected, actual);
+    }
+
+    public void testScorerSupplierCostReflectsFullSegmentScan() throws IOException {
+        Document d = new Document();
+        d.add(new IntField("product_id", 1, Field.Store.NO));
+        w.addDocument(d);
+
+        d = new Document();
+        d.add(new IntField("product_id", 2, Field.Store.NO));
+        w.addDocument(d);
+
+        d = new Document();
+        d.add(new IntField("product_id", 3, Field.Store.NO));
+        w.addDocument(d);
+
+        d = new Document();
+        d.add(new IntField("product_id", 4, Field.Store.NO));
+        w.addDocument(d);
+
+        w.commit();
+        reader = DirectoryReader.open(w);
+        searcher = newSearcher(reader);
+
+        RoaringBitmap bitmap = new RoaringBitmap();
+        bitmap.add(1);
+        bitmap.add(4);
+        BitmapDocValuesQuery query = new BitmapDocValuesQuery("product_id", bitmap);
+
+        Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        ScorerSupplier supplier = weight.scorerSupplier(reader.leaves().get(0));
+
+        assertNotNull(supplier);
+        assertEquals(reader.maxDoc(), supplier.cost());
     }
 }

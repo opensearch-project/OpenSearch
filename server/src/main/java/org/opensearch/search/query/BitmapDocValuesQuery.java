@@ -63,48 +63,59 @@ public class BitmapDocValuesQuery extends Query implements Accountable {
         return new ConstantScoreWeight(this, boost) {
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                SortedNumericDocValues values = DocValues.getSortedNumeric(context.reader(), field);
-                final NumericDocValues singleton = DocValues.unwrapSingleton(values);
-                final TwoPhaseIterator iterator;
-                if (singleton != null) {
-                    iterator = new TwoPhaseIterator(singleton) {
-                        @Override
-                        public boolean matches() throws IOException {
-                            long value = singleton.longValue();
-                            return value >= min && value <= max && bitmap.contains((int) value);
-                        }
-
-                        @Override
-                        public float matchCost() {
-                            return 5; // 2 comparisons, possible lookup in the bitmap
-                        }
-                    };
-                } else {
-                    iterator = new TwoPhaseIterator(values) {
-                        @Override
-                        public boolean matches() throws IOException {
-                            int count = values.docValueCount();
-                            for (int i = 0; i < count; i++) {
-                                final long value = values.nextValue();
-                                if (value < min) {
-                                    continue;
-                                } else if (value > max) {
-                                    return false; // values are sorted, terminate
-                                } else if (bitmap.contains((int) value)) {
-                                    return true;
+                // This query verifies candidate docs via doc values, so its real cost is a full segment scan.
+                final long cost = context.reader().maxDoc();
+                return new ScorerSupplier() {
+                    @Override
+                    public Scorer get(long leadCost) throws IOException {
+                        SortedNumericDocValues values = DocValues.getSortedNumeric(context.reader(), field);
+                        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+                        final TwoPhaseIterator iterator;
+                        if (singleton != null) {
+                            iterator = new TwoPhaseIterator(singleton) {
+                                @Override
+                                public boolean matches() throws IOException {
+                                    long value = singleton.longValue();
+                                    return value >= min && value <= max && bitmap.contains((int) value);
                                 }
-                            }
-                            return false;
-                        }
 
-                        @Override
-                        public float matchCost() {
-                            return 5; // 2 comparisons, possible lookup in the bitmap
+                                @Override
+                                public float matchCost() {
+                                    return 5; // 2 comparisons, possible lookup in the bitmap
+                                }
+                            };
+                        } else {
+                            iterator = new TwoPhaseIterator(values) {
+                                @Override
+                                public boolean matches() throws IOException {
+                                    int count = values.docValueCount();
+                                    for (int i = 0; i < count; i++) {
+                                        final long value = values.nextValue();
+                                        if (value < min) {
+                                            continue;
+                                        } else if (value > max) {
+                                            return false; // values are sorted, terminate
+                                        } else if (bitmap.contains((int) value)) {
+                                            return true;
+                                        }
+                                    }
+                                    return false;
+                                }
+
+                                @Override
+                                public float matchCost() {
+                                    return 5; // 2 comparisons, possible lookup in the bitmap
+                                }
+                            };
                         }
-                    };
-                }
-                final Scorer scorer = new ConstantScoreScorer(score(), scoreMode, iterator);
-                return new DefaultScorerSupplier(scorer);
+                        return new ConstantScoreScorer(score(), scoreMode, iterator);
+                    }
+
+                    @Override
+                    public long cost() {
+                        return cost;
+                    }
+                };
             }
 
             @Override
