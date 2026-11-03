@@ -26,7 +26,7 @@ public abstract class ResourceUsageCalculator {
     public abstract double calculateResourceUsage(List<WorkloadGroupTask> tasks);
 
     /**
-     * calculates the task level resource usage, in the same units as {@link #calculateResourceUsage(List)}
+     * calculates the task level resource usage
      * @param task         WorkloadGroupTask
      * @return task level resource usage
      */
