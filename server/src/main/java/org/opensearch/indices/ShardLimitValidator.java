@@ -35,6 +35,7 @@ package org.opensearch.indices;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.ValidationException;
@@ -343,9 +344,23 @@ public class ShardLimitValidator {
                 state.getMetadata().getTotalOpenIndexShards(),
                 getShardLimitPerNode(),
                 getShardLimitPerCluster(),
-                state.getNodes().getDataNodes().size(),
+                getLocalOnlyNodeCount(state),
                 shardPool
             );
+    }
+
+    /**
+     * Counts the data nodes that can hold {@link RoutingPool#LOCAL_ONLY} shards. A warm node counts only when it also
+     * has the data role, which matches what
+     * {@link org.opensearch.cluster.routing.allocation.decider.TargetPoolAllocationDecider} allows.
+     */
+    private static int getLocalOnlyNodeCount(ClusterState state) {
+        return (int) state.getNodes()
+            .getDataNodes()
+            .values()
+            .stream()
+            .filter(node -> node.isWarmNode() == false || node.getRoles().contains(DiscoveryNodeRole.DATA_ROLE))
+            .count();
     }
 
     // package-private for testing
