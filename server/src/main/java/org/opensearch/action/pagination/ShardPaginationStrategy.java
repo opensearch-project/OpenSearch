@@ -120,22 +120,33 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
             // Always start from shardID 0 for all indices except for the first one which might be same as the last sent
             // index. To identify if an index is same as last sent index, verify both the index name and creation time.
             int startShardId = shardCount == 0 ? getStartShardIdForPageIndex(token, indexName, indexMetadata.getCreationDate()) : 0;
-            Map<Integer, IndexShardRoutingTable> indexShardRoutingTable = indicesRouting.get(indexName).getShards();
-            for (; startShardId < indexShardRoutingTable.size(); startShardId++) {
-                if (shardIdSet.isEmpty() == false && shardIdSet.contains(startShardId) == false) {
+            IndexRoutingTable indexRoutingTable = indicesRouting.get(indexName);
+            if (indexRoutingTable == null) {
+                // The metadata can name an index whose routing this state does not carry, as in a partial routing table.
+                continue;
+            }
+            Map<Integer, IndexShardRoutingTable> indexShardRoutingTable = indexRoutingTable.getShards();
+            // Shard ids need not be contiguous in a partial routing table, so walk the ids that are present.
+            List<Integer> shardIds = indexShardRoutingTable.keySet()
+                .stream()
+                .filter(shardId -> shardId >= startShardId)
+                .sorted()
+                .collect(Collectors.toList());
+            for (int shardId : shardIds) {
+                if (shardIdSet.isEmpty() == false && shardIdSet.contains(shardId) == false) {
                     continue;
                 }
 
-                if (indexShardRoutingTable.get(startShardId).size() > numShardsRequired) {
+                if (indexShardRoutingTable.get(shardId).size() > numShardsRequired) {
                     throw new IllegalArgumentException(
                         "size value should be greater than the replica count of all indices, so that all primary and replicas of a shard show up in single page"
                     );
                 }
-                shardCount += indexShardRoutingTable.get(startShardId).size();
+                shardCount += indexShardRoutingTable.get(shardId).size();
                 if (shardCount > numShardsRequired) {
                     break;
                 }
-                shardRoutings.addAll(indexShardRoutingTable.get(startShardId).shards());
+                shardRoutings.addAll(indexShardRoutingTable.get(shardId).shards());
                 indexShardsAdded = true;
             }
 
