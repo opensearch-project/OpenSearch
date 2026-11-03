@@ -465,6 +465,37 @@ public class ShardPaginationStrategyTests extends OpenSearchTestCase {
         assertNull(secondPage.getResponseToken().getNextToken());
     }
 
+    public void testFilterShardIdsInPartialRoutingTable() {
+        ClusterState clusterState = getPartialRoutingClusterState();
+
+        // Shard 0 is requested but has no routing here, so only shard 2 comes back.
+        ShardPaginationStrategy filtered = new ShardPaginationStrategy(
+            new PageParams(null, PARAM_ASC_SORT_VALUE, 10),
+            clusterState,
+            new int[] { 0, 2 }
+        );
+        assertEquals(List.of(2), filtered.getRequestedEntities().stream().map(ShardRouting::id).collect(Collectors.toList()));
+        assertNull(filtered.getResponseToken().getNextToken());
+
+        int[] requestedShards = new int[] { 1, 2 };
+        ShardPaginationStrategy firstPage = new ShardPaginationStrategy(
+            new PageParams(null, PARAM_ASC_SORT_VALUE, 1),
+            clusterState,
+            requestedShards
+        );
+        assertEquals(List.of(1), firstPage.getRequestedEntities().stream().map(ShardRouting::id).collect(Collectors.toList()));
+        String nextToken = firstPage.getResponseToken().getNextToken();
+        assertNotNull(nextToken);
+
+        ShardPaginationStrategy secondPage = new ShardPaginationStrategy(
+            new PageParams(nextToken, PARAM_ASC_SORT_VALUE, 1),
+            clusterState,
+            requestedShards
+        );
+        assertEquals(List.of(2), secondPage.getRequestedEntities().stream().map(ShardRouting::id).collect(Collectors.toList()));
+        assertNull(secondPage.getResponseToken().getNextToken());
+    }
+
     /**
      * A state whose metadata names two indices but whose routing table holds only shards 1 and 2 of the first one and
      * nothing for the second, as a node that only knows some of the shards would have.
