@@ -70,6 +70,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestDeduplicator;
@@ -346,6 +347,47 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     }
 
     /**
+     * Rejects the shard snapshot paths that are not yet supported for multi-format (pluggable data format)
+     * shards.
+     * <p>
+     * Only the full-copy path is supported. The shallow-copy path writes a pointer into the remote store
+     * keyed by (primaryTerm, generation) and has no catalog-aware lock resolution or restore path yet, and
+     * warm shards read through a different data path entirely. Both are rejected here, at the API boundary,
+     * with a message naming the setting to change rather than failing deeper in the engine. With
+     * {@code partial=true} the rest of the snapshot still completes.
+     *
+     * @throws IndexShardSnapshotFailedException if this shard/repository combination is not supported
+     */
+    // package private for testing
+    static void ensurePluggableDataFormatSnapshotSupported(
+        final ShardId shardId,
+        final IndexSettings indexSettings,
+        final boolean remoteStoreIndexShallowCopy
+    ) {
+        if (indexSettings.isPluggableDataFormatEnabled() == false) {
+            return;
+        }
+        if (remoteStoreIndexShallowCopy && indexSettings.isRemoteStoreEnabled()) {
+            throw new IndexShardSnapshotFailedException(
+                shardId,
+                "shallow copy snapshots are not supported for indices using a pluggable data format ["
+                    + IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey()
+                    + "=true]; register the repository with ["
+                    + BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey()
+                    + "=false] to take a full-copy snapshot instead"
+            );
+        }
+        if (indexSettings.isWarmIndex()) {
+            throw new IndexShardSnapshotFailedException(
+                shardId,
+                "snapshots are not yet supported for warm indices using a pluggable data format ["
+                    + IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey()
+                    + "=true]"
+            );
+        }
+    }
+
+    /**
      * Creates shard snapshot
      *
      * @param snapshot       snapshot
@@ -385,7 +427,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 throw new IndexShardSnapshotFailedException(shardId, "shard didn't fully recover yet");
             }
 
-            ensurePluggableDataFormatSnapshotSupported(shardId, indexShard.indexSettings());
+            ensurePluggableDataFormatSnapshotSupported(shardId, indexShard.indexSettings(), remoteStoreIndexShallowCopy);
 
             final Repository repository = repositoriesService.repository(snapshot.getRepository());
             GatedCloseable<CatalogSnapshot> wrappedSnapshot = null;
@@ -501,26 +543,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             }
         } catch (Exception e) {
             listener.onFailure(e);
-        }
-    }
-
-    /**
-     * Rejects shard snapshots for indices using a pluggable data format.
-     * <p>
-     * The catalog-based shard snapshot path is not validated for multi-format shards yet: checksum comparison,
-     * format-qualified blob naming and the restore path are still outstanding. Failing here, at the API boundary,
-     * produces an actionable message instead of an obscure failure deeper in the engine.
-     *
-     * @throws IndexShardSnapshotFailedException if the shard uses a pluggable data format
-     */
-    static void ensurePluggableDataFormatSnapshotSupported(ShardId shardId, IndexSettings indexSettings) {
-        if (indexSettings.isPluggableDataFormatEnabled()) {
-            throw new IndexShardSnapshotFailedException(
-                shardId,
-                "snapshots are not yet supported for indices using a pluggable data format ["
-                    + IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey()
-                    + "=true]"
-            );
         }
     }
 
