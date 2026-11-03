@@ -15,6 +15,7 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.SecureSetting;
 import org.opensearch.common.settings.Setting;
@@ -24,7 +25,11 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
-import java.util.HashMap;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Function;
 
 /** Resolves definitions using the setting registry. The registry is identical on every node of the same version and
@@ -63,19 +68,56 @@ public class TransportClusterDescribeSettingsAction extends HandledTransportActi
         ClusterSettings registry,
         SettingsFilter filter
     ) {
-        // Filter names using placeholders; the configured value is never read or serialized.
-        Settings.Builder names = Settings.builder();
-        for (String name : request.names())
-            names.put(name, "");
-        var result = new HashMap<String, SettingMetadata>();
-        for (String name : filter.filter(names.build()).keySet()) {
-            Setting<?> setting = registry.get(name);
-            // Omission deliberately makes an unknown name indistinguishable from a filtered one.
-            if (setting != null && setting.isFiltered() == false) {
-                result.put(name, metadataOf(setting));
+        // Expand each prefix to the keys registered under it, then pass every candidate name (exact or expanded)
+        // through the same filter gate. Names are matched against the filter patterns directly rather than through a
+        // Settings.Builder: the builder rewrites legacy list keys (a.b.0 becomes a.b) and rejects a.b alongside a.b.0,
+        // which would misdescribe one request and turn another into a 500. The configured value is never read.
+        var candidates = new TreeSet<String>();
+        // Dedupe first so a prefix repeated in the request is expanded (a full registry scan) only once.
+        for (String name : new LinkedHashSet<>(Arrays.asList(request.names()))) {
+            if (Regex.isSimpleMatchPattern(name)) {
+                for (Setting<?> setting : registry.getMatching(name)) {
+                    // Keystore settings are never listed by include_defaults either; skipping them keeps this a strict
+                    // subset of what that API exposes. Requested by exact name they still describe as today. (The
+                    // insecure fallback form is a plain Setting declared Filtered, so the gate below removes it.)
+                    if (setting instanceof SecureSetting == false) {
+                        candidates.add(setting.getKey());
+                    }
+                }
+            } else {
+                candidates.add(name);
             }
         }
-        return new ClusterDescribeSettingsResponse(result);
+        // Sorted so the response is deterministic and independent of the order names were supplied in. Only the visible
+        // Setting objects are collected here; metadata is derived afterwards for exactly those entries.
+        var visible = new TreeMap<String, Setting<?>>();
+        for (String name : candidates) {
+            if (isHiddenByFilter(filter, name)) {
+                continue;
+            }
+            Setting<?> setting = registry.get(name);
+            // Omission deliberately makes an unknown name indistinguishable from a filtered one. The name must also be the
+            // setting's declared key: the registry resolves variants such as a list key's legacy indexed form (a.b.0), and
+            // the response reports only canonical names.
+            if (setting != null && setting.isFiltered() == false && name.equals(setting.getKey())) {
+                visible.put(name, setting);
+            }
+        }
+        var entries = new LinkedHashMap<String, SettingMetadata>();
+        for (var entry : visible.entrySet()) {
+            entries.put(entry.getKey(), metadataOf(entry.getValue()));
+        }
+        return new ClusterDescribeSettingsResponse(entries);
+    }
+
+    /** The same rule {@link SettingsFilter#filter} applies: literal patterns match the key exactly, wildcard patterns by glob. */
+    private static boolean isHiddenByFilter(SettingsFilter filter, String key) {
+        for (String pattern : filter.getPatterns()) {
+            if (Regex.isSimpleMatchPattern(pattern) ? Regex.simpleMatch(pattern, key) : pattern.equals(key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -95,9 +137,10 @@ public class TransportClusterDescribeSettingsAction extends HandledTransportActi
             return SettingMetadata.withoutDefault(dynamic);
         }
         String defaultValue = setting.getDefaultRaw(Settings.EMPTY);
-        // The Setting constructor asserts a non-null default for every non-secure setting, so only emptiness is
-        // checked here. Group settings declare an empty default; an empty string carries no information for any setting.
-        SettingMetadata metadata = defaultValue.isEmpty()
+        // The Setting constructor only asserts that the PARSED default is non-null, and only with assertions enabled, so
+        // a null raw default is guarded here rather than assumed away. Group settings declare an empty default; an empty
+        // string carries no information for any setting, so it is reported the same way as no default.
+        SettingMetadata metadata = defaultValue == null || defaultValue.isEmpty()
             ? SettingMetadata.withoutDefault(dynamic)
             : SettingMetadata.withDefault(dynamic, defaultValue);
         return metadata.withValidation(validationOf(setting));

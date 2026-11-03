@@ -30,6 +30,7 @@ import java.util.TreeMap;
 public class ClusterDescribeSettingsResponse extends ActionResponse implements ToXContentObject {
     private final Map<String, SettingMetadata> settings;
 
+    /** The complete result; entries are rendered in ascending key order regardless of the order they were supplied in. */
     public ClusterDescribeSettingsResponse(Map<String, SettingMetadata> settings) {
         this.settings = Collections.unmodifiableMap(new TreeMap<>(settings));
     }
@@ -58,7 +59,8 @@ public class ClusterDescribeSettingsResponse extends ActionResponse implements T
             builder.field(entry.getKey());
             entry.getValue().toXContent(builder, params);
         }
-        return builder.endObject().endObject();
+        builder.endObject();
+        return builder.endObject();
     }
 
     /**
