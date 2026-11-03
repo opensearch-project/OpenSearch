@@ -45,10 +45,13 @@ import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
@@ -97,13 +100,33 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     public static final String NAME = "disk_threshold";
 
+    public static final Setting<Boolean> SKIP_WATERMARK_ON_NODE_LEFT_RECOVERY = Setting.boolSetting(
+        "cluster.routing.allocation.disk.skip_watermark_on_node_left_recovery",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> SKIP_WATERMARK_ON_NODE_LEFT_MAX_AGE = Setting.positiveTimeSetting(
+        "cluster.routing.allocation.disk.skip_watermark_on_node_left_max_age",
+        TimeValue.timeValueMinutes(10),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private final DiskThresholdSettings diskThresholdSettings;
     private final boolean enableForSingleDataNode;
+    private volatile boolean skipWatermarkOnNodeLeftRecovery;
+    private volatile TimeValue skipWatermarkOnNodeLeftMaxAge;
 
     public DiskThresholdDecider(Settings settings, ClusterSettings clusterSettings) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         assert Version.CURRENT.major < 9 : "remove enable_for_single_data_node in 9";
         this.enableForSingleDataNode = ENABLE_FOR_SINGLE_DATA_NODE.get(settings);
+        this.skipWatermarkOnNodeLeftRecovery = SKIP_WATERMARK_ON_NODE_LEFT_RECOVERY.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(SKIP_WATERMARK_ON_NODE_LEFT_RECOVERY, v -> this.skipWatermarkOnNodeLeftRecovery = v);
+        this.skipWatermarkOnNodeLeftMaxAge = SKIP_WATERMARK_ON_NODE_LEFT_MAX_AGE.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(SKIP_WATERMARK_ON_NODE_LEFT_MAX_AGE, v -> this.skipWatermarkOnNodeLeftMaxAge = v);
     }
 
     /**
@@ -175,6 +198,22 @@ public class DiskThresholdDecider extends AllocationDecider {
         final Decision decision = earlyTerminate(allocation, usages);
         if (decision != null) {
             return decision;
+        }
+
+        if (skipWatermarkOnNodeLeftRecovery
+            && isNodeRestartRecovery(shardRouting, node, allocation)
+            && isAboveFloodStageFreeThreshold(node, usages)) {
+            logger.info(
+                "[disk_threshold] waiver granted for shard [{}] on node [{}] (NODE_LEFT local-restart recovery; flood-stage still safe)",
+                shardRouting.shardId(),
+                node.nodeId()
+            );
+            return allocation.decision(
+                Decision.YES,
+                NAME,
+                "skipping low/high watermark check because the shard is recovering to its previous node "
+                    + "after a NODE_LEFT event (skip_watermark_on_node_left_recovery=true); flood-stage threshold is still satisfied"
+            );
         }
 
         final double usedDiskThresholdLow = 100.0 - diskThresholdSettings.getFreeDiskThresholdLow();
@@ -636,6 +675,49 @@ public class DiskThresholdDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "disk usages are unavailable");
         }
         return null;
+    }
+
+    boolean isNodeRestartRecovery(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        if (shardRouting.unassigned() == false) {
+            return false;
+        }
+        final UnassignedInfo info = shardRouting.unassignedInfo();
+        if (info == null || info.getReason() != UnassignedInfo.Reason.NODE_LEFT) {
+            return false;
+        }
+        final long unassignedAgeMillis = System.currentTimeMillis() - info.getUnassignedTimeInMillis();
+        final long maxAgeMillis = skipWatermarkOnNodeLeftMaxAge.millis();
+        if (unassignedAgeMillis < 0L || unassignedAgeMillis > maxAgeMillis) {
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    "[disk_threshold] waiver denied for shard [{}] on node [{}]: NODE_LEFT age {}ms exceeds max {}ms",
+                    shardRouting.shardId(),
+                    node.nodeId(),
+                    unassignedAgeMillis,
+                    maxAgeMillis
+                );
+            }
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Strict floor: even when the waiver is enabled, the node must have MORE free disk than
+     * the flood-stage threshold (both percentage and absolute byte variants). This prevents
+     * the waiver from ever pushing a node into read-only-block territory.
+     */
+    boolean isAboveFloodStageFreeThreshold(RoutingNode node, Map<String, DiskUsage> usages) {
+        if (usages == null) {
+            return false;
+        }
+        final DiskUsage usage = usages.get(node.nodeId());
+        if (usage == null) {
+            return false;
+        }
+        final double freePctFloor = diskThresholdSettings.getFreeDiskThresholdFloodStage();
+        final long freeBytesFloor = diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes();
+        return usage.getFreeBytes() > freeBytesFloor && usage.getFreeDiskAsPercentage() > freePctFloor;
     }
 
     /**
