@@ -24,6 +24,7 @@ import org.opensearch.wlm.tracker.WorkloadGroupResourceUsageTrackerService;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -92,13 +93,19 @@ public class WorkloadGroupTaskCancellationService {
     }
 
     private void updateResourceUsageInWorkloadGroupState(Collection<WorkloadGroup> activeWorkloadGroups) {
+        // Read the raw state map, because getWorkloadGroupState falls back to DEFAULT once a deleted group's state is removed,
+        // which would write the deleted group's usage into DEFAULT's. Groups with no state of their own are skipped
+        final Map<String, WorkloadGroupState> workloadGroupStateMap = workloadGroupStateAccessor.getWorkloadGroupStateMap();
         Set<String> isSearchWorkloadRunning = new HashSet<>();
         for (Map.Entry<
             String,
             WorkloadGroupLevelResourceUsageView> workloadGroupLevelResourceUsageViewEntry : workloadGroupLevelResourceUsageViews
                 .entrySet()) {
             isSearchWorkloadRunning.add(workloadGroupLevelResourceUsageViewEntry.getKey());
-            WorkloadGroupState workloadGroupState = getWorkloadGroupState(workloadGroupLevelResourceUsageViewEntry.getKey());
+            WorkloadGroupState workloadGroupState = workloadGroupStateMap.get(workloadGroupLevelResourceUsageViewEntry.getKey());
+            if (workloadGroupState == null) {
+                continue;
+            }
             TRACKED_RESOURCES.forEach(resourceType -> {
                 final double currentUsage = workloadGroupLevelResourceUsageViewEntry.getValue().getResourceUsageData().get(resourceType);
                 workloadGroupState.getResourceState().get(resourceType).setLastRecordedUsage(currentUsage);
@@ -106,11 +113,10 @@ public class WorkloadGroupTaskCancellationService {
         }
 
         activeWorkloadGroups.forEach(workloadGroup -> {
-            if (!isSearchWorkloadRunning.contains(workloadGroup.get_id())) {
+            final WorkloadGroupState workloadGroupState = workloadGroupStateMap.get(workloadGroup.get_id());
+            if (!isSearchWorkloadRunning.contains(workloadGroup.get_id()) && workloadGroupState != null) {
                 TRACKED_RESOURCES.forEach(
-                    resourceType -> getWorkloadGroupState(workloadGroup.get_id()).getResourceState()
-                        .get(resourceType)
-                        .setLastRecordedUsage(0.0)
+                    resourceType -> workloadGroupState.getResourceState().get(resourceType).setLastRecordedUsage(0.0)
                 );
             }
         });
@@ -164,31 +170,45 @@ public class WorkloadGroupTaskCancellationService {
         List<TaskCancellation> taskCancellations = new ArrayList<>();
         for (WorkloadGroup workloadGroup : workloadGroups) {
             final List<TaskCancellation.Reason> reasons = new ArrayList<>();
-            // Per group, so cancelling a task only updates the stats of the group it belongs to
-            final List<Runnable> onCancelCallbacks = new ArrayList<>();
             List<WorkloadGroupTask> selectedTasks = new ArrayList<>();
+            final Set<Long> selectedTaskIds = new HashSet<>();
+            // The tasks selected for each breached resource. Each task is selected for one resource only
+            final Map<ResourceType, List<WorkloadGroupTask>> selectedTasksByResource = new EnumMap<>(ResourceType.class);
             for (ResourceType resourceType : TRACKED_RESOURCES) {
                 // We need to consider the already selected tasks since those tasks also consumed the resources
                 double excessUsage = getExcessUsage(workloadGroup, resourceType) - resourceType.getResourceUsageCalculator()
                     .calculateResourceUsage(selectedTasks);
                 if (excessUsage > MIN_VALUE) {
                     reasons.add(new TaskCancellation.Reason(generateReasonString(workloadGroup, resourceType), 1));
-                    onCancelCallbacks.add(this.getResourceTypeOnCancelCallback(workloadGroup.get_id(), resourceType));
                     // Only offer the tasks not selected yet. The excess already deducts the usage of the selected tasks, so
                     // offering them again would count that usage twice, and could select a task twice
-                    final Set<Long> selectedTaskIds = selectedTasks.stream().map(WorkloadGroupTask::getId).collect(Collectors.toSet());
                     final List<WorkloadGroupTask> unselectedTasks = getTasksFor(workloadGroup).stream()
                         .filter(task -> selectedTaskIds.contains(task.getId()) == false)
                         .collect(Collectors.toList());
-                    selectedTasks.addAll(taskSelectionStrategy.selectTasksForCancellation(unselectedTasks, excessUsage, resourceType));
+                    final List<WorkloadGroupTask> tasksForResource = taskSelectionStrategy.selectTasksForCancellation(
+                        unselectedTasks,
+                        excessUsage,
+                        resourceType
+                    );
+                    tasksForResource.forEach(task -> selectedTaskIds.add(task.getId()));
+                    selectedTasks.addAll(tasksForResource);
+                    selectedTasksByResource.put(resourceType, tasksForResource);
                 }
             }
 
             if (!reasons.isEmpty()) {
-                onCancelCallbacks.add(getWorkloadGroupState(workloadGroup.get_id()).totalCancellations::inc);
-                taskCancellations.addAll(
-                    selectedTasks.stream().map(task -> new TaskCancellation(task, reasons, onCancelCallbacks)).collect(Collectors.toList())
-                );
+                // Built per group, so a task's cancellation is counted under its own group and not under the other breaching
+                // groups. A deleted group has no state left, so its cancellations go to DEFAULT, like its completions
+                final Runnable totalCancellationsCallback = getWorkloadGroupState(workloadGroup.get_id()).totalCancellations::inc;
+                selectedTasksByResource.forEach((resourceType, tasks) -> {
+                    // Every task carries the reasons of all the breached resources, but counts as a cancellation only for the
+                    // resource it was selected for, so the per resource cancellations add up to the total
+                    final List<Runnable> onCancelCallbacks = List.of(
+                        getResourceTypeOnCancelCallback(workloadGroup.get_id(), resourceType),
+                        totalCancellationsCallback
+                    );
+                    tasks.forEach(task -> taskCancellations.add(new TaskCancellation(task, reasons, onCancelCallbacks)));
+                });
             }
         }
         return taskCancellations;
@@ -273,9 +293,15 @@ public class WorkloadGroupTaskCancellationService {
      * Removes the workloadGroups from deleted list if it doesn't have any tasks running
      */
     public void pruneDeletedWorkloadGroups(Collection<WorkloadGroup> deletedWorkloadGroups) {
+        // No views until cancelTasks first runs, so nothing is known about the tasks yet. Keep the groups for the next run
+        if (workloadGroupLevelResourceUsageViews == null) {
+            return;
+        }
         List<WorkloadGroup> currentDeletedWorkloadGroups = new ArrayList<>(deletedWorkloadGroups);
         for (WorkloadGroup workloadGroup : currentDeletedWorkloadGroups) {
-            if (workloadGroupLevelResourceUsageViews.get(workloadGroup.get_id()).getActiveTasks().isEmpty()) {
+            // Views exist only for the groups with tasks on this node, so a group without a view has no active tasks
+            final WorkloadGroupLevelResourceUsageView view = workloadGroupLevelResourceUsageViews.get(workloadGroup.get_id());
+            if (view == null || view.getActiveTasks().isEmpty()) {
                 deletedWorkloadGroups.remove(workloadGroup);
             }
         }
