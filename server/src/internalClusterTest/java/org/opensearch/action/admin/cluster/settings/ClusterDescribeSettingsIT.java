@@ -35,7 +35,9 @@ public class ClusterDescribeSettingsIT extends OpenSearchIntegTestCase {
             "plugin.example.secret_setting",
             "plugin.example.filtered_setting",
             "plugin.example.unknown_setting",
-            "cluster.max_shards_per_node"
+            "plugin.example.described_setting",
+            "cluster.max_shards_per_node",
+            "cluster.name"
         );
         var response = internalCluster().nonClusterManagerClient().execute(ClusterDescribeSettingsAction.INSTANCE, request).actionGet();
         assertEquals(
@@ -48,7 +50,14 @@ public class ClusterDescribeSettingsIT extends OpenSearchIntegTestCase {
                 SettingMetadata.withDefault(false, "5").withValidation(SettingValidation.of("integer", "1", "10")),
                 // A real core setting declared with a lower bound only (ShardLimitValidator).
                 "cluster.max_shards_per_node",
-                SettingMetadata.withDefault(true, "1000").withValidation(SettingValidation.of("integer", "1", null))
+                SettingMetadata.withDefault(true, "1000").withValidation(SettingValidation.of("integer", "1", null)),
+                // A real described core setting, and one declared by a plugin.
+                "cluster.name",
+                SettingMetadata.withDefault(false, "opensearch").withDescription("The cluster name."),
+                "plugin.example.described_setting",
+                SettingMetadata.withDefault(false, "false")
+                    .withValidation(SettingValidation.ofType("boolean"))
+                    .withDescription("Example setting declared by a plugin.")
             ),
             response.settings()
         );
@@ -61,6 +70,8 @@ public class ClusterDescribeSettingsIT extends OpenSearchIntegTestCase {
                 Setting.boolSetting("plugin.example.dynamic_setting", false, Setting.Property.Dynamic, Setting.Property.NodeScope),
                 Setting.boolSetting("plugin.example.static_setting", false, Setting.Property.NodeScope),
                 Setting.intSetting("plugin.example.bounded_setting", 5, 1, 10, Setting.Property.NodeScope),
+                Setting.boolSetting("plugin.example.described_setting", false, Setting.Property.NodeScope)
+                    .withDescription("Example setting declared by a plugin."),
                 Setting.simpleString("plugin.example.secret_setting", Setting.Property.NodeScope, Setting.Property.Filtered),
                 Setting.simpleString("plugin.example.filtered_setting", Setting.Property.NodeScope)
             );
