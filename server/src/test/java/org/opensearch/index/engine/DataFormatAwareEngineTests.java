@@ -1658,6 +1658,55 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         assertEquals(storeRefsBefore, store.refCount());
     }
 
+    /**
+     * A format reader that fails to open surfaces as an {@link EngineException}, and the catalog snapshot
+     * acquired for it is released so later refreshes can delete it.
+     */
+    public void testAcquireSearcherSupplierWrapsReaderFailure() throws Exception {
+        SearchableStubReaderManager readerManager = useSearchableReaderManager();
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            final long failedSnapshotId;
+            try (GatedCloseable<CatalogSnapshot> current = engine.acquireSnapshot()) {
+                failedSnapshotId = current.get().getId();
+            }
+            final int storeRefsOpen = store.refCount();
+
+            readerManager.failGetReader = true;
+            EngineException e = expectThrows(
+                EngineException.class,
+                () -> engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.EXTERNAL)
+            );
+            readerManager.failGetReader = false;
+            assertThat(e.getMessage(), containsString("failed to acquire reader for searcher"));
+            assertThat(e.getCause(), instanceOf(IOException.class));
+            assertEquals(storeRefsOpen, store.refCount());
+
+            engine.index(indexOp(createParsedDocWithInput("2", null)));
+            engine.refresh("test");
+            assertBusy(
+                () -> assertTrue(
+                    "a failed acquisition must not pin its catalog snapshot",
+                    readerManager.deletedSnapshotIds.contains(failedSnapshotId)
+                )
+            );
+        }
+    }
+
+    /** Each catalog snapshot has one point-in-time view, so only {@link Engine.SearcherScope#EXTERNAL} is served. */
+    public void testAcquireSearcherSupplierRejectsInternalScope() throws IOException {
+        useSearchableReaderManager();
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            AssertionError e = expectThrows(
+                AssertionError.class,
+                () -> engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.INTERNAL)
+            );
+            assertThat(e.getMessage(), containsString("unexpected searcher scope INTERNAL"));
+        }
+    }
+
     private SearchableStubReaderManager useSearchableReaderManager() {
         SearchableStubReaderManager readerManager = new SearchableStubReaderManager(store, shardId);
         mockPlugin.withIndexingEngine(cfg -> new MockIndexingExecutionEngine(mockDataFormat) {

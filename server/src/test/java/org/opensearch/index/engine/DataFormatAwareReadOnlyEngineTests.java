@@ -1068,6 +1068,18 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
         assertEquals(storeRefsBefore, store.refCount());
     }
 
+    /** A warm shard, like a hot one, serves only {@link Engine.SearcherScope#EXTERNAL} searchers. */
+    public void testAcquireSearcherSupplierRejectsInternalScope() throws IOException {
+        useSearchableReaderManager();
+        try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine()) {
+            AssertionError e = expectThrows(
+                AssertionError.class,
+                () -> engine.acquireSearcherSupplier(Function.identity(), Engine.SearcherScope.INTERNAL)
+            );
+            assertThat(e.getMessage(), containsString("unexpected searcher scope INTERNAL"));
+        }
+    }
+
     /** Gives the warm engine one searchable format reader; the default mock plugin describes no formats. */
     private void useSearchableReaderManager() {
         searchableReaderManager = new SearchableStubReaderManager(store, shardId);

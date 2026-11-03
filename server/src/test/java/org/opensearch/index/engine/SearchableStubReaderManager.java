@@ -31,6 +31,8 @@ final class SearchableStubReaderManager implements EngineReaderManager<Searchabl
     private final ShardId shardId;
     private volatile OpenSearchDirectoryReader reader;
     final Set<Long> deletedSnapshotIds = ConcurrentHashMap.newKeySet();
+    /** When set, {@link #getReader} fails with an {@link IOException}. */
+    volatile boolean failGetReader;
 
     SearchableStubReaderManager(Store store, ShardId shardId) {
         this.store = store;
@@ -44,6 +46,9 @@ final class SearchableStubReaderManager implements EngineReaderManager<Searchabl
 
     @Override
     public synchronized SearchableDirectoryReaderProvider getReader(CatalogSnapshot catalogSnapshot) throws IOException {
+        if (failGetReader) {
+            throw new IOException("simulated reader failure");
+        }
         if (reader == null) {
             reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(store.directory()), shardId);
         }
