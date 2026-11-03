@@ -174,7 +174,7 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
             );
         }
 
-        return clusterState.routingTable().allShardsSatisfyingPredicate(request.indices(), shardFilter);
+        return clusterState.routingTable().allShardsSatisfyingPredicate(concreteIndices, shardFilter);
     }
 
     @Override
@@ -184,7 +184,7 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, GetIngestionStateRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, request.indices());
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 
     @Override
