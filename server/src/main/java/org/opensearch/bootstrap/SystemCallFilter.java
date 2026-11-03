@@ -449,8 +449,8 @@ final class SystemCallFilter {
             /* 7  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.execve, 6, 0),                 // if (syscall == EXECVE) goto fail;
             /* 8  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.execveat, 5, 0),                 // if (syscall == EXECVEAT) goto fail;
             /* 9  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.ptrace, 4, 0),                 // if (syscall == PTRACE) goto fail;
-            /* 10 */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.processVmReadv, 3, 0),                 // if (syscall == PROCESS_VM_READV) goto fail;
-            /* 11 */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.processVmWritev, 2, 0),                 // if (syscall == PROCESS_VM_WRITEV) goto fail;
+            /* 10 */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.processVmReadv, 3, 0), // if (syscall == PROCESS_VM_READV) goto fail;
+            /* 11 */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.processVmWritev, 2, 0), // if (syscall == PROCESS_VM_WRITEV) goto fail;
             /* 12 */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.pidfdGetfd, 1, 0),                 // if (syscall == PIDFD_GETFD) goto fail;
             /* 13 */ BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW),                                // pass: return OK;
             /* 14 */ BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ERRNO | (EACCES & SECCOMP_RET_DATA)),  // fail: return EACCES;
