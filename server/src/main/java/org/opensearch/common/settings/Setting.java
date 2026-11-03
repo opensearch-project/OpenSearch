@@ -195,6 +195,8 @@ public class Setting<T> implements ToXContentObject {
     protected final Function<String, T> parser;
     protected final Validator<T> validator;
     private final EnumSet<Property> properties;
+    @Nullable
+    private volatile String description;
 
     private static final EnumSet<Property> EMPTY_PROPERTIES = EnumSet.noneOf(Property.class);
 
@@ -471,6 +473,41 @@ public class Setting<T> implements ToXContentObject {
      */
     public T getDefault(Settings settings) {
         return parser.apply(getDefaultRaw(settings));
+    }
+
+    /**
+     * Returns the function this setting uses to parse a raw string value. Callers that need declared bounds can check the
+     * returned instance against the bounded parser types such as {@link IntegerParser} or {@link ByteSizeValueParser}.
+     */
+    public Function<String, T> getParser() {
+        return parser;
+    }
+
+    /**
+     * Attaches a one-sentence description of what this setting controls.
+     * <p>
+     * This is the only mutable state on a setting. It is written in two places: chained onto a {@code static final}
+     * declaration, for example {@code Setting.boolSetting("x", false, NodeScope).withDescription("...")}, where the write
+     * happens during class initialisation; and by {@link AffixSetting#getConcreteSetting(String)}, which stamps the template's
+     * description onto the fresh concrete instance returned by the delegate factory before that instance escapes. The field is
+     * {@code volatile} so that a description written on one thread is visible to the request thread that later reads it through
+     * {@link #getDescription()}.
+     * <p>
+     * Setting a different description twice is a programming error, reported via {@code assert} rather than an exception so
+     * that a mistake in a static initialiser does not surface as an {@code ExceptionInInitializerError}. Re-setting the same
+     * text is tolerated.
+     */
+    public Setting<T> withDescription(String description) {
+        Objects.requireNonNull(description, "description");
+        assert this.description == null || this.description.equals(description) : "description already set for [" + getKey() + "]";
+        this.description = description;
+        return this;
+    }
+
+    /** The declared description, or {@code null} when none has been written. */
+    @Nullable
+    public String getDescription() {
+        return description;
     }
 
     /**
@@ -987,11 +1024,18 @@ public class Setting<T> implements ToXContentObject {
             );
         }
 
+        /** Covariant return so fields declared as {@code AffixSetting<T>} can chain {@code .withDescription(...)}. */
+        @Override
+        public AffixSetting<T> withDescription(String description) {
+            super.withDescription(description);
+            return this;
+        }
+
         @Override
         public Setting<T> getConcreteSetting(String key) {
             if (match(key)) {
                 String namespace = this.key.getNamespace(key);
-                return delegateFactory.apply(namespace, key);
+                return describeConcrete(delegateFactory.apply(namespace, key));
             } else {
                 throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
             }
@@ -999,10 +1043,22 @@ public class Setting<T> implements ToXContentObject {
 
         private Setting<T> getConcreteSetting(String namespace, String key) {
             if (match(key)) {
-                return delegateFactory.apply(namespace, key);
+                return describeConcrete(delegateFactory.apply(namespace, key));
             } else {
                 throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
             }
+        }
+
+        /**
+         * A concrete key inherits the template's description unless the delegate declared its own. The delegate factory returns
+         * a new {@link Setting} on every call (see {@link AbstractScopedSettings#get}), so this writes to an instance that no
+         * other thread can observe yet.
+         */
+        private Setting<T> describeConcrete(Setting<T> concrete) {
+            if (getDescription() != null && concrete.getDescription() == null) {
+                concrete.withDescription(getDescription());
+            }
+            return concrete;
         }
 
         /**
@@ -2058,11 +2114,11 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Property... properties) {
-        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), b -> parseBoolean(b, key, isFiltered(properties)), properties);
+        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), new BooleanParser(key, isFiltered(properties)), properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, Property... properties) {
-        return new Setting<>(key, fallbackSetting, b -> parseBoolean(b, key, isFiltered(properties)), properties);
+        return new Setting<>(key, fallbackSetting, new BooleanParser(key, isFiltered(properties)), properties);
     }
 
     public static Setting<Boolean> boolSetting(
@@ -2075,18 +2131,44 @@ public class Setting<T> implements ToXContentObject {
             new SimpleKey(key),
             fallbackSetting,
             fallbackSetting::getRaw,
-            b -> parseBoolean(b, key, isFiltered(properties)),
+            new BooleanParser(key, isFiltered(properties)),
             validator,
             properties
         );
     }
 
     public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Validator<Boolean> validator, Property... properties) {
-        return new Setting<>(key, Boolean.toString(defaultValue), b -> parseBoolean(b, key, isFiltered(properties)), validator, properties);
+        return new Setting<>(key, Boolean.toString(defaultValue), new BooleanParser(key, isFiltered(properties)), validator, properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Function<Settings, String> defaultValueFn, Property... properties) {
-        return new Setting<>(key, defaultValueFn, b -> parseBoolean(b, key, isFiltered(properties)), properties);
+        return new Setting<>(key, defaultValueFn, new BooleanParser(key, isFiltered(properties)), properties);
+    }
+
+    /**
+     * Parser for boolean settings. Exists as a named type (rather than a lambda) so that the setting's value type can be
+     * recognised by inspection; it is deliberately not {@link Writeable}, since {@link WriteableSetting} reconstructs boolean
+     * settings from their type alone.
+     *
+     * @opensearch.internal
+     */
+    public static final class BooleanParser implements Function<String, Boolean> {
+        private final String key;
+        private final boolean isFiltered;
+
+        public BooleanParser(String key, boolean isFiltered) {
+            this.key = key;
+            this.isFiltered = isFiltered;
+        }
+
+        public String getKey() {
+            return key;
+        }
+
+        @Override
+        public Boolean apply(String b) {
+            return parseBoolean(b, key, isFiltered);
+        }
     }
 
     static boolean parseBoolean(String b, String key, boolean isFiltered) {

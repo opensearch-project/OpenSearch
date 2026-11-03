@@ -64,7 +64,7 @@ pipeline {
         choice(
             name: 'AGENT_LABEL',
             description: '<Optional> Choose which jenkins agent to run gradle check on. Defaults to the first entry here.',
-            choices: ['Jenkins-Agent-Ubuntu2404-X64-M8a8xlarge-Single-Host', 'Jenkins-Agent-Ubuntu2404-X64-M7a8xlarge-Single-Host', 'Jenkins-Agent-Windows2019-X64-C524xlarge-Single-Host'],
+            choices: ['Jenkins-Agent-Ubuntu2404-X64-M8a8xlarge-Single-Host', 'Jenkins-Agent-Windows2019-X64-C524xlarge-Single-Host'],
         )
     }
     triggers {
