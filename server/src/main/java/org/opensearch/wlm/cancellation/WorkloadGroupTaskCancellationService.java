@@ -233,7 +233,9 @@ public class WorkloadGroupTaskCancellationService {
         Consumer<TaskCancellation> cancellationConsumer = cancellationLoggingConsumer;
         if (workloadManagementSettings.getWlmMode() == WlmMode.ENABLED) {
             final TaskManager taskManager = this.taskManager.get();
-            assert taskManager != null : "TaskManager must be bound before cancelling tasks";
+            if (taskManager == null) {
+                throw new IllegalStateException("TaskManager must be bound before cancelling tasks");
+            }
             // Cancel descendants too, so a cancelled coordinator task doesn't leave its shard tasks running on other nodes.
             cancellationConsumer = (taskCancellation -> {
                 cancellationLoggingConsumer.accept(taskCancellation);
