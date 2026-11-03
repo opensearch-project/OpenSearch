@@ -720,6 +720,20 @@ public abstract class AbstractScopedSettings {
         }
     }
 
+    /**
+     * Whether {@code key} is a name the registry reports for a setting, as opposed to a variant {@link #get} merely resolves: a
+     * registered concrete key, the concrete key an affix setting builds for the namespace in {@code key}, or a member of a
+     * group setting, including a group reached through an affix. Group and prefix-only affix settings have open membership, so
+     * every key under their prefix is a setting a user may set and is canonical. A list key's legacy indexed form
+     * ({@code a.b.0}) and any suffix appended to a concrete affix key whose delegate is not a group
+     * ({@code cluster.remote.alpha.seeds.0}, {@code cluster.remote.alpha.seeds.other}) still resolve but are not canonical.
+     * Unknown keys are not canonical.
+     */
+    public final boolean isCanonicalKey(String key) {
+        Setting<?> raw = getRaw(key);
+        return raw != null && raw.isCanonicalKey(key);
+    }
+
     private Setting<?> getRaw(String key) {
         Setting<?> setting = keySettings.get(key);
         if (setting != null) {

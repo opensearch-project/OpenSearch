@@ -428,9 +428,20 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
             key -> Setting.boolSetting(key, false, Dynamic, NodeScope)
         );
         var list = Setting.listSetting("plugin.example.hosts", List.of("a", "b"), Function.identity(), NodeScope);
+        var affixList = Setting.affixKeySetting(
+            "plugin.example.remote.",
+            "seeds",
+            key -> Setting.listSetting(key, List.of(), Function.identity(), Dynamic, NodeScope)
+        );
+        var group = Setting.groupSetting("plugin.group.", Dynamic, NodeScope);
+        var affixGroup = Setting.affixKeySetting(
+            "plugin.example.remote.",
+            "limit",
+            key -> Setting.groupSetting(key + ".", Dynamic, NodeScope)
+        );
         var registry = new ClusterSettings(
             Settings.EMPTY,
-            Set.of(dynamic, fixed, nested, secret, filtered, secure, other, core, affix, list)
+            Set.of(dynamic, fixed, nested, secret, filtered, secure, other, core, affix, list, affixList, group, affixGroup)
         );
         var filter = new SettingsFilter(List.of("plugin.example.filtered*"));
 
@@ -495,6 +506,35 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
             describe(registry, filter, "plugin.example.remote.a.enabled").settings().keySet()
         );
         assertEquals(Map.of(), describe(registry, filter, "nothing.here.*").settings());
+        // The affix pattern accepts any suffix after a concrete key and the registry builds a concrete setting carrying that
+        // very key, so a key-equality check on the resolved setting cannot tell the concrete key from a variant. Neither the
+        // indexed form nor an arbitrary suffix is reported, nor allowed past a filter on the concrete key.
+        assertEquals(
+            Set.of("plugin.example.remote.a.seeds"),
+            describe(registry, filter, "plugin.example.remote.a.seeds").settings().keySet()
+        );
+        for (String variant : List.of(
+            "plugin.example.remote.a.seeds.0",
+            "plugin.example.remote.a.seeds.other",
+            "plugin.example.remote.a.enabled.x"
+        )) {
+            assertEquals(variant, Map.of(), describe(registry, filter, variant).settings());
+        }
+        var hideSeeds = new SettingsFilter(List.of("plugin.example.remote.a.seeds"));
+        assertEquals(Map.of(), describe(registry, hideSeeds, "plugin.example.remote.a.seeds").settings());
+        assertEquals(Map.of(), describe(registry, hideSeeds, "plugin.example.remote.a.seeds.0").settings());
+        assertEquals(Map.of(), describe(registry, hideSeeds, "plugin.example.remote.a.seeds.other").settings());
+        // A group member is described by exact name with the group's metadata; it is never enumerable under a prefix.
+        assertEquals(
+            Map.of("plugin.group.member.values", SettingMetadata.withoutDefault(true)),
+            describe(registry, filter, "plugin.group.member.values").settings()
+        );
+        assertEquals(Map.of(), describe(registry, filter, "plugin.group.*").settings());
+        // A group reached through an affix: the suffix is judged by the group delegate, so its members are described.
+        assertEquals(
+            Map.of("plugin.example.remote.a.limit.initial", SettingMetadata.withoutDefault(true)),
+            describe(registry, filter, "plugin.example.remote.a.limit.initial").settings()
+        );
     }
 
     public void testSerialization() throws Exception {

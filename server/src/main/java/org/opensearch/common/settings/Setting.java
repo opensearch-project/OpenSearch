@@ -452,6 +452,15 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
+     * Whether {@code key} is a name this setting reports for itself, as opposed to a variant it merely accepts. A plain setting
+     * reports only its own key; a list setting accepts its legacy indexed form ({@code key.0}) but does not report it. Affix and
+     * group settings override this.
+     */
+    boolean isCanonicalKey(String key) {
+        return key.equals(getKey());
+    }
+
+    /**
      * Validate the current setting value only without dependencies with {@link Setting.Validator#validate(Object)}.
      * @param settings a settings object for settings that has a default value depending on another setting if available
      */
@@ -1041,6 +1050,23 @@ public class Setting<T> implements ToXContentObject {
             }
         }
 
+        /**
+         * The concrete key the pattern captures is canonical: {@code cluster.remote.alpha.seeds}, or for a prefix-only pattern,
+         * which captures the whole key, any depth such as {@code node.attr.a.b}. A prefix-and-suffix pattern also accepts any
+         * suffix after the concrete key, and {@link #getConcreteSetting} builds a setting carrying whatever key was asked for, so
+         * the suffix is judged by the delegate built for the concrete key: a group delegate reports its members
+         * ({@code prefix.ns.limit.initial}), whereas a list or plain delegate reports only its own key, so
+         * {@code cluster.remote.alpha.seeds.0} and {@code cluster.remote.alpha.seeds.other} are not canonical.
+         */
+        @Override
+        boolean isCanonicalKey(String key) {
+            if (match(key) == false) {
+                return false;
+            }
+            String concrete = this.key.getConcreteString(key);
+            return key.equals(concrete) || delegateFactory.apply(this.key.getNamespace(key), concrete).isCanonicalKey(key);
+        }
+
         private Setting<T> getConcreteSetting(String namespace, String key) {
             if (match(key)) {
                 return describeConcrete(delegateFactory.apply(namespace, key));
@@ -1192,6 +1218,12 @@ public class Setting<T> implements ToXContentObject {
         @Override
         public boolean isGroupSetting() {
             return true;
+        }
+
+        /** Membership is open: every key under the group prefix is a member a user may set and is reported under that name. */
+        @Override
+        boolean isCanonicalKey(String key) {
+            return match(key);
         }
 
         @Override

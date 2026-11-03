@@ -26,10 +26,8 @@ import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
 import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.TreeMap;
-import java.util.TreeSet;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.function.Function;
 
 /** Resolves definitions using the setting registry. The registry is identical on every node of the same version and
@@ -69,12 +67,13 @@ public class TransportClusterDescribeSettingsAction extends HandledTransportActi
         SettingsFilter filter
     ) {
         // Expand each prefix to the keys registered under it, then pass every candidate name (exact or expanded)
-        // through the same filter gate. Names are matched against the filter patterns directly rather than through a
-        // Settings.Builder: the builder rewrites legacy list keys (a.b.0 becomes a.b) and rejects a.b alongside a.b.0,
-        // which would misdescribe one request and turn another into a 500. The configured value is never read.
-        var candidates = new TreeSet<String>();
+        // through the same filter gate. Names are filtered per key rather than through a Settings.Builder: the builder
+        // rewrites legacy list keys (a.b.0 becomes a.b) and rejects a.b alongside a.b.0, which would misdescribe one
+        // request and turn another into a 500. The configured value is never read. Order is irrelevant here; the
+        // response sorts by key.
+        var candidates = new HashSet<String>();
         // Dedupe first so a prefix repeated in the request is expanded (a full registry scan) only once.
-        for (String name : new LinkedHashSet<>(Arrays.asList(request.names()))) {
+        for (String name : new HashSet<>(Arrays.asList(request.names()))) {
             if (Regex.isSimpleMatchPattern(name)) {
                 for (Setting<?> setting : registry.getMatching(name)) {
                     // Keystore settings are never listed by include_defaults either; skipping them keeps this a strict
@@ -88,36 +87,20 @@ public class TransportClusterDescribeSettingsAction extends HandledTransportActi
                 candidates.add(name);
             }
         }
-        // Sorted so the response is deterministic and independent of the order names were supplied in. Only the visible
-        // Setting objects are collected here; metadata is derived afterwards for exactly those entries.
-        var visible = new TreeMap<String, Setting<?>>();
+        var entries = new HashMap<String, SettingMetadata>();
         for (String name : candidates) {
-            if (isHiddenByFilter(filter, name)) {
+            if (filter.isFiltered(name)) {
                 continue;
             }
             Setting<?> setting = registry.get(name);
-            // Omission deliberately makes an unknown name indistinguishable from a filtered one. The name must also be the
-            // setting's declared key: the registry resolves variants such as a list key's legacy indexed form (a.b.0), and
-            // the response reports only canonical names.
-            if (setting != null && setting.isFiltered() == false && name.equals(setting.getKey())) {
-                visible.put(name, setting);
+            // Omission deliberately makes an unknown name indistinguishable from a filtered one. The registry resolves
+            // variants it does not report, such as a list key's legacy indexed form or a suffix appended to a concrete affix
+            // key; only canonical names are described, so the response never carries a name that is not a setting.
+            if (setting != null && setting.isFiltered() == false && registry.isCanonicalKey(name)) {
+                entries.put(name, metadataOf(setting));
             }
-        }
-        var entries = new LinkedHashMap<String, SettingMetadata>();
-        for (var entry : visible.entrySet()) {
-            entries.put(entry.getKey(), metadataOf(entry.getValue()));
         }
         return new ClusterDescribeSettingsResponse(entries);
-    }
-
-    /** The same rule {@link SettingsFilter#filter} applies: literal patterns match the key exactly, wildcard patterns by glob. */
-    private static boolean isHiddenByFilter(SettingsFilter filter, String key) {
-        for (String pattern : filter.getPatterns()) {
-            if (Regex.isSimpleMatchPattern(pattern) ? Regex.simpleMatch(pattern, key) : pattern.equals(key)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**

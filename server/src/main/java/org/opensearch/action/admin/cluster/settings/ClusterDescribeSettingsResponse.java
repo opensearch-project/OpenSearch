@@ -59,8 +59,7 @@ public class ClusterDescribeSettingsResponse extends ActionResponse implements T
             builder.field(entry.getKey());
             entry.getValue().toXContent(builder, params);
         }
-        builder.endObject();
-        return builder.endObject();
+        return builder.endObject().endObject();
     }
 
     /**
