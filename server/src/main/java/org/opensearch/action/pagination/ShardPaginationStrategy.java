@@ -127,11 +127,12 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
             }
             Map<Integer, IndexShardRoutingTable> indexShardRoutingTable = indexRoutingTable.getShards();
             // Shard ids need not be contiguous in a partial routing table, so walk the ids that are present.
-            List<Integer> shardIds = indexShardRoutingTable.keySet()
+            int[] shardIds = indexShardRoutingTable.keySet()
                 .stream()
+                .mapToInt(Integer::intValue)
                 .filter(shardId -> shardId >= startShardId)
                 .sorted()
-                .collect(Collectors.toList());
+                .toArray();
             for (int shardId : shardIds) {
                 if (shardIdSet.isEmpty() == false && shardIdSet.contains(shardId) == false) {
                     continue;
