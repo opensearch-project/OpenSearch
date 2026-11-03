@@ -4726,7 +4726,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     public void testGetByIdFromSegmentsEnforcesStaleIfSeqNo() throws IOException {
         DocumentLookupProvider provider = mockLookupProvider();
         // The stored document is at seqNo 7 / term 1.
-        when(provider.getById(any(), any(), any(), any())).thenReturn(
+        when(provider.getById(any(), any(), any())).thenReturn(
             new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
         );
         try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
@@ -4736,14 +4736,14 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
             Engine.Get stale = new Engine.Get(true, true, "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))).setIfSeqNo(3L)
                 .setIfPrimaryTerm(1L);
-            expectThrows(VersionConflictEngineException.class, () -> engine.getById(stale, (source, scope) -> null));
+            expectThrows(VersionConflictEngineException.class, () -> getByIdLookup(engine, stale));
         }
     }
 
     /** Control: a matching {@code if_seq_no} on the segment path must still be served. */
     public void testGetByIdFromSegmentsAcceptsCurrentIfSeqNo() throws IOException {
         DocumentLookupProvider provider = mockLookupProvider();
-        when(provider.getById(any(), any(), any(), any())).thenReturn(
+        when(provider.getById(any(), any(), any())).thenReturn(
             new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
         );
         try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
@@ -4759,7 +4759,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     /** And a get carrying no precondition at all must be unaffected by the enforcement. */
     public void testGetByIdFromSegmentsWithoutPreconditionIsUnaffected() throws IOException {
         DocumentLookupProvider provider = mockLookupProvider();
-        when(provider.getById(any(), any(), any(), any())).thenReturn(
+        when(provider.getById(any(), any(), any())).thenReturn(
             new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
         );
         try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
@@ -4781,7 +4781,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     public void testGetByIdFromSegmentsEnforcesStaleVersion() throws IOException {
         DocumentLookupProvider provider = mockLookupProvider();
         // Stored document is at version 2.
-        when(provider.getById(any(), any(), any(), any())).thenReturn(
+        when(provider.getById(any(), any(), any())).thenReturn(
             new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
         );
         try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
@@ -4789,18 +4789,18 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             engine.refresh("test");
 
             Engine.Get stale = new Engine.Get(true, true, "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))).version(1L);
-            expectThrows(VersionConflictEngineException.class, () -> engine.getById(stale, (source, scope) -> null));
+            expectThrows(VersionConflictEngineException.class, () -> getByIdLookup(engine, stale));
 
             // A version ahead of the stored one must conflict as well, not be silently served.
             Engine.Get future = new Engine.Get(true, true, "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))).version(99L);
-            expectThrows(VersionConflictEngineException.class, () -> engine.getById(future, (source, scope) -> null));
+            expectThrows(VersionConflictEngineException.class, () -> getByIdLookup(engine, future));
         }
     }
 
     /** Control: the matching version on the segment path must still be served. */
     public void testGetByIdFromSegmentsAcceptsCurrentVersion() throws IOException {
         DocumentLookupProvider provider = mockLookupProvider();
-        when(provider.getById(any(), any(), any(), any())).thenReturn(
+        when(provider.getById(any(), any(), any())).thenReturn(
             new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
         );
         try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
