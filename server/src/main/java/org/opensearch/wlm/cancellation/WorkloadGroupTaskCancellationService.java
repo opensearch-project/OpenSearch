@@ -11,6 +11,7 @@ package org.opensearch.wlm.cancellation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.WorkloadGroup;
+import org.opensearch.common.SetOnce;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.wlm.MutableWorkloadGroupFragment.ResiliencyMode;
@@ -62,7 +63,7 @@ public class WorkloadGroupTaskCancellationService {
     // a map of WorkloadGroupId to its corresponding WorkloadGroupLevelResourceUsageView object
     Map<String, WorkloadGroupLevelResourceUsageView> workloadGroupLevelResourceUsageViews;
     private final WorkloadGroupsStateAccessor workloadGroupStateAccessor;
-    private volatile TaskManager taskManager;
+    private final SetOnce<TaskManager> taskManager = new SetOnce<>();
 
     public WorkloadGroupTaskCancellationService(
         WorkloadManagementSettings workloadManagementSettings,
@@ -76,9 +77,9 @@ public class WorkloadGroupTaskCancellationService {
         this.workloadGroupStateAccessor = workloadGroupStateAccessor;
     }
 
-    /** Late-binds the {@link TaskManager}, which is owned by the transport service built after this one. */
+    /** Late-binds the {@link TaskManager}, which is owned by the transport service built after this one. Can be set only once. */
     public void setTaskManager(TaskManager taskManager) {
-        this.taskManager = taskManager;
+        this.taskManager.set(taskManager);
     }
 
     /**
@@ -231,6 +232,7 @@ public class WorkloadGroupTaskCancellationService {
         });
         Consumer<TaskCancellation> cancellationConsumer = cancellationLoggingConsumer;
         if (workloadManagementSettings.getWlmMode() == WlmMode.ENABLED) {
+            final TaskManager taskManager = this.taskManager.get();
             assert taskManager != null : "TaskManager must be bound before cancelling tasks";
             // Cancel descendants too, so a cancelled coordinator task doesn't leave its shard tasks running on other nodes.
             cancellationConsumer = (taskCancellation -> {

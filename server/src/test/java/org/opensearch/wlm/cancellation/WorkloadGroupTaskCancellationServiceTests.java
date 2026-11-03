@@ -16,6 +16,7 @@ import org.opensearch.action.search.SearchTask;
 import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.cluster.metadata.WorkloadGroup;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.tasks.TaskCancelledException;
@@ -568,6 +569,10 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
         assertEquals(2, workloadGroupState.totalCancellations.count());
         assertEquals(2, workloadGroupState.getResourceState().get(ResourceType.CPU).cancellations.count());
         verify(taskManager, times(2)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
+    }
+
+    public void testSetTaskManager_canOnlyBeSetOnce() {
+        expectThrows(SetOnce.AlreadySetException.class, () -> taskCancellation.setTaskManager(taskManager));
     }
 
     public void testCancelTasks_cancelsChildTasksThroughRealTaskManager() throws Exception {
