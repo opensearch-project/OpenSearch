@@ -450,7 +450,7 @@ public class StoreTests extends OpenSearchTestCase {
         IndexInput indexInput = dir.openInput("foo.bar", IOContext.DEFAULT);
         long checksum = CodecUtil.retrieveChecksum(indexInput);
         indexInput.seek(0);
-        IndexInput verifyingIndexInput = new Store.VerifyingIndexInput(dir.openInput("foo.bar", IOContext.DEFAULT));
+        IndexInput verifyingIndexInput = new Store.LuceneVerifyingIndexInput(dir.openInput("foo.bar", IOContext.DEFAULT));
         readIndexInputFullyWithRandomSeeks(verifyingIndexInput);
         Store.verify(verifyingIndexInput);
         assertThat(checksum, equalTo(((ChecksumIndexInput) verifyingIndexInput).getChecksum()));
@@ -458,7 +458,7 @@ public class StoreTests extends OpenSearchTestCase {
 
         // Corrupt file and check again
         corruptFile(dir, "foo.bar", "foo1.bar");
-        verifyingIndexInput = new Store.VerifyingIndexInput(dir.openInput("foo1.bar", IOContext.DEFAULT));
+        verifyingIndexInput = new Store.LuceneVerifyingIndexInput(dir.openInput("foo1.bar", IOContext.DEFAULT));
         readIndexInputFullyWithRandomSeeks(verifyingIndexInput);
         try {
             Store.verify(verifyingIndexInput);
