@@ -28,7 +28,7 @@ public class ClusterDescribeSettingsRequest extends ActionRequest {
     /**
      * The only admitted wildcard shape: one or more literal dotted segments followed by a trailing {@code .*}. The
      * character class is the one {@link AbstractScopedSettings#isValidKey} accepts, so a prefix is built from the same
-     * characters a real key may contain. {@code *}, {@code *.x}, {@code a.*.b}, {@code a.?} and {@code a.**} all fail.
+     * characters a real key may contain. {@code *}, {@code *.x}, {@code a.*.b}, {@code a.?.*} and {@code a.**} all fail.
      */
     private static final Pattern PREFIX_WILDCARD = Pattern.compile("^(?:[-\\w]+[.])+\\*$");
 
@@ -64,15 +64,15 @@ public class ClusterDescribeSettingsRequest extends ActionRequest {
                 exception = addValidationError("settings must not contain blank names", exception);
                 break;
             }
-            if (Regex.isSimpleMatchPattern(name) || name.contains("?")) {
-                if (PREFIX_WILDCARD.matcher(name).matches() == false) {
-                    exception = addValidationError(
-                        "settings may use a single trailing wildcard such as cluster.routing.allocation.*; got [" + name + "]",
-                        exception
-                    );
-                    break;
-                }
-            } else if (AbstractScopedSettings.isValidKey(name) == false) {
+            boolean wildcard = Regex.isSimpleMatchPattern(name);
+            if (wildcard && PREFIX_WILDCARD.matcher(name).matches() == false) {
+                exception = addValidationError(
+                    "settings may use a single trailing wildcard such as cluster.routing.allocation.*; got [" + name + "]",
+                    exception
+                );
+                break;
+            }
+            if (wildcard == false && AbstractScopedSettings.isValidKey(name) == false) {
                 exception = addValidationError("settings must contain exact setting names; got [" + name + "]", exception);
                 break;
             }

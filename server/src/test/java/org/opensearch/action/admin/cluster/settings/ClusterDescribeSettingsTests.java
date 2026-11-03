@@ -389,8 +389,20 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
 
     public void testValidation() {
         assertNotNull(new ClusterDescribeSettingsRequest().validate());
-        // Blank names, non-prefix wildcard shapes, and invalid keys are all rejected.
-        for (String name : List.of("", " ", "*", "*.enabled", "plugin.*.enabled", "plugin.?", "plugin.**", "plugin.*x", "/regex/")) {
+        // Blank names, non-prefix wildcard shapes, and invalid keys are all rejected. "?" is not a wildcard in OpenSearch's
+        // simple-match grammar; it is an invalid key character, with or without a trailing "*".
+        for (String name : List.of(
+            "",
+            " ",
+            "*",
+            "*.enabled",
+            "plugin.*.enabled",
+            "plugin.?",
+            "plugin.?.*",
+            "plugin.**",
+            "plugin.*x",
+            "/regex/"
+        )) {
             assertNotNull("expected rejection of [" + name + "]", new ClusterDescribeSettingsRequest(name).validate());
         }
         assertNull(new ClusterDescribeSettingsRequest("cluster.max_shards_per_node").validate());
