@@ -587,12 +587,22 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertTrue(validator.checkShardLimit(21, state, RoutingPool.REMOTE_CAPABLE).isPresent());
     }
 
-    public void testLocalOnlyShardLimitNotEnforcedWithOnlyWarmOnlyNodes() {
+    public void testLocalOnlyShardLimitCountsAllDataNodesWithOnlyWarmOnlyNodes() {
         ClusterState state = createClusterWithNodes(0, 0, 3);
         ShardLimitValidator validator = createValidatorWithPerNodeLimits(10, 10);
 
-        assertEquals(Optional.empty(), validator.checkShardLimit(1000, state, RoutingPool.LOCAL_ONLY));
-        assertTrue(validator.checkShardLimit(31, state, RoutingPool.REMOTE_CAPABLE).isPresent());
+        assertEquals(Optional.empty(), validator.checkShardLimit(30, state, RoutingPool.LOCAL_ONLY));
+        assertTrue(validator.checkShardLimit(31, state, RoutingPool.LOCAL_ONLY).isPresent());
+    }
+
+    public void testLocalOnlyClusterLimitAppliesWithOnlyWarmOnlyNodes() {
+        ClusterState state = createClusterWithNodes(0, 0, 3);
+        ShardLimitValidator validator = createTestShardLimitService(
+            Settings.builder().put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), 1).put(SETTING_MAX_SHARDS_PER_CLUSTER_KEY, 2).build()
+        );
+
+        assertEquals(Optional.empty(), validator.checkShardLimit(2, state, RoutingPool.LOCAL_ONLY));
+        assertTrue(validator.checkShardLimit(3, state, RoutingPool.LOCAL_ONLY).isPresent());
     }
 
     private static ClusterState createClusterWithNodes(int dataOnlyNodes, int dataAndWarmNodes, int warmOnlyNodes) {

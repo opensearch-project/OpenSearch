@@ -48,25 +48,23 @@ public class TargetPoolAllocationDecider extends AllocationDecider {
                 shardPool,
                 targetNodePool
             );
-        } else if (RoutingPool.LOCAL_ONLY.equals(shardPool)
-            && RoutingPool.REMOTE_CAPABLE.equals(targetNodePool)
-            && !node.node().getRoles().contains(DiscoveryNodeRole.DATA_ROLE)) {
-                logger.debug(
-                    "Shard: [{}] has target pool: [{}]. Cannot allocate on node: [{}] without the [{}] node role",
-                    shardRouting,
-                    shardPool,
-                    node.node(),
-                    DiscoveryNodeRole.DATA_ROLE.roleName()
-                );
-                return allocation.decision(
-                    Decision.NO,
-                    NAME,
-                    "Routing pools are incompatible. Shard pool: [%s], node pool: [%s] without [%s] role",
-                    shardPool,
-                    targetNodePool,
-                    DiscoveryNodeRole.DATA_ROLE.roleName()
-                );
-            }
+        } else if (RoutingPool.LOCAL_ONLY.equals(shardPool) && RoutingPool.canHoldLocalOnlyShards(node.node()) == false) {
+            logger.debug(
+                "Shard: [{}] has target pool: [{}]. Cannot allocate on node: [{}] without the [{}] node role",
+                shardRouting,
+                shardPool,
+                node.node(),
+                DiscoveryNodeRole.DATA_ROLE.roleName()
+            );
+            return allocation.decision(
+                Decision.NO,
+                NAME,
+                "Routing pools are incompatible. Shard pool: [%s], node pool: [%s] without [%s] role",
+                shardPool,
+                targetNodePool,
+                DiscoveryNodeRole.DATA_ROLE.roleName()
+            );
+        }
         return allocation.decision(
             Decision.YES,
             NAME,
@@ -108,25 +106,23 @@ public class TargetPoolAllocationDecider extends AllocationDecider {
                 currentNodePool,
                 targetPool
             );
-        } else if (RoutingPool.LOCAL_ONLY.equals(targetPool)
-            && targetPool != currentNodePool
-            && !node.node().getRoles().contains(DiscoveryNodeRole.DATA_ROLE)) {
-                logger.debug(
-                    "Shard: [{}] has target pool: [{}]. Cannot remain on node: [{}] without the [{}] node role",
-                    shardRouting,
-                    targetPool,
-                    node.node(),
-                    DiscoveryNodeRole.DATA_ROLE.roleName()
-                );
-                return allocation.decision(
-                    Decision.NO,
-                    NAME,
-                    "Routing pools are incompatible. Shard pool: [%s], node pool: [%s] without [%s] role",
-                    targetPool,
-                    currentNodePool,
-                    DiscoveryNodeRole.DATA_ROLE.roleName()
-                );
-            }
+        } else if (RoutingPool.LOCAL_ONLY.equals(targetPool) && RoutingPool.canHoldLocalOnlyShards(node.node()) == false) {
+            logger.debug(
+                "Shard: [{}] has target pool: [{}]. Cannot remain on node: [{}] without the [{}] node role",
+                shardRouting,
+                targetPool,
+                node.node(),
+                DiscoveryNodeRole.DATA_ROLE.roleName()
+            );
+            return allocation.decision(
+                Decision.NO,
+                NAME,
+                "Routing pools are incompatible. Shard pool: [%s], node pool: [%s] without [%s] role",
+                targetPool,
+                currentNodePool,
+                DiscoveryNodeRole.DATA_ROLE.roleName()
+            );
+        }
         return allocation.decision(
             Decision.YES,
             NAME,
@@ -159,25 +155,23 @@ public class TargetPoolAllocationDecider extends AllocationDecider {
                 indexPool,
                 targetNodePool
             );
-        } else if (RoutingPool.LOCAL_ONLY.equals(indexPool)
-            && RoutingPool.REMOTE_CAPABLE.equals(targetNodePool)
-            && !node.getRoles().contains(DiscoveryNodeRole.DATA_ROLE)) {
-                logger.debug(
-                    "Index: [{}] has target pool: [{}]. Cannot allocate on node: [{}] without the [{}] node role",
-                    indexMetadata.getIndex().getName(),
-                    indexPool,
-                    node,
-                    DiscoveryNodeRole.DATA_ROLE.roleName()
-                );
-                return allocation.decision(
-                    Decision.NO,
-                    NAME,
-                    "Routing pools are incompatible. Index pool: [%s], node pool: [%s] without [%s] role",
-                    indexPool,
-                    targetNodePool,
-                    DiscoveryNodeRole.DATA_ROLE.roleName()
-                );
-            }
+        } else if (RoutingPool.LOCAL_ONLY.equals(indexPool) && RoutingPool.canHoldLocalOnlyShards(node) == false) {
+            logger.debug(
+                "Index: [{}] has target pool: [{}]. Cannot allocate on node: [{}] without the [{}] node role",
+                indexMetadata.getIndex().getName(),
+                indexPool,
+                node,
+                DiscoveryNodeRole.DATA_ROLE.roleName()
+            );
+            return allocation.decision(
+                Decision.NO,
+                NAME,
+                "Routing pools are incompatible. Index pool: [%s], node pool: [%s] without [%s] role",
+                indexPool,
+                targetNodePool,
+                DiscoveryNodeRole.DATA_ROLE.roleName()
+            );
+        }
         return allocation.decision(
             Decision.YES,
             NAME,

@@ -35,7 +35,7 @@ package org.opensearch.indices;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.ValidationException;
@@ -350,17 +350,13 @@ public class ShardLimitValidator {
     }
 
     /**
-     * Counts the data nodes that can hold {@link RoutingPool#LOCAL_ONLY} shards. A warm node counts only when it also
-     * has the data role, which matches what
-     * {@link org.opensearch.cluster.routing.allocation.decider.TargetPoolAllocationDecider} allows.
+     * Counts the data nodes that can hold {@link RoutingPool#LOCAL_ONLY} shards. When no data node can hold them, it
+     * counts all data nodes, so that the limit still applies and does not fall back to the cluster setup case.
      */
     private static int getLocalOnlyNodeCount(ClusterState state) {
-        return (int) state.getNodes()
-            .getDataNodes()
-            .values()
-            .stream()
-            .filter(node -> node.isWarmNode() == false || node.getRoles().contains(DiscoveryNodeRole.DATA_ROLE))
-            .count();
+        final Map<String, DiscoveryNode> dataNodes = state.getNodes().getDataNodes();
+        final int localOnlyNodes = (int) dataNodes.values().stream().filter(RoutingPool::canHoldLocalOnlyShards).count();
+        return localOnlyNodes > 0 ? localOnlyNodes : dataNodes.size();
     }
 
     // package-private for testing
