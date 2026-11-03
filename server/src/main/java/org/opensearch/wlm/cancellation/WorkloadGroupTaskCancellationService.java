@@ -162,9 +162,10 @@ public class WorkloadGroupTaskCancellationService {
      */
     List<TaskCancellation> getAllCancellableTasks(Collection<WorkloadGroup> workloadGroups) {
         List<TaskCancellation> taskCancellations = new ArrayList<>();
-        final List<Runnable> onCancelCallbacks = new ArrayList<>();
         for (WorkloadGroup workloadGroup : workloadGroups) {
             final List<TaskCancellation.Reason> reasons = new ArrayList<>();
+            // Per group, so cancelling a task only updates the stats of the group it belongs to
+            final List<Runnable> onCancelCallbacks = new ArrayList<>();
             List<WorkloadGroupTask> selectedTasks = new ArrayList<>();
             for (ResourceType resourceType : TRACKED_RESOURCES) {
                 // We need to consider the already selected tasks since those tasks also consumed the resources
@@ -173,13 +174,13 @@ public class WorkloadGroupTaskCancellationService {
                 if (excessUsage > MIN_VALUE) {
                     reasons.add(new TaskCancellation.Reason(generateReasonString(workloadGroup, resourceType), 1));
                     onCancelCallbacks.add(this.getResourceTypeOnCancelCallback(workloadGroup.get_id(), resourceType));
-                    // Only add tasks not already added to avoid double cancellations
-                    selectedTasks.addAll(
-                        taskSelectionStrategy.selectTasksForCancellation(getTasksFor(workloadGroup), excessUsage, resourceType)
-                            .stream()
-                            .filter(x -> selectedTasks.stream().noneMatch(y -> x.getId() != y.getId()))
-                            .collect(Collectors.toList())
-                    );
+                    // Only offer the tasks not selected yet. The excess already deducts the usage of the selected tasks, so
+                    // offering them again would count that usage twice, and could select a task twice
+                    final Set<Long> selectedTaskIds = selectedTasks.stream().map(WorkloadGroupTask::getId).collect(Collectors.toSet());
+                    final List<WorkloadGroupTask> unselectedTasks = getTasksFor(workloadGroup).stream()
+                        .filter(task -> selectedTaskIds.contains(task.getId()) == false)
+                        .collect(Collectors.toList());
+                    selectedTasks.addAll(taskSelectionStrategy.selectTasksForCancellation(unselectedTasks, excessUsage, resourceType));
                 }
             }
 

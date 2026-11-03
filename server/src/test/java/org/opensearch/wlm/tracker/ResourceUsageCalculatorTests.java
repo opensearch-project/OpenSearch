@@ -36,8 +36,9 @@ public class ResourceUsageCalculatorTests extends OpenSearchTestCase {
         double actualUsage = ResourceType.CPU.getResourceUsageCalculator().calculateResourceUsage(List.of(mockTask));
         assertEquals(expectedWorkloadGroupCpuUsage, actualUsage, MIN_VALUE);
 
+        // the task is the group's only task, so its usage must equal the group usage
         double taskResourceUsage = ResourceType.CPU.getResourceUsageCalculator().calculateTaskResourceUsage(mockTask);
-        assertEquals(1.0, taskResourceUsage, MIN_VALUE);
+        assertEquals(expectedWorkloadGroupCpuUsage, taskResourceUsage, MIN_VALUE);
     }
 
     public void testWorkloadGroupMemoryUsage() {

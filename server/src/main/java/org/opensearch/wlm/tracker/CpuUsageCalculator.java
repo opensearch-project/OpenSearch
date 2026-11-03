@@ -25,14 +25,15 @@ public class CpuUsageCalculator extends ResourceUsageCalculator {
 
     @Override
     public double calculateResourceUsage(List<WorkloadGroupTask> tasks) {
-        double usage = tasks.stream().mapToDouble(this::calculateTaskResourceUsage).sum();
-
-        usage /= PROCESSOR_COUNT;
-        return usage;
+        return tasks.stream().mapToDouble(this::calculateTaskResourceUsage).sum();
     }
 
+    /**
+     * Returns the task's share of the node's CPU, so it is in the same units as the workload group usage
+     */
     @Override
     public double calculateTaskResourceUsage(WorkloadGroupTask task) {
-        return (1.0f * task.getTotalResourceUtilization(ResourceStats.CPU)) / task.getElapsedTime();
+        final double coresUsed = (1.0f * task.getTotalResourceUtilization(ResourceStats.CPU)) / task.getElapsedTime();
+        return coresUsed / PROCESSOR_COUNT;
     }
 }
