@@ -469,7 +469,7 @@ public class SecureNioHttpServerTransportTests extends OpenSearchTestCase {
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             try (NioHttpClient client = NioHttpClient.https()) {
-                final String url = "/" + new String(new byte[maxInitialLineLength], Charset.forName("UTF-8"));
+                final String url = "/" + new String("_").repeat(maxInitialLineLength);
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
 
                 final FullHttpResponse response = client.send(remoteAddress.address(), request);
