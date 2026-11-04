@@ -43,6 +43,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.opensearch.Version;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
@@ -109,10 +110,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 return Regexp.fromXContent(parser);
             case "fuzzy":
                 return Fuzzy.fromXContent(parser);
+            case "range":
+                return Range.fromXContent(parser);
         }
         throw new ParsingException(
             parser.getTokenLocation(),
-            "Unknown interval type [" + parser.currentName() + "], expecting one of [match, any_of, all_of, prefix, wildcard, regexp]"
+            "Unknown interval type ["
+                + parser.currentName()
+                + "], expecting one of [match, any_of, all_of, prefix, wildcard, regexp, fuzzy, range]"
         );
     }
 
@@ -1178,6 +1183,289 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         String getUseField() {
             return useField;
+        }
+    }
+
+    /**
+     * Range interval: matches any term between a lower and an upper bound at the position where it is used.
+     * <p>
+     * Both bounds are required, and each one is either inclusive ({@code gte}, {@code lte}) or exclusive ({@code gt}, {@code lt}).
+     * Terms are compared as strings, byte by byte, after the bounds are normalized with the analyzer, so a range of numbers only
+     * behaves as expected for terms of the same width such as years. The range may expand to at most {@code max_expansions} terms
+     * in a segment, otherwise the search fails.
+     *
+     * @opensearch.internal
+     */
+    public static class Range extends IntervalsSourceProvider {
+
+        public static final String NAME = "range";
+
+        private final String lower;
+        private final boolean includeLower;
+        private final String upper;
+        private final boolean includeUpper;
+        private final String analyzer;
+        private final String useField;
+        private final Integer maxExpansions;
+
+        /**
+         * Constructor
+         *
+         * @param lower the lower bound, as typed by the user and before analysis
+         * @param includeLower whether a term equal to the lower bound matches
+         * @param upper the upper bound, as typed by the user and before analysis
+         * @param includeUpper whether a term equal to the upper bound matches
+         * @param analyzer the name of the analyzer that normalizes the bounds, or {@code null} for the search analyzer of the field
+         * @param useField the field to read the terms from instead of the field of the query, or {@code null}
+         * @param maxExpansions the maximum number of terms the range may expand to, or {@code null} for the default; a value
+         *                      that is not positive is treated like {@code null}
+         * @throws IllegalArgumentException if a bound is {@code null}
+         */
+        public Range(
+            String lower,
+            boolean includeLower,
+            String upper,
+            boolean includeUpper,
+            String analyzer,
+            String useField,
+            Integer maxExpansions
+        ) {
+            if (lower == null) {
+                throw new IllegalArgumentException("[" + NAME + "] requires a lower bound, specify either [gt] or [gte]");
+            }
+            if (upper == null) {
+                throw new IllegalArgumentException("[" + NAME + "] requires an upper bound, specify either [lt] or [lte]");
+            }
+            this.lower = lower;
+            this.includeLower = includeLower;
+            this.upper = upper;
+            this.includeUpper = includeUpper;
+            this.analyzer = analyzer;
+            this.useField = useField;
+            this.maxExpansions = (maxExpansions != null && maxExpansions > 0) ? maxExpansions : null;
+        }
+
+        /**
+         * Reads a range rule written by {@link #writeTo(StreamOutput)}.
+         */
+        public Range(StreamInput in) throws IOException {
+            this.lower = in.readString();
+            this.includeLower = in.readBoolean();
+            this.upper = in.readString();
+            this.includeUpper = in.readBoolean();
+            this.analyzer = in.readOptionalString();
+            this.useField = in.readOptionalString();
+            this.maxExpansions = in.readOptionalVInt();
+        }
+
+        @Override
+        public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) {
+            if (useField != null) {
+                fieldType = context.fieldMapper(useField);
+                assert fieldType != null;
+            }
+            checkPositions(fieldType);
+
+            NamedAnalyzer analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
+            if (this.analyzer != null) {
+                analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
+                if (analyzer == null) {
+                    throw new IllegalArgumentException("Unknown analyzer [" + this.analyzer + "] for the [" + NAME + "] interval rule");
+                }
+            }
+
+            BytesRef lowerTerm = normalizeBound("lower", lower, analyzer, fieldType);
+            BytesRef upperTerm = normalizeBound("upper", upper, analyzer, fieldType);
+            if (lowerTerm.compareTo(upperTerm) > 0) {
+                throw new IllegalArgumentException(
+                    "The lower bound ["
+                        + lowerTerm.utf8ToString()
+                        + "] of the ["
+                        + NAME
+                        + "] interval rule is greater than its upper bound ["
+                        + upperTerm.utf8ToString()
+                        + "]"
+                );
+            }
+
+            IntervalsSource source = Intervals.range(
+                lowerTerm,
+                upperTerm,
+                includeLower,
+                includeUpper,
+                maxExpansions == null ? Intervals.DEFAULT_MAX_EXPANSIONS : maxExpansions
+            );
+            return useField == null ? source : Intervals.fixField(useField, source);
+        }
+
+        private static BytesRef normalizeBound(String name, String bound, NamedAnalyzer analyzer, MappedFieldType fieldType) {
+            BytesRef term = analyzer.normalize(fieldType.name(), bound);
+            if (term.length == 0) {
+                throw new IllegalArgumentException("The " + name + " bound of the [" + NAME + "] interval rule must not be empty");
+            }
+            return term;
+        }
+
+        private void checkPositions(MappedFieldType type) {
+            if (type.getTextSearchInfo().hasPositions() == false) {
+                throw new IllegalArgumentException("Cannot create intervals over field [" + type.name() + "] with no positions indexed");
+            }
+        }
+
+        @Override
+        public void extractFields(Set<String> fields) {
+            if (useField != null) {
+                fields.add(useField);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Range range = (Range) o;
+            return includeLower == range.includeLower
+                && includeUpper == range.includeUpper
+                && Objects.equals(lower, range.lower)
+                && Objects.equals(upper, range.upper)
+                && Objects.equals(analyzer, range.analyzer)
+                && Objects.equals(useField, range.useField)
+                && Objects.equals(maxExpansions, range.maxExpansions);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(lower, includeLower, upper, includeUpper, analyzer, useField, maxExpansions);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getVersion().before(Version.V_3_10_0)) {
+                throw new IllegalArgumentException(
+                    "The ["
+                        + NAME
+                        + "] interval rule cannot be used with version ["
+                        + out.getVersion()
+                        + "], it requires version ["
+                        + Version.V_3_10_0
+                        + "] or later"
+                );
+            }
+            out.writeString(lower);
+            out.writeBoolean(includeLower);
+            out.writeString(upper);
+            out.writeBoolean(includeUpper);
+            out.writeOptionalString(analyzer);
+            out.writeOptionalString(useField);
+            out.writeOptionalVInt(maxExpansions);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(NAME);
+            builder.field(includeLower ? "gte" : "gt", lower);
+            builder.field(includeUpper ? "lte" : "lt", upper);
+            if (analyzer != null) {
+                builder.field("analyzer", analyzer);
+            }
+            if (useField != null) {
+                builder.field("use_field", useField);
+            }
+            if (maxExpansions != null) {
+                builder.field("max_expansions", maxExpansions);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        /**
+         * The parameters of a {@code range} rule as they were typed, before they are validated.
+         * <p>
+         * They are validated after parsing rather than in the builder of the {@link ConstructingObjectParser}, which would hide
+         * the message of the error behind a generic "Failed to build [range] after last required field arrived".
+         */
+        private record Parsed(String gt, String gte, String lt, String lte, String analyzer, String useField, Integer maxExpansions) {
+
+            Range toRange() {
+                if (gt != null && gte != null) {
+                    throw new IllegalArgumentException("[" + NAME + "] accepts only one of [gt] and [gte]");
+                }
+                if (lt != null && lte != null) {
+                    throw new IllegalArgumentException("[" + NAME + "] accepts only one of [lt] and [lte]");
+                }
+                return new Range(gt != null ? gt : gte, gt == null, lt != null ? lt : lte, lt == null, analyzer, useField, maxExpansions);
+            }
+        }
+
+        private static final ConstructingObjectParser<Parsed, Void> PARSER = new ConstructingObjectParser<>(
+            NAME,
+            args -> new Parsed(
+                (String) args[0],
+                (String) args[1],
+                (String) args[2],
+                (String) args[3],
+                (String) args[4],
+                (String) args[5],
+                (Integer) args[6]
+            )
+        );
+        static {
+            PARSER.declareString(optionalConstructorArg(), new ParseField("gt"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("gte"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("lt"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("lte"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("analyzer"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("use_field"));
+            PARSER.declareInt(optionalConstructorArg(), new ParseField("max_expansions"));
+        }
+
+        /**
+         * Parses the body of a {@code range} rule, with the parser positioned on the {@code range} field name.
+         *
+         * @throws org.opensearch.core.xcontent.XContentParseException if a parameter is unknown or has a value of the wrong type
+         * @throws ParsingException if a bound is missing, or if both {@code gt} and {@code gte}, or both {@code lt} and {@code lte},
+         *                          are given
+         */
+        public static Range fromXContent(XContentParser parser) throws IOException {
+            Parsed parsed = PARSER.parse(parser, null);
+            try {
+                return parsed.toRange();
+            } catch (IllegalArgumentException e) {
+                throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
+            }
+        }
+
+        String getLower() {
+            return lower;
+        }
+
+        boolean isIncludeLower() {
+            return includeLower;
+        }
+
+        String getUpper() {
+            return upper;
+        }
+
+        boolean isIncludeUpper() {
+            return includeUpper;
+        }
+
+        String getAnalyzer() {
+            return analyzer;
+        }
+
+        String getUseField() {
+            return useField;
+        }
+
+        Integer getMaxExpansions() {
+            return maxExpansions;
         }
     }
 

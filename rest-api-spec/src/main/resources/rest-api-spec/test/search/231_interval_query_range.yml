@@ -1,0 +1,350 @@
+setup:
+  - skip:
+      version: " - 3.9.99"
+      reason: "The range rule of the intervals query was added in 3.10.0"
+  - do:
+      indices.create:
+        index: filings
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              body:
+                type: text
+              body_copy:
+                type: text
+              tag:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "filings", "_id": "1"}}'
+          - '{"body": "fiscal year 2021 revenue", "tag": "2021"}'
+          - '{"index": {"_index": "filings", "_id": "2"}}'
+          - '{"body": "fiscal year 2017 revenue", "tag": "2017"}'
+          - '{"index": {"_index": "filings", "_id": "3"}}'
+          - '{"body": "2021 fiscal year revenue", "tag": "2021"}'
+          - '{"index": {"_index": "filings", "_id": "4"}}'
+          - '{"body": "fiscal year 2023", "tag": "2023"}'
+          - '{"index": {"_index": "filings", "_id": "5"}}'
+          - '{"body": "fiscal year 2019 outlook", "tag": "2019"}'
+          - '{"index": {"_index": "filings", "_id": "6"}}'
+          - '{"body": "fiscal year 2024 outlook", "tag": "2024"}'
+          - '{"index": {"_index": "filings", "_id": "7"}}'
+          - '{"body": "Beta", "tag": "beta"}'
+          - '{"index": {"_index": "filings", "_id": "8"}}'
+          - '{"body": "nothing to see", "body_copy": "year 2021", "tag": "copy"}'
+
+---
+"Test range rule after a phrase":
+  - do:
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              body:
+                all_of:
+                  mode: ordered
+                  max_gaps: 0
+                  intervals:
+                    - match:
+                        query: "fiscal year"
+                        mode: ordered
+                        max_gaps: 0
+                    - range:
+                        gte: "2020"
+                        lte: "2022"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"Test range rule with inclusive bounds":
+  - do:
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              body:
+                all_of:
+                  mode: ordered
+                  max_gaps: 0
+                  intervals:
+                    - match:
+                        query: "fiscal year"
+                        mode: ordered
+                        max_gaps: 0
+                    - range:
+                        gte: "2019"
+                        lte: "2023"
+  - match: { hits.total.value: 3 }
+
+---
+"Test range rule with exclusive bounds":
+  - do:
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              body:
+                all_of:
+                  mode: ordered
+                  max_gaps: 0
+                  intervals:
+                    - match:
+                        query: "fiscal year"
+                        mode: ordered
+                        max_gaps: 0
+                    - range:
+                        gt: "2019"
+                        lt: "2023"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"Test range rule on its own":
+  - do:
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              body:
+                range:
+                  gte: "2021"
+                  lte: "2021"
+  - match: { hits.total.value: 2 }
+
+---
+"Test range rule with equal exclusive bounds matches nothing":
+  - do:
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              body:
+                range:
+                  gt: "2021"
+                  lt: "2021"
+  - match: { hits.total.value: 0 }
+
+---
+"Test range rule normalizes the bounds with the search analyzer":
+  - do:
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              body:
+                range:
+                  gte: "A"
+                  lte: "C"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "7" }
+
+---
+"Test range rule with the keyword analyzer keeps the case of the bounds":
+  - do:
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              body:
+                range:
+                  gte: "A"
+                  lte: "C"
+                  analyzer: keyword
+  - match: { hits.total.value: 0 }
+
+---
+"Test range rule with use_field":
+  - do:
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              body:
+                range:
+                  gte: "2021"
+                  lte: "2021"
+                  use_field: body_copy
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "8" }
+
+---
+"Test range rule with max_expansions":
+  - do:
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              body:
+                range:
+                  gte: "0"
+                  lte: "zzzz"
+                  max_expansions: 128
+  - match: { hits.total.value: 8 }
+
+---
+"Test range rule expanding to more terms than max_expansions":
+  - do:
+      catch: /expanded\sto\stoo\smany\sterms/
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              body:
+                range:
+                  gte: "0"
+                  lte: "zzzz"
+                  max_expansions: 2
+
+---
+"Test range rule on a keyword field":
+  - do:
+      catch: bad_request
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              tag:
+                range:
+                  gte: "2017"
+                  lte: "2021"
+  - match: { error.root_cause.0.reason: "failed to create query: Cannot create intervals over field [tag] with no positions indexed" }
+
+---
+"Test range rule with the lower bound above the upper bound":
+  - do:
+      catch: bad_request
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              body:
+                range:
+                  gte: "2023"
+                  lte: "2019"
+  - match: { error.root_cause.0.reason: "failed to create query: The lower bound [2023] of the [range] interval rule is greater than its upper bound [2019]" }
+
+---
+"Test range rule without a lower bound":
+  - do:
+      catch: bad_request
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              body:
+                range:
+                  lte: "2023"
+  - match: { error.root_cause.0.type: "parsing_exception" }
+  - match: { error.root_cause.0.reason: "[range] requires a lower bound, specify either [gt] or [gte]" }
+
+---
+"Test range rule without an upper bound":
+  - do:
+      catch: bad_request
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              body:
+                range:
+                  gte: "2019"
+  - match: { error.root_cause.0.type: "parsing_exception" }
+  - match: { error.root_cause.0.reason: "[range] requires an upper bound, specify either [lt] or [lte]" }
+
+---
+"Test range rule without bounds":
+  - do:
+      catch: bad_request
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              body:
+                range:
+                  max_expansions: 10
+  - match: { error.root_cause.0.type: "parsing_exception" }
+  - match: { error.root_cause.0.reason: "[range] requires a lower bound, specify either [gt] or [gte]" }
+
+---
+"Test range rule with both gt and gte":
+  - do:
+      catch: bad_request
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              body:
+                range:
+                  gt: "2019"
+                  gte: "2019"
+                  lt: "2023"
+  - match: { error.root_cause.0.type: "parsing_exception" }
+  - match: { error.root_cause.0.reason: "[range] accepts only one of [gt] and [gte]" }
+
+---
+"Test range rule with both lt and lte":
+  - do:
+      catch: bad_request
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              body:
+                range:
+                  gte: "2019"
+                  lt: "2023"
+                  lte: "2023"
+  - match: { error.root_cause.0.type: "parsing_exception" }
+  - match: { error.root_cause.0.reason: "[range] accepts only one of [lt] and [lte]" }
+
+---
+"Test range rule with an unknown parameter":
+  - do:
+      catch: bad_request
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              body:
+                range:
+                  gte: "2019"
+                  lte: "2023"
+                  boost: 2
+  - match: { error.root_cause.0.type: "x_content_parse_exception" }
+
+---
+"Test range rule with a numeric bound":
+  - do:
+      catch: bad_request
+      search:
+        index: filings
+        body:
+          query:
+            intervals:
+              body:
+                range:
+                  gte: 2019
+                  lte: "2023"
+  - match: { error.root_cause.0.type: "x_content_parse_exception" }
