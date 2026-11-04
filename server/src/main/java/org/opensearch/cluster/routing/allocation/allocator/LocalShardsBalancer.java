@@ -1101,7 +1101,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 --totalShardCount;
                 long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
-                if (decision.type() == Decision.Type.YES) {
+                Decision.Type type = decision.type();
+                if (type == Decision.Type.YES && !hasUnrealizedInbound(shard, type, maxNode, idx)) {
                     /* only allocate on the cluster if we are not throttled */
                     logger.debug("Relocate [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
                     minNode.addShard(routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1());
@@ -1110,7 +1111,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 } else {
                     /* allocate on the model even if throttled */
                     logger.debug("Simulate relocation of [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
-                    assert decision.type() == Decision.Type.THROTTLE;
+                    assert type != Decision.Type.NO;
                     minNode.addShard(shard.relocate(minNode.getNodeId(), shardSize));
                     ++totalShardCount;
                     return false;
@@ -1119,6 +1120,21 @@ public class LocalShardsBalancer extends ShardsBalancer {
         }
         logger.trace("No shards of [{}] can relocate from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
         return false;
+    }
+
+    private boolean hasUnrealizedInbound(ShardRouting shard, Decision.Type type, BalancedShardsAllocator.ModelNode node, String index) {
+        assert type == Decision.Type.YES;
+        final RoutingNode routingNode = node.getRoutingNode();
+        boolean result = node.numShards() > routingNode.numberOfOwningShards()
+            || node.numShards(index) > routingNode.numberOfOwningShardsForIndex(metadata.index(index).getIndex());
+        if (result) {
+            logger.trace(
+                "Skip real relocation of [{}] from [{}] because its balance model includes unrealized inbound shards",
+                shard,
+                node.getNodeId()
+            );
+        }
+        return result;
     }
 
 }
