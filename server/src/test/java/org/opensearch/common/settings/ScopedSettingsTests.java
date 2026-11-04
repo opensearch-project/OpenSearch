@@ -893,6 +893,97 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         assertThat(diff.getAsInt(dependentSettingName, null), equalTo(11));
     }
 
+    public void testGetMatchingReturnsConcreteKeysOnly() {
+        Setting<Integer> fooBarBaz = Setting.intSetting("foo.bar.baz", 1, Property.NodeScope);
+        Setting<Integer> fooBar = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Integer> fooOther = Setting.intSetting("foo.other", 1, Property.NodeScope);
+        Setting<List<String>> fooList = Setting.listSetting("foo.list", List.of("a"), Function.identity(), Property.NodeScope);
+        Setting<Integer> bar = Setting.intSetting("bar.baz", 1, Property.NodeScope);
+        Setting<Settings> fooGroup = Setting.groupSetting("foo.group.", Property.Dynamic, Property.NodeScope);
+        Setting<Boolean> fooAffix = Setting.affixKeySetting(
+            "foo.prefix.",
+            "enabled",
+            (key) -> Setting.boolSetting(key, true, Property.NodeScope)
+        );
+        ClusterSettings settings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(Arrays.asList(fooBar, fooBarBaz, fooOther, fooList, bar, fooGroup, fooAffix))
+        );
+        // A trailing wildcard spans dots, so every depth under the prefix is returned. A list setting is stored with the
+        // templates because it also accepts the legacy foo.list.0 form, but its declared key is concrete and is returned.
+        assertEquals(Set.of("foo.bar", "foo.bar.baz", "foo.other", "foo.list"), keysOf(settings.getMatching("foo.*")));
+        assertEquals(Set.of("foo.bar", "foo.bar.baz"), keysOf(settings.getMatching("foo.bar*")));
+        assertEquals(Set.of("foo.bar.baz"), keysOf(settings.getMatching("foo.bar.*")));
+        assertEquals(Set.of(), keysOf(settings.getMatching("nothing.*")));
+        // Group and affix templates are registered under foo.* too, but they have no concrete key and are never returned.
+        assertFalse(keysOf(settings.getMatching("foo.*")).contains("foo.group."));
+        assertFalse(keysOf(settings.getMatching("foo.*")).contains("foo.prefix.*.enabled"));
+    }
+
+    private static Set<String> keysOf(Set<Setting<?>> settings) {
+        return settings.stream().map(Setting::getKey).collect(Collectors.toSet());
+    }
+
+    public void testIsCanonicalKey() {
+        Setting<Integer> plain = Setting.intSetting("foo.bar", 1, Property.NodeScope);
+        Setting<Integer> digits = Setting.intSetting("foo.v2.3", 1, Property.NodeScope);
+        Setting<List<String>> list = Setting.listSetting("foo.list", List.of("a"), Function.identity(), Property.NodeScope);
+        Setting<Settings> group = Setting.groupSetting("foo.group.", Property.Dynamic, Property.NodeScope);
+        Setting<Boolean> affix = Setting.affixKeySetting(
+            "foo.prefix.",
+            "enabled",
+            (key) -> Setting.boolSetting(key, true, Property.NodeScope)
+        );
+        Setting<List<String>> affixList = Setting.affixKeySetting(
+            "foo.prefix.",
+            "seeds",
+            (key) -> Setting.listSetting(key, List.of(), Function.identity(), Property.NodeScope)
+        );
+        Setting<String> attr = Setting.prefixKeySetting("foo.attr.", (key) -> Setting.simpleString(key, Property.NodeScope));
+        Setting<Settings> affixGroup = Setting.affixKeySetting(
+            "foo.prefix.",
+            "limit",
+            (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope)
+        );
+        ClusterSettings settings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(Arrays.asList(plain, digits, list, group, affix, affixList, attr, affixGroup))
+        );
+
+        // Registered concrete keys, whatever they end in.
+        assertTrue(settings.isCanonicalKey("foo.bar"));
+        assertTrue(settings.isCanonicalKey("foo.v2.3"));
+        assertTrue(settings.isCanonicalKey("foo.list"));
+        // The legacy indexed form of a list key resolves but is not canonical.
+        assertNotNull(settings.get("foo.list.0"));
+        assertFalse(settings.isCanonicalKey("foo.list.0"));
+        // A concrete affix key is canonical; anything appended to it resolves to a setting carrying that key but is not.
+        assertTrue(settings.isCanonicalKey("foo.prefix.ns.enabled"));
+        assertTrue(settings.isCanonicalKey("foo.prefix.ns.seeds"));
+        for (String variant : List.of(
+            "foo.prefix.ns.seeds.0",
+            "foo.prefix.ns.seeds.other",
+            "foo.prefix.ns.seeds.a.b",
+            "foo.prefix.ns.enabled.x"
+        )) {
+            assertEquals(variant, variant, settings.get(variant).getKey());
+            assertFalse(variant, settings.isCanonicalKey(variant));
+        }
+        // Every member of a group is canonical; the template key itself is a registered key.
+        assertTrue(settings.isCanonicalKey("foo.group.any.member"));
+        assertTrue(settings.isCanonicalKey("foo.group."));
+        // A prefix-only affix pattern captures the whole key, so membership is open at any depth.
+        assertTrue(settings.isCanonicalKey("foo.attr.a"));
+        assertTrue(settings.isCanonicalKey("foo.attr.a.b.c"));
+        // An affix whose delegate is a group: the suffix is judged by the delegate, so members are canonical.
+        assertTrue(settings.isCanonicalKey("foo.prefix.ns.limit"));
+        assertTrue(settings.isCanonicalKey("foo.prefix.ns.limit.initial"));
+        assertTrue(settings.isCanonicalKey("foo.prefix.ns.limit.a.b"));
+        // Unknown keys and templates spelled as patterns are not.
+        assertFalse(settings.isCanonicalKey("foo.unknown"));
+        assertFalse(settings.isCanonicalKey("foo.prefix.*.enabled"));
+    }
+
     public void testDiffWithAffixAndComplexMatcher() {
         Setting<Integer> fooBarBaz = Setting.intSetting("foo.bar.baz", 1, Property.NodeScope);
         Setting<Integer> fooBar = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);

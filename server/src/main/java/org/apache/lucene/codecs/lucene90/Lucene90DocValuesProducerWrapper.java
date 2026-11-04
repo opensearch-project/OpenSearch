@@ -32,7 +32,9 @@ public class Lucene90DocValuesProducerWrapper implements Closeable {
         String metaCodec,
         String metaExtension,
         String skipIndexCodec,
-        String skipIndexExtension
+        String skipIndexExtension,
+        String disiCodec,
+        String disiExtension
     ) throws IOException {
         lucene90DocValuesProducer = new Lucene90DocValuesProducer(
             state,
@@ -41,7 +43,9 @@ public class Lucene90DocValuesProducerWrapper implements Closeable {
             metaCodec,
             metaExtension,
             skipIndexCodec,
-            skipIndexExtension
+            skipIndexExtension,
+            disiCodec,
+            disiExtension
         );
     }
 

@@ -195,6 +195,8 @@ public class Setting<T> implements ToXContentObject {
     protected final Function<String, T> parser;
     protected final Validator<T> validator;
     private final EnumSet<Property> properties;
+    @Nullable
+    private volatile String description;
 
     private static final EnumSet<Property> EMPTY_PROPERTIES = EnumSet.noneOf(Property.class);
 
@@ -450,6 +452,15 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
+     * Whether {@code key} is a name this setting reports for itself, as opposed to a variant it merely accepts. A plain setting
+     * reports only its own key; a list setting accepts its legacy indexed form ({@code key.0}) but does not report it. Affix and
+     * group settings override this.
+     */
+    boolean isCanonicalKey(String key) {
+        return key.equals(getKey());
+    }
+
+    /**
      * Validate the current setting value only without dependencies with {@link Setting.Validator#validate(Object)}.
      * @param settings a settings object for settings that has a default value depending on another setting if available
      */
@@ -479,6 +490,33 @@ public class Setting<T> implements ToXContentObject {
      */
     public Function<String, T> getParser() {
         return parser;
+    }
+
+    /**
+     * Attaches a one-sentence description of what this setting controls.
+     * <p>
+     * This is the only mutable state on a setting. It is written in two places: chained onto a {@code static final}
+     * declaration, for example {@code Setting.boolSetting("x", false, NodeScope).withDescription("...")}, where the write
+     * happens during class initialisation; and by {@link AffixSetting#getConcreteSetting(String)}, which stamps the template's
+     * description onto the fresh concrete instance returned by the delegate factory before that instance escapes. The field is
+     * {@code volatile} so that a description written on one thread is visible to the request thread that later reads it through
+     * {@link #getDescription()}.
+     * <p>
+     * Setting a different description twice is a programming error, reported via {@code assert} rather than an exception so
+     * that a mistake in a static initialiser does not surface as an {@code ExceptionInInitializerError}. Re-setting the same
+     * text is tolerated.
+     */
+    public Setting<T> withDescription(String description) {
+        Objects.requireNonNull(description, "description");
+        assert this.description == null || this.description.equals(description) : "description already set for [" + getKey() + "]";
+        this.description = description;
+        return this;
+    }
+
+    /** The declared description, or {@code null} when none has been written. */
+    @Nullable
+    public String getDescription() {
+        return description;
     }
 
     /**
@@ -995,22 +1033,58 @@ public class Setting<T> implements ToXContentObject {
             );
         }
 
+        /** Covariant return so fields declared as {@code AffixSetting<T>} can chain {@code .withDescription(...)}. */
+        @Override
+        public AffixSetting<T> withDescription(String description) {
+            super.withDescription(description);
+            return this;
+        }
+
         @Override
         public Setting<T> getConcreteSetting(String key) {
             if (match(key)) {
                 String namespace = this.key.getNamespace(key);
-                return delegateFactory.apply(namespace, key);
+                return describeConcrete(delegateFactory.apply(namespace, key));
             } else {
                 throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
             }
         }
 
+        /**
+         * The concrete key the pattern captures is canonical: {@code cluster.remote.alpha.seeds}, or for a prefix-only pattern,
+         * which captures the whole key, any depth such as {@code node.attr.a.b}. A prefix-and-suffix pattern also accepts any
+         * suffix after the concrete key, and {@link #getConcreteSetting} builds a setting carrying whatever key was asked for, so
+         * the suffix is judged by the delegate built for the concrete key: a group delegate reports its members
+         * ({@code prefix.ns.limit.initial}), whereas a list or plain delegate reports only its own key, so
+         * {@code cluster.remote.alpha.seeds.0} and {@code cluster.remote.alpha.seeds.other} are not canonical.
+         */
+        @Override
+        boolean isCanonicalKey(String key) {
+            if (match(key) == false) {
+                return false;
+            }
+            String concrete = this.key.getConcreteString(key);
+            return key.equals(concrete) || delegateFactory.apply(this.key.getNamespace(key), concrete).isCanonicalKey(key);
+        }
+
         private Setting<T> getConcreteSetting(String namespace, String key) {
             if (match(key)) {
-                return delegateFactory.apply(namespace, key);
+                return describeConcrete(delegateFactory.apply(namespace, key));
             } else {
                 throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
             }
+        }
+
+        /**
+         * A concrete key inherits the template's description unless the delegate declared its own. The delegate factory returns
+         * a new {@link Setting} on every call (see {@link AbstractScopedSettings#get}), so this writes to an instance that no
+         * other thread can observe yet.
+         */
+        private Setting<T> describeConcrete(Setting<T> concrete) {
+            if (getDescription() != null && concrete.getDescription() == null) {
+                concrete.withDescription(getDescription());
+            }
+            return concrete;
         }
 
         /**
@@ -1144,6 +1218,12 @@ public class Setting<T> implements ToXContentObject {
         @Override
         public boolean isGroupSetting() {
             return true;
+        }
+
+        /** Membership is open: every key under the group prefix is a member a user may set and is reported under that name. */
+        @Override
+        boolean isCanonicalKey(String key) {
+            return match(key);
         }
 
         @Override

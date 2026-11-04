@@ -44,6 +44,7 @@ import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.lifecycle.LifecycleListener;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
@@ -236,6 +237,35 @@ public class FilterRepository implements Repository {
     }
 
     @Override
+    public void snapshotShard(
+        Store store,
+        MapperService mapperService,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        CatalogSnapshot catalogSnapshot,
+        String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        Version repositoryMetaVersion,
+        Map<String, Object> userMetadata,
+        ActionListener<String> listener,
+        IndexMetadata indexMetadata
+    ) {
+        in.snapshotShard(
+            store,
+            mapperService,
+            snapshotId,
+            indexId,
+            catalogSnapshot,
+            shardStateIdentifier,
+            snapshotStatus,
+            repositoryMetaVersion,
+            userMetadata,
+            listener,
+            indexMetadata
+        );
+    }
+
+    @Override
     public void snapshotRemoteStoreIndexShard(
         Store store,
         SnapshotId snapshotId,
@@ -256,6 +286,64 @@ public class FilterRepository implements Repository {
             snapshotStatus,
             primaryTerm,
             startTime,
+            listener
+        );
+    }
+
+    @Override
+    public void snapshotRemoteStoreIndexShard(
+        Store store,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        IndexCommit snapshotIndexCommit,
+        String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        long primaryTerm,
+        long commitGeneration,
+        long startTime,
+        Map<String, Long> indexFilesToFileLengthMap,
+        ActionListener<String> listener
+    ) {
+        in.snapshotRemoteStoreIndexShard(
+            store,
+            snapshotId,
+            indexId,
+            snapshotIndexCommit,
+            shardStateIdentifier,
+            snapshotStatus,
+            primaryTerm,
+            commitGeneration,
+            startTime,
+            indexFilesToFileLengthMap,
+            listener
+        );
+    }
+
+    @Override
+    public void snapshotRemoteStoreIndexShard(
+        Store store,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        CatalogSnapshot catalogSnapshot,
+        String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        long primaryTerm,
+        long commitGeneration,
+        long startTime,
+        Map<String, Long> indexFilesToFileLengthMap,
+        ActionListener<String> listener
+    ) {
+        in.snapshotRemoteStoreIndexShard(
+            store,
+            snapshotId,
+            indexId,
+            catalogSnapshot,
+            shardStateIdentifier,
+            snapshotStatus,
+            primaryTerm,
+            commitGeneration,
+            startTime,
+            indexFilesToFileLengthMap,
             listener
         );
     }
