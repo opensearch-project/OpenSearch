@@ -66,10 +66,15 @@ public final class UriPartsProcessor extends AbstractProcessor {
     }
 
     /**
-     * Returns whether removing {@code field} would also remove {@code targetField}, which is the case when both address the same field or
-     * the target lies below the source. The paths are compared the way {@code IngestDocument} resolves them: a leading {@code _source.}
-     * is ignored, a leading {@code _ingest.} selects the ingest metadata, a different root than the source, so that it can never
-     * overlap with a source path, and trailing dots are ignored.
+     * Returns whether removing {@code field} would delete the parsed output stored in {@code targetField}, which is the case when both
+     * address the same field, or when the source lies below the target: the removal then deletes part of the output, or fails after the
+     * output was written. A target below the source is not a problem, as the source holds the URI string and cannot be the parent of the
+     * target, so writing the target fails first and the source stays.
+     * <p>
+     * The paths are compared the way {@code IngestDocument} resolves them: a leading {@code _source.} is ignored, a leading
+     * {@code _ingest.} selects the ingest metadata, a different root than the source, so that it can never overlap with a source path,
+     * and trailing dots are ignored. List indices are compared as written, because a static check cannot tell which segments are list
+     * indices, while {@code IngestDocument} parses them as integers, so that on a list {@code a.0} and {@code a.00} are the same element.
      */
     private static boolean removalWouldDeleteTarget(String field, String targetField) {
         String source = withRoot(field);
