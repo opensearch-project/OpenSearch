@@ -15,6 +15,8 @@ import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.ingest.TestProcessor;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -166,6 +168,14 @@ public class UriPartsProcessorTests extends OpenSearchTestCase {
 
     public void testIpv6HostWithZoneId() throws Exception {
         assertThat(parts("http://[fe80::1%25eth0]/").get("domain"), equalTo("[fe80::1%25eth0]"));
+    }
+
+    public void testIpv6ZoneIdWithAHyphenFails() {
+        // java.net.URI only accepts letters, digits, '_' and '.' in a zone id, so an interface name such as br-lan is rejected
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parts("http://[fe80::1%25br-lan]/"));
+        assertThat(e.getMessage(), containsString("unable to parse field [" + FIELD + "] as a URI"));
+        assertThat(e.getMessage(), containsString("scope id"));
+        assertThat(e.getMessage(), not(containsString("br-lan")));
     }
 
     public void testHostIsNotCaseNormalized() throws Exception {
@@ -345,10 +355,24 @@ public class UriPartsProcessorTests extends OpenSearchTestCase {
             assertThat(url, e.getMessage(), containsString("[" + FIELD + "]"));
             // the message must be self-contained, because on_failure only exposes the message of the root cause, but it must not
             // repeat the input, which may carry credentials
-            assertThat(url, e.getMessage(), containsString(" at index "));
+            assertIndexIsReportedAsByTheJdk(url, e.getMessage());
             assertThat(url, e.getMessage(), not(containsString(url.trim())));
             assertThat(url, e.getCause(), nullValue());
             assertThat("failed documents are left untouched: " + url, document.hasField(TARGET), equalTo(false));
+        }
+    }
+
+    /**
+     * Asserts that the message has the position of the error exactly when {@link URI} reports one. From JDK 25 on, a restricted security
+     * property {@code jdk.includeInExceptions} makes {@link URISyntaxException#getIndex()} return -1, in which case the processor leaves
+     * the position out, so the expectation is taken from the exception that the same parsing raises here.
+     */
+    private static void assertIndexIsReportedAsByTheJdk(String input, String message) {
+        URISyntaxException expected = expectThrows(URISyntaxException.class, () -> new URI(input).parseServerAuthority());
+        if (expected.getIndex() >= 0) {
+            assertThat(input, message, containsString(" at index " + expected.getIndex()));
+        } else {
+            assertThat(input, message, not(containsString(" at index ")));
         }
     }
 
@@ -552,7 +576,7 @@ public class UriPartsProcessorTests extends OpenSearchTestCase {
         CompoundProcessor pipeline = new CompoundProcessor(false, List.of(defaultProcessor()), List.of(onFailure));
         IngestDocument document = executeSuccessfully(pipeline, document(FIELD, "http://exa mple.com/"));
         assertThat(document.getFieldValue("error", String.class), containsString("unable to parse field [" + FIELD + "] as a URI"));
-        assertThat(document.getFieldValue("error", String.class), containsString(" at index "));
+        assertIndexIsReportedAsByTheJdk("http://exa mple.com/", document.getFieldValue("error", String.class));
         assertThat(document.hasField(TARGET), equalTo(false));
     }
 
