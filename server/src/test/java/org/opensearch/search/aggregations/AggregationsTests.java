@@ -243,6 +243,9 @@ public class AggregationsTests extends OpenSearchTestCase {
              *
              * - we cannot insert into ExtendedMatrixStats "covariance" or "correlation" fields, their syntax is strict
              *
+             * - we cannot insert into the "distribution" of string_stats, its keys are the characters of the values and every value
+             * in it needs to be a number
+             *
              * - we cannot insert random values in top_hits, as all unknown fields
              * on a root level of SearchHit are interpreted as meta-fields and will be kept
              *
@@ -255,6 +258,7 @@ public class AggregationsTests extends OpenSearchTestCase {
                 || path.endsWith(CommonFields.VALUES.getPreferredName())
                 || path.endsWith("covariance")
                 || path.endsWith("correlation")
+                || path.endsWith("distribution")
                 || path.contains(CommonFields.VALUE.getPreferredName())
                 || path.endsWith(CommonFields.KEY.getPreferredName())) || path.contains("top_hits");
             mutated = insertRandomFields(mediaType, originalBytes, excludes, random());
