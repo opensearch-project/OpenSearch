@@ -83,6 +83,7 @@ import org.opensearch.search.aggregations.metrics.InternalMinTests;
 import org.opensearch.search.aggregations.metrics.InternalScriptedMetricTests;
 import org.opensearch.search.aggregations.metrics.InternalStatsBucketTests;
 import org.opensearch.search.aggregations.metrics.InternalStatsTests;
+import org.opensearch.search.aggregations.metrics.InternalStringStatsTests;
 import org.opensearch.search.aggregations.metrics.InternalSumTests;
 import org.opensearch.search.aggregations.metrics.InternalTDigestPercentilesRanksTests;
 import org.opensearch.search.aggregations.metrics.InternalTDigestPercentilesTests;
@@ -163,6 +164,7 @@ public class AggregationsTests extends OpenSearchTestCase {
         new SignificantStringTermsTests(),
         new InternalScriptedMetricTests(),
         new InternalBinaryRangeTests(),
+        new InternalStringStatsTests(),
         new InternalTopHitsTests(),
         new InternalCompositeTests(),
         new InternalMedianAbsoluteDeviationTests(),
