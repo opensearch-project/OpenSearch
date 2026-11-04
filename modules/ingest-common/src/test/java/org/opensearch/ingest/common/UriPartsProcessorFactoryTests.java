@@ -128,9 +128,82 @@ public class UriPartsProcessorFactoryTests extends OpenSearchTestCase {
             Map<String, Object> config = new HashMap<>();
             config.put("field", field);
             config.put("remove_if_successful", true);
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> factory.create(null, null, null, config));
+            // a configuration error, so that it is reported to the client as a 400 and not as an internal error
+            OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> factory.create(null, null, null, config));
             assertThat(e.getMessage(), containsString("[remove_if_successful]"));
+            assertThat(e.getMetadata("opensearch.property_name").get(0), equalTo("remove_if_successful"));
         }
+    }
+
+    public void testRemoveIfSuccessfulErrorNamesTheOverlappingFields() {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "url.full");
+        config.put("target_field", "url");
+        config.put("remove_if_successful", true);
+        String tag = randomAlphaOfLength(10);
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> factory.create(null, tag, null, config));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "[remove_if_successful] cannot be true when [field] [url.full] is the same as, or nested in, [target_field] [url], "
+                    + "because the parsed output would be removed"
+            )
+        );
+        assertThat(e.getMetadata("opensearch.processor_type").get(0), equalTo("uri_parts"));
+        assertThat(e.getMetadata("opensearch.processor_tag").get(0), equalTo(tag));
+    }
+
+    public void testRemoveIfSuccessfulIsRejectedWhenPathsDifferOnlyByTheSourcePrefix() {
+        // IngestDocument ignores a leading "_source.", so these pairs address the same field or a field below it
+        String[][] overlapping = new String[][] {
+            { "_source.url", "url" },
+            { "url", "_source.url" },
+            { "_source.url", "_source.url" },
+            { "_source.url.original", "url" },
+            { "url.original", "_source.url" },
+            { "_source.url.original", "_source.url" },
+            { "_ingest.url", "_ingest.url" },
+            { "_ingest.url.original", "_ingest.url" } };
+        for (String[] pair : overlapping) {
+            OpenSearchParseException e = expectThrows(
+                OpenSearchParseException.class,
+                () -> factory.create(null, null, null, removalConfig(pair[0], pair[1]))
+            );
+            assertThat(e.getMessage(), containsString("[remove_if_successful]"));
+            assertThat(e.getMessage(), containsString("[field] [" + pair[0] + "]"));
+            assertThat(e.getMessage(), containsString("[target_field] [" + pair[1] + "]"));
+        }
+    }
+
+    public void testRemoveIfSuccessfulIsAllowedForDifferentRoots() throws Exception {
+        // "_ingest." addresses the ingest metadata, which is a different root than the source, so nothing can overlap
+        String[][] pairs = new String[][] {
+            { "_ingest.url", "url" },
+            { "url", "_ingest.url" },
+            { "_source._ingest.url", "_ingest.url" },
+            { "_ingest.url", "_source._ingest.url" },
+            { "_source.urls", "url" },
+            { "_source.url2", "_source.url" } };
+        for (String[] pair : pairs) {
+            UriPartsProcessor processor = factory.create(null, null, null, removalConfig(pair[0], pair[1]));
+            assertThat(processor.isRemoveIfSuccessful(), equalTo(true));
+        }
+    }
+
+    public void testRemoveIfSuccessfulIsAllowedForUnrelatedFields() throws Exception {
+        String[][] pairs = new String[][] { { "urls", "url" }, { "url", "url2" }, { "a.b", "a.c" } };
+        for (String[] pair : pairs) {
+            UriPartsProcessor processor = factory.create(null, null, null, removalConfig(pair[0], pair[1]));
+            assertThat(processor.isRemoveIfSuccessful(), equalTo(true));
+        }
+    }
+
+    private static Map<String, Object> removalConfig(String field, String targetField) {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", field);
+        config.put("target_field", targetField);
+        config.put("remove_if_successful", true);
+        return config;
     }
 
     public void testSameFieldAndTargetFieldIsAllowedWithoutRemoval() throws Exception {

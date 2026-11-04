@@ -58,15 +58,6 @@ public final class UriPartsProcessor extends AbstractProcessor {
         boolean ignoreMissing
     ) {
         super(tag, description);
-        if (removeIfSuccessful && removalWouldDeleteTarget(field, targetField)) {
-            throw new IllegalArgumentException(
-                "[remove_if_successful] cannot be true when [field] ["
-                    + field
-                    + "] is the same as, or nested in, [target_field] ["
-                    + targetField
-                    + "], because the parsed output would be removed"
-            );
-        }
         this.field = field;
         this.targetField = targetField;
         this.keepOriginal = keepOriginal;
@@ -242,6 +233,20 @@ public final class UriPartsProcessor extends AbstractProcessor {
             boolean keepOriginal = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "keep_original", true);
             boolean removeIfSuccessful = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "remove_if_successful", false);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
+            // This is checked here and not in the constructor so that it is a configuration error, which is reported as a 400. Any other
+            // exception thrown while creating a processor is wrapped as an internal error (500).
+            if (removeIfSuccessful && removalWouldDeleteTarget(field, targetField)) {
+                throw newConfigurationException(
+                    TYPE,
+                    tag,
+                    "remove_if_successful",
+                    "cannot be true when [field] ["
+                        + field
+                        + "] is the same as, or nested in, [target_field] ["
+                        + targetField
+                        + "], because the parsed output would be removed"
+                );
+            }
             return new UriPartsProcessor(tag, description, field, targetField, keepOriginal, removeIfSuccessful, ignoreMissing);
         }
 

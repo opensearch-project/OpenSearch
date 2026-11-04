@@ -515,61 +515,14 @@ public class UriPartsProcessorTests extends OpenSearchTestCase {
         assertThat(document.getFieldValue("a", String.class), equalTo("http://example.com/"));
     }
 
-    // ---- constructor validation ----
-
-    public void testRemoveIfSuccessfulIsRejectedWhenItWouldRemoveTheOutput() {
-        for (String field : new String[] { "url", "url.original" }) {
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new UriPartsProcessor(null, null, field, "url", randomBoolean(), true, randomBoolean())
-            );
-            assertThat(e.getMessage(), containsString("[remove_if_successful]"));
-        }
-    }
-
-    public void testRemoveIfSuccessfulIsRejectedWhenPathsDifferOnlyByTheSourcePrefix() throws Exception {
-        // IngestDocument ignores a leading "_source.", so these pairs address the same field or a field below it
-        String[][] overlapping = new String[][] {
-            { "_source.url", "url" },
-            { "url", "_source.url" },
-            { "_source.url", "_source.url" },
-            { "_source.url.original", "url" },
-            { "url.original", "_source.url" },
-            { "_source.url.original", "_source.url" },
-            { "_ingest.url", "_ingest.url" },
-            { "_ingest.url.original", "_ingest.url" } };
-        for (String[] pair : overlapping) {
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new UriPartsProcessor(null, null, pair[0], pair[1], randomBoolean(), true, randomBoolean())
-            );
-            assertThat(e.getMessage(), containsString("[remove_if_successful]"));
-            assertThat(e.getMessage(), containsString("[" + pair[0] + "]"));
-            assertThat(e.getMessage(), containsString("[" + pair[1] + "]"));
-        }
-    }
+    // The creation-time check that remove_if_successful cannot delete the output is made by the factory and tested in
+    // UriPartsProcessorFactoryTests, so that it is reported as a configuration error.
 
     public void testSourcePrefixedPathsAreResolvedLikeUnprefixedOnes() throws Exception {
         UriPartsProcessor processor = new UriPartsProcessor(null, null, "_source." + FIELD, "_source.parsed", true, true, false);
         IngestDocument document = run(processor, document(FIELD, "http://example.com/a.png"));
         assertThat(document.hasField(FIELD), equalTo(false));
         assertThat(document.getFieldValue("parsed.domain", String.class), equalTo("example.com"));
-    }
-
-    public void testRemoveIfSuccessfulIsAllowedForDifferentRoots() {
-        // "_ingest." addresses the ingest metadata, which is a different root than the source, so nothing can overlap
-        new UriPartsProcessor(null, null, "_ingest.url", "url", true, true, false);
-        new UriPartsProcessor(null, null, "url", "_ingest.url", true, true, false);
-        new UriPartsProcessor(null, null, "_source._ingest.url", "_ingest.url", true, true, false);
-        new UriPartsProcessor(null, null, "_ingest.url", "_source._ingest.url", true, true, false);
-        new UriPartsProcessor(null, null, "_source.urls", "url", true, true, false);
-        new UriPartsProcessor(null, null, "_source.url2", "_source.url", true, true, false);
-    }
-
-    public void testRemoveIfSuccessfulIsAllowedForUnrelatedFields() {
-        new UriPartsProcessor(null, null, "urls", "url", true, true, false);
-        new UriPartsProcessor(null, null, "url", "url2", true, true, false);
-        new UriPartsProcessor(null, null, "a.b", "a.c", true, true, false);
     }
 
     // ---- common processor options ----

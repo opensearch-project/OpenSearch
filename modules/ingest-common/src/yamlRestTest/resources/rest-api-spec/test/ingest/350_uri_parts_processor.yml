@@ -345,8 +345,9 @@ teardown:
             ]
           }
 
+  # a config that would remove its own output is a client error (400), whichever way the overlapping paths are spelled
   - do:
-      catch: /\[remove_if_successful\] cannot be true/
+      catch: bad_request
       ingest.put_pipeline:
         id: "1"
         body: >
@@ -360,6 +361,67 @@ teardown:
               }
             ]
           }
+  - match: { status: 400 }
+  - match: { error.type: parse_exception }
+  - match: { error.reason: "[remove_if_successful] cannot be true when [field] [url] is the same as, or nested in, [target_field] [url], because the parsed output would be removed" }
+
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "uri_parts": {
+                  "field": "url.full",
+                  "target_field": "url",
+                  "remove_if_successful": true
+                }
+              }
+            ]
+          }
+  - match: { status: 400 }
+  - match: { error.type: parse_exception }
+  - match: { error.reason: "[remove_if_successful] cannot be true when [field] [url.full] is the same as, or nested in, [target_field] [url], because the parsed output would be removed" }
+
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "uri_parts": {
+                  "field": "_source.url",
+                  "target_field": "url",
+                  "remove_if_successful": true
+                }
+              }
+            ]
+          }
+  - match: { status: 400 }
+  - match: { error.type: parse_exception }
+
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "uri_parts": {
+                  "field": "url",
+                  "target_field": "_source.url",
+                  "remove_if_successful": true
+                }
+              }
+            ]
+          }
+  - match: { status: 400 }
+  - match: { error.type: parse_exception }
 
   - do:
       catch: /\[target_field\] cannot be empty/
