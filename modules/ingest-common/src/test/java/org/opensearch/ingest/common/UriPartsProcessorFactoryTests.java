@@ -79,6 +79,18 @@ public class UriPartsProcessorFactoryTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), equalTo("[field] required property is missing"));
     }
 
+    public void testExplicitNullOptions() throws Exception {
+        Map<String, Object> nullField = new HashMap<>();
+        nullField.put("field", null);
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> factory.create(null, null, null, nullField));
+        assertThat(e.getMessage(), equalTo("[field] required property is missing"));
+
+        Map<String, Object> nullTarget = new HashMap<>();
+        nullTarget.put("field", "request_url");
+        nullTarget.put("target_field", null);
+        assertThat(factory.create(null, null, null, nullTarget).getTargetField(), equalTo("url"));
+    }
+
     public void testFieldMustBeAString() {
         Map<String, Object> config = new HashMap<>();
         config.put("field", 42);

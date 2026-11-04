@@ -504,6 +504,15 @@ public class UriPartsProcessorTests extends OpenSearchTestCase {
         expectThrows(IllegalArgumentException.class, () -> processor.execute(document));
     }
 
+    public void testTargetBelowTheSourceFieldFailsWithoutRemovingTheSource() {
+        // the source holds the URL string, so it cannot also be the parent object of the target: setting the target fails first and
+        // the removal is never reached, which is why only a target at or above the source needs the creation-time check
+        UriPartsProcessor processor = new UriPartsProcessor(null, null, "a", "a.b", true, true, false);
+        IngestDocument document = document("a", "http://example.com/");
+        expectThrows(IllegalArgumentException.class, () -> processor.execute(document));
+        assertThat(document.getFieldValue("a", String.class), equalTo("http://example.com/"));
+    }
+
     // ---- constructor validation ----
 
     public void testRemoveIfSuccessfulIsRejectedWhenItWouldRemoveTheOutput() {
