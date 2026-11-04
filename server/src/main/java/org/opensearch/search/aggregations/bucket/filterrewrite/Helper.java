@@ -22,11 +22,13 @@ import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -151,6 +153,111 @@ final class Helper {
         }
 
         return null;
+    }
+
+    /**
+     * Finds the min and max value of a numeric field for the segment
+     *
+     * @return null if the field is empty or not indexed
+     */
+    static double[] getNumericSegmentBounds(final LeafReaderContext context, final NumberFieldMapper.NumberFieldType fieldType)
+        throws IOException {
+        final PointValues values = context.reader().getPointValues(fieldType.name());
+        if (values == null) {
+            return null;
+        }
+        return new double[] {
+            fieldType.parsePoint(values.getMinPackedValue()).doubleValue(),
+            fieldType.parsePoint(values.getMaxPackedValue()).doubleValue() };
+    }
+
+    /**
+     * Finds the global min and max value of a numeric field for the shard across all segments
+     *
+     * @return null if the field is empty or not indexed
+     */
+    private static double[] getNumericShardBounds(final List<LeafReaderContext> leaves, final NumberFieldMapper.NumberFieldType fieldType)
+        throws IOException {
+        double min = Double.POSITIVE_INFINITY, max = Double.NEGATIVE_INFINITY;
+        for (LeafReaderContext leaf : leaves) {
+            final double[] bounds = getNumericSegmentBounds(leaf, fieldType);
+            if (bounds != null) {
+                min = Math.min(min, bounds[0]);
+                max = Math.max(max, bounds[1]);
+            }
+        }
+
+        if (min > max) {
+            return null;
+        }
+        return new double[] { min, max };
+    }
+
+    /**
+     * Gets the min and max value of a numeric field for the shard search, the numeric counterpart of
+     * {@link #getDateHistoAggBounds}
+     *
+     * @return null if the processed query is not supported by the optimization
+     */
+    public static double[] getNumericHistoAggBounds(final SearchContext context, final NumberFieldMapper.NumberFieldType fieldType)
+        throws IOException {
+        final Query cq = unwrapIntoConcreteQuery(context.query());
+        final List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
+
+        if (cq instanceof PointRangeQuery) {
+            final PointRangeQuery prq = (PointRangeQuery) cq;
+            final double[] indexBounds = getNumericShardBounds(leaves, fieldType);
+            if (indexBounds == null) return null;
+            return getNumericBoundsWithRangeQuery(prq, fieldType, indexBounds);
+        } else if (cq instanceof MatchAllDocsQuery) {
+            return getNumericShardBounds(leaves, fieldType);
+        } else if (cq instanceof FieldExistsQuery) {
+            // when a range query covers all values of a shard, it will be rewrite field exists query
+            if (((FieldExistsQuery) cq).getField().equals(fieldType.name())) {
+                return getNumericShardBounds(leaves, fieldType);
+            }
+        }
+
+        return null;
+    }
+
+    private static double[] getNumericBoundsWithRangeQuery(
+        final PointRangeQuery prq,
+        final NumberFieldMapper.NumberFieldType fieldType,
+        final double[] indexBounds
+    ) {
+        // Ensure that the query and aggregation are on the same field
+        if (prq.getField().equals(fieldType.name()) == false || prq.getNumDims() != 1) {
+            return null;
+        }
+        // Both ends of a point range query are inclusive
+        final Double queryLow = decodePoint(fieldType, prq.getLowerPoint());
+        final Double queryHigh = decodePoint(fieldType, prq.getUpperPoint());
+        if (queryLow == null || queryHigh == null) {
+            return null;
+        }
+        // Minimum bound for aggregation is the max between query and global
+        final double low = Math.max(queryLow, indexBounds[0]);
+        // Maximum bound for aggregation is the min between query and global
+        final double high = Math.min(queryHigh, indexBounds[1]);
+        if (low > high) {
+            return null;
+        }
+        return new double[] { low, high };
+    }
+
+    /**
+     * Decodes an encoded point of a numeric field
+     *
+     * @return null if the value does not survive the round trip -- byte and short fields are stored as ints,
+     *         so a bound outside their range narrows silently on the way back
+     */
+    private static Double decodePoint(final NumberFieldMapper.NumberFieldType fieldType, final byte[] encoded) {
+        final Number value = fieldType.parsePoint(encoded);
+        if (Arrays.equals(fieldType.encodePoint(value), encoded) == false) {
+            return null;
+        }
+        return value.doubleValue();
     }
 
     /**

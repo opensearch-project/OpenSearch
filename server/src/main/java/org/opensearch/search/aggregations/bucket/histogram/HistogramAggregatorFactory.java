@@ -38,6 +38,7 @@ import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
+import org.opensearch.search.aggregations.bucket.filterrewrite.NumericHistogramAggregatorBridge;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
@@ -157,6 +158,10 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
 
     @Override
     protected boolean supportsIntraSegmentSearch() {
-        return true;
+        // Use intra-segment only when the filter-rewrite fast path does NOT apply (script/missing, hard bounds,
+        // non-indexed or non-numeric field, or nested). When it applies, its BKD point-tree walk is not
+        // partition-aware, so partitioning would duplicate the walk per partition and regress -- stay
+        // sequential in that case.
+        return NumericHistogramAggregatorBridge.filterRewriteFastPathApplies(parent, config, interval, offset, hardBounds) == false;
     }
 }
