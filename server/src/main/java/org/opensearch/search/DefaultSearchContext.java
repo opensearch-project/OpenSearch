@@ -43,6 +43,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
@@ -478,6 +479,9 @@ final class DefaultSearchContext extends SearchContext {
                 // Filter before scoring and score every hit the same, so no corpus statistics are read and documents
                 // outside the alias cannot affect a score.
                 query = new ConstantScoreQuery(new BooleanQuery.Builder().add(query, Occur.MUST).add(aliasFilter, Occur.FILTER).build());
+                // Rescoring, inner hits and the inner query of function_score or script_score score separately through
+                // this searcher, so give it a similarity that reads no corpus statistics as well.
+                searcher.setSimilarity(new BooleanSimilarity());
             } else {
                 filters.add(aliasFilter);
             }

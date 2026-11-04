@@ -36,10 +36,8 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.AliasMetadata.Builder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
 
@@ -48,7 +46,6 @@ import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> {
 
@@ -81,14 +78,30 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
         assertEquals(with, AliasMetadata.newAliasMetadata(with, "alias"));
     }
 
-    public void testEnforcementIsNotKeptWithoutAFilter() throws IOException {
-        AliasMetadata unfiltered = AliasMetadata.builder("alias").enforcement("pre_filter").build();
-        assertNull("the mode is part of the filter, so an alias without one carries none", unfiltered.enforcement());
-        assertEquals(AliasMetadata.builder("alias").build(), unfiltered);
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        AliasMetadata.Builder.toXContent(unfiltered, builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        assertThat(builder.toString(), not(containsString("enforcement")));
+    public void testEnforcementWithoutAFilterIsRejected() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> AliasMetadata.builder("alias").enforcement("pre_filter").build()
+        );
+        assertThat(e.getMessage(), containsString("[enforcement] requires a [filter] on alias [alias]"));
+    }
+
+    public void testTemplateAliasesValidateTheMode() throws IOException {
+        // Composable and component templates parse their aliases through fromXContent rather than the alias API.
+        String misspelled = "{\"alias\":{\"filter\":{\"term\":{\"f\":\"v\"}},\"enforcement\":\"pre_filer\"}}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, misspelled)) {
+            parser.nextToken(); // the enclosing object
+            parser.nextToken(); // the alias name, where fromXContent starts
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> AliasMetadata.Builder.fromXContent(parser));
+            assertThat(e.getMessage(), containsString("unknown alias enforcement [pre_filer]"));
+        }
+        String unfiltered = "{\"alias\":{\"enforcement\":\"pre_filter\"}}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, unfiltered)) {
+            parser.nextToken(); // the enclosing object
+            parser.nextToken(); // the alias name, where fromXContent starts
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> AliasMetadata.Builder.fromXContent(parser));
+            assertThat(e.getMessage(), containsString("[enforcement] requires a [filter]"));
+        }
     }
 
     public void testEnforcementRoundTripsOnCurrentVersion() throws IOException {
@@ -167,7 +180,8 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
         if (randomBoolean()) {
             builder.indexRouting(randomAlphaOfLengthBetween(3, 10));
         }
-        if (randomBoolean()) {
+        final boolean filtered = randomBoolean();
+        if (filtered) {
             builder.filter("{\"term\":{\"year\":2016}}");
         }
         builder.writeIndex(randomBoolean());
@@ -175,7 +189,7 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
         if (randomBoolean()) {
             builder.isHidden(randomBoolean());
         }
-        if (randomBoolean()) {
+        if (filtered && randomBoolean()) {
             builder.enforcement(randomFrom("post_filter", "pre_filter"));
         }
         return builder.build();

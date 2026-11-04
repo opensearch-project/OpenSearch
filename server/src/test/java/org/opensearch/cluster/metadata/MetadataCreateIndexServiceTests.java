@@ -98,6 +98,7 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.search.SearchModule;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
@@ -1164,6 +1165,35 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         AliasMetadata alias = resolvedAliases.get(0);
         assertThat(alias.getSearchRouting(), equalTo("3"));
         assertThat(alias.writeIndex(), is(true));
+    }
+
+    public void testCreateIndexAliasKeepsTheEnforcementMode() {
+        List<AliasMetadata> resolved = resolveAndValidateAliases(
+            "test",
+            Collections.singleton(new Alias("scoped").filter("{\"match_all\":{}}").enforcement("pre_filter")),
+            Collections.emptyList(),
+            Metadata.builder().build(),
+            aliasValidator,
+            new NamedXContentRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents()),
+            queryShardContext
+        );
+        assertEquals("pre_filter", resolved.get(0).enforcement());
+    }
+
+    public void testCreateIndexAliasRejectsEnforcementWithoutAFilter() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> resolveAndValidateAliases(
+                "test",
+                Collections.singleton(new Alias("scoped").enforcement("pre_filter")),
+                Collections.emptyList(),
+                Metadata.builder().build(),
+                aliasValidator,
+                xContentRegistry(),
+                queryShardContext
+            )
+        );
+        assertThat(e.getMessage(), containsString("[enforcement] requires a [filter]"));
     }
 
     public void testAggregateIndexSettingsIgnoresTemplatesOnCreateFromSourceIndex() throws Exception {

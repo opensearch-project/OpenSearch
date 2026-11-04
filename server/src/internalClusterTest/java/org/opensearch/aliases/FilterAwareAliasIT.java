@@ -14,6 +14,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -182,5 +183,24 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
         assertTrue("sample found for restricted prefix via pre_filter", preRestricted > 0f);
         assertTrue("sample found for absent prefix via pre_filter", preAbsent > 0f);
         assertEquals("pre_filter prefix scoring: restricted and absent prefixes must score the same", preAbsent, preRestricted, 0.0001f);
+    }
+
+    /**
+     * A rescore query scores separately from the main query, so it must read no corpus statistics either: the visible
+     * sample rescored on a term confined to excluded documents scores the same as on a term found only in the sample.
+     */
+    public void testPreFilterRescoreReadsNoCorpusStatistics() throws Exception {
+        buildCorpus();
+        addAlias("rescored", "pre_filter");
+        assertEquals(rescoredSampleScore("rescored", RESTRICTED_TERM), rescoredSampleScore("rescored", ABSENT_TERM), 0.0001f);
+    }
+
+    private float rescoredSampleScore(String view, String term) {
+        SearchResponse response = client().prepareSearch(view)
+            .setQuery(QueryBuilders.matchQuery("content", term))
+            .addRescorer(new QueryRescorerBuilder(QueryBuilders.matchQuery("content", term)).windowSize(10))
+            .get();
+        assertHitCount(response, 1);
+        return response.getHits().getAt(0).getScore();
     }
 }
