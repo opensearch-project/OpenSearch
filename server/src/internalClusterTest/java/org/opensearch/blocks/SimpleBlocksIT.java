@@ -820,38 +820,44 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
         ensureGreen(indexName);
         final APIBlock block = randomFrom(removableBlocks());
 
-        final int rounds = randomIntBetween(5, 10);
-        for (int round = 0; round < rounds; round++) {
-            final CountDownLatch start = new CountDownLatch(1);
-            final List<Throwable> failures = new CopyOnWriteArrayList<>();
-            final Thread adder = new Thread(() -> {
-                try {
-                    start.await();
-                    client().admin().indices().prepareAddBlock(block, indexName).get();
-                } catch (Exception e) {
-                    failures.add(e);
-                }
-            });
-            final Thread remover = new Thread(() -> {
-                try {
-                    start.await();
-                    client().admin().indices().prepareRemoveBlock(block, indexName).get();
-                } catch (Exception e) {
-                    failures.add(e);
-                }
-            });
-            adder.start();
-            remover.start();
-            start.countDown();
-            adder.join();
-            remover.join();
+        try {
+            final int rounds = randomIntBetween(5, 10);
+            for (int round = 0; round < rounds; round++) {
+                final CountDownLatch start = new CountDownLatch(1);
+                final List<Throwable> failures = new CopyOnWriteArrayList<>();
+                final Thread adder = new Thread(() -> {
+                    try {
+                        start.await();
+                        client().admin().indices().prepareAddBlock(block, indexName).get();
+                    } catch (Exception e) {
+                        failures.add(e);
+                    }
+                });
+                final Thread remover = new Thread(() -> {
+                    try {
+                        start.await();
+                        client().admin().indices().prepareRemoveBlock(block, indexName).get();
+                    } catch (Exception e) {
+                        failures.add(e);
+                    }
+                });
+                adder.start();
+                remover.start();
+                start.countDown();
+                adder.join();
+                remover.join();
 
-            assertThat(failures, is(empty()));
-            final ClusterState state = client().admin().cluster().prepareState().get().getState();
-            final boolean setting = state.metadata().index(indexName).getSettings().getAsBoolean(block.settingName(), false);
-            final Set<ClusterBlock> blocks = state.blocks().indices().getOrDefault(indexName, emptySet());
-            assertThat("no temporary block may be left behind: " + blocks, blocks.stream().noneMatch(b -> b.uuid() != null), is(true));
-            assertThat("setting and cluster block must agree: " + blocks, blocks.contains(block.getBlock()), equalTo(setting));
+                assertThat(failures, is(empty()));
+                final ClusterState state = client().admin().cluster().prepareState().get().getState();
+                final boolean setting = state.metadata().index(indexName).getSettings().getAsBoolean(block.settingName(), false);
+                final Set<ClusterBlock> blocks = state.blocks().indices().getOrDefault(indexName, emptySet());
+                assertThat("no temporary block may be left behind: " + blocks, blocks.stream().noneMatch(b -> b.uuid() != null), is(true));
+                assertThat("setting and cluster block must agree: " + blocks, blocks.contains(block.getBlock()), equalTo(setting));
+            }
+        } finally {
+            // the add call may have won the last round: a left-over metadata or read_only block makes the after-test wipe of the
+            // indices fail, because such an index cannot be deleted
+            client().admin().indices().prepareRemoveBlock(block, indexName).get();
         }
     }
 
