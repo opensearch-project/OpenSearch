@@ -17,15 +17,18 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.opensearch.common.settings.Setting.Property.Dynamic;
 import static org.opensearch.common.settings.Setting.Property.Filtered;
@@ -256,7 +259,7 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
         // Exhaustive guard against null validation or unexpected parser shapes. validationOf runs over every cluster and index
         // setting core registers; the full describe/render path runs over every cluster setting (index settings
         // cannot be placed in a ClusterSettings registry). Affix templates are skipped: describe() only sees concrete keys.
-        var all = new java.util.ArrayList<Setting<?>>();
+        var all = new ArrayList<Setting<?>>();
         all.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         all.addAll(org.opensearch.common.settings.IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
         int bounded = 0;
@@ -298,7 +301,7 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
             var registry = new ClusterSettings(Settings.EMPTY, Set.of(setting));
             var response = describe(registry, NO_FILTER, setting.getKey());
             assertEquals(setting.getKey(), 1, response.settings().size());
-            assertNotNull(org.opensearch.core.common.Strings.toString(MediaTypeRegistry.JSON, response));
+            assertNotNull(Strings.toString(MediaTypeRegistry.JSON, response));
             described++;
         }
         logger.info(
@@ -386,10 +389,152 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
 
     public void testValidation() {
         assertNotNull(new ClusterDescribeSettingsRequest().validate());
-        for (String name : List.of("", " ", "cluster.*", "cluster.?", "/regex/")) {
-            assertNotNull(new ClusterDescribeSettingsRequest(name).validate());
+        // Blank names, non-prefix wildcard shapes, and invalid keys are all rejected. "?" is not a wildcard in OpenSearch's
+        // simple-match grammar; it is an invalid key character, with or without a trailing "*".
+        for (String name : List.of(
+            "",
+            " ",
+            "*",
+            "*.enabled",
+            "plugin.*.enabled",
+            "plugin.?",
+            "plugin.?.*",
+            "plugin.**",
+            "plugin.*x",
+            "/regex/"
+        )) {
+            assertNotNull("expected rejection of [" + name + "]", new ClusterDescribeSettingsRequest(name).validate());
         }
         assertNull(new ClusterDescribeSettingsRequest("cluster.max_shards_per_node").validate());
+        // A single trailing wildcard after one or more literal segments is the only admitted pattern, at any depth.
+        for (String name : List.of("plugin.*", "cluster.routing.allocation.*", "plugins.security.audit.*")) {
+            assertNull("expected acceptance of [" + name + "]", new ClusterDescribeSettingsRequest(name).validate());
+        }
+        assertNull(new ClusterDescribeSettingsRequest("cluster.name", "plugin.*").validate());
+    }
+
+    public void testPrefixExpansionSharesTheFilterGateWithExactNames() {
+        var dynamic = Setting.boolSetting("plugin.example.dynamic", false, Dynamic, NodeScope);
+        var fixed = Setting.boolSetting("plugin.example.static", false, NodeScope);
+        var nested = Setting.intSetting("plugin.example.nested.count", 5, 1, NodeScope);
+        var secret = Setting.simpleString("plugin.example.secret", NodeScope, Filtered);
+        var filtered = Setting.simpleString("plugin.example.filtered", NodeScope);
+        var secure = SecureSetting.secureString("plugin.example.password", null);
+        var other = Setting.boolSetting("plugin.other.flag", true, NodeScope);
+        var core = Setting.intSetting("cluster.routing.allocation.example", 2, 0, NodeScope);
+        var affix = Setting.affixKeySetting(
+            "plugin.example.remote.",
+            "enabled",
+            key -> Setting.boolSetting(key, false, Dynamic, NodeScope)
+        );
+        var list = Setting.listSetting("plugin.example.hosts", List.of("a", "b"), Function.identity(), NodeScope);
+        var affixList = Setting.affixKeySetting(
+            "plugin.example.remote.",
+            "seeds",
+            key -> Setting.listSetting(key, List.of(), Function.identity(), Dynamic, NodeScope)
+        );
+        var group = Setting.groupSetting("plugin.group.", Dynamic, NodeScope);
+        var affixGroup = Setting.affixKeySetting(
+            "plugin.example.remote.",
+            "limit",
+            key -> Setting.groupSetting(key + ".", Dynamic, NodeScope)
+        );
+        var registry = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(dynamic, fixed, nested, secret, filtered, secure, other, core, affix, list, affixList, group, affixGroup)
+        );
+        var filter = new SettingsFilter(List.of("plugin.example.filtered*"));
+
+        var bool = SettingValidation.ofType("boolean");
+        // A plugin-namespace prefix: every concrete key at every depth, including the list setting, minus the Filtered
+        // setting, the SettingsFilter match, the keystore setting, and the affix template. The exact-name path applies
+        // the same three exclusions.
+        var response = TransportClusterDescribeSettingsAction.describe(
+            new ClusterDescribeSettingsRequest("plugin.example.*"),
+            registry,
+            filter
+        );
+        assertEquals(
+            Map.of(
+                "plugin.example.dynamic",
+                SettingMetadata.withDefault(true, "false").withValidation(bool),
+                "plugin.example.static",
+                SettingMetadata.withDefault(false, "false").withValidation(bool),
+                "plugin.example.nested.count",
+                SettingMetadata.withDefault(false, "5").withValidation(SettingValidation.of("integer", "1", null)),
+                "plugin.example.hosts",
+                SettingMetadata.withDefault(false, "[\"a\",\"b\"]")
+            ),
+            response.settings()
+        );
+        // A core-namespace prefix works the same way: the feature is not plugin-specific.
+        assertEquals(
+            Map.of(
+                "cluster.routing.allocation.example",
+                SettingMetadata.withDefault(false, "2").withValidation(SettingValidation.of("integer", "0", null))
+            ),
+            describe(registry, filter, "cluster.routing.allocation.*").settings()
+        );
+        // Exact names and prefixes mix in one request; a name matched twice appears once.
+        assertEquals(
+            Set.of(
+                "plugin.example.dynamic",
+                "plugin.example.static",
+                "plugin.example.nested.count",
+                "plugin.example.hosts",
+                "plugin.other.flag"
+            ),
+            describe(registry, filter, "plugin.other.flag", "plugin.example.*", "plugin.example.static").settings().keySet()
+        );
+        // A prefix that is itself a filter pattern yields nothing: the filter runs on the expanded keys.
+        assertEquals(Map.of(), describe(registry, new SettingsFilter(List.of("plugin.example.*")), "plugin.example.*").settings());
+        // Names are matched against the filter directly, not through a Settings.Builder, so the legacy indexed form of
+        // a list key neither rewrites the request (hosts.0 is simply unknown) nor collides with the plain key (a 500).
+        assertEquals(
+            Set.of("plugin.example.hosts"),
+            describe(registry, filter, "plugin.example.hosts", "plugin.example.hosts.0").settings().keySet()
+        );
+        assertEquals(Map.of(), describe(registry, filter, "plugin.example.hosts.0").settings());
+        // The keystore setting is skipped under a prefix but still describes when requested by exact name, as before.
+        assertEquals(
+            Map.of("plugin.example.password", SettingMetadata.withoutDefault(false)),
+            describe(registry, filter, "plugin.example.password").settings()
+        );
+        // A concrete affix key is described by exact name; the template itself never appears under a prefix.
+        assertEquals(
+            Set.of("plugin.example.remote.a.enabled"),
+            describe(registry, filter, "plugin.example.remote.a.enabled").settings().keySet()
+        );
+        assertEquals(Map.of(), describe(registry, filter, "nothing.here.*").settings());
+        // The affix pattern accepts any suffix after a concrete key and the registry builds a concrete setting carrying that
+        // very key, so a key-equality check on the resolved setting cannot tell the concrete key from a variant. Neither the
+        // indexed form nor an arbitrary suffix is reported, nor allowed past a filter on the concrete key.
+        assertEquals(
+            Set.of("plugin.example.remote.a.seeds"),
+            describe(registry, filter, "plugin.example.remote.a.seeds").settings().keySet()
+        );
+        for (String variant : List.of(
+            "plugin.example.remote.a.seeds.0",
+            "plugin.example.remote.a.seeds.other",
+            "plugin.example.remote.a.enabled.x"
+        )) {
+            assertEquals(variant, Map.of(), describe(registry, filter, variant).settings());
+        }
+        var hideSeeds = new SettingsFilter(List.of("plugin.example.remote.a.seeds"));
+        assertEquals(Map.of(), describe(registry, hideSeeds, "plugin.example.remote.a.seeds").settings());
+        assertEquals(Map.of(), describe(registry, hideSeeds, "plugin.example.remote.a.seeds.0").settings());
+        assertEquals(Map.of(), describe(registry, hideSeeds, "plugin.example.remote.a.seeds.other").settings());
+        // A group member is described by exact name with the group's metadata; it is never enumerable under a prefix.
+        assertEquals(
+            Map.of("plugin.group.member.values", SettingMetadata.withoutDefault(true)),
+            describe(registry, filter, "plugin.group.member.values").settings()
+        );
+        assertEquals(Map.of(), describe(registry, filter, "plugin.group.*").settings());
+        // A group reached through an affix: the suffix is judged by the group delegate, so its members are described.
+        assertEquals(
+            Map.of("plugin.example.remote.a.limit.initial", SettingMetadata.withoutDefault(true)),
+            describe(registry, filter, "plugin.example.remote.a.limit.initial").settings()
+        );
     }
 
     public void testSerialization() throws Exception {
@@ -397,7 +542,8 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
         try (var out = new BytesStreamOutput()) {
             request.writeTo(out);
             try (var in = out.bytes().streamInput()) {
-                assertArrayEquals(request.names(), new ClusterDescribeSettingsRequest(in).names());
+                var read = new ClusterDescribeSettingsRequest(in);
+                assertArrayEquals(request.names(), read.names());
             }
         }
         var response = new ClusterDescribeSettingsResponse(
@@ -473,7 +619,7 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
                 SettingMetadata.withoutDefault(true).withDescription("Described.")
             )
         );
-        String json = org.opensearch.core.common.Strings.toString(MediaTypeRegistry.JSON, response);
+        String json = Strings.toString(MediaTypeRegistry.JSON, response);
         assertEquals(
             "{\"settings\":{"
                 + "\"plugin.bounded\":{\"dynamic\":true,\"default\":\"5\",\"validation\":{\"type\":\"integer\",\"min\":\"1\"}},"
@@ -482,6 +628,37 @@ public class ClusterDescribeSettingsTests extends OpenSearchTestCase {
                 + "\"plugin.with\":{\"dynamic\":true,\"default\":\"5\"},"
                 + "\"plugin.without\":{\"dynamic\":false}}}",
             json
+        );
+    }
+
+    public void testResultIsSortedByKeyAndDeduplicated() {
+        var registry = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(
+                Setting.boolSetting("plugin.order.c", false, NodeScope),
+                Setting.boolSetting("plugin.order.a", false, NodeScope),
+                Setting.boolSetting("plugin.order.b", false, NodeScope),
+                Setting.boolSetting("other.z", false, NodeScope),
+                Setting.boolSetting("other.m", false, NodeScope)
+            )
+        );
+        // Names are supplied out of order, mix exact names with a prefix, and repeat a key that the prefix also matches:
+        // the whole result comes back in one response, ascending by key, each key once.
+        var response = describe(registry, NO_FILTER, "other.z", "plugin.order.*", "other.m", "plugin.order.b");
+        assertEquals(
+            List.of("other.m", "other.z", "plugin.order.a", "plugin.order.b", "plugin.order.c"),
+            List.copyOf(response.settings().keySet())
+        );
+    }
+
+    public void testToXContentRendersKeysInAscendingOrder() throws Exception {
+        // The response sorts whatever map it is given, so callers cannot accidentally leak insertion order.
+        var response = new ClusterDescribeSettingsResponse(
+            Map.of("plugin.b", SettingMetadata.withoutDefault(true), "plugin.a", SettingMetadata.withoutDefault(false))
+        );
+        assertEquals(
+            "{\"settings\":{\"plugin.a\":{\"dynamic\":false},\"plugin.b\":{\"dynamic\":true}}}",
+            Strings.toString(MediaTypeRegistry.JSON, response)
         );
     }
 }

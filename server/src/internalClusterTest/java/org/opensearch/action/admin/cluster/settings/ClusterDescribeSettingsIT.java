@@ -63,6 +63,37 @@ public class ClusterDescribeSettingsIT extends OpenSearchIntegTestCase {
         );
     }
 
+    public void testPrefixExpansion() {
+        ensureStableCluster(internalCluster().size());
+        var client = internalCluster().nonClusterManagerClient();
+        // Everything registered under the plugin prefix, minus the Filtered setting and the one hidden by the plugin's
+        // settings filter; the result is identical to naming the visible settings exactly, and comes back in one
+        // response sorted by key.
+        var expanded = client.execute(ClusterDescribeSettingsAction.INSTANCE, new ClusterDescribeSettingsRequest("plugin.example.*"))
+            .actionGet();
+        var exact = client.execute(
+            ClusterDescribeSettingsAction.INSTANCE,
+            new ClusterDescribeSettingsRequest(
+                "plugin.example.dynamic_setting",
+                "plugin.example.static_setting",
+                "plugin.example.bounded_setting",
+                "plugin.example.described_setting"
+            )
+        ).actionGet();
+        assertEquals(exact.settings(), expanded.settings());
+        assertEquals(
+            List.of(
+                "plugin.example.bounded_setting",
+                "plugin.example.described_setting",
+                "plugin.example.dynamic_setting",
+                "plugin.example.static_setting"
+            ),
+            List.copyOf(expanded.settings().keySet())
+        );
+        // Descriptions declared on the plugin's settings flow through prefix expansion unchanged.
+        assertEquals("Example setting declared by a plugin.", expanded.settings().get("plugin.example.described_setting").description());
+    }
+
     public static class DescriptionTestPlugin extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {

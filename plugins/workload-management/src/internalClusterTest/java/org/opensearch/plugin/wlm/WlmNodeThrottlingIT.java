@@ -599,11 +599,13 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
         try {
             blocked = blockingSearch(indexName).execute();
             awaitForBlock(plugins);
+            int completionsBefore = getCompletions(workloadGroupId);
             Throwable rejection = expectThrows(Throwable.class, () -> blockingSearch(indexName).execute().actionGet(TIMEOUT));
             assertTrue(
                 "an independent concurrent request must still be throttled but was: " + rejection,
                 hasRejectedExecutionCause(rejection)
             );
+            assertEquals("a throttled request never ran, so it is not a completion", completionsBefore, getCompletions(workloadGroupId));
         } finally {
             disableBlocks(plugins);
         }

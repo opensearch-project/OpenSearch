@@ -47,7 +47,9 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.InputStreamWithMetadata;
+import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
+import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -91,12 +93,31 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         }
     }
 
-    private BlobInputStream openInputStream(String blobName, long position, @Nullable Long length) throws IOException {
-        return openInputStream(blobName, position, length, true);
+    @Override
+    public BlobMetadata getBlobMetadata(String blobName) throws IOException {
+        try {
+            return new PlainBlobMetadata(blobName, blobStore.getBlobLength(buildKey(blobName)));
+        } catch (BlobStorageException e) {
+            if (e.getStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
+                throw new NoSuchFileException(blobName);
+            }
+            throw new IOException("Can not read metadata for blob " + blobName, e);
+        } catch (URISyntaxException e) {
+            throw new IOException("Can not read metadata for blob " + blobName, e);
+        }
     }
 
-    private BlobInputStream openInputStream(String blobName, long position, @Nullable Long length, boolean checkSecondaryExists)
-        throws IOException {
+    private InputStream openInputStream(String blobName, long position, @Nullable Long length) throws IOException {
+        return openInputStream(blobName, position, length, true, blobStore::getInputStream);
+    }
+
+    private <T extends InputStream> T openInputStream(
+        String blobName,
+        long position,
+        @Nullable Long length,
+        boolean checkSecondaryExists,
+        InputStreamOpener<T> opener
+    ) throws IOException {
         logger.trace("readBlob({}) from position [{}] with length [{}]", blobName, position, length != null ? length : "unlimited");
         if (checkSecondaryExists && blobStore.getLocationMode() == LocationMode.SECONDARY_ONLY && !blobExists(blobName)) {
             // On Azure, if the location path is a secondary location, and the blob does not
@@ -108,7 +129,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
         try {
-            return blobStore.getInputStream(buildKey(blobName), position, length);
+            return opener.open(buildKey(blobName), position, length);
         } catch (BlobStorageException e) {
             if (e.getStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
                 throw new NoSuchFileException(e.getMessage());
@@ -119,6 +140,11 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         }
     }
 
+    @FunctionalInterface
+    private interface InputStreamOpener<T extends InputStream> {
+        T open(String blobName, long position, @Nullable Long length) throws URISyntaxException, BlobStorageException;
+    }
+
     @Override
     public InputStream readBlob(String blobName) throws IOException {
         return openInputStream(blobName, 0L, null);
@@ -126,11 +152,19 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     @Override
     public InputStreamWithMetadata readBlobWithMetadata(String blobName) throws IOException {
-        final BlobInputStream inputStream = openInputStream(blobName, 0L, null, false);
+        final BlobInputStream inputStream = openInputStream(blobName, 0L, null, false, blobStore::getBlobInputStream);
+        return wrapInputStreamWithMetadata(inputStream, inputStream.getProperties().getMetadata());
+    }
+
+    static InputStreamWithMetadata wrapInputStreamWithMetadata(InputStream inputStream, Map<String, String> metadata) throws IOException {
         try {
-            return new InputStreamWithMetadata(inputStream, AzureBlobMetadataCodec.decode(inputStream.getProperties().getMetadata()));
+            return new InputStreamWithMetadata(inputStream, AzureBlobMetadataCodec.decode(metadata));
         } catch (IOException | RuntimeException e) {
-            inputStream.close();
+            try {
+                inputStream.close();
+            } catch (IOException | RuntimeException closeException) {
+                e.addSuppressed(closeException);
+            }
             throw e;
         }
     }
@@ -143,6 +177,22 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     @Override
     public long readBlobPreferredLength() {
         return blobStore.getReadBlobPreferredLength();
+    }
+
+    @Override
+    public boolean isConditionalWriteSupported() {
+        return true;
+    }
+
+    @Override
+    public VersionedBlob readBlobWithVersion(String blobName) throws IOException {
+        return blobStore.readBlobWithVersion(buildKey(blobName));
+    }
+
+    @Override
+    public String writeBlobConditionally(String blobName, InputStream inputStream, long blobSize, @Nullable String expectedVersionToken)
+        throws IOException {
+        return blobStore.writeBlobConditionally(buildKey(blobName), inputStream, blobSize, expectedVersionToken);
     }
 
     @Override
