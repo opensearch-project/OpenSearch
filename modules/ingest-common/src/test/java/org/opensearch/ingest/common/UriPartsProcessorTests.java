@@ -137,9 +137,12 @@ public class UriPartsProcessorTests extends OpenSearchTestCase {
     }
 
     public void testPortAboveTheValidRangeFails() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parts("http://example.com:65536/"));
-        assertThat(e.getMessage(), containsString("port [65536] is out of range"));
-        assertThat(e.getMessage(), containsString(FIELD));
+        // URI accepts every port that fits an int, so the range check is what rejects these, up to the largest int
+        for (String port : new String[] { "65536", "70000", "2147483647" }) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parts("http://example.com:" + port + "/"));
+            assertThat(e.getMessage(), containsString("port [" + port + "] is out of range"));
+            assertThat(e.getMessage(), containsString(FIELD));
+        }
     }
 
     public void testIpv4Host() throws Exception {
@@ -325,7 +328,12 @@ public class UriPartsProcessorTests extends OpenSearchTestCase {
             "http://my_host/",
             "http://münchen.de/",
             "http://example.com:port/",
+            // ports that URI itself rejects: too large for an int, and with a sign, so that a negative port is never seen
+            "http://example.com:2147483648/",
             "http://example.com:99999999999/",
+            "http://example.com:-1/",
+            "http://example.com:-80/",
+            "http://example.com:+80/",
             "http://[::1/",
             "http://",
             "http://user@/path",
