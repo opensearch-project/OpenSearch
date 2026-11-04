@@ -149,6 +149,18 @@ public class FsBlobContainerTests extends OpenSearchTestCase {
         expectThrows(NoSuchFileException.class, () -> container.readBlobWithVersion("missing"));
     }
 
+    public void testGetBlobMetadataUsesExactName() throws IOException {
+        final FsBlobContainer container = newContainer();
+        final byte[] exact = randomByteArrayOfLength(17);
+        final byte[] longerPrefixMatch = randomByteArrayOfLength(31);
+        container.writeBlob("blob", new ByteArrayInputStream(exact), exact.length, true);
+        container.writeBlob("blob-suffix", new ByteArrayInputStream(longerPrefixMatch), longerPrefixMatch.length, true);
+
+        assertThat(container.getBlobMetadata("blob").name(), equalTo("blob"));
+        assertThat(container.getBlobMetadata("blob").length(), equalTo((long) exact.length));
+        expectThrows(NoSuchFileException.class, () -> container.getBlobMetadata("missing"));
+    }
+
     public void testWriteBlobConditionallyCreatesIfAbsent() throws IOException {
         final FsBlobContainer container = newContainer();
         final byte[] content = randomByteArrayOfLength(randomIntBetween(1, 512));

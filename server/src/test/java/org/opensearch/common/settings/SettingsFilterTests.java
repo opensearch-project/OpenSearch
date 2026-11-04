@@ -107,6 +107,13 @@ public class SettingsFilterTests extends OpenSearchTestCase {
             Settings.builder().put("a.b.something.c", "foo1_test").build(),
             "a.b.*.d"
         );
+
+        // A literal pattern hides exactly that key, not a dotted child such as a list entry's legacy indexed form.
+        testFiltering(
+            Settings.builder().put("a.b", "x").put("a.b.1", "y").put("a.bc", "z").build(),
+            Settings.builder().put("a.b.1", "y").put("a.bc", "z").build(),
+            "a.b"
+        );
     }
 
     public void testFilteredSettingIsNotLogged() throws Exception {
@@ -154,6 +161,11 @@ public class SettingsFilterTests extends OpenSearchTestCase {
         // Test using direct filtering
         Settings filteredSettings = settingsFilter.filter(source);
         assertThat(filteredSettings, equalTo(filtered));
+
+        // The per-key rule agrees with whole-Settings filtering for every source key.
+        for (String key : source.keySet()) {
+            assertThat(key, settingsFilter.isFiltered(key), equalTo(filtered.hasValue(key) == false));
+        }
 
         // Test using toXContent filtering
         RestRequest request = new FakeRestRequest();

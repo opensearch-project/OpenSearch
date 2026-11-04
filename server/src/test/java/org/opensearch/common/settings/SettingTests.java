@@ -158,6 +158,43 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals("a.prefix.ns.count", parser.getKey());
     }
 
+    public void testDescription() {
+        Setting<Boolean> plain = Setting.boolSetting("a.flag", false, Property.NodeScope);
+        assertNull(plain.getDescription());
+        assertSame(plain, plain.withDescription("Enables the thing."));
+        assertEquals("Enables the thing.", plain.getDescription());
+        // A different text is a programming error; the same text is tolerated (idempotent).
+        expectThrows(AssertionError.class, () -> plain.withDescription("again"));
+        assertSame(plain, plain.withDescription("Enables the thing."));
+        assertEquals("Enables the thing.", plain.getDescription());
+        expectThrows(NullPointerException.class, () -> Setting.simpleString("a.s", Property.NodeScope).withDescription(null));
+
+        // Covariant override: an AffixSetting field keeps its declared type, and concrete keys inherit the template's text.
+        Setting.AffixSetting<Integer> affix = Setting.affixKeySetting(
+            "a.prefix.",
+            "count",
+            k -> Setting.intSetting(k, 1, Property.NodeScope)
+        ).withDescription("Per-namespace count.");
+        assertEquals("Per-namespace count.", affix.getDescription());
+        assertEquals("Per-namespace count.", affix.getConcreteSettingForNamespace("ns").getDescription());
+        assertEquals("Per-namespace count.", affix.getConcreteSetting("a.prefix.other.count").getDescription());
+
+        // A delegate's own description wins over the template's.
+        Setting.AffixSetting<Integer> affixOwn = Setting.affixKeySetting(
+            "b.prefix.",
+            "count",
+            k -> Setting.intSetting(k, 1, Property.NodeScope).withDescription("Own text.")
+        ).withDescription("Template text.");
+        assertEquals("Own text.", affixOwn.getConcreteSettingForNamespace("ns").getDescription());
+
+        // Group, list and secure settings inherit with no special handling; concrete lookups return the same object.
+        Setting<Settings> group = Setting.groupSetting("a.group.", Property.NodeScope).withDescription("g");
+        assertEquals("g", group.getConcreteSetting("a.group.x").getDescription());
+        Setting<List<String>> list = Setting.listSetting("a.list", List.of(), Function.identity(), Property.NodeScope).withDescription("l");
+        assertEquals("l", list.getConcreteSetting("a.list.0").getDescription());
+        assertEquals("s", SecureSetting.secureString("a.secret", null).withDescription("s").getDescription());
+    }
+
     public void testByteSizeSetting() {
         final Setting<ByteSizeValue> byteSizeValueSetting = Setting.byteSizeSetting(
             "a.byte.size",
