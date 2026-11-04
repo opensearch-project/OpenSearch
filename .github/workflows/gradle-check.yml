@@ -7,6 +7,22 @@ on:
       - 'dependabot/**'
   pull_request_target:
     types: [opened, synchronize, reopened]
+  # Manual, write-access-only entry point used to test changes to this workflow
+  # (and the gradle check command it runs) from a branch, without first merging
+  # to the default branch. GitHub loads the workflow definition and repo
+  # contents from the selected ref, while still running with the base repo's
+  # secrets, so the Jenkins trigger is exercised end-to-end.
+  # See https://github.com/opensearch-project/OpenSearch/issues/19378
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch/SHA of the OpenSearch repo to run gradle check against"
+        required: true
+        default: main
+      gradle_check_command:
+        description: "Optional gradle check command passed through to the Jenkins runner (defaults to the runner's own default when empty)"
+        required: false
+        default: ''
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
@@ -33,7 +49,7 @@ jobs:
 
   Code-Diff-Analyzer:
     uses: opensearch-project/opensearch-build/.github/workflows/code-diff-analyzer.yml@main
-    if: github.repository == 'opensearch-project/OpenSearch'
+    if: github.repository == 'opensearch-project/OpenSearch' && github.event_name != 'workflow_dispatch'
     permissions:
       id-token: write  # github oidc to assume aws roles
       pull-requests: write  # to create or update comment (peter-evans/create-or-update-comment)
@@ -47,7 +63,7 @@ jobs:
   Code-Diff-Reviewer:
     uses: opensearch-project/opensearch-build/.github/workflows/code-diff-reviewer.yml@main
     needs: Code-Diff-Analyzer
-    if: github.repository == 'opensearch-project/OpenSearch'
+    if: github.repository == 'opensearch-project/OpenSearch' && github.event_name != 'workflow_dispatch'
     permissions:
       id-token: write  # github oidc to assume aws roles
       pull-requests: write  # to create or update comment (peter-evans/create-or-update-comment)
@@ -58,7 +74,15 @@ jobs:
   
   gradle-check:
     needs: [check-files, Code-Diff-Analyzer]
-    if: github.repository == 'opensearch-project/OpenSearch' && needs.check-files.outputs.RUN_GRADLE_CHECK == 'true'
+    if: |
+      always() &&
+      github.repository == 'opensearch-project/OpenSearch' &&
+      needs.Code-Diff-Analyzer.result != 'failure' &&
+      needs.Code-Diff-Analyzer.result != 'cancelled' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (needs.check-files.result == 'success' && needs.check-files.outputs.RUN_GRADLE_CHECK == 'true')
+      )
     permissions:
       contents: read # to fetch code (actions/checkout)
       pull-requests: write # to create or update comment (peter-evans/create-or-update-comment)
@@ -69,7 +93,7 @@ jobs:
       - name: Checkout OpenSearch repo
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          ref: 'main'
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.ref || 'main' }}
 
       - name: Setup environment variables (PR)
         if: github.event_name == 'pull_request_target'
@@ -117,11 +141,34 @@ jobs:
           echo "pr_or_commit_description=$(jq --ascii-output .head_commit.message $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "post_merge_action=true" >> $GITHUB_ENV
 
+      - name: Setup environment variables (Manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          repo_url="https://github.com/opensearch-project/OpenSearch"
+          ref_input="${{ github.event.inputs.ref }}"
+          ref_id=$(git rev-parse HEAD)
+          echo "branch_name=$ref_input" >> $GITHUB_ENV
+          echo "event_name=workflow_dispatch" >> $GITHUB_ENV
+          echo "pr_from_sha=$ref_id" >> $GITHUB_ENV
+          echo "pr_from_clone_url=$repo_url" >> $GITHUB_ENV
+          echo "pr_to_clone_url=$repo_url" >> $GITHUB_ENV
+          echo "pr_title=Manual dispatch $ref_input $ref_id $repo_url" >> $GITHUB_ENV
+          echo "pr_number=Null" >> $GITHUB_ENV
+          echo "pr_owner=${{ github.actor }}" >> $GITHUB_ENV
+          echo "pr_or_commit_description=Manual workflow_dispatch run for ref $ref_input" >> $GITHUB_ENV
+          echo "post_merge_action=false" >> $GITHUB_ENV
+
       - name: Trigger jenkins workflow to run gradle check
+        env:
+          DISPATCH_GRADLE_CHECK_COMMAND: ${{ github.event.inputs.gradle_check_command }}
         run: |
           set -e
           set -o pipefail
-          bash .ci/jenkins/scripts/gradle-check.sh -t ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} -u ${{ secrets.JENKINS_GITHUB_USER }} -p ${{ secrets.JENKINS_GITHUB_USER_TOKEN }} | tee -a gradle-check.log
+          args=(-t "${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }}" -u "${{ secrets.JENKINS_GITHUB_USER }}" -p "${{ secrets.JENKINS_GITHUB_USER_TOKEN }}")
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "$DISPATCH_GRADLE_CHECK_COMMAND" ]]; then
+            args+=(-c "$DISPATCH_GRADLE_CHECK_COMMAND")
+          fi
+          bash .ci/jenkins/scripts/gradle-check.sh "${args[@]}" | tee -a gradle-check.log
 
       - name: Setup Result Status
         if: always()
@@ -188,6 +235,11 @@ jobs:
     steps:
       - name: Fail if gradle-check fails
         if: |
-          needs.check-files.outputs.RUN_GRADLE_CHECK == 'true' &&
-          (needs.gradle-check.result == 'failure' || needs.Code-Diff-Analyzer.result == 'failure' || needs.Code-Diff-Analyzer.result == 'cancelled')
+          (
+            needs.check-files.outputs.RUN_GRADLE_CHECK == 'true' &&
+            (needs.gradle-check.result == 'failure' || needs.Code-Diff-Analyzer.result == 'failure' || needs.Code-Diff-Analyzer.result == 'cancelled')
+          ) ||
+          (
+            github.event_name == 'workflow_dispatch' && needs.gradle-check.result == 'failure'
+          )
         run: exit 1
