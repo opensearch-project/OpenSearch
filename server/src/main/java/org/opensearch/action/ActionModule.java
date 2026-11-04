@@ -191,7 +191,9 @@ import org.opensearch.action.admin.indices.mapping.put.TransportPutMappingAction
 import org.opensearch.action.admin.indices.open.OpenIndexAction;
 import org.opensearch.action.admin.indices.open.TransportOpenIndexAction;
 import org.opensearch.action.admin.indices.readonly.AddIndexBlockAction;
+import org.opensearch.action.admin.indices.readonly.RemoveIndexBlockAction;
 import org.opensearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
+import org.opensearch.action.admin.indices.readonly.TransportRemoveIndexBlockAction;
 import org.opensearch.action.admin.indices.recovery.RecoveryAction;
 import org.opensearch.action.admin.indices.recovery.TransportRecoveryAction;
 import org.opensearch.action.admin.indices.refresh.RefreshAction;
@@ -447,6 +449,7 @@ import org.opensearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestPutMappingAction;
 import org.opensearch.rest.action.admin.indices.RestRecoveryAction;
 import org.opensearch.rest.action.admin.indices.RestRefreshAction;
+import org.opensearch.rest.action.admin.indices.RestRemoveIndexBlockAction;
 import org.opensearch.rest.action.admin.indices.RestResizeHandler;
 import org.opensearch.rest.action.admin.indices.RestResolveIndexAction;
 import org.opensearch.rest.action.admin.indices.RestResumeIngestionAction;
@@ -735,6 +738,7 @@ public class ActionModule extends AbstractModule {
         actions.register(CloseIndexAction.INSTANCE, TransportCloseIndexAction.class);
         actions.register(IndicesExistsAction.INSTANCE, TransportIndicesExistsAction.class);
         actions.register(AddIndexBlockAction.INSTANCE, TransportAddIndexBlockAction.class);
+        actions.register(RemoveIndexBlockAction.INSTANCE, TransportRemoveIndexBlockAction.class);
         actions.register(GetMappingsAction.INSTANCE, TransportGetMappingsAction.class);
         actions.register(
             GetFieldMappingsAction.INSTANCE,
@@ -956,6 +960,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCloseIndexAction());
         registerHandler.accept(new RestOpenIndexAction());
         registerHandler.accept(new RestAddIndexBlockAction());
+        registerHandler.accept(new RestRemoveIndexBlockAction());
 
         registerHandler.accept(new RestClusterPutWeightedRoutingAction());
         registerHandler.accept(new RestClusterGetWeightedRoutingAction());
