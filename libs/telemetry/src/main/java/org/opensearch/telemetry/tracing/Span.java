@@ -75,6 +75,13 @@ public interface Span {
     void setError(Exception exception);
 
     /**
+     * Records error message in the span
+     *
+     * @param errorMessage error message to be recorded
+     */
+    void setError(String errorMessage);
+
+    /**
      * Adds an event in the span
      *
      * @param event name of the event

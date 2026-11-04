@@ -69,6 +69,11 @@ public class NoopSpan implements Span {
     }
 
     @Override
+    public void setError(String errorMessage) {
+
+    }
+
+    @Override
     public void addEvent(String event) {
 
     }
