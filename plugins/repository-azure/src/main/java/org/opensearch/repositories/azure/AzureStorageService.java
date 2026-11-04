@@ -43,6 +43,7 @@ import com.azure.core.http.policy.HttpPipelinePolicy;
 import com.azure.core.util.Configuration;
 import com.azure.core.util.Context;
 import com.azure.core.util.logging.ClientLogger;
+import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.azure.storage.blob.models.ParallelTransferOptions;
@@ -101,6 +102,8 @@ public class AzureStorageService implements AutoCloseable {
         BlockBlobAsyncClient.MAX_STAGE_BLOCK_BYTES_LONG,
         ByteSizeUnit.BYTES
     );
+
+    private static final long DEFAULT_MAX_SINGLE_UPLOAD_SIZE = ByteSizeUnit.MB.toBytes(256);
 
     // 'package' for testing
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
@@ -486,6 +489,53 @@ public class AzureStorageService implements AutoCloseable {
             options.setMaxConcurrency(writeConcurrency);
         }
         return options;
+    }
+
+    static void validateUploadSize(
+        long uploadSize,
+        @Nullable ParallelTransferOptions transferOptions,
+        String uploadSizeDescription,
+        String writeBlockSizeSetting
+    ) {
+        if (uploadSize < 0L) {
+            throw new IllegalArgumentException(uploadSizeDescription + " must be non-negative but was [" + uploadSize + "b]");
+        }
+
+        final Long configuredMaxSingleUploadSize = transferOptions == null ? null : transferOptions.getMaxSingleUploadSizeLong();
+        final long maxSingleUploadSize = configuredMaxSingleUploadSize == null
+            ? DEFAULT_MAX_SINGLE_UPLOAD_SIZE
+            : configuredMaxSingleUploadSize;
+        if (uploadSize <= maxSingleUploadSize) {
+            return;
+        }
+
+        // InputStream uploads use the regular SDK block size even for large payloads.
+        final Long configuredBlockSize = transferOptions == null ? null : transferOptions.getBlockSizeLong();
+        final long writeBlockSize = configuredBlockSize == null ? BlobClient.BLOB_DEFAULT_UPLOAD_BLOCK_SIZE : configuredBlockSize;
+        final long blockCount = Math.ceilDiv(uploadSize, writeBlockSize);
+        if (blockCount > BlockBlobAsyncClient.MAX_BLOCKS) {
+            final long minimumWriteBlockSize = Math.ceilDiv(uploadSize, BlockBlobAsyncClient.MAX_BLOCKS);
+            final long maximumUploadSize = Math.multiplyExact(writeBlockSize, BlockBlobAsyncClient.MAX_BLOCKS);
+            throw new IllegalArgumentException(
+                "setting ["
+                    + writeBlockSizeSetting
+                    + "] is ["
+                    + writeBlockSize
+                    + "b], but "
+                    + uploadSizeDescription
+                    + " ["
+                    + uploadSize
+                    + "b] would require ["
+                    + blockCount
+                    + "] blocks; Azure Block Blob supports at most ["
+                    + BlockBlobAsyncClient.MAX_BLOCKS
+                    + "] blocks. Minimum block size for this upload is ["
+                    + minimumWriteBlockSize
+                    + "b]; maximum upload size with the current block size is ["
+                    + maximumUploadSize
+                    + "b]"
+            );
+        }
     }
 
     private AzureStorageSettings getStorageSettings(String clientName) {

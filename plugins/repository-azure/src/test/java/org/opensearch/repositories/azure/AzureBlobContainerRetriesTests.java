@@ -34,10 +34,12 @@ package org.opensearch.repositories.azure;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -55,6 +57,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.repositories.blobstore.ZeroInputStream;
 import org.opensearch.rest.RestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -63,10 +66,12 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URISyntaxException;
@@ -80,6 +85,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -87,6 +93,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -946,13 +953,19 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         }
     }
 
-    public void testDefaultReadBlockSize() {
-        final BlobContainer blobContainer = createBlobContainer(between(1, 5));
-        assertThat(blobContainer.readBlobPreferredLength(), is((long) AzureBlobContainer.DEFAULT_MINIMUM_READ_SIZE_IN_BYTES));
+    public void testDefaultReadBlockSize() throws Exception {
+        assertReadBlockSize(Math.toIntExact(ByteSizeUnit.MB.toBytes(8)), null);
+    }
+
+    public void testSdkDefaultReadBlockSize() throws Exception {
+        assertReadBlockSize(AzureBlobContainer.DEFAULT_MINIMUM_READ_SIZE_IN_BYTES, -1);
     }
 
     public void testConfiguredReadBlockSize() throws Exception {
-        final int blockSize = 128;
+        assertReadBlockSize(128, 128);
+    }
+
+    private void assertReadBlockSize(int blockSize, @Nullable Integer configuredBlockSize) throws Exception {
         final byte[] bytes = randomBytes(blockSize * 3 + 17);
         final AtomicInteger requestCount = new AtomicInteger();
         httpServer.createContext("/container/read_blob_with_configured_block_size", exchange -> {
@@ -962,7 +975,7 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
                 final int rangeStart = Math.toIntExact(range.v1());
                 assertThat(rangeStart, lessThan(bytes.length));
                 final int rangeEnd = Math.min(Math.toIntExact(range.v2()), bytes.length - 1);
-                assertThat(rangeEnd - rangeStart + 1, lessThanOrEqualTo(blockSize));
+                assertThat(rangeEnd - rangeStart + 1, equalTo(Math.min(blockSize, bytes.length - rangeStart)));
 
                 final int responseLength = rangeEnd - rangeStart + 1;
                 exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
@@ -977,18 +990,94 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
             }
         });
 
-        final BlobContainer blobContainer = createBlobContainer(
-            between(1, 5),
-            (settings, clientName) -> settings.put(
-                READ_BLOCK_SIZE_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
-                blockSize + "b"
-            )
-        );
+        final BlobContainer blobContainer = createBlobContainer(between(1, 5), (settings, clientName) -> {
+            if (configuredBlockSize != null) {
+                settings.put(READ_BLOCK_SIZE_SETTING.getConcreteSettingForNamespace(clientName).getKey(), configuredBlockSize + "b");
+            }
+        });
         assertThat(blobContainer.readBlobPreferredLength(), is((long) blockSize));
         try (InputStream inputStream = blobContainer.readBlob("read_blob_with_configured_block_size")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
         }
         assertThat(requestCount.get(), greaterThanOrEqualTo(4));
+    }
+
+    public void testWriteBlobExceedingBlockCountMakesNoRequest() throws Exception {
+        final AtomicInteger requestCount = new AtomicInteger();
+        httpServer.createContext("/container/write_blob_exceeding_block_count", exchange -> {
+            requestCount.incrementAndGet();
+            AzureHttpHandler.sendError(exchange, RestStatus.BAD_REQUEST);
+            exchange.close();
+        });
+        final BlobContainer blobContainer = createBlobContainer(1, (settings, clientName) -> {
+            settings.put(WRITE_BLOCK_SIZE_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "1b");
+            settings.put(MAX_SINGLE_UPLOAD_SIZE_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "1b");
+        });
+        try (InputStream inputStream = new ByteArrayInputStream(new byte[50001])) {
+            final IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> blobContainer.writeBlob("write_blob_exceeding_block_count", inputStream, 50001L, false)
+            );
+            assertThat(exception.getMessage(), containsString("would require [50001] blocks"));
+            assertThat(exception.getMessage(), containsString("azure.client.default.write.block_size"));
+        }
+        assertThat(requestCount.get(), equalTo(0));
+    }
+
+    public void testSdkDefaultInputStreamBlockSize() throws Exception {
+        assertSdkUploadGeometry(BlobClient.BLOB_DEFAULT_UPLOAD_BLOCK_SIZE * 3 + 17);
+    }
+
+    public void testSdkDefaultInputStreamBlockSizeAbove100MiB() throws Exception {
+        assertSdkUploadGeometry(Math.toIntExact(ByteSizeUnit.MB.toBytes(100)) + 1);
+    }
+
+    private void assertSdkUploadGeometry(int uploadSize) throws Exception {
+        final ConcurrentLinkedQueue<Long> blockSizes = new ConcurrentLinkedQueue<>();
+        final AtomicInteger singleUploads = new AtomicInteger();
+        final AtomicInteger blockListUploads = new AtomicInteger();
+        final AtomicLong uploadedBytes = new AtomicLong();
+        httpServer.createContext("/container/sdk_upload_geometry", exchange -> {
+            try {
+                final Map<String, String> params = new HashMap<>();
+                final String query = exchange.getRequestURI().getRawQuery();
+                if (query != null) {
+                    RestUtils.decodeQueryString(query, 0, params);
+                }
+                final long contentLength = exchange.getRequestBody().transferTo(OutputStream.nullOutputStream());
+                if ("block".equals(params.get("comp"))) {
+                    blockSizes.add(contentLength);
+                    uploadedBytes.addAndGet(contentLength);
+                } else if ("blocklist".equals(params.get("comp"))) {
+                    blockListUploads.incrementAndGet();
+                } else {
+                    singleUploads.incrementAndGet();
+                    uploadedBytes.addAndGet(contentLength);
+                }
+                exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
+                exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+            } finally {
+                exchange.close();
+            }
+        });
+        final BlobContainer blobContainer = createBlobContainer(1, (settings, clientName) -> {
+            settings.put(WRITE_CONCURRENCY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), 1);
+            settings.put(MAX_SINGLE_UPLOAD_SIZE_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "1b");
+        });
+        try (InputStream inputStream = new ZeroInputStream(uploadSize)) {
+            blobContainer.writeBlob("sdk_upload_geometry", inputStream, uploadSize, false);
+        }
+        assertThat(uploadedBytes.get(), equalTo((long) uploadSize));
+        assertThat(singleUploads.get(), equalTo(0));
+        assertThat(blockListUploads.get(), equalTo(1));
+        final int expectedBlockSize = BlobClient.BLOB_DEFAULT_UPLOAD_BLOCK_SIZE;
+        assertThat(blockSizes.size(), equalTo(1 + (uploadSize - 1) / expectedBlockSize));
+        long remaining = uploadSize;
+        for (long blockSize : blockSizes) {
+            assertThat(blockSize, equalTo(Math.min(remaining, expectedBlockSize)));
+            remaining -= blockSize;
+        }
+        assertThat(remaining, equalTo(0L));
     }
 
     public void testWriteBlobWithRetries() throws Exception {

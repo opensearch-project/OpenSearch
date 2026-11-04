@@ -32,7 +32,9 @@
 
 package org.opensearch.repositories.azure;
 
+import com.azure.storage.blob.models.ParallelTransferOptions;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -51,9 +53,11 @@ import java.util.List;
 import reactor.core.scheduler.Schedulers;
 import reactor.netty.http.HttpResources;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class AzureRepositorySettingsTests extends OpenSearchTestCase {
     @AfterClass
@@ -63,15 +67,23 @@ public class AzureRepositorySettingsTests extends OpenSearchTestCase {
     }
 
     private AzureRepository azureRepository(Settings settings) {
+        return azureRepository(settings, null);
+    }
+
+    private AzureRepository azureRepository(Settings settings, @Nullable ParallelTransferOptions transferOptions) {
         Settings internalSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
             .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
             .put(settings)
             .build();
+        final AzureStorageService storageService = mock(AzureStorageService.class);
+        when(storageService.getBlobRequestOptionsForWriteBlob(AzureRepository.Repository.CLIENT_NAME.get(settings))).thenReturn(
+            transferOptions
+        );
         final AzureRepository azureRepository = new AzureRepository(
             new RepositoryMetadata("foo", "azure", internalSettings),
             NamedXContentRegistry.EMPTY,
-            mock(AzureStorageService.class),
+            storageService,
             BlobStoreTestUtil.mockClusterService(),
             new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
         );
@@ -183,6 +195,56 @@ public class AzureRepositorySettingsTests extends OpenSearchTestCase {
             "failed to parse value [6tb] for setting [chunk_size], must be <= [" + AzureStorageService.MAX_CHUNK_SIZE.getStringRep() + "]",
             e.getMessage()
         );
+    }
+
+    public void testAzureBlockCountLimit() {
+        final ParallelTransferOptions options = new ParallelTransferOptions().setBlockSizeLong(1L).setMaxSingleUploadSizeLong(1L);
+        azureRepository(Settings.builder().put("chunk_size", "50000b").build(), options);
+
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> azureRepository(Settings.builder().put("chunk_size", "50001b").build(), options)
+        );
+        assertEquals(
+            "setting [azure.client.default.write.block_size] is [1b], but setting [chunk_size] [50001b] would require [50001] "
+                + "blocks; Azure Block Blob supports at most [50000] blocks. Minimum block size for this upload is [2b]; "
+                + "maximum upload size with the current block size is [50000b]",
+            exception.getMessage()
+        );
+    }
+
+    public void testMaximumChunkSizeBlockCountLimit() {
+        final long maximumChunkSize = AzureStorageService.MAX_CHUNK_SIZE.getBytes();
+        final long minimumBlockSize = 1L + (maximumChunkSize - 1L) / 50_000L;
+        azureRepository(Settings.EMPTY, new ParallelTransferOptions().setBlockSizeLong(minimumBlockSize).setMaxSingleUploadSizeLong(1L));
+
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> azureRepository(
+                Settings.EMPTY,
+                new ParallelTransferOptions().setBlockSizeLong(minimumBlockSize - 1L).setMaxSingleUploadSizeLong(1L)
+            )
+        );
+        assertThat(exception.getMessage(), containsString("setting [chunk_size] [" + maximumChunkSize + "b]"));
+        assertThat(exception.getMessage(), containsString("Minimum block size for this upload is [" + minimumBlockSize + "b]"));
+    }
+
+    public void testSingleUploadDoesNotUseBlockCountLimit() {
+        azureRepository(
+            Settings.builder().put("chunk_size", "50001b").build(),
+            new ParallelTransferOptions().setBlockSizeLong(1L).setMaxSingleUploadSizeLong(50001L)
+        );
+    }
+
+    public void testBlockCountErrorNamesSelectedClient() {
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> azureRepository(
+                Settings.builder().put("client", "custom").put("chunk_size", "50001b").build(),
+                new ParallelTransferOptions().setBlockSizeLong(1L).setMaxSingleUploadSizeLong(1L)
+            )
+        );
+        assertThat(exception.getMessage(), containsString("azure.client.custom.write.block_size"));
     }
 
     public void testSystemRepositoryDefault() {
