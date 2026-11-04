@@ -499,6 +499,29 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
         assertEquals(stats, copyInstance(stats));
     }
 
+    public void testSerializationKeepsTheNulCharacter() throws IOException {
+        // The characters are sent as the gap to the character before, and U+0000 is the only one whose gap is zero, which the reader may
+        // only accept for the first character. It is the first character of every result that has it.
+        final InternalStringStats stats = fromValues("s", true, "\u0000a\u0000", "\u0000", "a");
+        assertEquals(Map.of(0, 3L, (int) 'a', 2L), frequenciesOf(stats));
+
+        final InternalStringStats copy = copyInstance(stats);
+
+        assertEquals(stats, copy);
+        assertArrayEquals(new int[] { 0, 'a' }, copy.codePoints());
+        assertArrayEquals(new long[] { 3, 2 }, copy.characterCounts());
+        assertEquals(Map.of(0, 3L, (int) 'a', 2L), frequenciesOf(copy));
+        assertEquals(stats.getEntropy(), copy.getEntropy(), 0d);
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> distribution = (Map<String, Object>) renderBody(copy).get("distribution");
+        assertEquals(Map.of("\u0000", 0.6, "a", 0.4), distribution);
+
+        // and as the only character
+        final InternalStringStats onlyNul = fromValues("s", true, "\u0000");
+        assertEquals(onlyNul, copyInstance(onlyNul));
+        assertArrayEquals(new int[] { 0 }, copyInstance(onlyNul).codePoints());
+    }
+
     public void testNotWrittenToNodesBeforeTheVersionThatAddedIt() {
         final InternalStringStats stats = fromValues("s", false, "abc");
 

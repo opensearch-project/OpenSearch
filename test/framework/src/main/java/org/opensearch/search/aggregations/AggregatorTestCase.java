@@ -1420,10 +1420,12 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             ThreadPool.terminate(aggTestThreadPool, 10, java.util.concurrent.TimeUnit.SECONDS);
             aggTestThreadPool = null;
         }
+        // last, so that a failed check does not leave anything open
+        afterClose();
     }
 
     /**
-     * Hook for checking things after all {@link Aggregator}s have been closed.
+     * Hook for checking things after all {@link Aggregator}s have been closed. It is called at the end of every test.
      */
     protected void afterClose() {}
 
