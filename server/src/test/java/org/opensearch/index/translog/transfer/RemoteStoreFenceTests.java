@@ -10,6 +10,7 @@ package org.opensearch.index.translog.transfer;
 
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobVersionConflictException;
 import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
@@ -22,6 +23,7 @@ import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
@@ -71,15 +73,45 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         final AtomicBoolean failNextWriteBeforeItLands = new AtomicBoolean();
         final AtomicBoolean failNextRead = new AtomicBoolean();
         final AtomicBoolean loseNextWriteResponse = new AtomicBoolean();
+        /** Holds the next write back - the client times out - so the test can land it later, as a slow request would. */
+        final AtomicBoolean deferNextWrite = new AtomicBoolean();
+        /** Lands the deferred write just after the next read has been served, between a caller's read and its write. */
+        final AtomicBoolean landDeferredWriteAfterNextRead = new AtomicBoolean();
+        private Runnable deferredWrite;
 
         InstrumentedContainer(FsBlobStore blobStore, Path repoPath) {
             super(blobStore, BlobPath.cleanPath(), repoPath);
+        }
+
+        /** Lands the deferred write, still conditioned on the token it was issued against. Returns whether it landed. */
+        boolean landDeferredWrite() {
+            final Runnable write = deferredWrite;
+            assertNotNull("no write was deferred", write);
+            deferredWrite = null;
+            try {
+                write.run();
+                return true;
+            } catch (UncheckedIOException e) {
+                assertTrue("a deferred write may only fail on its condition", e.getCause() instanceof BlobVersionConflictException);
+                return false;
+            }
         }
 
         @Override
         public String writeBlobConditionally(String blobName, java.io.InputStream in, long size, String expectedToken) throws IOException {
             if (failNextWriteBeforeItLands.compareAndSet(true, false)) {
                 throw new IOException("connection refused before the request was sent");
+            }
+            if (deferNextWrite.compareAndSet(true, false)) {
+                final byte[] content = in.readAllBytes();
+                deferredWrite = () -> {
+                    try {
+                        super.writeBlobConditionally(blobName, new ByteArrayInputStream(content), content.length, expectedToken);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                };
+                throw new IOException("request timed out; it is still in flight");
             }
             conditionalWrites.incrementAndGet();
             final String token = super.writeBlobConditionally(blobName, in, size, expectedToken);
@@ -95,7 +127,11 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
                 throw new IOException("connection reset during a fence read");
             }
             versionedReads.incrementAndGet();
-            return super.readBlobWithVersion(blobName);
+            final VersionedBlob blob = super.readBlobWithVersion(blobName);
+            if (landDeferredWriteAfterNextRead.compareAndSet(true, false)) {
+                landDeferredWrite();
+            }
+            return blob;
         }
     }
 
@@ -613,6 +649,127 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         assertTrue("a revert that landed must be reported as reclaimed", source.revertOwnership(1));
         // And the source serves on, holding the current token.
         source.validateAndAdvance(1);
+    }
+
+    private static String recordedOwner(BlobContainer container) throws IOException {
+        return RemoteStoreFence.FenceState.parse(container.readBlobWithVersion(RemoteStoreFence.fenceBlobName(1)).content()).allocationId;
+    }
+
+    /**
+     * A revert that landed unseen - response and resolving read both lost - on a shard that then stays idle, so no
+     * upload settles it, before the cluster retries the relocation to a fresh target. The transfer must settle the
+     * revert first: without that its If-Match fails against the source's own revert, and the source is fenced by a
+     * write it made itself.
+     */
+    public void testRetriedHandoffSettlesARevertThatLandedUnseen() throws IOException {
+        final InstrumentedContainer container = new InstrumentedContainer(blobStore, repoPath);
+        final RemoteStoreFence source = new RemoteStoreFence(container, allocationIdOf("node-source"), "node-source", shardId);
+        source.validateAndAdvance(1);
+        source.transferOwnershipTo(1, allocationIdOf("node-target-1"));
+
+        container.loseNextWriteResponse.set(true);
+        container.failNextRead.set(true);
+        final IOException unresolved = expectThrows(IOException.class, () -> source.revertOwnership(1));
+        assertFalse(unresolved instanceof TranslogFencedException);
+        assertEquals(allocationIdOf("node-source"), recordedOwner(container));
+
+        source.transferOwnershipTo(1, allocationIdOf("node-target-2"));
+        assertEquals(allocationIdOf("node-target-2"), recordedOwner(container));
+        expectThrows(TranslogFencedException.class, () -> newRelocationTarget("node-target-1").validateAndAdvance(1));
+        newRelocationTarget("node-target-2").validateAndAdvance(1);
+    }
+
+    /**
+     * A transfer that landed unseen, followed by an abort before the target wrote. The revert must settle the transfer
+     * first: without that its If-Match fails against the source's own transfer, it concludes the target took over, and
+     * a healthy source stands down.
+     */
+    public void testRevertSettlesATransferThatLandedUnseen() throws IOException {
+        final InstrumentedContainer container = new InstrumentedContainer(blobStore, repoPath);
+        final RemoteStoreFence source = new RemoteStoreFence(container, allocationIdOf("node-source"), "node-source", shardId);
+        source.validateAndAdvance(1);
+
+        container.loseNextWriteResponse.set(true);
+        container.failNextRead.set(true);
+        expectThrows(IOException.class, () -> source.transferOwnershipTo(1, allocationIdOf("node-target")));
+        assertEquals(allocationIdOf("node-target"), recordedOwner(container));
+
+        assertTrue("no target wrote, so the source must reclaim the chain", source.revertOwnership(1));
+        assertEquals(allocationIdOf("node-source"), recordedOwner(container));
+        expectThrows(TranslogFencedException.class, () -> newRelocationTarget("node-target").validateAndAdvance(1));
+
+        final int writes = container.conditionalWrites.get();
+        source.validateAndAdvance(1);
+        assertEquals("acks after the reclaim must only read", writes, container.conditionalWrites.get());
+    }
+
+    /**
+     * Settling a transfer that landed unseen must not hide a target that took over after it: the revert then loses
+     * to the target's write and the source stands down, exactly as without the lost response.
+     */
+    public void testRevertAfterATransferThatLandedUnseenStandsDownIfTheTargetAdopted() throws IOException {
+        final InstrumentedContainer container = new InstrumentedContainer(blobStore, repoPath);
+        final RemoteStoreFence source = new RemoteStoreFence(container, allocationIdOf("node-source"), "node-source", shardId);
+        source.validateAndAdvance(1);
+
+        container.loseNextWriteResponse.set(true);
+        container.failNextRead.set(true);
+        expectThrows(IOException.class, () -> source.transferOwnershipTo(1, allocationIdOf("node-target")));
+        final RemoteStoreFence target = newRelocationTarget("node-target");
+        target.validateAndAdvance(1);
+
+        assertFalse("the target took the chain over, so the source must stand down", source.revertOwnership(1));
+        target.validateAndAdvance(1);
+    }
+
+    /**
+     * A transfer that timed out but is still in flight lands between the revert's read and its write: a delayed
+     * request rather than a lost response. The revert loses its If-Match to the source's own transfer, so it must
+     * settle that write and revert over it rather than conclude the target took over.
+     */
+    public void testRevertSettlesATransferThatLandsAfterItsRead() throws IOException {
+        final InstrumentedContainer container = new InstrumentedContainer(blobStore, repoPath);
+        final RemoteStoreFence source = new RemoteStoreFence(container, allocationIdOf("node-source"), "node-source", shardId);
+        source.validateAndAdvance(1);
+
+        container.deferNextWrite.set(true);
+        expectThrows(IOException.class, () -> source.transferOwnershipTo(1, allocationIdOf("node-target")));
+        assertEquals("the transfer has not landed yet", allocationIdOf("node-source"), recordedOwner(container));
+
+        container.landDeferredWriteAfterNextRead.set(true);
+        assertTrue(source.revertOwnership(1));
+        assertEquals(allocationIdOf("node-source"), recordedOwner(container));
+        expectThrows(TranslogFencedException.class, () -> newRelocationTarget("node-target").validateAndAdvance(1));
+        source.validateAndAdvance(1);
+    }
+
+    /**
+     * An acknowledgement must never be proved by a read while a write of ours may still land. Here the transfer is in
+     * flight and the revert failed before reaching the store. The object still carries the source's token and
+     * records the source, so a read would pass. But the transfer could land afterwards, and the target would then take
+     * the chain and serve without that acknowledgement. So the ack writes the source back first. That kills the
+     * transfer, which was conditioned on the token the write-back replaced.
+     */
+    public void testAckWritesBackWhileAWriteOfOursMayStillLand() throws IOException {
+        final InstrumentedContainer container = new InstrumentedContainer(blobStore, repoPath);
+        final RemoteStoreFence source = new RemoteStoreFence(container, allocationIdOf("node-source"), "node-source", shardId);
+        source.validateAndAdvance(1);
+
+        container.deferNextWrite.set(true);
+        expectThrows(IOException.class, () -> source.transferOwnershipTo(1, allocationIdOf("node-target")));
+        container.failNextWriteBeforeItLands.set(true);
+        expectThrows(IOException.class, () -> source.revertOwnership(1));
+
+        final int writes = container.conditionalWrites.get();
+        source.validateAndAdvance(1);
+        assertEquals("the ack must write the source back, not read", writes + 1, container.conditionalWrites.get());
+
+        assertFalse("the in-flight transfer must no longer be able to land", container.landDeferredWrite());
+        assertEquals(allocationIdOf("node-source"), recordedOwner(container));
+        expectThrows(TranslogFencedException.class, () -> newRelocationTarget("node-target").validateAndAdvance(1));
+
+        source.validateAndAdvance(1);
+        assertEquals("once settled, acks only read again", writes + 1, container.conditionalWrites.get());
     }
 
     /** A fence instance requiring recorded ownership, as every translog instance does - see RemoteFsTranslog#buildFence. */

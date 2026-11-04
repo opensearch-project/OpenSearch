@@ -178,6 +178,14 @@ public class RemoteStoreFence {
      */
     private String recordedAllocationId;
     /**
+     * A fence write of ours whose outcome is unknown, or {@code null} when every write this instance issued is settled.
+     * A failed conditional write cannot tell "never reached the store" from "landed with only the response lost", nor
+     * from "still in flight and about to land". Leaving that unresolved strands a healthy copy: the local token goes
+     * stale, so the next write's If-Match fails and reads as being fenced. Every operation on a held chain therefore
+     * settles it first ({@link #resolvePendingWrite}), rather than each failure path trying once and forgetting.
+     */
+    private PendingWrite pendingWrite;
+    /**
      * Set once this instance has been fenced, and never cleared. Terminality has to be explicit state rather than a
      * consequence of holding a stale token: a fenced instance asked to act at a <i>different</i> term must not be able
      * to claim that term's path, since it was never granted it - doing so would let it delete its own successor's
@@ -234,7 +242,7 @@ public class RemoteStoreFence {
      * read behind it - can only come later, when this upload's metadata has already landed.
      * <p>
      * The first call claims the path for {@code primaryTerm} (see {@link #claim}). Later calls only read it - except
-     * right after an unreclaimed relocation handoff, see below.
+     * right after an unreclaimed relocation handoff, or while one of our own fence writes is unsettled, see below.
      *
      * @param primaryTerm the primary term this upload is being performed at
      * @throws TranslogFencedException if another shard copy owns the fence — fatal, the caller must stop acking
@@ -262,35 +270,24 @@ public class RemoteStoreFence {
                 )
             );
         }
-        if (ownerAllocationId.equals(recordedAllocationId)) {
+        // A revert that landed unseen is adopted here, so the source goes straight back to read-only acknowledgements.
+        // An unreadable fence stays retryable: nothing was acknowledged and nothing changed.
+        resolvePendingWrite(primaryTerm);
+        if (pendingWrite == null && ownerAllocationId.equals(recordedAllocationId)) {
             validateByRead(primaryTerm);
             return;
         }
-        // Our last write handed the chain to a relocation target, and we have not seen a revert land since: either it
-        // failed before reaching the store, or it landed and both its response and the read that would have shown it
-        // were lost. In the first case a read would pass, yet the object still lets that target take the chain and
-        // serve without what we acknowledge next. So write ourselves back as owner first, which also shuts the target
-        // out (FenceHandoff.tla).
-        final long attemptedSeq = seq + 1;
+        // Two cases still write. Our last write handed the chain to a relocation target and no revert has landed: a
+        // read would pass, yet the object still lets that target take the chain and serve without what we acknowledge
+        // next (FenceHandoff.tla). Or a write of ours may still be in flight - a handoff, say - and could land after a
+        // read passed. Either way, write ourselves back as owner first. That shuts the target out, and it kills
+        // anything in flight, which was conditioned on the token this write replaces.
         try {
-            cas(primaryTerm, versionToken, attemptedSeq);
+            advanceChain(primaryTerm, ownerAllocationId);
         } catch (BlobVersionConflictException e) {
-            // The revert writes exactly what this write-back would: our allocation and node at this seq. If that is
-            // what the object holds, the revert landed unseen, so adopt it rather than fence a copy the object
-            // records as owner. Otherwise fenced is terminal: the target took the chain, an equal-term twin took our
-            // path over, or a higher-term successor deleted it. Re-read to report who superseded us.
-            if (adoptOwnWriteIfItLanded(primaryTerm, attemptedSeq)) {
-                return;
-            }
+            // Fenced is terminal: the target took the chain, an equal-term twin took our path over, or a higher-term
+            // successor deleted it. Re-read to report who superseded us.
             throw fencedException(e);
-        } catch (IOException e) {
-            // Ambiguous rather than failed: the conditional write may have landed with only the response lost. Our
-            // token would then be stale, and the next attempt's If-Match would fail and be indistinguishable from
-            // being fenced - failing a healthy primary on a network blip. Resolve it by reading who the object says
-            // wrote it. Not treating this as terminal is what keeps the error retryable.
-            if (adoptOwnWriteIfItLanded(primaryTerm, attemptedSeq) == false) {
-                throw e;
-            }
         }
     }
 
@@ -322,47 +319,119 @@ public class RemoteStoreFence {
     }
 
     /**
-     * Resolves an ambiguous conditional write: did our own CAS land before the response was lost?
-     * <p>
-     * Answers by identity rather than by token, which is the only way to tell. The object records the writing copy's
-     * term, allocation id and node id along with its seq, so a blob carrying ours at exactly the seq we attempted can
-     * only be the write we just issued. In that case adopt the token it now has and carry on; the acknowledgement is
-     * legitimate. Anything else - a different writer, a different seq, an unreadable or missing object - is reported as
-     * "did not land", which is the retryable direction and never fences.
+     * Advances the chain by one conditional write recording {@code recordedAllocationId} as owner. The caller settles
+     * any outstanding write first ({@link #resolvePendingWrite}); this settles what its own write leaves behind.
+     *
+     * @throws BlobVersionConflictException another writer moved the object; what that means is the caller's to decide
+     * @throws IOException the outcome could not be determined, so the write is left outstanding and the error retryable
      */
-    private boolean adoptOwnWriteIfItLanded(long primaryTerm, long attemptedSeq) {
-        return adoptOwnWriteIfItLanded(primaryTerm, attemptedSeq, ownerAllocationId);
+    private void advanceChain(long primaryTerm, String recordedAllocationId) throws IOException {
+        for (int attempt = 0;; attempt++) {
+            final long attemptedSeq = seq + 1;
+            final String expectedToken = versionToken;
+            try {
+                cas(primaryTerm, expectedToken, attemptedSeq, recordedAllocationId);
+                return;
+            } catch (BlobVersionConflictException e) {
+                // A write of ours still outstanding after the caller's read may have landed since: a delayed request
+                // rather than a lost response. It was conditioned on the same token, so it is what beat us. Settle it,
+                // and if it was ours, write again from where it left the chain.
+                if (pendingWrite == null || attempt > 0) {
+                    throw e;
+                }
+                resolvePendingWrite(primaryTerm);
+            } catch (IOException e) {
+                // Ambiguous rather than failed: the write may have landed with only the response lost. Left unsettled,
+                // our token would be stale and the next If-Match would fail exactly as being fenced does - failing a
+                // healthy copy on a network blip. Not treating this as terminal is what keeps the error retryable.
+                recordPendingWrite(attemptedSeq, recordedAllocationId, expectedToken);
+                try {
+                    resolvePendingWrite(primaryTerm);
+                } catch (IOException unresolved) {
+                    e.addSuppressed(unresolved);
+                    throw e;
+                }
+                if (seq == attemptedSeq && recordedAllocationId.equals(this.recordedAllocationId)) {
+                    return; // it landed, and we adopted it
+                }
+                throw e;
+            }
+        }
+    }
+
+    private void recordPendingWrite(long attemptedSeq, String recordedAllocationId, String expectedToken) {
+        if (pendingWrite == null) {
+            pendingWrite = new PendingWrite(attemptedSeq, expectedToken, Set.of(recordedAllocationId));
+            return;
+        }
+        // An earlier write is still outstanding, so this one was issued against the same token at the same seq: at most
+        // one of them can ever land. Remember both, so whichever does is recognized as ours.
+        assert pendingWrite.seq() == attemptedSeq && pendingWrite.expectedToken().equals(expectedToken) : "outstanding fence write "
+            + pendingWrite
+            + " does not match a write at seq ["
+            + attemptedSeq
+            + "]";
+        Set<String> recorded = new HashSet<>(pendingWrite.recordedAllocationIds());
+        recorded.add(recordedAllocationId);
+        pendingWrite = new PendingWrite(attemptedSeq, expectedToken, Set.copyOf(recorded));
     }
 
     /**
-     * As above, for writes that record a different allocation id than this instance's own - the ownership transfer of
-     * a relocation handoff records the target's. The node id stays ours on every write this instance issues, so the
-     * (term, seq, recorded allocation id, node id) tuple still identifies the write uniquely.
+     * Settles {@link #pendingWrite} as far as one read can, before an operation acts on the chain.
+     * <p>
+     * Answers by identity rather than by token, which is the only way to tell. The object records the writing copy's
+     * term, allocation id and node id along with its seq, so a blob carrying ours at exactly the seq we attempted can
+     * only be a write we issued. Then:
+     * <ul>
+     * <li><b>It landed:</b> adopt the token it now has, and carry on from there.</li>
+     * <li><b>It can never land:</b> the object is gone, or has moved past the token the write was conditioned on
+     * without it being ours. Forget it. If it did land and was then overwritten, our token is stale and the caller's
+     * next conditional write reports that.</li>
+     * <li><b>Undecided:</b> the object still carries the token the write was conditioned on, so the write may still be
+     * in flight. Keep it. The caller's next conditional write races it, and whichever wins settles it.</li>
+     * </ul>
+     *
+     * @throws IOException the object could not be read; the write stays outstanding, and the caller's error is retryable
      */
-    private boolean adoptOwnWriteIfItLanded(long primaryTerm, long attemptedSeq, String recordedAllocationId) {
-        try {
-            VersionedBlob current = blobContainer.readBlobWithVersion(fenceBlobName(primaryTerm));
-            FenceState remote = readRemoteState(current.content());
-            if (remote.seq == attemptedSeq
-                && remote.term == primaryTerm
-                && recordedAllocationId.equals(remote.allocationId)
-                && ownerNodeId.equals(remote.nodeId)) {
-                this.versionToken = current.versionToken();
-                this.term = primaryTerm;
-                this.seq = attemptedSeq;
-                this.recordedAllocationId = recordedAllocationId;
-                logger.info(
-                    "Fence write at term [{}] seq [{}] had landed; adopted its token after a lost response",
-                    primaryTerm,
-                    attemptedSeq
-                );
-                return true;
-            }
-        } catch (Exception unresolved) {
-            // Cannot tell, so report the retryable answer rather than guessing.
-            logger.warn("Could not determine whether the fence write at term [" + primaryTerm + "] landed", unresolved);
+    private void resolvePendingWrite(long primaryTerm) throws IOException {
+        if (pendingWrite == null) {
+            return;
         }
-        return false;
+        final VersionedBlob current;
+        try {
+            current = blobContainer.readBlobWithVersion(fenceBlobName(primaryTerm));
+        } catch (NoSuchFileException e) {
+            // A higher term swept our path. A conditional write against a deleted object can never land.
+            pendingWrite = null;
+            return;
+        }
+        final FenceState remote = readRemoteState(current.content());
+        if (remote.term == primaryTerm
+            && remote.seq == pendingWrite.seq()
+            && ownerNodeId.equals(remote.nodeId)
+            && pendingWrite.recordedAllocationIds().contains(remote.allocationId)) {
+            this.versionToken = current.versionToken();
+            this.term = primaryTerm;
+            this.seq = remote.seq;
+            this.recordedAllocationId = remote.allocationId;
+            pendingWrite = null;
+            logger.info(
+                "Fence write at term [{}] seq [{}] recording allocation [{}] had landed unseen; adopted its token",
+                primaryTerm,
+                remote.seq,
+                remote.allocationId
+            );
+        } else if (current.versionToken().equals(pendingWrite.expectedToken()) == false) {
+            pendingWrite = null;
+        }
+    }
+
+    /**
+     * A conditional write whose outcome is unknown: issued against {@code expectedToken} at {@code seq}, recording one of
+     * {@code recordedAllocationIds} as owner. There is more than one only when a second write was issued against the
+     * same token before the first settled, a write-back after a failed revert for instance.
+     */
+    private record PendingWrite(long seq, String expectedToken, Set<String> recordedAllocationIds) {
     }
 
     /**
@@ -585,19 +654,15 @@ public class RemoteStoreFence {
                 )
             );
         }
-        final long attemptedSeq = seq + 1;
+        // A retried relocation can follow a revert that landed unseen on an idle shard, with no upload in between to
+        // settle it. Without this the transfer's If-Match fails against our own revert and fences a healthy source.
+        resolvePendingWrite(primaryTerm);
         try {
-            cas(primaryTerm, versionToken, attemptedSeq, targetAllocationId);
+            // A transfer that lands unseen is left outstanding rather than forgotten, so that an aborted handoff's
+            // revert adopts it rather than concluding the target took over.
+            advanceChain(primaryTerm, targetAllocationId);
         } catch (BlobVersionConflictException e) {
             throw fencedException(e);
-        } catch (IOException e) {
-            // Ambiguous, exactly as on the ack path: the transfer may have landed with only the response lost. Left
-            // unresolved, this copy would keep a stale token, and an aborted handoff's revert would then wrongly
-            // conclude the target took over. Resolve by identity: a blob recording the target at exactly the
-            // attempted seq, written from this node, can only be this transfer.
-            if (adoptOwnWriteIfItLanded(primaryTerm, attemptedSeq, targetAllocationId) == false) {
-                throw e;
-            }
         }
         logger.info("Fence ownership handed to allocation [{}] at term [{}]", targetAllocationId, primaryTerm);
     }
@@ -614,22 +679,19 @@ public class RemoteStoreFence {
         if (fenced || versionToken == null || primaryTerm != term) {
             return false;
         }
-        final long attemptedSeq = seq + 1;
+        // The transfer itself may have landed unseen. Adopting it is what lets this revert succeed rather than conclude
+        // that the target took over, which would stand a healthy source down.
+        resolvePendingWrite(primaryTerm);
         try {
-            cas(primaryTerm, versionToken, attemptedSeq, ownerAllocationId);
+            // A revert that cannot be settled is rethrown and left outstanding. The caller treats a failed revert
+            // conservatively, and the next upload or retried handoff settles it.
+            advanceChain(primaryTerm, ownerAllocationId);
         } catch (BlobVersionConflictException e) {
             logger.info(
                 "Fence ownership at term [{}] is no longer ours - the target took it up, or a higher term swept it; standing down",
                 primaryTerm
             );
             return false;
-        } catch (IOException e) {
-            // Ambiguous: the revert may have landed with only the response lost. If it did, adopt its token so this
-            // copy resumes with the current chain rather than a stale one; if it cannot be resolved, rethrow - the
-            // caller treats a failed revert conservatively, and the next upload settles ownership either way.
-            if (adoptOwnWriteIfItLanded(primaryTerm, attemptedSeq, ownerAllocationId) == false) {
-                throw e;
-            }
         }
         logger.info("Fence ownership reclaimed at term [{}] after an aborted relocation handoff", primaryTerm);
         return true;
@@ -670,6 +732,7 @@ public class RemoteStoreFence {
         term = -1;
         seq = -1;
         recordedAllocationId = null;
+        pendingWrite = null;
     }
 
     /**
@@ -713,6 +776,8 @@ public class RemoteStoreFence {
         this.term = primaryTerm;
         this.seq = nextSeq;
         this.recordedAllocationId = recordedAllocationId;
+        // Anything outstanding was conditioned on the token this write just replaced, so it can never land now.
+        this.pendingWrite = null;
     }
 
     private TranslogFencedException fencedException(Exception cause) {

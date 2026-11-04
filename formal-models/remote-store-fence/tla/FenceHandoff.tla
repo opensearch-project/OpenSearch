@@ -45,16 +45,27 @@
 (*     after it adopted the chain.                                          *)
 (*                                                                          *)
 (* An acknowledgement READS the object; only transfer, adoption and revert *)
-(* write it. A fourth case explains the one ack that writes:                *)
+(* write it. A fourth case explains the one ack that writes, and a fifth   *)
+(* what every action of the source settles first:                         *)
 (*                                                                          *)
 (*  4. A REVERT THAT FAILS WITHOUT LANDING. The source resumes              *)
 (*     ("reclaiming") on an object that still records the target, so its   *)
 (*     first ack writes itself back as owner. As a plain read, TLC finds    *)
 (*     acked-write loss: see the README.                                    *)
+(*                                                                          *)
+(*  5. A HANDOFF WRITE THAT LANDS UNSEEN. A transfer or a revert can land   *)
+(*     with both its response and the read that would settle it lost. The   *)
+(*     source settles it on its next action - an ack, a retried transfer,   *)
+(*     or a revert - by reading it back by identity. SETTLE_PENDING = FALSE *)
+(*     settles on the ack path only, and only a write recording the source  *)
+(*     itself: TLC then finds a healthy source fenced. See the README.      *)
 (***************************************************************************)
 EXTENDS Integers, FiniteSets
 
-CONSTANTS MaxOps, MaxAttempts
+CONSTANTS MaxOps, MaxAttempts,
+  SETTLE_PENDING  \* TRUE: every source action settles a write of its own that landed unseen.
+                  \* FALSE: only the ack path does, and only for a write recording the source.
+ASSUME SETTLE_PENDING \in BOOLEAN
 
 Targets == 1..MaxAttempts   \* target a is the target of relocation attempt a
 Source == 0                 \* the owner the object records for the source
@@ -63,7 +74,11 @@ VARIABLES
   fenceExists,   \* the shared object for this term; a higher-term sweep deletes it
   fenceOwner,    \* Source or a target: who the object records as owner
   fenceToken,    \* bumped on every successful write
+  fenceBySource, \* whether the source wrote the object's current version: the node id it records
   srcToken,      \* token the source believes is current
+  srcPending,    \* the owners recorded by the source's own writes that LANDED UNSEEN, {} if none.
+                 \* Writes are atomic here, so one that has not landed never will: only landed
+                 \* ones need tracking.
   srcState,      \* "serving" | "drained" | "transferred" | "resumed" | "reclaiming" | "standDown"
                  \* | "fenced". "reclaiming" is "resumed" after a revert that did not land: the
                  \* source's own last write still records the target.
@@ -76,11 +91,12 @@ VARIABLES
   superseded,    \* a higher-term copy has taken over and swept this term's object
   acked, ackedBySource, nextOp
 
-vars == <<fenceExists, fenceOwner, fenceToken, srcToken, srcState, tgtToken, tgtState, tgtRestore,
+vars == <<fenceExists, fenceOwner, fenceToken, fenceBySource, srcToken, srcPending, srcState, tgtToken, tgtState, tgtRestore,
           ackedByTarget, handoff, attempts, superseded, acked, ackedBySource, nextOp>>
 
 Init ==
   /\ fenceExists = TRUE /\ fenceOwner = Source /\ fenceToken = 0 /\ srcToken = 0
+  /\ fenceBySource = TRUE /\ srcPending = {}
   /\ srcState = "serving"
   /\ tgtToken = [a \in Targets |-> -1] /\ tgtState = [a \in Targets |-> "recovering"]
   /\ tgtRestore = [a \in Targets |-> {}] /\ ackedByTarget = [a \in Targets |-> {}]
@@ -90,34 +106,55 @@ Init ==
 (* What a conditional write or a fence read can see: the object exists and carries the token of
    this copy's own last write. Which owner that write recorded is the copy's own knowledge, not
    something the token check tests. *)
+(* A write of the source's own that landed unseen, still the object's current version, so one read
+   shows it by identity: written from the source's node, at the seq the source attempted - the token
+   after its own - and recording an owner the source attempted. *)
+PendingLanded ==
+  srcPending /= {} /\ fenceExists /\ fenceBySource /\ fenceToken = srcToken + 1 /\ fenceOwner \in srcPending
+
+(* Which actions settle it. With SETTLE_PENDING = FALSE, only the ack path does, and only a write
+   recording the source - the code before the transfer and the revert learned to settle. *)
+AckSettles == PendingLanded /\ (SETTLE_PENDING \/ fenceOwner = Source)
+HandoffSettles == SETTLE_PENDING /\ PendingLanded
+(* The token a transfer or revert is conditioned on, after settling. *)
+HandoffToken == IF HandoffSettles THEN fenceToken ELSE srcToken
+
 SourceOwns == fenceExists /\ srcToken = fenceToken
 TargetOwns(a) == fenceExists /\ fenceOwner = a /\ tgtToken[a] = fenceToken
 
 (***************************************************************************)
 (* The source serves until it drains. An acknowledgement is a READ of the   *)
-(* object; a changed or missing token is terminal for that copy. The one    *)
-(* exception is the first ack of a "reclaiming" source, which writes its    *)
-(* own ownership back - by CAS, so it cannot overwrite a target that        *)
+(* object; a changed or missing token is terminal for that copy. Before     *)
+(* acting it SETTLES a write of its own that landed unseen, adopting the    *)
+(* token. One ack writes: when the source's last known write records a      *)
+(* target - a "reclaiming" source whose revert did not land - it writes its *)
+(* own ownership back first, by CAS, so it cannot overwrite a target that   *)
 (* adopted in the meantime.                                                 *)
 (***************************************************************************)
 SourceAck ==
   /\ srcState \in {"serving", "resumed", "reclaiming"}
   /\ nextOp <= MaxOps
-  /\ IF SourceOwns
-       THEN /\ IF srcState = "reclaiming"
-                 THEN /\ fenceOwner' = Source
-                      /\ fenceToken' = fenceToken + 1
-                      /\ srcToken' = fenceToken + 1
-                      /\ srcState' = "resumed"
-                 ELSE UNCHANGED <<fenceOwner, fenceToken, srcToken, srcState>>
-            /\ acked' = acked \cup {nextOp}
-            /\ ackedBySource' = ackedBySource \cup {nextOp}
-            /\ nextOp' = nextOp + 1
-            /\ UNCHANGED <<fenceExists, tgtToken, tgtState, tgtRestore, ackedByTarget, handoff, attempts,
-                           superseded>>
-       ELSE /\ srcState' = "fenced"
-            /\ UNCHANGED <<fenceExists, fenceOwner, fenceToken, srcToken, tgtToken, tgtState, tgtRestore,
-                           ackedByTarget, handoff, attempts, superseded, acked, ackedBySource, nextOp>>
+  /\ LET tok == IF AckSettles THEN fenceToken ELSE srcToken
+         handedOff == IF AckSettles THEN fenceOwner /= Source ELSE srcState = "reclaiming"
+     IN IF fenceExists /\ tok = fenceToken
+          THEN /\ IF handedOff
+                    THEN /\ fenceOwner' = Source
+                         /\ fenceToken' = fenceToken + 1
+                         /\ srcToken' = fenceToken + 1
+                         /\ fenceBySource' = TRUE
+                    ELSE /\ srcToken' = tok
+                         /\ UNCHANGED <<fenceOwner, fenceToken, fenceBySource>>
+               /\ srcState' = IF srcState = "reclaiming" THEN "resumed" ELSE srcState
+               /\ srcPending' = {}
+               /\ acked' = acked \cup {nextOp}
+               /\ ackedBySource' = ackedBySource \cup {nextOp}
+               /\ nextOp' = nextOp + 1
+               /\ UNCHANGED <<fenceExists, tgtToken, tgtState, tgtRestore, ackedByTarget, handoff, attempts,
+                              superseded>>
+          ELSE /\ srcState' = "fenced"
+               /\ UNCHANGED <<fenceBySource, srcPending, fenceExists, fenceOwner, fenceToken, srcToken, tgtToken,
+                              tgtState, tgtRestore, ackedByTarget, handoff, attempts, superseded, acked,
+                              ackedBySource, nextOp>>
 
 (* Block operations, final sync, drain uploads: after this the source cannot upload. *)
 Drain ==
@@ -125,7 +162,7 @@ Drain ==
   /\ attempts < MaxAttempts
   /\ srcState' = "drained"
   /\ attempts' = attempts + 1
-  /\ UNCHANGED <<fenceExists, fenceOwner, fenceToken, srcToken, tgtToken, tgtState, tgtRestore,
+  /\ UNCHANGED <<fenceBySource, srcPending, fenceExists, fenceOwner, fenceToken, srcToken, tgtToken, tgtState, tgtRestore,
                  ackedByTarget, handoff, superseded, acked, ackedBySource, nextOp>>
 
 (* The current owner hands ownership over itself, uncontested, naming this attempt's target. It has
@@ -133,23 +170,41 @@ Drain ==
    the transfer. *)
 TransferOwnership ==
   /\ srcState = "drained"
-  /\ IF SourceOwns
+  /\ IF fenceExists /\ HandoffToken = fenceToken
        THEN /\ fenceOwner' = attempts
             /\ fenceToken' = fenceToken + 1
             /\ srcToken' = fenceToken + 1
+            /\ fenceBySource' = TRUE
+            /\ srcPending' = {}
             /\ srcState' = "transferred"
             /\ UNCHANGED <<fenceExists, tgtToken, tgtState, tgtRestore, ackedByTarget, handoff, attempts,
                            superseded, acked, ackedBySource, nextOp>>
        ELSE \* Our own object is gone or taken: we have been superseded, so we cannot hand off.
          /\ srcState' = "fenced"
-         /\ UNCHANGED <<fenceExists, fenceOwner, fenceToken, srcToken, tgtToken, tgtState, tgtRestore,
-                        ackedByTarget, handoff, attempts, superseded, acked, ackedBySource, nextOp>>
+         /\ UNCHANGED <<fenceBySource, srcPending, fenceExists, fenceOwner, fenceToken, srcToken, tgtToken,
+                        tgtState, tgtRestore, ackedByTarget, handoff, attempts, superseded, acked,
+                        ackedBySource, nextOp>>
+
+(* The transfer LANDS, but its response and the read that would settle it are both lost. The source
+   cannot tell that from a transfer that never reached the store, so it never sends the context: the
+   handoff fails straight into the abort path. The object records this attempt's target. *)
+TransferOwnershipLandedUnseen ==
+  /\ srcState = "drained"
+  /\ fenceExists /\ HandoffToken = fenceToken
+  /\ fenceOwner' = attempts
+  /\ fenceToken' = fenceToken + 1
+  /\ fenceBySource' = TRUE
+  /\ srcToken' = HandoffToken
+  /\ srcPending' = {attempts}
+  /\ srcState' = "transferUnseen"
+  /\ UNCHANGED <<fenceExists, tgtToken, tgtState, tgtRestore, ackedByTarget, handoff, attempts, superseded,
+                 acked, ackedBySource, nextOp>>
 
 SendContext ==
   /\ handoff = "none"
   /\ srcState = "transferred"
   /\ handoff' = "sent"
-  /\ UNCHANGED <<fenceExists, fenceOwner, fenceToken, srcToken, srcState, tgtToken, tgtState, tgtRestore,
+  /\ UNCHANGED <<fenceBySource, srcPending, fenceExists, fenceOwner, fenceToken, srcToken, srcState, tgtToken, tgtState, tgtRestore,
                  ackedByTarget, attempts, superseded, acked, ackedBySource, nextOp>>
 
 (* This attempt's target receives the context and activates. It holds no token: it must read the
@@ -159,7 +214,7 @@ DeliverContext ==
   /\ tgtState[attempts] = "recovering"
   /\ tgtState' = [tgtState EXCEPT ![attempts] = "activated"]
   /\ tgtRestore' = [tgtRestore EXCEPT ![attempts] = acked]
-  /\ UNCHANGED <<fenceExists, fenceOwner, fenceToken, srcToken, srcState, tgtToken, ackedByTarget, handoff,
+  /\ UNCHANGED <<fenceBySource, srcPending, fenceExists, fenceOwner, fenceToken, srcToken, srcState, tgtToken, ackedByTarget, handoff,
                  attempts, superseded, acked, ackedBySource, nextOp>>
 
 (* The source's view of the handoff fails - a lost response, a timeout, a cancellation - even
@@ -167,7 +222,7 @@ DeliverContext ==
 LoseHandoff ==
   /\ handoff = "sent"
   /\ handoff' = "lost"
-  /\ UNCHANGED <<fenceExists, fenceOwner, fenceToken, srcToken, srcState, tgtToken, tgtState, tgtRestore,
+  /\ UNCHANGED <<fenceBySource, srcPending, fenceExists, fenceOwner, fenceToken, srcToken, srcState, tgtToken, tgtState, tgtRestore,
                  ackedByTarget, attempts, superseded, acked, ackedBySource, nextOp>>
 
 CompleteHandoff ==
@@ -175,7 +230,7 @@ CompleteHandoff ==
   /\ tgtState[attempts] = "activated"
   /\ handoff' = "accepted"
   /\ srcState' = "standDown"
-  /\ UNCHANGED <<fenceExists, fenceOwner, fenceToken, srcToken, tgtToken, tgtState, tgtRestore,
+  /\ UNCHANGED <<fenceBySource, srcPending, fenceExists, fenceOwner, fenceToken, srcToken, tgtToken, tgtState, tgtRestore,
                  ackedByTarget, attempts, superseded, acked, ackedBySource, nextOp>>
 
 (***************************************************************************)
@@ -191,10 +246,11 @@ TargetAdoptOwnership(a) ==
   /\ IF fenceExists /\ fenceOwner = a
        THEN /\ fenceToken' = fenceToken + 1
             /\ tgtToken' = [tgtToken EXCEPT ![a] = fenceToken + 1]
-            /\ UNCHANGED <<fenceExists, fenceOwner, srcToken, srcState, tgtState, tgtRestore, ackedByTarget,
+            /\ fenceBySource' = FALSE
+            /\ UNCHANGED <<srcPending, fenceExists, fenceOwner, srcToken, srcState, tgtState, tgtRestore, ackedByTarget,
                            handoff, attempts, superseded, acked, ackedBySource, nextOp>>
        ELSE /\ tgtState' = [tgtState EXCEPT ![a] = "failed"]
-            /\ UNCHANGED <<fenceExists, fenceOwner, fenceToken, srcToken, srcState, tgtToken, tgtRestore,
+            /\ UNCHANGED <<fenceBySource, srcPending, fenceExists, fenceOwner, fenceToken, srcToken, srcState, tgtToken, tgtRestore,
                            ackedByTarget, handoff, attempts, superseded, acked, ackedBySource, nextOp>>
 
 TargetAck(a) ==
@@ -206,17 +262,17 @@ TargetAck(a) ==
             /\ acked' = acked \cup {nextOp}
             /\ ackedByTarget' = [ackedByTarget EXCEPT ![a] = @ \cup {nextOp}]
             /\ nextOp' = nextOp + 1
-            /\ UNCHANGED <<fenceExists, fenceOwner, fenceToken, srcToken, srcState, tgtToken, tgtRestore,
+            /\ UNCHANGED <<fenceBySource, srcPending, fenceExists, fenceOwner, fenceToken, srcToken, srcState, tgtToken, tgtRestore,
                            handoff, attempts, superseded, ackedBySource>>
        ELSE /\ tgtState' = [tgtState EXCEPT ![a] = "failed"]
-            /\ UNCHANGED <<fenceExists, fenceOwner, fenceToken, srcToken, srcState, tgtToken, tgtRestore,
+            /\ UNCHANGED <<fenceBySource, srcPending, fenceExists, fenceOwner, fenceToken, srcToken, srcState, tgtToken, tgtRestore,
                            ackedByTarget, handoff, attempts, superseded, acked, ackedBySource, nextOp>>
 
 (* A target is lost - node failure - whether or not it had adopted the chain. *)
 LoseTarget(a) ==
   /\ tgtState[a] \in {"activated", "serving"}
   /\ tgtState' = [tgtState EXCEPT ![a] = "lost"]
-  /\ UNCHANGED <<fenceExists, fenceOwner, fenceToken, srcToken, srcState, tgtToken, tgtRestore,
+  /\ UNCHANGED <<fenceBySource, srcPending, fenceExists, fenceOwner, fenceToken, srcToken, srcState, tgtToken, tgtRestore,
                  ackedByTarget, handoff, attempts, superseded, acked, ackedBySource, nextOp>>
 
 (***************************************************************************)
@@ -230,32 +286,55 @@ AbortHandoff ==
   \* easier - the target cannot have written - but it is a reachable path, so model it rather than
   \* leaving it outside the spec.
   /\ handoff \in {"none", "lost"}
-  /\ srcState = "transferred"
-  /\ IF SourceOwns
+  /\ srcState \in {"transferred", "transferUnseen"}
+  /\ IF fenceExists /\ HandoffToken = fenceToken
        THEN \* The target never wrote, so it never took over: reclaim and resume. The target is left
             \* running; the object no longer records it, so it cannot take the chain.
          /\ fenceOwner' = Source
          /\ fenceToken' = fenceToken + 1
          /\ srcToken' = fenceToken + 1
+         /\ fenceBySource' = TRUE
+         /\ srcPending' = {}
          /\ srcState' = "resumed"
          /\ handoff' = "none"
          /\ UNCHANGED <<fenceExists, tgtToken, tgtState, tgtRestore, ackedByTarget, attempts, superseded,
                         acked, ackedBySource, nextOp>>
        ELSE \* Either the target wrote, or a higher term swept the object: stand down.
          /\ srcState' = "standDown"
-         /\ UNCHANGED <<fenceExists, fenceOwner, fenceToken, srcToken, tgtToken, tgtState, tgtRestore,
-                        ackedByTarget, handoff, attempts, superseded, acked, ackedBySource, nextOp>>
+         /\ UNCHANGED <<fenceBySource, srcPending, fenceExists, fenceOwner, fenceToken, srcToken, tgtToken,
+                        tgtState, tgtRestore, ackedByTarget, handoff, attempts, superseded, acked,
+                        ackedBySource, nextOp>>
 
 (* The revert fails WITHOUT landing - the request never reached the store - and the copy cannot tell
    that apart from a lost response, so the caller keeps it as primary and releases its drains. The
-   object still records the target, and the target is not stopped: it may already have activated. *)
+   object still records the target, and the target is not stopped: it may already have activated.
+   The revert settled first, so a transfer that landed unseen is now known, and records the target. *)
 AbortHandoffUnresolved ==
   /\ handoff \in {"none", "lost"}
-  /\ srcState = "transferred"
+  /\ srcState \in {"transferred", "transferUnseen"}
   /\ srcState' = "reclaiming"
   /\ handoff' = "none"
-  /\ UNCHANGED <<fenceExists, fenceOwner, fenceToken, srcToken, tgtToken, tgtState, tgtRestore,
+  /\ srcToken' = HandoffToken
+  /\ srcPending' = IF HandoffSettles THEN {} ELSE srcPending
+  /\ UNCHANGED <<fenceBySource, fenceExists, fenceOwner, fenceToken, tgtToken, tgtState, tgtRestore,
                  ackedByTarget, attempts, superseded, acked, ackedBySource, nextOp>>
+
+(* The revert LANDS, but its response and the read that would settle it are both lost. The caller
+   keeps the source as primary and releases its drains, exactly as when the revert never landed, and
+   the source still believes its last write records the target. *)
+AbortHandoffLandedUnseen ==
+  /\ handoff \in {"none", "lost"}
+  /\ srcState \in {"transferred", "transferUnseen"}
+  /\ fenceExists /\ HandoffToken = fenceToken
+  /\ fenceOwner' = Source
+  /\ fenceToken' = fenceToken + 1
+  /\ fenceBySource' = TRUE
+  /\ srcToken' = HandoffToken
+  /\ srcPending' = {Source}
+  /\ srcState' = "reclaiming"
+  /\ handoff' = "none"
+  /\ UNCHANGED <<fenceExists, tgtToken, tgtState, tgtRestore, ackedByTarget, attempts, superseded, acked,
+                 ackedBySource, nextOp>>
 
 (***************************************************************************)
 (* A node is lost mid-relocation and a copy is promoted at a HIGHER term.   *)
@@ -267,12 +346,13 @@ HigherTermTakeover ==
   /\ superseded = FALSE
   /\ superseded' = TRUE
   /\ fenceExists' = FALSE
-  /\ UNCHANGED <<fenceOwner, fenceToken, srcToken, srcState, tgtToken, tgtState, tgtRestore, ackedByTarget,
+  /\ UNCHANGED <<fenceBySource, srcPending, fenceOwner, fenceToken, srcToken, srcState, tgtToken, tgtState, tgtRestore, ackedByTarget,
                  handoff, attempts, acked, ackedBySource, nextOp>>
 
 Next ==
   \/ SourceAck \/ Drain \/ TransferOwnership \/ SendContext \/ DeliverContext
   \/ LoseHandoff \/ CompleteHandoff \/ AbortHandoff \/ AbortHandoffUnresolved \/ HigherTermTakeover
+  \/ TransferOwnershipLandedUnseen \/ AbortHandoffLandedUnseen
   \/ \E a \in Targets : TargetAdoptOwnership(a) \/ TargetAck(a) \/ LoseTarget(a)
 
 Spec == Init /\ [][Next]_vars
@@ -281,7 +361,9 @@ Spec == Init /\ [][Next]_vars
 (* SAFETY                                                                  *)
 (***************************************************************************)
 
-SourceLive == srcState \in {"serving", "resumed", "reclaiming"} /\ SourceOwns
+(* A write of its own that landed unseen leaves the source one read from owning the object, so it
+   counts as live for mutual exclusion. *)
+SourceLive == srcState \in {"serving", "resumed", "reclaiming"} /\ (SourceOwns \/ PendingLanded)
 TargetLive(a) == tgtState[a] \in {"activated", "serving"} /\ TargetOwns(a)
 
 MutualExclusion ==
@@ -292,8 +374,12 @@ MutualExclusion ==
    source may only end up fenced if a target actually took the chain over, meaning a handoff
    genuinely took effect, or if a higher term legitimately superseded it. Taking over is adoption,
    not a first ack: after an unresolved revert, a target that activated may adopt before the
-   source's reclaim, and the handoff has then taken effect even if the target has not acked yet. *)
-NoSpuriousFencing == srcState = "fenced" => ((\E a \in Targets : tgtToken[a] /= -1) \/ superseded)
+   source's reclaim, and the handoff has then taken effect even if the target has not acked yet.
+   Standing down after an abort is the same outcome by another route - IndexShard fails the copy -
+   so it is held to the same standard; otherwise only a completed handoff stands the source down. *)
+NoSpuriousFencing ==
+  srcState \in {"fenced", "standDown"}
+    => ((\E a \in Targets : tgtToken[a] /= -1) \/ superseded \/ handoff = "accepted")
 
 (* Nothing anyone else acknowledged is missing from the state a serving target recovered with. The
    target serves from the primary context it received, so an op acknowledged after that - on a chain

@@ -141,7 +141,7 @@ Four modules, each modeling the protocol **as implemented**:
 |---|---|---|---|
 | `RemoteStoreFence.tla` | seal ordering and acked-write loss | 3 writers, 3 terms, 3 ops | 143,197 |
 | `FenceTakeover.tla` | cross-term takeover: is a higher-term victory deterministic, and is the window between the seal claim and the translog's re-adoption safe? | 4 writers, 4 terms, 3 ops, symmetry | 4,223,247 |
-| `FenceHandoff.tla` | equal-term relocation handoff, retried relocation, concurrent higher-term takeover, target loss, a revert that fails without landing | 4 ops, 3 attempts | 108,244 |
+| `FenceHandoff.tla` | equal-term relocation handoff, retried relocation, concurrent higher-term takeover, target loss, a revert that fails without landing, a transfer or revert that lands unseen | 4 ops, 3 attempts | 122,700 |
 | `FenceSegmentFlow.tla` | the segment flow as a second path needing the fence, plus garbage collection | 3 writers, 3 files, 3 terms | 20,008 |
 | `FenceAutoRestore.tla` | the auto-restore trigger for a primary with no surviving copy: node-left is a view change, the departed writer keeps running, and the fence — not the trigger — is what makes that safe; `FENCED = FALSE` (the ungated trigger) is refuted in a 7-state `NoAckedWriteLoss` counterexample; the operator's `_remotestore/_restore` is modeled as the same mutation under its weaker only-unassigned guard, racing the trigger and the rejoin; the node-left grace window (`index.unassigned.node_left.delayed_timeout`) gates the trigger but not the operator API nor the rejoin, with its expiry weakly fair (`DelayedAllocationService`'s promise); health is modeled RED-until-started (never overstating availability) | 3 writers, 2 nodes, 3 ops, 4 terms | 165,936 |
 
@@ -250,6 +250,28 @@ first ack after that writes itself back as owner. This was **measured**: make th
 and TLC violates `NoAckedWriteLoss` in 9 steps. It is also why `NoSpuriousFencing` asks that the
 target *took the chain*, rather than that it acknowledged: here the target can take it before its
 first ack.
+
+#### A handoff write that lands unseen
+
+A transfer or a revert can land with both its response and the read that would settle it lost. The
+source then holds a token older than the object, and the object's version is one the source wrote
+itself. Its next conditional write fails exactly as being fenced does. So every source action - an
+ack, a retried transfer, a revert - first settles a write of its own that is still outstanding. One
+read shows it by identity: written from the source's node, at the seq it attempted, recording an
+owner it attempted. Then the source adopts the token.
+
+`NoSpuriousFencing` covers standing down as well as being fenced, since after an abort `IndexShard`
+fails a copy that stands down. Otherwise, only a completed handoff may stand the source down.
+
+This was **measured** with `SETTLE_PENDING = FALSE`, under which only the ack path settles, and only
+a write recording the source. That is the code before the transfer and the revert learned to settle.
+TLC violates `NoSpuriousFencing` twice over:
+
+- **4 states:** the transfer lands unseen, the handoff aborts, and the revert loses its CAS to the
+  source's own transfer. The source stands down although no target ever wrote.
+- **6 states**, with only the transfer left unsettled: the revert lands unseen, the shard stays
+  idle so no ack settles it, the cluster retries the relocation, and the transfer loses its CAS to
+  the source's own revert. The source is fenced.
 
 ### The segment flow and GC — `FenceSegmentFlow.tla`
 
