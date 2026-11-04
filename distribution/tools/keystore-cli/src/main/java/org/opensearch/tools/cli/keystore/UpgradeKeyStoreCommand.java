@@ -32,24 +32,25 @@
 
 package org.opensearch.tools.cli.keystore;
 
-import joptsimple.OptionSet;
 import org.opensearch.cli.Terminal;
 import org.opensearch.common.settings.KeyStoreWrapper;
 import org.opensearch.env.Environment;
+
+import picocli.CommandLine.Command;
 
 /**
  * A sub-command for the keystore CLI that enables upgrading the keystore format.
  *
  * @opensearch.internal
  */
+@Command(name = "upgrade", description = "Upgrade the keystore format to the latest version", mixinStandardHelpOptions = true, usageHelpAutoWidth = true)
 public class UpgradeKeyStoreCommand extends BaseKeyStoreCommand {
 
     /**
      * Creates a new UpgradeKeyStoreCommand instance.
-     * Initializes a command that requires an existing keystore to upgrade its format
-     * to the latest version. This command will fail if the keystore doesn't exist.
+     * Requires an existing keystore to upgrade its format.
      */
-    UpgradeKeyStoreCommand() {
+    public UpgradeKeyStoreCommand() {
         super("Upgrade the keystore format", true);
     }
 
@@ -59,14 +60,12 @@ public class UpgradeKeyStoreCommand extends BaseKeyStoreCommand {
      * in the same location.
      *
      * @param terminal The terminal for user interaction and output messages
-     * @param options The command-line options provided
      * @param env The environment settings containing the configuration directory
-     * @throws Exception if there are any errors during the upgrade process,
-     *                  such as IO errors or encryption/decryption issues
+     * @throws Exception if there are any errors during the upgrade process
      */
     @Override
-    protected void executeCommand(final Terminal terminal, final OptionSet options, final Environment env) throws Exception {
+    protected void executeCommand(final Terminal terminal, final Environment env) throws Exception {
         KeyStoreWrapper.upgrade(getKeyStore(), env.configDir(), getKeyStorePassword().getChars());
+        terminal.println("OpenSearch keystore upgraded successfully.");
     }
-
 }

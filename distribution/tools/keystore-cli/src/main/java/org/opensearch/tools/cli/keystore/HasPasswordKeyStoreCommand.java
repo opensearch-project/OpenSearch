@@ -32,7 +32,6 @@
 
 package org.opensearch.tools.cli.keystore;
 
-import joptsimple.OptionSet;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.settings.KeyStoreWrapper;
@@ -40,12 +39,15 @@ import org.opensearch.env.Environment;
 
 import java.nio.file.Path;
 
+import picocli.CommandLine.Command;
+
 /**
  * KeyStore command that checks if the keystore exists and is password-protected.
  * Exits with a non-zero status code if the keystore is missing or not password-protected.
  *
  * @opensearch.internal
  */
+@Command(name = "has-password", description = "Succeeds if the keystore exists and is password-protected, fails otherwise.", mixinStandardHelpOptions = true, usageHelpAutoWidth = true)
 public class HasPasswordKeyStoreCommand extends KeyStoreAwareCommand {
 
     static final int NO_PASSWORD_EXIT_CODE = 1;
@@ -67,19 +69,17 @@ public class HasPasswordKeyStoreCommand extends KeyStoreAwareCommand {
      * and is password-protected.
      *
      * @param terminal The terminal for user interaction and output
-     * @param options The command-line options provided
      * @param env The environment settings containing configuration directory
      * @throws UserException with {@link #NO_PASSWORD_EXIT_CODE} if the keystore
      *         is missing or not password-protected
      * @throws Exception if there are other errors during execution
      */
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    protected void execute(Terminal terminal, Environment env) throws Exception {
         final Path configFile = env.configDir();
         final KeyStoreWrapper keyStore = KeyStoreWrapper.load(configFile);
 
-        // We handle error printing here so we can respect the "--silent" flag
-        // We have to throw an exception to get a nonzero exit code
+        // Respect verbosity and exit codes
         if (keyStore == null) {
             terminal.errorPrintln(Terminal.Verbosity.NORMAL, "ERROR: OpenSearch keystore not found");
             throw new UserException(NO_PASSWORD_EXIT_CODE, null);
