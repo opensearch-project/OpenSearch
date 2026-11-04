@@ -187,6 +187,12 @@ public final class Pipeline {
             if (e != null) {
                 metrics.failed();
             }
+            // A request to terminate the pipeline ends here, with the pipeline that it applied to: the pipeline that called this one,
+            // or the pipeline that runs for the document after this one, must not see it.
+            ingestDocument.clearPipelineTermination();
+            if (result != null) {
+                result.clearPipelineTermination();
+            }
             handler.accept(result, e);
         });
     }
@@ -273,6 +279,12 @@ public final class Pipeline {
 
             int failedCount = (int) results.stream().filter(t -> t.getException() != null).count();
             metrics.failedN(failedCount);
+            // a request to terminate the pipeline ends with the pipeline that it applied to, see #execute
+            for (IngestDocumentWrapper result : results) {
+                if (result.getIngestDocument() != null) {
+                    result.getIngestDocument().clearPipelineTermination();
+                }
+            }
             handler.accept(results);
         });
     }

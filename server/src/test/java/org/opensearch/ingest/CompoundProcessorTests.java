@@ -641,6 +641,388 @@ public class CompoundProcessorTests extends OpenSearchTestCase {
         });
     }
 
+    public void testTerminateSkipsRemainingProcessors() {
+        TestProcessor first = new TestProcessor(doc -> {});
+        TestProcessor terminator = terminator();
+        TestProcessor last = new TestProcessor(doc -> {});
+        CompoundProcessor compoundProcessor = new CompoundProcessor(ZERO_CLOCK, first, terminator, last);
+
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        compoundProcessor.execute(ingestDocument, (r, e) -> {
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        assertThat(failure[0], nullValue());
+        assertThat(result[0], sameInstance(ingestDocument));
+        assertThat(first.getInvokedCounter(), equalTo(1));
+        assertThat(terminator.getInvokedCounter(), equalTo(1));
+        assertThat(last.getInvokedCounter(), equalTo(0));
+        // the terminating processor is a success, and the skipped processor was never started
+        assertStats(0, compoundProcessor, 0, 1, 0, 0);
+        assertStats(1, compoundProcessor, 0, 1, 0, 0);
+        assertStats(2, compoundProcessor, 0, 0, 0, 0);
+        assertThat(ingestDocument.getIngestMetadata().isEmpty(), is(true));
+    }
+
+    public void testTerminateAsLastProcessor() {
+        TestProcessor first = new TestProcessor(doc -> {});
+        TestProcessor terminator = terminator();
+        CompoundProcessor compoundProcessor = new CompoundProcessor(ZERO_CLOCK, first, terminator);
+
+        IngestDocument[] result = new IngestDocument[1];
+        compoundProcessor.execute(ingestDocument, (r, e) -> result[0] = r);
+
+        assertThat(result[0], sameInstance(ingestDocument));
+        assertThat(first.getInvokedCounter(), equalTo(1));
+        assertThat(terminator.getInvokedCounter(), equalTo(1));
+    }
+
+    public void testTerminateInsideIgnoreFailureCompoundEndsEnclosingCompound() {
+        TestProcessor first = new TestProcessor(doc -> {});
+        TestProcessor terminator = terminator();
+        TestProcessor last = new TestProcessor(doc -> {});
+        // processors that are configured with ignore_failure or on_failure are wrapped in a compound processor of their own
+        CompoundProcessor wrapped = new CompoundProcessor(true, singletonList(terminator), Collections.emptyList(), ZERO_CLOCK);
+        CompoundProcessor outer = new CompoundProcessor(false, Arrays.asList(first, wrapped, last), Collections.emptyList(), ZERO_CLOCK);
+
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        outer.execute(ingestDocument, (r, e) -> {
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        assertThat(failure[0], nullValue());
+        assertThat(result[0], sameInstance(ingestDocument));
+        assertThat(first.getInvokedCounter(), equalTo(1));
+        assertThat(terminator.getInvokedCounter(), equalTo(1));
+        assertThat(last.getInvokedCounter(), equalTo(0));
+        assertStats(1, outer, 0, 1, 0, 0);
+        assertStats(2, outer, 0, 0, 0, 0);
+    }
+
+    public void testTerminateInsideProcessorOnFailureEndsEnclosingCompound() {
+        TestProcessor first = new TestProcessor(doc -> {});
+        TestProcessor failing = new TestProcessor("failing-tag", "failing-type", null, new RuntimeException("error"));
+        TestProcessor onFailureFirst = new TestProcessor(doc -> {
+            assertThat(doc.getIngestMetadata().get(CompoundProcessor.ON_FAILURE_MESSAGE_FIELD), equalTo("error"));
+        });
+        TestProcessor terminator = terminator();
+        TestProcessor onFailureLast = new TestProcessor(doc -> {});
+        TestProcessor last = new TestProcessor(doc -> {});
+        CompoundProcessor wrapped = new CompoundProcessor(
+            false,
+            singletonList(failing),
+            Arrays.asList(onFailureFirst, terminator, onFailureLast),
+            ZERO_CLOCK
+        );
+        CompoundProcessor outer = new CompoundProcessor(false, Arrays.asList(first, wrapped, last), Collections.emptyList(), ZERO_CLOCK);
+
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        outer.execute(ingestDocument, (r, e) -> {
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        assertThat(failure[0], nullValue());
+        assertThat(result[0], sameInstance(ingestDocument));
+        assertThat(failing.getInvokedCounter(), equalTo(1));
+        assertThat(onFailureFirst.getInvokedCounter(), equalTo(1));
+        assertThat(terminator.getInvokedCounter(), equalTo(1));
+        // the remaining on_failure processors and the remaining pipeline processors are skipped
+        assertThat(onFailureLast.getInvokedCounter(), equalTo(0));
+        assertThat(last.getInvokedCounter(), equalTo(0));
+        // the failure of the wrapped processor is still counted as a failure
+        assertStats(wrapped, 1, 1, 0);
+        // the failure metadata is removed, as it is whenever on_failure processors complete
+        assertThat(ingestDocument.getIngestMetadata().isEmpty(), is(true));
+    }
+
+    public void testTerminateInPipelineLevelOnFailure() {
+        TestProcessor failing = new TestProcessor(new RuntimeException("error"));
+        TestProcessor skipped = new TestProcessor(doc -> {});
+        TestProcessor onFailureFirst = new TestProcessor(doc -> {});
+        TestProcessor terminator = terminator();
+        TestProcessor onFailureLast = new TestProcessor(doc -> {});
+        CompoundProcessor compoundProcessor = new CompoundProcessor(
+            false,
+            Arrays.asList(failing, skipped),
+            Arrays.asList(onFailureFirst, terminator, onFailureLast),
+            ZERO_CLOCK
+        );
+
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        compoundProcessor.execute(ingestDocument, (r, e) -> {
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        assertThat(failure[0], nullValue());
+        assertThat(result[0], sameInstance(ingestDocument));
+        assertThat(skipped.getInvokedCounter(), equalTo(0));
+        assertThat(onFailureFirst.getInvokedCounter(), equalTo(1));
+        assertThat(terminator.getInvokedCounter(), equalTo(1));
+        assertThat(onFailureLast.getInvokedCounter(), equalTo(0));
+        assertThat(ingestDocument.getIngestMetadata().isEmpty(), is(true));
+    }
+
+    public void testTerminateBeforeDropKeepsTheDocument() {
+        TestProcessor terminator = terminator();
+        TestProcessor dropper = new TestProcessor("", "drop", null, doc -> null);
+        CompoundProcessor compoundProcessor = new CompoundProcessor(ZERO_CLOCK, terminator, dropper);
+
+        IngestDocument[] result = new IngestDocument[1];
+        compoundProcessor.execute(ingestDocument, (r, e) -> result[0] = r);
+
+        assertThat(result[0], sameInstance(ingestDocument));
+        assertThat(dropper.getInvokedCounter(), equalTo(0));
+    }
+
+    public void testDropBeforeTerminateDropsTheDocument() {
+        TestProcessor dropper = new TestProcessor("", "drop", null, doc -> null);
+        TestProcessor terminator = terminator();
+        CompoundProcessor compoundProcessor = new CompoundProcessor(ZERO_CLOCK, dropper, terminator);
+
+        IngestDocument[] result = new IngestDocument[] { ingestDocument };
+        compoundProcessor.execute(ingestDocument, (r, e) -> result[0] = r);
+
+        assertThat(result[0], nullValue());
+        assertThat(terminator.getInvokedCounter(), equalTo(0));
+    }
+
+    public void testBatchExecute_documentToTerminate() {
+        List<IngestDocumentWrapper> wrapperList = Arrays.asList(
+            IngestDocumentPreparer.createIngestDocumentWrapper(1),
+            IngestDocumentPreparer.createIngestDocumentWrapper(2, true),
+            IngestDocumentPreparer.createIngestDocumentWrapper(3)
+        );
+        TestProcessor first = terminatorForFlaggedDocuments();
+        TestProcessor second = new TestProcessor(doc -> {});
+        CompoundProcessor compoundProcessor = new CompoundProcessor(
+            false,
+            Arrays.asList(first, second),
+            Collections.emptyList(),
+            ZERO_CLOCK
+        );
+
+        List<IngestDocumentWrapper> totalResults = Collections.synchronizedList(new ArrayList<>());
+        compoundProcessor.batchExecute(wrapperList, results -> totalResults.addAll(results));
+
+        assertThat(totalResults, hasSize(3));
+        assertThat(first.getInvokedCounter(), equalTo(3));
+        // only the documents that were not terminated reach the second processor
+        assertThat(second.getInvokedCounter(), equalTo(2));
+        totalResults.sort(Comparator.comparingInt(IngestDocumentWrapper::getSlot));
+        for (int i = 0; i < wrapperList.size(); ++i) {
+            assertThat(totalResults.get(i).getSlot(), equalTo(wrapperList.get(i).getSlot()));
+            assertThat(totalResults.get(i).getIngestDocument(), sameInstance(wrapperList.get(i).getIngestDocument()));
+            assertThat(totalResults.get(i).getException(), nullValue());
+        }
+        assertStats(0, compoundProcessor, 0, 3, 0, 0);
+        assertStats(1, compoundProcessor, 0, 2, 0, 0);
+    }
+
+    public void testBatchExecute_allDocumentsTerminated() {
+        List<IngestDocumentWrapper> wrapperList = Arrays.asList(
+            IngestDocumentPreparer.createIngestDocumentWrapper(1, true),
+            IngestDocumentPreparer.createIngestDocumentWrapper(2, true)
+        );
+        TestProcessor first = terminatorForFlaggedDocuments();
+        TestProcessor second = new TestProcessor(doc -> {});
+        CompoundProcessor compoundProcessor = new CompoundProcessor(
+            false,
+            Arrays.asList(first, second),
+            Collections.emptyList(),
+            ZERO_CLOCK
+        );
+
+        List<IngestDocumentWrapper> totalResults = Collections.synchronizedList(new ArrayList<>());
+        compoundProcessor.batchExecute(wrapperList, results -> totalResults.addAll(results));
+
+        assertThat(totalResults, hasSize(2));
+        assertThat(second.getInvokedCounter(), equalTo(0));
+        assertStats(1, compoundProcessor, 0, 0, 0, 0);
+    }
+
+    public void testBatchExecute_terminateInsideIgnoreFailureCompound() {
+        List<IngestDocumentWrapper> wrapperList = Arrays.asList(
+            IngestDocumentPreparer.createIngestDocumentWrapper(1),
+            IngestDocumentPreparer.createIngestDocumentWrapper(2, true),
+            IngestDocumentPreparer.createIngestDocumentWrapper(3)
+        );
+        TestProcessor flaggedTerminator = terminatorForFlaggedDocuments();
+        TestProcessor last = new TestProcessor(doc -> {});
+        CompoundProcessor wrapped = new CompoundProcessor(true, singletonList(flaggedTerminator), Collections.emptyList(), ZERO_CLOCK);
+        CompoundProcessor outer = new CompoundProcessor(false, Arrays.asList(wrapped, last), Collections.emptyList(), ZERO_CLOCK);
+
+        List<IngestDocumentWrapper> totalResults = Collections.synchronizedList(new ArrayList<>());
+        outer.batchExecute(wrapperList, results -> totalResults.addAll(results));
+
+        assertThat(totalResults, hasSize(3));
+        assertThat(last.getInvokedCounter(), equalTo(2));
+        for (IngestDocumentWrapper result : totalResults) {
+            assertThat(result.getIngestDocument(), notNullValue());
+            assertThat(result.getException(), nullValue());
+        }
+    }
+
+    public void testBatchExecute_terminateInsideProcessorOnFailureEndsEnclosingCompound() {
+        List<IngestDocumentWrapper> wrapperList = Arrays.asList(
+            IngestDocumentPreparer.createIngestDocumentWrapper(1),
+            IngestDocumentPreparer.createIngestDocumentWrapper(2, true),
+            IngestDocumentPreparer.createIngestDocumentWrapper(3, true)
+        );
+        TestProcessor failing = new TestProcessor(doc -> {
+            if (doc.hasField(SHOULD_FAIL_KEY) && doc.getFieldValue(SHOULD_FAIL_KEY, Boolean.class)) {
+                throw new RuntimeException("fail");
+            }
+        });
+        TestProcessor onFailureFirst = new TestProcessor("id", "on_failure", null, doc -> {});
+        TestProcessor terminator = terminator();
+        TestProcessor onFailureLast = new TestProcessor(doc -> {});
+        TestProcessor last = new TestProcessor(doc -> {});
+        CompoundProcessor wrapped = new CompoundProcessor(
+            false,
+            singletonList(failing),
+            Arrays.asList(onFailureFirst, terminator, onFailureLast),
+            ZERO_CLOCK
+        );
+        CompoundProcessor outer = new CompoundProcessor(false, Arrays.asList(wrapped, last), Collections.emptyList(), ZERO_CLOCK);
+
+        List<IngestDocumentWrapper> totalResults = Collections.synchronizedList(new ArrayList<>());
+        outer.batchExecute(wrapperList, results -> totalResults.addAll(results));
+
+        assertThat(totalResults, hasSize(3));
+        assertThat(failing.getInvokedCounter(), equalTo(3));
+        assertThat(onFailureFirst.getInvokedCounter(), equalTo(2));
+        assertThat(terminator.getInvokedCounter(), equalTo(2));
+        assertThat(onFailureLast.getInvokedCounter(), equalTo(0));
+        // only the document that did not fail continues past the wrapped processor
+        assertThat(last.getInvokedCounter(), equalTo(1));
+        for (IngestDocumentWrapper result : totalResults) {
+            assertThat(result.getIngestDocument(), notNullValue());
+            assertThat(result.getException(), nullValue());
+            assertThat(result.getIngestDocument().getIngestMetadata().isEmpty(), is(true));
+        }
+    }
+
+    public void testBatchExecute_terminateInPipelineLevelOnFailure() {
+        List<IngestDocumentWrapper> wrapperList = Arrays.asList(
+            IngestDocumentPreparer.createIngestDocumentWrapper(1),
+            IngestDocumentPreparer.createIngestDocumentWrapper(2, true),
+            IngestDocumentPreparer.createIngestDocumentWrapper(3, true)
+        );
+        TestProcessor failing = new TestProcessor(doc -> {
+            if (doc.hasField(SHOULD_FAIL_KEY) && doc.getFieldValue(SHOULD_FAIL_KEY, Boolean.class)) {
+                throw new RuntimeException("fail");
+            }
+        });
+        TestProcessor second = new TestProcessor(doc -> {});
+        TestProcessor onFailureFirst = new TestProcessor(doc -> {});
+        TestProcessor terminator = terminator();
+        TestProcessor onFailureLast = new TestProcessor(doc -> {});
+        CompoundProcessor compoundProcessor = new CompoundProcessor(
+            false,
+            Arrays.asList(failing, second),
+            Arrays.asList(onFailureFirst, terminator, onFailureLast),
+            ZERO_CLOCK
+        );
+
+        List<IngestDocumentWrapper> totalResults = Collections.synchronizedList(new ArrayList<>());
+        compoundProcessor.batchExecute(wrapperList, results -> totalResults.addAll(results));
+
+        assertThat(totalResults, hasSize(3));
+        assertThat(failing.getInvokedCounter(), equalTo(3));
+        assertThat(second.getInvokedCounter(), equalTo(1));
+        assertThat(onFailureFirst.getInvokedCounter(), equalTo(2));
+        assertThat(terminator.getInvokedCounter(), equalTo(2));
+        assertThat(onFailureLast.getInvokedCounter(), equalTo(0));
+        for (IngestDocumentWrapper result : totalResults) {
+            assertThat(result.getIngestDocument(), notNullValue());
+            assertThat(result.getException(), nullValue());
+            assertThat(result.getIngestDocument().getIngestMetadata().isEmpty(), is(true));
+        }
+    }
+
+    public void testIgnoreFailureHonoursTerminationRequestOfProcessorThatFailed() {
+        // a processor that asks for termination and then fails: with ignore_failure the request is not lost
+        TestProcessor terminateThenFail = new TestProcessor(doc -> {
+            doc.terminatePipeline();
+            throw new RuntimeException("boom");
+        });
+        TestProcessor last = new TestProcessor(doc -> {});
+        CompoundProcessor compoundProcessor = new CompoundProcessor(
+            true,
+            Arrays.asList(terminateThenFail, last),
+            Collections.emptyList(),
+            ZERO_CLOCK
+        );
+
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        compoundProcessor.execute(ingestDocument, (r, e) -> {
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        assertThat(failure[0], nullValue());
+        assertThat(result[0], sameInstance(ingestDocument));
+        assertThat(last.getInvokedCounter(), equalTo(0));
+        assertStats(0, compoundProcessor, 0, 1, 1, 0);
+    }
+
+    public void testBatchExecute_ignoreFailureHonoursTerminationRequestOfProcessorThatFailed() {
+        List<IngestDocumentWrapper> wrapperList = Arrays.asList(
+            IngestDocumentPreparer.createIngestDocumentWrapper(1),
+            IngestDocumentPreparer.createIngestDocumentWrapper(2, true),
+            IngestDocumentPreparer.createIngestDocumentWrapper(3)
+        );
+        TestProcessor terminateThenFail = new TestProcessor(doc -> {
+            if (doc.hasField(SHOULD_FAIL_KEY) && doc.getFieldValue(SHOULD_FAIL_KEY, Boolean.class)) {
+                doc.terminatePipeline();
+                throw new RuntimeException("boom");
+            }
+        });
+        TestProcessor last = new TestProcessor(doc -> {});
+        CompoundProcessor compoundProcessor = new CompoundProcessor(
+            true,
+            Arrays.asList(terminateThenFail, last),
+            Collections.emptyList(),
+            ZERO_CLOCK
+        );
+
+        List<IngestDocumentWrapper> totalResults = Collections.synchronizedList(new ArrayList<>());
+        compoundProcessor.batchExecute(wrapperList, results -> totalResults.addAll(results));
+
+        assertThat(totalResults, hasSize(3));
+        assertThat(last.getInvokedCounter(), equalTo(2));
+        for (IngestDocumentWrapper result : totalResults) {
+            assertThat(result.getIngestDocument(), notNullValue());
+            assertThat(result.getException(), nullValue());
+        }
+        assertStats(0, compoundProcessor, 0, 3, 1, 0);
+    }
+
+    private static final LongSupplier ZERO_CLOCK = () -> 0L;
+
+    /** A processor that behaves like the {@code terminate} processor. */
+    private static TestProcessor terminator() {
+        return new TestProcessor("terminator", "terminate", null, doc -> { doc.terminatePipeline(); });
+    }
+
+    /** Terminates only documents that carry {@link IngestDocumentPreparer#SHOULD_FAIL_KEY}, like an {@code if} condition would. */
+    private static TestProcessor terminatorForFlaggedDocuments() {
+        return new TestProcessor("terminator", "terminate", null, doc -> {
+            if (doc.hasField(SHOULD_FAIL_KEY) && doc.getFieldValue(SHOULD_FAIL_KEY, Boolean.class)) {
+                doc.terminatePipeline();
+            }
+        });
+    }
+
     private void assertStats(CompoundProcessor compoundProcessor, long count, long failed, long time) {
         assertStats(0, compoundProcessor, 0L, count, failed, time);
     }

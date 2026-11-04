@@ -378,6 +378,73 @@ public class TrackingResultProcessorTests extends OpenSearchTestCase {
         assertThat(resultList.get(3).getProcessorTag(), nullValue());
     }
 
+    public void testTerminateInCalledPipelineContinuesCallerInVerboseResults() throws Exception {
+        String pipelineId = "pipeline1";
+        IngestService ingestService = createIngestService();
+        PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
+        TestProcessor innerFirst = new TestProcessor("inner-first", "mock", null, doc -> {});
+        TestProcessor innerTerminator = new TestProcessor("inner-terminator", "terminate", null, doc -> { doc.terminatePipeline(); });
+        TestProcessor innerLast = new TestProcessor("inner-last", "mock", null, doc -> {});
+        Pipeline inner = new Pipeline(pipelineId, null, null, new CompoundProcessor(innerFirst, innerTerminator, innerLast));
+        when(ingestService.getPipeline(pipelineId)).thenReturn(inner);
+        // the factory removes the options that it reads, so the configuration has to be mutable
+        PipelineProcessor pipelineProcessor = factory.create(
+            Collections.emptyMap(),
+            "call",
+            null,
+            new HashMap<>(Map.of("name", pipelineId))
+        );
+        TestProcessor outerAfter = new TestProcessor("outer-after", "mock", null, doc -> {});
+        CompoundProcessor outer = new CompoundProcessor(pipelineProcessor, outerAfter);
+
+        CompoundProcessor trackingProcessor = decorate(outer, null, resultList);
+        Exception[] failure = new Exception[1];
+        ingestDocument.executePipeline(new Pipeline("outer", null, null, trackingProcessor), (result, e) -> failure[0] = e);
+
+        assertThat(failure[0], nullValue());
+        // the pipeline that was called ends at its terminate processor, the calling pipeline carries on
+        assertThat(innerLast.getInvokedCounter(), equalTo(0));
+        assertThat(outerAfter.getInvokedCounter(), equalTo(1));
+        List<String> listed = new ArrayList<>();
+        resultList.forEach(r -> listed.add(r.getType() + (r.getProcessorTag() == null ? "" : ":" + r.getProcessorTag())));
+        assertThat(listed, equalTo(List.of("pipeline:call", "mock:inner-first", "terminate:inner-terminator", "mock:outer-after")));
+        resultList.forEach(r -> assertThat(r.getFailure(), nullValue()));
+        assertThat(ingestDocument.isPipelineTerminated(), is(false));
+    }
+
+    public void testTerminateBehindFalseConditionalDoesNotEndPipelineInVerboseResults() throws Exception {
+        ScriptService scriptService = new ScriptService(
+            Settings.builder().build(),
+            Collections.singletonMap(
+                Script.DEFAULT_SCRIPT_LANG,
+                new MockScriptEngine(
+                    Script.DEFAULT_SCRIPT_LANG,
+                    Collections.singletonMap("conditionalScript", ctx -> false),
+                    Collections.emptyMap()
+                )
+            ),
+            new HashMap<>(ScriptModule.CORE_CONTEXTS)
+        );
+        TestProcessor terminator = new TestProcessor("terminator", "terminate", null, doc -> { doc.terminatePipeline(); });
+        ConditionalProcessor conditionalTerminator = new ConditionalProcessor(
+            "terminator",
+            null,
+            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "conditionalScript", Collections.emptyMap()),
+            scriptService,
+            terminator
+        );
+        TestProcessor last = new TestProcessor("last", "mock", null, doc -> {});
+        CompoundProcessor compound = new CompoundProcessor(conditionalTerminator, last);
+
+        CompoundProcessor trackingProcessor = decorate(compound, null, resultList);
+        ingestDocument.executePipeline(new Pipeline("_id", null, null, trackingProcessor), (result, e) -> {});
+
+        assertThat(terminator.getInvokedCounter(), equalTo(0));
+        assertThat(last.getInvokedCounter(), equalTo(1));
+        assertThat(resultList.size(), equalTo(2));
+        assertThat(resultList.get(0).getConditionalWithResult().v2(), is(false));
+    }
+
     public void testActualPipelineProcessorWithTrueConditional() throws Exception {
         String pipelineId1 = "pipeline1";
         String pipelineId2 = "pipeline2";
