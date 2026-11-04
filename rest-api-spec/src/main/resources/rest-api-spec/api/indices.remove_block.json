@@ -36,7 +36,7 @@
       },
       "ignore_unavailable":{
         "type":"boolean",
-        "description":"Whether specified concrete indices should be ignored when unavailable (missing or closed)"
+        "description":"Whether specified concrete indices should be ignored when they are missing. An explicitly named closed index is still processed"
       },
       "allow_no_indices":{
         "type":"boolean",
