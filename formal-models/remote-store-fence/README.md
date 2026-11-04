@@ -43,10 +43,12 @@ provided the store:
 
 - shows a read every write and delete of the fence object that completed before it (S3, GCS and
   Azure's primary region document this; never read the fence from an asynchronous replica), and
-- never hands a different writer the same token. GCS generations and Azure ETags never repeat. S3
-  ETags hash the content, which names term, allocation id, node id and seq, so a repeat needs the same
-  copy on the same node rewriting the same seq — only possible after a remote translog wipe, when the
-  engine holding the old token is already closed.
+- never hands two writes the same token. GCS generations and Azure ETags never repeat. S3 ETags hash
+  the content, so every fence write carries a fresh random nonce and no two writes have the same
+  content. Without it this is an ABA problem. A delete and a recreate with the same fields — the same
+  copy claiming the same term at seq 0 again — would hand back the token an old holder still has, and
+  its read would pass against an object it never wrote. A rising seq used to rule that out, but only
+  while every ack advanced it: now a holder keeps one token for its whole term.
 
 ## The invariants
 
@@ -257,8 +259,10 @@ A transfer or a revert can land with both its response and the read that would s
 source then holds a token older than the object, and the object's version is one the source wrote
 itself. Its next conditional write fails exactly as being fenced does. So every source action - an
 ack, a retried transfer, a revert - first settles a write of its own that is still outstanding. One
-read shows it by identity: written from the source's node, at the seq it attempted, recording an
-owner it attempted. Then the source adopts the token.
+read shows it by identity — the object carries the nonce of a write the source issued — and the
+source adopts the token. Not by allocation id, node id and seq: another fence instance of the same
+copy on the same node records exactly those, and adopting its write would hand the older instance
+the newer one's token.
 
 `NoSpuriousFencing` covers standing down as well as being fenced, since after an abort `IndexShard`
 fails a copy that stands down. Otherwise, only a completed handoff may stand the source down.

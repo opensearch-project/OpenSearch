@@ -107,8 +107,8 @@ Init ==
    this copy's own last write. Which owner that write recorded is the copy's own knowledge, not
    something the token check tests. *)
 (* A write of the source's own that landed unseen, still the object's current version, so one read
-   shows it by identity: written from the source's node, at the seq the source attempted - the token
-   after its own - and recording an owner the source attempted. *)
+   shows it by identity: the object carries the nonce of a write the source issued. fenceBySource is
+   that nonce check, abstracted: no other writer can produce it. *)
 PendingLanded ==
   srcPending /= {} /\ fenceExists /\ fenceBySource /\ fenceToken = srcToken + 1 /\ fenceOwner \in srcPending
 

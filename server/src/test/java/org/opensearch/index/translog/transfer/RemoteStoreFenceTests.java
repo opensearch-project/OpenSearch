@@ -14,6 +14,7 @@ import org.opensearch.common.blobstore.BlobVersionConflictException;
 import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
+import org.opensearch.common.hash.MessageDigests;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -23,10 +24,12 @@ import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -772,6 +775,98 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         assertEquals("once settled, acks only read again", writes + 1, container.conditionalWrites.get());
     }
 
+    /**
+     * Version tokens as S3 computes ETags for a single-part upload: a hash of the content, so identical content gets an
+     * identical token. GCS generations and Azure ETags never repeat; this is the store that makes uniqueness the fence's
+     * job.
+     */
+    private static class ContentHashedContainer extends FsBlobContainer {
+        ContentHashedContainer(FsBlobStore blobStore, Path repoPath) {
+            super(blobStore, BlobPath.cleanPath(), repoPath);
+        }
+
+        private static String etag(byte[] content) {
+            return MessageDigests.toHexString(MessageDigests.md5().digest(content));
+        }
+
+        @Override
+        public synchronized VersionedBlob readBlobWithVersion(String blobName) throws IOException {
+            final byte[] content;
+            try (InputStream in = readBlob(blobName)) {
+                content = in.readAllBytes();
+            }
+            return new VersionedBlob(content, etag(content));
+        }
+
+        @Override
+        public synchronized String writeBlobConditionally(String blobName, InputStream in, long size, String expectedToken)
+            throws IOException {
+            final String current = blobExists(blobName) ? readBlobWithVersion(blobName).versionToken() : null;
+            if (Objects.equals(current, expectedToken) == false) {
+                throw new BlobVersionConflictException("conditional write conflict for blob [" + blobName + "]");
+            }
+            final byte[] content = in.readAllBytes();
+            writeBlob(blobName, new ByteArrayInputStream(content), content.length, false);
+            return etag(content);
+        }
+    }
+
+    /**
+     * The ABA problem on a content-hashed store. A holder keeps one token for its whole term, since acks only read. If
+     * its object is deleted and then recreated with the same fields - the same copy claiming the same term at seq 0 again,
+     * as a claim racing a higher-term sweep can - a token computed from the fields alone would come back identical.
+     * The old holder's read would then pass against an object it never wrote, and keep acknowledging past whatever
+     * restore point the sweep's successor read. Every write's nonce makes the recreated token differ.
+     */
+    public void testRecreatedObjectNeverHandsBackAnOldToken() throws IOException {
+        final ContentHashedContainer container = new ContentHashedContainer(blobStore, repoPath);
+        final RemoteStoreFence holder = new RemoteStoreFence(container, allocationIdOf("node-1"), "node-1", shardId);
+        holder.validateAndAdvance(1);
+        holder.validateAndAdvance(1);
+        final String held = container.readBlobWithVersion(RemoteStoreFence.fenceBlobName(1)).versionToken();
+
+        container.deleteBlobsIgnoringIfNotExists(List.of(RemoteStoreFence.fenceBlobName(1)));
+        final RemoteStoreFence recreator = new RemoteStoreFence(container, allocationIdOf("node-1"), "node-1", shardId);
+        recreator.validateAndAdvance(1);
+        final VersionedBlob recreated = container.readBlobWithVersion(RemoteStoreFence.fenceBlobName(1));
+        assertEquals(
+            "the recreated object records the same copy at the same seq",
+            0,
+            RemoteStoreFence.FenceState.parse(recreated.content()).seq
+        );
+        assertNotEquals("a recreated object must not hand back the old token", held, recreated.versionToken());
+
+        expectThrows(TranslogFencedException.class, () -> holder.validateAndAdvance(1));
+        recreator.validateAndAdvance(1);
+    }
+
+    /**
+     * The ABA problem in settling a write by identity. Two fence instances of the same copy on the same node record the
+     * same allocation id and node id. Here the older one's revert failed before reaching the store, so it is
+     * outstanding at the next seq. Then the copy's recovery seal claims the chain through an unguarded instance, at
+     * exactly that seq, recording exactly that owner. Matched on those fields, the older instance would adopt the
+     * seal's write as its own revert and keep acknowledging by read, past the restore point the recovery reads after
+     * its seal. Matched on the nonce, it is fenced.
+     */
+    public void testSettlingNeverAdoptsAnotherInstanceOfTheSameCopy() throws IOException {
+        final InstrumentedContainer container = new InstrumentedContainer(blobStore, repoPath);
+        final RemoteStoreFence older = new RemoteStoreFence(container, allocationIdOf("node-1"), "node-1", shardId);
+        older.validateAndAdvance(1);
+        older.transferOwnershipTo(1, allocationIdOf("node-target"));
+        container.failNextWriteBeforeItLands.set(true);
+        expectThrows(IOException.class, () -> older.revertOwnership(1));
+
+        final RemoteStoreFence seal = new RemoteStoreFence(container, allocationIdOf("node-1"), "node-1", shardId);
+        seal.validateAndAdvance(1);
+        final RemoteStoreFence.FenceState sealed = RemoteStoreFence.FenceState.parse(
+            container.readBlobWithVersion(RemoteStoreFence.fenceBlobName(1)).content()
+        );
+        assertEquals("the seal wrote the seq the older instance had outstanding", 2, sealed.seq);
+        assertEquals("recording the same owner it would have", allocationIdOf("node-1"), sealed.allocationId);
+
+        expectThrows(TranslogFencedException.class, () -> older.validateAndAdvance(1));
+    }
+
     /** A fence instance requiring recorded ownership, as every translog instance does - see RemoteFsTranslog#buildFence. */
     private RemoteStoreFence newTranslogInstance(String ownerNodeId) {
         return new RemoteStoreFence(blobContainer, allocationIdOf(ownerNodeId), ownerNodeId, shardId, true);
@@ -865,7 +960,7 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
     }
 
     public void testFenceStateCodecRoundTrip() throws IOException {
-        RemoteStoreFence.FenceState state = new RemoteStoreFence.FenceState("uuid", 3, 7, "alloc-a", "node-a", 42);
+        RemoteStoreFence.FenceState state = new RemoteStoreFence.FenceState("uuid", 3, 7, "alloc-a", "node-a", 42, "nonce-a");
         RemoteStoreFence.FenceState parsed = RemoteStoreFence.FenceState.parse(state.toBytes());
         assertEquals("uuid", parsed.indexUUID);
         assertEquals(3, parsed.shardId);
@@ -873,14 +968,51 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
         assertEquals("alloc-a", parsed.allocationId);
         assertEquals("node-a", parsed.nodeId);
         assertEquals(42, parsed.seq);
+        assertEquals("nonce-a", parsed.nonce);
+    }
+
+    /** An object an earlier build wrote, without a nonce, still parses, so the claim that takes it over is not wedged. */
+    public void testFenceStateCodecReadsLegacyV1() throws IOException {
+        RemoteStoreFence.FenceState legacy = RemoteStoreFence.FenceState.parse(
+            "v1|uuid|3|7|alloc-a|node-a|42".getBytes(StandardCharsets.UTF_8)
+        );
+        assertEquals("alloc-a", legacy.allocationId);
+        assertEquals(42, legacy.seq);
+        assertNull(legacy.nonce);
+    }
+
+    /** A claim over a v1 object takes it over as usual and rewrites it as v2. */
+    public void testClaimTakesOverALegacyV1Object() throws IOException {
+        final byte[] legacy = "v1|uuid|0|1|node-old-alloc|node-old|5".getBytes(StandardCharsets.UTF_8);
+        blobContainer.writeBlobConditionally(RemoteStoreFence.fenceBlobName(1), new ByteArrayInputStream(legacy), legacy.length, null);
+
+        final RemoteStoreFence fence = newFence("node-1");
+        fence.validateAndAdvance(1);
+        final RemoteStoreFence.FenceState claimed = RemoteStoreFence.FenceState.parse(
+            blobContainer.readBlobWithVersion(RemoteStoreFence.fenceBlobName(1)).content()
+        );
+        assertEquals(allocationIdOf("node-1"), claimed.allocationId);
+        assertEquals(6, claimed.seq);
+        assertNotNull(claimed.nonce);
+        fence.validateAndAdvance(1);
     }
 
     public void testFenceStateCodecRejectsGarbage() {
         expectThrows(IOException.class, () -> RemoteStoreFence.FenceState.parse("garbage".getBytes(StandardCharsets.UTF_8)));
-        // Wrong codec version
+        // A v2 layout missing its nonce
         expectThrows(
             IOException.class,
             () -> RemoteStoreFence.FenceState.parse("v2|uuid|0|1|alloc-1|node-1|0".getBytes(StandardCharsets.UTF_8))
+        );
+        // A v1 layout carrying one
+        expectThrows(
+            IOException.class,
+            () -> RemoteStoreFence.FenceState.parse("v1|uuid|0|1|alloc-1|node-1|0|nonce".getBytes(StandardCharsets.UTF_8))
+        );
+        // Unknown codec version
+        expectThrows(
+            IOException.class,
+            () -> RemoteStoreFence.FenceState.parse("v3|uuid|0|1|alloc-1|node-1|0|nonce".getBytes(StandardCharsets.UTF_8))
         );
         // Non-numeric term
         expectThrows(
@@ -901,15 +1033,18 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
 
     /**
      * The separator is unescaped, so a string field containing it would encode a blob that {@code parse} rejects -
-     * which would fence a healthy primary. Index UUIDs, allocation ids and node ids are base64 UUIDs so this cannot
+     * which would fence a healthy primary. Index UUIDs, allocation ids, node ids and nonces are base64 UUIDs so this cannot
      * happen today; reject it at the source rather than rely on that.
      */
     public void testFenceStateRejectsFieldsContainingTheSeparator() {
-        expectThrows(IllegalArgumentException.class, () -> new RemoteStoreFence.FenceState("uuid", 0, 1, "alloc-1", "node|1", 0));
-        expectThrows(IllegalArgumentException.class, () -> new RemoteStoreFence.FenceState("uuid", 0, 1, "alloc|1", "node-1", 0));
-        expectThrows(IllegalArgumentException.class, () -> new RemoteStoreFence.FenceState("uu|id", 0, 1, "alloc-1", "node-1", 0));
+        expectThrows(IllegalArgumentException.class, () -> new RemoteStoreFence.FenceState("uuid", 0, 1, "alloc-1", "node|1", 0, "n"));
+        expectThrows(IllegalArgumentException.class, () -> new RemoteStoreFence.FenceState("uuid", 0, 1, "alloc|1", "node-1", 0, "n"));
+        expectThrows(IllegalArgumentException.class, () -> new RemoteStoreFence.FenceState("uu|id", 0, 1, "alloc-1", "node-1", 0, "n"));
+        expectThrows(IllegalArgumentException.class, () -> new RemoteStoreFence.FenceState("uuid", 0, 1, "alloc-1", "node-1", 0, "n|1"));
         // and the encoding of well-formed fields still round-trips
-        RemoteStoreFence.FenceState roundTripped = expectSuccess(new RemoteStoreFence.FenceState("uuid", 0, 7, "alloc-1", "node-1", 3));
+        RemoteStoreFence.FenceState roundTripped = expectSuccess(
+            new RemoteStoreFence.FenceState("uuid", 0, 7, "alloc-1", "node-1", 3, "nonce-1")
+        );
         assertEquals(7, roundTripped.term);
         assertEquals("alloc-1", roundTripped.allocationId);
         assertEquals("node-1", roundTripped.nodeId);
@@ -921,7 +1056,7 @@ public class RemoteStoreFenceTests extends OpenSearchTestCase {
      * That must surface as a loud repository error - never as a fencing verdict on a chain that is not ours.
      */
     public void testFenceBlobForAnotherShardFailsLoudly() throws IOException {
-        byte[] foreign = new RemoteStoreFence.FenceState("other-uuid", 3, 1, "alloc-x", "node-x", 0).toBytes();
+        byte[] foreign = new RemoteStoreFence.FenceState("other-uuid", 3, 1, "alloc-x", "node-x", 0, "nonce-x").toBytes();
         blobContainer.writeBlobConditionally(RemoteStoreFence.fenceBlobName(5), new ByteArrayInputStream(foreign), foreign.length, null);
         RemoteStoreFence fence = newFence("node-1");
         IOException e = expectThrows(IOException.class, () -> fence.validateAndAdvance(5));

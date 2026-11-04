@@ -101,20 +101,22 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
 
     /**
      * Parses the fence blob independently of {@link RemoteStoreFence}, so that the on-disk layout documented as
-     * {@code v1|<indexUUID>|<shardId>|<term>|<allocationId>|<nodeId>|<seq>} is asserted rather than assumed.
+     * {@code v2|<indexUUID>|<shardId>|<term>|<allocationId>|<nodeId>|<seq>|<nonce>} is asserted rather than assumed.
      */
     private static Fence readFence(Path metadataDirectory) throws IOException {
         String raw = new String(Files.readAllBytes(currentFenceBlob(metadataDirectory)), StandardCharsets.UTF_8);
         String[] tokens = raw.split("\\|");
-        assertEquals("unexpected fence blob layout [" + raw + "]", 7, tokens.length);
-        assertEquals("unexpected fence codec version [" + raw + "]", "v1", tokens[0]);
+        assertEquals("unexpected fence blob layout [" + raw + "]", 8, tokens.length);
+        assertEquals("unexpected fence codec version [" + raw + "]", "v2", tokens[0]);
+        assertFalse("a fence write must carry a nonce [" + raw + "]", tokens[7].isEmpty());
         return new Fence(
             tokens[1],
             Integer.parseInt(tokens[2]),
             Long.parseLong(tokens[3]),
             tokens[4],
             tokens[5],
-            Long.parseLong(tokens[6])
+            Long.parseLong(tokens[6]),
+            tokens[7]
         );
     }
 
@@ -160,27 +162,31 @@ public class RemoteStoreFencingIT extends RemoteStoreBaseIntegTestCase {
         private final String allocationId;
         private final String nodeId;
         private final long seq;
+        /** Fresh for every write, so an object rewritten with the same fields still compares as changed. */
+        private final String nonce;
 
-        private Fence(String indexUUID, int shardId, long term, String allocationId, String nodeId, long seq) {
+        private Fence(String indexUUID, int shardId, long term, String allocationId, String nodeId, long seq, String nonce) {
             this.indexUUID = indexUUID;
             this.shardId = shardId;
             this.term = term;
             this.allocationId = allocationId;
             this.nodeId = nodeId;
             this.seq = seq;
+            this.nonce = nonce;
         }
 
         @Override
         public String toString() {
             return String.format(
                 Locale.ROOT,
-                "index [%s] shard [%d] term [%d] allocation [%s] node [%s] seq [%d]",
+                "index [%s] shard [%d] term [%d] allocation [%s] node [%s] seq [%d] nonce [%s]",
                 indexUUID,
                 shardId,
                 term,
                 allocationId,
                 nodeId,
-                seq
+                seq,
+                nonce
             );
         }
     }

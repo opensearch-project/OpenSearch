@@ -9,6 +9,7 @@
 package org.opensearch.index.translog.transfer;
 
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobVersionConflictException;
 import org.opensearch.common.blobstore.VersionedBlob;
@@ -139,7 +140,9 @@ public class RemoteStoreFence {
      * {@code TranslogTransferMetadata.METADATA_PREFIX}, so metadata listings, restore lineage and GC never see these.
      */
     public static final String FENCE_BLOB_PREFIX = "fence__";
-    private static final String CODEC_VERSION = "v1";
+    private static final String CODEC_VERSION = "v2";
+    /** Written before fence writes carried a nonce; still read, never written. */
+    private static final String LEGACY_CODEC_VERSION = "v1";
     private static final String FIELD_SEPARATOR = "|";
     /**
      * Bound on equal-term arbitration attempts. Only equal-term claimants (a relocation source and its target, or an
@@ -298,10 +301,9 @@ public class RemoteStoreFence {
      * Safe for the same reason the CAS was: the read starts after this upload's metadata is visible, so any takeover
      * the read missed wrote later, and reads its restore point later still, when the metadata is already there. This
      * relies on the store showing a read every write and delete that completed before it - which S3, GCS and Azure
-     * (primary region) document; never read the fence from an asynchronous replica - and on a token not repeating for
-     * a different writer. GCS generations and Azure ETags never repeat. S3 ETags hash the content, which names the
-     * term, allocation id, node id and seq, so a repeat takes the same copy on the same node rewriting the same seq,
-     * which only happens after a remote translog wipe, when the engine holding the old token is already closed.
+     * (primary region) document; never read the fence from an asynchronous replica - and on a token never repeating
+     * across writes. GCS generations and Azure ETags never repeat. S3 ETags hash the content, which is why every write
+     * carries a fresh nonce: see {@link FenceState}.
      */
     private void validateByRead(long primaryTerm) throws IOException {
         final VersionedBlob current;
@@ -329,8 +331,9 @@ public class RemoteStoreFence {
         for (int attempt = 0;; attempt++) {
             final long attemptedSeq = seq + 1;
             final String expectedToken = versionToken;
+            final String nonce = UUIDs.randomBase64UUID();
             try {
-                cas(primaryTerm, expectedToken, attemptedSeq, recordedAllocationId);
+                cas(primaryTerm, expectedToken, attemptedSeq, recordedAllocationId, nonce);
                 return;
             } catch (BlobVersionConflictException e) {
                 // A write of ours still outstanding after the caller's read may have landed since: a delayed request
@@ -344,14 +347,15 @@ public class RemoteStoreFence {
                 // Ambiguous rather than failed: the write may have landed with only the response lost. Left unsettled,
                 // our token would be stale and the next If-Match would fail exactly as being fenced does - failing a
                 // healthy copy on a network blip. Not treating this as terminal is what keeps the error retryable.
-                recordPendingWrite(attemptedSeq, recordedAllocationId, expectedToken);
+                recordPendingWrite(attemptedSeq, nonce, expectedToken);
+                final String adopted;
                 try {
-                    resolvePendingWrite(primaryTerm);
+                    adopted = resolvePendingWrite(primaryTerm);
                 } catch (IOException unresolved) {
                     e.addSuppressed(unresolved);
                     throw e;
                 }
-                if (seq == attemptedSeq && recordedAllocationId.equals(this.recordedAllocationId)) {
+                if (nonce.equals(adopted)) {
                     return; // it landed, and we adopted it
                 }
                 throw e;
@@ -359,9 +363,9 @@ public class RemoteStoreFence {
         }
     }
 
-    private void recordPendingWrite(long attemptedSeq, String recordedAllocationId, String expectedToken) {
+    private void recordPendingWrite(long attemptedSeq, String nonce, String expectedToken) {
         if (pendingWrite == null) {
-            pendingWrite = new PendingWrite(attemptedSeq, expectedToken, Set.of(recordedAllocationId));
+            pendingWrite = new PendingWrite(attemptedSeq, expectedToken, Set.of(nonce));
             return;
         }
         // An earlier write is still outstanding, so this one was issued against the same token at the same seq: at most
@@ -371,17 +375,17 @@ public class RemoteStoreFence {
             + " does not match a write at seq ["
             + attemptedSeq
             + "]";
-        Set<String> recorded = new HashSet<>(pendingWrite.recordedAllocationIds());
-        recorded.add(recordedAllocationId);
-        pendingWrite = new PendingWrite(attemptedSeq, expectedToken, Set.copyOf(recorded));
+        Set<String> nonces = new HashSet<>(pendingWrite.nonces());
+        nonces.add(nonce);
+        pendingWrite = new PendingWrite(attemptedSeq, expectedToken, Set.copyOf(nonces));
     }
 
     /**
      * Settles {@link #pendingWrite} as far as one read can, before an operation acts on the chain.
      * <p>
-     * Answers by identity rather than by token, which is the only way to tell. The object records the writing copy's
-     * term, allocation id and node id along with its seq, so a blob carrying ours at exactly the seq we attempted can
-     * only be a write we issued. Then:
+     * Answers by identity rather than by token, which is the only way to tell: a blob carrying the nonce of a write
+     * we issued is that write. Not the writing copy's allocation id and node id at the seq we attempted - another
+     * fence instance of this same copy records exactly those too (see {@link FenceState}). Then:
      * <ul>
      * <li><b>It landed:</b> adopt the token it now has, and carry on from there.</li>
      * <li><b>It can never land:</b> the object is gone, or has moved past the token the write was conditioned on
@@ -391,11 +395,12 @@ public class RemoteStoreFence {
      * in flight. Keep it. The caller's next conditional write races it, and whichever wins settles it.</li>
      * </ul>
      *
+     * @return the nonce of the write adopted, or {@code null} if none was
      * @throws IOException the object could not be read; the write stays outstanding, and the caller's error is retryable
      */
-    private void resolvePendingWrite(long primaryTerm) throws IOException {
+    private String resolvePendingWrite(long primaryTerm) throws IOException {
         if (pendingWrite == null) {
-            return;
+            return null;
         }
         final VersionedBlob current;
         try {
@@ -403,13 +408,13 @@ public class RemoteStoreFence {
         } catch (NoSuchFileException e) {
             // A higher term swept our path. A conditional write against a deleted object can never land.
             pendingWrite = null;
-            return;
+            return null;
         }
         final FenceState remote = readRemoteState(current.content());
-        if (remote.term == primaryTerm
-            && remote.seq == pendingWrite.seq()
-            && ownerNodeId.equals(remote.nodeId)
-            && pendingWrite.recordedAllocationIds().contains(remote.allocationId)) {
+        if (remote.nonce != null && pendingWrite.nonces().contains(remote.nonce)) {
+            assert remote.term == primaryTerm && remote.seq == pendingWrite.seq() && ownerNodeId.equals(remote.nodeId) : "fence write "
+                + remote.nonce
+                + " carries our nonce but not our identity";
             this.versionToken = current.versionToken();
             this.term = primaryTerm;
             this.seq = remote.seq;
@@ -421,17 +426,20 @@ public class RemoteStoreFence {
                 remote.seq,
                 remote.allocationId
             );
-        } else if (current.versionToken().equals(pendingWrite.expectedToken()) == false) {
+            return remote.nonce;
+        }
+        if (current.versionToken().equals(pendingWrite.expectedToken()) == false) {
             pendingWrite = null;
         }
+        return null;
     }
 
     /**
-     * A conditional write whose outcome is unknown: issued against {@code expectedToken} at {@code seq}, recording one of
-     * {@code recordedAllocationIds} as owner. There is more than one only when a second write was issued against the
-     * same token before the first settled, a write-back after a failed revert for instance.
+     * A conditional write whose outcome is unknown: issued against {@code expectedToken} at {@code seq}, and carrying one
+     * of {@code nonces}. There is more than one only when a second write was issued against the same token before the
+     * first settled, a write-back after a failed revert for instance.
      */
-    private record PendingWrite(long seq, String expectedToken, Set<String> recordedAllocationIds) {
+    private record PendingWrite(long seq, String expectedToken, Set<String> nonces) {
     }
 
     /**
@@ -758,14 +766,22 @@ public class RemoteStoreFence {
     }
 
     private void cas(long primaryTerm, String expectedToken, long nextSeq) throws IOException {
-        cas(primaryTerm, expectedToken, nextSeq, ownerAllocationId);
+        cas(primaryTerm, expectedToken, nextSeq, ownerAllocationId, UUIDs.randomBase64UUID());
     }
 
-    private void cas(long primaryTerm, String expectedToken, long nextSeq, String recordedAllocationId) throws IOException {
+    /** {@code nonce} must be fresh for every write: see {@link FenceState}. */
+    private void cas(long primaryTerm, String expectedToken, long nextSeq, String recordedAllocationId, String nonce) throws IOException {
         // Invariant: seq strictly increases along a term's chain.
         assert primaryTerm != term || nextSeq > seq : "fence seq must advance: [" + seq + "] -> [" + nextSeq + "]";
-        byte[] content = new FenceState(shardId.getIndex().getUUID(), shardId.id(), primaryTerm, recordedAllocationId, ownerNodeId, nextSeq)
-            .toBytes();
+        byte[] content = new FenceState(
+            shardId.getIndex().getUUID(),
+            shardId.id(),
+            primaryTerm,
+            recordedAllocationId,
+            ownerNodeId,
+            nextSeq,
+            nonce
+        ).toBytes();
         String newToken = blobContainer.writeBlobConditionally(
             fenceBlobName(primaryTerm),
             new ByteArrayInputStream(content),
@@ -824,12 +840,29 @@ public class RemoteStoreFence {
     }
 
     /**
-     * Fence blob content: {@code v1|<indexUUID>|<shardId>|<term>|<allocationId>|<nodeId>|<seq>} in UTF-8.
+     * Fence blob content: {@code v2|<indexUUID>|<shardId>|<term>|<allocationId>|<nodeId>|<seq>|<nonce>} in UTF-8.
+     * {@code v1} is the same without the nonce, and is still read: an object an earlier build wrote must not wedge the
+     * claim that takes it over.
      * <p>
      * The index UUID and shard id make the blob self-describing and are validated on every read (one blob per shard). The
      * allocation id identifies the owning shard <i>copy</i> — the identity the cluster's in-sync set is expressed in —
      * and the node id is recorded alongside it for operators; both are advisory, since exclusion is
      * enforced entirely by the CAS chain.
+     * <p>
+     * The <b>nonce</b> is random and fresh for every write, so no two writes ever have the same content. Two things need
+     * that, and both are ABA problems - an object that changed and changed back looks unchanged to a check that only
+     * compares:
+     * <ul>
+     * <li><b>Version tokens.</b> S3's ETag for a single-part upload is a hash of the content, so identical content
+     * gets an identical token. Without the nonce, deleting an object and recreating it with the same fields - the same
+     * copy claiming the same term at seq 0 again - hands back the token its old holder still has. That holder's read
+     * check, and its If-Match, then pass against an object it never wrote. Since acknowledgements stopped writing,
+     * a holder keeps one token for its whole term, so a repeat is no longer something a rising seq rules out.</li>
+     * <li><b>Settling a write by identity</b> ({@link #resolvePendingWrite}). Two fence instances of the same copy on
+     * the same node - an engine reset replaces the translog, and with it the fence - record the same allocation id and
+     * node id. One that writes the seq the other had outstanding would otherwise be adopted by it as its own: the
+     * older instance takes the newer one's token, and passes every check on a chain it no longer holds.</li>
+     * </ul>
      */
     static final class FenceState {
         final String indexUUID;
@@ -838,13 +871,15 @@ public class RemoteStoreFence {
         final String allocationId;
         final String nodeId;
         final long seq;
+        /** Unique to the write that produced this content; {@code null} for an object written as {@code v1}. */
+        final String nonce;
 
-        FenceState(String indexUUID, int shardId, long term, String allocationId, String nodeId, long seq) {
-            // Index UUIDs, allocation ids and node ids are base64 UUIDs today, so this cannot fire; encoding a field
-            // containing the separator would silently produce a blob that parse() rejects, which would fence a
+        FenceState(String indexUUID, int shardId, long term, String allocationId, String nodeId, long seq, String nonce) {
+            // Index UUIDs, allocation ids, node ids and nonces are base64 UUIDs today, so this cannot fire; encoding a
+            // field containing the separator would silently produce a blob that parse() rejects, which would fence a
             // healthy primary.
-            for (String field : new String[] { indexUUID, allocationId, nodeId }) {
-                if (field.contains(FIELD_SEPARATOR)) {
+            for (String field : new String[] { indexUUID, allocationId, nodeId, nonce }) {
+                if (field != null && field.contains(FIELD_SEPARATOR)) {
                     throw new IllegalArgumentException("Fence field [" + field + "] must not contain [" + FIELD_SEPARATOR + "]");
                 }
             }
@@ -854,6 +889,7 @@ public class RemoteStoreFence {
             this.allocationId = allocationId;
             this.nodeId = nodeId;
             this.seq = seq;
+            this.nonce = nonce;
         }
 
         String describeOwner() {
@@ -861,6 +897,7 @@ public class RemoteStoreFence {
         }
 
         byte[] toBytes() {
+            Objects.requireNonNull(nonce, "every fence write carries a nonce");
             return String.join(
                 FIELD_SEPARATOR,
                 CODEC_VERSION,
@@ -869,13 +906,16 @@ public class RemoteStoreFence {
                 Long.toString(term),
                 allocationId,
                 nodeId,
-                Long.toString(seq)
+                Long.toString(seq),
+                nonce
             ).getBytes(StandardCharsets.UTF_8);
         }
 
         static FenceState parse(byte[] content) throws IOException {
             String[] tokens = new String(content, StandardCharsets.UTF_8).split("\\" + FIELD_SEPARATOR);
-            if (tokens.length != 7 || CODEC_VERSION.equals(tokens[0]) == false) {
+            final boolean current = tokens.length == 8 && CODEC_VERSION.equals(tokens[0]);
+            final boolean legacy = tokens.length == 7 && LEGACY_CODEC_VERSION.equals(tokens[0]);
+            if (current == false && legacy == false) {
                 throw new IOException("Unrecognized fence blob content");
             }
             try {
@@ -885,7 +925,8 @@ public class RemoteStoreFence {
                     Long.parseLong(tokens[3]),
                     tokens[4],
                     tokens[5],
-                    Long.parseLong(tokens[6])
+                    Long.parseLong(tokens[6]),
+                    current ? tokens[7] : null
                 );
             } catch (NumberFormatException e) {
                 throw new IOException("Unrecognized fence blob content", e);
