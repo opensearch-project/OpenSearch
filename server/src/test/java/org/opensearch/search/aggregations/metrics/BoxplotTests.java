@@ -8,13 +8,15 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.opensearch.search.aggregations.AggregationBuilders;
+
 import static org.hamcrest.Matchers.containsString;
 
 public class BoxplotTests extends AbstractNumericMetricTestCase<BoxplotAggregationBuilder> {
 
     @Override
     protected BoxplotAggregationBuilder doCreateTestAggregatorFactory() {
-        BoxplotAggregationBuilder builder = new BoxplotAggregationBuilder(randomAlphaOfLengthBetween(1, 20));
+        BoxplotAggregationBuilder builder = AggregationBuilders.boxplot(randomAlphaOfLengthBetween(1, 20));
 
         if (randomBoolean()) {
             builder.compression(randomDoubleBetween(1, 1000, true));
