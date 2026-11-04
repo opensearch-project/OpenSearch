@@ -181,6 +181,11 @@ public final class Pipeline {
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
         metrics.before();
+        // A request to terminate that is already pending belongs to the pipeline that calls this one (a processor that runs other
+        // processors, like foreach, can have one from an earlier step). It is set aside, so that it does not cut this pipeline short,
+        // and handed back when this pipeline completes.
+        final boolean pendingTermination = ingestDocument.isPipelineTerminated();
+        ingestDocument.clearPipelineTermination();
         compoundProcessor.execute(ingestDocument, (result, e) -> {
             long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
             metrics.after(ingestTimeInNanos);
@@ -192,6 +197,12 @@ public final class Pipeline {
             ingestDocument.clearPipelineTermination();
             if (result != null) {
                 result.clearPipelineTermination();
+            }
+            if (pendingTermination) {
+                ingestDocument.terminatePipeline();
+                if (result != null) {
+                    result.terminatePipeline();
+                }
             }
             handler.accept(result, e);
         });

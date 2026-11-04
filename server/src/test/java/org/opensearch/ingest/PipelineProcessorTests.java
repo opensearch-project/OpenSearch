@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -460,6 +461,53 @@ public class PipelineProcessorTests extends OpenSearchTestCase {
         assertThat(result[0], sameInstance(ingestDocument));
         assertThat(innerLast.getInvokedCounter(), equalTo(0));
         assertThat(outerAfter.getInvokedCounter(), equalTo(1));
+    }
+
+    public void testTerminateRequestPendingWhenAPipelineIsCalledIsKeptForTheCaller() {
+        IngestService ingestService = createIngestService();
+        TestProcessor innerFirst = new TestProcessor(doc -> {});
+        TestProcessor innerSecond = new TestProcessor(doc -> {});
+        Pipeline inner = new Pipeline("inner", null, null, new CompoundProcessor(innerFirst, innerSecond));
+        when(ingestService.getPipeline("inner")).thenReturn(inner);
+        // a processor that runs other processors, like foreach, can have a request to terminate pending from an earlier step when it
+        // calls a pipeline in a later one: the request belongs to the pipeline that runs it, not to the pipeline that it calls
+        Processor requestsTerminationThenCallsPipeline = new AbstractProcessor(null, null) {
+            @Override
+            public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+                ingestDocument.terminatePipeline();
+                callPipeline("inner", ingestService).execute(ingestDocument, handler);
+            }
+
+            @Override
+            public IngestDocument execute(IngestDocument ingestDocument) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String getType() {
+                return "test-loop";
+            }
+        };
+        TestProcessor outerAfter = new TestProcessor(doc -> {});
+        Pipeline outer = new Pipeline("outer", null, null, new CompoundProcessor(requestsTerminationThenCallsPipeline, outerAfter));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        ingestDocument.executePipeline(outer, (r, e) -> {
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        assertThat(failure[0], nullValue());
+        // the pipeline completed, rather than the handler never having been called
+        assertThat(result[0], sameInstance(ingestDocument));
+        // the called pipeline is not cut short by a request that was made before it started
+        assertThat(innerFirst.getInvokedCounter(), equalTo(1));
+        assertThat(innerSecond.getInvokedCounter(), equalTo(1));
+        // the request is still there when the calling pipeline gets back to it
+        assertThat(outerAfter.getInvokedCounter(), equalTo(0));
+        assertThat(ingestDocument.isPipelineTerminated(), equalTo(false));
     }
 
     private static TestProcessor terminator() {

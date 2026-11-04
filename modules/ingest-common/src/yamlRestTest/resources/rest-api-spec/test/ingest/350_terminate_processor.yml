@@ -35,6 +35,14 @@ teardown:
         id: "terminate_stats"
         ignore: 404
   - do:
+      ingest.delete_pipeline:
+        id: "foreach_outer"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "foreach_inner"
+        ignore: 404
+  - do:
       indices.delete:
         index: test
         ignore_unavailable: true
@@ -564,3 +572,59 @@ teardown:
   - gte: { nodes.$cluster_manager.ingest.pipelines.terminate_stats.processors.1.terminate.stats.count: 1 }
   - match: { nodes.$cluster_manager.ingest.pipelines.terminate_stats.processors.1.terminate.stats.failed: 0 }
   - match: { nodes.$cluster_manager.ingest.pipelines.terminate_stats.processors.2.set.stats.count: 0 }
+
+---
+"Terminate in a foreach that calls a pipeline waits for the loop and does not cut the called pipeline short":
+  - do:
+      ingest.put_pipeline:
+        id: "foreach_inner"
+        body: >
+          {
+            "processors": [
+              { "fail": { "message": "first call", "if": "ctx.calls == null" } },
+              { "set": { "field": "inner_second_processor", "value": "ran" } }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  # the first call of the pipeline fails and the processor terminates in its on_failure, the second call runs while that
+  # request is still waiting for the loop to finish
+  - do:
+      ingest.put_pipeline:
+        id: "foreach_outer"
+        body: >
+          {
+            "processors": [
+              {
+                "foreach": {
+                  "field": "items",
+                  "processor": {
+                    "pipeline": {
+                      "name": "foreach_inner",
+                      "on_failure": [
+                        { "set": { "field": "calls", "value": 1 } },
+                        { "terminate": {} }
+                      ]
+                    }
+                  }
+                }
+              },
+              { "set": { "field": "outer_after", "value": "ran" } }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.simulate:
+        id: "foreach_outer"
+        body: >
+          {
+            "docs": [
+              { "_source": { "items": ["a", "b"] } }
+            ]
+          }
+  - is_false: docs.0.error
+  - match: { docs.0.doc._source.calls: 1 }
+  - match: { docs.0.doc._source.inner_second_processor: "ran" }
+  - is_false: docs.0.doc._source.outer_after
+  - is_false: docs.0.doc._ingest.on_failure_message
