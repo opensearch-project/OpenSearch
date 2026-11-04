@@ -45,7 +45,9 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -615,6 +617,74 @@ public class FunctionScoreTests extends OpenSearchTestCase {
         assertThat(functionExplanation.getDescription(), equalTo("function score, product of:"));
         assertThat(functionExplanation.getDetails()[0].getDescription(), equalTo("match filter: " + FIELD + ":" + TERM.text()));
         assertThat(functionExplanation.getDetails()[1].getDescription(), equalTo(functionExpl));
+    }
+
+    public void testExplainFunctionScoreQueryWhenSubQueryHasNoScorer() throws IOException {
+        // Two functions keep the explanation on the FunctionFactorScorer path, which is where a null sub-query scorer
+        // used to be dereferenced.
+        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(
+            new MatchingExplanationNullScorerQuery(),
+            ScoreMode.AVG,
+            new ScoreFunction[] { new WeightFactorFunction(2), new WeightFactorFunction(3) },
+            CombineFunction.AVG,
+            null,
+            Float.MAX_VALUE
+        );
+
+        Explanation explanation = getExplanation(searcher, functionScoreQuery);
+
+        assertNotNull(explanation);
+        assertFalse(explanation.isMatch());
+        assertThat(explanation.getDescription(), containsString("sub-query produced no scorer for this segment"));
+    }
+
+    /**
+     * A query whose weight explains every document as a match but never produces a scorer. That disagreement between
+     * explain() and the scorer is what used to make {@link FunctionScoreQuery} throw a NullPointerException while
+     * explaining a document.
+     */
+    private static class MatchingExplanationNullScorerQuery extends Query {
+
+        @Override
+        public String toString(String field) {
+            return getClass().getSimpleName();
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return this == obj;
+        }
+
+        @Override
+        public int hashCode() {
+            return 0;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, org.apache.lucene.search.ScoreMode scoreMode, float boost) {
+            return new Weight(this) {
+
+                @Override
+                public Explanation explain(LeafReaderContext context, int doc) {
+                    return Explanation.match(1.0f, "matches");
+                }
+
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) {
+                    return null;
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return true;
+                }
+            };
+        }
     }
 
     private static float[] randomPositiveFloats(int size) {
