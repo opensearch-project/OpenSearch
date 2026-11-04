@@ -299,7 +299,8 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
      * this falls back to {@link #close()}: the prefetch's closed re-check self-closes the stream it
      * publishes, so no consumer-owned resource is torn down from under a reader.
      */
-    void cancelStreamOnly(String reason) {
+    @Override
+    public void cancelStreamOnly(String reason) {
         FlightStream stream = flightStream;
         if (stream == null) {
             close();
