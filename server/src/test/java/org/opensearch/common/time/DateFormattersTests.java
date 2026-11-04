@@ -33,6 +33,7 @@
 package org.opensearch.common.time;
 
 import org.opensearch.common.joda.Joda;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.time.Clock;
@@ -214,6 +215,60 @@ public class DateFormattersTests extends OpenSearchTestCase {
         {
             Instant instant = Instant.ofEpochMilli(Long.MIN_VALUE);
             assertThat(formatter.format(instant), is("-" + Long.MAX_VALUE)); // We actually truncate to Long.MAX_VALUE to avoid overflow
+            assertEquals(instant, Instant.from(formatter.parse(Long.toString(Long.MIN_VALUE))));
+        }
+    }
+
+    public void testEpochMillisLongBoundaries() {
+        for (String pattern : new String[] { "epoch_millis", "strict_date_optional_time||epoch_millis" }) {
+            DateFormatter formatter = DateFormatter.forPattern(pattern).withLocale(Locale.ROOT).withZone(ZoneOffset.UTC);
+            for (long value : new long[] { Long.MIN_VALUE, Long.MIN_VALUE + 1, Long.MAX_VALUE, -1, 0 }) {
+                assertEquals(Instant.ofEpochMilli(value), Instant.from(formatter.parse(Long.toString(value))));
+            }
+            for (String value : new String[] {
+                "-9223372036854775809",
+                "9223372036854775808",
+                "-9223372036854775808.0",
+                "-9223372036854775808.",
+                "-09223372036854775808",
+                "--9223372036854775808",
+                "-9223372036854775808x",
+                "-9223372036854775808\n" }) {
+                expectThrows(IllegalArgumentException.class, () -> formatter.parse(value));
+            }
+        }
+    }
+
+    public void testEpochMillisMinValueRoundup() {
+        for (String pattern : new String[] { "epoch_millis", "strict_date_optional_time||epoch_millis" }) {
+            JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern(pattern)
+                .withLocale(Locale.KOREAN)
+                .withZone(ZoneId.of("Asia/Seoul"));
+            for (long value : new long[] { Long.MIN_VALUE, Long.MIN_VALUE + 1, -1 }) {
+                assertEquals(Instant.ofEpochMilli(value), Instant.from(formatter.parse(Long.toString(value))));
+                assertEquals(
+                    Instant.ofEpochMilli(value).minusNanos(999_999L),
+                    Instant.from(formatter.getRoundupParser().parse(Long.toString(value)))
+                );
+            }
+            assertEquals(Instant.EPOCH.minusNanos(999_999L), Instant.from(formatter.getRoundupParser().parse("-0")));
+        }
+    }
+
+    @LockFeatureFlag(FeatureFlags.DATETIME_FORMATTER_CACHING)
+    public void testEpochMillisMinValueWithFormatterCaching() {
+        DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time||epoch_millis", true);
+        String[] inputs = { "2026", "-0", "-0.12345", "-9223372036854775807", "9223372036854775807", "2026-01-01T00:00:00Z" };
+        Instant[] expected = {
+            Instant.parse("2026-01-01T00:00:00Z"),
+            Instant.EPOCH,
+            Instant.EPOCH.minusNanos(123_450L),
+            Instant.ofEpochMilli(Long.MIN_VALUE + 1),
+            Instant.ofEpochMilli(Long.MAX_VALUE),
+            Instant.parse("2026-01-01T00:00:00Z") };
+        for (int i = 0; i < inputs.length; i++) {
+            assertEquals(Instant.ofEpochMilli(Long.MIN_VALUE), Instant.from(formatter.parse(Long.toString(Long.MIN_VALUE))));
+            assertEquals(expected[i], DateFormatters.from(formatter.parse(inputs[i])).toInstant());
         }
     }
 
