@@ -94,6 +94,11 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        protected String constantValue(QueryShardContext context) {
+            return context.index().getName();
+        }
+
+        @Override
         public Query existsQuery(QueryShardContext context) {
             return new MatchAllDocsQuery();
         }

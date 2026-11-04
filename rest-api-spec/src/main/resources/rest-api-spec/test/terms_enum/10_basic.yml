@@ -1,0 +1,136 @@
+---
+setup:
+  - skip:
+      version: " - 3.9.99"
+      reason: "terms_enum API added in 3.10.0"
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              tag: { type: keyword }
+              team: { type: constant_keyword, value: red }
+              count: { type: long }
+  - do:
+      indices.create:
+        index: test-2
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              tag: { type: keyword }
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index":{"_index":"test","_id":"1"}}
+          {"tag":"web-01","count":1}
+          {"index":{"_index":"test","_id":"2"}}
+          {"tag":"web-02","count":2}
+          {"index":{"_index":"test","_id":"3"}}
+          {"tag":"api-01","count":3}
+          {"index":{"_index":"test","_id":"4"}}
+          {"tag":"Web-03","count":4}
+          {"index":{"_index":"test-2","_id":"1"}}
+          {"tag":"web-02"}
+          {"index":{"_index":"test-2","_id":"2"}}
+          {"tag":"web-04"}
+
+---
+"Terms across indices":
+  - skip:
+      version: " - 3.9.99"
+      reason: "terms_enum API added in 3.10.0"
+  - do:
+      terms_enum:
+        index: test,test-2
+        body: { field: tag, string: "web-" }
+  - match: { terms: [web-01, web-02, web-04] }
+  - match: { complete: true }
+  - match: { _shards.failed: 0 }
+
+---
+"Size limits the terms in byte order":
+  - skip:
+      version: " - 3.9.99"
+      reason: "terms_enum API added in 3.10.0"
+  - do:
+      terms_enum:
+        index: test
+        body: { field: tag, size: 2 }
+  - match: { terms: [Web-03, api-01] }
+
+---
+"Constant keyword field":
+  - skip:
+      version: " - 3.9.99"
+      reason: "terms_enum API added in 3.10.0"
+  - do:
+      terms_enum:
+        index: test
+        body: { field: team }
+  - match: { terms: [red] }
+
+---
+"_index field":
+  - skip:
+      version: " - 3.9.99"
+      reason: "terms_enum API added in 3.10.0"
+  - do:
+      terms_enum:
+        index: test,test-2
+        body: { field: _index, string: test }
+  - match: { terms: [test, test-2] }
+
+---
+"Data stream target":
+  - skip:
+      version: " - 3.9.99"
+      reason: "terms_enum API added in 3.10.0"
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "index template [terms_enum_ds] has index patterns [terms-enum-ds] matching patterns from existing older templates [global] with patterns (global => [*]); this template [terms_enum_ds] will take precedence during new index creation"
+      indices.put_index_template:
+        name: terms_enum_ds
+        body:
+          index_patterns: [terms-enum-ds]
+          data_stream: {}
+          template:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                tag: { type: keyword }
+  - do:
+      indices.create_data_stream:
+        name: terms-enum-ds
+  - do:
+      index:
+        index: terms-enum-ds
+        refresh: true
+        op_type: create
+        body: { "@timestamp": "2026-01-01T00:00:00Z", tag: "ds-one" }
+  - do:
+      terms_enum:
+        index: terms-enum-ds
+        body: { field: tag }
+  - match: { terms: [ds-one] }
+  - do:
+      terms_enum:
+        index: "terms-enum-*"
+        body: { field: tag }
+  - match: { terms: [ds-one] }
+  - do:
+      indices.delete_data_stream:
+        name: terms-enum-ds
+  - do:
+      indices.delete_index_template:
+        name: terms_enum_ds

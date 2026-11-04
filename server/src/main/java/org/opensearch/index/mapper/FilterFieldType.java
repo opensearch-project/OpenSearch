@@ -10,11 +10,13 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateMathParser;
@@ -175,6 +177,12 @@ public abstract class FilterFieldType extends MappedFieldType {
     @Override
     public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitve, QueryShardContext context) {
         return delegate.prefixQuery(value, method, caseInsensitve, context);
+    }
+
+    @Override
+    public TermsEnum termsEnum(IndexReader reader, String prefix, boolean caseInsensitive, BytesRef searchAfter, QueryShardContext context)
+        throws IOException {
+        return delegate.termsEnum(reader, prefix, caseInsensitive, searchAfter, context);
     }
 
     @Override

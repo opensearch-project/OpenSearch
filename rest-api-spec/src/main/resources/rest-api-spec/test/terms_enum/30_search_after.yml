@@ -1,0 +1,76 @@
+---
+setup:
+  - skip:
+      version: " - 3.9.99"
+      reason: "terms_enum API added in 3.10.0"
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              tag: { type: keyword }
+              team: { type: constant_keyword, value: red }
+              count: { type: long }
+  - do:
+      indices.create:
+        index: test-2
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              tag: { type: keyword }
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index":{"_index":"test","_id":"1"}}
+          {"tag":"web-01","count":1}
+          {"index":{"_index":"test","_id":"2"}}
+          {"tag":"web-02","count":2}
+          {"index":{"_index":"test","_id":"3"}}
+          {"tag":"api-01","count":3}
+          {"index":{"_index":"test","_id":"4"}}
+          {"tag":"Web-03","count":4}
+          {"index":{"_index":"test-2","_id":"1"}}
+          {"tag":"web-02"}
+          {"index":{"_index":"test-2","_id":"2"}}
+          {"tag":"web-04"}
+
+---
+"search_after pages past a term":
+  - skip:
+      version: " - 3.9.99"
+      reason: "terms_enum API added in 3.10.0"
+  - do:
+      terms_enum:
+        index: test
+        body: { field: tag, string: "web-", search_after: "web-01" }
+  - match: { terms: [web-02] }
+
+---
+"search_after at the last term":
+  - skip:
+      version: " - 3.9.99"
+      reason: "terms_enum API added in 3.10.0"
+  - do:
+      terms_enum:
+        index: test
+        body: { field: tag, string: "web-", search_after: "web-02" }
+  - match: { terms: [] }
+
+---
+"search_after before the prefix":
+  - skip:
+      version: " - 3.9.99"
+      reason: "terms_enum API added in 3.10.0"
+  - do:
+      terms_enum:
+        index: test
+        body: { field: tag, string: "web-", search_after: "a" }
+  - match: { terms: [web-01, web-02] }

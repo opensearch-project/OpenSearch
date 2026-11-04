@@ -35,6 +35,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
@@ -324,6 +325,42 @@ public abstract class MappedFieldType {
             context,
             "Can only use prefix queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
+    }
+
+    /**
+     * Enumerates the distinct terms of this field in {@code reader} that start with {@code prefix}.
+     * <p>
+     * Returns {@code null} when {@code reader} holds no candidates, and callers treat {@code null} as empty.
+     * Otherwise the enum returns distinct terms in ascending byte order that start with the normalized
+     * {@code prefix}, with ASCII case folding when {@code caseInsensitive} is set. The enum may be empty.
+     * <p>
+     * {@code searchAfter} is only a seek hint: terms less than or equal to it may still appear, so callers
+     * filter them. {@link TermsEnum#docFreq()} and {@link TermsEnum#postings} follow Lucene semantics over
+     * {@code reader}'s top-level doc ids, including deleted documents. Checking that a term has a live document
+     * is the caller's job, except that a synthesized term must report {@code docFreq() == reader.maxDoc()} and
+     * is returned only when {@code reader.numDocs() > 0}.
+     *
+     * @param reader the top-level reader whose terms are enumerated
+     * @param prefix the prefix every returned term starts with, before normalization
+     * @param caseInsensitive whether to match the prefix with ASCII case folding
+     * @param searchAfter a hint to start after this term, or {@code null} to start at the prefix
+     * @param context the shard context
+     * @return the candidate terms, or {@code null} if {@code reader} holds none
+     * @throws IllegalArgumentException if this field does not support terms enumeration
+     * @throws IOException if reading the term dictionary fails
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    @Nullable
+    public TermsEnum termsEnum(
+        IndexReader reader,
+        String prefix,
+        boolean caseInsensitive,
+        @Nullable BytesRef searchAfter,
+        QueryShardContext context
+    ) throws IOException {
+        throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support terms enumeration");
     }
 
     // Case sensitive form of wildcard query

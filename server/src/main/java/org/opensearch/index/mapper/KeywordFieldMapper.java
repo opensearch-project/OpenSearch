@@ -38,7 +38,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -51,6 +55,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
@@ -655,6 +660,42 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             return super.prefixQuery(value, method, caseInsensitive, context);
+        }
+
+        /**
+         * Enumerates the field's indexed terms through the postings term dictionary, never doc values. The
+         * prefix goes through the field's normalizer first.
+         */
+        @Override
+        public TermsEnum termsEnum(
+            IndexReader reader,
+            String prefix,
+            boolean caseInsensitive,
+            @Nullable BytesRef searchAfter,
+            QueryShardContext context
+        ) throws IOException {
+            if (isSearchable() == false) {
+                throw new IllegalArgumentException(
+                    "Field [" + name() + "] of type [" + typeName() + "] does not support terms enumeration because it is not indexed"
+                );
+            }
+            // null when no leaf has the field, including when field-level security hides it from the reader
+            Terms terms = MultiTerms.getTerms(reader, name());
+            if (terms == null) {
+                return null;
+            }
+            BytesRef normalizedPrefix = indexedValueForSearch(prefix);
+            if (caseInsensitive == false) {
+                return new PrefixTermsEnum(terms.iterator(), normalizedPrefix, searchAfter);
+            }
+            CompiledAutomaton automaton = new CompiledAutomaton(AutomatonQueries.caseInsensitivePrefix(normalizedPrefix.utf8ToString()));
+            if (automaton.type == CompiledAutomaton.AUTOMATON_TYPE.ALL) {
+                return new PrefixTermsEnum(terms.iterator(), new BytesRef(), searchAfter);
+            }
+            // intersect needs a start term the automaton accepts; the collector drops terms up to searchAfter anyway
+            BytesRef start = searchAfter != null
+                && automaton.getByteRunnable().run(searchAfter.bytes, searchAfter.offset, searchAfter.length) ? searchAfter : null;
+            return terms.intersect(automaton, start);
         }
 
         @Override

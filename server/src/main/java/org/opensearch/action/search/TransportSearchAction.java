@@ -1570,7 +1570,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         new OriginSettingClient(client, TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.wrap(() -> {}));
     }
 
-    private static void failIfOverShardCountLimit(ClusterService clusterService, int shardCount) {
+    /**
+     * Fails a request that would query more shards than {@link #SHARD_COUNT_LIMIT_SETTING} allows.
+     *
+     * @param clusterService provides the current value of the limit
+     * @param shardCount the number of shards the request would query
+     * @throws IllegalArgumentException if {@code shardCount} is over the limit
+     */
+    public static void failIfOverShardCountLimit(ClusterService clusterService, int shardCount) {
         final long shardCountLimit = clusterService.getClusterSettings().get(SHARD_COUNT_LIMIT_SETTING);
         if (shardCount > shardCountLimit) {
             throw new IllegalArgumentException(
