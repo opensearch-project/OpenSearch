@@ -16,6 +16,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
@@ -45,6 +46,14 @@ public class StringStatsTests extends BaseAggregationTestCase<StringStatsAggrega
         assertEquals("string_stats", StringStatsAggregationBuilder.NAME);
         assertEquals("string_stats", new StringStatsAggregationBuilder("s").getType());
         assertEquals("string_stats", new StringStatsAggregationBuilder("s").getWriteableName());
+    }
+
+    public void testFactoryMethodOfAggregationBuilders() {
+        final StringStatsAggregationBuilder builder = AggregationBuilders.stringStats("shape");
+
+        assertEquals("shape", builder.getName());
+        assertFalse(builder.showDistribution());
+        assertEquals(new StringStatsAggregationBuilder("shape"), builder);
     }
 
     public void testDistributionIsOffByDefault() {
