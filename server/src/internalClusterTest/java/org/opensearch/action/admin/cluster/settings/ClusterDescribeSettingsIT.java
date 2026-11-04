@@ -8,9 +8,9 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
-import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsResponse.SettingMetadata;
-import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsResponse.SettingValidation;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.SettingMetadata;
+import org.opensearch.common.settings.SettingValidation;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
