@@ -71,6 +71,26 @@ public interface BlobContainer {
     boolean blobExists(String blobName) throws IOException;
 
     /**
+     * Returns metadata for one exact blob name.
+     *
+     * <p>This method guarantees exact-name resolution, not a native object-properties request or listing-free lookup.
+     * For compatibility, the default implementation uses prefix listing and verifies the returned name matches exactly.
+     * Providers should override this method when they expose a native object-properties operation to avoid prefix listing.
+     *
+     * @param blobName The exact blob name.
+     * @return Metadata for the requested blob.
+     * @throws NoSuchFileException if the blob does not exist.
+     * @throws IOException if the metadata cannot be read.
+     */
+    default BlobMetadata getBlobMetadata(String blobName) throws IOException {
+        final List<BlobMetadata> metadata = listBlobsByPrefixInSortedOrder(blobName, 1, BlobNameSortOrder.LEXICOGRAPHIC);
+        if (metadata.size() == 1 && metadata.get(0).name().equals(blobName)) {
+            return metadata.get(0);
+        }
+        throw new NoSuchFileException(blobName);
+    }
+
+    /**
      * Creates a new {@link InputStream} for the given blob name.
      *
      * @param   blobName
