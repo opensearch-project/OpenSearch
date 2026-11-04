@@ -461,8 +461,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline().addLast(cleartextUpgradeHandler).addLast(new SimpleChannelInboundHandler<HttpMessage>() {
                 @Override
                 protected void channelRead0(ChannelHandlerContext ctx, HttpMessage msg) throws Exception {
-                    final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
-                    aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
+                    final HttpObjectAggregator aggregator = new Netty4HttpObjectAggregator(
+                        handlingSettings.getMaxContentLength(),
+                        transport.maxCompositeBufferComponents
+                    );
 
                     // If this handler is hit then no upgrade has been attempted and the client is just talking HTTP
                     final ChannelPipeline pipeline = ctx.pipeline();
@@ -501,8 +503,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             pipeline.addLast("header_verifier", transport.createHeaderVerifier());
             pipeline.addLast("decoder_compress", transport.createDecompressor());
             pipeline.addLast("encoder", new HttpResponseEncoder());
-            final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
-            aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
+            final HttpObjectAggregator aggregator = new Netty4HttpObjectAggregator(
+                handlingSettings.getMaxContentLength(),
+                transport.maxCompositeBufferComponents
+            );
             pipeline.addLast("aggregator", aggregator);
             if (handlingSettings.isCompression()) {
                 pipeline.addLast(
@@ -554,8 +558,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     final Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(childChannel, inboundPipeline);
                     childChannel.attr(HTTP_CHANNEL_KEY).set(nettyHttpChannel);
 
-                    final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
-                    aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
+                    final HttpObjectAggregator aggregator = new Netty4HttpObjectAggregator(
+                        handlingSettings.getMaxContentLength(),
+                        transport.maxCompositeBufferComponents
+                    );
                     childChannel.pipeline()
                         .addLast(new LoggingHandler(LogLevel.DEBUG))
                         .addLast(new Http2StreamFrameToHttpObjectCodec(true))
