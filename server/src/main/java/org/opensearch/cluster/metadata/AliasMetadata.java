@@ -51,6 +51,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.internal.AliasFilter;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -385,6 +386,13 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
 
         public AliasMetadata build() {
+            if (enforcement != null) {
+                // Every path that defines an alias builds it here, templates included, so the mode is checked once.
+                AliasFilter.Enforcement.fromString(enforcement);
+                if (filter == null) {
+                    throw new IllegalArgumentException("[enforcement] requires a [filter] on alias [" + alias + "]");
+                }
+            }
             return new AliasMetadata(alias, filter, indexRouting, searchRouting, writeIndex, isHidden, enforcement);
         }
 

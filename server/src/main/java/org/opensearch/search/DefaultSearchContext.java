@@ -47,6 +47,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
@@ -505,13 +506,14 @@ final class DefaultSearchContext extends SearchContext {
                     // without collapsing scoring to a constant like the constant_score behavior below does.
                     filters.add(aliasFilter);
                 } else {
-                    // Pre-filter enforcement, constant_score scoring (default): apply the alias filter before
-                    // scoring by wrapping the user's query in a constant-score boolean query. Because scoring runs
-                    // only over the docs that pass the filter, the BM25 collection statistics (N, df) reflect only
-                    // the visible subset, unlike post-filtering (the default) which scores over the whole shard.
+                    // pre_filter, or filtered_stats over its ceiling: filter before scoring and score every hit the
+                    // same, so no corpus statistics are read and documents outside the alias cannot affect a score.
                     query = new ConstantScoreQuery(
                         new BooleanQuery.Builder().add(query, Occur.MUST).add(aliasFilter, Occur.FILTER).build()
                     );
+                    // Rescoring, inner hits and the inner query of function_score or script_score score separately
+                    // through this searcher, so give it a similarity that reads no corpus statistics as well.
+                    searcher.setSimilarity(new BooleanSimilarity());
                 }
             } else {
                 filters.add(aliasFilter);
@@ -913,6 +915,7 @@ final class DefaultSearchContext extends SearchContext {
      */
     private Query restrictionFallback(Query q) {
         if (pluginVisibleSubsetFilter != null && useFilteredStatistics() == false && (q instanceof ConstantScoreQuery) == false) {
+            searcher.setSimilarity(new BooleanSimilarity());
             return new ConstantScoreQuery(q);
         }
         return q;

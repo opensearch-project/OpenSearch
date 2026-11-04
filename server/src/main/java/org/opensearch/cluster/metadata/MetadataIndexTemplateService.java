@@ -1119,6 +1119,7 @@ public class MetadataIndexTemplateService {
                 .filter(alias.filter())
                 .indexRouting(alias.indexRouting())
                 .searchRouting(alias.searchRouting())
+                .enforcement(alias.enforcement())
                 .build();
             templateBuilder.putAlias(aliasMetadata);
         }

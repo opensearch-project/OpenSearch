@@ -15,6 +15,7 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -511,5 +512,36 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
             return 0f;
         }
         return resp.getHits().getHits()[0].getScore();
+    }
+
+    /**
+     * A rescore query scores separately from the main query, so it must read no corpus statistics either: the visible
+     * sample rescored on a term confined to excluded documents scores the same as on a term found only in the sample.
+     */
+    public void testPreFilterRescoreReadsNoCorpusStatistics() throws Exception {
+        buildCorpus();
+        addAlias("rescored", "pre_filter");
+        assertEquals(rescoredSampleScore("rescored", RESTRICTED_TERM), rescoredSampleScore("rescored", ABSENT_TERM), 0.0001f);
+    }
+
+    private float rescoredSampleScore(String view, String term) {
+        SearchResponse response = client().prepareSearch(view)
+            .setQuery(QueryBuilders.matchQuery("content", term))
+            .addRescorer(new QueryRescorerBuilder(QueryBuilders.matchQuery("content", term)).windowSize(10))
+            .get();
+        assertHitCount(response, 1);
+        return response.getHits().getAt(0).getScore();
+    }
+
+    /**
+     * Under filtered_stats a rescore query reads the same scoped statistics as the main query: rescored on a term confined
+     * to excluded documents, the visible sample scores like a term found only in the sample, and the score is real BM25.
+     */
+    public void testFilteredStatsRescoreUsesScopedStatistics() throws Exception {
+        buildCorpus();
+        addAlias("rescored_fs", "filtered_stats");
+        float restricted = rescoredSampleScore("rescored_fs", RESTRICTED_TERM);
+        assertEquals(rescoredSampleScore("rescored_fs", ABSENT_TERM), restricted, 0.0001f);
+        assertNotEquals("filtered_stats keeps BM25 scoring rather than a constant", 2.0f, restricted, 0.0001f);
     }
 }
