@@ -288,6 +288,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             serverBootstrap.childHandler(configureServerChannelHandler());
             serverBootstrap.handler(new ServerChannelExceptionHandler(this));
 
+            serverBootstrap.childOption(ChannelOption.ALLOW_HALF_CLOSURE, true);
             serverBootstrap.childOption(ChannelOption.TCP_NODELAY, SETTING_HTTP_TCP_NO_DELAY.get(settings));
             serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, SETTING_HTTP_TCP_KEEP_ALIVE.get(settings));
 
@@ -413,6 +414,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         protected void initChannel(Channel ch) throws Exception {
             Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(ch);
             ch.attr(HTTP_CHANNEL_KEY).set(nettyHttpChannel);
+            ch.pipeline().addLast("request_size", new Netty4HttpRequestSizeHandler(transport));
             ch.pipeline().addLast("byte_buf_sizer", byteBufSizer);
             ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
 
@@ -461,7 +463,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline().addLast(cleartextUpgradeHandler).addLast(new SimpleChannelInboundHandler<HttpMessage>() {
                 @Override
                 protected void channelRead0(ChannelHandlerContext ctx, HttpMessage msg) throws Exception {
-                    final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
+                    final HttpObjectAggregator aggregator = new Netty4HttpObjectAggregator(handlingSettings.getMaxContentLength());
                     aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
 
                     // If this handler is hit then no upgrade has been attempted and the client is just talking HTTP
@@ -501,7 +503,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             pipeline.addLast("header_verifier", transport.createHeaderVerifier());
             pipeline.addLast("decoder_compress", transport.createDecompressor());
             pipeline.addLast("encoder", new HttpResponseEncoder());
-            final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
+            final HttpObjectAggregator aggregator = new Netty4HttpObjectAggregator(handlingSettings.getMaxContentLength());
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             pipeline.addLast("aggregator", aggregator);
             if (handlingSettings.isCompression()) {
