@@ -62,11 +62,15 @@ sourceSets {
   }
 }
 
-// -Dsandbox.enabled=true opts the unit-test (:server:test) source set into the JDK 25 sandbox "mustang" engine stack
-// (arrow + analytics + DSL + parquet plugins), loaded in-JVM on every single-node test node via
-// OpenSearchSingleNodeTestCase.effectiveNodePlugins(). Evaluated once here and reused by the three guards below
-// (dependencies, repositories/resolution, and the test task). settings.gradle only includes the sandbox/ projects
-// under this flag, so an unguarded project(':sandbox:...') reference would break every default (JDK 21) build.
+// -Dsandbox.enabled=true opts two server test source sets into the JDK 25 sandbox "mustang" engine stack, loaded in-JVM
+// on every test node:
+//  - the unit-test (:server:test) source set gets arrow + analytics + parquet + DSL plugins, via
+//    OpenSearchSingleNodeTestCase.effectiveNodePlugins();
+//  - the internalClusterTest source set gets the same stack WITHOUT dsl-query-executor, via OpenSearchIntegTestCase
+//    and OpenSearchSingleNodeTestCase, so every IT search runs on the normal OpenSearch (fallback) path.
+// Evaluated once here and reused by the guards below (dependencies, repositories/resolution, and the test tasks).
+// settings.gradle only includes the sandbox/ projects under this flag, so an unguarded project(':sandbox:...')
+// reference would break every default (JDK 21) build.
 def sandboxEnabled = System.getProperty('sandbox.enabled', 'false') == 'true'
 
 dependencies {
@@ -136,9 +140,9 @@ dependencies {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
   }
-  // Sandbox parquet/analytics/DSL plugin stack, loaded in-JVM on every :server:test node via
-  // OpenSearchSingleNodeTestCase.effectiveNodePlugins() — appended after whatever a test's getPlugins() returns
-  // (de-duplicated via a LinkedHashSet, the test's own plugins first), so declaring test plugins does NOT opt out;
+  // Sandbox parquet/analytics/DSL plugin stack, loaded in-JVM on every :server:test node by
+  // OpenSearchSingleNodeTestCase, which supplies it as classpath PluginInfos (with extendedPlugins metadata) after
+  // whatever a test's getPlugins() returns, so declaring test plugins does NOT opt out;
   // override installSandboxPlugins() for that. The test framework resolves
   // the plugin main classes REFLECTIVELY (Class.forName), so :server test sources never reference them at compile
   // time; they only need to be on the test RUNTIME classpath. Hence testRuntimeOnly, which also keeps them off the
@@ -158,6 +162,25 @@ dependencies {
   internalClusterTestImplementation project(':libs:opensearch-secure-sm')
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'server'
+  }
+  // Sandbox parquet/analytics plugin stack, loaded in-JVM on every internalClusterTest node by
+  // OpenSearchIntegTestCase, which supplies it as classpath PluginInfos (with extendedPlugins metadata) via
+  // additionalNodePlugins() in addition to whatever the test's nodePlugins() returns, so declaring test
+  // plugins does NOT opt out; override installSandboxPlugins() for that.
+  // The stack deliberately EXCLUDES dsl-query-executor (it would otherwise arrive through the testRuntimeOnly line
+  // above; see the internalClusterTest exclude below), so no action filter intercepts _search /
+  // _validate/query and every IT search runs on the normal OpenSearch (fallback) path with the engine
+  // plugins merely loaded.
+  // These target JDK 25, so the internalClusterTest source set is compiled at JDK 25 below
+  // (server's main artifact stays at the JDK 21 minimum). Only included when -Dsandbox.enabled=true.
+  if (sandboxEnabled) {
+    internalClusterTestImplementation project(':plugins:arrow-base')
+    internalClusterTestImplementation project(':plugins:arrow-flight-rpc')
+    internalClusterTestImplementation project(':sandbox:plugins:analytics-engine')
+    internalClusterTestImplementation project(':sandbox:plugins:composite-engine')
+    internalClusterTestImplementation project(':sandbox:plugins:parquet-data-format')
+    internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-datafusion')
+    internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-lucene')
   }
   testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
   testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
@@ -182,12 +205,15 @@ tasks.named("internalClusterTest").configure {
 
 // The sandbox plugins pull patched calcite-core/linq4j SNAPSHOT artifacts from the OpenSearch Snapshots repo and
 // require the same calcite `force` sandbox/build.gradle applies. server declares neither, so add both — and pin every
-// transitive that would otherwise trip failOnVersionConflict to server's managed set. Applied to the test*
-// configurations (the :server:test classpaths) so the sandbox stack resolves without jar hell at BootstrapForTesting.
-// Only when -Dsandbox.enabled=true, so normal core builds are unaffected.
+// transitive that would otherwise trip failOnVersionConflict to server's managed set. Applied to the test* and
+// internalClusterTest* configurations (the :server:test and :server:internalClusterTest classpaths) so the sandbox
+// stack resolves without jar hell at BootstrapForTesting. Only when -Dsandbox.enabled=true, so normal core builds are
+// unaffected.
 if (sandboxEnabled) {
   repositories {
-    // Supplies the patched Calcite artifacts the sandbox DSL engine needs, which are not published to Maven Central.
+    // Supplies the patched Calcite artifacts the sandbox analytics engine, its backends and the DSL engine need
+    // (analytics-engine, analytics-backend-datafusion, analytics-backend-lucene, dsl-query-executor and their
+    // analytics-api / analytics-framework libs all depend on calcite), which are not published to Maven Central.
     // Added only when -Dsandbox.enabled=true.
     maven {
       name = 'OpenSearch Snapshots'
@@ -204,9 +230,16 @@ if (sandboxEnabled) {
       attribute(org.gradle.api.attributes.java.TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 25)
     }
   }
+  // The internalClusterTest configurations extend the test ones (InternalClusterTestPlugin -> GradleUtils.extendSourceSet),
+  // so the testRuntimeOnly sandbox plugins also reach internalClusterTestRuntimeClasspath. Keep dsl-query-executor off
+  // it: SandboxStackPlugins installs the DSL plugin only when its class is on the classpath, and without it no action
+  // filter intercepts _search / _validate/query, so every IT search runs on the normal (fallback) path.
+  configurations.matching { it.name.startsWith('internalClusterTest') }.configureEach {
+    exclude group: 'org.opensearch.sandbox', module: 'dsl-query-executor'
+  }
   def sandboxLibVersions = org.opensearch.gradle.VersionProperties.getVersions()
   def patchedCalciteVersion = "${sandboxLibVersions['calcite']}-opensearch-${sandboxLibVersions['calcite_os_rev']}"
-  configurations.matching { it.name.startsWith('test') }.configureEach {
+  configurations.matching { it.name.startsWith('test') || it.name.startsWith('internalClusterTest') }.configureEach {
     resolutionStrategy {
       force "org.apache.calcite:calcite-core:${patchedCalciteVersion}"
       force "org.apache.calcite:calcite-linq4j:${patchedCalciteVersion}"
@@ -226,20 +259,22 @@ if (sandboxEnabled) {
       force "commons-logging:commons-logging:${sandboxLibVersions['commonslogging']}"
       force "org.apache.commons:commons-lang3:${sandboxLibVersions['commonslang']}"
       // A VersionProperties key exists for error_prone_annotations (2.45.0), but this classpath is pinned to 2.36.0;
-      // using the catalogue lookup would bump the version, so the literal is kept to satisfy the sandbox test classpath only.
+      // using the catalogue lookup would bump the version, so the literal is kept to satisfy the sandbox test and
+      // internalClusterTest classpaths only.
       force "com.google.errorprone:error_prone_annotations:2.36.0"
-      // No VersionProperties entry; pinned only to satisfy the sandbox test classpath.
+      // No VersionProperties entry; pinned only to satisfy the sandbox test and internalClusterTest classpaths.
       force "org.checkerframework:checker-qual:3.43.0"
-      // No VersionProperties entry; pinned only to satisfy the sandbox test classpath.
+      // No VersionProperties entry; pinned only to satisfy the sandbox test and internalClusterTest classpaths.
       force "com.google.guava:failureaccess:1.0.2"
     }
   }
 }
 
 // Wire the native library + Arrow native access the parquet/DataFusion stack needs at node start (mirrors
-// composite-engine / the ICT branch), and forward -Dsandbox.enabled into the forked test JVM. Feature flags are NOT
-// set here — OpenSearchSingleNodeTestCase enables them per-node via node settings, coupled to plugin presence, so
-// flag-off unit tests in the same fork are unaffected. Only when -Dsandbox.enabled=true.
+// composite-engine), and forward -Dsandbox.enabled into the forked test JVMs of :server:test and
+// :server:internalClusterTest. Feature flags are NOT set here — OpenSearchSingleNodeTestCase and OpenSearchIntegTestCase
+// enable them per node via node settings, coupled to plugin presence, so flag-off tests in the same fork are
+// unaffected. Only when -Dsandbox.enabled=true.
 if (sandboxEnabled) {
   // Capture the native-lib project handle at configuration time (not its ext.nativeLibPath, which is not set until
   // that project is evaluated). The value is read lazily in doFirst below via this captured local rather than via
@@ -272,6 +307,36 @@ if (sandboxEnabled) {
     // command-line -Dtests.heap.size=... still overrides both consistently.
     def sandboxHeap = System.getProperty('tests.heap.size', '2g')
     jvmArgs += ["-Xms${sandboxHeap}".toString(), "-Xmx${sandboxHeap}".toString()]
+    dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+  }
+  // The internalClusterTest source set references the sandbox plugins at compile time, so compile it at JDK 25 (the
+  // plugins are JDK 25-only; server's main artifact stays at JDK 21).
+  tasks.named('compileInternalClusterTestJava').configure {
+    // JDK 22 is the hard floor: the sandbox bridge references the FINAL java.lang.foreign (FFM) API, which is
+    // non-preview only since JDK 22 (JEP 454); pinned at 25 to match the uniform sandbox-module declaration. Kept as
+    // sourceCompatibility/targetCompatibility rather than options.release/toolchain because OpenSearch's build
+    // framework hardcodes release levels in places (see dataformat-native's missingJavadoc note), so switching is unsafe here.
+    sourceCompatibility = JavaVersion.toVersion(25)
+    targetCompatibility = JavaVersion.toVersion(25)
+  }
+  tasks.named('internalClusterTest').configure {
+    jvmArgs += [
+      '--add-opens=java.base/java.nio=ALL-UNNAMED',
+      '--enable-native-access=ALL-UNNAMED'
+    ]
+    systemProperty 'io.netty.allocator.numDirectArenas', '1'
+    systemProperty 'io.netty.noUnsafe', 'false'
+    systemProperty 'io.netty.tryUnsafe', 'true'
+    systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+    systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
+    // Read lazily at execution time, for the same reason as the :server:test block above.
+    doFirst {
+      systemProperty 'native.lib.path', nativeLibProject.ext.nativeLibPath.absolutePath
+    }
+    // Gradle does NOT propagate the -Dsandbox.enabled build flag into the forked test JVM. Forward it so
+    // OpenSearchIntegTestCase's sandbox.enabled-gated logic (default nodePlugins() + coupled feature flags)
+    // runs inside the worker.
+    systemProperty 'sandbox.enabled', 'true'
     dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
   }
 }

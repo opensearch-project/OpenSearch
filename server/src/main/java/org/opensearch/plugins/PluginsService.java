@@ -696,9 +696,55 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         List<T> extensions = new ArrayList<>();
         while (classIterator.hasNext()) {
             Class<? extends T> extensionClass = classIterator.next();
+            // Under a shared classloader (classpath plugins in tests) the SPI iterator above also discovers the
+            // service entries of sibling plugins loaded by the same loader. Skip an extension that is wired to a
+            // sibling plugin so createExtension() is only handed the extensions that belong to this plugin; the
+            // skipped extension is created when its own sibling plugin has its extensions loaded.
+            if (isExtensionOfSiblingPlugin(extensionClass, plugin)) {
+                logger.debug(
+                    "Extension [{}] of type [{}] was skipped while loading extensions for plugin [{}] "
+                        + "because it binds to a sibling plugin under the same classloader",
+                    extensionClass.getName(),
+                    extensionPointType.getName(),
+                    plugin.getClass().getName()
+                );
+                continue;
+            }
             extensions.add(createExtension(extensionClass, extensionPointType, plugin));
         }
         return extensions;
+    }
+
+    /**
+     * Whether {@code extensionClass} is an SPI extension that belongs to a SIBLING plugin rather than to {@code plugin},
+     * and should therefore be skipped while loading {@code plugin}'s extensions.
+     * <p>
+     * This only matters when several plugins share ONE classloader, which is the case for classpath plugins in tests.
+     * There the {@link SPIClassIterator} used by {@link #createExtensions} discovers every sibling plugin's
+     * {@code META-INF/services} entries at once, so a lookup made for one extending plugin also yields extensions whose
+     * single constructor argument is a different plugin. An extension is treated as a sibling's only when it has exactly
+     * one public constructor, that constructor takes exactly one parameter, the parameter type is a {@link Plugin}
+     * subclass that {@code plugin} is NOT an instance of (neither its own class nor one of its superclasses), AND that
+     * parameter type was loaded by the SAME classloader as {@code plugin.getClass()}.
+     * <p>
+     * The same-classloader condition is what preserves production behaviour: in a real install every plugin gets its own
+     * classloader, so a sibling plugin's class is loaded by a different loader, this predicate never fires, and
+     * {@link #createExtension} still reports genuine constructor signature mismatches exactly as before. The skipped
+     * extension is not lost — it is created when the sibling plugin it actually belongs to has its own extensions loaded.
+     */
+    private static boolean isExtensionOfSiblingPlugin(Class<?> extensionClass, Plugin plugin) {
+        Constructor<?>[] constructors = extensionClass.getConstructors();
+        // Only a single-arg public constructor can bind an extension to a specific plugin instance; anything else is
+        // left to createExtension() to validate (no public ctor, multiple ctors, zero/too-many params).
+        if (constructors.length != 1 || constructors[0].getParameterCount() != 1) {
+            return false;
+        }
+        Class<?> parameterType = constructors[0].getParameterTypes()[0];
+        // A parameter type that `plugin` IS an instance of (its own class or one of its superclasses) is never a sibling:
+        // createExtension() requires the exact plugin class, so a superclass parameter stays a loud signature error.
+        return Plugin.class.isAssignableFrom(parameterType)
+            && parameterType.isInstance(plugin) == false
+            && parameterType.getClassLoader() == plugin.getClass().getClassLoader();
     }
 
     // package-private for test visibility
