@@ -1007,6 +1007,49 @@ public class CompoundProcessorTests extends OpenSearchTestCase {
         assertStats(0, compoundProcessor, 0, 3, 1, 0);
     }
 
+    public void testBatchExecute_ignoreFailureWithFailedWrapperThatHasNoDocument() {
+        // a batching processor may update the wrappers that it is given in place, which leaves a failed one without a document
+        Processor failsInPlace = new Processor() {
+            @Override
+            public IngestDocument execute(IngestDocument ingestDocument) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void batchExecute(List<IngestDocumentWrapper> ingestDocumentWrappers, Consumer<List<IngestDocumentWrapper>> handler) {
+                ingestDocumentWrappers.forEach(wrapper -> wrapper.update(null, new RuntimeException("boom")));
+                handler.accept(ingestDocumentWrappers);
+            }
+
+            @Override
+            public String getType() {
+                return "fails-in-place";
+            }
+
+            @Override
+            public String getTag() {
+                return null;
+            }
+
+            @Override
+            public String getDescription() {
+                return null;
+            }
+        };
+        CompoundProcessor compoundProcessor = new CompoundProcessor(true, singletonList(failsInPlace), Collections.emptyList(), ZERO_CLOCK);
+        List<IngestDocumentWrapper> wrapperList = Arrays.asList(
+            IngestDocumentPreparer.createIngestDocumentWrapper(1),
+            IngestDocumentPreparer.createIngestDocumentWrapper(2)
+        );
+
+        List<IngestDocumentWrapper> totalResults = Collections.synchronizedList(new ArrayList<>());
+        compoundProcessor.batchExecute(wrapperList, results -> totalResults.addAll(results));
+
+        // the termination check must not fail on a wrapper without a document: the wrappers are handed on as before
+        assertThat(totalResults, hasSize(2));
+        assertStats(0, compoundProcessor, 0, 2, 2, 0);
+    }
+
     private static final LongSupplier ZERO_CLOCK = () -> 0L;
 
     /** A processor that behaves like the {@code terminate} processor. */

@@ -320,7 +320,9 @@ public class CompoundProcessor implements Processor {
         List<IngestDocumentWrapper> documentsToContinue,
         List<IngestDocumentWrapper> documentsTerminated
     ) {
-        if (wrapper.getIngestDocument().isPipelineTerminated()) {
+        // a batching processor can update the wrappers that it is given in place, which leaves a failed one without a document
+        IngestDocument ingestDocument = wrapper.getIngestDocument();
+        if (ingestDocument != null && ingestDocument.isPipelineTerminated()) {
             documentsTerminated.add(wrapper);
         } else {
             documentsToContinue.add(wrapper);
