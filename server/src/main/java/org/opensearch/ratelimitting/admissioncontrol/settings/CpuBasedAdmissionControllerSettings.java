@@ -31,6 +31,7 @@ public class CpuBasedAdmissionControllerSettings {
     private Long searchCPULimit;
     private Long indexingCPULimit;
     private Long clusterInfoCPULimit;
+    private volatile long forceMergeCPULimit;
 
     /**
      * Feature level setting to operate in shadow-mode or in enforced-mode. If enforced field is set
@@ -71,6 +72,18 @@ public class CpuBasedAdmissionControllerSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * CPU usage limit (percent) above which shard-level force merge operations are rejected on a node.
+     */
+    public static final Setting<Long> FORCE_MERGE_CPU_USAGE_LIMIT = Setting.longSetting(
+        "admission_control.force_merge.cpu_usage.limit",
+        Defaults.CPU_USAGE_LIMIT,
+        0,
+        100,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     // currently limited to one setting will add further more settings in follow-up PR's
     public CpuBasedAdmissionControllerSettings(ClusterSettings clusterSettings, Settings settings) {
         this.transportLayerMode = CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.get(settings);
@@ -81,7 +94,16 @@ public class CpuBasedAdmissionControllerSettings {
         clusterSettings.addSettingsUpdateConsumer(INDEXING_CPU_USAGE_LIMIT, this::setIndexingCPULimit);
         clusterSettings.addSettingsUpdateConsumer(SEARCH_CPU_USAGE_LIMIT, this::setSearchCPULimit);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ADMIN_CPU_USAGE_LIMIT, this::setClusterInfoCPULimit);
+        this.forceMergeCPULimit = FORCE_MERGE_CPU_USAGE_LIMIT.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(FORCE_MERGE_CPU_USAGE_LIMIT, this::setForceMergeCPULimit);
+    }
 
+    public long getForceMergeCPULimit() {
+        return forceMergeCPULimit;
+    }
+
+    public void setForceMergeCPULimit(long forceMergeCPULimit) {
+        this.forceMergeCPULimit = forceMergeCPULimit;
     }
 
     private void setTransportLayerMode(AdmissionControlMode admissionControlMode) {

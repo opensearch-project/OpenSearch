@@ -33,6 +33,7 @@ public class IoBasedAdmissionControllerSettings {
     private Long searchIOUsageLimit;
     private Long indexingIOUsageLimit;
     private Long clusterAdminIOUsageLimit;
+    private volatile long forceMergeIOUsageLimit;
 
     /**
      * Feature level setting to operate in shadow-mode or in enforced-mode. If enforced field is set
@@ -76,6 +77,18 @@ public class IoBasedAdmissionControllerSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * IO usage limit (percent) above which shard-level force merge operations are rejected on a node.
+     */
+    public static final Setting<Long> FORCE_MERGE_IO_USAGE_LIMIT = Setting.longSetting(
+        "admission_control.force_merge.io_usage.limit",
+        Defaults.IO_USAGE_LIMIT,
+        0,
+        100,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public IoBasedAdmissionControllerSettings(ClusterSettings clusterSettings, Settings settings) {
         this.transportLayerMode = IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE, this::setTransportLayerMode);
@@ -84,6 +97,16 @@ public class IoBasedAdmissionControllerSettings {
         this.clusterAdminIOUsageLimit = CLUSTER_ADMIN_IO_USAGE_LIMIT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(INDEXING_IO_USAGE_LIMIT, this::setIndexingIOUsageLimit);
         clusterSettings.addSettingsUpdateConsumer(SEARCH_IO_USAGE_LIMIT, this::setSearchIOUsageLimit);
+        this.forceMergeIOUsageLimit = FORCE_MERGE_IO_USAGE_LIMIT.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(FORCE_MERGE_IO_USAGE_LIMIT, this::setForceMergeIOUsageLimit);
+    }
+
+    public long getForceMergeIOUsageLimit() {
+        return forceMergeIOUsageLimit;
+    }
+
+    public void setForceMergeIOUsageLimit(long forceMergeIOUsageLimit) {
+        this.forceMergeIOUsageLimit = forceMergeIOUsageLimit;
     }
 
     public void setIndexingIOUsageLimit(Long indexingIOUsageLimit) {
