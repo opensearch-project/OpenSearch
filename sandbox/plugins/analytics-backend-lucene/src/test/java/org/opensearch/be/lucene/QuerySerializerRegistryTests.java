@@ -283,7 +283,8 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
             ScalarFunction.LESS_THAN,
             ScalarFunction.LESS_THAN_OR_EQUAL,
             ScalarFunction.REGEXP,
-            ScalarFunction.SARG_PREDICATE
+            ScalarFunction.SARG_PREDICATE,
+            ScalarFunction.IDS
         );
         assertEquals("Registry key set must match expected ScalarFunction set", expected, serializers.keySet());
     }
