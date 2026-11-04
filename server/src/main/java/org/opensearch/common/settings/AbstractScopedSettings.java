@@ -720,6 +720,20 @@ public abstract class AbstractScopedSettings {
         }
     }
 
+    /**
+     * Whether {@code key} is a name the registry reports for a setting, as opposed to a variant {@link #get} merely resolves: a
+     * registered concrete key, the concrete key an affix setting builds for the namespace in {@code key}, or a member of a
+     * group setting, including a group reached through an affix. Group and prefix-only affix settings have open membership, so
+     * every key under their prefix is a setting a user may set and is canonical. A list key's legacy indexed form
+     * ({@code a.b.0}) and any suffix appended to a concrete affix key whose delegate is not a group
+     * ({@code cluster.remote.alpha.seeds.0}, {@code cluster.remote.alpha.seeds.other}) still resolve but are not canonical.
+     * Unknown keys are not canonical.
+     */
+    public final boolean isCanonicalKey(String key) {
+        Setting<?> raw = getRaw(key);
+        return raw != null && raw.isCanonicalKey(key);
+    }
+
     private Setting<?> getRaw(String key) {
         Setting<?> setting = keySettings.get(key);
         if (setting != null) {
@@ -798,6 +812,30 @@ public abstract class AbstractScopedSettings {
             setting.diff(builder, source, defaultSettings);
         }
         return builder.build();
+    }
+
+    /**
+     * Returns the registered settings with a concrete key whose key matches a simple wildcard pattern such as
+     * {@code cluster.routing.allocation.*}: ordinary settings and list settings. Affix and group templates are not
+     * included, since they have no concrete key and nothing can be described or configured under the matched name
+     * itself. The pattern is not constrained here; callers decide which shapes they accept. The returned set is a
+     * snapshot taken at call time.
+     */
+    public Set<Setting<?>> getMatching(String pattern) {
+        Set<Setting<?>> matches = new HashSet<>();
+        for (Setting<?> setting : keySettings.values()) {
+            if (Regex.simpleMatch(pattern, setting.getKey())) {
+                matches.add(setting);
+            }
+        }
+        // List settings are filed with the templates because they also accept the legacy indexed form (key.0, key.1),
+        // but their declared key is concrete and is the one callers configure and describe.
+        for (Setting<?> setting : complexMatchers.values()) {
+            if (setting.isListSetting() && Regex.simpleMatch(pattern, setting.getKey())) {
+                matches.add(setting);
+            }
+        }
+        return matches;
     }
 
     /**

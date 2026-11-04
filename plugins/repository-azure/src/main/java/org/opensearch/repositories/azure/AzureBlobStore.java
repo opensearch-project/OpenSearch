@@ -40,16 +40,22 @@ import com.azure.core.util.Context;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.blob.models.BlobDownloadContentResponse;
 import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobItem;
 import com.azure.storage.blob.models.BlobItemProperties;
 import com.azure.storage.blob.models.BlobListDetails;
+import com.azure.storage.blob.models.BlobProperties;
 import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.BlobRequestConditions;
 import com.azure.storage.blob.models.BlobStorageException;
+import com.azure.storage.blob.models.BlockBlobItem;
+import com.azure.storage.blob.models.DownloadRetryOptions;
 import com.azure.storage.blob.models.ListBlobsOptions;
 import com.azure.storage.blob.options.BlobInputStreamOptions;
 import com.azure.storage.blob.options.BlobParallelUploadOptions;
+import com.azure.storage.blob.options.BlockBlobSimpleUploadOptions;
+import com.azure.storage.blob.specialized.BlockBlobClient;
 import com.azure.storage.common.implementation.Constants;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -62,7 +68,9 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.BlobVersionConflictException;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.collect.Tuple;
@@ -76,6 +84,7 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.NoSuchFileException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -92,12 +101,11 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
-
 public class AzureBlobStore implements BlobStore {
 
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
     private static final int LIST_PAGE_SIZE = 5_000;
+    static final long MAX_CONDITIONAL_WRITE_SIZE = AzureBlobContainer.DEFAULT_MINIMUM_READ_SIZE_IN_BYTES;
 
     private final AzureStorageService service;
     private final ThreadPool threadPool;
@@ -116,9 +124,6 @@ public class AzureBlobStore implements BlobStore {
         this.threadPool = threadPool;
         // locationMode is set per repository, not per client
         this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
-        final Map<String, AzureStorageSettings> prevSettings = this.service.refreshAndClearCache(emptyMap());
-        final Map<String, AzureStorageSettings> newSettings = AzureStorageSettings.overrideLocationMode(prevSettings, this.locationMode);
-        this.service.refreshAndClearCache(newSettings);
 
         this.metricsCollector = (request, response) -> {
             if (response.getStatusCode() >= 300) {
@@ -180,18 +185,34 @@ public class AzureBlobStore implements BlobStore {
 
     @Override
     public void close() throws IOException {
-        service.close();
+        // The storage service is node-wide and is closed by AzureRepositoryPlugin.
     }
 
-    public boolean blobExists(String blob) throws URISyntaxException, BlobStorageException {
-        // Container name must be lower case.
-        final Tuple<BlobServiceClient, Supplier<Context>> client = client();
-        final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
-        return AccessController.doPrivileged(() -> {
-            final BlobClient azureBlob = blobContainer.getBlobClient(blob);
-            final Response<Boolean> response = azureBlob.existsWithResponse(timeout(), client.v2().get());
-            return response.getValue();
-        });
+    public boolean blobExists(String blob) throws URISyntaxException, BlobStorageException, IOException {
+        for (int attempt = 0; attempt < 2; attempt++) {
+            final Tuple<BlobServiceClient, Supplier<Context>> client = client();
+            final BlobClient azureBlob = client.v1().getBlobContainerClient(container).getBlobClient(blob);
+            try {
+                AccessController.doPrivileged(() -> azureBlob.getPropertiesWithResponse(null, timeout(), client.v2().get()));
+                beforeExistenceResultValidation();
+                if (service.isLocationClientCurrent(clientName, locationMode, client.v1())) {
+                    return true;
+                }
+            } catch (BlobStorageException e) {
+                if (e.getStatusCode() != HttpURLConnection.HTTP_NOT_FOUND
+                    || BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode()) == false) {
+                    throw e;
+                }
+                beforeExistenceResultValidation();
+                if (service.isLocationClientCurrent(clientName, locationMode, client.v1())) {
+                    return false;
+                }
+            }
+            if (attempt == 1) {
+                throw new IOException("Azure client settings changed while checking if blob [" + blob + "] exists");
+            }
+        }
+        throw new AssertionError("blob existence operation did not complete");
     }
 
     public void deleteBlob(String blob) throws URISyntaxException, BlobStorageException {
@@ -299,6 +320,17 @@ public class AzureBlobStore implements BlobStore {
     public long getReadBlobPreferredLength() {
         final Integer readBlockSize = service.getReadBlockSize(clientName);
         return readBlockSize == null ? AzureBlobContainer.DEFAULT_MINIMUM_READ_SIZE_IN_BYTES : readBlockSize;
+    }
+
+    public long getBlobLength(String blob) throws URISyntaxException, BlobStorageException {
+        final Tuple<BlobServiceClient, Supplier<Context>> client = client();
+        final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
+        return AccessController.doPrivileged(() -> {
+            final BlobProperties properties = blobContainer.getBlobClient(blob)
+                .getPropertiesWithResponse(null, timeout(), client.v2().get())
+                .getValue();
+            return properties.getBlobSize();
+        });
     }
 
     public Map<String, BlobMetadata> listBlobsByPrefix(String keyPath, String prefix) throws URISyntaxException, BlobStorageException {
@@ -437,9 +469,180 @@ public class AzureBlobStore implements BlobStore {
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {}) - done", blobName, blobSize));
     }
 
-    private Tuple<BlobServiceClient, Supplier<Context>> client() {
-        return service.client(clientName, metricsCollector);
+    public VersionedBlob readBlobWithVersion(String blobName) throws IOException {
+        final Tuple<BlobServiceClient, Supplier<Context>> client = service.clientForVersionedRead(clientName, metricsCollector);
+        final BlobClient blob = client.v1().getBlobContainerClient(container).getBlobClient(blobName);
+        try {
+            final BlobDownloadContentResponse response = AccessController.doPrivileged(
+                () -> blob.downloadContentWithResponse(
+                    new DownloadRetryOptions().setMaxRetryRequests(0),
+                    null,
+                    new BlobRange(0, MAX_CONDITIONAL_WRITE_SIZE + 1),
+                    false,
+                    timeout(),
+                    client.v2().get()
+                )
+            );
+            final byte[] content = response.getValue().toBytes();
+            if (content.length > MAX_CONDITIONAL_WRITE_SIZE) {
+                throw new IOException(
+                    "[" + blobName + "] blob of size > [" + MAX_CONDITIONAL_WRITE_SIZE + "] is too large for a versioned read"
+                );
+            }
+            final String eTag = response.getDeserializedHeaders().getETag();
+            if (eTag == null) {
+                throw new IOException("Versioned read for blob [" + blobName + "] did not return an ETag");
+            }
+            return new VersionedBlob(content, eTag);
+        } catch (BlobStorageException e) {
+            return handleVersionedReadStorageException(blobName, blob, client, e);
+        } catch (RuntimeException e) {
+            final BlobStorageException storageException = findCause(e, BlobStorageException.class);
+            if (storageException != null) {
+                return handleVersionedReadStorageException(blobName, blob, client, storageException);
+            }
+            throw new IOException("Unable to read blob [" + blobName + "] with version", e);
+        }
     }
+
+    private VersionedBlob handleVersionedReadStorageException(
+        String blobName,
+        BlobClient blob,
+        Tuple<BlobServiceClient, Supplier<Context>> client,
+        BlobStorageException e
+    ) throws IOException {
+        if (e.getStatusCode() == 416 && BlobErrorCode.INVALID_RANGE.equals(e.getErrorCode())) {
+            // Azure rejects every byte range for a zero-length blob. Confirm emptiness and take the ETag from the same
+            // properties response so the returned content/version pair still describes one observed blob version.
+            return readEmptyBlobWithVersion(blobName, blob, client, e);
+        }
+        throw translateVersionedReadException(blobName, e);
+    }
+
+    private VersionedBlob readEmptyBlobWithVersion(
+        String blobName,
+        BlobClient blob,
+        Tuple<BlobServiceClient, Supplier<Context>> client,
+        BlobStorageException invalidRangeException
+    ) throws IOException {
+        try {
+            final Response<BlobProperties> response = AccessController.doPrivileged(
+                () -> blob.getPropertiesWithResponse(null, timeout(), client.v2().get())
+            );
+            final BlobProperties properties = response.getValue();
+            if (properties.getBlobSize() != 0) {
+                throw new IOException(
+                    "Versioned read for blob [" + blobName + "] returned InvalidRange but the blob is not empty",
+                    invalidRangeException
+                );
+            }
+            final String eTag = properties.getETag();
+            if (eTag == null) {
+                throw new IOException("Versioned read for empty blob [" + blobName + "] did not return an ETag");
+            }
+            return new VersionedBlob(new byte[0], eTag);
+        } catch (BlobStorageException e) {
+            throw translateVersionedReadException(blobName, e);
+        } catch (RuntimeException e) {
+            final BlobStorageException storageException = findCause(e, BlobStorageException.class);
+            if (storageException != null) {
+                throw translateVersionedReadException(blobName, storageException);
+            }
+            throw new IOException("Unable to read empty blob [" + blobName + "] with version", e);
+        }
+    }
+
+    public String writeBlobConditionally(String blobName, InputStream inputStream, long blobSize, @Nullable String expectedVersionToken)
+        throws IOException {
+        if (blobSize > MAX_CONDITIONAL_WRITE_SIZE) {
+            throw new IllegalArgumentException("Conditional write request size [" + blobSize + "] can't be larger than buffer size");
+        }
+
+        final Tuple<BlobServiceClient, Supplier<Context>> client = service.clientForConditionalWrite(clientName, metricsCollector);
+        final BlockBlobClient blob = client.v1().getBlobContainerClient(container).getBlobClient(blobName).getBlockBlobClient();
+        final BlobRequestConditions conditions = new BlobRequestConditions();
+        if (expectedVersionToken == null) {
+            conditions.setIfNoneMatch(Constants.HeaderConstants.ETAG_WILDCARD);
+        } else {
+            conditions.setIfMatch(expectedVersionToken);
+        }
+
+        try {
+            final Response<BlockBlobItem> response = AccessController.doPrivileged(
+                () -> blob.uploadWithResponse(
+                    new BlockBlobSimpleUploadOptions(inputStream, blobSize).setRequestConditions(conditions),
+                    timeout(),
+                    client.v2().get()
+                )
+            );
+            final String eTag = response.getValue().getETag();
+            if (eTag == null) {
+                throw new IOException("Conditional write for blob [" + blobName + "] did not return an ETag");
+            }
+            return eTag;
+        } catch (BlobStorageException e) {
+            throw translateConditionalWriteException(blobName, expectedVersionToken, e);
+        } catch (RuntimeException e) {
+            final BlobStorageException storageException = findCause(e, BlobStorageException.class);
+            if (storageException != null) {
+                throw translateConditionalWriteException(blobName, expectedVersionToken, storageException);
+            }
+            throw new IOException("Unable to conditionally upload blob [" + blobName + "]", e);
+        }
+    }
+
+    private static IOException translateVersionedReadException(String blobName, BlobStorageException e) {
+        if (e.getStatusCode() == HttpURLConnection.HTTP_NOT_FOUND && BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode())) {
+            return new NoSuchFileException("[" + blobName + "] blob not found");
+        }
+        return new IOException("Unable to read blob [" + blobName + "] with version", e);
+    }
+
+    private static IOException translateConditionalWriteException(
+        String blobName,
+        @Nullable String expectedVersionToken,
+        BlobStorageException e
+    ) {
+        if (isConditionFailure(e, expectedVersionToken != null)) {
+            return new BlobVersionConflictException(
+                "conditional write conflict for blob [" + blobName + "]: expected [" + expectedVersionToken + "]",
+                e
+            );
+        }
+        return new IOException("Unable to conditionally upload blob [" + blobName + "]", e);
+    }
+
+    private static boolean isConditionFailure(BlobStorageException e, boolean isCompareAndSwap) {
+        if (e.getStatusCode() == HttpURLConnection.HTTP_PRECON_FAILED && BlobErrorCode.CONDITION_NOT_MET.equals(e.getErrorCode())) {
+            return true;
+        }
+        if (isCompareAndSwap
+            && e.getStatusCode() == HttpURLConnection.HTTP_NOT_FOUND
+            && BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode())) {
+            return true;
+        }
+        return isCompareAndSwap == false
+            && e.getStatusCode() == HttpURLConnection.HTTP_CONFLICT
+            && BlobErrorCode.BLOB_ALREADY_EXISTS.equals(e.getErrorCode());
+    }
+
+    private static <T extends Throwable> T findCause(Throwable throwable, Class<T> type) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (type.isInstance(current)) {
+                return type.cast(current);
+            }
+            current = current.getCause();
+        }
+        return null;
+    }
+
+    private Tuple<BlobServiceClient, Supplier<Context>> client() {
+        return service.client(clientName, locationMode, metricsCollector);
+    }
+
+    // Package-private no-op hook for deterministic reload tests.
+    void beforeExistenceResultValidation() {}
 
     private Duration timeout() {
         return service.getBlobRequestTimeout(clientName);

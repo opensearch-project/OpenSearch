@@ -42,8 +42,7 @@ public class WorkloadGroupRequestOperationListener extends SearchRequestOperatio
      */
     @Override
     protected void onRequestStart(SearchRequestContext searchRequestContext) {
-        final String workloadGroupId = threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER);
-        workloadGroupService.rejectIfNeeded(workloadGroupId);
+        // Rejection happens in WorkloadGroupSearchAdmission: CompositeListener swallows exceptions thrown here.
         WorkloadGroup workloadGroup = workloadGroupService.getCurrentWorkloadGroup();
         applyWorkloadGroupSearchSettings(workloadGroup, searchRequestContext.getRequest());
     }
@@ -78,7 +77,7 @@ public class WorkloadGroupRequestOperationListener extends SearchRequestOperatio
         boolean overrideRequestValues = WorkloadGroupSearchSettings.WLM_OVERRIDE_REQUEST_VALUES.get(wlmSettings);
 
         applyTimeout(wlmSettings, searchRequest, overrideRequestValues);
-        applyCancelAfterTimeInterval(wlmSettings, searchRequest, overrideRequestValues);
+        // search.cancel_after_time_interval is applied by TransportSearchAction before admission, where the cancellation timer is armed.
         applyMaxConcurrentShardRequests(wlmSettings, searchRequest, overrideRequestValues);
         applyBatchedReduceSize(wlmSettings, searchRequest, overrideRequestValues);
     }
@@ -97,20 +96,6 @@ public class WorkloadGroupRequestOperationListener extends SearchRequestOperatio
             }
         } catch (Exception e) {
             logger.error("Failed to apply workload group setting [search.default_search_timeout]", e);
-        }
-    }
-
-    private void applyCancelAfterTimeInterval(Settings wlmSettings, SearchRequest searchRequest, boolean overrideRequestValues) {
-        if (wlmSettings.hasValue(WorkloadGroupSearchSettings.WLM_CANCEL_AFTER_TIME_INTERVAL.getKey()) == false) {
-            return;
-        }
-        try {
-            TimeValue cancelAfter = WorkloadGroupSearchSettings.WLM_CANCEL_AFTER_TIME_INTERVAL.get(wlmSettings);
-            if (overrideRequestValues || searchRequest.getCancelAfterTimeInterval() == null) {
-                searchRequest.setCancelAfterTimeInterval(cancelAfter);
-            }
-        } catch (Exception e) {
-            logger.error("Failed to apply workload group setting [search.cancel_after_time_interval]", e);
         }
     }
 
