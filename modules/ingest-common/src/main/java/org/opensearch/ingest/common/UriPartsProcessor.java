@@ -68,8 +68,8 @@ public final class UriPartsProcessor extends AbstractProcessor {
     /**
      * Returns whether removing {@code field} would also remove {@code targetField}, which is the case when both address the same field or
      * the target lies below the source. The paths are compared the way {@code IngestDocument} resolves them: a leading {@code _source.}
-     * is ignored, and a leading {@code _ingest.} selects the ingest metadata, a different root than the source, so that it can never
-     * overlap with a source path.
+     * is ignored, a leading {@code _ingest.} selects the ingest metadata, a different root than the source, so that it can never
+     * overlap with a source path, and trailing dots are ignored.
      */
     private static boolean removalWouldDeleteTarget(String field, String targetField) {
         String source = withRoot(field);
@@ -77,12 +77,24 @@ public final class UriPartsProcessor extends AbstractProcessor {
         return source.equals(target) || source.startsWith(target + ".");
     }
 
-    /** Returns the path with its root made explicit: {@code _ingest.} for the ingest metadata, {@code _source.} for everything else. */
+    /**
+     * Returns the path with its root made explicit, {@code _ingest.} for the ingest metadata and {@code _source.} for everything else,
+     * and with the dots normalized as {@code IngestDocument} does.
+     */
     private static String withRoot(String path) {
         if (path.startsWith(INGEST_PREFIX)) {
-            return path;
+            return INGEST_PREFIX + withoutTrailingDots(path.substring(INGEST_PREFIX.length()));
         }
-        return SOURCE_PREFIX + (path.startsWith(SOURCE_PREFIX) ? path.substring(SOURCE_PREFIX.length()) : path);
+        return SOURCE_PREFIX + withoutTrailingDots(path.startsWith(SOURCE_PREFIX) ? path.substring(SOURCE_PREFIX.length()) : path);
+    }
+
+    /**
+     * {@code IngestDocument} splits a path at the dots with {@link String#split(String)}, which drops the trailing empty segments, so
+     * {@code url.} and {@code url..} address the field {@code url}. Leading and interior empty segments are kept: {@code .url} and
+     * {@code a..b} are other fields than {@code url} and {@code a.b}. Splitting and joining here removes exactly the same segments.
+     */
+    private static String withoutTrailingDots(String path) {
+        return String.join(".", path.split("\\."));
     }
 
     String getField() {
@@ -233,8 +245,9 @@ public final class UriPartsProcessor extends AbstractProcessor {
             boolean keepOriginal = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "keep_original", true);
             boolean removeIfSuccessful = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "remove_if_successful", false);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
-            // This is checked here and not in the constructor so that it is a configuration error, which is reported as a 400. Any other
-            // exception thrown while creating a processor is wrapped as an internal error (500).
+            // This is checked here and not in the constructor so that it is a configuration error and is reported as a 400: a plain
+            // IllegalArgumentException thrown while creating a processor is wrapped as an internal error (500), whereas an
+            // OpenSearchException, such as the one made by newConfigurationException, keeps its own status.
             if (removeIfSuccessful && removalWouldDeleteTarget(field, targetField)) {
                 throw newConfigurationException(
                     TYPE,

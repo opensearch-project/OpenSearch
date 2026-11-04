@@ -175,6 +175,51 @@ public class UriPartsProcessorFactoryTests extends OpenSearchTestCase {
         }
     }
 
+    public void testRemoveIfSuccessfulIsRejectedWhenPathsDifferOnlyByTrailingDots() {
+        // IngestDocument splits a path at the dots and drops the trailing empty segments, so "url." and "url.." are the field "url":
+        // without the removal check, the parsed output would be written to "url" and then deleted with no error
+        String[][] overlapping = new String[][] {
+            { "url", "url." },
+            { "url", "url.." },
+            { "url.", "url" },
+            { "_source.url", "url.." },
+            { "url.full", "url." },
+            { "url.full.", "url" },
+            { "url.full.", "url." },
+            { "url", "_source.url." },
+            { "_ingest.url", "_ingest.url." },
+            { "_ingest.url.full.", "_ingest.url" } };
+        for (String[] pair : overlapping) {
+            OpenSearchParseException e = expectThrows(
+                OpenSearchParseException.class,
+                () -> factory.create(null, null, null, removalConfig(pair[0], pair[1]))
+            );
+            assertThat(e.getMessage(), containsString("[remove_if_successful] cannot be true"));
+            assertThat(e.getMessage(), containsString("[field] [" + pair[0] + "]"));
+            assertThat(e.getMessage(), containsString("[target_field] [" + pair[1] + "]"));
+        }
+    }
+
+    public void testRemoveIfSuccessfulKeepsLeadingAndInteriorEmptySegmentsApart() throws Exception {
+        // only the trailing empty segments are dropped by IngestDocument, the others are field names of their own, so these pairs
+        // do not overlap
+        String[][] pairs = new String[][] { { "url", ".url" }, { ".url", "url" }, { "a..b", "a.b" }, { "a.b", "a..b" } };
+        for (String[] pair : pairs) {
+            UriPartsProcessor processor = factory.create(null, null, null, removalConfig(pair[0], pair[1]));
+            assertThat(processor.isRemoveIfSuccessful(), equalTo(true));
+        }
+    }
+
+    public void testRemoveIfSuccessfulIsAllowedWhenTheTargetIsBelowTheSourceField() throws Exception {
+        // the source holds the URL string, so it cannot also be the parent object of the target: writing the target fails at run time
+        // and the source is never removed, which is why only a target at or above the source is rejected when the pipeline is created
+        String[][] pairs = new String[][] { { "a", "a.b" }, { "_source.a", "a.b" }, { "a", "_source.a.b" }, { "a", "a.b." } };
+        for (String[] pair : pairs) {
+            UriPartsProcessor processor = factory.create(null, null, null, removalConfig(pair[0], pair[1]));
+            assertThat(processor.isRemoveIfSuccessful(), equalTo(true));
+        }
+    }
+
     public void testRemoveIfSuccessfulIsAllowedForDifferentRoots() throws Exception {
         // "_ingest." addresses the ingest metadata, which is a different root than the source, so nothing can overlap
         String[][] pairs = new String[][] {

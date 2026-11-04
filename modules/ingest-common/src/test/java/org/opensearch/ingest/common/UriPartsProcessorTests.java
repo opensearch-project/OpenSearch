@@ -518,6 +518,16 @@ public class UriPartsProcessorTests extends OpenSearchTestCase {
     // The creation-time check that remove_if_successful cannot delete the output is made by the factory and tested in
     // UriPartsProcessorFactoryTests, so that it is reported as a configuration error.
 
+    public void testTrailingDotsInTheTargetFieldAddressTheSameField() throws Exception {
+        // such paths stay valid: the factory only has to see that they are the field without the dots
+        for (String target : new String[] { "parsed.", "parsed..", "_source.parsed." }) {
+            UriPartsProcessor processor = new UriPartsProcessor(null, null, FIELD, target, true, false, false);
+            IngestDocument document = run(processor, document(FIELD, "http://example.com/a.png"));
+            assertThat(document.getFieldValue("parsed.domain", String.class), equalTo("example.com"));
+            assertThat(document.getFieldValue("parsed.extension", String.class), equalTo("png"));
+        }
+    }
+
     public void testSourcePrefixedPathsAreResolvedLikeUnprefixedOnes() throws Exception {
         UriPartsProcessor processor = new UriPartsProcessor(null, null, "_source." + FIELD, "_source.parsed", true, true, false);
         IngestDocument document = run(processor, document(FIELD, "http://example.com/a.png"));

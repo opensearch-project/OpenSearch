@@ -315,7 +315,7 @@ teardown:
       version: " - 3.9.99"
       reason: "introduced in 3.10.0"
   - do:
-      catch: /\[field\] required property is missing/
+      catch: bad_request
       ingest.put_pipeline:
         id: "1"
         body: >
@@ -328,9 +328,11 @@ teardown:
               }
             ]
           }
+  - match: { error.type: parse_exception }
+  - match: { error.reason: "[field] required property is missing" }
 
   - do:
-      catch: /\[keep_original\] property isn't a boolean/
+      catch: bad_request
       ingest.put_pipeline:
         id: "1"
         body: >
@@ -344,6 +346,8 @@ teardown:
               }
             ]
           }
+  - match: { error.type: parse_exception }
+  - match: { error.reason: "/\\[keep_original\\]\\sproperty\\sisn't\\sa\\sboolean.*/" }
 
   # a config that would remove its own output is a client error (400), whichever way the overlapping paths are spelled
   - do:
@@ -361,9 +365,11 @@ teardown:
               }
             ]
           }
-  - match: { status: 400 }
   - match: { error.type: parse_exception }
   - match: { error.reason: "[remove_if_successful] cannot be true when [field] [url] is the same as, or nested in, [target_field] [url], because the parsed output would be removed" }
+  - match: { error.root_cause.0.type: parse_exception }
+  - match: { error.root_cause.0.processor_type: uri_parts }
+  - match: { error.root_cause.0.property_name: remove_if_successful }
 
   - do:
       catch: bad_request
@@ -381,7 +387,6 @@ teardown:
               }
             ]
           }
-  - match: { status: 400 }
   - match: { error.type: parse_exception }
   - match: { error.reason: "[remove_if_successful] cannot be true when [field] [url.full] is the same as, or nested in, [target_field] [url], because the parsed output would be removed" }
 
@@ -401,7 +406,6 @@ teardown:
               }
             ]
           }
-  - match: { status: 400 }
   - match: { error.type: parse_exception }
 
   - do:
@@ -420,11 +424,30 @@ teardown:
               }
             ]
           }
-  - match: { status: 400 }
   - match: { error.type: parse_exception }
 
+  # trailing dots are ignored when a path is resolved, so "url." is the field "url" and the output would be removed here too
   - do:
-      catch: /\[target_field\] cannot be empty/
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "uri_parts": {
+                  "field": "url",
+                  "target_field": "url.",
+                  "remove_if_successful": true
+                }
+              }
+            ]
+          }
+  - match: { error.type: parse_exception }
+  - match: { error.reason: "[remove_if_successful] cannot be true when [field] [url] is the same as, or nested in, [target_field] [url.], because the parsed output would be removed" }
+
+  - do:
+      catch: bad_request
       ingest.put_pipeline:
         id: "1"
         body: >
@@ -438,3 +461,5 @@ teardown:
               }
             ]
           }
+  - match: { error.type: parse_exception }
+  - match: { error.reason: "[target_field] cannot be empty" }
