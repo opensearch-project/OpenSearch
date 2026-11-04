@@ -75,6 +75,10 @@ import java.util.Map;
  *   <li>{@code fork}</li>
  *   <li>{@code vfork}</li>
  *   <li>{@code execveat}</li>
+ *   <li>{@code ptrace}</li>
+ *   <li>{@code process_vm_readv}</li>
+ *   <li>{@code process_vm_writev}</li>
+ *   <li>{@code pidfd_getfd}</li>
  * </ul>
  * <p>
  * On Solaris 10 or higher, the following privileges are dropped with {@code priv_set(3C)}:
@@ -241,8 +245,28 @@ final class SystemCallFilter {
         final int execveat;
         /** __NR_seccomp */
         final int seccomp;
+        /** __NR_ptrace */
+        final int ptrace;
+        /** __NR_process_vm_readv */
+        final int processVmReadv;
+        /** __NR_process_vm_writev */
+        final int processVmWritev;
+        /** __NR_pidfd_getfd */
+        final int pidfdGetfd;
 
-        Arch(int audit, int limit, int fork, int vfork, int execve, int execveat, int seccomp) {
+        Arch(
+            int audit,
+            int limit,
+            int fork,
+            int vfork,
+            int execve,
+            int execveat,
+            int seccomp,
+            int ptrace,
+            int processVmReadv,
+            int processVmWritev,
+            int pidfdGetfd
+        ) {
             this.audit = audit;
             this.limit = limit;
             this.fork = fork;
@@ -250,17 +274,21 @@ final class SystemCallFilter {
             this.execve = execve;
             this.execveat = execveat;
             this.seccomp = seccomp;
+            this.ptrace = ptrace;
+            this.processVmReadv = processVmReadv;
+            this.processVmWritev = processVmWritev;
+            this.pidfdGetfd = pidfdGetfd;
         }
     }
 
     /** supported architectures map keyed by os.arch */
-    private static final Map<String, Arch> ARCHITECTURES;
+    static final Map<String, Arch> ARCHITECTURES;
     static {
         Map<String, Arch> m = new HashMap<>();
-        m.put("amd64", new Arch(0xC000003E, 0x3FFFFFFF, 57, 58, 59, 322, 317));
-        m.put("aarch64", new Arch(0xC00000B7, 0xFFFFFFFF, 1079, 1071, 221, 281, 277));
-        m.put("s390x", new Arch(0x80000016, 0xFFFFFFFF, 2, 190, 11, 354, 348));
-        m.put("ppc64le", new Arch(0xC0000015, 0xFFFFFFFF, 2, 189, 11, 362, 358));
+        m.put("amd64", new Arch(0xC000003E, 0x3FFFFFFF, 57, 58, 59, 322, 317, 101, 310, 311, 438));
+        m.put("aarch64", new Arch(0xC00000B7, 0xFFFFFFFF, 1079, 1071, 221, 281, 277, 117, 270, 271, 438));
+        m.put("s390x", new Arch(0x80000016, 0xFFFFFFFF, 2, 190, 11, 354, 348, 26, 340, 341, 438));
+        m.put("ppc64le", new Arch(0xC0000015, 0xFFFFFFFF, 2, 189, 11, 362, 358, 26, 351, 352, 438));
         ARCHITECTURES = Collections.unmodifiableMap(m);
     }
 
@@ -412,15 +440,19 @@ final class SystemCallFilter {
         // See https://www.kernel.org/doc/Documentation/prctl/seccomp_filter.txt for details.
         SockFilter insns[] = {
             /* 1  */ BPF_STMT(BPF_LD + BPF_W + BPF_ABS, SECCOMP_DATA_ARCH_OFFSET),             //
-            /* 2  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.audit, 0, 7),                 // if (arch != audit) goto fail;
+            /* 2  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.audit, 0, 11),                // if (arch != audit) goto fail;
             /* 3  */ BPF_STMT(BPF_LD + BPF_W + BPF_ABS, SECCOMP_DATA_NR_OFFSET),               //
-            /* 4  */ BPF_JUMP(BPF_JMP + BPF_JGT + BPF_K, arch.limit, 5, 0),                 // if (syscall > LIMIT) goto fail;
-            /* 5  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.fork, 4, 0),                 // if (syscall == FORK) goto fail;
-            /* 6  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.vfork, 3, 0),                 // if (syscall == VFORK) goto fail;
-            /* 7  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.execve, 2, 0),                 // if (syscall == EXECVE) goto fail;
-            /* 8  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.execveat, 1, 0),                 // if (syscall == EXECVEAT) goto fail;
-            /* 9  */ BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW),                                // pass: return OK;
-            /* 10 */ BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ERRNO | (EACCES & SECCOMP_RET_DATA)),  // fail: return EACCES;
+            /* 4  */ BPF_JUMP(BPF_JMP + BPF_JGT + BPF_K, arch.limit, 9, 0),                 // if (syscall > LIMIT) goto fail;
+            /* 5  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.fork, 8, 0),                 // if (syscall == FORK) goto fail;
+            /* 6  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.vfork, 7, 0),                 // if (syscall == VFORK) goto fail;
+            /* 7  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.execve, 6, 0),                 // if (syscall == EXECVE) goto fail;
+            /* 8  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.execveat, 5, 0),                 // if (syscall == EXECVEAT) goto fail;
+            /* 9  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.ptrace, 4, 0),                 // if (syscall == PTRACE) goto fail;
+            /* 10 */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.processVmReadv, 3, 0), // if (syscall == PROCESS_VM_READV) goto fail;
+            /* 11 */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.processVmWritev, 2, 0), // if (syscall == PROCESS_VM_WRITEV) goto fail;
+            /* 12 */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.pidfdGetfd, 1, 0),                 // if (syscall == PIDFD_GETFD) goto fail;
+            /* 13 */ BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW),                                // pass: return OK;
+            /* 14 */ BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ERRNO | (EACCES & SECCOMP_RET_DATA)),  // fail: return EACCES;
         };
         // seccomp takes a long, so we pass it one explicitly to keep the JNA simple
         SockFProg prog = new SockFProg(insns);
