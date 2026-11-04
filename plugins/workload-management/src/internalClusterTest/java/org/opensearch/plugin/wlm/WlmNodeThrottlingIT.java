@@ -141,13 +141,15 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
         String ruleId = "wlm_throttle_rule";
         String indexName = "throttle_index";
 
-        setWlmMode("enabled");
-
         WorkloadGroup workloadGroup = createThrottledWorkloadGroup("throttle_test_group", workloadGroupId, 1);
         updateWorkloadGroupInClusterState(PUT, workloadGroup);
 
         FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
         createRule(ruleId, "throttle rule", indexName, featureType, workloadGroupId);
+
+        // Enable WLM only once createRule has created the rules index. Rule sync runs only while WLM is enabled, and a sync
+        // search of the missing rules index would leave the in-flight gauge one too high for the rest of the test (#22745).
+        setWlmMode("enabled");
 
         indexDocument(indexName);
 
@@ -168,7 +170,6 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
             awaitForBlock(plugins);
 
             int throttledBefore = getThrottled(workloadGroupId);
-            long inFlightBefore = currentInFlightSearches();
 
             // Second search while the first is still in-flight: must be rejected (429).
             Throwable rejection = expectThrows(Throwable.class, () -> blockingSearch(indexName).execute().actionGet(TIMEOUT));
@@ -179,13 +180,10 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
 
             assertEquals("total_throttled should increment by exactly one", throttledBefore + 1, getThrottled(workloadGroupId));
 
-            // A rejected request must not leak the in-flight gauge. Poll, since background rule-sync searches also move it.
+            // A rejected request must not leak the in-flight gauge, so only the blocked search is counted. Poll for the exact
+            // value rather than a sampled baseline, since a background rule-sync search can briefly add one.
             assertBusy(
-                () -> assertEquals(
-                    "in-flight search gauge must exclude the throttle-rejected request",
-                    inFlightBefore,
-                    currentInFlightSearches()
-                ),
+                () -> assertEquals("in-flight search gauge must exclude the throttle-rejected request", 1L, currentInFlightSearches()),
                 30,
                 TimeUnit.SECONDS
             );
