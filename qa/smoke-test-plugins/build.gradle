@@ -35,6 +35,7 @@ apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.standalone-rest-test'
 apply plugin: 'opensearch.rest-test'
 apply plugin: 'opensearch.rest-resources'
+apply from: "$rootDir/gradle/sandbox-testclusters.gradle"
 
 // Plugins that require non-default JVM flags (e.g. io.netty.noUnsafe=false for Arrow's
 // Netty allocation manager) are tested separately in qa/smoke-test-arrow-plugins.
@@ -50,8 +51,17 @@ testClusters.integTest {
     plugin pluginProject.path
     pluginsCount += 1
   }
+  // Installs the full 8-plugin sandbox stack (arrow-base + arrow-flight-rpc + 6 sandbox
+  // plugins). The loop above excludes the arrow plugins, so none are already installed here.
+  installSandboxStack(delegate)
 }
 assert pluginsCount > 0
+
+// When the sandbox stack is enabled, installSandboxStack adds all 8 mustang plugins, so the
+// expected node plugin count grows by 8.
+if (sandboxStackEnabled) {
+  pluginsCount += 8
+}
 
 ext.expansions = [
   'expected.plugins.count': pluginsCount

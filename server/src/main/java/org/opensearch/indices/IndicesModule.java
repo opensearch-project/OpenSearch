@@ -337,6 +337,11 @@ public class IndicesModule extends AbstractModule {
         return builtInMetadataFields;
     }
 
+    /**
+     * Combines all plugin field filters with a logical AND, preserving the no-op filter as the identity. Every field must match every
+     * registered filter. Because plugins may use these filters to implement authorization access controls such as field-level security,
+     * the combined result must remain fail-closed when passed to mapping APIs, query schemas, and query planners.
+     */
     private static Function<String, Predicate<String>> getFieldFilter(List<MapperPlugin> mapperPlugins) {
         Function<String, Predicate<String>> fieldFilter = MapperPlugin.NOOP_FIELD_FILTER;
         for (MapperPlugin mapperPlugin : mapperPlugins) {

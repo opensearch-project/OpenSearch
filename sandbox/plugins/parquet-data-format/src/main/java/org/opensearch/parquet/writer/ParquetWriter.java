@@ -27,12 +27,14 @@ import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.stats.ParquetShardStatsTracker;
+import org.opensearch.parquet.vsr.SchemaChangeRequiresWriterRotationException;
 import org.opensearch.parquet.vsr.VSRManager;
 import org.opensearch.plugin.stats.StatsRecorder;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -186,6 +188,11 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     }
 
     @Override
+    public Optional<Writer<?>> getWriterForFormat(String formatName) {
+        return dataFormat.name().equals(formatName) ? Optional.of(this) : Optional.empty();
+    }
+
+    @Override
     public FileInfos flush(FlushInput flushInput) throws IOException {
         ParquetFileMetadata metadata = vsrManager.flush();
         if (file == null || metadata == null || metadata.numRows() == 0) {
@@ -244,8 +251,18 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
                 schema.getFields().size(),
                 schema.getFields().stream().map(f -> f.getName()).collect(java.util.stream.Collectors.joining(", "))
             );
-            boolean updated = vsrManager.reconcileSchema(schema);
-            logger.debug("updateMappingVersion: reconcileSchema returned updated={}", updated);
+            try {
+                boolean updated = vsrManager.reconcileSchema(schema);
+                logger.debug("updateMappingVersion: reconcileSchema returned updated={}", updated);
+            } catch (SchemaChangeRequiresWriterRotationException e) {
+                state = WriterState.RETIRED_FLUSHABLE;
+                logger.debug(
+                    "[Gen: {}] mapping version {} requires a new Parquet writer: {}",
+                    writerGeneration,
+                    newVersion,
+                    e.getMessage()
+                );
+            }
         } else {
             logger.trace(
                 "[Gen: {}] updateMappingVersion: no-op, newVersion={} <= current mappingVersion={}",

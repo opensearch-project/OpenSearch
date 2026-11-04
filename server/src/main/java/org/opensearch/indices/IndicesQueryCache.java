@@ -123,7 +123,16 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         Property.Dynamic
     );
 
+    // dynamically enable or disable the node-level query cache; disabling also clears it
+    public static final Setting<Boolean> INDICES_QUERIES_CACHE_ENABLED_SETTING = Setting.boolSetting(
+        "indices.queries.cache.enabled",
+        true,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     private final LRUQueryCache cache;
+    private volatile boolean enabled;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
     private volatile long sharedRamBytesUsed;
@@ -155,6 +164,23 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             }
         }
         sharedRamBytesUsed = 0;
+        enabled = INDICES_QUERIES_CACHE_ENABLED_SETTING.get(settings);
+        if (clusterSettings != null) {
+            clusterSettings.addSettingsUpdateConsumer(INDICES_QUERIES_CACHE_ENABLED_SETTING, this::setEnabled);
+        }
+    }
+
+    private void setEnabled(boolean enabled) {
+        logger.debug("set cluster settings {} {} -> {}", INDICES_QUERIES_CACHE_ENABLED_SETTING.getKey(), this.enabled, enabled);
+        this.enabled = enabled;
+        if (enabled == false) {
+            cache.clear();
+        }
+    }
+
+    // Package-private for testing
+    boolean isEnabled() {
+        return enabled;
     }
 
     public void setSkipCacheFactor(float skipCacheFactor) {
@@ -209,6 +235,9 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
         while (weight instanceof CachingWeightWrapper cachingWeightWrapper) {
             weight = cachingWeightWrapper.in;
+        }
+        if (enabled == false) {
+            return weight;
         }
         final Weight in = cache.doCache(weight, policy);
         // We wrap the weight to track the readers it sees and map them with

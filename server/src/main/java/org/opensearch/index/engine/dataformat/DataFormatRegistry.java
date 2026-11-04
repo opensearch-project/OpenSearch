@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
 import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.Committer;
@@ -279,6 +280,21 @@ public class DataFormatRegistry {
      * @param indexSettings the index settings used to resolve the active plugin
      */
     public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings) {
+        assignCapabilities(fieldType, indexSettings, FieldScope.ROOT);
+    }
+
+    /**
+     * Assigns the capability map on the given field type by delegating to the configured data formats,
+     * additionally indicating whether the field is declared directly inside a {@code nested} object's
+     * scope — passed through to the plugin so a composite plugin can restrict which of its sub-formats
+     * may claim capabilities there (see {@link DataFormatPlugin#assignCapabilities(MappedFieldType,
+     * IndexSettings, DataFormatRegistry, FieldScope)}).
+     *
+     * @param fieldType the field type to assign capabilities to
+     * @param indexSettings the index settings used to resolve the active plugin
+     * @param fieldScope the field's mapping scope
+     */
+    public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, FieldScope fieldScope) {
         String dataformatName = indexSettings.pluggableDataFormat();
         if (dataformatName == null || dataformatName.isEmpty()) {
             fieldType.setCapabilityMap(Map.of());
@@ -294,7 +310,7 @@ public class DataFormatRegistry {
             fieldType.setCapabilityMap(Map.of());
             return;
         }
-        plugin.assignCapabilities(fieldType, indexSettings, this);
+        plugin.assignCapabilities(fieldType, indexSettings, this, fieldScope);
     }
 
     /**
@@ -398,13 +414,9 @@ public class DataFormatRegistry {
     }
 
     /**
-     * Returns the {@link DeleteExecutionEngine} by finding the single registered plugin that provides one.
-     * Iterates over all registered data format plugins and validates that exactly one returns a non-null
-     * result from {@link DataFormatPlugin#getDeleteExecutionEngine(Committer)}.
+     * Returns the registered delete engine, or a no-op engine when none is provided.
      *
-     * @param committer the committer for durable delete tracking
-     * @return the delete execution engine
-     * @throws IllegalStateException if no plugin or multiple plugins provide a delete execution engine
+     * @throws IllegalStateException if multiple plugins provide a delete engine
      */
     public DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
         List<DeleteExecutionEngine<?>> engines = new ArrayList<>();
@@ -420,7 +432,7 @@ public class DataFormatRegistry {
             );
         }
         if (engines.isEmpty()) {
-            throw new IllegalStateException("No DataFormatPlugin provides a DeleteExecutionEngine");
+            return NoOpDeleteExecutionEngine.INSTANCE;
         }
         return engines.getFirst();
     }

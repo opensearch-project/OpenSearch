@@ -60,6 +60,11 @@ public class RemoteStoreCustomMetadataResolver {
     }
 
     public boolean isTranslogMetadataEnabled() {
+        // There is no remote translog to store the checkpoint as metadata against when only segments are in the
+        // remote store.
+        if (RemoteStoreNodeAttribute.isTranslogRepoConfigured(settings) == false) {
+            return false;
+        }
         Repository repository;
         try {
             repository = repositoriesServiceSupplier.get().repository(getRemoteStoreTranslogRepo(settings));
@@ -73,18 +78,23 @@ public class RemoteStoreCustomMetadataResolver {
     }
 
     public boolean isRemoteStoreRepoServerSideEncryptionEnabled() {
-        BlobStoreRepository segmentRepository, translogRepository;
+        BlobStoreRepository segmentRepository;
+        // Only the repositories that are actually in use need to encrypt at rest. A cluster storing segments only has
+        // no translog repository to check.
+        boolean translogRepositoryEncrypted = true;
         try {
             segmentRepository = (BlobStoreRepository) repositoriesServiceSupplier.get()
                 .repository(RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(settings));
-            translogRepository = (BlobStoreRepository) repositoriesServiceSupplier.get()
-                .repository(RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(settings));
+            if (RemoteStoreNodeAttribute.isTranslogRepoConfigured(settings)) {
+                translogRepositoryEncrypted = ((BlobStoreRepository) repositoriesServiceSupplier.get()
+                    .repository(RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(settings))).isSeverSideEncryptionEnabled();
+            }
         } catch (RepositoryMissingException ex) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", ex);
         }
         return Version.V_3_4_0.compareTo(minNodeVersionSupplier.get()) <= 0
             && remoteStoreSettings.isClusterServerSideEncryptionEnabled()
             && segmentRepository.isSeverSideEncryptionEnabled()
-            && translogRepository.isSeverSideEncryptionEnabled();
+            && translogRepositoryEncrypted;
     }
 }

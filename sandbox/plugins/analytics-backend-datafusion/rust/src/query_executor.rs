@@ -17,7 +17,6 @@ use datafusion::{
     execution::runtime_env::RuntimeEnvBuilder, physical_plan::displayable,
     physical_plan::execute_stream,
 };
-use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use log::error;
 use native_bridge_common::log_debug;
 use object_store::ObjectMeta;
@@ -148,7 +147,8 @@ async fn build_dataframe(
     // Standard user-search flow: Substrait → logical plan → DataFrame.
     let substrait_plan = Plan::decode(plan_bytes)
         .map_err(|e| DataFusionError::Execution(format!("Failed to decode Substrait: {}", e)))?;
-    let logical_plan = from_substrait_plan(&ctx.state(), &substrait_plan).await?;
+    let logical_plan =
+        crate::substrait_consumer::from_substrait_plan(&ctx.state(), &substrait_plan).await?;
     ctx.execute_logical_plan(logical_plan).await
 }
 
@@ -250,7 +250,9 @@ pub async fn execute_with_context(
         })?;
 
         // Union schema widening was applied at table registration (session_context::widen_to_union_schema).
-        let logical_plan = from_substrait_plan(&handle.ctx.state(), &substrait_plan).await?;
+        let logical_plan =
+            crate::substrait_consumer::from_substrait_plan(&handle.ctx.state(), &substrait_plan)
+                .await?;
         log_debug!(
             "DataFusion logical plan:\n{}",
             logical_plan.display_indent()

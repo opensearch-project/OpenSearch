@@ -118,6 +118,36 @@ public class AttachChildrenTests extends OpenSearchTestCase {
     }
 
     /**
+     * Closing an eager parent's input can wake its drain and make it report success inline.
+     * A child failure must claim FAILED before that EOF is published, or the successful
+     * terminal state wins and the query incorrectly returns partial/empty results.
+     */
+    public void testFailedChildClaimsTerminalBeforeClosingInput() {
+        FakeChild child = new FakeChild(1);
+        child.failure = new RuntimeException("injected shard failure");
+        FakeParent parent = new FakeParent(99, true);
+
+        parent.attachChildren(List.of(child), stage -> {});
+        child.fire(StageExecution.State.FAILED);
+
+        assertEquals(StageExecution.State.FAILED, parent.fakeState);
+        assertSame(child.failure, parent.capturedFailure);
+        assertTrue("failed child input must still be closed", parent.childInputClosed);
+    }
+
+    /** Same race for cancellation: CANCELLED must win before EOF can report success. */
+    public void testCancelledChildClaimsTerminalBeforeClosingInput() {
+        FakeChild child = new FakeChild(1);
+        FakeParent parent = new FakeParent(99, true);
+
+        parent.attachChildren(List.of(child), stage -> {});
+        child.fire(StageExecution.State.CANCELLED);
+
+        assertEquals(StageExecution.State.CANCELLED, parent.fakeState);
+        assertTrue("cancelled child input must still be closed", parent.childInputClosed);
+    }
+
+    /**
      * Sibling-cancel sweep: when one child fails and the parent transitions to FAILED,
      * any siblings still running must be cancelled so they don't keep producing into a
      * sink whose owner has terminated.
@@ -367,19 +397,28 @@ public class AttachChildrenTests extends OpenSearchTestCase {
      */
     private static final class FakeParent implements StageExecution {
         private final int stageId;
+        private final boolean succeedOnClose;
         private final List<StageStateListener> listeners = new ArrayList<>();
         State fakeState = State.RUNNING;
         Exception capturedFailure;
+        boolean childInputClosed;
 
         FakeParent(int stageId) {
-            this.stageId = stageId;
+            this(stageId, false);
         }
 
-        private void transitionTo(State target) {
+        FakeParent(int stageId, boolean succeedOnClose) {
+            this.stageId = stageId;
+            this.succeedOnClose = succeedOnClose;
+        }
+
+        private boolean transitionTo(State target) {
+            if (fakeState.isTerminal()) return false;
             State previous = fakeState;
             fakeState = target;
             for (StageStateListener l : listeners)
                 l.onStateChange(previous, target);
+            return true;
         }
 
         @Override
@@ -414,14 +453,22 @@ public class AttachChildrenTests extends OpenSearchTestCase {
 
         @Override
         public boolean failWithCause(Exception cause) {
+            if (fakeState.isTerminal()) return false;
             capturedFailure = cause;
-            transitionTo(State.FAILED);
-            return true;
+            return transitionTo(State.FAILED);
         }
 
         @Override
         public void cancel(String reason) {
             transitionTo(State.CANCELLED);
+        }
+
+        @Override
+        public void closeChildInput(int childStageId) {
+            childInputClosed = true;
+            if (succeedOnClose) {
+                transitionTo(State.SUCCEEDED);
+            }
         }
 
         @Override

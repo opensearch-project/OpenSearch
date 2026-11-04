@@ -39,6 +39,7 @@ import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.DiskUsage;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.DiskThresholdEvaluator;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
@@ -52,7 +53,6 @@ import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.opensearch.cluster.routing.RoutingPool.REMOTE_CAPABLE;
 import static org.opensearch.cluster.routing.RoutingPool.getNodePool;
@@ -237,8 +237,11 @@ public class WarmDiskThresholdDecider extends AllocationDecider {
     }
 
     private long calculateCurrentNodeLeavingRemoteShardSize(RoutingNode node, RoutingAllocation allocation) {
-        final List<ShardRouting> leavingRemoteShardsOnNode = StreamSupport.stream(node.spliterator(), false)
-            .filter(shard -> shard.primary() && REMOTE_CAPABLE.equals(getShardPool(shard, allocation)) && (shard.relocating() == true))
+        // RoutingNode tracks its relocating shards incrementally (see DiskThresholdDecider.sizeOfRelocatingShards), so this is
+        // O(relocating shards on node) rather than a scan of every shard on the node for each canRemain call.
+        final List<ShardRouting> leavingRemoteShardsOnNode = node.shardsWithState(ShardRoutingState.RELOCATING)
+            .stream()
+            .filter(shard -> shard.primary() && REMOTE_CAPABLE.equals(getShardPool(shard, allocation)))
             .collect(Collectors.toList());
 
         var leavingRemoteShardSize = 0L;

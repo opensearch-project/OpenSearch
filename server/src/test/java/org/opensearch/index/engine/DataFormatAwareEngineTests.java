@@ -16,7 +16,9 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
+import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
@@ -32,19 +34,24 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
-import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
-import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.DeleteInput;
+import org.opensearch.index.engine.dataformat.DeleteResult;
+import org.opensearch.index.engine.dataformat.NoOpDeleteExecutionEngine;
+import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.RowIdAwareWriter;
+import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.dataformat.WriterState;
 import org.opensearch.index.engine.dataformat.stub.InMemoryCommitter;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockDocumentInput;
 import org.opensearch.index.engine.dataformat.stub.MockIndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockWriter;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
+import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
@@ -61,10 +68,13 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogFactory;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -77,12 +87,15 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -90,18 +103,27 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.opensearch.index.engine.EngineTestCase.tombstoneDocSupplier;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
@@ -199,6 +221,14 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         return new DataFormatAwareEngine(buildDFAEngineConfig(store, translogPath));
     }
 
+    private DataFormatAwareEngine createUpdateEnabledDFAEngine(Store store, Path translogPath) throws IOException {
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+        return new DataFormatAwareEngine(
+            buildDFAEngineConfig(store, translogPath, List.of(), List.of(), IndexModule.TieringState.HOT.name(), null, false)
+        );
+    }
+
     private EngineConfig buildDFAEngineConfig(Store store, Path translogPath) {
         return buildDFAEngineConfig(store, translogPath, List.of(), List.of());
     }
@@ -235,16 +265,28 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         String tieringState,
         DocumentLookupProvider documentLookupProvider
     ) {
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-            "test",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
-                .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
-                .put(IndexModule.INDEX_TIERING_STATE.getKey(), tieringState)
-                .build()
-        );
+        return buildDFAEngineConfig(store, translogPath, externalListeners, internalListeners, tieringState, documentLookupProvider, null);
+    }
+
+    private EngineConfig buildDFAEngineConfig(
+        Store store,
+        Path translogPath,
+        List<ReferenceManager.RefreshListener> externalListeners,
+        List<ReferenceManager.RefreshListener> internalListeners,
+        String tieringState,
+        DocumentLookupProvider documentLookupProvider,
+        Boolean appendOnly
+    ) {
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
+            .put(IndexModule.INDEX_TIERING_STATE.getKey(), tieringState);
+        if (appendOnly != null) {
+            settings.put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), appendOnly);
+        }
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings.build());
 
         TranslogConfig translogConfig = new TranslogConfig(
             shardId,
@@ -1058,12 +1100,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
         // Wire an indexing engine whose writer fails on flush.
         FailingFlushIndexingExecutionEngine failingEngine = new FailingFlushIndexingExecutionEngine(mockDataFormat);
-        MockDataFormatPlugin failingPlugin = new MockDataFormatPlugin(mockDataFormat) {
-            @Override
-            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
-                return failingEngine;
-            }
-        };
+        MockDataFormatPlugin failingPlugin = MockDataFormatPlugin.of(mockDataFormat).withIndexingEngine(settings -> failingEngine);
 
         EngineConfig config = buildFailingEngineConfig(failingPlugin, listener);
         DataFormatAwareEngine engine = new DataFormatAwareEngine(config);
@@ -1156,8 +1193,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         };
 
         // Use a normal (non-failing) engine so we can inject the failure precisely.
-        MockDataFormatPlugin normalPlugin = new MockDataFormatPlugin(mockDataFormat) {
-        };
+        MockDataFormatPlugin normalPlugin = MockDataFormatPlugin.of(mockDataFormat);
         EngineConfig config = buildFailingEngineConfig(normalPlugin, listener);
         DataFormatAwareEngine engine = new DataFormatAwareEngine(config);
         try {
@@ -2139,6 +2175,43 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         }
     }
 
+    /** With file sizes requested, delete-tracking memory is reported as version-map memory. */
+    public void testSegmentsStatsWithFileSizesIncludesDeleteTrackingMemory() throws Exception {
+        MockDeleteExecutionEngine deleteEngine = spy(new MockDeleteExecutionEngine(mockDataFormat));
+        doReturn(2048L).when(deleteEngine).ramBytesUsed();
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(mockDataFormat).withDeleteExecutionEngine(committer -> deleteEngine);
+        EngineConfig config = buildFailingEngineConfig(plugin);
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            engine.index(indexOp(createParsedDoc("1", null)));
+            engine.refresh("stats");
+
+            SegmentsStats stats = engine.segmentsStats(true, false);
+
+            assertThat(stats.getCount(), equalTo(1L));
+            assertFalse("file sizes must be present when requested", stats.getFileSizes().isEmpty());
+            assertThat("delete tracking must be added to version-map memory", stats.getVersionMapMemoryInBytes(), equalTo(2048L));
+        }
+    }
+
+    /** On the fast path with no cached file sizes, the shared cached stats are copied before delete memory is added. */
+    public void testSegmentsStatsFastPathWithoutFileSizesCopiesCachedStats() throws Exception {
+        MockDeleteExecutionEngine deleteEngine = spy(new MockDeleteExecutionEngine(mockDataFormat));
+        doReturn(1024L).when(deleteEngine).ramBytesUsed();
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(mockDataFormat).withDeleteExecutionEngine(committer -> deleteEngine);
+        EngineConfig config = buildFailingEngineConfig(plugin);
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            // No refresh, so the cached stats hold no segments and carry no file sizes.
+            SegmentsStats stats = engine.segmentsStats(false, false);
+
+            assertThat(stats.getCount(), equalTo(0L));
+            assertTrue(stats.getFileSizes().isEmpty());
+            assertThat(stats.getVersionMapMemoryInBytes(), equalTo(1024L));
+
+            // The cached instance must not have been mutated by the copy.
+            assertThat(engine.segmentsStats(false, false).getVersionMapMemoryInBytes(), equalTo(1024L));
+        }
+    }
+
     public void testSegmentsWithIOException() throws IOException {
         DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
         engine.close();
@@ -2291,6 +2364,11 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         bootstrapStoreWithMetadata(store, uuid);
         return buildEngineConfigForPluginAndListener(translogPath, plugin, listener);
+    }
+
+    /** As {@link #buildFailingEngineConfig(MockDataFormatPlugin, Engine.EventListener)} without callback assertions. */
+    private EngineConfig buildFailingEngineConfig(MockDataFormatPlugin plugin) throws IOException {
+        return buildFailingEngineConfig(plugin, mock(Engine.EventListener.class));
     }
 
     private EngineConfig buildDFAEngineConfigWithCommitterFactory(Store store, Path translogPath, CommitterFactory committerFactory) {
@@ -3715,17 +3793,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 return maxDocs;
             }
         };
-        MockDataFormatPlugin limitedPlugin = new MockDataFormatPlugin(mockDataFormat) {
-            @Override
-            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
-                return limitedEngine;
-            }
-        };
+        MockDataFormatPlugin limitedPlugin = MockDataFormatPlugin.of(mockDataFormat).withIndexingEngine(settings -> limitedEngine);
 
-        EngineConfig config = buildFailingEngineConfig(limitedPlugin, new Engine.EventListener() {
-            @Override
-            public void onFailedEngine(String reason, Exception failure) {}
-        });
+        EngineConfig config = buildFailingEngineConfig(limitedPlugin);
         try (DataFormatAwareEngine eng = new DataFormatAwareEngine(config)) {
             int numDocs = between(maxDocs + 1, maxDocs * 2);
             for (int i = 0; i < numDocs; i++) {
@@ -3816,6 +3886,796 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         return new DataFormatAwareEngine(buildDFAEngineConfig(store, translogPath, provider));
     }
 
+    /** Builds a DFA engine config with the batched-translog-append toggle and remote-store eligibility. */
+    private EngineConfig buildBatchDFAEngineConfig(
+        Store store,
+        Path translogPath,
+        DocumentLookupProvider provider,
+        boolean enabled,
+        boolean remoteStore
+    ) {
+        return buildBatchDFAEngineConfig(store, translogPath, provider, enabled, remoteStore, null);
+    }
+
+    private EngineConfig buildBatchDFAEngineConfig(
+        Store store,
+        Path translogPath,
+        DocumentLookupProvider provider,
+        boolean enabled,
+        boolean remoteStore,
+        Boolean appendOnly
+    ) {
+        return buildBatchDFAEngineConfig(store, translogPath, provider, enabled, remoteStore, appendOnly, null, null);
+    }
+
+    /**
+     * {@code translogFactory} and {@code eventListener} default to the stock factory and a silent listener when null.
+     */
+    private EngineConfig buildBatchDFAEngineConfig(
+        Store store,
+        Path translogPath,
+        DocumentLookupProvider provider,
+        boolean enabled,
+        boolean remoteStore,
+        Boolean appendOnly,
+        @Nullable TranslogFactory translogFactory,
+        @Nullable Engine.EventListener eventListener
+    ) {
+
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
+            .put(IndexModule.INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT.name())
+            .put(IndexSettings.INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING.getKey(), enabled);
+        if (appendOnly != null) {
+            settings.put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), appendOnly);
+        }
+        if (remoteStore) {
+            settings.put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "segment-repo")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo");
+        }
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings.build());
+
+        TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            translogPath,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            "",
+            false
+        );
+        DataFormatRegistry registry = createMockRegistry();
+        CommitterFactory committerFactory = config -> new InMemoryCommitter(store);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.getVersion()).thenReturn(1L);
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
+        return new EngineConfig.Builder().shardId(shardId)
+            .threadPool(threadPool)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(NoMergePolicy.INSTANCE)
+            .translogConfig(translogConfig)
+            .translogFactory(translogFactory != null ? translogFactory : new InternalTranslogFactory())
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(List.of())
+            .internalRefreshListener(List.of())
+            .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(primaryTerm::get)
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .dataFormatRegistry(registry)
+            .committerFactory(committerFactory)
+            .eventListener(eventListener != null ? eventListener : new Engine.EventListener() {
+                @Override
+                public void onFailedEngine(String reason, Exception e) {}
+            })
+            .mapperService(mapperService)
+            .documentLookupProvider(provider)
+            .build();
+    }
+
+    private DataFormatAwareEngine createBatchDFAEngine(Store store, Path translogPath, DocumentLookupProvider provider, boolean enabled)
+        throws IOException {
+        return createBatchDFAEngine(store, translogPath, provider, enabled, true);
+    }
+
+    private DataFormatAwareEngine createBatchDFAEngine(
+        Store store,
+        Path translogPath,
+        DocumentLookupProvider provider,
+        boolean enabled,
+        boolean remoteStore
+    ) throws IOException {
+        return createBatchDFAEngine(store, translogPath, provider, enabled, remoteStore, null);
+    }
+
+    /** {@code appendOnly == false} enables updates (a second index of an existing id); {@code null} keeps the default. */
+    private DataFormatAwareEngine createBatchDFAEngine(
+        Store store,
+        Path translogPath,
+        DocumentLookupProvider provider,
+        boolean enabled,
+        boolean remoteStore,
+        Boolean appendOnly
+    ) throws IOException {
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+        return new DataFormatAwareEngine(buildBatchDFAEngineConfig(store, translogPath, provider, enabled, remoteStore, appendOnly));
+    }
+
+    // ----- Batched translog append (index.translog.batch_append.enabled) -----
+
+    /**
+     * Batch on: N index ops executed inside a batch defer their translog append. Before flush, no result has a
+     * location and the processed/persisted checkpoints have not advanced. flush() assigns every result its location,
+     * advances the processed checkpoint to N-1, returns the batch max location, and does NOT mark anything persisted
+     * (the fsync callback does that).
+     */
+    public void testBatchedAppendDefersThenFlushes() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true)) {
+            final int numDocs = 10;
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            assertThat("opt-in must produce a real (non-no-op) batch", batch, not(sameInstance(Engine.NO_OP_TRANSLOG_BATCH)));
+            final List<Engine.IndexResult> results = new ArrayList<>();
+            for (int i = 0; i < numDocs; i++) {
+                Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                assertThat("op must have an assigned seqNo", result.getSeqNo(), equalTo((long) i));
+                assertThat("translog location must be deferred (null) before flush", result.getTranslogLocation(), nullValue());
+                results.add(result);
+            }
+            // Nothing processed or persisted yet -- the batch has not been flushed.
+            assertThat(engine.getProcessedLocalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+            assertThat(engine.getPersistedLocalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+
+            final Translog.Location max = batch.flush();
+            assertThat("flush must return the batch max location", max, notNullValue());
+
+            Translog.Location expectedMax = null;
+            for (Engine.IndexResult result : results) {
+                assertThat("every result gets a location after flush", result.getTranslogLocation(), notNullValue());
+                if (expectedMax == null || result.getTranslogLocation().compareTo(expectedMax) > 0) {
+                    expectedMax = result.getTranslogLocation();
+                }
+            }
+            assertThat(max, equalTo(expectedMax));
+            // Processed advances to N-1 on flush; persisted is NOT marked by flush (only the fsync callback does).
+            assertThat(engine.getProcessedLocalCheckpoint(), equalTo((long) numDocs - 1));
+            assertThat(engine.getPersistedLocalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+
+            // A second flush has no new work and returns the same cumulative max location.
+            assertThat(batch.flush(), equalTo(expectedMax));
+
+            // Persisted advances only once the translog is fsynced.
+            engine.translogManager().syncTranslog();
+            assertThat(engine.getPersistedLocalCheckpoint(), equalTo((long) numDocs - 1));
+
+            // The ops are replayable from the translog, proving the batched append wrote them.
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+        }
+    }
+
+    /**
+     * An update is a second index of the same id inside the batch: both are deferred, the version map carries the
+     * newer pending entry, a realtime GET observes the update, and after finish the translog holds both in order.
+     */
+    public void testBatchedUpdateOfSameDocumentKeepsOrderAndLatestVersion() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true, true, false)) {
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            Engine.IndexResult first = engine.index(indexOp(createParsedDocWithInput("upd", null)));
+            Engine.IndexResult second = engine.index(indexOp(createParsedDocWithInput("upd", null)));
+            assertThat(first.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat(second.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat(second.getVersion(), equalTo(first.getVersion() + 1));
+            assertThat(first.getTranslogLocation(), nullValue());
+            assertThat(second.getTranslogLocation(), nullValue());
+
+            DocumentLookupResult updated = getByIdLookup(engine, realtimeGet("upd"));
+            assertTrue(updated.exists());
+            assertThat(updated.seqNo(), equalTo(second.getSeqNo()));
+            Translog.Location max = batch.finish();
+            assertThat(first.getTranslogLocation(), notNullValue());
+            assertThat(first.getTranslogLocation().compareTo(second.getTranslogLocation()), lessThan(0));
+            assertThat(max, equalTo(second.getTranslogLocation()));
+            assertThat(engine.getProcessedLocalCheckpoint(), equalTo(1L));
+
+            try (Translog.Snapshot snapshot = ((InternalTranslogManager) engine.translogManager()).getTranslog().newSnapshot()) {
+                Translog.Operation op1 = snapshot.next();
+                Translog.Operation op2 = snapshot.next();
+                assertThat(snapshot.next(), nullValue());
+                assertThat(op1.opType(), equalTo(Translog.Operation.Type.INDEX));
+                assertThat(op2.opType(), equalTo(Translog.Operation.Type.INDEX));
+                assertThat(op1.seqNo(), equalTo(0L));
+                assertThat(op2.seqNo(), equalTo(1L));
+            }
+        }
+    }
+
+    /**
+     * A delete is written inline. With the same document still pending in this thread's batch, the engine must append
+     * the chunk before the delete so the translog order is index then delete; a realtime GET then misses, and finish
+     * reports the (older) chunk location, which the bulk layer merges by maximum.
+     */
+    public void testBatchedIndexThenInlineDeleteFlushesPendingChunkFirst() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true)) {
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            Engine.IndexResult indexed = engine.index(indexOp(createParsedDocWithInput("del", null)));
+            assertThat(indexed.getTranslogLocation(), nullValue());
+
+            Engine.DeleteResult deleted = engine.delete(deleteOp("del"));
+            assertThat(deleted.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertTrue(deleted.isFound());
+            assertThat(indexed.getTranslogLocation(), notNullValue());
+            assertThat(indexed.getTranslogLocation().compareTo(deleted.getTranslogLocation()), lessThan(0));
+
+            assertFalse(getByIdLookup(engine, realtimeGet("del")).exists());
+            assertThat(batch.finish(), equalTo(indexed.getTranslogLocation()));
+            assertThat(engine.getProcessedLocalCheckpoint(), equalTo(1L));
+
+            try (Translog.Snapshot snapshot = ((InternalTranslogManager) engine.translogManager()).getTranslog().newSnapshot()) {
+                Translog.Operation op1 = snapshot.next();
+                Translog.Operation op2 = snapshot.next();
+                assertThat(snapshot.next(), nullValue());
+                assertThat(op1.opType(), equalTo(Translog.Operation.Type.INDEX));
+                assertThat(op2.opType(), equalTo(Translog.Operation.Type.DELETE));
+                assertThat(op1.seqNo(), lessThan(op2.seqNo()));
+            }
+        }
+    }
+
+    /**
+     * Same-thread realtime GET of a doc whose translog location is still pending (indexed earlier in the same batch
+     * that has not been flushed) must flush the batch in place and succeed, rather than deadlocking.
+     */
+    public void testBatchedAppendSelfReadFlushesPending() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true)) {
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("1", null)));
+            assertThat("location deferred before any flush", result.getTranslogLocation(), nullValue());
+
+            // Realtime get on the SAME thread resolves the pending location by flushing the batch in place.
+            DocumentLookupResult getResult = getByIdLookup(engine, realtimeGet("1"));
+            assertTrue("self-read of a pending doc must find it", getResult.exists());
+            assertThat(getResult.seqNo(), equalTo(0L));
+
+            // The self-read flushed the batch: the result now has a location and processed advanced.
+            assertThat(result.getTranslogLocation(), notNullValue());
+            assertThat(engine.getProcessedLocalCheckpoint(), equalTo(0L));
+            // The forced append keeps the scope open: later operations form a new chunk in the same bulk.
+            Engine.IndexResult second = engine.index(indexOp(createParsedDocWithInput("2", null)));
+            assertThat(second.getTranslogLocation(), nullValue());
+            Translog.Location finalMax = batch.finish();
+            assertThat(second.getTranslogLocation(), notNullValue());
+            assertThat(finalMax, equalTo(second.getTranslogLocation()));
+        }
+    }
+
+    /**
+     * A realtime GET issued from a DIFFERENT thread for a doc whose location is still pending must force the owning
+     * bulk scope to append its chunk, publishing the pending ops only after the translog append.
+     *
+     * <p>This strengthens the basic cross-thread case so it would catch a pending-entry publication/order
+     * regression without sleeps:
+     * <ul>
+     *   <li>Two ops ("1","2") are indexed into the SAME pending chunk. Before the GET, both must be unpublished
+     *       (null location) and the processed checkpoint must not have advanced -- catching any premature publish.</li>
+     *   <li>A {@link CyclicBarrier} rendezvous makes the reader's GET and the main thread's pre-GET assertions
+     *       deterministically ordered without timing guesses.</li>
+     *   <li>Resolving the pending read for "1" must append the whole chunk, so BOTH "1" and "2" receive locations
+     *       and the processed checkpoint advances contiguously to 1 (seqNos 0,1) -- catching a regression that
+     *       published only the requested entry or published out of seqNo order.</li>
+     *   <li>The forced append keeps the scope open: a later op is pending again until {@code finish()}.</li>
+     * </ul>
+     */
+    public void testBatchedAppendCrossThreadRealtimeGetForcesFlush() throws Exception {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true)) {
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            final Engine.IndexResult first = engine.index(indexOp(createParsedDocWithInput("1", null)));
+            final Engine.IndexResult secondPending = engine.index(indexOp(createParsedDocWithInput("2", null)));
+
+            // Both ops carry assigned, contiguous seqNos but no location yet: nothing is published pre-GET.
+            assertThat("first op must have an assigned seqNo", first.getSeqNo(), equalTo(0L));
+            assertThat("second op must have an assigned seqNo", secondPending.getSeqNo(), equalTo(1L));
+            assertThat("op 1 location must be deferred before the cross-thread GET", first.getTranslogLocation(), nullValue());
+            assertThat("op 2 location must be deferred before the cross-thread GET", secondPending.getTranslogLocation(), nullValue());
+            assertThat(
+                "no op may be published before the pending read forces the append",
+                engine.getProcessedLocalCheckpoint(),
+                equalTo(SequenceNumbers.NO_OPS_PERFORMED)
+            );
+
+            final AtomicReference<DocumentLookupResult> lookup = new AtomicReference<>();
+            final AtomicReference<Exception> failure = new AtomicReference<>();
+            // Rendezvous so the reader's GET happens strictly after the pre-GET assertions above, with no sleeps.
+            final CyclicBarrier gate = new CyclicBarrier(2);
+            final Thread reader = new Thread(() -> {
+                try {
+                    gate.await(10, TimeUnit.SECONDS);
+                    lookup.set(getByIdLookup(engine, realtimeGet("1")));
+                } catch (Exception e) {
+                    failure.set(e);
+                }
+            }, "cross-thread-realtime-get");
+            reader.start();
+            gate.await(10, TimeUnit.SECONDS);
+            reader.join(TimeUnit.SECONDS.toMillis(30));
+
+            assertFalse("reader thread must not still be running (no deadlock)", reader.isAlive());
+            assertThat("cross-thread realtime GET must not fail", failure.get(), nullValue());
+            assertTrue("the pending doc must be found via the forced append", lookup.get().exists());
+            assertThat("the resolved GET must observe the indexed seqNo", lookup.get().seqNo(), equalTo(0L));
+
+            // The forced append published the WHOLE pending chunk, in seqNo order, not just the requested entry.
+            assertThat("the requested op must now be published", first.getTranslogLocation(), notNullValue());
+            assertThat("the sibling op in the same chunk must also be published", secondPending.getTranslogLocation(), notNullValue());
+            assertThat(
+                "op 2 (seqNo 1) must sort after op 1 (seqNo 0) in the translog",
+                secondPending.getTranslogLocation().compareTo(first.getTranslogLocation()),
+                greaterThan(0)
+            );
+            assertThat("both ops become processed contiguously after the forced append", engine.getProcessedLocalCheckpoint(), equalTo(1L));
+
+            // A forced flush does not close the owning bulk scope: later ops form a fresh pending chunk.
+            final Engine.IndexResult third = engine.index(indexOp(createParsedDocWithInput("3", null)));
+            assertThat("a post-GET op re-enters the still-open scope as pending", third.getTranslogLocation(), nullValue());
+            final Translog.Location finalMax = batch.finish();
+            assertThat("finishing the scope appends the trailing op", third.getTranslogLocation(), notNullValue());
+            assertThat("finish must return the greatest location appended by the scope", finalMax, equalTo(third.getTranslogLocation()));
+            assertThat("every op is published once the scope is finished", engine.getProcessedLocalCheckpoint(), equalTo(2L));
+        }
+    }
+
+    public void testBatchedAppendFlushesAtOperationLimit() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true)) {
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            Engine.IndexResult first = null;
+            for (int i = 0; i < 1_000; i++) {
+                Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                if (first == null) {
+                    first = result;
+                }
+            }
+            assertThat("the operation cap must append the first chunk", first.getTranslogLocation(), notNullValue());
+
+            Engine.IndexResult nextChunk = engine.index(indexOp(createParsedDocWithInput("next", null)));
+            assertThat("the next chunk remains pending", nextChunk.getTranslogLocation(), nullValue());
+            batch.finish();
+            assertThat(nextChunk.getTranslogLocation(), notNullValue());
+        }
+    }
+
+    public void testRefreshFlushesPendingTranslogBatchBeforePublishing() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true)) {
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("1", null)));
+            assertThat(result.getTranslogLocation(), nullValue());
+
+            engine.refresh("test pending translog fence");
+
+            assertThat(result.getTranslogLocation(), notNullValue());
+            assertThat(engine.getProcessedLocalCheckpoint(), equalTo(0L));
+            batch.finish();
+        }
+    }
+
+    /**
+     * Outcome of a refresh that drained another request's batch whose append failed.
+     */
+    private static final class DrainFailureOutcome {
+        final Throwable refreshFailure;
+        final List<String> engineFailureReasons;
+        final List<Exception> engineFailures;
+        final RuntimeException ownerFailure;
+        final boolean engineClosedAfterwards;
+
+        DrainFailureOutcome(
+            Throwable refreshFailure,
+            List<String> engineFailureReasons,
+            List<Exception> engineFailures,
+            RuntimeException ownerFailure,
+            boolean engineClosedAfterwards
+        ) {
+            this.refreshFailure = refreshFailure;
+            this.engineFailureReasons = engineFailureReasons;
+            this.engineFailures = engineFailures;
+            this.ownerFailure = ownerFailure;
+            this.engineClosedAfterwards = engineClosedAfterwards;
+        }
+    }
+
+    /**
+     * Drives the scenario gbbafna raised on the composite refresh: a bulk thread leaves one deferred op in an open batch;
+     * a refresh from an unrelated caller drains that batch from inside its critical section (writers checked out and
+     * flushed, catalog snapshot held, store ref taken, {@code refreshLock} and {@code readLock} held); the drained append
+     * fails with {@code failure}, either tragically (translog records it and closes) or not.
+     *
+     * <p>The refresh runs on its own thread so a deadlock surfaces as a failed join rather than a hung suite. Returns
+     * everything the tests assert on: what the refresh threw, every engine failure the listener saw, what the batch
+     * owner sees at {@code finish()}, and whether the engine is closed afterwards.
+     */
+    private DrainFailureOutcome driveRefreshDrainOfFailedBatchAppend(
+        IOException failure,
+        FailingBatchAppendTranslog.FailureClass failureClass
+    ) throws Exception {
+        final AtomicReference<FailingBatchAppendTranslog.ArmedFailure> armedFailure = new AtomicReference<>();
+        final List<Exception> engineFailures = new CopyOnWriteArrayList<>();
+        final List<String> engineFailureReasons = new CopyOnWriteArrayList<>();
+        final Engine.EventListener listener = new Engine.EventListener() {
+            @Override
+            public void onFailedEngine(String reason, Exception e) {
+                engineFailureReasons.add(reason);
+                engineFailures.add(e);
+            }
+        };
+        DocumentLookupProvider provider = mockLookupProvider();
+        final Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+        final EngineConfig config = buildBatchDFAEngineConfig(
+            store,
+            translogPath,
+            provider,
+            true,
+            true,
+            null,
+            FailingBatchAppendTranslog.factory(armedFailure),
+            listener
+        );
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            // Bulk thread: open a scope and leave one deferred index op pending in it.
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            assertThat(batch, not(sameInstance(Engine.NO_OP_TRANSLOG_BATCH)));
+            final Engine.IndexResult deferred = engine.index(indexOp(createParsedDocWithInput("1", null)));
+            assertThat(deferred.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat("the op must be deferred into the open batch", deferred.getTranslogLocation(), nullValue());
+
+            // Arm the failure for the next batched append, which is the refresh's drain.
+            armedFailure.set(new FailingBatchAppendTranslog.ArmedFailure(failure, failureClass));
+
+            // Refresh thread: a refresh from an unrelated caller drains the batch inside its critical section.
+            final AtomicReference<Throwable> refreshOutcome = new AtomicReference<>();
+            final Thread refresher = new Thread(() -> {
+                try {
+                    engine.refresh("drain failed batch");
+                } catch (Throwable t) {
+                    refreshOutcome.set(t);
+                }
+            }, "refresh-under-failed-batch-append");
+            refresher.start();
+            refresher.join(TimeValue.timeValueSeconds(30).millis());
+            if (refresher.isAlive()) {
+                final StringBuilder dump = new StringBuilder("refresh did not complete; refresh thread stack:\n");
+                for (StackTraceElement frame : refresher.getStackTrace()) {
+                    dump.append("    at ").append(frame).append('\n');
+                }
+                fail(dump.toString());
+            }
+            final Throwable thrown = refreshOutcome.get();
+            logger.info(
+                "[{}] refresh threw: {}engine failures: {}",
+                failureClass,
+                thrown == null ? "nothing\n" : describeExceptionChain(thrown),
+                engineFailureReasons
+            );
+            // Disarm so the owner's finish() and the probe below exercise the engine, not the injection.
+            armedFailure.set(null);
+
+            // The batch owner is told, and its deferred result never got a location.
+            final RuntimeException ownerFailure = expectThrows(RuntimeException.class, batch::finish);
+            assertThat(rootCause(ownerFailure), sameInstance(failure));
+            assertThat(deferred.getTranslogLocation(), nullValue());
+
+            boolean closed;
+            try {
+                engine.index(indexOp(createParsedDocWithInput("2", null)));
+                closed = false;
+            } catch (AlreadyClosedException e) {
+                assertTrue(TransportActions.isShardNotAvailableException(e));
+                closed = true;
+            }
+            return new DrainFailureOutcome(thrown, engineFailureReasons, engineFailures, ownerFailure, closed);
+        }
+    }
+
+    /**
+     * The drained append is a TRAGIC translog failure. The contract this pins down:
+     * <ol>
+     *   <li>the refresh completes (no deadlock) and throws, and the exception the refresh caller receives is rooted in
+     *       the tragic {@code IOException} with nothing from the unwind masking it: no {@code IllegalStateException} from
+     *       a closed pool, no second {@code AlreadyClosedException} from closing closed resources, as the thrown chain
+     *       or as suppressed exceptions;</li>
+     *   <li>the engine is failed exactly once, and the recorded failure is the translog's tragic exception itself, as
+     *       a per-operation {@code Translog#add} failure records it, not a wrapper;</li>
+     *   <li>the batch owner sees the same failure at {@code finish()} and the engine is closed afterwards.</li>
+     * </ol>
+     */
+    public void testRefreshDrainOfTragicBatchAppendFailsEngineOnceWithTheTragicException() throws Exception {
+        final IOException tragic = new IOException("simulated tragic translog write failure");
+        final DrainFailureOutcome outcome = driveRefreshDrainOfFailedBatchAppend(tragic, FailingBatchAppendTranslog.FailureClass.TRAGIC);
+
+        assertThat("refresh must fail when the drained append fails", outcome.refreshFailure, notNullValue());
+        assertThat(
+            "the refresh failure must be rooted in the tragic exception, chain was " + describeExceptionChain(outcome.refreshFailure),
+            rootCause(outcome.refreshFailure),
+            sameInstance(tragic)
+        );
+        for (Throwable suppressed : allSuppressed(outcome.refreshFailure)) {
+            assertThat(
+                "unexpected secondary failure from the refresh unwind: " + describeExceptionChain(suppressed),
+                rootCause(suppressed),
+                sameInstance(tragic)
+            );
+        }
+        assertThat(
+            "engine must be failed exactly once, reasons were " + outcome.engineFailureReasons,
+            outcome.engineFailures.size(),
+            equalTo(1)
+        );
+        assertThat("the recorded engine failure must be the tragic exception itself", outcome.engineFailures.get(0), sameInstance(tragic));
+        assertTrue("engine must be closed after a tragic translog failure", outcome.engineClosedAfterwards);
+    }
+
+    /**
+     * The drained append is a NON-tragic translog failure (the translog stays open). Parity with the per-operation path
+     * and with the bulk-path batch failure handling means the engine must NOT be failed: the owning bulk fails at
+     * {@code finish()}, the drainer's refresh may fail, but a failure that is not the translog's tragic event never
+     * fails the engine, whichever thread happened to drain the chunk.
+     */
+    public void testRefreshDrainOfNonTragicBatchAppendDoesNotFailEngine() throws Exception {
+        final IOException nonTragic = new IOException("simulated non-tragic batch append failure");
+        final DrainFailureOutcome outcome = driveRefreshDrainOfFailedBatchAppend(
+            nonTragic,
+            FailingBatchAppendTranslog.FailureClass.NON_TRAGIC
+        );
+
+        assertThat(
+            "a non-tragic append failure must not fail the engine, but it was failed with reasons " + outcome.engineFailureReasons,
+            outcome.engineFailures,
+            empty()
+        );
+        assertThat(
+            "the drainer's refresh must not fail because of another request's append, but threw "
+                + (outcome.refreshFailure == null ? "" : describeExceptionChain(outcome.refreshFailure)),
+            outcome.refreshFailure,
+            nullValue()
+        );
+        assertFalse("engine must stay open after a non-tragic append failure", outcome.engineClosedAfterwards);
+    }
+
+    private static Throwable rootCause(Throwable t) {
+        Throwable current = t;
+        while (current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        return current;
+    }
+
+    private static List<Throwable> allSuppressed(Throwable t) {
+        final List<Throwable> out = new ArrayList<>();
+        final Deque<Throwable> work = new ArrayDeque<>();
+        work.push(t);
+        while (work.isEmpty() == false) {
+            final Throwable current = work.pop();
+            for (Throwable s : current.getSuppressed()) {
+                out.add(s);
+                work.push(s);
+            }
+            if (current.getCause() != null && current.getCause() != current) {
+                work.push(current.getCause());
+            }
+        }
+        return out;
+    }
+
+    private static String describeExceptionChain(Throwable t) {
+        final StringBuilder sb = new StringBuilder();
+        Throwable current = t;
+        String indent = "";
+        while (current != null) {
+            sb.append(indent).append(current.getClass().getName()).append(": ").append(current.getMessage()).append('\n');
+            for (Throwable s : current.getSuppressed()) {
+                sb.append(indent).append("  suppressed: ").append(s.getClass().getName()).append(": ").append(s.getMessage()).append('\n');
+            }
+            current = current.getCause() == current ? null : current.getCause();
+            indent += "  ";
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Deterministic multi-thread bulk + concurrent refresh/flush publication fence.
+     *
+     * <p>Two worker threads each open their OWN translog batch (the batch scope is thread-local, so each thread must
+     * begin its own) and index a fixed number of successful ops. Every op gets an assigned, contiguous seqNo but its
+     * translog location stays deferred while the batch is open. The workers then park on a gate, holding their scopes
+     * open and pending, so the main thread can drive publication deterministically with latches -- no sleeps, no
+     * randomized timing.
+     *
+     * <p>The test asserts the full publication contract the batched-append design must uphold:
+     * <ol>
+     *   <li><b>Pending phase:</b> once all workers have indexed (indexedLatch), every result is unpublished
+     *       (null location) and the processed checkpoint has NOT advanced -- publication never precedes the append.</li>
+     *   <li><b>Concurrent refresh:</b> a refresh fences ALL live scopes ({@code flushActiveTranslogBatches}), so after
+     *       it every result carries a location and the processed checkpoint advances safely to the contiguous max
+     *       (totalOps-1). Publication happens only after the translog append.</li>
+     *   <li><b>Flush phase:</b> an explicit flush + translog sync advances the PERSISTED checkpoint to the same max.</li>
+     *   <li><b>Replayability:</b> every acknowledged op is present in the translog changes snapshot for [0, totalOps-1],
+     *       with a contiguous seqNo set -- nothing is lost or duplicated.</li>
+     * </ol>
+     */
+    public void testConcurrentBatchedBulksPublishOnlyAfterRefreshAndRemainReplayable() throws Exception {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true)) {
+            final int numWorkers = 2;
+            final int opsPerWorker = 8;
+            final int totalOps = numWorkers * opsPerWorker;
+
+            final CountDownLatch indexedLatch = new CountDownLatch(numWorkers);
+            final CountDownLatch flushGate = new CountDownLatch(1);
+            final CyclicBarrier startGate = new CyclicBarrier(numWorkers);
+            final AtomicReference<Throwable> workerFailure = new AtomicReference<>();
+            // Collect every worker's results so the main thread can assert on their published state.
+            final List<List<Engine.IndexResult>> perWorkerResults = new ArrayList<>();
+            for (int w = 0; w < numWorkers; w++) {
+                perWorkerResults.add(new ArrayList<>());
+            }
+
+            final Thread[] workers = new Thread[numWorkers];
+            for (int w = 0; w < numWorkers; w++) {
+                final int workerId = w;
+                workers[w] = new Thread(() -> {
+                    try {
+                        // Each worker owns its own batch scope (beginTranslogBatch is thread-local).
+                        final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+                        assertThat("each worker must get a real (non-no-op) batch", batch, not(sameInstance(Engine.NO_OP_TRANSLOG_BATCH)));
+                        startGate.await(10, TimeUnit.SECONDS);
+                        for (int d = 0; d < opsPerWorker; d++) {
+                            Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput(workerId + "_" + d, null)));
+                            assertThat("op must have an assigned seqNo", result.getSeqNo(), greaterThanOrEqualTo(0L));
+                            assertThat("op must be deferred while its batch is open", result.getTranslogLocation(), nullValue());
+                            synchronized (perWorkerResults) {
+                                perWorkerResults.get(workerId).add(result);
+                            }
+                        }
+                        // Signal "indexed" and keep the scope open+pending until the main thread drives publication.
+                        indexedLatch.countDown();
+                        if (flushGate.await(30, TimeUnit.SECONDS) == false) {
+                            throw new IllegalStateException("flush gate was never released");
+                        }
+                        batch.finish();
+                    } catch (Throwable e) {
+                        workerFailure.compareAndSet(null, e);
+                        // Ensure the main thread is never left blocked on the indexed latch if a worker dies early.
+                        indexedLatch.countDown();
+                    }
+                }, "batch-worker-" + w);
+                workers[w].start();
+            }
+
+            // Wait until both workers have indexed all their ops (bounded).
+            assertTrue("workers must finish indexing within the bound", indexedLatch.await(30, TimeUnit.SECONDS));
+            assertThat("no worker may fail during indexing", workerFailure.get(), nullValue());
+
+            final List<Engine.IndexResult> allResults = new ArrayList<>();
+            synchronized (perWorkerResults) {
+                for (List<Engine.IndexResult> perWorker : perWorkerResults) {
+                    assertThat("each worker must have indexed every op", perWorker.size(), equalTo(opsPerWorker));
+                    allResults.addAll(perWorker);
+                }
+            }
+
+            // Phase 1 -- pending: nothing is published before the fence, even though all seqNos are assigned.
+            for (Engine.IndexResult result : allResults) {
+                assertThat("no op may be published before the refresh fence", result.getTranslogLocation(), nullValue());
+            }
+            assertThat(
+                "the processed checkpoint must not advance while batches are pending",
+                engine.getProcessedLocalCheckpoint(),
+                equalTo(SequenceNumbers.NO_OPS_PERFORMED)
+            );
+            // seqNos are assigned contiguously across both bulks regardless of interleaving.
+            final Set<Long> assignedSeqNos = allResults.stream().map(Engine.Result::getSeqNo).collect(Collectors.toSet());
+            final Set<Long> expectedSeqNos = new java.util.HashSet<>();
+            for (long s = 0; s < totalOps; s++) {
+                expectedSeqNos.add(s);
+            }
+            assertThat("the two bulks must share one contiguous seqNo range", assignedSeqNos, equalTo(expectedSeqNos));
+
+            // Phase 2 -- concurrent refresh fences every live scope, forcing all pending appends.
+            try {
+                engine.refresh("concurrent batched publication fence");
+
+                for (Engine.IndexResult result : allResults) {
+                    assertThat("the refresh fence must publish every pending op", result.getTranslogLocation(), notNullValue());
+                }
+                assertThat(
+                    "processed checkpoint must advance safely to the contiguous max after the fence",
+                    engine.getProcessedLocalCheckpoint(),
+                    equalTo((long) totalOps - 1)
+                );
+            } finally {
+                // Never leak workers if refresh or an assertion fails.
+                flushGate.countDown();
+                for (Thread worker : workers) {
+                    worker.join(TimeUnit.SECONDS.toMillis(30));
+                    assertFalse("every worker must terminate (no deadlock)", worker.isAlive());
+                }
+            }
+            assertThat("no worker may fail while finishing its scope", workerFailure.get(), nullValue());
+
+            // Phase 3 -- translog sync advances the PERSISTED checkpoint to the same max.
+            engine.translogManager().syncTranslog();
+            assertThat(
+                "persisted checkpoint must catch up to the processed checkpoint after sync",
+                engine.getPersistedLocalCheckpoint(),
+                equalTo((long) totalOps - 1)
+            );
+
+            // Phase 4 -- replayability: every acknowledged op is in the translog, contiguous and de-duplicated.
+            try (Translog.Snapshot snapshot = engine.newChangesSnapshot("replay", 0, totalOps - 1, false, true)) {
+                final Set<Long> replayedSeqNos = new java.util.HashSet<>();
+                Translog.Operation op;
+                while ((op = snapshot.next()) != null) {
+                    assertTrue("replayed op seqNo " + op.seqNo() + " must be unique", replayedSeqNos.add(op.seqNo()));
+                }
+                assertThat("every acknowledged op must be replayable from the translog", replayedSeqNos, equalTo(expectedSeqNos));
+            }
+        }
+    }
+
+    public void testBatchedAppendRequiresRemoteStore() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true, false)) {
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            assertThat(batch, sameInstance(Engine.NO_OP_TRANSLOG_BATCH));
+            Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("1", null)));
+            assertThat(result.getTranslogLocation(), notNullValue());
+        }
+    }
+
+    /**
+     * Opening a scope on a closed engine is refused with the same {@link AlreadyClosedException} its first append would
+     * have produced, so the shard-bulk is retried on the re-promoted primary before any Parquet or Lucene work is done.
+     */
+    public void testBeginTranslogBatchOnClosedEngineThrowsAlreadyClosed() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, true);
+        engine.close();
+        AlreadyClosedException closed = expectThrows(AlreadyClosedException.class, engine::beginTranslogBatch);
+        assertTrue(TransportActions.isShardNotAvailableException(closed));
+    }
+
+    /**
+     * Setting off: {@link Engine#beginTranslogBatch()} returns the no-op batch and every op is appended inline exactly
+     * as before -- each result carries its location immediately and the processed checkpoint advances per op.
+     */
+    public void testBatchedAppendDisabledIsInlineBehaviour() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        try (DataFormatAwareEngine engine = createBatchDFAEngine(store, createTempDir(), provider, false)) {
+            final Engine.TranslogBatch batch = engine.beginTranslogBatch();
+            assertThat("toggle off must yield the shared no-op batch", batch, sameInstance(Engine.NO_OP_TRANSLOG_BATCH));
+            final int numDocs = 5;
+            for (int i = 0; i < numDocs; i++) {
+                Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput(Integer.toString(i), null)));
+                assertThat("inline op must carry its location immediately", result.getTranslogLocation(), notNullValue());
+                assertThat("processed advances per op inline", engine.getProcessedLocalCheckpoint(), equalTo((long) i));
+            }
+            assertThat("no-op batch flush returns null", batch.flush(), nullValue());
+        }
+    }
+
     private Engine.Get realtimeGet(String id) {
         return new Engine.Get(true, true, id, new Term(IdFieldMapper.NAME, Uid.encodeId(id)));
     }
@@ -3849,6 +4709,100 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     private static DocumentLookupResult getByIdLookup(DataFormatAwareEngine engine, Engine.Get get) throws IOException {
         Engine.GetResult result = engine.getById(get, (source, scope) -> null);
         return result.exists() ? ((DocumentLookupResult.PreMaterialized) result).lookup() : DocumentLookupResult.notFound(get.id());
+    }
+
+    /**
+     * The segment fall-through must enforce read-time preconditions, mirroring the realtime version
+     * map branch. Resolving through {@code DocumentLookupSupport#getById} is what applies them;
+     * calling {@code lookupFromReader} directly dropped a stale {@code if_seq_no} silently.
+     */
+    public void testGetByIdFromSegmentsEnforcesStaleIfSeqNo() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        // The stored document is at seqNo 7 / term 1.
+        when(provider.getById(any(), any(), any(), any())).thenReturn(
+            new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
+        );
+        try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            // Refresh so the get cannot be answered from the version map.
+            engine.refresh("test");
+
+            Engine.Get stale = new Engine.Get(true, true, "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))).setIfSeqNo(3L)
+                .setIfPrimaryTerm(1L);
+            expectThrows(VersionConflictEngineException.class, () -> engine.getById(stale, (source, scope) -> null));
+        }
+    }
+
+    /** Control: a matching {@code if_seq_no} on the segment path must still be served. */
+    public void testGetByIdFromSegmentsAcceptsCurrentIfSeqNo() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        when(provider.getById(any(), any(), any(), any())).thenReturn(
+            new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
+        );
+        try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            Engine.Get current = new Engine.Get(true, true, "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))).setIfSeqNo(7L)
+                .setIfPrimaryTerm(1L);
+            assertTrue("a matching precondition must be served", getByIdLookup(engine, current).exists());
+        }
+    }
+
+    /** And a get carrying no precondition at all must be unaffected by the enforcement. */
+    public void testGetByIdFromSegmentsWithoutPreconditionIsUnaffected() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        when(provider.getById(any(), any(), any(), any())).thenReturn(
+            new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
+        );
+        try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            assertTrue(getByIdLookup(engine, realtimeGet("1")).exists());
+        }
+    }
+
+    /**
+     * A {@code _get} carrying an explicit {@code version} must conflict on the segment path too.
+     * {@code RestGetAction} parses {@code version}/{@code version_type} and {@code ShardGetService}
+     * threads them into {@code Engine.Get}, so the precondition reaches the engine for reads just
+     * as {@code if_seq_no} does for updates — and the same missing
+     * {@code applyReadVersionConflicts} dropped it, returning the current document for a request
+     * that named a stale version.
+     */
+    public void testGetByIdFromSegmentsEnforcesStaleVersion() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        // Stored document is at version 2.
+        when(provider.getById(any(), any(), any(), any())).thenReturn(
+            new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
+        );
+        try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            Engine.Get stale = new Engine.Get(true, true, "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))).version(1L);
+            expectThrows(VersionConflictEngineException.class, () -> engine.getById(stale, (source, scope) -> null));
+
+            // A version ahead of the stored one must conflict as well, not be silently served.
+            Engine.Get future = new Engine.Get(true, true, "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))).version(99L);
+            expectThrows(VersionConflictEngineException.class, () -> engine.getById(future, (source, scope) -> null));
+        }
+    }
+
+    /** Control: the matching version on the segment path must still be served. */
+    public void testGetByIdFromSegmentsAcceptsCurrentVersion() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        when(provider.getById(any(), any(), any(), any())).thenReturn(
+            new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
+        );
+        try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("test");
+
+            Engine.Get current = new Engine.Get(true, true, "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))).version(2L);
+            assertTrue("matching version must be served", getByIdLookup(engine, current).exists());
+        }
     }
 
     public void testGetByIdThrowsWhenNoProvider() throws IOException {
@@ -4243,6 +5197,25 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         }
     }
 
+    public void testRejectsNonDefaultPrimaryOperationPolicy() throws IOException {
+        try (Store store = createStore()) {
+            EngineConfig config = buildDFAEngineConfig(store, createTempDir()).toBuilder()
+                .primaryOperationPolicy(FakePreAssignedSeqNoPrimaryOperationPolicy.INSTANCE)
+                .build();
+
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> new DataFormatAwareEngine(config));
+            assertTrue(e.getMessage(), e.getMessage().contains("does not support primary operation policy"));
+        }
+    }
+
+    /** The default provider must be accepted, so the check above cannot reject every index. */
+    public void testAcceptsDefaultPrimaryOperationPolicy() throws IOException {
+        try (Store store = createStore()) {
+            EngineConfig config = buildDFAEngineConfig(store, createTempDir());
+            assertSame(DefaultPrimaryOperationPolicy.INSTANCE, config.getPrimaryOperationPolicy());
+        }
+    }
+
     /**
      * Tests that engine close is graceful when concurrent index, refresh, and flush operations
      * are in flight. Verifies no unhandled exceptions escape and the engine transitions to closed.
@@ -4490,6 +5463,534 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 committedCheckpoint,
                 lessThanOrEqualTo(persistedMaxSeqNo)
             );
+        }
+    }
+
+    /** Primary delete op for {@code id} with default INTERNAL/MATCH_ANY semantics (mirrors {@link #indexOp}). */
+    private Engine.Delete deleteOp(String id) {
+        return new Engine.Delete(
+            id,
+            new Term(IdFieldMapper.NAME, Uid.encodeId(id)),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            primaryTerm.get(),
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            0
+        );
+    }
+
+    /** Primary delete op carrying compare-and-set ifSeqNo/ifPrimaryTerm (for version-conflict tests). */
+    private Engine.Delete deleteOpWithIfSeqNo(String id, long ifSeqNo, long ifPrimaryTerm) {
+        return new Engine.Delete(
+            id,
+            new Term(IdFieldMapper.NAME, Uid.encodeId(id)),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            primaryTerm.get(),
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PRIMARY,
+            System.nanoTime(),
+            ifSeqNo,
+            ifPrimaryTerm
+        );
+    }
+
+    /**
+     * Replayed (from-translog) delete op with a pre-assigned seqNo. Non-primary origins must carry a
+     * {@code null} versionType and unset ifSeqNo/ifPrimaryTerm (see the {@link Engine.Delete} constructor asserts).
+     */
+    private Engine.Delete deleteOpFromTranslog(String id, long seqNo) {
+        return new Engine.Delete(
+            id,
+            new Term(IdFieldMapper.NAME, Uid.encodeId(id)),
+            seqNo,
+            primaryTerm.get(),
+            1L,
+            null,
+            Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+            System.nanoTime(),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+        );
+    }
+
+    /** Happy-path primary delete of an existing doc: SUCCESS, assigned seqNo, translog location, and a version-map tombstone. */
+    @SuppressForbidden(reason = "test needs reflective access to the engine's versionMap field")
+    public void testDeletePrimaryRemovesDocAndRecordsTombstone() throws Exception {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+
+            Engine.DeleteResult result = engine.delete(deleteOp("1"));
+
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertTrue("delete of an existing doc must report found", result.isFound());
+            assertThat("primary delete must be assigned a seqNo", result.getSeqNo(), greaterThanOrEqualTo(0L));
+            assertThat("a non-translog primary delete must be written to the translog", result.getTranslogLocation(), notNullValue());
+
+            // executeDeletePlan must record a delete tombstone in the live version map.
+            java.lang.reflect.Field vmField = DataFormatAwareEngine.class.getDeclaredField("versionMap");
+            vmField.setAccessible(true);
+            LiveVersionMap versionMap = (LiveVersionMap) vmField.get(engine);
+            org.apache.lucene.util.BytesRef uid = new Term(IdFieldMapper.NAME, Uid.encodeId("1")).bytes();
+            try (org.opensearch.common.lease.Releasable ignored = versionMap.acquireLock(uid)) {
+                VersionValue vv = versionMap.getUnderLock(uid);
+                assertNotNull("version map must hold an entry after delete", vv);
+                assertTrue("version map entry must be a delete tombstone", vv.isDelete());
+            }
+        }
+    }
+
+    /** Deleting an id that was never indexed still succeeds but reports not-found (currentlyDeleted path). */
+    public void testDeleteNonExistentDocReportsNotFound() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            Engine.DeleteResult result = engine.delete(deleteOp("missing"));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertFalse("deleting a never-indexed doc must report not found", result.isFound());
+            assertThat(result.getSeqNo(), greaterThanOrEqualTo(0L));
+        }
+    }
+
+    public void testDeleteFromTranslogMarksSeqNoAndSkipsTranslog() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            long seqNo = 0L;
+            Engine.DeleteResult result = engine.delete(deleteOpFromTranslog("1", seqNo));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat("replayed delete keeps its assigned seqNo", result.getSeqNo(), equalTo(seqNo));
+            assertNull("from-translog delete must not be re-appended to the translog", result.getTranslogLocation());
+        }
+    }
+
+    /** Delete where ifSeqNo does not match the stored seqNo returns the planner's early conflict result. */
+    public void testDeleteWithMismatchedIfSeqNoReturnsVersionConflict() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            engine.index(indexOp(createParsedDocWithInput("1", null))); // seqNo 0
+            Engine.DeleteResult result = engine.delete(deleteOpWithIfSeqNo("1", 99L, primaryTerm.get()));
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
+        }
+    }
+
+    /** {@link DataFormatAwareEngine#prepareDelete} builds an Engine.Delete carrying the id, uid, and CAS terms. */
+    public void testPrepareDeleteBuildsDeleteOperation() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            Engine.Delete delete = engine.prepareDelete(
+                "42",
+                5L,
+                primaryTerm.get(),
+                3L,
+                VersionType.EXTERNAL,
+                Engine.Operation.Origin.PRIMARY,
+                7L,
+                primaryTerm.get()
+            );
+            assertThat(delete.id(), equalTo("42"));
+            assertThat(delete.uid(), equalTo(new Term(IdFieldMapper.NAME, Uid.encodeId("42"))));
+            assertThat(delete.seqNo(), equalTo(5L));
+            assertThat(delete.version(), equalTo(3L));
+            assertThat(delete.versionType(), equalTo(VersionType.EXTERNAL));
+            assertThat(delete.origin(), equalTo(Engine.Operation.Origin.PRIMARY));
+            assertThat(delete.getIfSeqNo(), equalTo(7L));
+            assertThat(delete.getIfPrimaryTerm(), equalTo(primaryTerm.get()));
+        }
+    }
+
+    public void testIndexAddDocFailureReturnsFailureResult() throws Exception {
+        MockDataFormat df = mockDataFormat;
+        MockIndexingExecutionEngine indexingEngine = new MockIndexingExecutionEngine(df);
+        indexingEngine.setWriterCustomizer(writer -> {
+            writer.setFailureKeepsActive(true);
+            writer.setWriteResultSupplier(() -> new WriteResult.Failure(new IOException("simulated addDoc failure"), -1L, -1L, -1L));
+        });
+        EngineConfig config = buildFailingEngineConfig(MockDataFormatPlugin.of(df).withIndexingEngine(settings -> indexingEngine));
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            Engine.IndexResult result = engine.index(indexOp(createParsedDocWithInput("1", null)));
+
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertThat(result.getFailure(), instanceOf(IOException.class));
+            assertThat(result.getFailure().getMessage(), containsString("simulated addDoc failure"));
+            // Writer stayed ACTIVE → engine must remain open for subsequent operations.
+            engine.ensureOpen();
+        }
+    }
+
+    public void testSuccessfulUpdateSupersedesPreviousCopy() throws Exception {
+        DataFormatAwareEngine engine = createUpdateEnabledDFAEngine(store, createTempDir());
+        try {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            MockDeleteExecutionEngine deleteEngine = getMockDeleteEngine(engine);
+
+            // Insert: there is no previous copy to supersede.
+            assertThat(engine.index(indexOp(createParsedDoc("1", null))).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertTrue("an insert must not supersede anything", deleteEngine.deletedIds().isEmpty());
+
+            // Update: supersedes the copy written above.
+            Engine.IndexResult update = engine.index(indexOp(createParsedDoc("1", null)));
+
+            assertThat(update.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat(deleteEngine.deletedIds(), equalTo(List.of("1")));
+        } finally {
+            engine.close();
+        }
+    }
+
+    public void testFailedUpdateDoesNotSupersedePreviousCopy() throws Exception {
+        DataFormatAwareEngine engine = createUpdateEnabledDFAEngine(store, createTempDir());
+        try {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            MockDeleteExecutionEngine deleteEngine = getMockDeleteEngine(engine);
+
+            // Insert establishes the copy that the update below would supersede.
+            assertThat(engine.index(indexOp(createParsedDoc("1", null))).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertTrue(deleteEngine.deletedIds().isEmpty());
+
+            // Reject the update's addDoc with a modeled per-doc failure that the writer has already reconciled.
+            MockWriter writer = getPooledMockWriter(engine);
+            writer.setFailureKeepsActive(true);
+            writer.setWriteResultSupplier(() -> new WriteResult.Failure(new IOException("simulated update rejection"), -1L, -1L, -1L));
+
+            Engine.IndexResult failedUpdate = engine.index(indexOp(createParsedDoc("1", null)));
+
+            assertThat(failedUpdate.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertTrue(
+                "a rejected update must not supersede the copy that is still live, superseded=" + deleteEngine.deletedIds(),
+                deleteEngine.deletedIds().isEmpty()
+            );
+        } finally {
+            engine.close();
+        }
+    }
+
+    @SuppressForbidden(reason = "test needs reflective access to inject a writer into flushQueue")
+    public void testPreIndexFlushDrainsDeletesBeforeSegmentCanBeIncorporated() throws Exception {
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        try {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            MockDeleteExecutionEngine deleteEngine = getMockDeleteEngine(engine);
+            MockIndexingExecutionEngine indexingEngine = getMockExecutionEngine(engine);
+
+            engine.index(indexOp(createParsedDoc("1", null)));
+
+            SuccessFlushWriter queuedWriter = new SuccessFlushWriter(42L, mockDataFormat);
+            flushQueueOf(engine).add(queuedWriter);
+            assertFalse("gen 42 must not be drained before it is flushed", deleteEngine.checkedOutGenerations().contains(42L));
+            int refreshesBefore = indexingEngine.getRefreshCallCount();
+
+            engine.index(indexOp(createParsedDoc("2", null)));
+
+            assertTrue(
+                "the flushed writer's deletes must be drained during preIndex, got " + deleteEngine.checkedOutGenerations(),
+                deleteEngine.checkedOutGenerations().contains(42L)
+            );
+            assertThat("the drain must precede any catalog incorporation", indexingEngine.getRefreshCallCount(), equalTo(refreshesBefore));
+        } finally {
+            engine.close();
+        }
+    }
+
+    @SuppressForbidden(reason = "test needs reflective access to inject writers into flushQueue")
+    public void testPartialCycleFlushFailureIncorporatesNothing() throws Exception {
+        DataFormatAwareEngine engine = createDFAEngine(store, createTempDir());
+        try {
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+            MockDeleteExecutionEngine deleteEngine = getMockDeleteEngine(engine);
+            MockIndexingExecutionEngine indexingEngine = getMockExecutionEngine(engine);
+
+            engine.index(indexOp(createParsedDoc("1", null)));
+
+            // First half of the cycle: a write thread flushes and drains gen 42 through preIndex.
+            flushQueueOf(engine).add(new SuccessFlushWriter(42L, mockDataFormat));
+            engine.index(indexOp(createParsedDoc("2", null)));
+            assertTrue(deleteEngine.checkedOutGenerations().contains(42L));
+            int refreshesBefore = indexingEngine.getRefreshCallCount();
+
+            // Second half: the refresh thread hits a writer whose flush throws.
+            flushQueueOf(engine).add(new FailingFlushWriter(43L, mockDataFormat));
+
+            expectThrows(RefreshFailedEngineException.class, () -> engine.refresh("partial-cycle-flush-failure"));
+
+            assertThat(
+                "a failed cycle must not incorporate the part that succeeded",
+                indexingEngine.getRefreshCallCount(),
+                equalTo(refreshesBefore)
+            );
+            expectThrows(AlreadyClosedException.class, engine::ensureOpen);
+        } finally {
+            try {
+                engine.close();
+            } catch (Exception ignored) {}
+        }
+    }
+
+    @SuppressForbidden(reason = "test needs reflective access to the engine's flushQueue")
+    @SuppressWarnings("unchecked")
+    private java.util.concurrent.ConcurrentLinkedQueue<Writer<?>> flushQueueOf(DataFormatAwareEngine engine) throws Exception {
+        java.lang.reflect.Field queueField = DataFormatAwareEngine.class.getDeclaredField("flushQueue");
+        queueField.setAccessible(true);
+        return (java.util.concurrent.ConcurrentLinkedQueue<Writer<?>>) queueField.get(engine);
+    }
+
+    @SuppressForbidden(reason = "test needs reflective access to the engine's deleteExecutionEngine")
+    private MockDeleteExecutionEngine getMockDeleteEngine(DataFormatAwareEngine engine) throws Exception {
+        java.lang.reflect.Field field = DataFormatAwareEngine.class.getDeclaredField("deleteExecutionEngine");
+        field.setAccessible(true);
+        return (MockDeleteExecutionEngine) field.get(engine);
+    }
+
+    // Pure-delete refresh coverage
+
+    /** Verifies that a delete-only refresh applies deletes and drops the emptied generation. */
+    public void testPureDeleteRefreshAppliesDeletesAndDropsGeneration() throws Exception {
+        MockDataFormat df = mockDataFormat;
+        AtomicInteger droppedRefreshCount = new AtomicInteger();
+        MockIndexingExecutionEngine indexingEngine = new MockIndexingExecutionEngine(df);
+        // A delete-only writer must flush no files, so the refresh sees hasFiles == false.
+        indexingEngine.setWriterCustomizer(writer -> writer.setEmptyFlushWhenNoDocs(true));
+        // A refresh with no new writer files drops every existing generation.
+        indexingEngine.setRefreshResultTransformer((input, result) -> {
+            if (input.writerFiles().isEmpty() == false || input.existingSegments().isEmpty()) {
+                return result;
+            }
+            droppedRefreshCount.incrementAndGet();
+            Set<Long> dropped = input.existingSegments().stream().map(Segment::generation).collect(Collectors.toSet());
+            return new RefreshResult(result.refreshedSegments(), dropped);
+        });
+        MockDeleteExecutionEngine deleteEngine = new MockDeleteExecutionEngine(df);
+        deleteEngine.setDeletesAppliedOnCheckout(true);
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(df)
+            .withIndexingEngine(settings -> indexingEngine)
+            .withDeleteExecutionEngine(committer -> deleteEngine);
+        EngineConfig config = buildFailingEngineConfig(plugin);
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("index-refresh");
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                assertThat("gen1 must be committed", ref.get().getSegments().size(), greaterThanOrEqualTo(1));
+            }
+
+            Engine.DeleteResult deleteResult = engine.delete(deleteOp("1"));
+            assertThat(deleteResult.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+
+            engine.refresh("pure-delete-refresh");
+
+            assertThat(
+                "pure-delete refresh must have taken the dropped-generation path",
+                droppedRefreshCount.get(),
+                greaterThanOrEqualTo(1)
+            );
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                assertThat("dropped generation must be filtered out of the committed catalog", ref.get().getSegments().size(), equalTo(0));
+            }
+            engine.ensureOpen();
+        }
+    }
+
+    // Delete failure and retirement-drain coverage
+
+    /**
+     * An unmodelled {@link IOException} from the delete engine travels through
+     * {@code maybeFailEngine("delete", e)} and is rethrown. A plain I/O failure is not a corruption,
+     * so the engine stays usable.
+     */
+    public void testDeleteEngineIOExceptionIsRethrownAndLeavesEngineOpen() throws Exception {
+        MockDeleteExecutionEngine deleteEngine = spy(new MockDeleteExecutionEngine(mockDataFormat));
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(mockDataFormat).withDeleteExecutionEngine(committer -> deleteEngine);
+        EngineConfig config = buildFailingEngineConfig(plugin);
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            engine.index(indexOp(createParsedDoc("1", null)));
+            doThrow(new IOException("simulated delete failure")).when(deleteEngine).deleteDocument(any(DeleteInput.class), any());
+
+            IOException failure = expectThrows(IOException.class, () -> engine.delete(deleteOp("1")));
+
+            assertThat(failure.getMessage(), containsString("simulated delete failure"));
+            engine.ensureOpen();
+        }
+    }
+
+    public void testDeleteEngineFailureResultRecordsNoOpAndLeavesEngineOpen() throws Exception {
+        MockDeleteExecutionEngine deleteEngine = spy(new MockDeleteExecutionEngine(mockDataFormat));
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(mockDataFormat).withDeleteExecutionEngine(committer -> deleteEngine);
+        EngineConfig config = buildFailingEngineConfig(plugin);
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            engine.index(indexOp(createParsedDoc("1", null)));
+            doReturn(new DeleteResult.Failure(new IOException("simulated delete rejection"))).when(deleteEngine)
+                .deleteDocument(any(DeleteInput.class), any());
+
+            Engine.DeleteResult result = engine.delete(deleteOp("1"));
+
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertThat(result.getFailure(), instanceOf(IOException.class));
+            assertThat(result.getFailure().getMessage(), containsString("simulated delete rejection"));
+            assertFalse("a failed delete must not report found", result.isFound());
+            assertThat("an issued seqNo must be recorded as a translog no-op", result.getTranslogLocation(), notNullValue());
+            engine.ensureOpen();
+        }
+    }
+
+    public void testReplayedDeleteFromTranslogSkipsEngine() throws Exception {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            MockDeleteExecutionEngine deleteEngine = getMockDeleteEngine(engine);
+
+            assertThat(engine.delete(deleteOpFromTranslog("1", 0L)).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            int deletesAfterFirstReplay = deleteEngine.deletedIds().size();
+
+            Engine.DeleteResult replay = engine.delete(deleteOpFromTranslog("1", 0L));
+
+            assertThat(replay.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertTrue("a skipped replay reports found because currentlyDeleted is false", replay.isFound());
+            assertThat(replay.getSeqNo(), equalTo(0L));
+            assertNull("a from-translog delete must not be re-appended to the translog", replay.getTranslogLocation());
+            assertThat(
+                "the skipped replay must not reach the delete engine",
+                deleteEngine.deletedIds().size(),
+                equalTo(deletesAfterFirstReplay)
+            );
+        }
+    }
+
+    /** The routing-carrying {@code prepareDelete} overload builds an Engine.Delete with the routing value. */
+    public void testPrepareDeleteWithRoutingBuildsDeleteOperation() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            Engine.Delete delete = engine.prepareDelete(
+                "42",
+                "custom-routing",
+                5L,
+                primaryTerm.get(),
+                3L,
+                VersionType.EXTERNAL,
+                Engine.Operation.Origin.PRIMARY,
+                7L,
+                primaryTerm.get()
+            );
+            assertThat(delete.id(), equalTo("42"));
+            assertThat(delete.routing(), equalTo("custom-routing"));
+            assertThat(delete.uid(), equalTo(new Term(IdFieldMapper.NAME, Uid.encodeId("42"))));
+            assertThat(delete.seqNo(), equalTo(5L));
+            assertThat(delete.version(), equalTo(3L));
+            assertThat(delete.versionType(), equalTo(VersionType.EXTERNAL));
+            assertThat(delete.origin(), equalTo(Engine.Operation.Origin.PRIMARY));
+            assertThat(delete.getIfSeqNo(), equalTo(7L));
+            assertThat(delete.getIfPrimaryTerm(), equalTo(primaryTerm.get()));
+        }
+    }
+
+    /**
+     * When a retiring writer's drain reports that buffered deletes were applied, the engine must
+     * remember it so the next refresh reopens readers even without a new segment.
+     */
+    public void testRetiredWriterDrainMarksUnpublishedDeletes() throws Exception {
+        MockIndexingExecutionEngine indexingEngine = new MockIndexingExecutionEngine(mockDataFormat);
+        indexingEngine.setWriterCustomizer(DataFormatAwareEngineTests::retireOnWrite);
+        MockDeleteExecutionEngine deleteEngine = new MockDeleteExecutionEngine(mockDataFormat);
+        deleteEngine.setDeletesAppliedOnCheckout(true);
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(mockDataFormat)
+            .withIndexingEngine(settings -> indexingEngine)
+            .withDeleteExecutionEngine(committer -> deleteEngine);
+        EngineConfig config = buildFailingEngineConfig(plugin);
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            Engine.IndexResult result = engine.index(indexOp(createParsedDoc("1", null)));
+
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertFalse(
+                "the retiring writer's generation must have been drained, got " + deleteEngine.checkedOutGenerations(),
+                deleteEngine.checkedOutGenerations().isEmpty()
+            );
+            assertTrue("a drain that applied deletes must leave them marked unpublished", unpublishedDeletesOf(engine));
+            engine.ensureOpen();
+        }
+    }
+
+    @SuppressForbidden(reason = "test needs reflective access to inject a writer into flushQueue")
+    public void testPreIndexFlushDrainMarksUnpublishedDeletes() throws Exception {
+        MockDeleteExecutionEngine deleteEngine = new MockDeleteExecutionEngine(mockDataFormat);
+        deleteEngine.setDeletesAppliedOnCheckout(true);
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(mockDataFormat).withDeleteExecutionEngine(committer -> deleteEngine);
+        EngineConfig config = buildFailingEngineConfig(plugin);
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            engine.index(indexOp(createParsedDoc("1", null)));
+            assertFalse("no writer has been drained yet", unpublishedDeletesOf(engine));
+
+            // A writer whose flush succeeds with no files, so only the drain can mark deletes.
+            flushQueueOf(engine).add(new SuccessFlushWriter(42L, mockDataFormat));
+            engine.index(indexOp(createParsedDoc("2", null)));
+
+            assertTrue("the queued writer's generation must have been drained", deleteEngine.checkedOutGenerations().contains(42L));
+            assertTrue("a drain that applied deletes must leave them marked unpublished", unpublishedDeletesOf(engine));
+            engine.ensureOpen();
+        }
+    }
+
+    public void testRetireWriterDeleteDrainFailureFailsEngine() throws Exception {
+        MockIndexingExecutionEngine indexingEngine = new MockIndexingExecutionEngine(mockDataFormat);
+        indexingEngine.setWriterCustomizer(DataFormatAwareEngineTests::retireOnWrite);
+        MockDeleteExecutionEngine deleteEngine = spy(new MockDeleteExecutionEngine(mockDataFormat));
+        doThrow(new IOException("simulated drain failure")).when(deleteEngine).onWriterCheckedOut(anyLong());
+        MockDataFormatPlugin plugin = MockDataFormatPlugin.of(mockDataFormat)
+            .withIndexingEngine(settings -> indexingEngine)
+            .withDeleteExecutionEngine(committer -> deleteEngine);
+        EngineConfig config = buildFailingEngineConfig(plugin);
+        DataFormatAwareEngine engine = new DataFormatAwareEngine(config);
+        try {
+            // The drain failure fails the engine, which closes the translog; the trailing no-op
+            // append for the failed index op is then rejected.
+            expectThrows(AlreadyClosedException.class, () -> engine.index(indexOp(createParsedDoc("1", null))));
+
+            Exception failure = new FailableDataFormatAwareEngine(engine).getFailedEngine();
+            assertNotNull("a drain failure while retiring must fail the engine", failure);
+            assertThat(failure, instanceOf(IllegalStateException.class));
+            assertThat(failure.getMessage(), containsString("could not apply buffered deletes while retiring writer"));
+            assertThat(failure.getCause().getMessage(), containsString("simulated drain failure"));
+        } finally {
+            engine.close();
+        }
+    }
+
+    /**
+     * Retires the writer from inside {@code addDoc} and rejects the write, so the failure path enters
+     * {@code retireWriterIfNeeded} in the RETIRED_FLUSHABLE state.
+     */
+    private static void retireOnWrite(MockWriter writer) {
+        writer.setWriteResultSupplier(() -> {
+            writer.setState(WriterState.RETIRED_FLUSHABLE);
+            return new WriteResult.Failure(new IOException("simulated addDoc failure"), -1L, -1L, -1L);
+        });
+    }
+
+    /** Reads {@code DataFormatAwareEngine.unpublishedDeletes} so tests can assert the flag without exposing it. */
+    @SuppressForbidden(reason = "test needs reflective access to the engine's unpublishedDeletes flag")
+    private static boolean unpublishedDeletesOf(DataFormatAwareEngine engine) throws Exception {
+        java.lang.reflect.Field field = DataFormatAwareEngine.class.getDeclaredField("unpublishedDeletes");
+        field.setAccessible(true);
+        return ((AtomicBoolean) field.get(engine)).get();
+    }
+
+    /** An unsupported delete does not fail the engine. */
+    public void testDeleteWithoutDeleteCapableFormatFailsOperationNotEngine() throws IOException {
+        AtomicBoolean engineFailed = new AtomicBoolean();
+        Engine.EventListener listener = new Engine.EventListener() {
+            @Override
+            public void onFailedEngine(String reason, Exception e) {
+                engineFailed.set(true);
+            }
+        };
+        MockDataFormatPlugin noDeletePlugin = MockDataFormatPlugin.of(mockDataFormat).withDeleteExecutionEngine(committer -> null);
+
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(buildFailingEngineConfig(noDeletePlugin, listener))) {
+            Engine.IndexResult indexed = engine.index(indexOp(createParsedDocWithInput("1", null)));
+            assertThat(indexed.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> engine.delete(deleteOp("1")));
+            assertEquals(NoOpDeleteExecutionEngine.UNSUPPORTED_MESSAGE, e.getMessage());
+
+            assertFalse("an unsupported delete must not fail the engine", engineFailed.get());
+            engine.ensureOpen();
+
+            Engine.IndexResult indexedAfter = engine.index(indexOp(createParsedDocWithInput("2", null)));
+            assertThat(indexedAfter.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            engine.refresh("after-rejected-delete");
         }
     }
 }

@@ -17,6 +17,12 @@ pub struct RuntimeManager {
     pub cpu_executor: DedicatedExecutor,
     pub io_monitor: RuntimeMonitor,
     pub cpu_monitor: Option<RuntimeMonitor>,
+    /// Registration for this manager's published IO handle, presented on shutdown so that a
+    /// manager which outlives its own replacement clears nothing. In-flight queries hold `Arc`
+    /// clones, so on a re-init with no intervening shutdown this manager's `Drop` runs *after* the
+    /// replacement published its handle — and an unconditional clear there would strand every
+    /// remote store built afterwards on its default connector.
+    io_registration: native_bridge_common::io_runtime::HandleRegistration,
 }
 
 impl RuntimeManager {
@@ -38,7 +44,8 @@ impl RuntimeManager {
         // Initialization order: DataFusionService starts this plugin first, then
         // native-repository-s3/gcs/azure read the handle at object-store build time.
         // The handle is always available before any store is constructed.
-        native_bridge_common::io_runtime::set_io_handle(io_runtime.handle().clone());
+        let io_registration =
+            native_bridge_common::io_runtime::set_io_handle(io_runtime.handle().clone());
 
         let io_monitor = RuntimeMonitor::new(&io_runtime.handle());
 
@@ -63,6 +70,7 @@ impl RuntimeManager {
             cpu_executor,
             io_monitor,
             cpu_monitor,
+            io_registration,
         }
     }
 
@@ -72,9 +80,10 @@ impl RuntimeManager {
 
     pub fn shutdown(&self) {
         info!("Shutting down RuntimeManager");
-        // Clear the published IO handle so a torn-down runtime is never handed
-        // out to a remote object-store builder after shutdown.
-        native_bridge_common::io_runtime::clear_io_handle();
+        // Clear the published IO handle so a torn-down runtime is never handed out to a remote
+        // object-store builder after shutdown — but only if it is still ours, since this may be
+        // running after a replacement manager published its own handle.
+        native_bridge_common::io_runtime::clear_io_handle_if_current(self.io_registration);
         self.cpu_executor.join_blocking();
     }
 }

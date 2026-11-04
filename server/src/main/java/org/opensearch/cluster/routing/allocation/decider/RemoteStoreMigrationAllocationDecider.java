@@ -95,10 +95,11 @@ public class RemoteStoreMigrationAllocationDecider extends AllocationDecider {
 
         IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
         boolean remoteSettingsBackedIndex = IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexMetadata.getSettings());
+        boolean targetNodeCanHostIndex = canHostRemoteStoreIndex(indexMetadata, targetNode);
 
         if (migrationDirection.equals(Direction.NONE)) {
             // remote backed indices on docrep nodes and non remote backed indices on remote nodes are not allowed
-            boolean isNoDecision = remoteSettingsBackedIndex ^ targetNode.isRemoteStoreNode();
+            boolean isNoDecision = remoteSettingsBackedIndex ^ targetNodeCanHostIndex;
             String reason = " for " + (remoteSettingsBackedIndex ? "" : "non ") + "remote store backed index";
             return allocation.decision(
                 isNoDecision ? Decision.NO : Decision.YES,
@@ -114,7 +115,7 @@ public class RemoteStoreMigrationAllocationDecider extends AllocationDecider {
             );
         } else {
             // check for remote store backed indices
-            if (remoteSettingsBackedIndex && targetNode.isRemoteStoreNode() == false) {
+            if (remoteSettingsBackedIndex && targetNodeCanHostIndex == false) {
                 // allocations and relocations must be to a remote node
                 String reason = new StringBuilder(" because a remote store backed index's shard copy can only be ").append(
                     (shardRouting.assignedToNode() == false) ? "allocated" : "relocated"
@@ -129,26 +130,38 @@ public class RemoteStoreMigrationAllocationDecider extends AllocationDecider {
         }
     }
 
+    /**
+     * Whether {@code node} provides the remote store repositories {@code indexMetadata} needs. Not
+     * {@link DiscoveryNode#isRemoteStoreNode()}, which also requires a cluster state repository and so rejects a
+     * {@code segments_only} node that can hold the index's segments. Every other mode answers as before.
+     */
+    static boolean canHostRemoteStoreIndex(IndexMetadata indexMetadata, DiscoveryNode node) {
+        // A remote store index always has segments; it has a remote translog only when one is stamped on it. The node
+        // has to provide whichever of the two the index actually needs.
+        boolean needsRemoteTranslog = IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.exists(indexMetadata.getSettings());
+        return node.isRemoteSegmentStoreNode() && (needsRemoteTranslog == false || node.isRemoteTranslogStoreNode());
+    }
+
     // handle scenarios for allocation of a new shard's primary copy
     private Decision primaryShardDecision(ShardRouting primaryShardRouting, DiscoveryNode targetNode, RoutingAllocation allocation) {
-        if (targetNode.isRemoteStoreNode() == false) {
+        if (canHostRemoteStoreIndex(allocation.metadata().getIndexSafe(primaryShardRouting.index()), targetNode) == false) {
             return allocation.decision(Decision.NO, NAME, getDecisionDetails(false, primaryShardRouting, targetNode, "", allocation));
         }
         return allocation.decision(Decision.YES, NAME, getDecisionDetails(true, primaryShardRouting, targetNode, "", allocation));
     }
 
-    // Checks if primary shard is on a remote node.
+    // Checks if primary shard is on a node that can hold the index's remote store data.
     static boolean isPrimaryOnRemote(ShardId shardId, RoutingAllocation allocation) {
         ShardRouting primaryShardRouting = allocation.routingNodes().activePrimary(shardId);
         if (primaryShardRouting != null) {
             DiscoveryNode primaryShardNode = allocation.nodes().getNodes().get(primaryShardRouting.currentNodeId());
-            return primaryShardNode.isRemoteStoreNode();
+            return canHostRemoteStoreIndex(allocation.metadata().getIndexSafe(shardId.getIndex()), primaryShardNode);
         }
         return false;
     }
 
     private Decision replicaShardDecision(ShardRouting replicaShardRouting, DiscoveryNode targetNode, RoutingAllocation allocation) {
-        if (targetNode.isRemoteStoreNode()) {
+        if (canHostRemoteStoreIndex(allocation.metadata().getIndexSafe(replicaShardRouting.index()), targetNode)) {
             boolean primaryOnRemote = RemoteStoreMigrationAllocationDecider.isPrimaryOnRemote(replicaShardRouting.shardId(), allocation);
             if (primaryOnRemote == false) {
                 return allocation.decision(
@@ -197,7 +210,7 @@ public class RemoteStoreMigrationAllocationDecider extends AllocationDecider {
             .append(" be ")
             .append((shardRouting.assignedToNode() == false) ? "allocated" : "relocated")
             .append(" to a ")
-            .append(targetNode.isRemoteStoreNode() ? "remote" : "non-remote")
+            .append(targetNode.isRemoteSegmentStoreNode() ? "remote" : "non-remote")
             .append(" node")
             .append(reason)
             .toString();

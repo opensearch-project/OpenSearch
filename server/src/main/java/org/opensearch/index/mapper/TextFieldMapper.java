@@ -483,10 +483,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             applyPluginParameterEffects();
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
             TextFieldType tft = buildFieldType(fieldType, context);
-            if (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
-                || context.indexSettings().getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)) {
-                fieldType.setStored(true);
-            }
+            storeIfSourceIsDerived(fieldType, context);
             return new TextFieldMapper(
                 name,
                 fieldType,
@@ -497,6 +494,18 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 copyTo.build(),
                 this
             );
+        }
+
+        /**
+         * Derived source rebuilds the value from the stored field, so a top-level field must be stored
+         * when derived source or a pluggable data format is enabled.
+         */
+        protected void storeIfSourceIsDerived(FieldType fieldType, BuilderContext context) {
+            if (context.indexSettings().getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)
+                || (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false)
+                    && context.isMultiField() == false)) {
+                fieldType.setStored(true);
+            }
         }
     }
 

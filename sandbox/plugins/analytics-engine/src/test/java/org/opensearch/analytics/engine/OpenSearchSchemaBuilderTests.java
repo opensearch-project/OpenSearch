@@ -100,6 +100,24 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
         assertFieldType(rowType, "tiny_num", SqlTypeName.TINYINT);
     }
 
+    public void testMultiValueKeywordBuildsNullableArrayType() throws Exception {
+        String mapping = "{\"properties\":{"
+            + "\"tags\":{\"type\":\"keyword\",\"multi_value\":true},"
+            + "\"locked\":{\"type\":\"keyword\",\"multi_value\":false}"
+            + "}}";
+        ClusterState clusterState = buildClusterStateRaw("multi_value_index", mapping);
+
+        RelDataType rowType = OpenSearchSchemaBuilder.buildSchema(clusterState)
+            .getTable("multi_value_index")
+            .getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        RelDataType tagsType = rowType.getField("tags", true, false).getType();
+
+        assertEquals(SqlTypeName.ARRAY, tagsType.getSqlTypeName());
+        assertEquals(SqlTypeName.VARCHAR, tagsType.getComponentType().getSqlTypeName());
+        assertTrue("multi-value field must remain nullable", tagsType.isNullable());
+        assertFieldType(rowType, "locked", SqlTypeName.VARCHAR);
+    }
+
     /**
      * Test that multiple indices produce multiple tables.
      */

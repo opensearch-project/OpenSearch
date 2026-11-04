@@ -33,6 +33,7 @@
 package org.opensearch.nio;
 
 import org.opensearch.common.concurrent.CompletableContext;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.net.BindException;
@@ -40,9 +41,6 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -129,18 +127,13 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
         socket.setReuseAddress(config.tcpReuseAddress());
     }
 
-    @SuppressWarnings("removal")
     protected static SocketChannel accept(ServerSocketChannel serverSocketChannel) throws IOException {
-        try {
-            assert serverSocketChannel.isBlocking() == false;
-            SocketChannel channel = AccessController.doPrivileged((PrivilegedExceptionAction<SocketChannel>) serverSocketChannel::accept);
-            if (serverSocketChannel.isBlocking() == true) {
-                channel.close();
-                throw new AssertionError("serverSocketChannel is blocking.");
-            }
-            return channel;
-        } catch (PrivilegedActionException e) {
-            throw (IOException) e.getCause();
+        assert serverSocketChannel.isBlocking() == false;
+        SocketChannel channel = AccessController.doPrivilegedChecked(serverSocketChannel::accept);
+        if (serverSocketChannel.isBlocking() == true) {
+            channel.close();
+            throw new AssertionError("serverSocketChannel is blocking.");
         }
+        return channel;
     }
 }

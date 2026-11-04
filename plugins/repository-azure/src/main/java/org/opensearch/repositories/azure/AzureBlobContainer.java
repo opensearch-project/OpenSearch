@@ -46,7 +46,9 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
+import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -79,14 +81,29 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean blobExists(String blobName) {
+    public boolean blobExists(String blobName) throws IOException {
         logger.trace("blobExists({})", blobName);
         try {
             return blobStore.blobExists(buildKey(blobName));
-        } catch (URISyntaxException | BlobStorageException e) {
-            logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore, e.getMessage());
+        } catch (BlobStorageException e) {
+            throw new IOException("Can not check if blob [" + blobName + "] exists", e);
+        } catch (URISyntaxException e) {
+            throw new IOException("Can not check if blob [" + blobName + "] exists", e);
         }
-        return false;
+    }
+
+    @Override
+    public BlobMetadata getBlobMetadata(String blobName) throws IOException {
+        try {
+            return new PlainBlobMetadata(blobName, blobStore.getBlobLength(buildKey(blobName)));
+        } catch (BlobStorageException e) {
+            if (e.getStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
+                throw new NoSuchFileException(blobName);
+            }
+            throw new IOException("Can not read metadata for blob " + blobName, e);
+        } catch (URISyntaxException e) {
+            throw new IOException("Can not read metadata for blob " + blobName, e);
+        }
     }
 
     private InputStream openInputStream(String blobName, long position, @Nullable Long length) throws IOException {
@@ -124,7 +141,23 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     @Override
     public long readBlobPreferredLength() {
-        return DEFAULT_MINIMUM_READ_SIZE_IN_BYTES;
+        return blobStore.getReadBlobPreferredLength();
+    }
+
+    @Override
+    public boolean isConditionalWriteSupported() {
+        return true;
+    }
+
+    @Override
+    public VersionedBlob readBlobWithVersion(String blobName) throws IOException {
+        return blobStore.readBlobWithVersion(buildKey(blobName));
+    }
+
+    @Override
+    public String writeBlobConditionally(String blobName, InputStream inputStream, long blobSize, @Nullable String expectedVersionToken)
+        throws IOException {
+        return blobStore.writeBlobConditionally(buildKey(blobName), inputStream, blobSize, expectedVersionToken);
     }
 
     @Override
@@ -213,6 +246,22 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             return blobStore.listBlobsByPrefix(keyPath, prefix);
         } catch (URISyntaxException | BlobStorageException e) {
             logger.warn("can not access [{}] in container {{}}: {}", prefix, blobStore, e.getMessage());
+            throw new IOException(e);
+        }
+    }
+
+    @Override
+    public List<BlobMetadata> listBlobsByPrefixInSortedOrder(String blobNamePrefix, int limit, BlobNameSortOrder blobNameSortOrder)
+        throws IOException {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit should not be a negative value");
+        }
+        if (blobNameSortOrder != BlobNameSortOrder.LEXICOGRAPHIC) {
+            return super.listBlobsByPrefixInSortedOrder(blobNamePrefix, limit, blobNameSortOrder);
+        }
+        try {
+            return blobStore.listBlobsByPrefixInSortedOrder(keyPath, blobNamePrefix, limit);
+        } catch (URISyntaxException | BlobStorageException e) {
             throw new IOException(e);
         }
     }

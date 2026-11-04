@@ -66,6 +66,7 @@ public class EngineConfigFactory {
     private final TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
     private final List<AdditionalCodecs> additionalCodecs;
     private final CommitterFactory committerFactory;
+    private final List<EnginePlugin> enginePlugins;
     @Nullable
     private final DocumentLookupProvider documentLookupProvider;
     @Nullable
@@ -160,6 +161,9 @@ public class EngineConfigFactory {
             enginePlugin.getCommitterFactory(idxSettings).ifPresent(committerFactories::add);
         }
 
+        // Resolution is deferred to engine build time, but do a resolution here to fail fast on conflict
+        resolvePrimaryOperationPolicy(idxSettings, enginePlugins);
+
         if (codecService.isPresent() && codecServiceFactory.isPresent()) {
             throw new IllegalStateException(
                 "both codec service and codec service factory are present, codec service provided by: "
@@ -178,6 +182,7 @@ public class EngineConfigFactory {
         this.translogDeletionPolicyFactory = translogDeletionPolicyFactory.orElse((idxs, rtls) -> null);
         this.additionalCodecs = Collections.unmodifiableList(codecRegistries);
         this.committerFactory = committerFactories.isEmpty() ? null : committerFactories.getFirst();
+        this.enginePlugins = List.copyOf(enginePlugins);
         this.documentLookupProvider = documentLookupProvider;
         this.documentMetadataResolver = documentMetadataResolver;
     }
@@ -225,6 +230,10 @@ public class EngineConfigFactory {
             codecServiceToUse = newCodecServiceOrDefault(indexSettings, null, null, null);
         }
 
+        // The config re-resolves the policy on every read so a shard picks up a setting change when it is
+        // promoted, but resolve once here so a plugin conflict fails the engine build instead of the first read.
+        resolvePrimaryOperationPolicy(indexSettings, enginePlugins);
+
         return new EngineConfig.Builder().shardId(shardId)
             .threadPool(threadPool)
             .indexSettings(indexSettings)
@@ -262,7 +271,32 @@ public class EngineConfigFactory {
             .checksumStrategies(checksumStrategies)
             .documentLookupProvider(documentLookupProvider)
             .documentMetadataResolver(documentMetadataResolver)
+            .primaryOperationPolicySupplier(() -> resolvePrimaryOperationPolicy(indexSettings, enginePlugins))
             .build();
+    }
+
+    private static PrimaryOperationPolicy resolvePrimaryOperationPolicy(
+        IndexSettings indexSettings,
+        Collection<EnginePlugin> enginePlugins
+    ) {
+        PrimaryOperationPolicy primaryOperationPolicy = null;
+        String primaryOperationPolicyPlugin = null;
+        for (EnginePlugin enginePlugin : enginePlugins) {
+            final Optional<PrimaryOperationPolicy> pluginPrimaryOperationPolicy = enginePlugin.getPrimaryOperationPolicy(indexSettings);
+            if (pluginPrimaryOperationPolicy.isPresent()) {
+                if (primaryOperationPolicy != null) {
+                    throw new IllegalStateException(
+                        "existing PrimaryOperationPolicy is already overridden in: "
+                            + primaryOperationPolicyPlugin
+                            + " attempting to override again by: "
+                            + enginePlugin.getClass().getName()
+                    );
+                }
+                primaryOperationPolicy = pluginPrimaryOperationPolicy.get();
+                primaryOperationPolicyPlugin = enginePlugin.getClass().getName();
+            }
+        }
+        return primaryOperationPolicy == null ? DefaultPrimaryOperationPolicy.INSTANCE : primaryOperationPolicy;
     }
 
     public CodecService newDefaultCodecService(IndexSettings indexSettings, @Nullable MapperService mapperService, Logger logger) {

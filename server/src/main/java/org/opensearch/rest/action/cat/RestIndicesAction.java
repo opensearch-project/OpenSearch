@@ -63,6 +63,8 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.merge.MergedSegmentWarmerStats;
+import org.opensearch.indices.SystemIndexDescriptor;
+import org.opensearch.indices.SystemIndices;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
@@ -106,10 +108,12 @@ public class RestIndicesAction extends AbstractListAction {
     private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
         "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
 
+    private final SystemIndices systemIndices;
     private final ResponseLimitSettings responseLimitSettings;
 
-    public RestIndicesAction(ResponseLimitSettings responseLimitSettings) {
+    public RestIndicesAction(ResponseLimitSettings responseLimitSettings, SystemIndices systemIndices) {
         this.responseLimitSettings = responseLimitSettings;
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -141,7 +145,8 @@ public class RestIndicesAction extends AbstractListAction {
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
+        final IndicesOptions indicesOptions = getIndicesOptions(request);
+        final Boolean systemParam = request.hasParam("system") ? request.paramAsBoolean("system", false) : null;
         final boolean local = request.paramAsBoolean("local", false);
         TimeValue clusterManagerTimeout = request.paramAsTime("cluster_manager_timeout", DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT);
         // Remove the if condition and statements inside after removing MASTER_ROLE.
@@ -195,7 +200,9 @@ public class RestIndicesAction extends AbstractListAction {
                             new ActionListener<ClusterStateResponse>() {
                                 @Override
                                 public void onResponse(ClusterStateResponse clusterStateResponse) {
-                                    validateRequestLimit(clusterStateResponse, listener);
+                                    if (validateRequestLimit(clusterStateResponse, systemParam, listener) == false) {
+                                        return;
+                                    }
                                     IndexPaginationStrategy paginationStrategy = getPaginationStrategy(clusterStateResponse);
                                     // For non-paginated queries, indicesToBeQueried would be same as indices retrieved from
                                     // rest request and unresolved, while for paginated queries, it would be a list of indices
@@ -255,13 +262,41 @@ public class RestIndicesAction extends AbstractListAction {
 
     }
 
-    private void validateRequestLimit(final ClusterStateResponse clusterStateResponse, final ActionListener<Table> listener) {
+    static IndicesOptions getIndicesOptions(final RestRequest request) {
+        final IndicesOptions defaultIndicesOptions = request.paramAsBoolean("system", false)
+            ? IndicesOptions.strictExpandHidden()
+            : IndicesOptions.strictExpand();
+        return IndicesOptions.fromRequest(request, defaultIndicesOptions);
+    }
+
+    boolean validateRequestLimit(
+        final ClusterStateResponse clusterStateResponse,
+        final Boolean systemParam,
+        final ActionListener<Table> listener
+    ) {
         if (isRequestLimitCheckSupported() && Objects.nonNull(clusterStateResponse) && Objects.nonNull(clusterStateResponse.getState())) {
             int limit = responseLimitSettings.getCatIndicesResponseLimit();
-            if (ResponseLimitSettings.isResponseLimitBreached(clusterStateResponse.getState().getMetadata(), INDICES, limit)) {
+            final boolean limitBreached;
+            if (systemParam == null) {
+                limitBreached = ResponseLimitSettings.isResponseLimitBreached(
+                    clusterStateResponse.getState().getMetadata(),
+                    INDICES,
+                    limit
+                );
+            } else if (limit > 0) {
+                long matchingIndices = StreamSupport.stream(clusterStateResponse.getState().getMetadata().spliterator(), false)
+                    .filter(indexMetadata -> indexMetadata.isSystem() == systemParam)
+                    .count();
+                limitBreached = matchingIndices > limit;
+            } else {
+                limitBreached = false;
+            }
+            if (limitBreached) {
                 listener.onFailure(new ResponseLimitBreachedException("Too many indices requested.", limit, INDICES));
+                return false;
             }
         }
+        return true;
     }
 
     /**
@@ -397,7 +432,7 @@ public class RestIndicesAction extends AbstractListAction {
     private static final Set<String> RESPONSE_PARAMS;
 
     static {
-        final Set<String> responseParams = new HashSet<>(asList("local", "health"));
+        final Set<String> responseParams = new HashSet<>(asList("local", "health", "system"));
         responseParams.addAll(AbstractCatAction.RESPONSE_PARAMS);
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
@@ -884,6 +919,13 @@ public class RestIndicesAction extends AbstractListAction {
             "alias:last_index_ts_string,lastIndexRequestTimestampString;default:false;text-align:right;desc:timestamp of the last processed index request (ISO8601 string)"
         );
 
+        final String systemColumnDefault = request.hasParam("system") ? "" : "default:false;";
+        table.addCell("system", "alias:sys;" + systemColumnDefault + "desc:whether the index is a system index");
+        table.addCell(
+            "system.description",
+            "alias:sysdesc;" + systemColumnDefault + "desc:description from the matching system index descriptor"
+        );
+
         table.endHeaders();
         return table;
     }
@@ -899,6 +941,7 @@ public class RestIndicesAction extends AbstractListAction {
         final PageToken pageToken
     ) {
         final String healthParam = request.param("health");
+        final Boolean systemParam = request.hasParam("system") ? request.paramAsBoolean("system", false) : null;
         final Table table = getTableWithHeader(request, pageToken);
 
         while (tableIterator.hasNext()) {
@@ -940,6 +983,10 @@ public class RestIndicesAction extends AbstractListAction {
                 if (skip) {
                     continue;
                 }
+            }
+
+            if (systemParam != null && systemParam != indexMetadata.isSystem()) {
+                continue;
             }
 
             final CommonStats primaryStats;
@@ -1222,6 +1269,11 @@ public class RestIndicesAction extends AbstractListAction {
             table.addCell(
                 ts == null || ts == 0 ? null : STRICT_DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(ts).atZone(ZoneOffset.UTC))
             );
+
+            table.addCell(indexMetadata.isSystem());
+            // Descriptors require a dot prefix; do not gate on metadata so disagreements remain visible.
+            SystemIndexDescriptor descriptor = indexName.startsWith(".") ? systemIndices.findMatchingDescriptor(indexName) : null;
+            table.addCell(descriptor == null ? null : descriptor.getDescription());
 
             table.endRow();
         }

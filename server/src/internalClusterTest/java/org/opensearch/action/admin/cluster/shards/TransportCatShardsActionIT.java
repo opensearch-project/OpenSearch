@@ -21,6 +21,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.tasks.TaskCancelledException;
+import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.indices.IndexClosedException;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.client.Requests;
@@ -427,6 +429,92 @@ public class TransportCatShardsActionIT extends DataStreamTestCase {
         );
         assertEquals(4, listShardsResponse.get().getResponseShards().size());
         assertEquals(2, listShardsResponse.get().getIndicesStatsResponse().getShards().length);
+    }
+
+    public void testCatShardsSkipsIndicesStatsWhenNotRequired() throws Exception {
+        internalCluster().startClusterManagerOnlyNodes(1);
+        internalCluster().startDataOnlyNodes(2);
+        createIndex(
+            "test",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
+        );
+        ensureGreen("test");
+
+        // Routing is still returned from cluster state, but no per-shard stats are fetched.
+        CatShardsResponse response = client().execute(CatShardsAction.INSTANCE, catShardsRequest(false, Strings.EMPTY_ARRAY)).get();
+        assertSingleIndexResponseShards(response, "test", 2, false);
+
+        // Control: the default (stats required) request still returns stats for every shard.
+        response = client().execute(CatShardsAction.INSTANCE, catShardsRequest(true, Strings.EMPTY_ARRAY)).get();
+        assertSingleIndexResponseShards(response, "test", 2, true);
+    }
+
+    /**
+     * Pins down the error behavior of an explicitly named missing index. With stats required, the IndicesStats request
+     * (strictExpandOpenAndForbidClosed) fails with IndexNotFoundException. When stats are skipped, only the cluster state
+     * request (lenientExpandOpen) runs, so the missing index is ignored and an empty response is returned.
+     */
+    public void testCatShardsMissingIndexWithAndWithoutIndicesStats() throws Exception {
+        internalCluster().startClusterManagerOnlyNodes(1);
+        internalCluster().startDataOnlyNodes(1);
+        createIndex(
+            "test",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        ensureGreen("test");
+
+        String[] missing = new String[] { "missing-index" };
+
+        ExecutionException e = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(CatShardsAction.INSTANCE, catShardsRequest(true, missing)).get()
+        );
+        assertTrue(e.getCause() instanceof IndexNotFoundException);
+
+        CatShardsResponse response = client().execute(CatShardsAction.INSTANCE, catShardsRequest(false, missing)).get();
+        assertEquals(0, response.getResponseShards().size());
+        assertEquals(0, response.getIndicesStatsResponse().getShards().length);
+    }
+
+    /**
+     * Same as above for an explicitly named closed index: IndexClosedException with stats, shard routing rows without.
+     */
+    public void testCatShardsClosedIndexWithAndWithoutIndicesStats() throws Exception {
+        internalCluster().startClusterManagerOnlyNodes(1);
+        internalCluster().startDataOnlyNodes(2);
+        createIndex(
+            "test-closed-idx",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
+        );
+        ensureGreen();
+        client().admin().indices().close(Requests.closeIndexRequest("test-closed-idx")).get();
+        ensureGreen();
+
+        String[] closed = new String[] { "test-closed-idx" };
+
+        ExecutionException e = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(CatShardsAction.INSTANCE, catShardsRequest(true, closed)).get()
+        );
+        assertTrue(e.getCause() instanceof IndexClosedException);
+
+        CatShardsResponse response = client().execute(CatShardsAction.INSTANCE, catShardsRequest(false, closed)).get();
+        assertSingleIndexResponseShards(response, "test-closed-idx", 2, false);
+
+        // Wildcards never resolve closed indices (lenientExpandOpen), with or without stats.
+        String[] closedWildcard = new String[] { "test-closed-idx*" };
+        response = client().execute(CatShardsAction.INSTANCE, catShardsRequest(true, closedWildcard)).get();
+        assertEquals(0, response.getResponseShards().size());
+        response = client().execute(CatShardsAction.INSTANCE, catShardsRequest(false, closedWildcard)).get();
+        assertEquals(0, response.getResponseShards().size());
+    }
+
+    private CatShardsRequest catShardsRequest(boolean indicesStatsRequired, String[] indices) {
+        CatShardsRequest request = new CatShardsRequest();
+        request.setCancelAfterTimeInterval(NO_TIMEOUT);
+        request.setIndices(indices);
+        request.setIndicesStatsRequired(indicesStatsRequired);
+        return request;
     }
 
     private void assertSingleIndexResponseShards(

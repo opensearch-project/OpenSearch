@@ -103,6 +103,14 @@ testingConventions {
 }
 
 thirdPartyAudit {
+  // Optional BC ML-KEM implementations are not supplied by the FIPS provider.
+  ignoreMissingClasses(
+    'org.bouncycastle.pqc.jcajce.SecretKeyWithEncapsulation',
+    'org.bouncycastle.pqc.jcajce.interfaces.MLKEMPublicKey',
+    'org.bouncycastle.pqc.jcajce.spec.KEMExtractSpec$Builder',
+    'org.bouncycastle.pqc.jcajce.spec.KEMGenerateSpec$Builder',
+    'org.bouncycastle.pqc.jcajce.spec.MLKEMParameterSpec'
+  )
   ignoreMissingClasses(
       'org.conscrypt.Conscrypt',
       //commons-logging optional dependencies

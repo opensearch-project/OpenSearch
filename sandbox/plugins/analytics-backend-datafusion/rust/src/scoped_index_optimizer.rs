@@ -184,7 +184,6 @@ impl PhysicalOptimizerRule for ScopedPageIndexOptimizer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cache::page_index;
     use crate::parquet_page_cache::{clear_scoped_cache_for_test, scoped_cache_stats};
     use arrow::datatypes::{DataType, Field, Schema};
     use datafusion::execution::cache::DefaultFilesMetadataCache;
@@ -360,7 +359,7 @@ mod tests {
         use futures::StreamExt;
 
         // Serialize on the shared guard — this asserts on the global cache.
-        let _g = page_index::SCOPED_CACHE_TEST_GUARD.lock().unwrap();
+        let _g = crate::test_process_globals::lock();
         crate::cache::page_index::clear_scoped_cache_for_test();
 
         let sch = Arc::new(Schema::new(vec![

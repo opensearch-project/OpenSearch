@@ -35,6 +35,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.stub.FileBackedFailableIndexingExecutionEngine;
@@ -206,6 +207,7 @@ public class CompositeEngineFailureTests extends OpenSearchTestCase {
         DataFormatRegistry dfaRegistry = mock(DataFormatRegistry.class);
         when(dfaRegistry.format("composite")).thenReturn(compositeEngine.getDataFormat());
         when(dfaRegistry.getIndexingEngine(any(), any())).thenAnswer(inv -> compositeEngine);
+        when(dfaRegistry.getDeleteExecutionEngine(any())).thenAnswer(inv -> mock(DeleteExecutionEngine.class));
 
         if (bootstrapTranslog) {
             String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());

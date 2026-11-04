@@ -31,6 +31,11 @@ pub struct NativeSettings {
     pub sort_columns: Vec<String>,
     pub reverse_sorts: Vec<bool>,
     pub nulls_first: Vec<bool>,
+    /// Parallel with `sort_columns`: `true` selects the MAX element of a
+    /// multi-value (LIST) field, `false` selects MIN. Derived from
+    /// `index.sort.mode` (defaulting to MIN for ASC and MAX for DESC) on the
+    /// Java side. Scalar fields ignore this.
+    pub max_sort_modes: Vec<bool>,
     pub sort_in_memory_threshold_bytes: Option<u64>,
     pub merge_batch_size: Option<usize>,
     pub row_group_max_rows: Option<usize>,

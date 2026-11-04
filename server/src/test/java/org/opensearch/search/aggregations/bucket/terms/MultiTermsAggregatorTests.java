@@ -958,7 +958,8 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
             context,
             parent,
             cardinality,
-            metadata
+            metadata,
+            null
         );
         InternalAggregation emptyAgg = mAgg.buildEmptyAggregation();
 

@@ -8,14 +8,17 @@
 
 package org.opensearch.index.engine;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.util.Objects;
 import java.util.Optional;
 
 /**
  * Encapsulates the execution strategy for an engine operation (e.g. indexing or deletion).
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public class OperationStrategy {
 
     public final boolean executeOpOnEngine;

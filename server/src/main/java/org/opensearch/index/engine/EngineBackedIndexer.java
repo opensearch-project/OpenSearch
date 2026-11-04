@@ -124,6 +124,25 @@ public class EngineBackedIndexer implements Indexer {
     }
 
     @Override
+    public void refreshPrimaryOperationPolicy() {
+        engine.refreshPrimaryOperationPolicy();
+    }
+
+    /**
+     * {@link org.opensearch.index.shard.IndexShard} reaches engines only through this indexer, so the engine's batching
+     * decision must be forwarded here; the {@link Indexer} default would silently keep every operation inline.
+     */
+    @Override
+    public Engine.TranslogBatch beginTranslogBatch() {
+        return engine.beginTranslogBatch();
+    }
+
+    @Override
+    public PrimaryOperationPolicy getPrimaryOperationPolicy() {
+        return engine.getPrimaryOperationPolicy();
+    }
+
+    @Override
     public void forceMerge(
         boolean flush,
         int maxNumSegments,

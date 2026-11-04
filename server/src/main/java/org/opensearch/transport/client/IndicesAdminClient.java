@@ -132,9 +132,6 @@ import org.opensearch.action.admin.indices.upgrade.post.UpgradeResponse;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.opensearch.action.admin.indices.view.CreateViewAction;
-import org.opensearch.action.admin.indices.view.DeleteViewAction;
-import org.opensearch.action.admin.indices.view.GetViewAction;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.opensearch.common.Nullable;
@@ -852,30 +849,6 @@ public interface IndicesAdminClient extends OpenSearchClient {
      */
     ActionFuture<ResolveIndexAction.Response> resolveIndex(ResolveIndexAction.Request request);
 
-    /** Create a view */
-    void createView(CreateViewAction.Request request, ActionListener<GetViewAction.Response> listener);
-
-    /** Create a view */
-    ActionFuture<GetViewAction.Response> createView(CreateViewAction.Request request);
-
-    /** Get the details of a view */
-    void getView(GetViewAction.Request request, ActionListener<GetViewAction.Response> listener);
-
-    /** Get the details of a view */
-    ActionFuture<GetViewAction.Response> getView(GetViewAction.Request request);
-
-    /** Delete a view */
-    void deleteView(DeleteViewAction.Request request, ActionListener<AcknowledgedResponse> listener);
-
-    /** Delete a view */
-    ActionFuture<AcknowledgedResponse> deleteView(DeleteViewAction.Request request);
-
-    /** Update a view */
-    void updateView(CreateViewAction.Request request, ActionListener<GetViewAction.Response> listener);
-
-    /** Update a view */
-    ActionFuture<GetViewAction.Response> updateView(CreateViewAction.Request request);
-
     /** Pause ingestion */
     ActionFuture<PauseIngestionResponse> pauseIngestion(PauseIngestionRequest request);
 
@@ -1152,34 +1125,6 @@ public interface IndicesAdminClient extends OpenSearchClient {
     default CompletionStage<ResolveIndexAction.Response> resolveIndexAsync(ResolveIndexAction.Request request) {
         CompletableFuture<ResolveIndexAction.Response> future = new CompletableFuture<>();
         resolveIndex(request, ActionListener.wrap(future::complete, future::completeExceptionally));
-        return future;
-    }
-
-    /** Create view - CompletionStage version */
-    default CompletionStage<GetViewAction.Response> createViewAsync(CreateViewAction.Request request) {
-        CompletableFuture<GetViewAction.Response> future = new CompletableFuture<>();
-        createView(request, ActionListener.wrap(future::complete, future::completeExceptionally));
-        return future;
-    }
-
-    /** Get view - CompletionStage version */
-    default CompletionStage<GetViewAction.Response> getViewAsync(GetViewAction.Request request) {
-        CompletableFuture<GetViewAction.Response> future = new CompletableFuture<>();
-        getView(request, ActionListener.wrap(future::complete, future::completeExceptionally));
-        return future;
-    }
-
-    /** Delete view - CompletionStage version */
-    default CompletionStage<AcknowledgedResponse> deleteViewAsync(DeleteViewAction.Request request) {
-        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
-        deleteView(request, ActionListener.wrap(future::complete, future::completeExceptionally));
-        return future;
-    }
-
-    /** Update view - CompletionStage version */
-    default CompletionStage<GetViewAction.Response> updateViewAsync(CreateViewAction.Request request) {
-        CompletableFuture<GetViewAction.Response> future = new CompletableFuture<>();
-        updateView(request, ActionListener.wrap(future::complete, future::completeExceptionally));
         return future;
     }
 
