@@ -253,6 +253,51 @@ public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBo
         }
     }
 
+    public void testInfiniteValues() {
+        // scripts and missing values can produce infinities, which t-digest accepts
+        final TDigestState highOutlier = new TDigestState(100);
+        for (int i = 1; i <= 100; i++) {
+            highOutlier.add(i);
+        }
+        highOutlier.add(Double.POSITIVE_INFINITY);
+        final InternalBoxplot high = new InternalBoxplot("boxplot", null, DocValueFormat.RAW, highOutlier);
+        assertOrderedAndNotNaN(high);
+        assertEquals(1.0, high.getMin(), 0d);
+        assertEquals(Double.POSITIVE_INFINITY, high.getMax(), 0d);
+        assertEquals(100.0, high.getUpper(), 1.0);
+
+        final TDigestState lowOutlier = new TDigestState(100);
+        lowOutlier.add(Double.NEGATIVE_INFINITY);
+        for (int i = 1; i <= 100; i++) {
+            lowOutlier.add(i);
+        }
+        final InternalBoxplot low = new InternalBoxplot("boxplot", null, DocValueFormat.RAW, lowOutlier);
+        assertOrderedAndNotNaN(low);
+        assertEquals(Double.NEGATIVE_INFINITY, low.getMin(), 0d);
+        assertEquals(100.0, low.getMax(), 0d);
+        assertEquals(1.0, low.getLower(), 1.0);
+
+        // every quartile is infinite, so the interquartile range is undefined and the whiskers fall back to min and max
+        final TDigestState allInfinite = new TDigestState(100);
+        for (int i = 0; i < 10; i++) {
+            allInfinite.add(Double.POSITIVE_INFINITY);
+        }
+        final InternalBoxplot infinite = new InternalBoxplot("boxplot", null, DocValueFormat.RAW, allInfinite);
+        assertAllStatsEqual(Double.POSITIVE_INFINITY, infinite);
+    }
+
+    private static void assertOrderedAndNotNaN(InternalBoxplot boxplot) {
+        for (String stat : STAT_NAMES) {
+            assertFalse(stat + " is NaN", Double.isNaN(boxplot.value(stat)));
+        }
+        assertTrue(boxplot.getMin() <= boxplot.getLower());
+        assertTrue(boxplot.getLower() <= boxplot.getQ1());
+        assertTrue(boxplot.getQ1() <= boxplot.getQ2());
+        assertTrue(boxplot.getQ2() <= boxplot.getQ3());
+        assertTrue(boxplot.getQ3() <= boxplot.getUpper());
+        assertTrue(boxplot.getUpper() <= boxplot.getMax());
+    }
+
     public void testEmptyRendersNulls() throws IOException {
         final InternalBoxplot boxplot = new InternalBoxplot("boxplot", null, new DocValueFormat.Decimal("###.##"), new TDigestState(100));
 
