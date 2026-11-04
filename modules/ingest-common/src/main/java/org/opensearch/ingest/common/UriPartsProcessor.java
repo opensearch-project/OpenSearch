@@ -38,6 +38,10 @@ public final class UriPartsProcessor extends AbstractProcessor {
 
     private static final int MAX_PORT = 65535;
 
+    // the path prefixes that IngestDocument treats specially
+    private static final String SOURCE_PREFIX = "_source.";
+    private static final String INGEST_PREFIX = "_ingest.";
+
     private final String field;
     private final String targetField;
     private final boolean keepOriginal;
@@ -54,7 +58,7 @@ public final class UriPartsProcessor extends AbstractProcessor {
         boolean ignoreMissing
     ) {
         super(tag, description);
-        if (removeIfSuccessful && (field.equals(targetField) || field.startsWith(targetField + "."))) {
+        if (removeIfSuccessful && removalWouldDeleteTarget(field, targetField)) {
             throw new IllegalArgumentException(
                 "[remove_if_successful] cannot be true when [field] ["
                     + field
@@ -68,6 +72,26 @@ public final class UriPartsProcessor extends AbstractProcessor {
         this.keepOriginal = keepOriginal;
         this.removeIfSuccessful = removeIfSuccessful;
         this.ignoreMissing = ignoreMissing;
+    }
+
+    /**
+     * Returns whether removing {@code field} would also remove {@code targetField}, which is the case when both address the same field or
+     * the target lies below the source. The paths are compared the way {@code IngestDocument} resolves them: a leading {@code _source.}
+     * is ignored, and a leading {@code _ingest.} selects the ingest metadata, a different root than the source, so that it can never
+     * overlap with a source path.
+     */
+    private static boolean removalWouldDeleteTarget(String field, String targetField) {
+        String source = withRoot(field);
+        String target = withRoot(targetField);
+        return source.equals(target) || source.startsWith(target + ".");
+    }
+
+    /** Returns the path with its root made explicit: {@code _ingest.} for the ingest metadata, {@code _source.} for everything else. */
+    private static String withRoot(String path) {
+        if (path.startsWith(INGEST_PREFIX)) {
+            return path;
+        }
+        return SOURCE_PREFIX + (path.startsWith(SOURCE_PREFIX) ? path.substring(SOURCE_PREFIX.length()) : path);
     }
 
     String getField() {

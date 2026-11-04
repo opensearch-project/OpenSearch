@@ -124,7 +124,7 @@ public class UriPartsProcessorFactoryTests extends OpenSearchTestCase {
     }
 
     public void testRemoveIfSuccessfulCannotRemoveTheTarget() {
-        for (String field : new String[] { "url", "url.original" }) {
+        for (String field : new String[] { "url", "url.original", "_source.url", "_source.url.original" }) {
             Map<String, Object> config = new HashMap<>();
             config.put("field", field);
             config.put("remove_if_successful", true);
