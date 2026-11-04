@@ -291,6 +291,8 @@ public class UriPartsProcessorTests extends OpenSearchTestCase {
         expectations.put("/a/b.", null);
         expectations.put("/file", null);
         expectations.put("/a/b%2Epng", null);
+        // the extension is cut from the raw path: it is neither decoded nor normalized
+        expectations.put("/a/b.%70ng", "%70ng");
         // path parameters are not part of the file name
         expectations.put("/a.html;jsessionid=ABC123", "html");
         expectations.put("/a.html;jsessionid=AB.C", "html");

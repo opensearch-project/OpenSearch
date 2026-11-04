@@ -196,9 +196,11 @@ public final class UriPartsProcessor extends AbstractProcessor {
     }
 
     /**
-     * Returns the extension of the last segment of the path, or {@code null} if there is none. Path parameters ({@code ;name=value}) are
-     * not part of the file name. A segment has no extension when it is empty (the path ends with a slash), when its only dot is the first
-     * character (a dotfile such as {@code .htaccess}) or when its last dot is the last character.
+     * Returns the extension of the last segment of the raw (still percent-encoded) path, or {@code null} if there is none. Nothing is
+     * decoded, so an encoded dot is not a dot ({@code b%2Epng} has no extension) and the extension is reported as written
+     * ({@code b.%70ng} has the extension {@code %70ng}). Path parameters ({@code ;name=value}) are not part of the file name. A segment
+     * has no extension when it is empty (the path ends with a slash), when its only dot is the first character (a dotfile such as
+     * {@code .htaccess}) or when its last dot is the last character.
      */
     private static String extension(String path) {
         if (path == null) {
