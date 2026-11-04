@@ -207,6 +207,8 @@ import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
 import org.opensearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.TransportPitSegmentsAction;
+import org.opensearch.action.admin.indices.settings.describe.IndicesDescribeSettingsAction;
+import org.opensearch.action.admin.indices.settings.describe.TransportIndicesDescribeSettingsAction;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.opensearch.action.admin.indices.settings.get.TransportGetSettingsAction;
 import org.opensearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
@@ -435,6 +437,7 @@ import org.opensearch.rest.action.admin.indices.RestGetSettingsAction;
 import org.opensearch.rest.action.admin.indices.RestIndexDeleteAliasesAction;
 import org.opensearch.rest.action.admin.indices.RestIndexPutAliasAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesAliasesAction;
+import org.opensearch.rest.action.admin.indices.RestIndicesDescribeSettingsAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesSegmentsAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesShardStoresAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesStatsAction;
@@ -769,6 +772,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ClearIndicesCacheAction.INSTANCE, TransportClearIndicesCacheAction.class);
         actions.register(GetAliasesAction.INSTANCE, TransportGetAliasesAction.class);
         actions.register(GetSettingsAction.INSTANCE, TransportGetSettingsAction.class);
+        actions.register(IndicesDescribeSettingsAction.INSTANCE, TransportIndicesDescribeSettingsAction.class);
 
         actions.register(IndexAction.INSTANCE, TransportIndexAction.class);
         actions.register(GetAction.INSTANCE, TransportGetAction.class);
@@ -963,6 +967,7 @@ public class ActionModule extends AbstractModule {
 
         registerHandler.accept(new RestUpdateSettingsAction());
         registerHandler.accept(new RestGetSettingsAction());
+        registerHandler.accept(new RestIndicesDescribeSettingsAction());
 
         registerHandler.accept(new RestAnalyzeAction());
         registerHandler.accept(new RestGetIndexTemplateAction());
