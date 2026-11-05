@@ -52,6 +52,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.service.ReportingService;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.codec.CodecDecorator;
 import org.opensearch.lucene.util.SPIClassIterator;
 import org.opensearch.semver.SemverRange;
 import org.opensearch.threadpool.ExecutorBuilder;
@@ -892,6 +893,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         DocValuesFormat.reloadDocValuesFormats(loader);
         KnnVectorsFormat.reloadKnnVectorsFormat(loader);
         Codec.reloadCodecs(loader);
+
+        // The codec decorators are resolved by name while reading the segments they wrote
+        CodecDecorator.reloadDecorators(loader);
     }
 
     private Class<? extends Plugin> loadPluginClass(String className, ClassLoader loader) {

@@ -45,6 +45,7 @@ import org.opensearch.index.mapper.MapperService;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
@@ -59,6 +60,11 @@ import java.util.function.Supplier;
 public class CodecService {
 
     private final Map<String, Codec> codecs;
+    private final DelegatingPerFieldCodecBuilder perFieldCodecBuilder;
+    private final List<CodecDecorator> codecDecorators;
+    private final boolean composesPluginCodecs;
+    /** The codecs with the formats contributed by the plugins injected, resolved on demand */
+    private final Map<String, Codec> pluginCodecs = new ConcurrentHashMap<>();
 
     public static final String DEFAULT_CODEC = "default";
     public static final String LZ4 = "lz4";
@@ -84,6 +90,55 @@ public class CodecService {
         Logger logger,
         Collection<AdditionalCodecs> registries
     ) {
+        this(mapperService, indexSettings, logger, registries, List.of(), List.of(), false);
+    }
+
+    /**
+     * Creates the codec service from the provided config, composing the codec contributions of the
+     * plugins it carries: this is the constructor the {@link CodecServiceFactory} implementations have to
+     * use for the other plugins' {@link PerFieldCodecBuilder}s and {@link CodecDecorator}s to be applied.
+     */
+    public CodecService(CodecServiceConfig config) {
+        this(
+            config.getMapperService(),
+            config.getIndexSettings(),
+            config.getLogger(),
+            config.getAdditionalCodecs(),
+            config.getPerFieldCodecBuilders(),
+            config.getCodecDecorators()
+        );
+    }
+
+    public CodecService(
+        @Nullable MapperService mapperService,
+        IndexSettings indexSettings,
+        Logger logger,
+        Collection<AdditionalCodecs> registries,
+        Collection<PerFieldCodecBuilder> perFieldCodecBuilders
+    ) {
+        this(mapperService, indexSettings, logger, registries, perFieldCodecBuilders, List.of());
+    }
+
+    public CodecService(
+        @Nullable MapperService mapperService,
+        IndexSettings indexSettings,
+        Logger logger,
+        Collection<AdditionalCodecs> registries,
+        Collection<PerFieldCodecBuilder> perFieldCodecBuilders,
+        Collection<CodecDecorator> codecDecorators
+    ) {
+        this(mapperService, indexSettings, logger, registries, perFieldCodecBuilders, codecDecorators, true);
+    }
+
+    private CodecService(
+        @Nullable MapperService mapperService,
+        IndexSettings indexSettings,
+        Logger logger,
+        Collection<AdditionalCodecs> registries,
+        Collection<PerFieldCodecBuilder> perFieldCodecBuilders,
+        Collection<CodecDecorator> codecDecorators,
+        boolean composesPluginCodecs
+    ) {
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         assert null != indexSettings;
         if (mapperService == null) {
@@ -108,7 +163,10 @@ public class CodecService {
         }
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
         for (String codec : Codec.availableCodecs()) {
-            codecs.put(codec, Codec.forName(codec));
+            // the decorated codecs are an implementation detail, they are not selectable by name
+            if (DecoratedCodec.isDecoratedCodec(codec) == false) {
+                codecs.put(codec, Codec.forName(codec));
+            }
         }
 
         // Register all additional codecs (if available)
@@ -133,13 +191,24 @@ public class CodecService {
         }
 
         this.codecs = codecs.immutableMap();
+        this.perFieldCodecBuilder = new DelegatingPerFieldCodecBuilder(perFieldCodecBuilders);
+        this.codecDecorators = List.copyOf(codecDecorators);
+        this.composesPluginCodecs = composesPluginCodecs;
+    }
+
+    /**
+     * Returns {@code true} if this codec service applies the codec contributions of the plugins, {@code false}
+     * if it was created through one of the constructors which predate them (and would silently drop them).
+     */
+    public final boolean composesPluginCodecs() {
+        return composesPluginCodecs;
     }
 
     /**
      * Returns default codec
      */
     public final Codec defaultCodec() {
-        return codecs.get(DEFAULT_CODEC);
+        return withPluginFormats(DEFAULT_CODEC, codecs.get(DEFAULT_CODEC));
     }
 
     public Codec codec(String name) {
@@ -147,7 +216,19 @@ public class CodecService {
         if (codec == null) {
             throw new IllegalArgumentException("failed to find codec [" + name + "]");
         }
-        return codec;
+        return withPluginFormats(name, codec);
+    }
+
+    /**
+     * Injects the formats contributed by the plugins (if any) into the codec: whichever codec the index is
+     * configured with, the fields and the segments the plugins own have to be encoded the very same way.
+     */
+    private Codec withPluginFormats(String name, Codec codec) {
+        if (perFieldCodecBuilder.isEmpty() && codecDecorators.isEmpty()) {
+            return codec;
+        }
+
+        return pluginCodecs.computeIfAbsent(name, ignore -> DecoratedCodec.wrap(perFieldCodecBuilder.build(codec), codecDecorators));
     }
 
     /**
