@@ -42,6 +42,7 @@ public class TermQueryTranslator implements QueryTranslator {
     @Override
     public RexNode convert(QueryBuilder query, ConversionContext ctx) throws ConversionException {
         TermQueryBuilder termQuery = (TermQueryBuilder) query;
+        rejectScoringParams(termQuery, "Term");
         String fieldName = termQuery.fieldName();
         Object value = termQuery.value();
 

@@ -15,6 +15,7 @@ import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
@@ -93,6 +94,140 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         // Operator-level: only child backend (no delegation configured)
         assertEquals(1, result.getViableBackends().size());
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
+    }
+
+    /** A bare boolean {@link RexInputRef} as the whole condition: gated on IS_TRUE, so only DataFusion stays viable. */
+    public void testBareBooleanInputRefAnnotatedDataFusionOnly() {
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("is_active", Map.of("type", "boolean", "index", true)),
+            new String[] { "is_active" },
+            new SqlTypeName[] { SqlTypeName.BOOLEAN },
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.BOOLEAN), 0)
+        );
+
+        assertTrue(
+            "bare boolean ref must be annotated as a leaf predicate, got " + result.getCondition().getClass().getSimpleName(),
+            result.getCondition() instanceof AnnotatedPredicate
+        );
+        AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
+        assertEquals(Set.of(MockDataFusionBackend.NAME), Set.copyOf(annotated.getViableBackends()));
+        assertTrue(
+            "IS_TRUE is a routing key only: the wrapped expression must stay the bare RexInputRef, not be rewritten to an IS_TRUE RexCall, got "
+                + annotated.getOriginal().getClass().getSimpleName(),
+            annotated.getOriginal() instanceof RexInputRef
+        );
+    }
+
+    /** {@code NOT(bare boolean ref)}: the connective is preserved and the inner leaf is gated to DataFusion. */
+    public void testNotBareBooleanInputRefAnnotatedDataFusionOnly() {
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("is_active", Map.of("type", "boolean", "index", true)),
+            new String[] { "is_active" },
+            new SqlTypeName[] { SqlTypeName.BOOLEAN },
+            rexBuilder.makeCall(SqlStdOperatorTable.NOT, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.BOOLEAN), 0))
+        );
+
+        AnnotatedPredicate inner = findBooleanRefAnnotation(result.getCondition());
+        assertNotNull("inner bare boolean ref under NOT must be annotated as a leaf predicate", inner);
+        assertEquals(Set.of(MockDataFusionBackend.NAME), Set.copyOf(inner.getViableBackends()));
+    }
+
+    /**
+     * {@code AND(keyword = 'US', bare boolean ref)}: the keyword leaf alone would keep Lucene viable; gating the
+     * boolean leaf on IS_TRUE drops it.
+     */
+    public void testAndKeywordEqualsAndBareBooleanRefGatesBooleanLeaf() {
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("country_name", Map.of("type", "keyword", "index", true), "is_active", Map.of("type", "boolean", "index", true)),
+            new String[] { "country_name", "is_active" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.BOOLEAN },
+            makeAnd(makeEquals(0, SqlTypeName.VARCHAR, "US"), rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.BOOLEAN), 1))
+        );
+
+        AnnotatedPredicate boolLeaf = findBooleanRefAnnotation(result.getCondition());
+        assertNotNull("bare boolean ref inside AND must be annotated as a leaf predicate", boolLeaf);
+        assertEquals(Set.of(MockDataFusionBackend.NAME), Set.copyOf(boolLeaf.getViableBackends()));
+
+        // Contrast: the sibling keyword EQUALS leaf on its own would keep Lucene viable.
+        AnnotatedPredicate keywordLeaf = findEqualsAnnotation(result.getCondition());
+        assertNotNull("keyword EQUALS leaf must be annotated", keywordLeaf);
+        assertTrue("keyword EQUALS leaf keeps Lucene viable on its own", keywordLeaf.getViableBackends().contains(MockLuceneBackend.NAME));
+    }
+
+    /** {@code OR(keyword = 'US', bare boolean ref)}: the OR connective is preserved and the boolean leaf is gated as under AND. */
+    public void testOrKeywordEqualsAndBareBooleanRefGatesBooleanLeaf() {
+        OpenSearchFilter result = runFilter(
+            "parquet",
+            Map.of("country_name", Map.of("type", "keyword", "index", true), "is_active", Map.of("type", "boolean", "index", true)),
+            new String[] { "country_name", "is_active" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.BOOLEAN },
+            makeCall(
+                SqlStdOperatorTable.OR,
+                makeEquals(0, SqlTypeName.VARCHAR, "US"),
+                rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.BOOLEAN), 1)
+            )
+        );
+
+        AnnotatedPredicate boolLeaf = findBooleanRefAnnotation(result.getCondition());
+        assertNotNull("bare boolean ref inside OR must be annotated as a leaf predicate", boolLeaf);
+        assertEquals(Set.of(MockDataFusionBackend.NAME), Set.copyOf(boolLeaf.getViableBackends()));
+
+        // Contrast: the sibling keyword EQUALS leaf on its own would keep Lucene viable.
+        AnnotatedPredicate keywordLeaf = findEqualsAnnotation(result.getCondition());
+        assertNotNull("keyword EQUALS leaf must be annotated", keywordLeaf);
+        assertTrue("keyword EQUALS leaf keeps Lucene viable on its own", keywordLeaf.getViableBackends().contains(MockLuceneBackend.NAME));
+    }
+
+    /**
+     * A bare boolean {@link RexInputRef} onto a derived column ({@code MIN(is_active)}) in HAVING. A derived column has no
+     * storage format, so the leaf must resolve viability via the derived path and must not throw.
+     */
+    public void testDerivedBooleanColumnBareRefPlansViaDerivedPath() {
+        PlannerContext context = buildContext(
+            "parquet",
+            1,
+            Map.of("status", Map.of("type", "integer"), "is_active", Map.of("type", "boolean"))
+        );
+
+        RelOptTable table = mockTable(
+            "test_index",
+            new String[] { "status", "is_active" },
+            new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.BOOLEAN }
+        );
+        LogicalAggregate aggregate = LogicalAggregate.create(
+            stubScan(table),
+            List.of(),
+            ImmutableBitSet.of(0),
+            null,
+            List.of(
+                AggregateCall.create(
+                    SqlStdOperatorTable.MIN,
+                    false,
+                    List.of(1),
+                    -1,
+                    stubScan(table),
+                    typeFactory.createSqlType(SqlTypeName.BOOLEAN),
+                    "any_active"
+                )
+            )
+        );
+
+        // HAVING on the derived boolean output (index 1) — a column with no storage format to delegate against.
+        RexNode havingCondition = rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.BOOLEAN), 1);
+        LogicalFilter having = LogicalFilter.create(aggregate, havingCondition);
+
+        RelNode result = runPlanner(having, context);
+        assertNotNull("Planner must produce a plan for HAVING on a derived boolean column", result);
+
+        OpenSearchFilter osFilter = findOpenSearchFilter(result);
+        assertNotNull("plan must contain an OpenSearchFilter over the derived boolean column", osFilter);
+        AnnotatedPredicate boolLeaf = findBooleanRefAnnotation(osFilter.getCondition());
+        assertNotNull("derived boolean HAVING ref must be annotated as a leaf predicate", boolLeaf);
+        // Derived path: childViableBackends intersected with the format-agnostic IS_TRUE capability, so the leaf is non-empty.
+        assertEquals(Set.of(MockDataFusionBackend.NAME), Set.copyOf(boolLeaf.getViableBackends()));
     }
 
     /**
@@ -1087,6 +1222,48 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     private void assertPredicateAnnotation(AnnotatedPredicate predicate, String... expectedBackends) {
         for (String backend : expectedBackends)
             assertTrue("Predicate annotation must contain " + backend, predicate.getViableBackends().contains(backend));
+    }
+
+    private AnnotatedPredicate findBooleanRefAnnotation(RexNode node) {
+        if (node instanceof AnnotatedPredicate annotated
+            && annotated.getOriginal() instanceof RexInputRef ref
+            && ref.getType().getSqlTypeName() == SqlTypeName.BOOLEAN) {
+            return annotated;
+        }
+        if (node instanceof RexCall call) {
+            for (RexNode operand : call.getOperands()) {
+                AnnotatedPredicate found = findBooleanRefAnnotation(operand);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private AnnotatedPredicate findEqualsAnnotation(RexNode node) {
+        if (node instanceof AnnotatedPredicate annotated
+            && annotated.getOriginal() instanceof RexCall original
+            && original.getKind() == SqlKind.EQUALS) {
+            return annotated;
+        }
+        if (node instanceof RexCall call) {
+            for (RexNode operand : call.getOperands()) {
+                AnnotatedPredicate found = findEqualsAnnotation(operand);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private OpenSearchFilter findOpenSearchFilter(RelNode node) {
+        RelNode unwrapped = RelNodeUtils.unwrapHep(node);
+        if (unwrapped instanceof OpenSearchFilter filter) {
+            return filter;
+        }
+        for (RelNode input : unwrapped.getInputs()) {
+            OpenSearchFilter found = findOpenSearchFilter(input);
+            if (found != null) return found;
+        }
+        return null;
     }
 
     private List<AnalyticsSearchBackendPlugin> delegationBackends() {
