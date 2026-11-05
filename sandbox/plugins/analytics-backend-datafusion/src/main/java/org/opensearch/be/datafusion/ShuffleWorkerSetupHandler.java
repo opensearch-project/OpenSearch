@@ -42,13 +42,14 @@ public class ShuffleWorkerSetupHandler implements FragmentInstructionHandler<Shu
         BackendExecutionContext backendContext
     ) {
         ShardScanExecutionContext context = (ShardScanExecutionContext) commonContext;
-        // Set both sides' expected sender counts eagerly. The buffer must know both counts
-        // BEFORE any subsequent ShuffleScanHandler calls awaitReady — otherwise the second
-        // side's latch never fires (CountDownLatch with -1 expected stays blocked).
+        // Declare EVERY slot's expected sender count eagerly, in one call. The buffer must know all
+        // of them BEFORE any subsequent ShuffleScanHandler calls awaitReady — a slot declared later
+        // would not be waited on by an already-blocked consumer, and a slot left undeclared keeps its
+        // -1 target so its latch never fires.
         ShuffleBufferRegistry registry = context.getShuffleBufferRegistry();
         if (registry != null) {
             ShuffleBufferAccess buffer = registry.getOrCreate(node.getQueryId(), node.getTargetStageId(), node.getPartitionIndex());
-            buffer.setExpectedSenders(node.getLeftExpectedSenders(), node.getRightExpectedSenders());
+            buffer.setExpectedSenders(node.getExpectedSendersBySlot());
         }
         DataFusionService dataFusionService = plugin.getDataFusionService();
         long runtimePtr = dataFusionService.getNativeRuntime().get();

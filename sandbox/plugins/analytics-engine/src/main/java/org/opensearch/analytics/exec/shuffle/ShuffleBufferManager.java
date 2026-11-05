@@ -15,6 +15,7 @@ import org.opensearch.analytics.spi.CloseableIterator;
 import org.opensearch.analytics.spi.ShuffleBufferAccess;
 import org.opensearch.analytics.spi.ShuffleBufferExceededException;
 import org.opensearch.analytics.spi.ShuffleBufferRegistry;
+import org.opensearch.analytics.spi.ShuffleSlots;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -31,6 +32,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -76,7 +78,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
      *   <li>{@link #perQueryMaxBytes} — hard ceiling on a SINGLE query's footprint
      *       ({@link #perQueryBytes}). A query whose own shuffle exceeds this can never fit even on an
      *       idle node, so it fails FAST and NON-retryably ({@link ShuffleBufferExceededException}).
-     *       This is the q17 case (one side wants ~7.4GB).</li>
+     *       This is the case where one side alone wants multiple GB.</li>
      * </ul>
      * Default disabled ({@code Long.MAX_VALUE}) until wired from settings at plugin startup.
      *
@@ -124,7 +126,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
      * here. The per-query dir sweep ({@link #deleteQuerySpillDir}) consults this map: when it succeeds
      * in deleting an orphaned path, it releases exactly those bytes (once) — otherwise a transient
      * delete failure would permanently inflate {@code spilledTotalBytes} → a false {@code spill.max_bytes}
-     * ceiling until JVM restart. (codex review round-4 SHOULD-FIX #2.)
+     * ceiling until JVM restart.
      */
     private final Map<Path, Long> orphanedSpillBytes = new ConcurrentHashMap<>();
 
@@ -164,8 +166,8 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
      * RTTs ≈ 15s worst case). {@link #TOMBSTONE_TTL_NANOS} (120s) is an ~8× margin over that, so the
      * tombstone is guaranteed present whenever a late RPC can still arrive. A COUNT-based FIFO cap
      * (the prior design) is unsafe: under a high query rate, N other clears can evict a still-in
-     * -window tombstone within the 15s producer window, re-opening the recreate-and-leak race (codex
-     * review: tombstoned-admit-budget-leak via eviction). TTL eviction is also self-bounding in memory
+     * -window tombstone within the 15s producer window, re-opening the recreate-and-leak race. TTL
+     * eviction is also self-bounding in memory
      * (live tombstones ≈ clear-rate × TTL) and needs no separate ordering structure or lock — the
      * concurrent map's per-key atomicity suffices; expired entries are purged opportunistically in
      * {@code clearForQuery}.
@@ -274,23 +276,16 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
         if (size == 0) {
             return AdmitResult.ACCEPTED; // nothing to store/reserve (isLast markers carry no data)
         }
-        // Resolve the buffer, reserve the bytes, AND store the chunk together under admitLock, keyed
-        // on a SINGLE tombstone read. Doing the buffer lookup lock-free (the old getOrCreateBuffer
-        // call) BEFORE the locked re-check left a leak: getOrCreateBuffer could hand back an unstored
-        // throwaway for a tombstoned query, the tombstone could then be evicted, and the locked
-        // re-check would see a clean set and reserve bytes into that throwaway — which no removeBuffer
-        // /clearForQuery would ever release (codex review: tombstoned-admit-budget-leak via eviction).
+        // Resolve the buffer, reserve the bytes and store the chunk together under admitLock, off a SINGLE
+        // tombstone read. Looking the buffer up lock-free first leaked budget: the lookup could hand back an
+        // unstored throwaway for a tombstoned query, the tombstone could then be evicted, and the locked
+        // re-check would reserve into that throwaway, which nothing ever releases.
         //
-        // No-leak proof vs a concurrent clearForQuery (which does aborted.put on a ConcurrentHashMap,
-        // NOT under admitLock, then sweeps + releases UNDER admitLock):
-        // - If the put has linearized before our isTombstoned read: we see tombstoned, bail, reserve
-        // nothing. Safe.
-        // - If the put has NOT yet linearized: we miss it, reserve + store under admitLock, then
-        // release the lock. clearForQuery's sweep can only ENTER admitLock after we exit, so it is
-        // ordered strictly after our store and its perQueryBytes.remove + buffers sweep releases
-        // exactly what we reserved. Safe. (The locked sweep — not the tombstone — is what reclaims
-        // a reservation made in the put-not-yet-visible window; the tombstone only short-circuits
-        // the EARLIER admits so the common case never stores into a doomed buffer.)
+        // Safe against a concurrent clearForQuery (which tombstones outside admitLock, then sweeps under it):
+        // if the tombstone is visible we bail and reserve nothing; if it is not, we reserve and store under the
+        // lock, and clearForQuery's sweep can only enter the lock afterwards, so it releases exactly what we
+        // reserved. The locked sweep is what reclaims the reservation; the tombstone only short-circuits
+        // earlier admits so the common case never stores into a doomed buffer.
         synchronized (admitLock) {
             if (isTombstoned(queryId)) {
                 // Cleared query: drop the payload, reserve nothing, store nothing. Ack rather than
@@ -305,7 +300,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             // snapshotted the in-memory tail, so this chunk would be silently dropped (lost rows).
             // The producer's two-phase close (DatafusionPartitionedSink: drain all data sends before
             // any isLast) makes this unreachable in the normal path, but a buggy/reordered late RPC
-            // must FAIL LOUD here rather than under-deliver. (codex round-5 BLOCKER #2.) Checked under
+            // must FAIL LOUD here rather than under-deliver. Checked under
             // admitLock, the same lock beginDrain flips `draining` under, so this read can't race a
             // half-started drain.
             if (buffer.isDraining()) {
@@ -348,7 +343,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
                     // with node==perQuery the un-freed resident leaves no node headroom, so the admit
                     // returns REJECT_RETRY and the producer retries — succeeding once the draining
                     // sibling's removeBuffer frees its budget. Self-correcting, never over-commits heap
-                    // against a draining buffer. (codex review round-4 BLOCKER #1.)
+                    // against a draining buffer.
                 } else {
                     buffer.recordRejected();
                     // Hard: this query alone can't fit — waiting never helps. Fail fast, non-retryable.
@@ -399,15 +394,14 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
         // in-memory tail or opened the spill file for read, so mutating its lists/spill file here would
         // drop/duplicate rows or NPE in SpilledSide.append. `draining` is flipped under admitLock
         // (beginDrain), which we hold here, so these reads can't race a half-started drain. A draining
-        // buffer also no longer accepts evictions, so it simply contributes nothing to `freed`. (codex
-        // review round-4 BLOCKER #1: cross-partition spill could race a draining sibling.)
+        // buffer also no longer accepts evictions, so it simply contributes nothing to `freed`.
         long freed = 0L;
         // 1. Spill the RECEIVING buffer first — its incoming-side chunks, then its other side. Each
         // spillOldest releases the spilled bytes from THAT buffer's own currentBytes so removeBuffer
         // later releases only what's still resident (no double-release). (A receiving buffer that is
         // already draining — a retried/reordered admit landing post-drain — is skipped here too.)
         if (!buffer.isDraining()) {
-            freed += spillBufferBothSides(buffer, side, targetBytes);
+            freed += spillBufferAllSlots(buffer, side, targetBytes);
         }
         if (freed >= targetBytes) {
             return freed;
@@ -426,22 +420,27 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             if (sibling == buffer || sibling.isDraining() || !e.getKey().startsWith(stagePrefix)) {
                 continue;
             }
-            freed += spillBufferBothSides(sibling, side, targetBytes - freed);
+            freed += spillBufferAllSlots(sibling, side, targetBytes - freed);
         }
         return freed;
     }
 
     /**
-     * Spills {@code buffer}'s oldest resident chunks (the incoming {@code side} first, then the other
-     * side) until at least {@code targetBytes} are freed or the buffer runs dry, releasing the spilled
-     * bytes from this buffer's own {@code currentBytes}. Returns the bytes freed from THIS buffer. Both
-     * sides' chunks are read back in arrival order at drain (left/right drain into separate streams, so
-     * cross-side interleaving is irrelevant). MUST run under {@link #admitLock}.
+     * Spills {@code buffer}'s oldest resident chunks (the incoming {@code slot} first, then its other
+     * slots) until at least {@code targetBytes} are freed or the buffer runs dry, releasing the spilled
+     * bytes from this buffer's own {@code currentBytes}. Returns the bytes freed from THIS buffer. Every
+     * slot's chunks are read back in arrival order at drain (each slot drains into its own stream, so
+     * cross-slot interleaving is irrelevant). MUST run under {@link #admitLock}.
      */
-    private long spillBufferBothSides(ShuffleBuffer buffer, String side, long targetBytes) {
-        long freed = buffer.spillOldest(side, targetBytes);
-        if (freed < targetBytes) {
-            String other = "left".equals(side) ? "right" : "left";
+    private long spillBufferAllSlots(ShuffleBuffer buffer, String slot, long targetBytes) {
+        long freed = buffer.spillOldest(slot, targetBytes);
+        for (String other : buffer.getSlots()) {
+            if (freed >= targetBytes) {
+                break;
+            }
+            if (other.equals(slot)) {
+                continue; // already spilled above
+            }
             freed += buffer.spillOldest(other, targetBytes - freed);
         }
         buffer.releaseCurrentBytes(freed);
@@ -480,7 +479,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
      * {@code Files.exists} check runs INSIDE the atomic {@code compute}, so if the sweep already removed
      * the file (its {@code remove(path)} returned null because we hadn't recorded yet), we release the
      * bytes here and store nothing instead of leaving a phantom orphan entry that never gets swept →
-     * permanent {@code spilledTotalBytes} inflation. (codex round-5 SHOULD-FIX #3.)
+     * permanent {@code spilledTotalBytes} inflation.
      */
     private void recordOrphanedSpill(Path path, long bytes) {
         if (bytes <= 0) {
@@ -516,7 +515,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
         // computeIfAbsent, so a producer that read not-tombstoned can still insert a key AFTER
         // clearForQuery's removal sweep already passed it. clearForQuery sets the tombstone BEFORE
         // sweeping, so any such late insert is guaranteed to observe the tombstone here — remove our
-        // own entry and return a throwaway, closing the recreate race. (codex review: tombstone race.)
+        // own entry and return a throwaway, closing the recreate race.
         if (isTombstoned(queryId)) {
             discardRacedBuffer(queryId, k, buffer);
             return new ShuffleBuffer();
@@ -531,7 +530,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
      * have returned a PRE-EXISTING buffer that already admitted data and SPILLED; a lock-free
      * {@code buffers.remove} would skip releasing its spill bytes (released only by
      * {@code deleteSpillFiles}), so {@link #spilledTotalBytes} would stay permanently inflated → a false
-     * spill ceiling for later queries. (codex review round-3 BLOCKER #2.) Package-private for a
+     * spill ceiling for later queries. Package-private for a
      * deterministic unit test of the cleanup (the live branch only fires in a narrow concurrent window).
      */
     void discardRacedBuffer(String queryId, String k, ShuffleBuffer buffer) {
@@ -563,7 +562,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
         // non-null buffers.remove) releases its bytes — a second remove of the same key, or a
         // concurrent clearForQuery that already swept it, sees null and releases nothing. This is
         // what makes per-buffer release (normal drain) and whole-query release (clearForQuery)
-        // compose without double-subtracting (codex review: shuffle-budget-double-release).
+        // compose without double-subtracting
         ShuffleBuffer removed;
         synchronized (admitLock) {
             removed = buffers.remove(key(queryId, targetStageId, partitionIndex));
@@ -648,7 +647,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
         // reservation; removeBuffer likewise can't be mid-release on one of these buffers. perQueryBytes
         // is the single source of truth — we drop its entry and subtract WHATEVER REMAINS (already net
         // of any prior per-buffer removeBuffer decrements), so the same bytes are never subtracted
-        // twice (codex review: shuffle-budget-double-release).
+        // twice
         synchronized (admitLock) {
             // Iterate the entry set and remove matching entries. ConcurrentHashMap's iterator is weakly
             // consistent — safe to remove through it; concurrent producer/consumer activity for a still
@@ -725,7 +724,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
                     // still charged), the dir sweep just reclaimed the disk — release those bytes exactly
                     // once. Use compute (not remove) so this is atomic vs a concurrent recordOrphanedSpill
                     // on the same path: whichever runs first removes the entry + releases; the other sees
-                    // null and does nothing. (round-4 #2 / codex round-5 SHOULD-FIX #3.)
+                    // null and does nothing.
                     orphanedSpillBytes.compute(p, (path, orphanBytes) -> {
                         if (orphanBytes != null) {
                             releaseSpillBytes(orphanBytes);
@@ -748,29 +747,45 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
      * {@link #awaitReady} returns. Byte-budget enforcement lives in the enclosing manager, not here.
      */
     public static class ShuffleBuffer implements ShuffleBufferAccess {
-        private final List<byte[]> leftData = Collections.synchronizedList(new ArrayList<>());
-        private final List<byte[]> rightData = Collections.synchronizedList(new ArrayList<>());
-        private final AtomicInteger leftDoneCount = new AtomicInteger();
-        private final AtomicInteger rightDoneCount = new AtomicInteger();
-        private volatile int expectedLeftSenders = -1;
-        private volatile int expectedRightSenders = -1;
-        private final CountDownLatch leftReady = new CountDownLatch(1);
-        private final CountDownLatch rightReady = new CountDownLatch(1);
+
+        /**
+         * Per-slot accumulation + completion state. One entry per input stream the consumer will
+         * read (see {@link ShuffleSlots}): a binary hash join has {@code left} + {@code right}, a
+         * FINAL-aggregate worker has only {@code left}, and an N-way worker tier has one per input.
+         *
+         * <p>Created on demand by whichever thread first touches the slot ({@code addData} from a
+         * producer RPC, {@code senderDone} from an isLast, or {@code setExpectedSenders} from the
+         * consumer's setup handler), so no slot list needs to be known up front.
+         */
+        private static final class Slot {
+            private final List<byte[]> data = Collections.synchronizedList(new ArrayList<>());
+            private final AtomicInteger doneCount = new AtomicInteger();
+            private final CountDownLatch ready = new CountDownLatch(1);
+            private volatile int expectedSenders = -1;
+            /** On-disk file for this slot, lazily created on first spill (null when never spilled). */
+            private SpilledSide spill;
+        }
+
+        /**
+         * Slots by label. {@link ConcurrentHashMap} because producer RPCs (arbitrary transport
+         * threads) and the consumer's handler chain create/read entries concurrently;
+         * {@code computeIfAbsent} makes slot creation atomic so two producers racing on the same new
+         * slot cannot install two accumulation lists (which would silently drop one's rows).
+         */
+        private final Map<String, Slot> slots = new ConcurrentHashMap<>();
         private final AtomicLong currentBytes = new AtomicLong();
         private final AtomicLong rejectedCount = new AtomicLong();
 
         /**
          * Spill state. Null/disabled by default — a buffer only spills when the manager wires its
-         * spill identity via {@link #enableSpill}. {@link #leftSpill} / {@link #rightSpill} are the
-         * per-side on-disk files (lazily created on first spill). All spill state mutation happens
-         * under the manager's {@code admitLock} (spill) or after the buffer is out of the map
-         * (drain/cleanup), so the per-side fields need no further synchronization.
+         * spill identity via {@link #enableSpill}. Each {@link Slot#spill} is that slot's on-disk
+         * file (lazily created on first spill). All spill state mutation happens under the manager's
+         * {@code admitLock} (spill) or after the buffer is out of the map (drain/cleanup), so the
+         * per-slot fields need no further synchronization.
          */
         private ShuffleBufferManager owner;
         private Path querySpillDir;
         private String spillKey; // <stageId>-<partition>
-        private SpilledSide leftSpill;
-        private SpilledSide rightSpill;
 
         /**
          * Set once a consumer begins draining this buffer (snapshotting the in-memory tail / opening
@@ -779,7 +794,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
          * never spills a buffer that is concurrently draining. Without this, a late cross-partition
          * admit could spill a sibling whose drain iterator has already snapshotted its tail or closed
          * its append stream, dropping/duplicating rows or NPEing in {@code SpilledSide.append}.
-         * (codex review round-4 BLOCKER #1.) volatile so the spill path sees a set made under the lock.
+         * volatile so the spill path sees a set made under the lock.
          */
         private volatile boolean draining;
 
@@ -796,33 +811,36 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             this.spillKey = stageId + "-" + partition;
         }
 
-        public void setExpectedSenders(int leftSenders, int rightSenders) {
-            // -1 means "leave unchanged"; allows per-side handlers to set their own count
-            // without clobbering the other side's.
-            if (leftSenders >= 0) {
-                this.expectedLeftSenders = leftSenders;
-                checkCompletion("left");
-            }
-            if (rightSenders >= 0) {
-                this.expectedRightSenders = rightSenders;
-                checkCompletion("right");
+        @Override
+        public void setExpectedSenders(Map<String, Integer> expectedSendersBySlot) {
+            for (Map.Entry<String, Integer> e : expectedSendersBySlot.entrySet()) {
+                Integer count = e.getValue();
+                if (count == null || count < 0) {
+                    continue; // negative/absent means "leave unchanged" (see the SPI contract)
+                }
+                String slotId = ShuffleSlots.validate(e.getKey());
+                slotFor(slotId).expectedSenders = count;
+                // A producer's isLast may already have arrived (it does not need the consumer's
+                // count), so re-check completion now that the target is known.
+                checkCompletion(slotId);
             }
         }
 
+        /** The slot for {@code slotId}, created on first touch. */
+        private Slot slotFor(String slotId) {
+            return slots.computeIfAbsent(slotId, k -> new Slot());
+        }
+
         /**
-         * Stores {@code data} on the named side and tracks this buffer's byte total. Admission /
+         * Stores {@code data} on the named slot and tracks this buffer's byte total. Admission /
          * budget enforcement is owned by the enclosing {@link ShuffleBufferManager#tryAdmit} (node +
          * per-query budgets); this method only stores after admission has reserved the bytes. The
          * tracked {@link #currentBytes} is read at removal time to release the reservation.
          */
-        public void addData(String side, byte[] data) {
+        public void addData(String slot, byte[] data) {
             int size = data == null ? 0 : data.length;
             currentBytes.addAndGet(size);
-            if ("left".equals(side)) {
-                leftData.add(data);
-            } else {
-                rightData.add(data);
-            }
+            slotFor(ShuffleSlots.validate(slot)).data.add(data);
         }
 
         /** Records a rejected/failed admission attempt against this buffer (observability). */
@@ -863,16 +881,20 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
          * it is still spilled whole (resident then drops below the budget). Throws a re-messaged
          * {@link ShuffleBufferExceededException} if the node-wide disk ceiling is hit or a write fails.
          */
-        long spillOldest(String side, long targetBytes) {
+        long spillOldest(String slotId, long targetBytes) {
             if (querySpillDir == null || targetBytes <= 0) {
                 return 0L;
             }
-            List<byte[]> list = "left".equals(side) ? leftData : rightData;
+            Slot slot = slots.get(slotId);
+            if (slot == null) {
+                return 0L; // nothing ever arrived on this slot
+            }
+            List<byte[]> list = slot.data;
             long evicted = 0L;
             while (evicted < targetBytes) {
                 byte[] chunk;
                 // synchronizedList: lock the list for the size-check + remove(0) so a concurrent
-                // addData (other side / other producer) can't shift indices under us.
+                // addData (other slot / other producer) can't shift indices under us.
                 synchronized (list) {
                     if (list.isEmpty()) {
                         break;
@@ -880,7 +902,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
                     chunk = list.get(0);
                     int len = chunk == null ? 0 : chunk.length;
                     // Disk footprint includes the 4-byte frame header append() writes, so the on-disk
-                    // total can't silently grow past the ceiling by 4×chunkCount. (codex round-2.)
+                    // total can't silently grow past the ceiling by 4×chunkCount.
                     long diskBytes = len + SPILL_FRAME_HEADER_BYTES;
                     // Reserve disk budget BEFORE removing from memory — if the ceiling is hit we
                     // leave the chunk resident and fail (it's still safely in memory/accounted).
@@ -892,7 +914,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
                 int len = chunk == null ? 0 : chunk.length;
                 long diskBytes = len + SPILL_FRAME_HEADER_BYTES;
                 try {
-                    SpilledSide spill = spillFor(side);
+                    SpilledSide spill = spillFor(slotId, slot);
                     spill.append(chunk);
                 } catch (IOException e) {
                     // The disk bytes for THIS chunk were reserved (reserveSpillBytes above) but the
@@ -900,7 +922,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
                     // terminal cleanup (which releases bytesOnDisk) would NOT reclaim them → a
                     // permanent spilledTotalBytes leak that shrinks the node's effective spill
                     // ceiling for later queries. Release the reserved-but-unwritten bytes here.
-                    // (codex review BLOCKER: reserved-but-not-written disk-byte leak.)
+                    //
                     owner.releaseSpillBytes(diskBytes);
                     throw ShuffleBufferExceededException.forDiskCeiling(owner.getSpilledTotalBytes(), owner.spillMaxBytes);
                 }
@@ -911,33 +933,29 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             return evicted;
         }
 
-        /** Lazily opens (and remembers) the per-side spill file's append stream. */
-        private SpilledSide spillFor(String side) throws IOException {
-            if ("left".equals(side)) {
-                if (leftSpill == null) {
-                    leftSpill = new SpilledSide(spillFilePath("left"));
-                }
-                return leftSpill;
-            } else {
-                if (rightSpill == null) {
-                    rightSpill = new SpilledSide(spillFilePath("right"));
-                }
-                return rightSpill;
+        /** Lazily opens (and remembers) the slot's spill file append stream. */
+        private SpilledSide spillFor(String slotId, Slot slot) throws IOException {
+            if (slot.spill == null) {
+                slot.spill = new SpilledSide(spillFilePath(slotId));
             }
+            return slot.spill;
         }
 
-        private Path spillFilePath(String side) {
-            return querySpillDir.resolve(spillKey + "-" + side + ".spill");
+        /** Spill-file path for one slot. The slot label is validated on the way in
+         *  ({@link ShuffleSlots#validate}), so it cannot escape {@link #querySpillDir}. */
+        private Path spillFilePath(String slotId) {
+            return querySpillDir.resolve(spillKey + "-" + slotId + ".spill");
         }
 
         /**
-         * Deletes both sides' spill files (closing their streams first) and returns their on-disk
+         * Deletes every slot's spill file (closing their streams first) and returns their on-disk
          * bytes to the manager's node-wide spill budget. Best-effort, idempotent; called on every
          * terminal (removeBuffer / clearForQuery). A leaked .spill file is a disk leak.
          */
         void deleteSpillFiles() {
-            leftSpill = closeAndDelete(leftSpill);
-            rightSpill = closeAndDelete(rightSpill);
+            for (Slot slot : slots.values()) {
+                slot.spill = closeAndDelete(slot.spill);
+            }
         }
 
         private SpilledSide closeAndDelete(SpilledSide spill) {
@@ -948,7 +966,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             // Release the disk-budget reservation ONLY if the file was actually removed (or was never
             // written). If deletion fails (disk/IO error) the bytes still occupy disk, so dropping the
             // counter would let later queries admit past spill.max_bytes — keep them charged instead.
-            // (codex review round-3 SHOULD-FIX.)
+            //
             boolean deleted = spill.closeAndDelete();
             if (owner != null) {
                 if (deleted) {
@@ -960,41 +978,54 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             return null;
         }
 
-        public void senderDone(String side) {
-            if ("left".equals(side)) {
-                leftDoneCount.incrementAndGet();
-                checkCompletion("left");
-            } else {
-                rightDoneCount.incrementAndGet();
-                checkCompletion("right");
+        public void senderDone(String slot) {
+            String slotId = ShuffleSlots.validate(slot);
+            slotFor(slotId).doneCount.incrementAndGet();
+            checkCompletion(slotId);
+        }
+
+        private void checkCompletion(String slotId) {
+            Slot slot = slots.get(slotId);
+            if (slot == null) {
+                return;
+            }
+            int expected = slot.expectedSenders;
+            if (expected >= 0 && slot.doneCount.get() >= expected) {
+                slot.ready.countDown();
             }
         }
 
-        private void checkCompletion(String side) {
-            if ("left".equals(side)) {
-                if (expectedLeftSenders >= 0 && leftDoneCount.get() >= expectedLeftSenders) {
-                    leftReady.countDown();
-                }
-            } else {
-                if (expectedRightSenders >= 0 && rightDoneCount.get() >= expectedRightSenders) {
-                    rightReady.countDown();
-                }
-            }
-        }
-
-        /** Wait for both sides' senders to complete. Returns {@code false} on timeout. */
+        /**
+         * Wait for every DECLARED slot's senders to complete. Returns {@code false} on timeout.
+         *
+         * <p>Waits only on slots whose expected count has been set: an undeclared slot (one that
+         * exists solely because a producer's payload arrived early) has no target to compare against,
+         * so waiting on it could never succeed. The consumer's setup handler declares all of its
+         * slots in one call BEFORE any drain, which is what makes this set complete — see
+         * {@link ShuffleBufferAccess#setExpectedSenders(Map)}.
+         */
         public boolean awaitReady(long timeoutMillis) throws InterruptedException {
             long deadline = System.currentTimeMillis() + timeoutMillis;
-            long remaining = timeoutMillis;
-            if (!leftReady.await(remaining, TimeUnit.MILLISECONDS)) {
-                LOGGER.warn("Shuffle left side timed out: received {}/{} senders", leftDoneCount.get(), expectedLeftSenders);
-                return false;
-            }
-            remaining = deadline - System.currentTimeMillis();
-            if (remaining <= 0) return false;
-            if (!rightReady.await(remaining, TimeUnit.MILLISECONDS)) {
-                LOGGER.warn("Shuffle right side timed out: received {}/{} senders", rightDoneCount.get(), expectedRightSenders);
-                return false;
+            // Snapshot the slot set so a concurrently-created slot (an early producer payload for a
+            // slot this consumer never declared) can't extend the wait mid-loop.
+            for (Map.Entry<String, Slot> e : new ArrayList<>(slots.entrySet())) {
+                Slot slot = e.getValue();
+                if (slot.expectedSenders < 0) {
+                    continue; // never declared by the consumer — nothing to wait for
+                }
+                long remaining = deadline - System.currentTimeMillis();
+                if (remaining <= 0) {
+                    return false;
+                }
+                if (!slot.ready.await(remaining, TimeUnit.MILLISECONDS)) {
+                    LOGGER.warn(
+                        "Shuffle slot {} timed out: received {}/{} senders",
+                        e.getKey(),
+                        slot.doneCount.get(),
+                        slot.expectedSenders
+                    );
+                    return false;
+                }
             }
             return true;
         }
@@ -1005,7 +1036,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
          * {@code spillToMakeRoom}: once this returns, no concurrent or subsequent spill will evict from
          * this buffer (the sibling-spill loop skips {@code draining} buffers). Called at the head of
          * every drain entry point, BEFORE any list snapshot or spill-file open. A throwaway buffer
-         * (no owner) just sets the flag. (codex review round-4 BLOCKER #1.)
+         * (no owner) just sets the flag.
          */
         private void beginDrain() {
             if (owner != null) {
@@ -1022,39 +1053,37 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             return draining;
         }
 
-        public List<byte[]> getLeftData() {
+        @Override
+        public List<byte[]> getData(String slot) {
             beginDrain();
-            return drainSide(leftSpill, leftData);
-        }
-
-        public List<byte[]> getRightData() {
-            beginDrain();
-            return drainSide(rightSpill, rightData);
+            Slot s = slots.get(ShuffleSlots.validate(slot));
+            if (s == null) {
+                return List.of(); // nothing ever arrived on this slot — an empty partition
+            }
+            return drainSlot(s.spill, s.data);
         }
 
         @Override
-        public CloseableIterator<byte[]> drainLeft() {
+        public CloseableIterator<byte[]> drain(String slot) {
             beginDrain();
-            return drainSideLazy(leftSpill, leftData);
-        }
-
-        @Override
-        public CloseableIterator<byte[]> drainRight() {
-            beginDrain();
-            return drainSideLazy(rightSpill, rightData);
+            Slot s = slots.get(ShuffleSlots.validate(slot));
+            if (s == null) {
+                return drainSlotLazy(null, List.of());
+            }
+            return drainSlotLazy(s.spill, s.data);
         }
 
         /**
-         * LAZY drain: yields the side's chunks in arrival order WITHOUT holding the whole partition
+         * LAZY drain: yields the slot's chunks in arrival order WITHOUT holding the whole partition
          * in heap. Spilled chunks are streamed one-at-a-time from the file (the file handle lives in
          * the returned iterator and is released on {@link CloseableIterator#close()}), then the
          * in-memory tail is yielded. This is what lets an over-budget (spilled) partition drain
          * through the consumer's bounded native channel rather than re-materializing and OOMing.
          *
-         * <p>Runs once per side after {@link #awaitReady}; the buffer is fully populated and no longer
+         * <p>Runs once per slot after {@link #awaitReady}; the buffer is fully populated and no longer
          * mutated, so a snapshot of the in-memory tail taken under its monitor is stable.
          */
-        private static CloseableIterator<byte[]> drainSideLazy(SpilledSide spill, List<byte[]> inMemory) {
+        private static CloseableIterator<byte[]> drainSlotLazy(SpilledSide spill, List<byte[]> inMemory) {
             // Snapshot the in-memory tail once (drain is single-threaded post awaitReady, but addData
             // used a synchronizedList, so honor its monitor for safe publication).
             final List<byte[]> tail;
@@ -1062,7 +1091,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
                 tail = new ArrayList<>(inMemory);
             }
             if (spill == null) {
-                // No spill for this side: just iterate the heap-resident tail, nothing to close.
+                // No spill for this slot: just iterate the heap-resident tail, nothing to close.
                 Iterator<byte[]> it = tail.iterator();
                 return new CloseableIterator<>() {
                     @Override
@@ -1085,7 +1114,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
         }
 
         /**
-         * Returns the side's chunks in ARRIVAL order. With no spill, the in-memory list is returned
+         * Returns the slot's chunks in ARRIVAL order. With no spill, the in-memory list is returned
          * as-is (byte-identical to the pre-spill path). With spill, the spilled chunks are read back
          * and deframed from the file (in write = arrival order) FIRST, then the in-memory tail is
          * appended — reconstructing the full arrival sequence. Drain happens once per partition after
@@ -1093,7 +1122,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
          * acceptable. A spill read error surfaces as an {@link UncheckedIOException} that fails the
          * fragment (correctness over silent under-delivery).
          */
-        private static List<byte[]> drainSide(SpilledSide spill, List<byte[]> inMemory) {
+        private static List<byte[]> drainSlot(SpilledSide spill, List<byte[]> inMemory) {
             if (spill == null) {
                 return inMemory;
             }
@@ -1112,20 +1141,37 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
             }
         }
 
+        /** Expected sender count declared for {@code slot}, or -1 if the slot was never declared. */
+        public int getExpectedSenders(String slot) {
+            Slot s = slots.get(slot);
+            return s == null ? -1 : s.expectedSenders;
+        }
+
+        /** Number of senders that have reported {@code isLast} on {@code slot} (0 if unknown slot). */
+        public int getDoneCount(String slot) {
+            Slot s = slots.get(slot);
+            return s == null ? 0 : s.doneCount.get();
+        }
+
+        /** Slot labels this buffer has seen (declared by the consumer or created by a producer). */
+        public Set<String> getSlots() {
+            return Set.copyOf(slots.keySet());
+        }
+
         public int getExpectedLeftSenders() {
-            return expectedLeftSenders;
+            return getExpectedSenders(ShuffleSlots.LEFT);
         }
 
         public int getExpectedRightSenders() {
-            return expectedRightSenders;
+            return getExpectedSenders(ShuffleSlots.RIGHT);
         }
 
         public int getLeftDoneCount() {
-            return leftDoneCount.get();
+            return getDoneCount(ShuffleSlots.LEFT);
         }
 
         public int getRightDoneCount() {
-            return rightDoneCount.get();
+            return getDoneCount(ShuffleSlots.RIGHT);
         }
 
         /**
@@ -1258,7 +1304,7 @@ public class ShuffleBufferManager implements ShuffleBufferRegistry {
                 }
                 out.flush();
                 // Include the frame header so bytesOnDisk (released on cleanup) matches the framed size
-                // reserved in spillOldest — else cleanup under-releases by 4×chunkCount. (codex round-2.)
+                // reserved in spillOldest — else cleanup under-releases by 4×chunkCount.
                 bytesOnDisk += len + SPILL_FRAME_HEADER_BYTES;
             }
 

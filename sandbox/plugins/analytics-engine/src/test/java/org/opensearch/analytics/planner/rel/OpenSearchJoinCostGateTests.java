@@ -28,11 +28,14 @@ import org.opensearch.analytics.spi.FieldStorageInfo;
 import java.util.List;
 
 /**
- * Cost-gate matrix for {@link OpenSearchJoin#computeSelfCost}. Each test constructs a join
- * with explicit (selfTrait, leftInputTrait, rightInputTrait) traits and asserts the cost
- * gate either accepts (returns a finite cost) or rejects (returns infinite). The gate is
- * the load-bearing constraint that prevents Volcano from producing nonsensical plans like
- * "HASH-localized join with one SINGLETON input."
+ * Placement matrix for {@link OpenSearchJoin#computeSelfCost}. Each test constructs a join with explicit
+ * (selfTrait, leftInputTrait, rightInputTrait) traits and asserts it is either accepted (finite cost) or
+ * REJECTED BY ASSERTION ({@link IllegalStateException}). The constraint is load-bearing: it prevents plans
+ * like "HASH-localized join with one SINGLETON input", whose failure mode is silently wrong results rather
+ * than a slow query — rows that never co-locate are simply not joined.
+ *
+ * <p>These were ten {@code makeInfiniteCost()} branches. They are assertions now because every builder states
+ * self and input traits together, so an illegal pair means a builder is broken and should say so loudly.
  *
  * <p>The three legal join shapes:
  * <ol>
@@ -76,7 +79,7 @@ public class OpenSearchJoinCostGateTests extends BasePlannerRulesTests {
         RelNode left = scanWith(traitDef.shardSingleton(tableId, 1));
         RelNode right = scanWith(traitDef.shardSingleton(tableId, 1));
         OpenSearchJoin join = makeJoin(left, right, traitDef.coordSingleton());
-        assertInfinite("COORD+SINGLETON join with SHARD inputs must be rejected", costOf(join));
+        assertRejected("COORD+SINGLETON join with SHARD inputs must be rejected", join);
     }
 
     // ── HASH shape ────────────────────────────────────────────────────────
@@ -93,7 +96,7 @@ public class OpenSearchJoinCostGateTests extends BasePlannerRulesTests {
         RelNode left = scanWith(traitDef.hash(List.of(0), 4));
         RelNode right = scanWith(traitDef.hash(List.of(2), 8));
         OpenSearchJoin join = makeJoin(left, right, traitDef.hash(List.of(0), 4));
-        assertInfinite("HASH+WORKER join with mismatched partition counts must be rejected", costOf(join));
+        assertRejected("HASH+WORKER join with mismatched partition counts must be rejected", join);
     }
 
     public void testHashWorkerRejectsSingletonInput() {
@@ -101,7 +104,7 @@ public class OpenSearchJoinCostGateTests extends BasePlannerRulesTests {
         RelNode left = scanWith(traitDef.coordSingleton());
         RelNode right = scanWith(traitDef.hash(List.of(2), 4));
         OpenSearchJoin join = makeJoin(left, right, traitDef.hash(List.of(0), 4));
-        assertInfinite("HASH+WORKER join with mixed SINGLETON/HASH inputs must be rejected", costOf(join));
+        assertRejected("HASH+WORKER join with mixed SINGLETON/HASH inputs must be rejected", join);
     }
 
     // ── BROADCAST shape ───────────────────────────────────────────────────
@@ -133,7 +136,7 @@ public class OpenSearchJoinCostGateTests extends BasePlannerRulesTests {
         // Need a self trait that's broadcast-shape (RANDOM+SHARD); use any tableId.
         int tableId = testTable.getQualifiedName().hashCode();
         OpenSearchJoin join = makeJoin(b1, b2, traitDef.shardRandom(tableId, 3));
-        assertInfinite("Broadcast shape with two REPLICATED inputs must be rejected (no probe)", costOf(join));
+        assertRejected("Broadcast shape with two REPLICATED inputs must be rejected (no probe)", join);
     }
 
     public void testBroadcastShapeRejectsTwoShardProbeInputs() {
@@ -144,7 +147,7 @@ public class OpenSearchJoinCostGateTests extends BasePlannerRulesTests {
         RelNode left = scanWith(probeTrait);
         RelNode right = scanWith(probeTrait);
         OpenSearchJoin join = makeJoin(left, right, traitDef.from(probeTrait));
-        assertInfinite("Broadcast shape requires exactly one REPLICATED build", costOf(join));
+        assertRejected("Broadcast shape requires exactly one REPLICATED build", join);
     }
 
     public void testBroadcastShapeRejectsWrongTableIdProbe() {
@@ -156,7 +159,7 @@ public class OpenSearchJoinCostGateTests extends BasePlannerRulesTests {
         RelNode build = scanWith(traitDef.broadcast(3));
         RelNode probe = scanWith(wrongProbe);
         OpenSearchJoin join = makeJoin(build, probe, traitDef.shardRandom(joinTableId, 3));
-        assertInfinite("Broadcast shape with mismatched probe tableId must be rejected", costOf(join));
+        assertRejected("Broadcast shape with mismatched probe tableId must be rejected", join);
     }
 
     // ── helpers ───────────────────────────────────────────────────────────
@@ -187,8 +190,15 @@ public class OpenSearchJoinCostGateTests extends BasePlannerRulesTests {
         return join.computeSelfCost(volcano, RelMetadataQuery.instance());
     }
 
-    private static void assertInfinite(String message, RelOptCost cost) {
-        assertTrue(message + " (got " + cost + ")", cost.isInfinite());
+    /**
+     * An illegal (self, left, right) trait combination is now ASSERTED rather than priced at infinity, so the
+     * rejection surfaces as {@link IllegalStateException} out of {@code computeSelfCost}. That is the whole
+     * point of the migration: an infinite price is a ranking signal that a caller can ignore or that a tie can
+     * bury, while an assertion names the builder that produced the illegal pair. It found a real one — see
+     * {@code OpenSearchBroadcastJoinSplitRule}'s single-shard probe guard.
+     */
+    private void assertRejected(String message, OpenSearchJoin join) {
+        expectThrows(IllegalStateException.class, message, () -> costOf(join));
     }
 
     private static void assertNotInfinite(String message, RelOptCost cost) {

@@ -50,10 +50,35 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
     private final BufferAllocator allocator;
     private final boolean profile;
 
+    /**
+     * The partitioned sink this stage OWNS when it is also a hash-shuffle producer, else {@code null}.
+     *
+     * <p>Ownership is the whole point. {@code AbstractDatafusionReduceSink} FEEDS
+     * {@code ExchangeSinkContext#downstream()} but explicitly does not close it ("its lifecycle is the
+     * caller's"), and {@link #onTerminalTransition} closes only {@link #backendSink}. For an ordinary reduce
+     * stage that is right — {@code downstream} is the parent's sink and the parent owns it. But a PRODUCER's
+     * partitioned sink must be closed for its {@code ShuffleSender}s to signal {@code isLast}; without that the
+     * consuming worker blocks in {@code ShuffleScanHandler.awaitReady} until it times out. The shard and worker
+     * paths get this from {@code AnalyticsSearchService.drainIntoPartitionedSink}, which closes the sink when
+     * the drain finishes; the reduce path had no equivalent.
+     */
+    private final ExchangeSink ownedProducerSink;
+
     public ReduceStageExecution(Stage stage, QueryContext config, ReducingExchangeSink backendSink, ExchangeSink downstream) {
+        this(stage, config, backendSink, downstream, null);
+    }
+
+    public ReduceStageExecution(
+        Stage stage,
+        QueryContext config,
+        ReducingExchangeSink backendSink,
+        ExchangeSink downstream,
+        ExchangeSink ownedProducerSink
+    ) {
         super(stage, config.queryId(), config.operationListeners(), config.parentTask());
         this.backendSink = backendSink;
         this.downstream = downstream;
+        this.ownedProducerSink = ownedProducerSink;
         this.reduceExecutor = config.reduceExecutor();
         this.allocator = config.bufferAllocator();
         this.runner = new LocalTaskRunner(config.schedulerExecutor());
@@ -135,5 +160,14 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
         try {
             backendSink.close();
         } catch (Exception ignore) {}
+        // AFTER the reduce sink: closing the partitioned sink is what makes its senders signal isLast, so it
+        // must happen once every reduced batch has been fed, not before.
+        if (ownedProducerSink != null) {
+            try {
+                ownedProducerSink.close();
+            } catch (Exception e) {
+                logger.warn("[ReduceStageExecution] closing the producer sink threw for stage " + getStageId(), e);
+            }
+        }
     }
 }

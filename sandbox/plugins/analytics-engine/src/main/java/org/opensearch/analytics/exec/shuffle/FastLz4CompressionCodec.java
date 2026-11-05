@@ -28,7 +28,7 @@ import net.jpountz.lz4.LZ4FrameOutputStream;
  * hard-wires commons-compress's {@code FramedLZ4CompressorOutputStream} — a PURE-JAVA block matcher
  * whose back-reference bookkeeping ({@code LZ77Compressor} + a {@code LinkedList} of match pairs in
  * {@code BlockLZ4CompressorOutputStream.clearUnusedPairs}) degrades pathologically on the large
- * buffers a fact-table shuffle produces (TPC-H lineitem): observed as every worker search thread
+ * buffers a fact-table shuffle produces: observed as every worker search thread
  * pinned in {@code LZ77Compressor.compress} and the query never finishing (150s+ client timeout, low
  * heap — pure CPU starvation). zstd-jni avoids this because it is native; commons-compress LZ4 does
  * not. {@code lz4-java} restores the conventional "LZ4 is the cheap shuffle codec" property.
@@ -56,7 +56,7 @@ final class FastLz4CompressionCodec extends AbstractCompressionCodec {
         // CRITICAL: Arrow compresses EACH Arrow buffer separately (VectorUnloader.appendNodes calls
         // this once per validity / offset / data buffer — thousands per batch on a wide fact table).
         // LZ4FrameOutputStream's default block size is SIZE_4MB, and its constructor allocates AND
-        // Arrays.fill-zeroes a ~2×blockSize working buffer EVERY call — so the default makes q7 spend
+        // Arrays.fill-zeroes a ~2×blockSize working buffer EVERY call — so the default makes a shuffle spend
         // all its time in LZ4FrameOutputStream.<init>/writeBlock zeroing 4 MB per tiny buffer (observed
         // as a multi-minute hang at low heap). SIZE_64KB caps that per-call allocation; Arrow buffers
         // are mostly far smaller than 64 KB so the ratio is unaffected.

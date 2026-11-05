@@ -9,6 +9,7 @@
 package org.opensearch.analytics.exec.stage.coordinator;
 
 import org.opensearch.analytics.exec.QueryContext;
+import org.opensearch.analytics.exec.shuffle.ShuffleProducerSinkBuilder;
 import org.opensearch.analytics.exec.stage.StageExecution;
 import org.opensearch.analytics.exec.stage.StageExecutionFactory;
 import org.opensearch.analytics.planner.dag.Stage;
@@ -22,6 +23,7 @@ import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.analytics.spi.ReducingExchangeSink;
+import org.opensearch.analytics.spi.ShuffleProducerOutputState;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +42,22 @@ import java.util.List;
  * @opensearch.internal
  */
 public final class ReduceStageExecutionFactory implements StageExecutionFactory {
+
+    /**
+     * Builds the partitioned sink when this reduce stage is ALSO a hash-shuffle producer. {@code null} when
+     * the sender deps were not plumbed, in which case a producer reduce stage fails loudly below rather than
+     * silently draining to its parent — a reduce stage that swallows its partitions would leave the consuming
+     * worker waiting on a producer that never fires.
+     */
+    private final ShuffleProducerSinkBuilder producerSinkBuilder;
+
+    public ReduceStageExecutionFactory() {
+        this(null);
+    }
+
+    public ReduceStageExecutionFactory(ShuffleProducerSinkBuilder producerSinkBuilder) {
+        this.producerSinkBuilder = producerSinkBuilder;
+    }
 
     @Override
     public StageExecution createExecution(Stage stage, ExchangeSink sink, QueryContext config) {
@@ -94,6 +112,44 @@ public final class ReduceStageExecutionFactory implements StageExecutionFactory 
             }
         }
 
+        // Step 5 — a reduce stage can ALSO be a hash-shuffle producer. Shuffle production is
+        // instruction-driven (the same mechanism the shard and worker paths use via resolveProducerSink), so a
+        // ShuffleProducerOutputState in this stage's own instruction chain means its output must ship as
+        // partitions rather than drain to its parent. Two things follow: the engine must see the UPSTREAM
+        // session state (unwrap the carrier), and the reduce execution's downstream becomes the partitioned
+        // sink. Without this, a gathered sub-stage can never feed a shuffle, which is what forces every join
+        // above a decorrelated subquery to stay coordinator-centric (the pass's step-3d shippability gate).
+        ExchangeSink downstream = sink;
+        if (backendContext instanceof ShuffleProducerOutputState producerState) {
+            if (producerSinkBuilder == null || !producerSinkBuilder.isReady()) {
+                throw new IllegalStateException(
+                    "COORDINATOR_REDUCE stage "
+                        + stage.getStageId()
+                        + " carries a shuffle-producer instruction but the shuffle sender deps are not plumbed; "
+                        + "its partitions would never be shipped and the consuming worker would hang"
+                );
+            }
+            downstream = producerSinkBuilder.build(
+                provider,
+                producerState,
+                config.parentTask() != null ? config.parentTask().getNativeTaskId() : 0L,
+                config.bufferAllocator(),
+                config.queryId(),
+                stage.getStageId(),
+                config.importStagingAllocator()
+            );
+            backendContext = producerState.getDelegate();
+            context = new ExchangeSinkContext(
+                context.queryId(),
+                context.stageId(),
+                context.taskId(),
+                context.fragmentBytes(),
+                context.allocator(),
+                context.childInputs(),
+                downstream
+            );
+        }
+
         ExchangeSink backendSink;
         try {
             backendSink = provider.createSink(context, backendContext);
@@ -109,7 +165,10 @@ public final class ReduceStageExecutionFactory implements StageExecutionFactory 
             throw new RuntimeException("Failed to create exchange sink for stageId=" + stage.getStageId(), e);
         }
         if (backendSink instanceof ReducingExchangeSink reducing) {
-            return new ReduceStageExecution(stage, config, reducing, sink);
+            // When this stage produces, it OWNS the partitioned sink and must close it so the senders signal
+            // isLast; pass it explicitly rather than relying on the reduce sink, which feeds downstream but
+            // documents that it does not close it.
+            return new ReduceStageExecution(stage, config, reducing, downstream, downstream == sink ? null : downstream);
         }
         throw new IllegalStateException(
             "Backend exchange sink for COORDINATOR_REDUCE stage "
