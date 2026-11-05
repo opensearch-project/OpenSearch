@@ -98,7 +98,6 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
             previousAllowHalfClosure = config.isAllowHalfClosure();
             config.setAllowHalfClosure(true);
         }
-        timer = ctx.executor().schedule(this::closeNow, timeouts.writeNanos(), TimeUnit.NANOSECONDS);
     }
 
     @Override
@@ -109,6 +108,9 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
     /** Registers a rejection response that is about to be written. */
     void responsePending(boolean closeConnection) {
         pendingResponses++;
+        // each response gets the full write bound, also when it follows an earlier one on the same connection
+        cancelTimer();
+        timer = context.executor().schedule(this::closeNow, timeouts.writeNanos(), TimeUnit.NANOSECONDS);
         if (closeConnection) {
             becomeTerminal();
         }
