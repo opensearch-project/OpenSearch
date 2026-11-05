@@ -22,4 +22,9 @@ class HeaderContext {
     Header getHeader(long correlationId) {
         return headerMap.remove(correlationId);
     }
+
+    /** The number of headers no stream has taken yet. Package-private for tests. */
+    int size() {
+        return headerMap.size();
+    }
 }

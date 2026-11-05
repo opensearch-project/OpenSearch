@@ -271,7 +271,8 @@ final class DefaultSearchContext extends SearchContext {
         this.indexShard = readerContext.indexShard();
         this.clusterService = clusterService;
         this.engineSearcher = readerContext.acquireSearcher("search");
-        this.concurrentSearchMode = evaluateConcurrentSearchMode(executor);
+        final Executor sliceExecutor = sliceExecutor(request, executor);
+        this.concurrentSearchMode = evaluateConcurrentSearchMode(sliceExecutor);
         this.searcher = new ContextIndexSearcher(
             engineSearcher.getIndexReader(),
             engineSearcher.getSimilarity(),
@@ -279,7 +280,7 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getQueryCachingPolicy(),
             lowLevelCancellation,
             concurrentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_AUTO)
-                || concurrentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_ALL) ? executor : null,
+                || concurrentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_ALL) ? sliceExecutor : null,
             this
         );
         this.relativeTimeSupplier = relativeTimeSupplier;
@@ -1085,6 +1086,23 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     /**
+     * Returns the executor that collects the request's segment slices: the one a search extension names, or else the index
+     * searcher pool. Without an index searcher pool, concurrent segment search is unavailable whatever the extensions ask for.
+     */
+    private static Executor sliceExecutor(ShardSearchRequest request, @Nullable Executor indexSearcherExecutor) {
+        if (indexSearcherExecutor == null || request.source() == null || request.source().ext() == null) {
+            return indexSearcherExecutor;
+        }
+        for (SearchExtBuilder ext : request.source().ext()) {
+            final Executor executor = ext.sliceExecutor();
+            if (executor != null) {
+                return executor;
+            }
+        }
+        return indexSearcherExecutor;
+    }
+
+    /**
      * Evaluate if request should use concurrent search based on request and concurrent search deciders
      */
     public void evaluateRequestShouldUseConcurrentSearch() {
@@ -1096,6 +1114,9 @@ final class DefaultSearchContext extends SearchContext {
                 requestShouldUseConcurrentSearch.set(false);
             } else if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
                 requestShouldUseConcurrentSearch.set(false);
+            } else if (searchExtBuilders.values().stream().anyMatch(ext -> ext.sliceExecutor() != null)) {
+                // An extension that collects slices on its own executor is built to run them in parallel.
+                requestShouldUseConcurrentSearch.set(true);
             } else if (concurrentSearchMode.equals(CONCURRENT_SEGMENT_SEARCH_MODE_AUTO)) {
                 requestShouldUseConcurrentSearch.set(evaluateAutoMode());
             } else {

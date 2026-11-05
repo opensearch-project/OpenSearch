@@ -10,6 +10,7 @@ package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.Location;
+import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.Version;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
@@ -174,6 +175,7 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
         return new FlightClientChannel(
             boundAddress,
             flightClient,
+            clientAllocator(),
             remoteNode,
             serverLocation,
             headerContext,
@@ -186,6 +188,11 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
             statsCollector,
             new FlightTransportConfig()
         );
+    }
+
+    /** The long-lived allocator a test channel transfers native batches into, as FlightTransport's client allocator. */
+    protected BufferAllocator clientAllocator() {
+        return nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_FLIGHT);
     }
 
     protected static class TestRequest extends TransportRequest {

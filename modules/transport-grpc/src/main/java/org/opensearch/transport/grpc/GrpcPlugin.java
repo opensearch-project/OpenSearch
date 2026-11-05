@@ -45,6 +45,7 @@ import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider;
 import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider.OrderedGrpcInterceptor;
 import org.opensearch.transport.grpc.spi.GrpcServiceFactory;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
+import org.opensearch.transport.grpc.spi.StreamSearchFormatHandler;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.opensearch.watcher.ResourceWatcherService;
 
@@ -89,6 +90,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
     private final List<AggregationBuilderProtoConverter> aggregationConverters = new ArrayList<>();
     private final List<AggregateProtoConverter> aggregateConverters = new ArrayList<>();
     private final List<GrpcServiceFactory> servicesFactory = new ArrayList<>();
+    private final Map<String, StreamSearchFormatHandler> streamSearchHandlers = new HashMap<>();
     private QueryBuilderProtoConverterRegistryImpl queryRegistry;
     private AggregationBuilderProtoConverterRegistryImpl aggregationRegistry;
     private AggregateProtoConverterRegistryImpl aggregateRegistry;
@@ -182,6 +184,33 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                 services.stream().map(GrpcServiceFactory::plugin).collect(Collectors.joining(", "))
             );
         }
+        List<StreamSearchFormatHandler> formatHandlers = loader.loadExtensions(StreamSearchFormatHandler.class);
+        if (formatHandlers != null) {
+            for (StreamSearchFormatHandler handler : formatHandlers) {
+                StreamSearchFormatHandler existing = streamSearchHandlers.putIfAbsent(handler.format(), handler);
+                if (existing != null) {
+                    throw new IllegalArgumentException(
+                        "ServerStreamSearch format ["
+                            + handler.format()
+                            + "] is provided by both ["
+                            + existing.getClass().getName()
+                            + "] and ["
+                            + handler.getClass().getName()
+                            + "]"
+                    );
+                }
+                logger.info("Loaded ServerStreamSearch format [{}] from {}", handler.format(), handler.getClass().getName());
+            }
+        }
+    }
+
+    /**
+     * Get the {@code ServerStreamSearch} handlers loaded from extensions, keyed by format.
+     *
+     * @return The stream search handlers
+     */
+    public Map<String, StreamSearchFormatHandler> getStreamSearchHandlers() {
+        return Collections.unmodifiableMap(streamSearchHandlers);
     }
 
     /**
@@ -236,7 +265,14 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             List<BindableService> grpcServices = new ArrayList<>(
                 List.of(
                     new DocumentServiceImpl(client, circuitBreakerService),
-                    new SearchServiceImpl(client, queryUtils, aggregationRegistry, aggregateRegistry, circuitBreakerService)
+                    new SearchServiceImpl(
+                        client,
+                        queryUtils,
+                        aggregationRegistry,
+                        aggregateRegistry,
+                        circuitBreakerService,
+                        streamSearchHandlers
+                    ).withServerStreamSearch()
                 )
             );
             for (GrpcServiceFactory serviceFac : servicesFactory) {
@@ -290,7 +326,14 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             List<BindableService> grpcServices = new ArrayList<>(
                 List.of(
                     new DocumentServiceImpl(client, circuitBreakerService),
-                    new SearchServiceImpl(client, queryUtils, aggregationRegistry, aggregateRegistry, circuitBreakerService)
+                    new SearchServiceImpl(
+                        client,
+                        queryUtils,
+                        aggregationRegistry,
+                        aggregateRegistry,
+                        circuitBreakerService,
+                        streamSearchHandlers
+                    ).withServerStreamSearch()
                 )
             );
             for (GrpcServiceFactory serviceFac : servicesFactory) {

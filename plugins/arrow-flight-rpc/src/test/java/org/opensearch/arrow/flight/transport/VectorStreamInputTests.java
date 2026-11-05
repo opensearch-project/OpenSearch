@@ -65,7 +65,7 @@ public class VectorStreamInputTests extends OpenSearchTestCase {
         srcVec.setValueCount(1);
         shared.setRowCount(1);
 
-        VectorStreamInput.NativeArrow input = (VectorStreamInput.NativeArrow) VectorStreamInput.forNativeArrow(shared, registry);
+        VectorStreamInput.NativeArrow input = (VectorStreamInput.NativeArrow) VectorStreamInput.forNativeArrow(shared, allocator, registry);
         try {
             assertNotSame("NativeArrow transfers into a fresh consumer root", shared, input.getRoot());
             IntVector dstVec = (IntVector) input.getRoot().getVector("val");
@@ -112,7 +112,13 @@ public class VectorStreamInputTests extends OpenSearchTestCase {
         shared.setRowCount(1);
 
         long beforeClose;
-        try (VectorStreamInput.NativeArrow input = (VectorStreamInput.NativeArrow) VectorStreamInput.forNativeArrow(shared, registry)) {
+        try (
+            VectorStreamInput.NativeArrow input = (VectorStreamInput.NativeArrow) VectorStreamInput.forNativeArrow(
+                shared,
+                allocator,
+                registry
+            )
+        ) {
             beforeClose = allocator.getAllocatedMemory();
             assertTrue("consumer root should hold memory before close", beforeClose > 0);
         }
@@ -134,7 +140,7 @@ public class VectorStreamInputTests extends OpenSearchTestCase {
         srcVec.setValueCount(1);
         shared.setRowCount(1);
 
-        VectorStreamInput.NativeArrow input = (VectorStreamInput.NativeArrow) VectorStreamInput.forNativeArrow(shared, registry);
+        VectorStreamInput.NativeArrow input = (VectorStreamInput.NativeArrow) VectorStreamInput.forNativeArrow(shared, allocator, registry);
         VectorSchemaRoot consumerRoot = input.getRoot();
         input.claimOwnership();
         input.close();
@@ -150,7 +156,10 @@ public class VectorStreamInputTests extends OpenSearchTestCase {
         Schema emptySchema = new Schema(List.<Field>of());
         VectorSchemaRoot shared = VectorSchemaRoot.create(emptySchema, allocator);
         try {
-            IllegalStateException e = expectThrows(IllegalStateException.class, () -> VectorStreamInput.forNativeArrow(shared, registry));
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> VectorStreamInput.forNativeArrow(shared, allocator, registry)
+            );
             assertTrue(e.getMessage().contains("no field vectors"));
         } finally {
             shared.close();
@@ -175,7 +184,7 @@ public class VectorStreamInputTests extends OpenSearchTestCase {
 
     public void testNativeArrowRejectsByteReads() throws IOException {
         VectorSchemaRoot shared = newNativeArrowRoot();
-        try (VectorStreamInput input = VectorStreamInput.forNativeArrow(shared, registry)) {
+        try (VectorStreamInput input = VectorStreamInput.forNativeArrow(shared, allocator, registry)) {
             expectThrows(UnsupportedOperationException.class, input::readByte);
             expectThrows(UnsupportedOperationException.class, () -> input.readBytes(new byte[1], 0, 1));
             // Do not call input.getRoot().close() — the try-with-resources close() releases the
@@ -318,7 +327,7 @@ public class VectorStreamInputTests extends OpenSearchTestCase {
         vec.setValueCount(1);
         shared.setRowCount(1);
 
-        VectorStreamInput.NativeArrow in = (VectorStreamInput.NativeArrow) VectorStreamInput.forNativeArrow(shared, registry);
+        VectorStreamInput.NativeArrow in = (VectorStreamInput.NativeArrow) VectorStreamInput.forNativeArrow(shared, allocator, registry);
         VectorSchemaRoot consumerRoot = in.getRoot();
 
         TestResponse response = new TestResponse(in);

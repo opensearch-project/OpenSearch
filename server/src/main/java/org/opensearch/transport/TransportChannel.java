@@ -36,8 +36,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.stream.StreamErrorCode;
 import org.opensearch.transport.stream.StreamException;
@@ -116,6 +118,17 @@ public interface TransportChannel {
     default boolean isCancelled() {
         return false;
     }
+
+    /**
+     * Overrides how long {@link #sendResponseBatch} waits for the consumer to accept more data before failing the stream with
+     * {@link StreamErrorCode#TIMED_OUT}. A stream paced by an end client, such as an export, passes {@code null} to wait until
+     * the stream is cancelled, and must then bound stalls on the consumer side itself. Channels without consumer flow control
+     * ignore it.
+     *
+     * @param timeout the maximum wait, or {@code null} to wait until cancelled
+     */
+    @ExperimentalApi
+    default void setBatchReadyTimeout(@Nullable TimeValue timeout) {}
 
     void sendResponse(TransportResponse response) throws IOException;
 
