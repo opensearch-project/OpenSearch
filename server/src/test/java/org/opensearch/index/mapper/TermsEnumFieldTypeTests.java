@@ -124,6 +124,32 @@ public class TermsEnumFieldTypeTests extends OpenSearchTestCase {
         });
     }
 
+    public void testKeywordCaseInsensitiveEmptyPrefix() throws IOException {
+        KeywordFieldType ft = new KeywordFieldType("field");
+        withReader(KEYWORD_VALUES, Set.of(), reader -> {
+            // an empty prefix compiles to an automaton that accepts everything, which Terms#intersect rejects
+            assertEquals(
+                List.of("WEB-99", "Web-03", "a*b", "a.b", "apple", "web-01", "web-02", "web-10", "wec", "Émile", "émile"),
+                enumerate(ft, reader, "", true, null)
+            );
+            assertEquals(List.of("web-01", "web-02", "web-10", "wec", "Émile", "émile"), enumerate(ft, reader, "", true, "apple"));
+        });
+    }
+
+    public void testFilterFieldTypeDelegatesTermsEnum() throws IOException {
+        KeywordFieldType delegate = new KeywordFieldType("field");
+        MappedFieldType filtered = new FilterFieldType(delegate) {
+            @Override
+            public String typeName() {
+                return "filtered";
+            }
+        };
+        withReader(KEYWORD_VALUES, Set.of(), reader -> {
+            assertEquals(List.of("WEB-99", "Web-03", "web-01", "web-02", "web-10"), enumerate(filtered, reader, "web-", true, null));
+            assertEquals(List.of("web-02", "web-10"), enumerate(filtered, reader, "web-", false, "web-01"));
+        });
+    }
+
     public void testKeywordNormalizerAppliesToPrefix() throws IOException {
         KeywordFieldType ft = new KeywordFieldType("field", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()));
         withReader(List.of("web-01", "web-02"), Set.of(), reader -> {
