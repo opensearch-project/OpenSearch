@@ -117,6 +117,17 @@ public class FetchPhase {
     }
 
     public void execute(SearchContext context, String profileDescription) {
+        // Reads the hits of each segment in one batch where the segment's reader supports it, and closes the last
+        // batch however the fetch ends.
+        BatchedFetch batchedFetch = new BatchedFetch(context);
+        try {
+            doExecute(context, profileDescription, batchedFetch);
+        } finally {
+            batchedFetch.close();
+        }
+    }
+
+    private void doExecute(SearchContext context, String profileDescription, BatchedFetch batchedFetch) {
         FetchProfileBreakdown breakdown = null;
         FetchProfiler fetchProfiler = null;
         if (context.getProfilers() != null) {
@@ -154,6 +165,7 @@ public class FetchPhase {
             FetchTimingType.CREATE_STORED_FIELDS_VISITOR,
             () -> createStoredFieldsVisitor(context, storedToRequestedFields)
         );
+        batchedFetch.start(fieldsVisitor != null && sourceRequired(context));
 
         FetchContext fetchContext = new FetchContext(context);
 
@@ -195,6 +207,14 @@ public class FetchPhase {
                         () -> context.searcher().getIndexReader().leaves().get(readerIndex)
                     );
                     currentReaderIndex = readerIndex;
+                    // Closes the previous segment's batch and reads this one's stored fields up front, so it is timed as
+                    // loading them.
+                    LeafReaderContext segment = currentReaderContext;
+                    int first = index;
+                    profile(breakdown, FetchTimingType.LOAD_STORED_FIELDS, () -> {
+                        batchedFetch.onSegment(segment, docs, first);
+                        return null;
+                    });
                     if (currentReaderContext.reader() instanceof SequentialStoredFieldsLeafReader lf
                         && hasSequentialDocs
                         && docs.length >= 10) {
