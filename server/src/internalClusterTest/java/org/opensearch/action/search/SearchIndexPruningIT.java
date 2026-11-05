@@ -25,6 +25,8 @@ import org.opensearch.index.fielddomain.IndexFieldDomainMetadata;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.search.aggregations.AggregationBuilders;
+import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
@@ -189,6 +191,39 @@ public class SearchIndexPruningIT extends OpenSearchIntegTestCase {
         } finally {
             client().execute(DeletePitAction.INSTANCE, new DeletePitRequest(pitResponse.getId())).actionGet();
         }
+    }
+
+    public void testSearchWithGlobalAggregationCountsDocumentsFromQueryDisjointIndices() throws Exception {
+        enableIndexPruning();
+        createLogsIndices();
+
+        index("logs-000001", "_doc", "1", "@timestamp", "1970-01-01T00:00:01Z", "message", "old");
+        index("logs-000001", "_doc", "2", "@timestamp", "1970-01-01T00:00:02Z", "message", "old");
+        index("logs-000002", "_doc", "1", "@timestamp", "1970-01-01T00:00:03.500Z", "message", "current");
+        refresh("logs-000001", "logs-000002");
+
+        publishFieldDomain("logs-000001", new DateRangeFieldDomain("@timestamp", 1_000L, 2_000L, true, "test"));
+        publishFieldDomain("logs-000002", new DateRangeFieldDomain("@timestamp", 3_000L, 4_000L, true, "test"));
+
+        resetSearchEventCounters();
+        RecordOldIndexSearchPlugin.RECORD_SEARCH_EVENTS.set(true);
+        SearchResponse response;
+        try {
+            response = client().prepareSearch("logs-*")
+                .setPreFilterShardSize(1_000)
+                .setQuery(rangeQuery("@timestamp").gte("1970-01-01T00:00:03Z").lte("1970-01-01T00:00:04Z"))
+                .addAggregation(AggregationBuilders.global("all_docs"))
+                .get();
+        } finally {
+            RecordOldIndexSearchPlugin.RECORD_SEARCH_EVENTS.set(false);
+        }
+
+        // The global aggregation must count every document in every searched index, including the two documents in
+        // the query-disjoint index that pruning would otherwise skip.
+        assertHitCount(response, 1L);
+        Global allDocs = response.getAggregations().get("all_docs");
+        assertThat(allDocs.getDocCount(), equalTo(3L));
+        assertThat(RecordOldIndexSearchPlugin.OLD_INDEX_QUERY_PHASES.get(), greaterThan(0));
     }
 
     public void testSearchKeepsIndicesWithDomainsPartiallyOverlappingQueryRange() throws Exception {
