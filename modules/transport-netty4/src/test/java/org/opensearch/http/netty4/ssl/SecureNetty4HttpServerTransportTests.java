@@ -41,10 +41,12 @@ import org.junit.After;
 import org.junit.Before;
 
 import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 
 import java.io.IOException;
+import java.net.Socket;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
@@ -83,6 +85,12 @@ import static org.opensearch.core.rest.RestStatus.OK;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.opensearch.http.TestDispatcherBuilder.dispatcherBuilderWithDefaults;
+import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.assertResponse;
+import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.bulkBody;
+import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.connect;
+import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.encode;
+import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.request;
+import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.send;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -182,6 +190,43 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
         final Settings settings = createSettings();
         final int contentLength = randomIntBetween(1, HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).bytesAsInt());
         runExpectHeaderTest(settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.CONTINUE);
+    }
+
+    public void testOversizedRequestsReturn413BeforeTlsClose() throws Exception {
+        Settings settings = createBuilderWithPort().put(HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(), "1024b").build();
+        SSLContext clientContext = SSLContext.getInstance("TLS");
+        clientContext.init(null, InsecureTrustManagerFactory.INSTANCE.getTrustManagers(), null);
+        try (
+            SecureNetty4HttpServerTransport transport = new SecureNetty4HttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                new NullDispatcher(),
+                clusterSettings,
+                new SharedGroupFactory(settings),
+                secureHttpTransportSettingsProvider,
+                NoopTracer.INSTANCE
+            )
+        ) {
+            transport.start();
+            for (String encoding : new String[] { "identity", "gzip", "deflate" }) {
+                for (boolean chunked : new boolean[] { false, true }) {
+                    for (int fragmentSize : new int[] { 1, 17, Integer.MAX_VALUE }) {
+                        try (Socket socket = connect(transport, clientContext.getSocketFactory())) {
+                            send(
+                                socket.getOutputStream(),
+                                request(encode(bulkBody(1025), encoding), encoding, chunked, true),
+                                fragmentSize
+                            );
+                            assertResponse(socket.getInputStream(), 413, "TLS, " + encoding + ", chunked=" + chunked);
+                            assertEquals("Complete rejection must precede TLS close_notify", -1, socket.getInputStream().read());
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /**

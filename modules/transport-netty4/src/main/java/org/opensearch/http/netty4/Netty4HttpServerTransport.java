@@ -461,7 +461,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline().addLast(cleartextUpgradeHandler).addLast(new SimpleChannelInboundHandler<HttpMessage>() {
                 @Override
                 protected void channelRead0(ChannelHandlerContext ctx, HttpMessage msg) throws Exception {
-                    final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
+                    final HttpObjectAggregator aggregator = new Netty4HttpObjectAggregator(
+                        handlingSettings.getMaxContentLength(),
+                        transport
+                    );
                     aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
 
                     // If this handler is hit then no upgrade has been attempted and the client is just talking HTTP
@@ -501,7 +504,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             pipeline.addLast("header_verifier", transport.createHeaderVerifier());
             pipeline.addLast("decoder_compress", transport.createDecompressor());
             pipeline.addLast("encoder", new HttpResponseEncoder());
-            final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
+            final HttpObjectAggregator aggregator = new Netty4HttpObjectAggregator(handlingSettings.getMaxContentLength(), transport);
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             pipeline.addLast("aggregator", aggregator);
             if (handlingSettings.isCompression()) {
