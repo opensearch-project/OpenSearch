@@ -353,8 +353,18 @@ public class PublicationTransportHandler {
                 }
             }
             if (allNodesRemotePublicationEnabled.get() == true) {
-                // if all nodes are remote then create remote publication context
-                return new RemotePublicationContext(clusterChangedEvent, persistedStateRegistry);
+                // Remote state is written once at Version.CURRENT and read by every node, so a node on an older version may not be
+                // able to read it. Publish over transport, which serializes for each node's version, until no node is older.
+                final Version minNodeVersion = clusterChangedEvent.state().nodes().getMinNodeVersion();
+                if (minNodeVersion.onOrAfter(Version.CURRENT)) {
+                    return new RemotePublicationContext(clusterChangedEvent, persistedStateRegistry);
+                }
+                logger.debug(
+                    "publishing cluster state version [{}] over transport because minimum node version [{}] is older than local version [{}]",
+                    clusterChangedEvent.state().version(),
+                    minNodeVersion,
+                    Version.CURRENT
+                );
             }
         }
         final PublicationContext publicationContext = new PublicationContext(clusterChangedEvent, persistedStateRegistry);
