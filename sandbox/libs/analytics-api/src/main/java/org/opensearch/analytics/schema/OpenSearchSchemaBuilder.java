@@ -19,6 +19,7 @@ import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexAbstraction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MappingMetadata;
@@ -27,10 +28,12 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexNotFoundException;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -55,6 +58,25 @@ public class OpenSearchSchemaBuilder {
     }
 
     /**
+     * Options-aware overload that builds with a fresh resolver. Callers that have already
+     * resolved their {@link IndicesOptions} (the DSL transports) thread them here so schema
+     * membership is computed against the same options the coordinator used; callers that do not
+     * supply options get {@link #buildSchema(ClusterState)}'s {@link IndicesOptions#lenientExpandOpen()}.
+     */
+    public static SchemaPlus buildSchema(ClusterState clusterState, IndicesOptions indicesOptions) {
+        return buildSchema(clusterState, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), indicesOptions);
+    }
+
+    /**
+     * Backward-compatible overload: resolves index expressions with
+     * {@link IndicesOptions#lenientExpandOpen()}. Non-DSL callers (the analytics-engine planner
+     * path, PPL/SQL) keep this behaviour unchanged.
+     */
+    public static SchemaPlus buildSchema(ClusterState clusterState, IndexNameExpressionResolver resolver) {
+        return buildSchema(clusterState, resolver, IndicesOptions.lenientExpandOpen());
+    }
+
+    /**
      * Builds a Calcite SchemaPlus from the given ClusterState.
      *
      * <p>Tables are resolved lazily on first lookup, mirroring the sql-plugin
@@ -65,11 +87,15 @@ public class OpenSearchSchemaBuilder {
      * indices: construction is O(1) regardless of cluster size, and each referenced name costs
      * one {@code IndexNameExpressionResolver} call plus a single mapping union.
      *
+     * <p>Index expressions are resolved against {@code indicesOptions} — the DSL transports pass
+     * the request's options so the schema and the coordinator's index resolution agree on which
+     * indices exist; other callers pass {@link IndicesOptions#lenientExpandOpen()}.
+     *
      * <p>The lazy schema is wrapped in a NON-caching root: a caching root enumerates
      * {@code getTableNames()} and would never perform the implicit {@code getTable(name)} lookup
      * that drives lazy resolution of expressions.
      */
-    public static SchemaPlus buildSchema(ClusterState clusterState, IndexNameExpressionResolver resolver) {
+    public static SchemaPlus buildSchema(ClusterState clusterState, IndexNameExpressionResolver resolver, IndicesOptions indicesOptions) {
         Schema lazySchema = new AbstractSchema() {
             // Truly lazy table map, mirroring sql-plugin's OpenSearchSchema pattern: no upfront
             // enumeration of cluster indices. get() registers on first lookup and caches under the
@@ -83,7 +109,7 @@ public class OpenSearchSchemaBuilder {
                 public Table get(Object key) {
                     String name = ((String) key).toLowerCase(java.util.Locale.ROOT);
                     if (!super.containsKey(name)) {
-                        Table resolved = resolveTable(clusterState, resolver, name);
+                        Table resolved = resolveTable(clusterState, resolver, indicesOptions, name);
                         if (resolved != null) {
                             super.put(name, resolved);
                         }
@@ -111,17 +137,31 @@ public class OpenSearchSchemaBuilder {
      * is referenced.
      */
     @SuppressWarnings("unchecked")
-    private static Table resolveTable(ClusterState clusterState, IndexNameExpressionResolver resolver, String expression) {
+    private static Table resolveTable(
+        ClusterState clusterState,
+        IndexNameExpressionResolver resolver,
+        IndicesOptions indicesOptions,
+        String expression
+    ) {
         // Short-circuit literal alias / data stream names so the resolver's lenientExpandOpen
         // (which does not include hidden backings) doesn't filter out data stream backings. The
         // alias / data-stream abstraction already carries the full backing list — use it directly.
-        java.util.SortedMap<String, org.opensearch.cluster.metadata.IndexAbstraction> lookup = clusterState.metadata().getIndicesLookup();
-        org.opensearch.cluster.metadata.IndexAbstraction abstraction = lookup == null ? null : lookup.get(expression);
+        SortedMap<String, IndexAbstraction> lookup = clusterState.metadata().getIndicesLookup();
+        IndexAbstraction abstraction = lookup == null ? null : lookup.get(expression);
         List<IndexMetadata> backing;
         if (abstraction != null
-            && (abstraction.getType() == org.opensearch.cluster.metadata.IndexAbstraction.Type.ALIAS
-                || abstraction.getType() == org.opensearch.cluster.metadata.IndexAbstraction.Type.DATA_STREAM)) {
-            backing = abstraction.getIndices();
+            && (abstraction.getType() == IndexAbstraction.Type.ALIAS || abstraction.getType() == IndexAbstraction.Type.DATA_STREAM)) {
+            // Filter alias / data-stream backings to State.OPEN unconditionally — never gated on
+            // indicesOptions. The execution-side IndexResolution.resolveAlias/resolveDataStream
+            // drop closed backings unconditionally (and vanilla _search forbids closed indices),
+            // so the schema must mirror that: a closed backing's columns would otherwise become
+            // phantom columns that pass Calcite validation but never receive rows at scan time.
+            backing = new ArrayList<>(abstraction.getIndices().size());
+            for (IndexMetadata index : abstraction.getIndices()) {
+                if (index.getState() == IndexMetadata.State.OPEN) {
+                    backing.add(index);
+                }
+            }
         } else {
             String[] concrete;
             try {
@@ -130,17 +170,13 @@ public class OpenSearchSchemaBuilder {
                 // includeDataStreams=true so wildcards / comma-lists that match a data stream NAME
                 // expand to its backings (the resolver normally excludes data streams from
                 // wildcard expansion otherwise). Literal data stream / alias names take the
-                // abstraction short-circuit above and skip the resolver entirely.
-                concrete = resolver.concreteIndexNames(
-                    clusterState,
-                    IndicesOptions.lenientExpandOpen(),
-                    true,
-                    Strings.splitStringByCommaToArray(expression)
-                );
+                // abstraction short-circuit above and skip the resolver entirely. Options come
+                // from the caller so schema membership matches the coordinator's resolution.
+                concrete = resolver.concreteIndexNames(clusterState, indicesOptions, true, Strings.splitStringByCommaToArray(expression));
             } catch (IndexNotFoundException e) {
                 return null;
             }
-            backing = new java.util.ArrayList<>(concrete.length);
+            backing = new ArrayList<>(concrete.length);
             for (String name : concrete) {
                 IndexMetadata index = clusterState.metadata().index(name);
                 if (index != null) {
