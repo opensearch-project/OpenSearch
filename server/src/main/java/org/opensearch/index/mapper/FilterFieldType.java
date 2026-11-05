@@ -276,6 +276,11 @@ public abstract class FilterFieldType extends MappedFieldType {
     }
 
     @Override
+    public boolean indexedTermsMatchDocValues() {
+        return delegate.indexedTermsMatchDocValues();
+    }
+
+    @Override
     public boolean isMultiValued() {
         return delegate.isMultiValued();
     }

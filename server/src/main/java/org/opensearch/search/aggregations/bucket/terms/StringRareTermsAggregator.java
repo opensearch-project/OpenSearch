@@ -44,6 +44,7 @@ import org.opensearch.common.util.BytesRefHash;
 import org.opensearch.common.util.SetBackedScalingCuckooFilter;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.mapper.DocCountFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -163,6 +164,12 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
         Terms stringTerms = ctx.reader().terms(fieldName);
         if (stringTerms == null) {
             // Field is not indexed.
+            return false;
+        }
+
+        MappedFieldType fieldType = context.fieldType(fieldName);
+        if (fieldType == null || fieldType.indexedTermsMatchDocValues() == false) {
+            // The postings term dictionary does not correspond to the doc values.
             return false;
         }
 
