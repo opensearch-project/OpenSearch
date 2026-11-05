@@ -20,6 +20,7 @@ import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.common.Nullable;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -96,6 +97,20 @@ public class Stage {
 
     private final List<CanMatchFilter> canMatchFilters;
 
+    /**
+     * Runtime filters attached AFTER DAG construction, once a join's build side is
+     * known — see {@code UnifiedDispatch}. Kept separate from
+     * {@link #canMatchFilters} because those are derived from the fragment and are
+     * therefore immutable, whereas these depend on data that does not exist until
+     * the build side has run.
+     *
+     * <p>{@code volatile}: written on the coordinator thread that finishes the
+     * build phase, read on the thread that starts the probe stage. The list is
+     * replaced wholesale, never mutated in place, so a reader sees either the old
+     * or the new list and never a partial one.
+     */
+    private volatile List<CanMatchFilter> runtimeCanMatchFilters = List.of();
+
     /** Primary sort key of this fragment; null when it isn't a {@code sort | head N} shape. */
     @Nullable
     private final SortSpec sortSpec;
@@ -129,9 +144,39 @@ public class Stage {
         return fragment;
     }
 
-    /** Range filters extracted from the fragment at DAG-build time for can-match pre-filtering. */
+    /**
+     * Filters for can-match pre-filtering: those extracted from the fragment at
+     * DAG-build time, plus any runtime filters attached later via
+     * {@link #addRuntimeCanMatchFilters}. AND semantics across the list, so
+     * concatenating is the correct combination.
+     */
     public List<CanMatchFilter> getCanMatchFilters() {
-        return canMatchFilters;
+        List<CanMatchFilter> runtime = runtimeCanMatchFilters;
+        if (runtime.isEmpty()) {
+            return canMatchFilters;
+        }
+        List<CanMatchFilter> combined = new ArrayList<>(canMatchFilters.size() + runtime.size());
+        combined.addAll(canMatchFilters);
+        combined.addAll(runtime);
+        return List.copyOf(combined);
+    }
+
+    /**
+     * Attaches runtime filters produced after this stage's DAG node was built.
+     * Additive so that several joins probing the same stage each contribute; AND
+     * semantics make that sound.
+     *
+     * <p>Must be called before the stage starts — {@code ShardFragmentStageExecution}
+     * reads the list once, in {@code start()}, to build the can-match request.
+     * Attaching later is silently ineffective rather than incorrect.
+     */
+    public void addRuntimeCanMatchFilters(List<CanMatchFilter> filters) {
+        if (filters == null || filters.isEmpty()) {
+            return;
+        }
+        List<CanMatchFilter> merged = new ArrayList<>(runtimeCanMatchFilters);
+        merged.addAll(filters);
+        runtimeCanMatchFilters = List.copyOf(merged);
     }
 
     /** Sort column + direction used to order shards in the can-match phase; null when not applicable. */

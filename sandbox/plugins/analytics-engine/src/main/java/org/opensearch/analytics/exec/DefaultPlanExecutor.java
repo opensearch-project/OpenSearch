@@ -38,6 +38,7 @@ import org.opensearch.analytics.exec.join.DistributionEnforcementPass;
 import org.opensearch.analytics.exec.join.MppShufflePartitions;
 import org.opensearch.analytics.exec.join.MppStrategy;
 import org.opensearch.analytics.exec.join.MppStrategyMetrics;
+import org.opensearch.analytics.exec.join.RuntimeFilterMetrics;
 import org.opensearch.analytics.exec.join.UnifiedDispatch;
 import org.opensearch.analytics.exec.profile.ProfiledResult;
 import org.opensearch.analytics.exec.profile.QueryProfile;
@@ -119,6 +120,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     private final ThreadPool threadPool;
     private final NodeClient client;
     private final MppStrategyMetrics mppStrategyMetrics;
+    private final RuntimeFilterMetrics runtimeFilterMetrics;
     private final EngineContextProvider contextProvider;
     private final ShuffleBufferManager shuffleBufferManager;
     private final AnalyticsStatsCollector statsCollector;
@@ -151,6 +153,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         AnalyticsStatsCollector statsCollector,
         // Feature-branch (MPP) additions — appended last so upstream constructor extensions don't collide.
         MppStrategyMetrics mppStrategyMetrics,
+        RuntimeFilterMetrics runtimeFilterMetrics,
         ShuffleBufferManager shuffleBufferManager
     ) {
         super(AnalyticsQueryAction.NAME, transportService, actionFilters, AnalyticsQueryRequest::new);
@@ -162,6 +165,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         this.client = client;
         this.scheduler = scheduler;
         this.mppStrategyMetrics = mppStrategyMetrics;
+        this.runtimeFilterMetrics = runtimeFilterMetrics;
         this.contextProvider = contextProvider;
         this.shuffleBufferManager = shuffleBufferManager;
         this.statsCollector = statsCollector;
@@ -672,18 +676,38 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         // UnifiedDispatch discovers any BROADCAST_BUILD stages itself, captures them, injects each as a
         // broadcast instruction on its consumer stage, then dispatches the broadcast-free DAG (shuffle
         // promotion if it still distributes a join). Broadcast is an instruction, not a stage role, so a
-        // stage that is both a broadcast consumer AND a shuffle producer (q3/q8/q9) runs without conflict.
+        // stage that is both a broadcast consumer AND a shuffle producer runs without conflict.
         // Read the worker sort-merge-join floor live (dynamic-aware) so a PUT /_cluster/settings update
         // takes effect without a restart; UnifiedDispatch hands it to ShuffleEnrichment, which sets
         // prefer_hash_join=false on a worker join whose estimated build exceeds it.
         long sortMergeJoinMinRows = clusterService.getClusterSettings().get(AnalyticsSettings.MPP_WORKER_SORT_MERGE_JOIN_MIN_ROWS);
-        new UnifiedDispatch(qscheduler, clusterService, capabilityRegistry, preferMetadataDriver, sortMergeJoinMinRows).run(
-            context,
-            dag,
-            UnifiedDispatch.captureSinkFactory(context, dag, capabilityRegistry, clusterService),
-            execRef::set,
-            terminal
-        );
+        // Same live read for the runtime-filter switches: both arms of an A/B must be one setting apart on
+        // the same binary, which requires no restart between them.
+        boolean runtimeFilterEnabled = clusterService.getClusterSettings().get(AnalyticsSettings.RUNTIME_FILTER_ENABLED);
+        int runtimeFilterMaxValues = clusterService.getClusterSettings().get(AnalyticsSettings.RUNTIME_FILTER_CANMATCH_MAX_VALUES);
+        // The shuffle family's two knobs: the Bloom size every shard's contribution must agree on (so the
+        // coordinator's union is defined), and the build-side row ceiling above which the pre-pass scan
+        // cannot repay itself.
+        int runtimeFilterMaxBloomBytes = (int) clusterService.getClusterSettings()
+            .get(AnalyticsSettings.RUNTIME_FILTER_BLOOM_BYTES)
+            .getBytes();
+        long runtimeFilterBuildSideMaxRows = clusterService.getClusterSettings().get(AnalyticsSettings.RUNTIME_FILTER_BUILD_SIDE_MAX_ROWS);
+        long runtimeFilterProbeSideMinScanBytes = clusterService.getClusterSettings()
+            .get(AnalyticsSettings.RUNTIME_FILTER_PROBE_SIDE_MIN_SCAN_BYTES)
+            .getBytes();
+        new UnifiedDispatch(
+            qscheduler,
+            clusterService,
+            capabilityRegistry,
+            preferMetadataDriver,
+            sortMergeJoinMinRows,
+            runtimeFilterEnabled,
+            runtimeFilterMaxValues,
+            runtimeFilterMaxBloomBytes,
+            runtimeFilterBuildSideMaxRows,
+            runtimeFilterProbeSideMinScanBytes,
+            runtimeFilterMetrics
+        ).run(context, dag, UnifiedDispatch.captureSinkFactory(context, dag, capabilityRegistry, clusterService), execRef::set, terminal);
     }
 
     /** True if any stage in the DAG carries a HASH-distributed exchange — i.e. the plan can populate

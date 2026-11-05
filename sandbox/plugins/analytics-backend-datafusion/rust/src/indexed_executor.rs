@@ -116,7 +116,8 @@ pub async fn execute_indexed_query(
     // DF still wants a sane value for any post-scan operators it may add. The
     // `indexed_path` flag also drops the combine-partial-final optimizer pass and
     // registers the indexed-only index_filter / delegation_possible UDFs.
-    let ctx = build_query_session_context(&query_config, runtime_env, num_partitions, true);
+    let (ctx, runtime_filters) =
+        build_query_session_context(&query_config, runtime_env, num_partitions, true);
 
     // Register default ListingTable so substrait consumer can resolve the table.
     // No sort-order declaration on the indexed path (empty slices) — the indexed
@@ -145,6 +146,7 @@ pub async fn execute_indexed_query(
         has_topk: false,
         prepared_plan: None,
         phantom_reservation: None,
+        runtime_filters,
     };
     let ptr = Box::into_raw(Box::new(handle)) as i64;
 
@@ -1130,6 +1132,9 @@ async unsafe fn execute_indexed_with_context_inner(
     let query_config = Arc::new(handle.query_config);
     let num_partitions = query_config.target_partitions.max(1);
     let aggregate_mode = handle.aggregate_mode;
+    // Captured before `handle` is consumed: the registry is needed again after the stream is built, to
+    // report what the filter eliminated.
+    let runtime_filters = handle.runtime_filters.clone();
     let ctx = handle.ctx;
     let table_name = handle.table_name;
     let table_path = handle.table_path;
@@ -1688,12 +1693,15 @@ async unsafe fn execute_indexed_with_context_inner(
 
     let schema = cross_rt_stream.schema();
     let wrapped = RecordBatchStreamAdapter::new(schema, cross_rt_stream);
+    // The shard-scan path is where a planted probe predicate actually runs, so this is the stream whose
+    // metrics must be able to report what the filter eliminated.
     let stream_handle = crate::api::QueryStreamHandle::with_physical_plan(
         wrapped,
         query_context,
         ctx,
         Some(permit),
         physical_plan,
-    );
+    )
+    .with_runtime_filters(runtime_filters);
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }

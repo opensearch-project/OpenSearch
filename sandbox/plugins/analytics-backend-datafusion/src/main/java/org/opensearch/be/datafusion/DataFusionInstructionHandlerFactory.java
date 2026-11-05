@@ -17,6 +17,7 @@ import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.analytics.spi.PartialAggregateInstructionNode;
+import org.opensearch.analytics.spi.RuntimeFilterInstructionNode;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
 import org.opensearch.analytics.spi.ShuffleProducerInstructionNode;
@@ -140,6 +141,9 @@ public class DataFusionInstructionHandlerFactory implements FragmentInstructionH
         }
         if (node instanceof ShuffleWorkerSetupInstructionNode) {
             return new ShuffleWorkerSetupHandler(plugin);
+        }
+        if (node instanceof RuntimeFilterInstructionNode) {
+            return new RuntimeFilterInstallHandler();
         }
         // TODO: FilterDelegationInstructionHandler, PartialAggregateInstructionHandler
         throw new UnsupportedOperationException("No handler for instruction type: " + node.type());
