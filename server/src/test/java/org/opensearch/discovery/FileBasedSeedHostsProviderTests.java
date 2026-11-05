@@ -64,6 +64,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static org.opensearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE;
+import static org.opensearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE_PATH_SETTING;
 
 public class FileBasedSeedHostsProviderTests extends OpenSearchTestCase {
 
@@ -168,6 +169,46 @@ public class FileBasedSeedHostsProviderTests extends OpenSearchTestCase {
         assertEquals(9301, addresses.get(0).getPort());
     }
 
+    public void testCustomHostsFilePathRelativeToConfigDir() throws Exception {
+        final Path configPath = createTempDir();
+        final Path customSubDir = configPath.resolve("discovery");
+        Files.createDirectories(customSubDir);
+        final Path customFile = customSubDir.resolve("my_hosts.txt");
+        try (BufferedWriter writer = Files.newBufferedWriter(customFile)) {
+            writer.write("192.168.1.1");
+        }
+
+        final Settings settings = Settings.builder()
+            .put(UNICAST_HOSTS_FILE_PATH_SETTING.getKey(), "discovery/my_hosts.txt")
+            .build();
+        final List<TransportAddress> addresses = setupAndRunHostProvider(
+            Collections.emptyList(),
+            settings,
+            configPath
+        );
+        assertEquals(1, addresses.size());
+        assertEquals("192.168.1.1", addresses.get(0).getAddress());
+    }
+
+    public void testCustomAbsoluteHostsFilePath() throws Exception {
+        final Path customFile = createTempFile("hosts", ".txt");
+        try (BufferedWriter writer = Files.newBufferedWriter(customFile)) {
+            writer.write("10.0.0.1:9301");
+        }
+
+        final Settings settings = Settings.builder()
+            .put(UNICAST_HOSTS_FILE_PATH_SETTING.getKey(), customFile.toAbsolutePath().toString())
+            .build();
+        final List<TransportAddress> addresses = setupAndRunHostProvider(
+            Collections.emptyList(),
+            settings,
+            createTempDir()
+        );
+        assertEquals(1, addresses.size());
+        assertEquals("10.0.0.1", addresses.get(0).getAddress());
+        assertEquals(9301, addresses.get(0).getPort());
+    }
+
     // sets up the config dir, writes to the unicast hosts file in the config dir,
     // and then runs the file-based unicast host provider to get the list of discovery nodes
     private List<TransportAddress> setupAndRunHostProvider(final List<String> hostEntries) throws IOException {
@@ -179,6 +220,29 @@ public class FileBasedSeedHostsProviderTests extends OpenSearchTestCase {
         }
 
         return new FileBasedSeedHostsProvider(configPath).getSeedAddresses(
+            hosts -> SeedHostsResolver.resolveHostsLists(
+                new CancellableThreads(),
+                executorService,
+                logger,
+                hosts,
+                transportService,
+                TimeValue.timeValueSeconds(10)
+            )
+        );
+    }
+
+    private List<TransportAddress> setupAndRunHostProvider(
+        final List<String> hostEntries,
+        final Settings settings,
+        final Path configPath
+    ) throws IOException {
+        Files.createDirectories(configPath);
+        if (hostEntries.isEmpty() == false) {
+            try (BufferedWriter writer = Files.newBufferedWriter(configPath.resolve(UNICAST_HOSTS_FILE))) {
+                writer.write(String.join("\n", hostEntries));
+            }
+        }
+        return new FileBasedSeedHostsProvider(configPath, settings).getSeedAddresses(
             hosts -> SeedHostsResolver.resolveHostsLists(
                 new CancellableThreads(),
                 executorService,
