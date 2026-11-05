@@ -51,6 +51,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.index.Index;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
@@ -224,7 +225,8 @@ public class MetadataRolloverService {
         CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest = prepareDataStreamCreateIndexRequest(
             dataStreamName,
             newWriteIndexName,
-            createIndexRequest
+            createIndexRequest,
+            shouldInheritMappingsOnRollover(currentState.metadata(), dataStreamName) ? originalWriteIndex.getIndex() : null
         );
         ClusterState newState = createIndexService.applyCreateIndexRequest(
             currentState,
@@ -268,9 +270,43 @@ public class MetadataRolloverService {
         final String targetIndexName,
         CreateIndexRequest createIndexRequest
     ) {
+        return prepareDataStreamCreateIndexRequest(dataStreamName, targetIndexName, createIndexRequest, null);
+    }
+
+    /**
+     * Prepares the create index request for a new data stream backing index.
+     *
+     * @param mappingsSourceIndex if non-null, the new backing index is created with exactly the mappings of this index
+     *                            instead of the mappings resolved from the matching composable index template
+     */
+    static CreateIndexClusterStateUpdateRequest prepareDataStreamCreateIndexRequest(
+        final String dataStreamName,
+        final String targetIndexName,
+        CreateIndexRequest createIndexRequest,
+        @Nullable Index mappingsSourceIndex
+    ) {
         Settings settings = Settings.builder().put("index.hidden", true).build();
         return prepareCreateIndexRequest(targetIndexName, targetIndexName, "rollover_data_stream", createIndexRequest, settings)
-            .dataStreamName(dataStreamName);
+            .dataStreamName(dataStreamName)
+            .mappingsSourceIndex(mappingsSourceIndex);
+    }
+
+    /**
+     * Returns whether a rollover of the given data stream should copy the mappings of the current write index to the new
+     * backing index. The decision is taken solely from the settings of the composable index template that will create the
+     * new backing index, resolved at rollover time, so that enabling or disabling
+     * {@link IndexMetadata#INDEX_DATA_STREAM_ROLLOVER_INHERIT_MAPPINGS_SETTING} on the template applies to the very next
+     * rollover. Any value present on the backing indices themselves is intentionally ignored.
+     */
+    static boolean shouldInheritMappingsOnRollover(Metadata metadata, String dataStreamName) {
+        // Backing indices are always created hidden (see prepareDataStreamCreateIndexRequest), so resolve the template the
+        // same way MetadataCreateIndexService will when creating the new backing index.
+        final String templateName = findV2Template(metadata, dataStreamName, true);
+        if (templateName == null) {
+            return false;
+        }
+        final Settings templateSettings = MetadataIndexTemplateService.resolveSettings(metadata, templateName);
+        return IndexMetadata.INDEX_DATA_STREAM_ROLLOVER_INHERIT_MAPPINGS_SETTING.get(templateSettings);
     }
 
     static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(
