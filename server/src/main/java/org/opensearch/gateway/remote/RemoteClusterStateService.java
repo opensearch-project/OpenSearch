@@ -62,6 +62,7 @@ import org.opensearch.gateway.remote.model.RemoteTemplatesMetadata;
 import org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata;
 import org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
+import org.opensearch.indices.SystemIndices;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -241,6 +242,7 @@ public class RemoteClusterStateService implements Closeable {
     private RemoteManifestManager remoteManifestManager;
     private ClusterSettings clusterSettings;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final RemoteClusterStateIndexFilter indexFilter;
     private final String CLUSTER_STATE_UPLOAD_TIME_LOG_STRING = "writing cluster state for version [{}] took [{}ms]";
     private final String METADATA_UPDATE_LOG_STRING = "wrote metadata for [{}] indices and skipped [{}] unchanged "
         + "indices, coordination metadata updated : [{}], settings metadata updated : [{}], templates metadata "
@@ -271,7 +273,8 @@ public class RemoteClusterStateService implements Closeable {
         ThreadPool threadPool,
         List<IndexMetadataUploadListener> indexMetadataUploadListeners,
         NamedWriteableRegistry namedWriteableRegistry,
-        LongSupplier applicationDurationMsSupplier
+        LongSupplier applicationDurationMsSupplier,
+        SystemIndices systemIndices
     ) {
         assert isRemoteClusterStateConfigured(settings) : "Remote cluster state is not configured";
         this.nodeId = nodeId;
@@ -280,6 +283,7 @@ public class RemoteClusterStateService implements Closeable {
         this.relativeTimeNanosSupplier = relativeTimeNanosSupplier;
         this.applicationDurationMsSupplier = applicationDurationMsSupplier;
         this.threadpool = threadPool;
+        this.indexFilter = new RemoteClusterStateIndexFilter(systemIndices);
         clusterSettings = clusterService.getClusterSettings();
         this.slowWriteLoggingThreshold = clusterSettings.get(SLOW_WRITE_LOGGING_THRESHOLD);
         clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
@@ -328,7 +332,7 @@ public class RemoteClusterStateService implements Closeable {
         boolean publicationEnabled = isPublicationEnabled.get();
         UploadedMetadataResults uploadedMetadataResults = writeMetadataInParallel(
             clusterState,
-            new ArrayList<>(clusterState.metadata().indices().values()),
+            indexFilter.filterIndexMetadata(clusterState.metadata().indices().values()),
             emptyMap(),
             RemoteGlobalMetadataManager.filterCustoms(clusterState.metadata().customs(), publicationEnabled),
             true,
@@ -339,7 +343,7 @@ public class RemoteClusterStateService implements Closeable {
             publicationEnabled,
             publicationEnabled ? clusterState.customs() : Collections.emptyMap(),
             publicationEnabled,
-            remoteRoutingTableService.getIndicesRouting(clusterState.getRoutingTable()),
+            indexFilter.filterIndexRoutingTables(remoteRoutingTableService.getIndicesRouting(clusterState.getRoutingTable())),
             null
         );
 
@@ -382,6 +386,25 @@ public class RemoteClusterStateService implements Closeable {
             );
         }
         return manifestDetails;
+    }
+
+    /**
+     * Verifies that the uploaded manifest matches the cluster state after excluding system indices from remote publication.
+     */
+    @InternalApi
+    public boolean verifyManifestMatchesClusterState(ClusterMetadataManifest manifest, ClusterState clusterState) {
+        assert manifest != null : "ClusterMetadataManifest is null";
+        assert clusterState != null : "ClusterState is null";
+        List<IndexMetadata> indicesInManifest = indexFilter.filterIndexMetadata(clusterState.metadata().indices().values());
+        assert indicesInManifest.size() == manifest.getIndices().size()
+            : "Number of indices in last accepted state and manifest are different";
+        manifest.getIndices().forEach(md -> {
+            assert clusterState.metadata().indices().containsKey(md.getIndexName()) : "Last accepted state does not contain the index : "
+                + md.getIndexName();
+            assert clusterState.metadata().indices().get(md.getIndexName()).getIndexUUID().equals(md.getIndexUUID())
+                : "Last accepted state and manifest do not have same UUID for index : " + md.getIndexName();
+        });
+        return true;
     }
 
     /**
@@ -429,12 +452,17 @@ public class RemoteClusterStateService implements Closeable {
         final Map<String, ClusterMetadataManifest.UploadedIndexMetadata> allUploadedIndexMetadata = previousManifest.getIndices()
             .stream()
             .collect(Collectors.toMap(UploadedIndexMetadata::getIndexName, Function.identity()));
+        indexFilter.removeSystemIndicesFromUploadedMetadataMap(allUploadedIndexMetadata);
 
         List<IndexMetadata> toUpload = new ArrayList<>();
         // We prepare a map that contains the previous index metadata for the indexes for which version has changed.
         Map<String, IndexMetadata> prevIndexMetadataByName = new HashMap<>();
         for (final IndexMetadata indexMetadata : clusterState.metadata().indices().values()) {
             String indexName = indexMetadata.getIndex().getName();
+            if (indexFilter.includeIndex(indexName) == false) {
+                indicesToBeDeletedFromRemote.remove(indexName);
+                continue;
+            }
             final IndexMetadata prevIndexMetadata = indicesToBeDeletedFromRemote.get(indexName);
             Long previousVersion = prevIndexMetadata != null ? prevIndexMetadata.getVersion() : null;
             if (previousVersion == null || indexMetadata.getVersion() != previousVersion) {
@@ -467,6 +495,8 @@ public class RemoteClusterStateService implements Closeable {
             routingTableDiff.provideDiff().getUpserts().forEach((k, v) -> indicesRoutingToUpload.add(v));
             deletedIndicesRouting.addAll(routingTableDiff.provideDiff().getDeletes());
         }
+        indicesRoutingToUpload.removeIf(indexRoutingTable -> indexFilter.includeIndex(indexRoutingTable.getIndex().getName()) == false);
+        deletedIndicesRouting.removeIf(indexName -> indexFilter.includeIndex(indexName) == false);
 
         UploadedMetadataResults uploadedMetadataResults;
         // For migration case from codec V0 or V1 to V2, we have added null check on metadata attribute files,
@@ -1587,7 +1617,7 @@ public class RemoteClusterStateService implements Closeable {
                     manifest,
                     manifest.getClusterUUID(),
                     localNodeId,
-                    manifest.getIndices(),
+                    indexFilter.filterUploadedIndexMetadata(manifest.getIndices()),
                     manifest.getCustomMetadataMap(),
                     manifest.getCoordinationMetadata() != null,
                     manifest.getSettingsMetadata() != null,
@@ -1595,7 +1625,7 @@ public class RemoteClusterStateService implements Closeable {
                     manifest.getTemplatesMetadata() != null,
                     includeEphemeral && manifest.getDiscoveryNodesMetadata() != null,
                     includeEphemeral && manifest.getClusterBlocksMetadata() != null,
-                    includeEphemeral ? manifest.getIndicesRouting() : emptyList(),
+                    includeEphemeral ? indexFilter.filterUploadedIndexMetadata(manifest.getIndicesRouting()) : emptyList(),
                     includeEphemeral && manifest.getHashesOfConsistentSettings() != null,
                     includeEphemeral ? manifest.getClusterStateCustomMap() : emptyMap(),
                     false,
@@ -1613,7 +1643,7 @@ public class RemoteClusterStateService implements Closeable {
                     manifest,
                     manifest.getClusterUUID(),
                     localNodeId,
-                    manifest.getIndices(),
+                    indexFilter.filterUploadedIndexMetadata(manifest.getIndices()),
                     // for manifest codec V1, we don't have the following objects to read, so not passing anything
                     emptyMap(),
                     false,
@@ -1654,14 +1684,16 @@ public class RemoteClusterStateService implements Closeable {
             ClusterStateDiffManifest diff = manifest.getDiffManifest();
             boolean includeEphemeral = true;
 
-            List<UploadedIndexMetadata> updatedIndices = diff.getIndicesUpdated().stream().map(idx -> {
-                Optional<UploadedIndexMetadata> uploadedIndexMetadataOptional = manifest.getIndices()
-                    .stream()
-                    .filter(idx2 -> idx2.getIndexName().equals(idx))
-                    .findFirst();
-                assert uploadedIndexMetadataOptional.isPresent() == true;
-                return uploadedIndexMetadataOptional.get();
-            }).collect(Collectors.toList());
+            List<UploadedIndexMetadata> updatedIndices = indexFilter.filterUploadedIndexMetadata(
+                diff.getIndicesUpdated().stream().map(idx -> {
+                    Optional<UploadedIndexMetadata> uploadedIndexMetadataOptional = manifest.getIndices()
+                        .stream()
+                        .filter(idx2 -> idx2.getIndexName().equals(idx))
+                        .findFirst();
+                    assert uploadedIndexMetadataOptional.isPresent() == true;
+                    return uploadedIndexMetadataOptional.get();
+                }).collect(Collectors.toList())
+            );
 
             Map<String, UploadedMetadataAttribute> updatedCustomMetadata = new HashMap<>();
             if (diff.getCustomMetadataUpdated() != null) {
@@ -1679,9 +1711,11 @@ public class RemoteClusterStateService implements Closeable {
             List<UploadedIndexMetadata> updatedIndexRouting = new ArrayList<>();
             if (manifest.getCodecVersion() == CODEC_V2 || manifest.getCodecVersion() == CODEC_V3) {
                 updatedIndexRouting.addAll(
-                    remoteRoutingTableService.getUpdatedIndexRoutingTableMetadata(
-                        diff.getIndicesRoutingUpdated(),
-                        manifest.getIndicesRouting()
+                    indexFilter.filterUploadedIndexMetadata(
+                        remoteRoutingTableService.getUpdatedIndexRoutingTableMetadata(
+                            diff.getIndicesRoutingUpdated(),
+                            manifest.getIndicesRouting()
+                        )
                     )
                 );
             }
