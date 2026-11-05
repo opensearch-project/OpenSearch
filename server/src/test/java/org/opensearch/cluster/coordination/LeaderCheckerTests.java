@@ -360,6 +360,7 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
             assertTrue(leaderFailed.get());
         }
         assertEquals(Integer.valueOf(3), metricsRegistry.getCounterStore().get("leader.checker.failure.count").getCounterValue());
+        assertEquals(Integer.valueOf(3), metricsRegistry.getCounterStore().get("leader.checker.attempt.failure.count").getCounterValue());
     }
 
     public void testFollowerFailsImmediatelyOnHealthCheckFailure() {
@@ -443,6 +444,7 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
         }
 
         assertEquals(Integer.valueOf(1), metricsRegistry.getCounterStore().get("leader.checker.failure.count").getCounterValue());
+        assertEquals(Integer.valueOf(1), metricsRegistry.getCounterStore().get("leader.checker.attempt.failure.count").getCounterValue());
     }
 
     public void testLeaderBehaviour() {
@@ -540,6 +542,72 @@ public class LeaderCheckerTests extends OpenSearchTestCase {
             );
         }
         assertEquals(Integer.valueOf(0), metricsRegistry.getCounterStore().get("leader.checker.failure.count").getCounterValue());
+        assertEquals(Integer.valueOf(0), metricsRegistry.getCounterStore().get("leader.checker.attempt.failure.count").getCounterValue());
+    }
+
+    public void testLeaderCheckerAttemptFailureCountMetric() {
+        final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode leader = new DiscoveryNode("leader", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId()).build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+        AtomicBoolean leaderCheckAttemptFailOnce = new AtomicBoolean();
+        final MockTransport mockTransport = new MockTransport() {
+            @Override
+            protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
+                if (action.equals(HANDSHAKE_ACTION_NAME)) {
+                    handleResponse(requestId, new TransportService.HandshakeResponse(node, ClusterName.DEFAULT, Version.CURRENT));
+                    return;
+                }
+                assertThat(action, equalTo(LEADER_CHECK_ACTION_NAME));
+                assertEquals(node, leader);
+
+                deterministicTaskQueue.scheduleNow(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (leaderCheckAttemptFailOnce.compareAndSet(false, true)) {
+                            handleRemoteError(requestId, new OpenSearchException("simulated error"));
+                        } else {
+                            handleResponse(requestId, Empty.INSTANCE);
+                        }
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "response to request " + requestId;
+                    }
+                });
+            }
+        };
+
+        final TransportService transportService = mockTransport.createTransportService(
+            settings,
+            deterministicTaskQueue.getThreadPool(),
+            NOOP_TRANSPORT_INTERCEPTOR,
+            boundTransportAddress -> localNode,
+            null,
+            emptySet(),
+            NoopTracer.INSTANCE
+        );
+        transportService.start();
+        transportService.acceptIncomingRequests();
+
+        final AtomicBoolean leaderFailed = new AtomicBoolean();
+        TestInMemoryMetricsRegistry metricsRegistry = new TestInMemoryMetricsRegistry();
+        final ClusterManagerMetrics clusterManagerMetrics = new ClusterManagerMetrics(metricsRegistry);
+        final LeaderChecker leaderChecker = new LeaderChecker(settings, clusterSettings, transportService, e -> {
+            assertTrue(leaderFailed.compareAndSet(false, true));
+        }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"), clusterManagerMetrics);
+
+        leaderChecker.updateLeader(leader);
+
+        deterministicTaskQueue.advanceTime();
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        assertFalse(leaderFailed.get());
+        assertEquals(Integer.valueOf(0), metricsRegistry.getCounterStore().get("leader.checker.failure.count").getCounterValue());
+        assertEquals(Integer.valueOf(1), metricsRegistry.getCounterStore().get("leader.checker.attempt.failure.count").getCounterValue());
     }
 
     private class CapturingTransportResponseHandler implements TransportResponseHandler<Empty> {
