@@ -216,6 +216,30 @@ public class Netty4HttpObjectAggregatorTests extends OpenSearchTestCase {
         }
     }
 
+    public void testOversizedExpectationHonorsConnectionClose() {
+        try (Fixture fixture = new Fixture(true)) {
+            fixture.receive(
+                "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 17\r\nExpect: 100-continue\r\nConnection: close\r\n\r\n"
+            );
+            assertEquals(1, fixture.writer.pending.size());
+            assertTrue(fixture.rejection().isClosing());
+            assertFalse(((DuplexChannel) fixture.channel).isOutputShutdown());
+            fixture.writer.release();
+            ByteBuf response = fixture.channel.readOutbound();
+            assertNotNull(response);
+            try {
+                String headers = response.toString(StandardCharsets.US_ASCII);
+                assertTrue(headers.startsWith("HTTP/1.1 413 "));
+                assertTrue(headers.contains("connection: close\r\n"));
+            } finally {
+                response.release();
+            }
+            assertTrue(((DuplexChannel) fixture.channel).isOutputShutdown());
+            fixture.receive(GET);
+            assertNull("A request after Connection: close must not be dispatched", fixture.channel.readInbound());
+        }
+    }
+
     public void testCloseWaitsForPendingRejection() {
         try (Fixture fixture = new Fixture()) {
             fixture.receive(OVERSIZED);
@@ -241,6 +265,22 @@ public class Netty4HttpObjectAggregatorTests extends OpenSearchTestCase {
             fixture.channel.runScheduledPendingTasks();
             assertFalse("Input must not extend the pending-write deadline", fixture.channel.isOpen());
             assertNull(fixture.channel.readInbound());
+        }
+    }
+
+    public void testAdditionalRejectionsCannotExtendPendingWriteDeadline() {
+        try (Fixture fixture = new Fixture(true)) {
+            fixture.receive(OVERSIZED);
+            assertFalse(fixture.rejection().isClosing());
+            fixture.channel.advanceTimeBy(Netty4HttpRejectionHandler.WRITE_TIMEOUT_SECONDS - 1, TimeUnit.SECONDS);
+            fixture.channel.runScheduledPendingTasks();
+            assertTrue(fixture.channel.isOpen());
+            fixture.receive(OVERSIZED);
+            assertEquals(2, fixture.writer.pending.size());
+            assertFalse(fixture.rejection().isClosing());
+            fixture.channel.advanceTimeBy(2, TimeUnit.SECONDS);
+            fixture.channel.runScheduledPendingTasks();
+            assertFalse("Additional rejected requests must not extend the oldest pending response's deadline", fixture.channel.isOpen());
         }
     }
 
