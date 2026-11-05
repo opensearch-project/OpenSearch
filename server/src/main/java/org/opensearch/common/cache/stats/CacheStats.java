@@ -68,6 +68,16 @@ public class CacheStats {
         internalAdd(-other.getHits(), -other.getMisses(), -other.getEvictions(), -other.getSizeInBytes(), -other.getItems());
     }
 
+    /**
+     * Subtract from the live size and entry counters, keeping them non-negative. A node-level stats entry can be
+     * dropped for one shard copy and then reused by a second live copy of the same shard, so a late decrement for the
+     * already-dropped copy must not drive these counters below zero.
+     */
+    public void subtractSizeAndEntries(long amountBytes, long amountItems) {
+        sizeInBytes.inc(Math.max(0, sizeInBytes.count() - amountBytes) - sizeInBytes.count());
+        items.inc(Math.max(0, items.count() - amountItems) - items.count());
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(hits.count(), misses.count(), evictions.count(), sizeInBytes.count(), items.count());
