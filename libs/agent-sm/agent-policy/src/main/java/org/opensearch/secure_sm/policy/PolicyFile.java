@@ -343,12 +343,20 @@ public class PolicyFile extends java.security.Policy {
         }
 
         if ("file".equals(url.getProtocol())) {
-            String path = url.getPath();
+            String path = decodePath(url);
             path = canonicalizePath(path);
             return new File(path).toURI().toURL();
         }
 
         return url;
+    }
+
+    private static String decodePath(URL url) {
+        try {
+            return url.toURI().getPath();
+        } catch (URISyntaxException e) {
+            return url.getPath();
+        }
     }
 
     private String canonicalizePath(String path) throws IOException {
