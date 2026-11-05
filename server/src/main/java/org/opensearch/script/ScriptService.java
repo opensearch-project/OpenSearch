@@ -413,7 +413,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
      * <p>
      * Runs as the {@code script.max_size_in_bytes} settings-update consumer at apply time and only assigns. The
      * stored-script invariant is enforced up front by {@link #validateMaxSizeInBytes(int, ClusterState)} in the
-     * cluster-settings update transport action, so an invalid value is rejected before commit rather than throwing
+     * cluster settings validator registry, so an invalid value is rejected before commit rather than throwing
      * while the new cluster state is applied (which would destabilize the cluster-manager).
      * @param newMaxSizeInBytes The new maximum number of bytes.
      */
@@ -425,7 +425,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
      * Validates that {@code script.max_size_in_bytes} is not being lowered below the size of an already stored script.
      * <p>
      * This invariant depends on cluster state (the stored scripts), so it cannot be expressed by a stateless
-     * {@link Setting.Validator}. It is invoked from the cluster-settings update transport action against the current
+     * {@link Setting.Validator}. It is invoked by the cluster settings validator registry against the proposed
      * cluster state so that an invalid value is rejected before it is committed and applied, rather than throwing while
      * the new cluster state is being applied (which would destabilize the cluster-manager).
      *

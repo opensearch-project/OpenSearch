@@ -40,9 +40,11 @@ import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.ClusterSettingsValidatorRegistry;
 import org.opensearch.common.settings.Settings;
 
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
 import static org.opensearch.cluster.ClusterState.builder;
 import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
@@ -57,9 +59,11 @@ final class SettingsUpdater {
     final Settings.Builder transientUpdates = Settings.builder();
     final Settings.Builder persistentUpdates = Settings.builder();
     private final ClusterSettings clusterSettings;
+    private final ClusterSettingsValidatorRegistry validatorRegistry;
 
-    SettingsUpdater(ClusterSettings clusterSettings) {
+    SettingsUpdater(ClusterSettings clusterSettings, ClusterSettingsValidatorRegistry validatorRegistry) {
         this.clusterSettings = clusterSettings;
+        this.validatorRegistry = validatorRegistry;
     }
 
     synchronized Settings getTransientUpdates() {
@@ -74,6 +78,21 @@ final class SettingsUpdater {
         final ClusterState currentState,
         final Settings transientToApply,
         final Settings persistentToApply,
+        final Logger logger
+    ) {
+        return updateSettings(currentState, transientToApply, persistentToApply, UnaryOperator.identity(), logger);
+    }
+
+    /**
+     * Applies the settings and remaining state changes before validating the final proposed state.
+     *
+     * @param stateUpdater applies additional state changes while retaining the proposed cluster settings
+     */
+    synchronized ClusterState updateSettings(
+        final ClusterState currentState,
+        final Settings transientToApply,
+        final Settings persistentToApply,
+        final UnaryOperator<ClusterState> stateUpdater,
         final Logger logger
     ) {
         validateNoTransientSensitiveSettings(transientToApply);
@@ -151,14 +170,17 @@ final class SettingsUpdater {
             clusterState = currentState;
         }
 
+        final ClusterState updatedState = stateUpdater.apply(clusterState);
+
         /*
          * Now we try to apply things and if they are invalid we fail. This dry run will validate, parse settings, and trigger deprecation
          * logging, but will not actually apply them.
          */
-        final Settings settings = clusterState.metadata().settings();
+        final Settings settings = updatedState.metadata().settings();
         clusterSettings.validateUpdate(settings);
+        validatorRegistry.validate(transientToApply, persistentToApply, currentState, updatedState);
 
-        return clusterState;
+        return updatedState;
     }
 
     /**
