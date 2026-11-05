@@ -11,12 +11,16 @@ package org.opensearch.cluster.routing.allocation.allocator;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingPool;
+import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardMovementStrategy;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
@@ -64,6 +68,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
     private final boolean preferPrimaryBalance;
     private final boolean preferPrimaryRebalance;
+    private final boolean relocateBlockingReplicaEnabled;
 
     private final boolean ignoreThrottleInRestore;
     private final BalancedShardsAllocator.WeightFunction weight;
@@ -77,6 +82,10 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final Supplier<Boolean> timedOutFunc;
     private int totalShardCount = 0;
 
+    // Per-index guard: true once a blocking replica has been relocated during the current index's rebalance pass.
+    // Reset to false at the start of each index in balanceByWeights().
+    private boolean blockingReplicaRelocated = false;
+
     public LocalShardsBalancer(
         Logger logger,
         RoutingAllocation allocation,
@@ -85,6 +94,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         float threshold,
         boolean preferPrimaryBalance,
         boolean preferPrimaryRebalance,
+        boolean relocateBlockingReplicaEnabled,
         boolean ignoreThrottleInRestore,
         Supplier<Boolean> timedOutFunc
     ) {
@@ -102,6 +112,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         inEligibleTargetNode = new HashSet<>();
         this.preferPrimaryBalance = preferPrimaryBalance;
         this.preferPrimaryRebalance = preferPrimaryRebalance;
+        this.relocateBlockingReplicaEnabled = relocateBlockingReplicaEnabled;
         this.shardMovementStrategy = shardMovementStrategy;
         this.ignoreThrottleInRestore = ignoreThrottleInRestore;
         this.timedOutFunc = timedOutFunc;
@@ -269,7 +280,9 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 float proposedDelta = 2.0f + nodeWeight - currentWeight;
                 boolean betterWeightWithShardAdded = proposedDelta < currentDelta;
 
-                rebalanceConditionsMet = deltaAboveThreshold && betterWeightWithShardAdded;
+                rebalanceConditionsMet = deltaAboveThreshold
+                    && betterWeightWithShardAdded
+                    && primaryBalanceMoveAllowed(shard, currentNode, node);
                 // if the simulated weight delta with the shard moved away is better than the weight delta
                 // with the shard remaining on the current node, and we are allowed to allocate to the
                 // node in question, then allow the rebalance
@@ -350,6 +363,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         final BalancedShardsAllocator.ModelNode[] modelNodes = sorter.modelNodes;
         final float[] weights = sorter.weights;
         for (String index : buildWeightOrderedIndices()) {
+            blockingReplicaRelocated = false;
             // Terminate if the time allocated to the balanced shards allocator has elapsed
             if (timedOutFunc != null && timedOutFunc.get()) {
                 logger.info(
@@ -448,18 +462,28 @@ public class LocalShardsBalancer extends ShardsBalancer {
                             maxNode.getNodeId(),
                             minNode.getNodeId()
                         );
-                    } else if (tryRelocateShard(minNode, maxNode, index)) {
+                    } else {
+                        RelocationResult result = tryRelocateShard(minNode, maxNode, index, relevantNodes);
                         /*
                          * TODO we could be a bit smarter here, we don't need to fully sort necessarily
                          * we could just find the place to insert linearly but the win might be minor
                          * compared to the added complexity
                          */
-                        weights[lowIdx] = sorter.weight(modelNodes[lowIdx]);
-                        weights[highIdx] = sorter.weight(modelNodes[highIdx]);
-                        sorter.sort(0, relevantNodes);
-                        lowIdx = 0;
-                        highIdx = relevantNodes - 1;
-                        continue;
+                        if (result.type == RelocationResult.Type.DIRECT_RELOCATION) {
+                            weights[lowIdx] = sorter.weight(modelNodes[lowIdx]);
+                            weights[highIdx] = sorter.weight(modelNodes[highIdx]);
+                            sorter.sort(0, relevantNodes);
+                            lowIdx = 0;
+                            highIdx = relevantNodes - 1;
+                            continue;
+                        } else if (result.type == RelocationResult.Type.BLOCKING_REPLICA_RELOCATION) {
+                            weights[lowIdx] = sorter.weight(modelNodes[lowIdx]);
+                            weights[result.targetNodeIndex] = sorter.weight(modelNodes[result.targetNodeIndex]);
+                            sorter.sort(0, relevantNodes);
+                            lowIdx = 0;
+                            highIdx = relevantNodes - 1;
+                            continue;
+                        }
                     }
                 }
                 if (lowIdx < highIdx - 1) {
@@ -1055,11 +1079,25 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private static final Comparator<ShardRouting> PRIMARY_FIRST = Comparator.comparing(ShardRouting::primary).reversed();
 
     /**
-     * Tries to find a relocation from the max node to the minimal node for an arbitrary shard of the given index on the
-     * balance model. Iff this method returns a <code>true</code> the relocation has already been executed on the
-     * simulation model as well as on the cluster.
+     * Tries to relocate a shard of the given index directly from the max node to the min node. If a primary relocation is blocked
+     * by its replica on the min node, this method may instead relocate the blocking replica from the min node to another eligible
+     * node.
+     *
+     * {@link RelocationResult.Type#DIRECT_RELOCATION} means that a shard was relocated directly from the max node to the min node.
+     * {@link RelocationResult.Type#BLOCKING_REPLICA_RELOCATION} means that, when blocking-replica relocation is enabled and primary
+     * balance or primary rebalance is preferred, a replica blocking a primary relocation was moved from the min node to another
+     * eligible node. In both cases, the relocation was executed on the cluster and applied to the balance model, and the result
+     * identifies the nodes whose weights must be recalculated.
+     *
+     * {@link RelocationResult.Type#NONE} means that no relocation was executed on the cluster. Either no eligible relocation was
+     * found, or only the balance model was updated by a simulated relocation.
      */
-    private boolean tryRelocateShard(BalancedShardsAllocator.ModelNode minNode, BalancedShardsAllocator.ModelNode maxNode, String idx) {
+    private RelocationResult tryRelocateShard(
+        BalancedShardsAllocator.ModelNode minNode,
+        BalancedShardsAllocator.ModelNode maxNode,
+        String idx,
+        int relevantNodes
+    ) {
         final BalancedShardsAllocator.ModelIndex index = maxNode.getIndex(idx);
         if (index != null) {
             logger.trace("Try relocating shard of [{}] from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
@@ -1081,21 +1119,21 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 }
                 final Decision allocationDecision = deciders.canAllocate(shard, minNode.getRoutingNode(), allocation);
                 if (allocationDecision.type() == Decision.Type.NO) {
+                    // Unlike a model-only move, making room must wait until the primary is not throttled.
+                    if (relocateBlockingReplicaEnabled && shard.primary() && rebalanceDecision.type() == Decision.Type.YES) {
+                        int targetNodeIndex = tryRelocateBlockingReplica(shard, minNode, maxNode, deciders, relevantNodes);
+                        if (targetNodeIndex >= 0) {
+                            return RelocationResult.blockingReplicaRelocation(targetNodeIndex);
+                        }
+                    }
                     continue;
                 }
                 // This is a safety net which prevents un-necessary primary shard relocations from maxNode to minNode when
-                // doing such relocation wouldn't help in primary balance. The condition won't be applicable when we enable node level
-                // primary rebalance
-                if (preferPrimaryBalance == true
-                    && preferPrimaryRebalance == false
-                    && shard.primary()
-                    && maxNode.numPrimaryShards(shard.getIndexName()) - minNode.numPrimaryShards(shard.getIndexName()) < 2) {
+                // doing such relocation wouldn't help in primary balance.
+                if (primaryBalanceMoveAllowed(shard, maxNode, minNode) == false) {
                     continue;
                 }
-                // Relax the above condition to per node to allow rebalancing to attain global balance
-                if (preferPrimaryRebalance == true && shard.primary() && maxNode.numPrimaryShards() - minNode.numPrimaryShards() < 2) {
-                    continue;
-                }
+
                 final Decision decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
                 maxNode.removeShard(shard);
                 --totalShardCount;
@@ -1106,19 +1144,257 @@ public class LocalShardsBalancer extends ShardsBalancer {
                     logger.debug("Relocate [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
                     minNode.addShard(routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1());
                     ++totalShardCount;
-                    return true;
+                    return RelocationResult.directRelocation();
                 } else {
                     /* allocate on the model even if throttled */
                     logger.debug("Simulate relocation of [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
                     assert decision.type() == Decision.Type.THROTTLE;
                     minNode.addShard(shard.relocate(minNode.getNodeId(), shardSize));
                     ++totalShardCount;
-                    return false;
+                    return RelocationResult.NONE;
                 }
             }
         }
         logger.trace("No shards of [{}] can relocate from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
-        return false;
+        return RelocationResult.NONE;
     }
 
+    private boolean primaryBalanceMoveAllowed(
+        ShardRouting shard,
+        BalancedShardsAllocator.ModelNode maxNode,
+        BalancedShardsAllocator.ModelNode minNode
+    ) {
+        if (shard.primary() == false || (preferPrimaryBalance == false && preferPrimaryRebalance == false)) {
+            return true;
+        }
+        final RoutingNode source = maxNode.getRoutingNode();
+        final RoutingNode target = minNode.getRoutingNode();
+        final int indexDiff = source.numberOfOwningPrimaryShardsForIndex(shard.index()) - target.numberOfOwningPrimaryShardsForIndex(
+            shard.index()
+        );
+        final int nodeDiff = source.numberOfOwningPrimaryShards() - target.numberOfOwningPrimaryShards();
+        final boolean moveAllowed;
+        if (preferPrimaryBalance && preferPrimaryRebalance) {
+            moveAllowed = indexDiff >= 2 || (indexDiff == 1 && nodeDiff >= 2);
+        } else {
+            moveAllowed = preferPrimaryBalance ? indexDiff >= 2 : nodeDiff >= 2;
+        }
+        if (moveAllowed == false) {
+            logger.trace(
+                "Skipping primary relocation: shard [{}], maxNode [{}], minNode [{}], indexDiff [{}], nodeDiff [{}]",
+                shard.shardId(),
+                maxNode.getNodeId(),
+                minNode.getNodeId(),
+                indexDiff,
+                nodeDiff
+            );
+        }
+        return moveAllowed;
+    }
+
+    private int tryRelocateBlockingReplica(
+        ShardRouting primary,
+        BalancedShardsAllocator.ModelNode minNode,
+        BalancedShardsAllocator.ModelNode maxNode,
+        AllocationDeciders deciders,
+        int relevantNodes
+    ) {
+        logger.trace(
+            "Attempting blocking replica relocation to make room for primary [{}], maxNode [{}], minNode [{}]",
+            primary,
+            maxNode.getNodeId(),
+            minNode.getNodeId()
+        );
+
+        if (preferPrimaryBalance == false && preferPrimaryRebalance == false) {
+            logger.trace(
+                "Skipping blocking replica relocation for primary [{}]: neither preferPrimaryBalance nor preferPrimaryRebalance is enabled",
+                primary
+            );
+            return -1;
+        }
+
+        if (blockingReplicaRelocated) {
+            logger.trace("Skipping blocking replica relocation for primary [{}]: already relocated in this rebalance", primary);
+            return -1;
+        }
+
+        if (primaryBalanceMoveAllowed(primary, maxNode, minNode) == false) {
+            return -1;
+        }
+        final ShardRouting blockingReplica = findBlockingReplicaOnNode(primary, minNode);
+        if (blockingReplica == null) {
+            logger.trace("No blocking replica found on minNode [{}] for primary [{}]", minNode.getNodeId(), primary);
+            return -1;
+        }
+        Decision.Type decisionType = deciders.canRebalance(blockingReplica, allocation).type();
+        if (decisionType != Decision.Type.YES) {
+            logger.trace(
+                "Skipping relocation for blocking replica [{}]: cannot be rebalanced, decision type [{}]",
+                blockingReplica,
+                decisionType
+            );
+            return -1;
+        }
+        final int blockingReplicaTargetNodeIndex = findTargetNodeForBlockingReplica(
+            primary,
+            blockingReplica,
+            minNode,
+            maxNode,
+            deciders,
+            relevantNodes
+        );
+        if (blockingReplicaTargetNodeIndex < 0) {
+            logger.trace("Skipping relocation for blocking replica [{}]: no target node available", blockingReplica);
+            return -1;
+        }
+        final BalancedShardsAllocator.ModelNode blockingReplicaTargetNode = sorter.modelNodes[blockingReplicaTargetNodeIndex];
+
+        final long replicaSize = allocation.clusterInfo().getShardSize(blockingReplica, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+
+        logger.debug("Relocate [{}] from [{}] to [{}]", blockingReplica, minNode.getNodeId(), blockingReplicaTargetNode.getNodeId());
+
+        minNode.removeShard(blockingReplica);
+        --totalShardCount;
+        blockingReplicaTargetNode.addShard(
+            routingNodes.relocateShard(blockingReplica, blockingReplicaTargetNode.getNodeId(), replicaSize, allocation.changes()).v1()
+        );
+        ++totalShardCount;
+        blockingReplicaRelocated = true;
+        return blockingReplicaTargetNodeIndex;
+    }
+
+    private ShardRouting findBlockingReplicaOnNode(ShardRouting primary, BalancedShardsAllocator.ModelNode minNode) {
+        for (ShardRouting candidate : routingNodes.assignedShards(primary.shardId())) {
+            if (candidate.primary() == false && candidate.started() && minNode.getNodeId().equals(candidate.currentNodeId())) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private int findTargetNodeForBlockingReplica(
+        ShardRouting primary,
+        ShardRouting replica,
+        BalancedShardsAllocator.ModelNode minNode,
+        BalancedShardsAllocator.ModelNode maxNode,
+        AllocationDeciders deciders,
+        int relevantNodes
+    ) {
+        ClusterState simulationBase = null;
+        for (int i = 0; i < relevantNodes; i++) {
+            BalancedShardsAllocator.ModelNode candidate = sorter.modelNodes[i];
+            if (candidate == null) {
+                continue;
+            }
+            final String candidateNode = candidate.getNodeId();
+            if (candidateNode.equals(minNode.getNodeId()) || candidateNode.equals(maxNode.getNodeId())) {
+                continue;
+            }
+            final Decision allocationDecision = deciders.canAllocate(replica, candidate.getRoutingNode(), allocation);
+            if (allocationDecision.type() == Decision.Type.YES) {
+                if (simulationBase == null) {
+                    // Reuse only the immutable base within this search; each candidate gets independent routing nodes.
+                    RoutingTable currentRoutingTable = RoutingTable.builder()
+                        .updateNodes(allocation.routingTable().version(), routingNodes)
+                        .build();
+                    simulationBase = ClusterState.builder(ClusterName.DEFAULT)
+                        .metadata(allocation.metadata())
+                        .nodes(allocation.nodes())
+                        .customs(allocation.getCustoms())
+                        .routingTable(currentRoutingTable)
+                        .build();
+                }
+                if (canAllocatePrimaryAfterReplicaRelocation(primary, replica, candidateNode, simulationBase)) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    private boolean canAllocatePrimaryAfterReplicaRelocation(
+        ShardRouting primary,
+        ShardRouting replica,
+        String replicaTargetNode,
+        ClusterState simulationBase
+    ) {
+        // Isolated simulation in which the blocking replica is relocated and marked as started; the real
+        // RoutingAllocation and its change observer are never touched.
+        RoutingAllocation replicaMoveSimulation = newSimulatedAllocation(simulationBase);
+        ShardRouting replicaInSimulation = replicaMoveSimulation.routingNodes()
+            .getByAllocationId(replica.shardId(), replica.allocationId().getId());
+        long replicaSize = allocation.clusterInfo().getShardSize(replica, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+        Tuple<ShardRouting, ShardRouting> relocation = replicaMoveSimulation.routingNodes()
+            .relocateShard(replicaInSimulation, replicaTargetNode, replicaSize, replicaMoveSimulation.changes());
+        replicaMoveSimulation.routingNodes().startShard(logger, relocation.v2(), replicaMoveSimulation.changes());
+
+        // Keep routing-table and metadata readers consistent with routing-node readers after the simulated completion.
+        RoutingTable simulatedRoutingTable = RoutingTable.builder()
+            .updateNodes(simulationBase.routingTable().version(), replicaMoveSimulation.routingNodes())
+            .build();
+        ClusterState.Builder simulatedStateBuilder = ClusterState.builder(simulationBase)
+            .routingTable(simulatedRoutingTable)
+            .metadata(replicaMoveSimulation.updateMetadataWithRoutingChanges(simulatedRoutingTable));
+        RestoreInProgress restore = replicaMoveSimulation.custom(RestoreInProgress.TYPE);
+        if (restore != null) {
+            simulatedStateBuilder.putCustom(RestoreInProgress.TYPE, replicaMoveSimulation.updateRestoreInfoWithRoutingChanges(restore));
+        }
+        // The routing allocation as it would look once the simulated replica relocation has completed.
+        RoutingAllocation allocationAfterSimulatedReplicaMove = newSimulatedAllocation(simulatedStateBuilder.build());
+        ShardRouting primaryAfterSimulatedReplicaMove = allocationAfterSimulatedReplicaMove.routingNodes()
+            .getByAllocationId(primary.shardId(), primary.allocationId().getId());
+        AllocationDeciders deciders = allocationAfterSimulatedReplicaMove.deciders();
+        return deciders.canRebalance(allocationAfterSimulatedReplicaMove).type() == Decision.Type.YES
+            && deciders.canRebalance(primaryAfterSimulatedReplicaMove, allocationAfterSimulatedReplicaMove).type() == Decision.Type.YES
+            && deciders.canAllocate(
+                primaryAfterSimulatedReplicaMove,
+                allocationAfterSimulatedReplicaMove.routingNodes().node(replica.currentNodeId()),
+                allocationAfterSimulatedReplicaMove
+            ).type() == Decision.Type.YES;
+    }
+
+    private RoutingAllocation newSimulatedAllocation(ClusterState state) {
+        RoutingAllocation simulatedAllocation = new RoutingAllocation(
+            allocation.deciders(),
+            new RoutingNodes(state, false),
+            state,
+            allocation.clusterInfo(),
+            allocation.snapshotShardSizeInfo(),
+            allocation.getCurrentNanoTime(),
+            allocation.clusterSettings()
+        );
+        simulatedAllocation.ignoreDisable(allocation.ignoreDisable());
+        simulatedAllocation.setDebugMode(allocation.getDebugMode());
+        if (allocation.hasPendingAsyncFetch()) {
+            simulatedAllocation.setHasPendingAsyncFetch();
+        }
+        simulatedAllocation.copyIgnoreNodesFrom(allocation);
+        return simulatedAllocation;
+    }
+
+    private static class RelocationResult {
+        static final RelocationResult NONE = new RelocationResult(Type.NONE, -1);
+        final Type type;
+        final int targetNodeIndex;
+
+        enum Type {
+            NONE,
+            DIRECT_RELOCATION,
+            BLOCKING_REPLICA_RELOCATION
+        }
+
+        private RelocationResult(Type type, int targetNodeIndex) {
+            this.type = type;
+            this.targetNodeIndex = targetNodeIndex;
+        }
+
+        static RelocationResult directRelocation() {
+            return new RelocationResult(Type.DIRECT_RELOCATION, -1);
+        }
+
+        static RelocationResult blockingReplicaRelocation(int targetNodeIndex) {
+            return new RelocationResult(Type.BLOCKING_REPLICA_RELOCATION, targetNodeIndex);
+        }
+    }
 }
