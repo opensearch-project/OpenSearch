@@ -35,6 +35,7 @@ package org.opensearch.http.netty4;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -461,14 +462,14 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline().addLast(cleartextUpgradeHandler).addLast(new SimpleChannelInboundHandler<HttpMessage>() {
                 @Override
                 protected void channelRead0(ChannelHandlerContext ctx, HttpMessage msg) throws Exception {
-                    final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
-                    aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
+                    final Netty4HttpObjectAggregator aggregator = transport.createHttpObjectAggregator(handlingSettings);
 
                     // If this handler is hit then no upgrade has been attempted and the client is just talking HTTP
                     final ChannelPipeline pipeline = ctx.pipeline();
                     pipeline.addAfter(ctx.name(), "handler", getRequestHandler());
                     pipeline.replace(this, "header_verifier", transport.createHeaderVerifier());
-                    pipeline.addAfter("header_verifier", "decoder_compress", transport.createDecompressor());
+                    pipeline.addAfter("header_verifier", "encoded_length", aggregator.encodedLengthRecorder());
+                    pipeline.addAfter("encoded_length", "decoder_compress", transport.createDecompressor());
                     pipeline.addAfter("decoder_compress", "aggregator", aggregator);
                     if (handlingSettings.isCompression()) {
                         pipeline.addAfter(
@@ -499,10 +500,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             pipeline.addLast("decoder", decoder);
             pipeline.addLast("header_verifier", transport.createHeaderVerifier());
+            final Netty4HttpObjectAggregator aggregator = transport.createHttpObjectAggregator(handlingSettings);
+            pipeline.addLast("encoded_length", aggregator.encodedLengthRecorder());
             pipeline.addLast("decoder_compress", transport.createDecompressor());
             pipeline.addLast("encoder", new HttpResponseEncoder());
-            final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
-            aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             pipeline.addLast("aggregator", aggregator);
             if (handlingSettings.isCompression()) {
                 pipeline.addLast(
@@ -611,6 +612,18 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     /**
      * Extension point that allows a NetworkPlugin to extend the netty pipeline and inspect headers after request decoding
      */
+    /** Bounds of the handling of oversized requests; only changed by tests. */
+    volatile Netty4HttpRejectionHandler.Timeouts rejectionTimeouts = Netty4HttpRejectionHandler.Timeouts.DEFAULT;
+
+    Netty4HttpObjectAggregator createHttpObjectAggregator(HttpHandlingSettings handlingSettings) {
+        return new Netty4HttpObjectAggregator(
+            handlingSettings.getMaxContentLength(),
+            maxCompositeBufferComponents,
+            () -> lifecycleState() == Lifecycle.State.STARTED,
+            rejectionTimeouts
+        );
+    }
+
     protected ChannelInboundHandlerAdapter createHeaderVerifier() {
         // pass-through
         return new ChannelInboundHandlerAdapter();
