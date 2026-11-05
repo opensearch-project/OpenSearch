@@ -121,8 +121,8 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
         if (childObjectMapper.nested().isNested() == false) {
             throw new AggregationExecutionException("[nested] nested path [" + path + "] is not nested");
         }
+        ObjectMapper parentObjectMapper = queryShardContext.nestedScope().nextLevel(childObjectMapper);
         try {
-            ObjectMapper parentObjectMapper = queryShardContext.nestedScope().nextLevel(childObjectMapper);
             return new NestedAggregatorFactory(
                 name,
                 parentObjectMapper,
