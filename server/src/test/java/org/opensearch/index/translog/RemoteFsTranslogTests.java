@@ -101,6 +101,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -154,6 +155,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     TestTranslog.FailSwitch fail;
 
     TestTranslog.SlowDownWriteSwitch slowDown;
+
+    volatile CountDownLatch slowRemoteOperationStarted = new CountDownLatch(0);
 
     protected LongConsumer getPersistedSeqNoConsumer() {
         return seqNo -> {
@@ -970,6 +973,133 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         assertBusy(() -> assertEquals(1, blobStoreTransferService.listAll(getTranslogDirectory().add(METADATA_DIR)).size()));
     }
 
+    public void testLocalRolloverDoesNotWaitForInflightUpload() throws Exception {
+        translog.add(new Translog.Index("0", 0, primaryTerm.get(), new byte[] { 1 }));
+        slowDown.setSleepSeconds(2);
+
+        AtomicReference<Exception> uploadFailure = new AtomicReference<>();
+        Thread uploadThread = new Thread(() -> {
+            try {
+                translog.sync();
+            } catch (Exception e) {
+                uploadFailure.set(e);
+            }
+        });
+        uploadThread.start();
+        assertBusy(() -> assertEquals(0, translog.availablePermits()));
+        translog.setMinSeqNoToKeep(Long.MAX_VALUE);
+
+        for (int i = 1; i <= 3; i++) {
+            translog.add(new Translog.Index(Integer.toString(i), i, primaryTerm.get(), new byte[] { 1 }));
+            long generationBeforeRoll = translog.currentFileGeneration();
+            CountDownLatch rolloverComplete = new CountDownLatch(1);
+            AtomicReference<Exception> rolloverFailure = new AtomicReference<>();
+            Thread rolloverThread = new Thread(() -> {
+                try {
+                    translog.rollGeneration(false);
+                } catch (Exception e) {
+                    rolloverFailure.set(e);
+                } finally {
+                    rolloverComplete.countDown();
+                }
+            });
+            rolloverThread.start();
+            assertTrue("local rollover waited for the remote upload", rolloverComplete.await(1, TimeUnit.SECONDS));
+            rolloverThread.join();
+            assertNull(rolloverFailure.get());
+            assertEquals(generationBeforeRoll + 1, translog.currentFileGeneration());
+            translog.trimUnreferencedReaders();
+            assertEquals("an unuploaded generation was trimmed", 2 + i, translog.readers.size());
+        }
+
+        assertTrue("remote upload should still be in flight", uploadThread.isAlive());
+        slowDown.setSleepSeconds(0);
+        uploadThread.join(TimeUnit.SECONDS.toMillis(20));
+        assertFalse("remote upload did not finish", uploadThread.isAlive());
+        assertNull(uploadFailure.get());
+
+        assertTrue(translog.syncNeeded());
+        translog.sync();
+        assertFalse(translog.syncNeeded());
+    }
+
+    public void testAsyncSyncDoesNotWaitForInflightUpload() throws Exception {
+        translog.add(new Translog.Index("0", 0, primaryTerm.get(), new byte[] { 1 }));
+        slowDown.setSleepSeconds(2);
+        slowRemoteOperationStarted = new CountDownLatch(1);
+
+        AtomicReference<Exception> uploadFailure = new AtomicReference<>();
+        Thread uploadThread = new Thread(() -> {
+            try {
+                translog.sync();
+            } catch (Exception e) {
+                uploadFailure.set(e);
+            }
+        });
+        uploadThread.start();
+        assertTrue("initial upload did not start", slowRemoteOperationStarted.await(20, TimeUnit.SECONDS));
+        assertEquals(0, translog.availablePermits());
+
+        translog.add(new Translog.Index("1", 1, primaryTerm.get(), new byte[] { 1 }));
+
+        // This sync models the periodic async-sync task. It should not wait for an upload already in progress;
+        // the pending generation can be rolled and uploaded on the next interval.
+        CountDownLatch asyncSyncComplete = new CountDownLatch(1);
+        AtomicReference<Exception> asyncSyncFailure = new AtomicReference<>();
+        Thread asyncSyncThread = new Thread(() -> {
+            try {
+                translog.sync();
+            } catch (Exception e) {
+                asyncSyncFailure.set(e);
+            } finally {
+                asyncSyncComplete.countDown();
+            }
+        });
+        asyncSyncThread.start();
+
+        final boolean completedWithoutWaiting = asyncSyncComplete.await(1, TimeUnit.SECONDS);
+        slowDown.setSleepSeconds(0);
+        uploadThread.join(TimeUnit.SECONDS.toMillis(20));
+        asyncSyncThread.join(TimeUnit.SECONDS.toMillis(20));
+
+        assertTrue("async sync waited for an in-flight upload", completedWithoutWaiting);
+        assertFalse("initial upload did not finish", uploadThread.isAlive());
+        assertFalse("async sync did not finish", asyncSyncThread.isAlive());
+        assertNull(uploadFailure.get());
+        assertNull(asyncSyncFailure.get());
+        assertTrue("async sync should leave the skipped upload pending", translog.syncNeeded());
+
+        translog.sync();
+        assertFalse(translog.syncNeeded());
+    }
+
+    public void testLocalRolloverContinuesAfterUploadFailure() throws Exception {
+        translog.add(new Translog.Index("0", 0, primaryTerm.get(), new byte[] { 1 }));
+        fail.failAlways();
+        assertThrows(TranslogUploadFailedException.class, translog::sync);
+        assertTrue(translog.isOpen());
+
+        translog.add(new Translog.Index("1", 1, primaryTerm.get(), new byte[] { 1 }));
+        long generationBeforeRoll = translog.currentFileGeneration();
+        translog.rollGeneration(false);
+        assertEquals(generationBeforeRoll + 1, translog.currentFileGeneration());
+        assertTrue(translog.syncNeeded());
+
+        fail.failNever();
+        translog.sync();
+        assertFalse(translog.syncNeeded());
+    }
+
+    public void testEnsureSyncedUploadsAlreadyRolledGeneration() throws Exception {
+        Translog.Location location = translog.add(new Translog.Index("0", 0, primaryTerm.get(), new byte[] { 1 }));
+        translog.rollGeneration(false);
+
+        assertTrue(translog.syncNeeded());
+        assertTrue(translog.ensureSynced(location));
+        assertFalse(translog.syncNeeded());
+        assertFalse(translog.ensureSynced(location));
+    }
+
     protected BlobPath getTranslogDirectory() {
         return repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(TRANSLOG.getName());
     }
@@ -1561,7 +1691,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             primaryTerm.get()
         );
 
+        // Keep the auxiliary writer's uploads separate from the fixture translog for the same shard.
         try (
+            BlobStoreRepository writerRepository = createRepository();
             Translog translog = new RemoteFsTranslog(
                 config,
                 translogUUID,
@@ -1569,7 +1701,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 persistedSeqNos::add,
-                repository,
+                writerRepository,
                 threadPool,
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
@@ -1669,7 +1801,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             primaryTerm.get()
         );
 
+        // Keep the auxiliary writer's uploads separate from the fixture translog for the same shard.
         try (
+            BlobStoreRepository writerRepository = createRepository();
             Translog translog = new RemoteFsTranslog(
                 config,
                 translogUUID,
@@ -1677,7 +1811,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 primaryTerm::get,
                 persistedSeqNos::add,
-                repository,
+                writerRepository,
                 threadPool,
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
@@ -2568,6 +2702,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 throw new IOException("blob container throwing error");
             }
             if (slowDown.getSleepSeconds() > 0) {
+                slowRemoteOperationStarted.countDown();
                 try {
                     Thread.sleep(slowDown.getSleepSeconds() * 1000L);
                 } catch (InterruptedException e) {
@@ -2584,6 +2719,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 throw new IOException("blob container throwing error");
             }
             if (slowDown.getSleepSeconds() > 0) {
+                slowRemoteOperationStarted.countDown();
                 try {
                     Thread.sleep(slowDown.getSleepSeconds() * 1000L);
                 } catch (InterruptedException e) {
@@ -2605,6 +2741,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 return;
             }
             if (slowDown.getSleepSeconds() > 0) {
+                slowRemoteOperationStarted.countDown();
                 try {
                     Thread.sleep(slowDown.getSleepSeconds() * 1000L);
                 } catch (InterruptedException e) {
