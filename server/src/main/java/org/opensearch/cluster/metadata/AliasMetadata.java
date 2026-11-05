@@ -83,6 +83,13 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     @Nullable
     private final Boolean isHidden;
 
+    /**
+     * Lazily-populated cache of the decompressed, parsed filter map. Volatile so the
+     * write is visible to all threads; benign data-race on first access is acceptable
+     * because all concurrent computations produce an equivalent value.
+     */
+    private volatile Map<String, Object> filterAsMapCache;
+
     private AliasMetadata(
         String alias,
         CompressedXContent filter,
@@ -133,6 +140,24 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
 
     public boolean filteringRequired() {
         return filter != null;
+    }
+
+    /**
+     * Returns the filter decoded as a plain {@link Map}, decompressing and parsing it
+     * on first call and caching the result for subsequent requests. Returns {@code null}
+     * when no filter is set.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> filterAsMap() {
+        if (filter == null) {
+            return null;
+        }
+        Map<String, Object> cached = filterAsMapCache;
+        if (cached == null) {
+            cached = XContentHelper.convertToMap(filter.uncompressed(), true).v2();
+            filterAsMapCache = cached;
+        }
+        return cached;
     }
 
     public String getSearchRouting() {
@@ -366,7 +391,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                 if (binary) {
                     builder.field("filter", aliasMetadata.filter.compressed());
                 } else {
-                    builder.field("filter", XContentHelper.convertToMap(aliasMetadata.filter().uncompressed(), true).v2());
+                    builder.field("filter", aliasMetadata.filterAsMap());
                 }
             }
             if (aliasMetadata.indexRouting() != null) {
