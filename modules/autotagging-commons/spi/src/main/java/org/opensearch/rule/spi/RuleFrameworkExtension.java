@@ -35,9 +35,16 @@ public interface RuleFrameworkExtension {
 
     /**
      * Flow implementation from consumer plugins into framework plugin
+     * The supplier must return the same node-local instance after components have been created.
      * @return the specific implementation of FeatureType
      */
     Supplier<FeatureType> getFeatureTypeSupplier();
+
+    /**
+     * Returns the feature name before components are created, so transport readers can be registered.
+     * Must match the name of the node-local instance returned by {@link #getFeatureTypeSupplier()}.
+     */
+    String getFeatureTypeName();
 
     /**
      * Flow attributes from RuleFrameworkExtension to implementation plugins

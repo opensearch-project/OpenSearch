@@ -80,6 +80,7 @@ public class WorkloadGroupPersistenceService {
         Setting.Property.NodeScope
     );
     private final ClusterService clusterService;
+    private final AutoTaggingRegistry autoTaggingRegistry;
     private volatile int maxWorkloadGroupCount;
     final ThrottlingKey createWorkloadGroupThrottlingKey;
     final ThrottlingKey deleteWorkloadGroupThrottlingKey;
@@ -91,14 +92,17 @@ public class WorkloadGroupPersistenceService {
      * @param clusterService {@link ClusterService} - The cluster service to be used by WorkloadGroupPersistenceService
      * @param settings {@link Settings} - The settings to be used by WorkloadGroupPersistenceService
      * @param clusterSettings {@link ClusterSettings} - The cluster settings to be used by WorkloadGroupPersistenceService
+     * @param autoTaggingRegistry node-local feature registry
      */
     @Inject
     public WorkloadGroupPersistenceService(
         final ClusterService clusterService,
         final Settings settings,
-        final ClusterSettings clusterSettings
+        final ClusterSettings clusterSettings,
+        final AutoTaggingRegistry autoTaggingRegistry
     ) {
         this.clusterService = clusterService;
+        this.autoTaggingRegistry = autoTaggingRegistry;
         this.createWorkloadGroupThrottlingKey = clusterService.registerClusterManagerTask(CREATE_QUERY_GROUP, true);
         this.deleteWorkloadGroupThrottlingKey = clusterService.registerClusterManagerTask(DELETE_QUERY_GROUP, true);
         this.updateWorkloadGroupThrottlingKey = clusterService.registerClusterManagerTask(UPDATE_QUERY_GROUP, true);
@@ -380,7 +384,7 @@ public class WorkloadGroupPersistenceService {
      * @param clusterState state containing the currently stored workload group
      * @throws IllegalArgumentException if the effective config cannot be enforced
      */
-    public static void validateUpdateThrottlingIsEnforceable(UpdateWorkloadGroupRequest request, ClusterState clusterState) {
+    public void validateUpdateThrottlingIsEnforceable(UpdateWorkloadGroupRequest request, ClusterState clusterState) {
         validateThrottlingIsEnforceable(getEffectiveThrottling(request, clusterState));
     }
 
@@ -410,7 +414,7 @@ public class WorkloadGroupPersistenceService {
      * @param throttling the incoming throttling fragment, may be {@code null} or empty (both fine: nothing to honour)
      * @throws IllegalArgumentException if the config cannot be enforced
      */
-    public static void validateThrottlingIsEnforceable(Settings throttling) {
+    public void validateThrottlingIsEnforceable(Settings throttling) {
         if (throttling == null || throttling.isEmpty()) {
             return;
         }
@@ -419,7 +423,7 @@ public class WorkloadGroupPersistenceService {
             return;
         }
         try {
-            FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+            FeatureType featureType = autoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
             if (featureType.getAllowedAttributesRegistry().containsKey(WorkloadManagementPlugin.PRINCIPAL_ATTRIBUTE_NAME) == false) {
                 throw new IllegalArgumentException(
                     "throttling.by ["

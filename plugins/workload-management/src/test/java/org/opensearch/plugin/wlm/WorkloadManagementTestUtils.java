@@ -21,6 +21,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.wlm.rule.sync.RefreshBasedSyncMechanism;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
+import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.ResourceType;
@@ -121,7 +122,7 @@ public class WorkloadManagementTestUtils {
             mock(ClusterManagerService.class),
             clusterApplierService
         );
-        return new WorkloadGroupPersistenceService(clusterService, settings(), clusterSettings());
+        return new WorkloadGroupPersistenceService(clusterService, settings(), clusterSettings(), new AutoTaggingRegistry());
     }
 
     public static Tuple<WorkloadGroupPersistenceService, ClusterState> preparePersistenceServiceSetup(
@@ -147,7 +148,8 @@ public class WorkloadManagementTestUtils {
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             settings,
-            clusterSettings
+            clusterSettings,
+            new AutoTaggingRegistry()
         );
         return new Tuple<WorkloadGroupPersistenceService, ClusterState>(workloadGroupPersistenceService, clusterState);
     }

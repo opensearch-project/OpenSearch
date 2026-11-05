@@ -77,7 +77,7 @@ public class TransportUpdateWorkloadGroupAction extends TransportClusterManagerN
     @Override
     protected void doExecute(Task task, UpdateWorkloadGroupRequest request, ActionListener<UpdateWorkloadGroupResponse> listener) {
         try {
-            WorkloadGroupPersistenceService.validateUpdateThrottlingIsEnforceable(request, clusterService.state());
+            workloadGroupPersistenceService.validateUpdateThrottlingIsEnforceable(request, clusterService.state());
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -92,7 +92,7 @@ public class TransportUpdateWorkloadGroupAction extends TransportClusterManagerN
         ActionListener<UpdateWorkloadGroupResponse> listener
     ) {
         try {
-            WorkloadGroupPersistenceService.validateUpdateThrottlingIsEnforceable(request, clusterState);
+            workloadGroupPersistenceService.validateUpdateThrottlingIsEnforceable(request, clusterState);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
