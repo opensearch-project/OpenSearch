@@ -9,16 +9,17 @@
 use crate::cache::metadata_cache::MutexFileMetadataCache;
 use crate::cache::statistics_cache::CustomStatisticsCache;
 use crate::cache::statistics_cache::{
-    compute_parquet_statistics, compute_parquet_statistics_from_metadata,
+    compute_parquet_statistics_from_metadata, compute_parquet_statistics_with_schema,
 };
 use crate::cache::{metadata_cache, page_index};
 use crate::indexed_table::parquet_bridge;
 use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
 use datafusion::execution::cache::cache_manager::{
     CacheManagerConfig, FileMetadataCache, FileStatisticsCache,
+    DEFAULT_FILE_STATISTICS_MEMORY_LIMIT,
 };
-use datafusion::execution::cache::file_statistics_cache::DefaultFileStatisticsCache;
-use datafusion::execution::cache::CacheAccessor;
+use datafusion::execution::cache::default_cache::DefaultCache;
+use datafusion::execution::cache::{Cache, SchemaFingerprint};
 use log::{debug, error};
 use native_bridge_common::log_debug;
 use object_store::path::Path;
@@ -187,11 +188,11 @@ impl CustomCacheManager {
         self.statistics_cache.clone()
     }
 
-    /// Get the file metadata cache as Arc<dyn FileMetadataCache> for DataFusion
-    pub fn get_file_metadata_cache_for_datafusion(&self) -> Option<Arc<dyn FileMetadataCache>> {
+    /// Get the file metadata cache as Arc<FileMetadataCache> for DataFusion
+    pub fn get_file_metadata_cache_for_datafusion(&self) -> Option<Arc<FileMetadataCache>> {
         self.file_metadata_cache
             .as_ref()
-            .map(|cache| cache.clone() as Arc<dyn FileMetadataCache>)
+            .map(|cache| cache.clone() as Arc<FileMetadataCache>)
     }
 
     /// Build a CacheManagerConfig from the caches stored in this CustomCacheManager
@@ -207,12 +208,11 @@ impl CustomCacheManager {
 
         // Add statistics cache if available - use CustomStatisticsCache directly
         if let Some(stats_cache) = &self.statistics_cache {
-            config = config.with_file_statistics_cache(Some(
-                stats_cache.clone() as Arc<dyn FileStatisticsCache>
-            ));
+            config = config
+                .with_file_statistics_cache(Some(stats_cache.clone() as Arc<FileStatisticsCache>));
         } else {
             // Default statistics cache if none set
-            let default_stats = Arc::new(DefaultFileStatisticsCache::default());
+            let default_stats = Arc::new(DefaultCache::new(DEFAULT_FILE_STATISTICS_MEMORY_LIMIT));
             config = config.with_file_statistics_cache(Some(default_stats));
         }
 
@@ -257,7 +257,12 @@ impl CustomCacheManager {
                                         e_tag: None,
                                         version: None,
                                     };
-                                    stats_cache.put_statistics(&path, Arc::new(stats), &meta);
+                                    stats_cache.put_statistics_with_fingerprint(
+                                        &path,
+                                        Arc::new(stats),
+                                        &meta,
+                                        Arc::new(SchemaFingerprint::from_schema(schema.as_ref())),
+                                    );
                                 }
                                 Err(e) => {
                                     errors.push(format!("Statistics cache: {}", e));
@@ -300,20 +305,13 @@ impl CustomCacheManager {
             {
                 let path = Path::from(file_path.clone());
                 if let Some(cache) = &self.file_metadata_cache {
-                    match cache.inner.lock() {
-                        Ok(cache_guard) => {
-                            if cache_guard.remove(&path).is_some() {
-                                any_removed = true;
-                            } else {
-                                log_debug!(
-                                    "[CACHE INFO] File not found in metadata cache: {}",
-                                    file_path
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            errors.push(format!("Metadata cache: Cache remove failed: {}", e));
-                        }
+                    if cache.inner.remove(&path).is_some() {
+                        any_removed = true;
+                    } else {
+                        log_debug!(
+                            "[CACHE INFO] File not found in metadata cache: {}",
+                            file_path
+                        );
                     }
                 } else {
                     errors.push("No metadata cache configured".to_string());
@@ -431,9 +429,7 @@ impl CustomCacheManager {
 
         // Add metadata cache memory
         if let Some(cache) = &self.file_metadata_cache {
-            if let Ok(cache_guard) = cache.inner.lock() {
-                total += cache_guard.memory_used();
-            }
+            total += cache.inner.memory_used();
         }
 
         // Add statistics cache memory
@@ -489,11 +485,7 @@ impl CustomCacheManager {
         match cache_type {
             metadata_cache::CACHE_TYPE_METADATA => {
                 if let Some(cache) = &self.file_metadata_cache {
-                    if let Ok(cache_guard) = cache.inner.lock() {
-                        Ok(cache_guard.memory_used())
-                    } else {
-                        Err("Failed to lock metadata cache".to_string())
-                    }
+                    Ok(cache.inner.memory_used())
                 } else {
                     Err("No metadata cache configured".to_string())
                 }
@@ -548,7 +540,7 @@ impl CustomCacheManager {
             .file_metadata_cache
             .as_ref()
             .ok_or_else(|| "No file metadata cache configured".to_string())?
-            .clone() as Arc<dyn FileMetadataCache>;
+            .clone() as Arc<FileMetadataCache>;
 
         let location = object_meta.location.clone();
         let meta = object_meta.clone();
@@ -699,7 +691,7 @@ impl CustomCacheManager {
             .file_metadata_cache
             .as_ref()
             .ok_or_else(|| "No file metadata cache configured".to_string())?;
-        let metadata_cache = cache_ref.clone() as Arc<dyn FileMetadataCache>;
+        let metadata_cache = cache_ref.clone() as Arc<FileMetadataCache>;
 
         // Do NOT pass file_metadata_cache here — that triggers PageIndexPolicy::Optional
         // which loads page indexes into the heap struct. Instead, load footer only
@@ -716,7 +708,7 @@ impl CustomCacheManager {
         // Put lightweight footer-only metadata into heap cache
         use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
         use datafusion::execution::cache::cache_manager::CachedFileMetadataEntry;
-        use datafusion::execution::cache::CacheAccessor;
+        use datafusion::execution::cache::Cache;
         let cached_entry = CachedFileMetadataEntry::new(
             object_meta.clone(),
             Arc::new(CachedParquetMetaData::new(Arc::clone(&parquet_metadata))),
@@ -764,9 +756,10 @@ impl CustomCacheManager {
             return Ok(true);
         }
 
-        // Compute statistics
-        match compute_parquet_statistics(file_path) {
-            Ok(stats) => {
+        // Compute statistics (+ the file_schema they were computed against, for the
+        // cache-hit fingerprint set below).
+        match compute_parquet_statistics_with_schema(file_path) {
+            Ok((stats, schema)) => {
                 let meta = ObjectMeta {
                     location: path.clone(),
                     last_modified: chrono::Utc::now(),
@@ -775,7 +768,12 @@ impl CustomCacheManager {
                     version: None,
                 };
 
-                cache.put_statistics(&path, Arc::new(stats), &meta);
+                cache.put_statistics_with_fingerprint(
+                    &path,
+                    Arc::new(stats),
+                    &meta,
+                    Arc::new(SchemaFingerprint::from_schema(&schema)),
+                );
                 Ok(true)
             }
             Err(e) => Err(format!(
@@ -825,7 +823,13 @@ impl CustomCacheManager {
         let stats = DFParquetMetadata::statistics_from_parquet_metadata(parquet_metadata, &schema)
             .map_err(|e| format!("failed to compute statistics for {}: {}", file_path, e))?;
 
-        cache.put_statistics(&path, Arc::new(stats), object_meta);
+        // Carry the file_schema fingerprint so DataFusion's cache-hit validation matches.
+        cache.put_statistics_with_fingerprint(
+            &path,
+            Arc::new(stats),
+            object_meta,
+            Arc::new(SchemaFingerprint::from_schema(&schema)),
+        );
         Ok(true)
     }
 
@@ -850,8 +854,8 @@ impl CustomCacheManager {
                 continue;
             }
 
-            match compute_parquet_statistics(file_path) {
-                Ok(stats) => {
+            match compute_parquet_statistics_with_schema(file_path) {
+                Ok((stats, schema)) => {
                     let meta = ObjectMeta {
                         location: path.clone(),
                         last_modified: chrono::Utc::now(),
@@ -860,7 +864,12 @@ impl CustomCacheManager {
                         version: None,
                     };
 
-                    cache.put_statistics(&path, Arc::new(stats), &meta);
+                    cache.put_statistics_with_fingerprint(
+                        &path,
+                        Arc::new(stats),
+                        &meta,
+                        Arc::new(SchemaFingerprint::from_schema(&schema)),
+                    );
                     success_count += 1;
                 }
                 Err(e) => {
@@ -929,7 +938,7 @@ impl CustomCacheManager {
     pub fn statistics_cache_entry_count(&self) -> usize {
         self.statistics_cache
             .as_ref()
-            .map(|cache| <CustomStatisticsCache as CacheAccessor<_, _>>::len(cache))
+            .map(|cache| <CustomStatisticsCache as Cache<_, _>>::len(cache))
             .unwrap_or(0)
     }
 
@@ -968,7 +977,7 @@ impl CustomCacheManager {
     pub fn metadata_cache_entry_count(&self) -> usize {
         self.file_metadata_cache
             .as_ref()
-            .map(|cache| <MutexFileMetadataCache as CacheAccessor<_, _>>::len(cache))
+            .map(|cache| <MutexFileMetadataCache as Cache<_, _>>::len(cache))
             .unwrap_or(0)
     }
 

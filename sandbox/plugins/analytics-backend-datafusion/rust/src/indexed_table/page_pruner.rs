@@ -51,7 +51,9 @@ use datafusion::parquet::file::metadata::ParquetMetaData;
 use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
 use datafusion::physical_expr::utils::collect_columns;
 use datafusion::physical_expr::PhysicalExpr;
-use datafusion::physical_optimizer::pruning::{PruningPredicate, PruningStatistics};
+use datafusion::physical_optimizer::pruning::{
+    PruningPredicate, PruningPredicateBuilder, PruningStatistics,
+};
 
 /// Per-row-group page pruner. Owns schema + metadata references; the
 /// pruning expression itself lives in a [`PruningPredicate`] built once
@@ -280,11 +282,16 @@ pub fn build_pruning_predicate(
     expr: &Arc<dyn PhysicalExpr>,
     schema: SchemaRef,
 ) -> Option<Arc<PruningPredicate>> {
-    let pruning_predicate = match PruningPredicate::try_new(Arc::clone(expr), schema) {
+    // PruningPredicate::try_new is #[deprecated(since=55.0.0)]; the builder adds a truth-preserving
+    // PhysicalExprSimplifier pass (equal-or-stricter pruning — SAFE). Mirrors dynamic_filter.rs.
+    let pruning_predicate = match PruningPredicateBuilder::new()
+        .with_file_schema(schema)
+        .try_build(Arc::clone(expr))
+    {
         Ok(pp) => pp,
         Err(e) => {
             native_bridge_common::log_debug!(
-                "PruningPredicate::try_new failed for {:?}: {}",
+                "PruningPredicateBuilder::try_build failed for {:?}: {}",
                 expr,
                 e
             );
