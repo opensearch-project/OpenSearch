@@ -303,6 +303,8 @@ pub unsafe extern "C" fn df_create_reader(
     sort_fields_len_ptr: *const i64,
     sort_orders_ptr: *const *const u8,
     sort_orders_len_ptr: *const i64,
+    sort_missing_ptr: *const *const u8,
+    sort_missing_len_ptr: *const i64,
     sort_count: i64,
 ) -> i64 {
     let table_path = str_from_raw(table_path_ptr, table_path_len)
@@ -319,12 +321,13 @@ pub unsafe extern "C" fn df_create_reader(
         );
         writer_generations.push(*writer_generations_ptr.add(i));
     }
-    // Decode parallel sort_fields / sort_orders String arrays. sort_count == 0 means no
+    // Decode parallel sort_fields / sort_orders / sort_missing String arrays. sort_count == 0 means no
     // index sort configured; pass an empty Vec. The Java side guarantees
     // sortFields.size() == sortOrders.size() (IndexSortConfig validates at index creation),
     // so a single sort_count covers both arrays.
     let mut sort_fields = Vec::with_capacity(sort_count as usize);
     let mut sort_orders = Vec::with_capacity(sort_count as usize);
+    let mut sort_missing = Vec::with_capacity(sort_count as usize);
     for i in 0..sort_count as usize {
         let f_ptr = *sort_fields_ptr.add(i);
         let f_len = *sort_fields_len_ptr.add(i);
@@ -340,6 +343,13 @@ pub unsafe extern "C" fn df_create_reader(
                 .map_err(|e| format!("df_create_reader: sort_order[{}]: {}", i, e))?
                 .to_string(),
         );
+        let m_ptr = *sort_missing_ptr.add(i);
+        let m_len = *sort_missing_len_ptr.add(i);
+        sort_missing.push(
+            str_from_raw(m_ptr, m_len)
+                .map_err(|e| format!("df_create_reader: sort_missing[{}]: {}", i, e))?
+                .to_string(),
+        );
     }
     let mgr = get_rt_manager()?;
     api::create_reader(
@@ -348,6 +358,7 @@ pub unsafe extern "C" fn df_create_reader(
         writer_generations,
         sort_fields,
         sort_orders,
+        sort_missing,
         &mgr,
         store_ptr,
     )
