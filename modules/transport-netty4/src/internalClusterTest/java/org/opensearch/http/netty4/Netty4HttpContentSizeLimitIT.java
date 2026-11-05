@@ -22,6 +22,7 @@ import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.assertR
 import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.bulkBody;
 import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.connect;
 import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.encode;
+import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.encodeStored;
 import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.request;
 import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.send;
 import static org.hamcrest.Matchers.containsString;
@@ -43,25 +44,27 @@ public class Netty4HttpContentSizeLimitIT extends OpenSearchNetty4IntegTestCase 
         return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(), LIMIT + "b").build();
     }
 
-    public void testBulkRequestsRespectDecompressedLimitAndReturn413BeforeEof() throws Exception {
+    public void testBulkRequestsRespectEncodedAndDecodedLimitsAndReturn413BeforeEof() throws Exception {
         createIndex("oversized");
         ensureGreen();
         HttpServerTransport transport = internalCluster().getInstance(HttpServerTransport.class);
         int accepted = 0;
         for (int size : new int[] { LIMIT, LIMIT + 1, 32 * LIMIT }) {
-            for (String encoding : new String[] { "identity", "gzip", "deflate" }) {
+            for (String mode : new String[] { "identity", "gzip", "deflate", "gzip-stored", "deflate-stored" }) {
+                if (mode.endsWith("-stored") && size > LIMIT) {
+                    continue; // The boundary case already isolates encoded-size rejection with a decoded body that fits.
+                }
+                String encoding = mode.replace("-stored", "");
+                byte[] body = mode.endsWith("-stored") ? encodeStored(bulkBody(size), encoding) : encode(bulkBody(size), encoding);
+                boolean fits = size <= LIMIT && body.length <= LIMIT;
                 for (boolean chunked : new boolean[] { false, true }) {
                     for (int fragmentSize : new int[] { 1, 17, 1024, Integer.MAX_VALUE }) {
-                        String scenario = "size=" + size + ", encoding=" + encoding + ", chunked=" + chunked + ", fragment=" + fragmentSize;
+                        String scenario = "size=" + size + ", encoding=" + mode + ", chunked=" + chunked + ", fragment=" + fragmentSize;
                         try (Socket socket = connect(transport)) {
-                            send(
-                                socket.getOutputStream(),
-                                request(encode(bulkBody(size), encoding), encoding, chunked, true),
-                                fragmentSize
-                            );
-                            byte[] response = assertResponse(socket.getInputStream(), size <= LIMIT ? 200 : 413, scenario);
+                            send(socket.getOutputStream(), request(body, encoding, chunked, true), fragmentSize);
+                            byte[] response = assertResponse(socket.getInputStream(), fits ? 200 : 413, scenario);
                             assertEquals("Complete response must precede FIN: " + scenario, -1, socket.getInputStream().read());
-                            if (size <= LIMIT) {
+                            if (fits) {
                                 assertThat(new String(response, StandardCharsets.UTF_8), containsString("\"errors\":false"));
                                 accepted++;
                             }

@@ -89,6 +89,7 @@ import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.assertR
 import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.bulkBody;
 import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.connect;
 import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.encode;
+import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.encodeStored;
 import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.request;
 import static org.opensearch.http.netty4.Netty4HttpRequestSizeTestClient.send;
 import static org.hamcrest.Matchers.containsString;
@@ -212,16 +213,17 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
         ) {
             transport.start();
             for (String encoding : new String[] { "identity", "gzip", "deflate" }) {
-                for (boolean chunked : new boolean[] { false, true }) {
-                    for (int fragmentSize : new int[] { 1, 17, Integer.MAX_VALUE }) {
-                        try (Socket socket = connect(transport, clientContext.getSocketFactory())) {
-                            send(
-                                socket.getOutputStream(),
-                                request(encode(bulkBody(1025), encoding), encoding, chunked, true),
-                                fragmentSize
-                            );
-                            assertResponse(socket.getInputStream(), 413, "TLS, " + encoding + ", chunked=" + chunked);
-                            assertEquals("Complete rejection must precede TLS close_notify", -1, socket.getInputStream().read());
+                byte[][] bodies = encoding.equals("identity")
+                    ? new byte[][] { bulkBody(1025) }
+                    : new byte[][] { encode(bulkBody(1025), encoding), encodeStored(bulkBody(1024), encoding) };
+                for (byte[] body : bodies) {
+                    for (boolean chunked : new boolean[] { false, true }) {
+                        for (int fragmentSize : new int[] { 1, 17, Integer.MAX_VALUE }) {
+                            try (Socket socket = connect(transport, clientContext.getSocketFactory())) {
+                                send(socket.getOutputStream(), request(body, encoding, chunked, true), fragmentSize);
+                                assertResponse(socket.getInputStream(), 413, "TLS, " + encoding + ", chunked=" + chunked);
+                                assertEquals("Complete rejection must precede TLS close_notify", -1, socket.getInputStream().read());
+                            }
                         }
                     }
                 }

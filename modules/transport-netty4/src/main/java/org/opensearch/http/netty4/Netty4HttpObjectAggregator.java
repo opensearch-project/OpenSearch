@@ -66,23 +66,34 @@ final class Netty4HttpObjectAggregator extends HttpObjectAggregator {
             boolean close = oversized instanceof FullHttpMessage
                 || ctx.channel().config().isAutoRead() == false
                 || (HttpUtil.is100ContinueExpected(oversized) == false && HttpUtil.isKeepAlive(oversized) == false);
-            if (rejection == null || rejection.isRemoved()) {
-                rejection = new Netty4HttpRejectionHandler(transport);
-                ctx.pipeline().addFirst("http_rejection", rejection);
-            }
-            rejection.reject(close);
-            FullHttpResponse response = new DefaultFullHttpResponse(
-                HttpVersion.HTTP_1_1,
-                HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE,
-                Unpooled.EMPTY_BUFFER
-            );
-            response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, 0);
-            if (close) {
-                response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
-            }
-            ctx.writeAndFlush(response).addListener(rejection::responseWritten);
+            reject(ctx, close);
         } else {
             super.handleOversizedMessage(ctx, oversized);
         }
+    }
+
+    void reject(ChannelHandlerContext ctx, boolean close) {
+        if (rejection != null && rejection.isClosing()) {
+            return;
+        }
+        if (rejection == null || rejection.isRemoved()) {
+            rejection = new Netty4HttpRejectionHandler(transport);
+            ctx.pipeline().addFirst("http_rejection", rejection);
+        }
+        rejection.reject(close);
+        if (close) {
+            // An encoded-size rejection can arrive while decoded content is still being accumulated.
+            releaseCurrentMessage();
+        }
+        FullHttpResponse response = new DefaultFullHttpResponse(
+            HttpVersion.HTTP_1_1,
+            HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE,
+            Unpooled.EMPTY_BUFFER
+        );
+        response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, 0);
+        if (close) {
+            response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
+        }
+        ctx.writeAndFlush(response).addListener(rejection::responseWritten);
     }
 }

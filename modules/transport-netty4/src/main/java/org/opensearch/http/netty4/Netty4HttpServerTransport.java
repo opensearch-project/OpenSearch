@@ -66,8 +66,10 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -85,20 +87,26 @@ import io.netty.handler.codec.compression.DeflateOptions;
 import io.netty.handler.codec.compression.GzipOptions;
 import io.netty.handler.codec.compression.StandardCompressionOptions;
 import io.netty.handler.codec.compression.ZstdEncoder;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpContentEncoder;
 import io.netty.handler.codec.http.HttpDecoderConfig;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.HttpServerUpgradeHandler;
 import io.netty.handler.codec.http.HttpServerUpgradeHandler.UpgradeCodec;
 import io.netty.handler.codec.http.HttpServerUpgradeHandler.UpgradeCodecFactory;
+import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http2.CleartextHttp2ServerUpgradeHandler;
+import io.netty.handler.codec.http2.DefaultHttp2ResetFrame;
 import io.netty.handler.codec.http2.Http2CodecUtil;
+import io.netty.handler.codec.http2.Http2Error;
 import io.netty.handler.codec.http2.Http2FrameCodec;
 import io.netty.handler.codec.http2.Http2FrameCodecBuilder;
 import io.netty.handler.codec.http2.Http2MultiplexHandler;
@@ -461,7 +469,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline().addLast(cleartextUpgradeHandler).addLast(new SimpleChannelInboundHandler<HttpMessage>() {
                 @Override
                 protected void channelRead0(ChannelHandlerContext ctx, HttpMessage msg) throws Exception {
-                    final HttpObjectAggregator aggregator = new Netty4HttpObjectAggregator(
+                    final Netty4HttpObjectAggregator aggregator = new Netty4HttpObjectAggregator(
                         handlingSettings.getMaxContentLength(),
                         transport
                     );
@@ -471,7 +479,15 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     final ChannelPipeline pipeline = ctx.pipeline();
                     pipeline.addAfter(ctx.name(), "handler", getRequestHandler());
                     pipeline.replace(this, "header_verifier", transport.createHeaderVerifier());
-                    pipeline.addAfter("header_verifier", "decoder_compress", transport.createDecompressor());
+                    pipeline.addAfter(
+                        "header_verifier",
+                        "encoded_size",
+                        new Netty4HttpEncodedSizeHandler(
+                            handlingSettings.getMaxContentLength(),
+                            rejectionContext -> aggregator.reject(pipeline.context(aggregator), true)
+                        )
+                    );
+                    pipeline.addAfter("encoded_size", "decoder_compress", transport.createDecompressor());
                     pipeline.addAfter("decoder_compress", "aggregator", aggregator);
                     if (handlingSettings.isCompression()) {
                         pipeline.addAfter(
@@ -502,9 +518,16 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             pipeline.addLast("decoder", decoder);
             pipeline.addLast("header_verifier", transport.createHeaderVerifier());
+            final Netty4HttpObjectAggregator aggregator = new Netty4HttpObjectAggregator(handlingSettings.getMaxContentLength(), transport);
+            pipeline.addLast(
+                "encoded_size",
+                new Netty4HttpEncodedSizeHandler(
+                    handlingSettings.getMaxContentLength(),
+                    ctx -> aggregator.reject(pipeline.context(aggregator), true)
+                )
+            );
             pipeline.addLast("decoder_compress", transport.createDecompressor());
             pipeline.addLast("encoder", new HttpResponseEncoder());
-            final HttpObjectAggregator aggregator = new Netty4HttpObjectAggregator(handlingSettings.getMaxContentLength(), transport);
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             pipeline.addLast("aggregator", aggregator);
             if (handlingSettings.isCompression()) {
@@ -565,6 +588,26 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         .addLast("byte_buf_sizer", byteBufSizer)
                         .addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS))
                         .addLast("header_verifier", transport.createHeaderVerifier())
+                        .addLast("encoded_size", new Netty4HttpEncodedSizeHandler(handlingSettings.getMaxContentLength(), ctx -> {
+                            if (aggregator.isHandlingOversizedMessage()) {
+                                return;
+                            }
+                            final DefaultFullHttpResponse response = new DefaultFullHttpResponse(
+                                HttpVersion.HTTP_1_1,
+                                HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE,
+                                Unpooled.EMPTY_BUFFER
+                            );
+                            response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, 0);
+                            ctx.writeAndFlush(response).addListener(written -> {
+                                if (written.isSuccess() && ctx.channel().isActive()) {
+                                    // RFC 9113 section 8.1: stop the upload without invalidating the completed response.
+                                    ctx.writeAndFlush(new DefaultHttp2ResetFrame(Http2Error.NO_ERROR))
+                                        .addListener(ChannelFutureListener.CLOSE);
+                                } else {
+                                    ctx.close();
+                                }
+                            });
+                        }))
                         .addLast("decoder_decompress", transport.createDecompressor());
 
                     if (handlingSettings.isCompression()) {

@@ -245,7 +245,7 @@ public class Netty4HttpClient implements Closeable {
         return sendRequests(remoteAddress, requests);
     }
 
-    private synchronized List<FullHttpResponse> sendRequests(final SocketAddress remoteAddress, final Collection<HttpRequest> requests)
+    synchronized List<FullHttpResponse> sendRequests(final SocketAddress remoteAddress, final Collection<HttpRequest> requests)
         throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(requests.size());
         final List<FullHttpResponse> content = Collections.synchronizedList(new ArrayList<>(requests.size()));

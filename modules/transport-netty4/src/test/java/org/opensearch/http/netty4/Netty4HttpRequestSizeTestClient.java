@@ -21,6 +21,7 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -68,6 +69,28 @@ public final class Netty4HttpRequestSizeTestClient {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (OutputStream compressor = encoding.equals("gzip") ? new GZIPOutputStream(bytes) : new DeflaterOutputStream(bytes)) {
             compressor.write(body);
+        }
+        return bytes.toByteArray();
+    }
+
+    /** Produces valid compressed content whose framing makes it larger than the decoded body. */
+    public static byte[] encodeStored(byte[] body, String encoding) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        if (encoding.equals("gzip")) {
+            try (GZIPOutputStream compressor = new GZIPOutputStream(bytes) {
+                {
+                    def.setLevel(Deflater.NO_COMPRESSION);
+                }
+            }) {
+                compressor.write(body);
+            }
+        } else {
+            Deflater deflater = new Deflater(Deflater.NO_COMPRESSION);
+            try (DeflaterOutputStream compressor = new DeflaterOutputStream(bytes, deflater)) {
+                compressor.write(body);
+            } finally {
+                deflater.end();
+            }
         }
         return bytes.toByteArray();
     }

@@ -11,6 +11,7 @@ package org.opensearch.http.netty4;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.ByteArrayOutputStream;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
@@ -29,10 +30,16 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.channel.socket.ChannelInputShutdownEvent;
 import io.netty.channel.socket.DuplexChannel;
+import io.netty.handler.codec.DecoderResult;
+import io.netty.handler.codec.http.DefaultHttpContent;
+import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpContentDecompressor;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
+import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.ReferenceCountUtil;
 
@@ -95,6 +102,82 @@ public class Netty4HttpObjectAggregatorTests extends OpenSearchTestCase {
             fixture.writer.release();
             fixture.assertRejection();
             assertFalse(fixture.channel.isOpen());
+        }
+    }
+
+    public void testBothSizeLimitsInOneReadWriteOnlyOneRejection() throws Exception {
+        try (Fixture fixture = new Fixture(false, 64)) {
+            Netty4HttpObjectAggregator aggregator = fixture.channel.pipeline().get(Netty4HttpObjectAggregator.class);
+            fixture.channel.pipeline()
+                .addAfter(
+                    fixture.channel.pipeline().context(HttpRequestDecoder.class).name(),
+                    "encoded_size",
+                    new Netty4HttpEncodedSizeHandler(64, ctx -> aggregator.reject(ctx.pipeline().context(aggregator), true))
+                );
+            fixture.channel.pipeline().addAfter("encoded_size", "decompressor", new HttpContentDecompressor(0));
+            byte[] gzip = Netty4HttpRequestSizeTestClient.encode(new byte[1024], "gzip");
+            assertTrue(gzip.length < 64);
+            // Decoded content crosses first; subsequent encoded bytes from this same decoder input cross the other limit.
+            ByteArrayOutputStream body = new ByteArrayOutputStream();
+            body.write(gzip);
+            body.write(Netty4HttpRequestSizeTestClient.encode(new byte[0], "gzip"));
+            body.write(Netty4HttpRequestSizeTestClient.encode(new byte[0], "gzip"));
+            assertTrue(body.size() > 64);
+            fixture.channel.writeInbound(
+                Unpooled.wrappedBuffer(Netty4HttpRequestSizeTestClient.request(body.toByteArray(), "gzip", true, false, 1))
+            );
+            assertNull(fixture.channel.readInbound());
+            assertEquals(1, fixture.writer.pending.size());
+            fixture.writer.release();
+            fixture.assertRejection();
+            assertNull(fixture.channel.readOutbound());
+        }
+    }
+
+    public void testEncodedRejectionReleasesPartialAggregationBeforeWriteCompletes() {
+        try (Fixture fixture = new Fixture()) {
+            fixture.channel.writeInbound(new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/"));
+            ByteBuf partialBody = Unpooled.buffer(8).writeZero(8);
+            fixture.channel.writeInbound(new DefaultHttpContent(partialBody));
+            assertEquals(1, partialBody.refCnt());
+            Netty4HttpObjectAggregator aggregator = fixture.channel.pipeline().get(Netty4HttpObjectAggregator.class);
+            aggregator.reject(fixture.channel.pipeline().context(aggregator), true);
+            assertEquals("Do not retain the partial request while waiting for the response or draining", 0, partialBody.refCnt());
+            assertEquals(1, fixture.writer.pending.size());
+            fixture.writer.release();
+            fixture.assertRejection();
+        }
+    }
+
+    public void testEncodedContentLengthAboveLargestLimit() {
+        AtomicInteger rejected = new AtomicInteger();
+        EmbeddedChannel channel = new EmbeddedChannel(
+            new Netty4HttpEncodedSizeHandler(Integer.MAX_VALUE, ctx -> rejected.incrementAndGet())
+        );
+        try {
+            DefaultHttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
+            request.headers().set(HttpHeaderNames.CONTENT_ENCODING, "gzip");
+            request.headers().set(HttpHeaderNames.CONTENT_LENGTH, (long) Integer.MAX_VALUE + 1);
+            assertFalse(channel.writeInbound(request));
+            assertEquals("Do not truncate the declared length to an int", 1, rejected.get());
+        } finally {
+            channel.finishAndReleaseAll();
+        }
+    }
+
+    public void testEncodedSizeCheckPreservesMalformedRequest() {
+        EmbeddedChannel channel = new EmbeddedChannel(
+            new Netty4HttpEncodedSizeHandler(16, ctx -> fail("Expected malformed request handling"))
+        );
+        try {
+            DefaultHttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
+            request.headers().set(HttpHeaderNames.CONTENT_ENCODING, "gzip");
+            request.headers().set(HttpHeaderNames.CONTENT_LENGTH, "invalid");
+            request.setDecoderResult(DecoderResult.failure(new IllegalArgumentException("invalid content length")));
+            assertTrue(channel.writeInbound(request));
+            assertSame(request, channel.readInbound());
+        } finally {
+            channel.finishAndReleaseAll();
         }
     }
 
@@ -271,12 +354,16 @@ public class Netty4HttpObjectAggregatorTests extends OpenSearchTestCase {
         }
 
         Fixture(boolean duplex) {
+            this(duplex, 16);
+        }
+
+        Fixture(boolean duplex, int maxContentLength) {
             when(transport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
             ChannelHandler[] handlers = new ChannelHandler[] {
                 writer,
                 new HttpRequestDecoder(),
                 new HttpResponseEncoder(),
-                new Netty4HttpObjectAggregator(16, transport) };
+                new Netty4HttpObjectAggregator(maxContentLength, transport) };
             channel = duplex ? new DuplexEmbeddedChannel(handlers) : new EmbeddedChannel(handlers);
             channel.freezeTime();
         }
