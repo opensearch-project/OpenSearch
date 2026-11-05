@@ -10,6 +10,7 @@ package org.opensearch.search.aggregations.bucket.filterrewrite;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
+import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumericPointEncoder;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregator;
@@ -17,6 +18,7 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -75,15 +77,26 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
         byte[][] lowers = new byte[ranges.length][];
         byte[][] uppers = new byte[ranges.length][];
         for (int i = 0; i < ranges.length; i++) {
-            double rangeMin = ranges[i].getFrom();
-            double rangeMax = ranges[i].getTo();
-            byte[] lower = numericPointEncoder.encodePoint(rangeMin);
-            byte[] upper = numericPointEncoder.encodePoint(rangeMax);
+            byte[] lower = numericPointEncoder.encodePoint(toPointValue(ranges[i].getFrom()));
+            byte[] upper = numericPointEncoder.encodePoint(toPointValue(ranges[i].getTo()));
             lowers[i] = lower;
             uppers[i] = upper;
         }
 
         setRanges.accept(new Ranges(lowers, uppers));
+    }
+
+    /**
+     * Range bounds are in milliseconds for date fields, while date_nanos points are indexed in nanoseconds.
+     * Rounding up matches the doc-by-doc path, which compares whole-millisecond values against the bounds,
+     * and clamping covers unbounded ranges and bounds outside the date_nanos range.
+     */
+    private Number toPointValue(double bound) {
+        DateFieldMapper.Resolution nanos = DateFieldMapper.Resolution.NANOSECONDS;
+        if (fieldType instanceof DateFieldMapper.DateFieldType dateFieldType && dateFieldType.resolution() == nanos) {
+            return nanos.convert(nanos.clampToValidRange(Instant.ofEpochMilli((long) Math.ceil(bound))));
+        }
+        return bound;
     }
 
     @Override
