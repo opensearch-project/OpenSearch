@@ -141,15 +141,13 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
         String ruleId = "wlm_throttle_rule";
         String indexName = "throttle_index";
 
+        setWlmMode("enabled");
+
         WorkloadGroup workloadGroup = createThrottledWorkloadGroup("throttle_test_group", workloadGroupId, 1);
         updateWorkloadGroupInClusterState(PUT, workloadGroup);
 
         FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
         createRule(ruleId, "throttle rule", indexName, featureType, workloadGroupId);
-
-        // Enable WLM only once createRule has created the rules index. Rule sync runs only while WLM is enabled, and a sync
-        // search of the missing rules index would leave the in-flight gauge one too high for the rest of the test (#22745).
-        setWlmMode("enabled");
 
         indexDocument(indexName);
 
