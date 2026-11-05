@@ -139,6 +139,9 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         HasParentQueryBuilder hqb = new HasParentQueryBuilder(PARENT_DOC, innerQueryBuilder, randomBoolean());
         hqb.ignoreUnmapped(randomBoolean());
         if (randomBoolean()) {
+            hqb.scopePrefix(randomAlphaOfLengthBetween(1, 12) + ":");
+        }
+        if (randomBoolean()) {
             hqb.innerHit(
                 new InnerHitBuilder().setName(randomAlphaOfLengthBetween(1, 10))
                     .setSize(randomIntBetween(0, 100))
@@ -174,6 +177,9 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     public void testSerializationBWC() throws IOException {
         for (Version version : VersionUtils.allReleasedVersions()) {
             HasParentQueryBuilder testQuery = createTestQueryBuilder();
+            if (version.before(Version.V_3_10_0)) {
+                testQuery.scopePrefix(null);
+            }
             assertSerialization(testQuery, version);
         }
     }
@@ -293,6 +299,28 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         assertEquals("[joining] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", e.getMessage());
     }
 
+    public void testScopePrefixParsingAndDefault() throws IOException {
+        // Defaults to null when not provided.
+        HasParentQueryBuilder defaulted = new HasParentQueryBuilder(PARENT_DOC, new MatchAllQueryBuilder(), false);
+        assertNull(defaulted.scopePrefix());
+
+        // Round-trips through XContent under the "scope_prefix" wire name.
+        HasParentQueryBuilder withPrefix = new HasParentQueryBuilder(PARENT_DOC, new MatchAllQueryBuilder(), false);
+        withPrefix.scopePrefix("group-123:");
+        String json = withPrefix.toString();
+        assertThat(json, containsString("\"scope_prefix\" : \"group-123:\""));
+
+        HasParentQueryBuilder parsed = (HasParentQueryBuilder) parseQuery(json);
+        assertEquals("group-123:", parsed.scopePrefix());
+        assertEquals(withPrefix, parsed);
+        assertEquals(withPrefix.hashCode(), parsed.hashCode());
+
+        // A differing scope_prefix breaks equality.
+        HasParentQueryBuilder other = new HasParentQueryBuilder(PARENT_DOC, new MatchAllQueryBuilder(), false);
+        other.scopePrefix("group-999:");
+        assertNotEquals(withPrefix, other);
+    }
+
     public void testVisit() {
         HasParentQueryBuilder builder = doCreateTestQueryBuilder();
 
@@ -300,5 +328,28 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         builder.visit(createTestVisitor(visitedQueries));
 
         assertEquals(2, visitedQueries.size());
+    }
+
+    public void testScopePrefixSerializationBWC() throws IOException {
+        HasParentQueryBuilder original = new HasParentQueryBuilder(PARENT_DOC, new MatchAllQueryBuilder(), false);
+        original.scopePrefix("group-id:");
+        assertEquals(original, copyWriteable(original, namedWriteableRegistry(), HasParentQueryBuilder::new, Version.CURRENT));
+    }
+
+    public void testScopePrefixRejectionForOldVersion() throws IOException {
+        HasParentQueryBuilder original = new HasParentQueryBuilder(PARENT_DOC, new MatchAllQueryBuilder(), false);
+        original.scopePrefix("group-id:");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> copyWriteable(original, namedWriteableRegistry(), HasParentQueryBuilder::new, Version.V_3_9_1)
+        );
+        assertThat(e.getMessage(), containsString("scope_prefix is not supported"));
+    }
+
+    public void testScopePrefixAbsentForOldVersion() throws IOException {
+        HasParentQueryBuilder original = new HasParentQueryBuilder(PARENT_DOC, new MatchAllQueryBuilder(), false);
+        HasParentQueryBuilder copy = copyWriteable(original, namedWriteableRegistry(), HasParentQueryBuilder::new, Version.V_3_9_1);
+        assertEquals(original, copy);
+        assertNull(copy.scopePrefix());
     }
 }
