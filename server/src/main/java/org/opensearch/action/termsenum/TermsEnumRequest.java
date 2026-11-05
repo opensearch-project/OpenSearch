@@ -44,7 +44,9 @@ public class TermsEnumRequest extends ActionRequest implements IndicesRequest.Re
     public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(1);
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    // as in search (without the legacy ignore_throttled): a closed target fails with index_closed_exception, or is skipped
+    // with ignore_unavailable
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
     private String field;
     private String string = "";
     private int size = DEFAULT_SIZE;

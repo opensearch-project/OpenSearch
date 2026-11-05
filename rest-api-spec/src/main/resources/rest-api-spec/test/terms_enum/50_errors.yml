@@ -85,3 +85,49 @@ setup:
       terms_enum:
         index: filtered
         body: { field: tag }
+
+---
+"Closed index is rejected, or skipped with ignore_unavailable":
+  - skip:
+      version: " - 3.9.99"
+      reason: "terms_enum API added in 3.10.0"
+  - do:
+      indices.create:
+        index: test-closed
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              tag: { type: keyword }
+  - do:
+      indices.close:
+        index: test-closed
+  - do:
+      catch: bad_request
+      terms_enum:
+        index: test,test-closed
+        body: { field: tag }
+  - match: { error.type: index_closed_exception }
+  - do:
+      terms_enum:
+        index: test,test-closed
+        ignore_unavailable: true
+        body: { field: tag }
+  - match: { terms: [a] }
+  - match: { complete: true }
+  - match: { _shards.total: 1 }
+  - do:
+      terms_enum:
+        index: test*
+        body: { field: tag }
+  - match: { terms: [a] }
+  - match: { _shards.total: 1 }
+  - do:
+      catch: bad_request
+      terms_enum:
+        index: test*
+        expand_wildcards: open,closed
+        body: { field: tag }
+  - match: { error.type: index_closed_exception }

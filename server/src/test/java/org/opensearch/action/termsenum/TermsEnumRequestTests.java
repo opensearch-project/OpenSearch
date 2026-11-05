@@ -111,7 +111,7 @@ public class TermsEnumRequestTests extends AbstractWireSerializingTestCase<Terms
         assertEquals(TimeValue.timeValueSeconds(1), request.timeout());
         assertNull(request.searchAfter());
         assertNull(request.indexFilter());
-        assertEquals(IndicesOptions.strictExpandOpen(), request.indicesOptions());
+        assertEquals(IndicesOptions.strictExpandOpenAndForbidClosed(), request.indicesOptions());
         assertTrue(request.includeDataStreams());
         assertNull(request.string(null).field());
         assertEquals("", request.string());

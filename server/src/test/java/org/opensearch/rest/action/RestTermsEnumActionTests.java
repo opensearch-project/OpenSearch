@@ -8,6 +8,7 @@
 
 package org.opensearch.rest.action;
 
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.termsenum.TermsEnumRequest;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -71,6 +72,7 @@ public class RestTermsEnumActionTests extends OpenSearchTestCase {
         assertEquals("web-03", r.searchAfter());
         assertThat(r.indexFilter(), Matchers.instanceOf(TermQueryBuilder.class));
         assertTrue(r.indicesOptions().ignoreUnavailable());
+        assertTrue(r.indicesOptions().forbidClosedIndices());
     }
 
     public void testDefaultsWithMinimalBody() throws IOException {
@@ -82,6 +84,7 @@ public class RestTermsEnumActionTests extends OpenSearchTestCase {
         assertEquals(TermsEnumRequest.DEFAULT_TIMEOUT, r.timeout());
         assertNull(r.indexFilter());
         assertNull(r.searchAfter());
+        assertEquals(IndicesOptions.strictExpandOpenAndForbidClosed(), r.indicesOptions());
         assertNull(r.validate());
     }
 

@@ -23,6 +23,7 @@ import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse
 import org.opensearch.action.admin.indices.datastream.DataStreamTestCase;
 import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
@@ -31,6 +32,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.indices.IndexClosedException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
@@ -186,6 +188,33 @@ public class TermsEnumIT extends DataStreamTestCase {
             assertEquals(target, 4, response.getTotalShards());
             assertTrue(target, response.isComplete());
         }
+    }
+
+    public void testClosedIndexIsRejectedOrSkippedLikeSearch() {
+        createYearIndices();
+        assertAcked(client().admin().indices().prepareClose("if-2025"));
+
+        IndexClosedException named = expectThrows(
+            IndexClosedException.class,
+            () -> termsEnum(new TermsEnumRequest("if-2025", "if-2026").field("tag").timeout(GENEROUS_TIMEOUT))
+        );
+        assertEquals("if-2025", named.getIndex().getName());
+
+        TermsEnumRequest lenient = new TermsEnumRequest("if-2025", "if-2026").field("tag").timeout(GENEROUS_TIMEOUT);
+        lenient.indicesOptions(IndicesOptions.fromOptions(true, true, true, false, lenient.indicesOptions()));
+        TermsEnumResponse skipped = termsEnum(lenient);
+        assertEquals(List.of("new-b"), skipped.getTerms());
+        assertEquals(2, skipped.getTotalShards());
+        assertTrue(skipped.isComplete());
+
+        TermsEnumResponse wildcard = termsEnum(new TermsEnumRequest("if-*").field("tag").timeout(GENEROUS_TIMEOUT));
+        assertEquals(List.of("new-b"), wildcard.getTerms());
+        assertEquals(2, wildcard.getTotalShards());
+        assertTrue(wildcard.isComplete());
+
+        TermsEnumRequest expandClosed = new TermsEnumRequest("if-*").field("tag").timeout(GENEROUS_TIMEOUT);
+        expandClosed.indicesOptions(IndicesOptions.fromOptions(false, true, true, true, expandClosed.indicesOptions()));
+        expectThrows(IndexClosedException.class, () -> termsEnum(expandClosed));
     }
 
     public void testDataStream() throws Exception {
