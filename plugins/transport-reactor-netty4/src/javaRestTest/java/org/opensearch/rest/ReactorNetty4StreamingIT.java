@@ -8,6 +8,12 @@
 
 package org.opensearch.rest;
 
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.impl.async.HttpAsyncClients;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.nio.support.BasicRequestProducer;
+import org.apache.hc.core5.reactive.ReactiveEntityProducer;
+import org.apache.hc.core5.reactive.ReactiveResponseConsumer;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
@@ -18,15 +24,22 @@ import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
 import org.junit.After;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.Sinks;
 import reactor.test.StepVerifier;
 import reactor.test.scheduler.VirtualTimeScheduler;
 
@@ -44,6 +57,77 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 
         super.tearDown();
+    }
+
+    public void testMissingIndexErrorDelimiterAndCompletion() throws Exception {
+        final ByteArrayOutputStream body = new ByteArrayOutputStream();
+        assertStreamingResponse(
+            Mono.just("{\"index\":{}}\n{\"hello\":\"world\"}\n"),
+            body::writeBytes,
+            status -> assertTrue(status == 200 || status == 400)
+        );
+        final String content = body.toString(StandardCharsets.UTF_8);
+        assertTrue(content, content.endsWith("\r\n"));
+        assertTrue(content, content.contains("index is missing"));
+        assertTrue(content, content.contains("\"status\":400"));
+    }
+
+    public void testErrorAfterSuccessDelimiterAndCompletion() throws Exception {
+        final Sinks.One<String> nextRequest = Sinks.one();
+        final ByteArrayOutputStream body = new ByteArrayOutputStream();
+        final AtomicBoolean sentError = new AtomicBoolean();
+        assertStreamingResponse(
+            Flux.concat(Mono.just("{\"index\":{\"_index\":\"test-streaming\"}}\n{\"hello\":\"world\"}\n"), nextRequest.asMono()),
+            bytes -> {
+                body.writeBytes(bytes);
+                if (body.toString(StandardCharsets.UTF_8).contains("\r\n") && sentError.compareAndSet(false, true)) {
+                    assertEquals(Sinks.EmitResult.OK, nextRequest.tryEmitValue("{\"index\":{}}\n{\"hello\":\"world\"}\n"));
+                }
+            },
+            status -> assertEquals(200, (int) status)
+        );
+        final String content = body.toString(StandardCharsets.UTF_8);
+        final String[] records = content.split("\r\n", -1);
+        assertEquals(content, 3, records.length);
+        assertTrue(records[0], records[0].contains("\"result\":\"created\""));
+        assertTrue(records[1], records[1].contains("index is missing"));
+        assertTrue(records[1], records[1].contains("\"status\":400"));
+        assertEquals("", records[2]);
+    }
+
+    private void assertStreamingResponse(Publisher<String> input, Consumer<byte[]> consume, Consumer<Integer> checkStatus)
+        throws Exception {
+        try (CloseableHttpAsyncClient client = HttpAsyncClients.createDefault()) {
+            client.start();
+            final ReactiveResponseConsumer consumer = new ReactiveResponseConsumer();
+            final BasicRequestProducer producer = new BasicRequestProducer(
+                "POST",
+                getClusterHosts().get(0),
+                "/_bulk/stream",
+                new ReactiveEntityProducer(Flux.from(input).map(StandardCharsets.UTF_8::encode), -1, ContentType.APPLICATION_JSON, null)
+            );
+            final var exchange = client.execute(producer, consumer, null);
+            final var response = consumer.getResponseFuture().get(30, TimeUnit.SECONDS);
+            checkStatus.accept(response.getHead().getCode());
+            StepVerifier.create(Flux.from(response.getBody()).doOnNext(buffer -> {
+                final byte[] bytes = new byte[buffer.remaining()];
+                buffer.get(bytes);
+                consume.accept(bytes);
+            }).then()).expectComplete().verify(Duration.ofSeconds(30));
+            exchange.get(30, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testNonStreamingBulkErrorHasNoChunkDelimiter() throws IOException {
+        final Request request = new Request("POST", "/_bulk");
+        request.setJsonEntity("{\"index\":{}}\n{\"hello\":\"world\"}\n");
+        final ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertEquals(400, exception.getResponse().getStatusLine().getStatusCode());
+        try (var input = exception.getResponse().getEntity().getContent()) {
+            final String content = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+            assertTrue(content, content.contains("index is missing"));
+            assertFalse(content, content.endsWith("\n"));
+        }
     }
 
     public void testStreamingRequestNoBatching() throws IOException {
