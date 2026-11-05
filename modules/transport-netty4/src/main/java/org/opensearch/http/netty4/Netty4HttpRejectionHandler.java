@@ -153,7 +153,6 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
                     outputShutdown = true;
                     lastReadNanos = context.executor().ticker().nanoTime();
                     drainDeadlineNanos = lastReadNanos + TimeUnit.SECONDS.toNanos(DRAIN_MAX_SECONDS);
-                    FutureUtils.cancel(timeout);
                     checkDrain();
                 } else {
                     closeNow();
@@ -170,6 +169,7 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
     }
 
     private void checkDrain() {
+        FutureUtils.cancel(timeout);
         long now = context.executor().ticker().nanoTime();
         long remaining = Math.min(drainDeadlineNanos - now, lastReadNanos + TimeUnit.SECONDS.toNanos(DRAIN_IDLE_SECONDS) - now);
         if (remaining <= 0) {
