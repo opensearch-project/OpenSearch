@@ -59,8 +59,10 @@ import java.util.function.Predicate;
 
 import static org.opensearch.cache.common.tier.TieredSpilloverCache.ZERO_SEGMENT_COUNT_EXCEPTION_MESSAGE;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DEFAULT_TOOK_TIME_DISK_THRESHOLD;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK_ADMISSION_MIN_FREQUENCY_SETTING_MAP;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.DISK_CACHE_ENABLED_SETTING_MAP;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.MIN_DISK_CACHE_SIZE_IN_BYTES;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_ADMISSION_MIN_FREQUENCY;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TIERED_SPILLOVER_SEGMENTS;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheSettings.TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP;
@@ -88,6 +90,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         clusterSettings.registerSetting(TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE));
         clusterSettings.registerSetting(TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE));
         clusterSettings.registerSetting(DISK_CACHE_ENABLED_SETTING_MAP.get(CacheType.INDICES_REQUEST_CACHE));
+        clusterSettings.registerSetting(DISK_ADMISSION_MIN_FREQUENCY_SETTING_MAP.get(CacheType.INDICES_REQUEST_CACHE));
     }
 
     public void testDefaultSegmentsCappedAtCeiling() {
@@ -99,6 +102,189 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         );
         assertTrue("default segments must be >= 1", segments >= 1);
         assertTrue("default segments must be a valid (power-of-two) count", VALID_SEGMENT_COUNT_VALUES.contains(segments));
+    }
+
+    public void testDiskAdmissionMinFrequencyIsDynamic() throws Exception {
+        int onHeapCacheSize = 100;
+        int diskCacheSize = 100;
+        int keyValueSize = 50;
+        MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
+        Settings settings = Settings.builder()
+            .put(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                onHeapCacheSize * keyValueSize + "b"
+            )
+            .build();
+        TieredSpilloverCache<String, String> tsc = initializeTieredSpilloverCache(
+            keyValueSize,
+            diskCacheSize,
+            removalListener,
+            settings,
+            0,
+            1
+        );
+        TieredSpilloverCache.TieredSpilloverCacheSegment<String, String> segment = tsc.tieredSpilloverCacheSegments[0];
+
+        // Default off (min frequency 1), sketch not allocated.
+        assertEquals(1, segment.getAdmissionMinFrequency());
+        assertFalse(segment.isAdmissionSketchAllocated());
+
+        Setting<Integer> setting = TieredSpilloverCacheSettings.TIERED_SPILLOVER_DISK_ADMISSION_MIN_FREQUENCY
+            .getConcreteSettingForNamespace(CacheType.INDICES_REQUEST_CACHE.getSettingPrefix());
+
+        // Dynamically enable: threshold updates and the sketch is lazily allocated.
+        clusterSettings.applySettings(Settings.builder().put(setting.getKey(), 3).build());
+        assertEquals(3, segment.getAdmissionMinFrequency());
+        assertTrue(segment.isAdmissionSketchAllocated());
+
+        // Dynamically disable again: threshold reverts; the sketch stays allocated so re-enabling is warm.
+        clusterSettings.applySettings(Settings.builder().put(setting.getKey(), 1).build());
+        assertEquals(1, segment.getAdmissionMinFrequency());
+        assertTrue(segment.isAdmissionSketchAllocated());
+    }
+
+    public void testAdmissionFrequencyTrackedOnlyWhenDiskCacheEnabled() throws Exception {
+        int onHeapCacheSize = 100;
+        int diskCacheSize = 100;
+        int keyValueSize = 50;
+        MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
+        // Admission is enabled (min frequency 2). The disk tier is enabled by default at construction, and we toggle it
+        // via cluster settings below so the dynamic update consumer actually fires.
+        Settings settings = Settings.builder()
+            .put(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                onHeapCacheSize * keyValueSize + "b"
+            )
+            .put(
+                TIERED_SPILLOVER_DISK_ADMISSION_MIN_FREQUENCY.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                2
+            )
+            .build();
+        TieredSpilloverCache<String, String> tsc = initializeTieredSpilloverCache(
+            keyValueSize,
+            diskCacheSize,
+            removalListener,
+            settings,
+            0,
+            1
+        );
+        TieredSpilloverCache.TieredSpilloverCacheSegment<String, String> segment = tsc.tieredSpilloverCacheSegments[0];
+        assertTrue(segment.isAdmissionSketchAllocated());
+        String diskEnabledKey = DISK_CACHE_ENABLED_SETTING_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey();
+        ICacheKey<String> key = getICacheKey("hot");
+        LoadAwareCacheLoader<ICacheKey<String>, String> loader = getLoadAwareCacheLoader();
+
+        // Disable the disk tier dynamically. Accesses must not be tracked while it is off.
+        clusterSettings.applySettings(Settings.builder().put(diskEnabledKey, false).build());
+        for (int i = 0; i < 10; i++) {
+            tsc.computeIfAbsent(getICacheKey("hot"), loader);
+        }
+        assertEquals("frequency must not be tracked while the disk tier is disabled", 0, segment.getAdmissionSketch().frequency(key));
+
+        // Re-enable the disk tier dynamically. Accesses from now on should update the frequency sketch.
+        clusterSettings.applySettings(Settings.builder().put(diskEnabledKey, true).build());
+        for (int i = 0; i < 10; i++) {
+            tsc.computeIfAbsent(getICacheKey("hot"), loader);
+        }
+        assertTrue("frequency should be tracked once the disk tier is enabled", segment.getAdmissionSketch().frequency(key) > 0);
+    }
+
+    public void testGetIncrementsAdmissionSketch() throws Exception {
+        int keyValueSize = 50;
+        MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
+        Settings settings = Settings.builder()
+            .put(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                100 * keyValueSize + "b"
+            )
+            .put(
+                TIERED_SPILLOVER_DISK_ADMISSION_MIN_FREQUENCY.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                3
+            )
+            .build();
+        TieredSpilloverCache<String, String> tsc = initializeTieredSpilloverCache(keyValueSize, 100, removalListener, settings, 0, 1);
+        TieredSpilloverCache.TieredSpilloverCacheSegment<String, String> segment = tsc.tieredSpilloverCacheSegments[0];
+        // get() feeds the admission sketch, same as computeIfAbsent.
+        ICacheKey<String> key = getICacheKey("hot");
+        for (int i = 0; i < 5; i++) {
+            tsc.get(getICacheKey("hot"));
+        }
+        assertEquals(5, segment.getAdmissionSketch().frequency(key));
+    }
+
+    public void testAdmissionDisabledByDefaultAllocatesNoSketch() throws Exception {
+        int keyValueSize = 50;
+        MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
+        Settings settings = Settings.builder()
+            .put(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                100 * keyValueSize + "b"
+            )
+            .build();
+        TieredSpilloverCache<String, String> tsc = initializeTieredSpilloverCache(keyValueSize, 100, removalListener, settings, 0, 1);
+        TieredSpilloverCache.TieredSpilloverCacheSegment<String, String> segment = tsc.tieredSpilloverCacheSegments[0];
+        // Default threshold is 1 (off), so no sketch is allocated and neither access path touches it.
+        assertEquals(1, segment.getAdmissionMinFrequency());
+        assertFalse(segment.isAdmissionSketchAllocated());
+        tsc.get(getICacheKey("x"));
+        tsc.computeIfAbsent(getICacheKey("x"), getLoadAwareCacheLoader());
+    }
+
+    public void testDiskAdmissionMinFrequencySettingRejectsOutOfRange() {
+        Setting<Integer> setting = TIERED_SPILLOVER_DISK_ADMISSION_MIN_FREQUENCY.getConcreteSettingForNamespace(
+            CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+        );
+        assertEquals(Integer.valueOf(1), setting.get(Settings.EMPTY));
+        assertEquals(Integer.valueOf(15), setting.get(Settings.builder().put(setting.getKey(), 15).build()));
+        expectThrows(IllegalArgumentException.class, () -> setting.get(Settings.builder().put(setting.getKey(), 0).build()));
+        expectThrows(IllegalArgumentException.class, () -> setting.get(Settings.builder().put(setting.getKey(), 16).build()));
+    }
+
+    public void testAdmissionAdmitsToDiskWhileDiskHasFreeSpace() throws Exception {
+        int keyValueSize = 50;
+        int onHeapCacheSize = 1; // one entry, so the next insert evicts to disk
+        int diskCacheSize = 100; // ample disk room, so the disk tier never evicts
+        MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
+        Settings settings = Settings.builder()
+            .put(
+                TieredSpilloverCacheSettings.TIERED_SPILLOVER_ONHEAP_STORE_SIZE.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                onHeapCacheSize * keyValueSize + "b"
+            )
+            .put(
+                TIERED_SPILLOVER_DISK_ADMISSION_MIN_FREQUENCY.getConcreteSettingForNamespace(
+                    CacheType.INDICES_REQUEST_CACHE.getSettingPrefix()
+                ).getKey(),
+                5
+            )
+            .build();
+        TieredSpilloverCache<String, String> tsc = initializeTieredSpilloverCache(
+            keyValueSize,
+            diskCacheSize,
+            removalListener,
+            settings,
+            0,
+            1
+        );
+        LoadAwareCacheLoader<ICacheKey<String>, String> loader = getLoadAwareCacheLoader();
+        // Two distinct keys, each seen once (frequency 1 is below the threshold of 5). The first evicts from the
+        // one-entry heap. Because the disk tier still has free space, the low-frequency entry is admitted anyway.
+        tsc.computeIfAbsent(getICacheKey("a"), loader);
+        tsc.computeIfAbsent(getICacheKey("b"), loader);
+        assertTrue(getItemsForTier(tsc, TIER_DIMENSION_VALUE_DISK) > 0);
     }
 
     public void testComputeIfAbsentWhenTheQueryThrowsAnException() throws Exception {
