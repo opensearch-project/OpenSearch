@@ -44,6 +44,18 @@ public class PolicyFileSymlinkTests {
         assertGrantMatchesThroughSymlink("real+dir", "link+dir");
     }
 
+    @Test
+    public void testCodebaseWithoutPathDoesNotFail() throws IOException {
+        final Path policyFile = temp.getRoot().toPath().resolve("nopath.policy");
+        Files.writeString(
+            policyFile,
+            "grant codeBase \"file:%2Fsome%2Fdir/-\" {\n  permission java.io.FilePermission \"/granted\", \"read\";\n};\n",
+            StandardCharsets.UTF_8
+        );
+
+        new PolicyFile(policyFile.toUri().toURL());
+    }
+
     @SuppressWarnings("removal")
     private void assertGrantMatchesThroughSymlink(String realName, String linkName) throws IOException {
         final Path root = temp.getRoot().toPath().toRealPath();

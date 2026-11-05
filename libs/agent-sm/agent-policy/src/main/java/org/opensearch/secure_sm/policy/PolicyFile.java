@@ -353,10 +353,14 @@ public class PolicyFile extends java.security.Policy {
 
     private static String decodePath(URL url) {
         try {
-            return url.toURI().getPath();
+            final String path = url.toURI().getPath();
+            if (path != null) {
+                return path;
+            }
         } catch (URISyntaxException e) {
             return url.getPath();
         }
+        return url.getPath();
     }
 
     private String canonicalizePath(String path) throws IOException {
