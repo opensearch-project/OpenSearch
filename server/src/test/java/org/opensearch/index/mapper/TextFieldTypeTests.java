@@ -47,12 +47,15 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.AutomatonQueries;
+import org.opensearch.common.lucene.search.PrecompiledAutomatonQuery;
+import org.opensearch.common.lucene.search.RegexpAutomatonCache;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.mapper.TextFieldMapper.TextFieldType;
 
@@ -128,9 +131,11 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQuery() {
+        CompiledAutomaton expectedCompiled = RegexpAutomatonCache.getInstance()
+            .getCompiledAutomaton("foo.*", 0, 0, 10, RegexpQuery.DEFAULT_PROVIDER);
         MappedFieldType ft = createFieldType(true);
         assertEquals(
-            new RegexpQuery(new Term("field", "foo.*")),
+            new PrecompiledAutomatonQuery(new Term("field", "foo.*"), expectedCompiled, "foo.*", CONSTANT_SCORE_BLENDED_REWRITE),
             ft.regexpQuery("foo.*", 0, 0, 10, CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC)
         );
 
