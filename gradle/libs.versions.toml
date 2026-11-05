@@ -37,6 +37,7 @@ tdigest                 = "3.3" # Warning: Before updating tdigest, ensure its s
 hdrhistogram            = "2.2.2"
 grpc                    = "1.75.0"
 json_smart              = "2.5.2"
+kerberos                = "2.1.2"
 
 # when updating the JNA version, also update the version in buildSrc/build.gradle
 jna               = "5.16.0"
