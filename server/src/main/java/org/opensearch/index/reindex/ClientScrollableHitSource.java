@@ -42,8 +42,11 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.search.ShardSearchFailure;
+import org.opensearch.action.support.ContextPreservingActionListener;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContextAccess;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
@@ -58,6 +61,7 @@ import org.opensearch.transport.client.ParentTaskAssigningClient;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
@@ -134,7 +138,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
          * Unwrap the client so we don't set our task as the parent. If we *did* set our ID then the clear scroll would be cancelled as
          * if this task is cancelled. But we want to clear the scroll regardless of whether or not the main request was cancelled.
          */
-        client.unwrap().clearScroll(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
+        ActionListener<ClearScrollResponse> listener = new ActionListener<ClearScrollResponse>() {
             @Override
             public void onResponse(ClearScrollResponse response) {
                 logger.debug("Freed [{}] contexts", response.getNumFreed());
@@ -146,7 +150,15 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
                 logger.warn(() -> new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), e);
                 onCompletion.run();
             }
-        });
+        };
+
+        ThreadContext threadContext = client.threadPool().getThreadContext();
+        Supplier<ThreadContext.StoredContext> originalContext = threadContext.newRestorableContext(false);
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            // The scroll was created by this bulk-by-scroll operation, so its cleanup is an internal action.
+            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
+            client.unwrap().clearScroll(clearScrollRequest, new ContextPreservingActionListener<>(originalContext, listener));
+        }
     }
 
     @Override
