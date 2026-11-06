@@ -178,6 +178,36 @@ class S3Repository extends MeteredBlobStoreRepository {
     });
 
     /**
+     * Access point this repository reads through when pulling a server-side copy from a service-owned repository.
+     * Accepts a full access point ARN or an access point alias; either is usable in place of a bucket name for object
+     * operations.
+     *
+     * <p>Supplied by the customer at registration, using the value the control plane returned when their role was
+     * registered against the access point. It belongs here rather than on the service-owned source repository
+     * because the access point is a property of the <em>(domain, role)</em> grant, not of the bucket: once a domain
+     * exceeds the per-access-point role limit, additional access points are created with a {@code -1}, {@code -2}
+     * suffix, and two roles reading the same bucket can legitimately be on different ones. A single value on the
+     * shared source repository could not express that.
+     *
+     * <p>Accepting it from the customer discloses nothing and grants nothing. The access point policy names the roles
+     * it admits and confines them to a prefix, so naming an access point the caller holds no grant on is denied.
+     *
+     * <p>This is the only setting server-side copy adds. Every other input already exists:
+     *
+     * <ul>
+     *   <li><b>Source</b> bucket, path and ownership guard come from the existing service-owned repository's
+     *       {@link #BUCKET_SETTING}, {@link #BASE_PATH_SETTING} and {@link #EXPECTED_BUCKET_OWNER_SETTING}.</li>
+     *   <li><b>Destination</b> bucket, path and ownership guard come from this repository's own
+     *       {@link #BUCKET_SETTING}, {@link #BASE_PATH_SETTING} and {@link #EXPECTED_BUCKET_OWNER_SETTING}, and this
+     *       repository's credentials sign the copy.</li>
+     * </ul>
+     *
+     * <p>Reading through the access point is what makes its policy - and therefore its prefix confinement - govern
+     * the copy. Addressing the source bucket directly would bypass it.
+     */
+    static final Setting<String> SOURCE_ACCESS_POINT_SETTING = Setting.simpleString("source_access_point");
+
+    /**
      * Type of Async client to be used for S3 Uploads. Defaults to crt.
      */
     static final Setting<String> S3_ASYNC_HTTP_CLIENT_TYPE = Setting.simpleString(

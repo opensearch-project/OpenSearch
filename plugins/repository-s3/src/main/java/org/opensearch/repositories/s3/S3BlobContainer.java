@@ -38,6 +38,7 @@ import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CommonPrefix;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
@@ -79,6 +80,8 @@ import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.blobstore.BlobVersionConflictException;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.InputStreamWithMetadata;
+import org.opensearch.common.blobstore.ServerSideCopyBlobContainer;
+import org.opensearch.common.blobstore.ServerSideCopySource;
 import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
@@ -124,7 +127,7 @@ import static org.opensearch.repositories.s3.S3Repository.MAX_FILE_SIZE_USING_MU
 import static org.opensearch.repositories.s3.S3Repository.MIN_PART_SIZE_USING_MULTIPART;
 import static org.opensearch.repositories.s3.utils.SseKmsUtil.configureEncryptionSettings;
 
-class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamBlobContainer {
+class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamBlobContainer, ServerSideCopyBlobContainer {
 
     private static final Logger logger = LogManager.getLogger(S3BlobContainer.class);
     private static final long DEFAULT_OPERATION_TIMEOUT = TimeUnit.SECONDS.toSeconds(30);
@@ -683,6 +686,126 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
     private String buildKey(String blobName) {
         return keyPath + blobName;
+    }
+
+    @Override
+    public long maxSingleRequestCopySizeInBytes() {
+        return S3ServerSideCopy.MAX_SINGLE_COPY_SIZE.getBytes();
+    }
+
+    @Override
+    public boolean isServerSideCopyConfigured() {
+        // Gated on the destination side: without a granted access point there is no endpoint through which this
+        // repository's identity can read a foreign source bucket.
+        return Strings.hasText(blobStore.sourceAccessPoint());
+    }
+
+    /**
+     * Describes this container as a server-side copy <em>source</em>.
+     *
+     * <p>Called on an existing service-owned repository - the automated snapshot repository or one of the remote store
+     * repositories. Everything returned already exists on that repository: its bucket, its {@code base_path} as the
+     * key prefix, and its {@code expected_bucket_owner} as the ownership guard. No source path is taken from the
+     * caller.
+     *
+     * <p>Deliberately returns the <em>bucket</em>, not an access point. Which access point a given reader may use is a
+     * property of that reader's grant, not of this bucket, so it is supplied by the destination.
+     *
+     * @throws IllegalStateException if this repository has {@code source_access_point} set, which would mean it is
+     *                               configured as a copy destination and is being misused as a source
+     */
+    @Override
+    public ServerSideCopySource asCopySource() {
+        final String accessPoint = blobStore.sourceAccessPoint();
+        if (Strings.hasText(accessPoint)) {
+            // Only the destination may carry this setting. On a source it is silently ignored, so a repository that
+            // declares one is either mis-registered or being used in the wrong role - either way, fail loudly rather
+            // than copy from somewhere the operator did not intend.
+            throw new IllegalStateException(
+                "repository ["
+                    + blobStore.repositoryMetadata().name()
+                    + "] cannot be used as a server-side copy source because it declares ["
+                    + S3Repository.SOURCE_ACCESS_POINT_SETTING.getKey()
+                    + "="
+                    + accessPoint
+                    + "]. That setting identifies the access point a *destination* reads through and must be set only"
+                    + " on the destination repository; remove it from this one."
+            );
+        }
+        return new ServerSideCopySource(blobStore.bucket(), keyPath, blobStore.expectedBucketOwner());
+    }
+
+    /**
+     * Pulls a blob from {@code source} into this container without the bytes entering this process.
+     *
+     * <p>Each input comes from exactly one place:
+     * <ul>
+     *   <li><b>Source</b> path and ownership guard come from {@code source}, which an existing service-owned
+     *       repository produced via {@link #asCopySource()}.</li>
+     *   <li><b>Source endpoint</b> is this repository's configured access point, which substitutes for the source
+     *       bucket. It lives here because it is a property of this repository's grant rather than of the source
+     *       bucket - with per-access-point role limits, two repositories reading the same bucket can be granted on
+     *       different access points.</li>
+     *   <li><b>Destination</b> bucket, path and ownership guard are this container's own.</li>
+     * </ul>
+     *
+     * <p>Signed by this repository's configured identity. A server-side copy is signed by exactly one principal that
+     * must hold read on the source and write on the destination simultaneously, and only the destination's owner can
+     * grant the write half - so the copy is driven from here, not from the source.
+     */
+    @Override
+    public void copyBlobFrom(final ServerSideCopySource source, final String sourceBlobName, final String destinationBlobName)
+        throws IOException {
+        if (isServerSideCopyConfigured() == false) {
+            throw new UnsupportedOperationException(
+                "server-side copy requires [" + S3Repository.SOURCE_ACCESS_POINT_SETTING.getKey() + "] on this repository"
+            );
+        }
+
+        // The access point replaces the source bucket as the endpoint. This is what subjects the read to the access
+        // point policy; addressing source.container() directly would bypass its prefix confinement.
+        final String sourceEndpoint = blobStore.sourceAccessPoint();
+        final String sourceKey = source.resolveKey(sourceBlobName);
+        final String destinationKey = buildKey(destinationBlobName);
+
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            // Size decides single-request versus multipart. Read through the same endpoint the copy will use, so an
+            // access point policy that forbids the object fails here rather than part-way through a multipart copy.
+            final long sourceSize = sourceObjectSize(clientReference.get(), sourceEndpoint, sourceKey, source.expectedContainerOwner());
+
+            S3ServerSideCopy.copy(
+                clientReference.get(),
+                sourceEndpoint,
+                sourceKey,
+                sourceSize,
+                source.expectedContainerOwner(),
+                blobStore.bucket(),
+                destinationKey,
+                blobStore.expectedBucketOwner(),
+                blobStore.bufferSizeInBytes()
+            );
+        }
+    }
+
+    private long sourceObjectSize(
+        final S3Client client,
+        final String sourceEndpoint,
+        final String sourceKey,
+        @Nullable final String sourceExpectedOwner
+    ) throws IOException {
+        final HeadObjectRequest.Builder request = HeadObjectRequest.builder().bucket(sourceEndpoint).key(sourceKey);
+        if (Strings.hasText(sourceExpectedOwner)) {
+            request.expectedBucketOwner(sourceExpectedOwner);
+        }
+        try {
+            return AccessController.doPrivileged(() -> client.headObject(request.build())).contentLength();
+        } catch (final NoSuchKeyException e) {
+            final NoSuchFileException nsfe = new NoSuchFileException(sourceKey);
+            nsfe.initCause(e);
+            throw nsfe;
+        } catch (final Exception e) {
+            throw new IOException("failed to read size of copy source [" + sourceEndpoint + "/" + sourceKey + "]", e);
+        }
     }
 
     /**
