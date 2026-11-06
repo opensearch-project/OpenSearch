@@ -23,12 +23,14 @@
   ],
   "mockResultFieldNames": [
     "name",
-    "event_nanos"
+    "event_nanos",
+    "_id"
   ],
   "mockResultRows": [
     [
       "event1",
-      "2024-06-15T10:30:00.000000000Z"
+      "2024-06-15T10:30:00.000000000Z",
+      "id-1"
     ]
   ],
   "expectedOutputDsl": {
@@ -45,7 +47,8 @@
           "_source": {
             "name": "event1",
             "event_nanos": "2024-06-15T10:30:00.000000000Z"
-          }
+          },
+          "_id": "id-1"
         }
       ]
     }

@@ -22,10 +22,10 @@
     "  LogicalFilter(condition=[IS NOT TRUE(=($2, CAST('BrandX':VARCHAR):VARCHAR))])",
     "    LogicalTableScan(table=[[test-index]])"
   ],
-  "mockResultFieldNames": ["name", "price", "brand", "rating"],
+  "mockResultFieldNames": ["name", "price", "brand", "rating", "_id"],
   "mockResultRows": [
-    ["laptop", 999, "BrandA", 4.5],
-    ["tablet", 499, null, 3.0]
+    ["laptop", 999, "BrandA", 4.5, "id-1"],
+    ["tablet", 499, null, 3.0, "id-2"]
   ],
   "expectedOutputDsl": {
     "num_reduce_phases": 0,
@@ -43,7 +43,8 @@
             "price": 999,
             "brand": "BrandA",
             "rating": 4.5
-          }
+          },
+          "_id": "id-1"
         },
         {
           "_score": null,
@@ -51,7 +52,8 @@
             "name": "tablet",
             "price": 499,
             "rating": 3.0
-          }
+          },
+          "_id": "id-2"
         }
       ]
     }
