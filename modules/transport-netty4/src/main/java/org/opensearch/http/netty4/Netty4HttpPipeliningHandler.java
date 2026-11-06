@@ -106,6 +106,7 @@ public final class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         private final Logger logger;
         private final HttpPipeliningAggregator<ChannelPromise> aggregator;
         private final ChannelFutureListener closeListener;
+        // True while the drain loop is on the call stack, not until the network writes complete.
         private boolean draining;
         private boolean closed;
 
@@ -128,9 +129,7 @@ public final class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             // Prevent cancellation from releasing backing storage while queued. If cancellation already won, close:
             // skipping a response would cause HTTP/1.1 clients to associate later responses with the wrong requests.
             if (promise.setUncancellable() == false) {
-                close();
-                reject(response, promise, new ClosedChannelException());
-                ctx.close();
+                rejectAndClose(response, promise);
                 return;
             }
             if (closed || ctx.channel().isActive() == false) {
@@ -141,11 +140,15 @@ public final class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                 aggregator.add(response, promise);
             } catch (IllegalStateException e) {
                 logger.debug("closing HTTP connection: {}", e.getMessage());
-                close();
-                reject(response, promise, new ClosedChannelException());
-                ctx.close();
+                rejectAndClose(response, promise);
                 return;
             }
+            drainReadyResponses();
+        }
+
+        private void drainReadyResponses() {
+            // A synchronous outbound handler can reenter write() during handoff. The active drain must
+            // pick up that queued response so it cannot overtake the response currently being forwarded.
             if (draining) {
                 return;
             }
@@ -159,6 +162,13 @@ public final class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             } finally {
                 draining = false;
             }
+        }
+
+        private void rejectAndClose(HttpPipelinedResponse response, ChannelPromise promise) {
+            close();
+            // This response was never queued, so close() could not release it.
+            reject(response, promise, new ClosedChannelException());
+            ctx.close();
         }
 
         private void close() {
