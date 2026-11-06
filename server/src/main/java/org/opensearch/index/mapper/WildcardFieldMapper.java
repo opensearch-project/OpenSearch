@@ -14,8 +14,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreScorer;
@@ -61,11 +64,13 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -486,7 +491,12 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                     return existsQuery(context);
                 }
             } else {
-                approximation = matchAllTermsQuery(name(), requiredNGrams, caseInsensitive);
+                // Use a bounded approximation when there are many required n-grams
+                if (RequiredTermsQuery.isConditionRequiredTermsQuery(requiredNGrams.size())) {
+                    approximation = new RequiredTermsQuery(name(), requiredNGrams, caseInsensitive);
+                } else {
+                    approximation = matchAllTermsQuery(name(), requiredNGrams, caseInsensitive);
+                }
             }
             return new WildcardMatchingQuery(
                 name(),
@@ -733,8 +743,13 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 }
                 query = builder.build();
             } else if (regExp.kind == RegExp.Kind.REGEXP_STRING) {
+                Set<String> requiredNGrams = getRequiredNGrams("*" + regExp.s + "*", true);
+                // Defer required-terms selection to rewrite time to limit the number of approximation clauses.
+                if (RequiredTermsQuery.isConditionRequiredTermsQuery(requiredNGrams.size())) {
+                    return new RequiredTermsQuery(fieldName, requiredNGrams, caseInsensitive);
+                }
                 BooleanQuery.Builder builder = new BooleanQuery.Builder();
-                for (String string : getRequiredNGrams("*" + regExp.s + "*", true)) {
+                for (String string : requiredNGrams) {
                     if (string.length() == NGRAM_SIZE) {
                         final Query subQuery;
                         if (caseInsensitive) {
@@ -1094,5 +1109,130 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 return FieldValueType.DOC_VALUES;
             }
         };
+    }
+
+    /**
+     * An approximation query for wildcard and regular expression patterns
+     * that selects a bounded set of required terms during rewriting
+     */
+    static final class RequiredTermsQuery extends Query {
+
+        private static final int MAX_REQUIRED_TERMS = 16;
+        private static final Comparator<Candidate> BEST_FIRST = Comparator.comparingLong((Candidate candidate) -> candidate.frequency)
+            .thenComparing(candidate -> candidate.text);
+
+        private final String fieldName;
+        private final Set<String> requiredTerms;
+        private final boolean caseInsensitive;
+
+        public RequiredTermsQuery(String fieldName, Set<String> requiredTerms, boolean caseInsensitive) {
+            this.fieldName = fieldName;
+            this.requiredTerms = requiredTerms;
+            this.caseInsensitive = caseInsensitive;
+
+            if (this.requiredTerms == null || this.requiredTerms.isEmpty()) {
+                throw new IllegalArgumentException("RequiredTermsQuery needs at least one term");
+            }
+        }
+
+        static boolean isConditionRequiredTermsQuery(int size) {
+            return Math.min(MAX_REQUIRED_TERMS, IndexSearcher.getMaxClauseCount()) <= size;
+        }
+
+        @Override
+        public String toString(String field) {
+            return "RequiredTermsQuery(" + fieldName + ":\"" + requiredTerms + "\")";
+        }
+
+        @Override
+        public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+            IndexReader indexReader = indexSearcher.getIndexReader();
+            int limit = Math.min(MAX_REQUIRED_TERMS, IndexSearcher.getMaxClauseCount());
+            List<Terms> segmentTerms = new ArrayList<>();
+            if (caseInsensitive) {
+                for (LeafReaderContext leaf : indexReader.leaves()) {
+                    Terms terms = leaf.reader().terms(fieldName);
+                    if (terms != null) {
+                        segmentTerms.add(terms);
+                    }
+                }
+            }
+            PriorityQueue<Candidate> queue = new PriorityQueue<>(limit, BEST_FIRST.reversed());
+            for (String requiredTerm : requiredTerms) {
+                long maxFrequency = queue.size() < limit ? Long.MAX_VALUE : queue.peek().frequency;
+                long frequency = caseInsensitive
+                    ? caseInsensitiveFrequency(segmentTerms, requiredTerm, maxFrequency)
+                    : indexReader.docFreq(new Term(fieldName, requiredTerm));
+                if (frequency > maxFrequency) continue;
+                Candidate candidate = new Candidate(requiredTerm, frequency);
+                if (frequency == 0) {
+                    queue.clear();
+                    queue.add(candidate);
+                    return buildQuery(queue);
+                }
+                if (queue.size() < limit) {
+                    queue.add(candidate);
+                } else if (BEST_FIRST.compare(candidate, queue.peek()) < 0) {
+                    queue.poll();
+                    queue.add(candidate);
+                }
+            }
+            return buildQuery(queue);
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            RequiredTermsQuery that = (RequiredTermsQuery) o;
+            return fieldName.equals(that.fieldName)
+                && requiredTerms.equals(that.requiredTerms)
+                && Objects.equals(caseInsensitive, that.caseInsensitive);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(classHash(), fieldName, requiredTerms, caseInsensitive);
+        }
+
+        private Query buildQuery(PriorityQueue<Candidate> queue) {
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            while (!queue.isEmpty()) {
+                Candidate candidate = queue.poll();
+                Term term = new Term(fieldName, candidate.text);
+                Query query;
+                if (candidate.text.length() < NGRAM_SIZE) {
+                    query = caseInsensitive ? AutomatonQueries.caseInsensitivePrefixQuery(term) : new PrefixQuery(term);
+                } else {
+                    query = caseInsensitive ? AutomatonQueries.caseInsensitiveTermQuery(term) : new TermQuery(term);
+                }
+                builder.add(query, BooleanClause.Occur.FILTER);
+            }
+            return builder.build();
+        }
+
+        static long caseInsensitiveFrequency(List<Terms> segmentTerms, String text, long maxFrequency) throws IOException {
+            CompiledAutomaton compiledAutomaton = new CompiledAutomaton(AutomatonQueries.toCaseInsensitiveString(text));
+            long frequency = 0;
+            for (Terms segmentTerm : segmentTerms) {
+                TermsEnum matchedTermEnum = compiledAutomaton.getTermsEnum(segmentTerm);
+                while (matchedTermEnum.next() != null) {
+                    frequency += matchedTermEnum.docFreq();
+                    // This candidate can no longer improve the selected set.
+                    if (frequency > maxFrequency) {
+                        return frequency;
+                    }
+                }
+            }
+            return frequency;
+        }
+
+        private record Candidate(String text, long frequency) {
+        }
     }
 }
