@@ -369,6 +369,61 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         closeShards(indexShard);
     }
 
+    /**
+     * Replica finalize after a primary-term bump must stamp the tracker even when Lucene infos version
+     * did not change ({@code didRefresh} false). Otherwise 20551 catch-up spins on S3 metadata. See #18605.
+     */
+    public void testFinalizeReplicationAdvancesCheckpointWhenPrimaryTermChanges() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            final IndexShard replica = shards.getReplicas().get(0);
+            final ReplicationCheckpoint before = replica.getLatestReplicationCheckpoint();
+            assertNotNull(before);
+            final long newTerm = replica.getOperationPrimaryTerm() + 1;
+            replica.getReplicationTracker().setOperationPrimaryTerm(newTerm);
+            assertEquals(newTerm, replica.getOperationPrimaryTerm());
+            assertEquals(before.getPrimaryTerm(), replica.getLatestReplicationCheckpoint().getPrimaryTerm());
+
+            try (GatedCloseable<CatalogSnapshot> snapshot = replica.getCatalogSnapshot()) {
+                replica.finalizeReplication(snapshot.get());
+            }
+
+            final ReplicationCheckpoint after = replica.getLatestReplicationCheckpoint();
+            assertEquals(newTerm, after.getPrimaryTerm());
+            assertEquals(before.getSegmentInfosVersion(), after.getSegmentInfosVersion());
+            assertFalse(before.isAheadOf(after));
+            ReplicationCheckpoint received = new ReplicationCheckpoint(
+                replica.shardId(),
+                newTerm,
+                after.getSegmentsGen(),
+                after.getSegmentInfosVersion(),
+                after.getCodec()
+            );
+            assertFalse("received checkpoint must not stay ahead of achieved after finalize", received.isAheadOf(after));
+        }
+    }
+
+    /**
+     * afterRefresh with didRefresh=false still recomputes when operation primary term no longer matches
+     * the cached checkpoint. Uses the primary engine because NRT replica {@code refresh()} is a no-op.
+     */
+    public void testAfterRefreshAdvancesCheckpointWhenPrimaryTermStale() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            final IndexShard primary = shards.getPrimary();
+            final ReplicationCheckpoint before = primary.getLatestReplicationCheckpoint();
+            final long newTerm = primary.getOperationPrimaryTerm() + 1;
+            primary.getReplicationTracker().setOperationPrimaryTerm(newTerm);
+            assertEquals(before.getPrimaryTerm(), primary.getLatestReplicationCheckpoint().getPrimaryTerm());
+
+            primary.refresh("test-term-stale-checkpoint");
+
+            final ReplicationCheckpoint after = primary.getLatestReplicationCheckpoint();
+            assertEquals(newTerm, after.getPrimaryTerm());
+            assertEquals(before.getSegmentInfosVersion(), after.getSegmentInfosVersion());
+        }
+    }
+
     public void testSegmentInfosAndReplicationCheckpointTuple() throws Exception {
         try (ReplicationGroup shards = createGroup(1, getIndexSettings(), indexMapping, new NRTReplicationEngineFactory())) {
             shards.startAll();
