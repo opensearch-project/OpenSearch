@@ -78,3 +78,16 @@ flowchart TD
     class FC,FS,FSrv,SSL,VSR arrow
     class FSQueue queue
 ```
+
+## Connections per node
+
+The stream transport opens `transport.stream.connections_per_node` connections to each node (default `1`,
+node-scope, `1` to `16`). Each one is its own `FlightClientChannel` wrapping its own `FlightClient`, so it gets
+its own gRPC channel, TCP connection, and TCP and HTTP/2 flow-control windows. `NodeChannels` hands each
+`STREAM` request the next connection, round-robin.
+
+All streams on one connection share that connection's windows, and a connection can have only about one
+window of data in flight per round trip. On high-latency links this caps throughput per connection at roughly
+`window / RTT`, however many streams share it. With more connections, several busy streams to the same node
+each get their own window. One stream always stays on one connection, so a single stream does not get faster.
+Each extra connection adds a socket and its buffers, and closing the node connection closes every channel.
