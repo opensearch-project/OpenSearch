@@ -807,13 +807,26 @@ public class MetadataCreateIndexService {
             );
         }
 
-        final List<Map<String, Object>> mappings = collectV2Mappings(
-            request.mappings(),
-            currentState,
-            templateName,
-            xContentRegistry,
-            request.index()
-        );
+        final List<Map<String, Object>> mappings;
+        final IndexMetadata mappingsSource = request.dataStreamName() != null && request.mappingsSourceIndex() != null
+            ? currentState.metadata().getIndexSafe(request.mappingsSourceIndex())
+            : null;
+        if (mappingsSource != null) {
+            // Data stream rollover with inherit_mappings enabled: copy the previous write index's mappings verbatim and do
+            // not apply template mappings. Settings and aliases are still resolved from the template below.
+            logger.debug(
+                "data stream [{}]: creating backing index [{}] with mappings copied from [{}]",
+                request.dataStreamName(),
+                request.index(),
+                mappingsSource.getIndex().getName()
+            );
+            final MappingMetadata sourceMapping = mappingsSource.mapping();
+            mappings = sourceMapping == null
+                ? Collections.emptyList()
+                : Collections.singletonList(MapperService.parseMapping(xContentRegistry, sourceMapping.source().string()));
+        } else {
+            mappings = collectV2Mappings(request.mappings(), currentState, templateName, xContentRegistry, request.index());
+        }
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             currentState,
             request,

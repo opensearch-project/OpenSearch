@@ -523,6 +523,94 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
         assertThat(createIndexRequest.settings().get("index.hidden"), equalTo("true"));
         assertThat(createIndexRequest.index(), equalTo(newWriteIndexName));
         assertThat(createIndexRequest.cause(), equalTo("rollover_data_stream"));
+        assertThat(createIndexRequest.mappingsSourceIndex(), nullValue());
+    }
+
+    public void testCreateIndexRequestForDataStreamWithMappingsSource() {
+        DataStream dataStream = DataStreamTests.randomInstance();
+        final String newWriteIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
+        final Index writeIndex = dataStream.getIndices().get(dataStream.getIndices().size() - 1);
+        final CreateIndexClusterStateUpdateRequest createIndexRequest = MetadataRolloverService.prepareDataStreamCreateIndexRequest(
+            dataStream.getName(),
+            newWriteIndexName,
+            new CreateIndexRequest("_na_"),
+            writeIndex
+        );
+        assertThat(createIndexRequest.mappingsSourceIndex(), equalTo(writeIndex));
+        assertThat(createIndexRequest.dataStreamName(), equalTo(dataStream.getName()));
+        assertThat(createIndexRequest.settings().get("index.hidden"), equalTo("true"));
+        // The flag only drives the mapping source; it is not stamped onto the new backing index by the rollover itself.
+        assertFalse(IndexMetadata.INDEX_DATA_STREAM_ROLLOVER_INHERIT_MAPPINGS_SETTING.exists(createIndexRequest.settings()));
+    }
+
+    public void testShouldInheritMappingsOnRolloverDefaultsToFalse() {
+        Metadata metadata = Metadata.builder().put("template", dataStreamTemplate("logs-*", null, null)).build();
+        assertFalse(MetadataRolloverService.shouldInheritMappingsOnRollover(metadata, "logs-demo"));
+    }
+
+    public void testShouldInheritMappingsOnRolloverReadsTemplateSetting() {
+        boolean enabled = randomBoolean();
+        Metadata metadata = Metadata.builder().put("template", dataStreamTemplate("logs-*", enabled, null)).build();
+        assertThat(MetadataRolloverService.shouldInheritMappingsOnRollover(metadata, "logs-demo"), equalTo(enabled));
+    }
+
+    public void testShouldInheritMappingsOnRolloverReadsComponentTemplateSetting() {
+        ComponentTemplate component = new ComponentTemplate(
+            new Template(Settings.builder().put(IndexMetadata.SETTING_DATA_STREAM_ROLLOVER_INHERIT_MAPPINGS, true).build(), null, null),
+            null,
+            null
+        );
+        Metadata metadata = Metadata.builder()
+            .put("component", component)
+            .put("template", dataStreamTemplate("logs-*", null, Collections.singletonList("component")))
+            .build();
+        assertTrue(MetadataRolloverService.shouldInheritMappingsOnRollover(metadata, "logs-demo"));
+    }
+
+    public void testShouldInheritMappingsOnRolloverIgnoresBackingIndexSetting() {
+        // The write index carries the flag (e.g. stamped from an earlier template version), but the current template does not.
+        final DataStream dataStream = new DataStream(
+            "logs-demo",
+            new DataStream.TimestampField("@timestamp"),
+            Collections.singletonList(new Index(DataStream.getDefaultBackingIndexName("logs-demo", 1), UUIDs.randomBase64UUID()))
+        );
+        final Index writeIndexRef = dataStream.getIndices().get(0);
+        IndexMetadata writeIndex = IndexMetadata.builder(writeIndexRef.getName())
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, writeIndexRef.getUUID())
+                    .put(IndexMetadata.SETTING_DATA_STREAM_ROLLOVER_INHERIT_MAPPINGS, true)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        Metadata metadata = Metadata.builder()
+            .put("template", dataStreamTemplate("logs-*", false, null))
+            .put(writeIndex, false)
+            .put(dataStream)
+            .build();
+        assertFalse(MetadataRolloverService.shouldInheritMappingsOnRollover(metadata, "logs-demo"));
+    }
+
+    public void testShouldInheritMappingsOnRolloverWithoutMatchingTemplate() {
+        assertFalse(MetadataRolloverService.shouldInheritMappingsOnRollover(Metadata.builder().build(), "logs-demo"));
+    }
+
+    private static ComposableIndexTemplate dataStreamTemplate(String pattern, Boolean inheritMappings, List<String> componentTemplates) {
+        Settings.Builder settings = Settings.builder();
+        if (inheritMappings != null) {
+            settings.put(IndexMetadata.SETTING_DATA_STREAM_ROLLOVER_INHERIT_MAPPINGS, inheritMappings);
+        }
+        return new ComposableIndexTemplate(
+            Collections.singletonList(pattern),
+            new Template(settings.build(), null, null),
+            componentTemplates,
+            null,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate()
+        );
     }
 
     public void testRejectDuplicateAlias() {

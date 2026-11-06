@@ -116,6 +116,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_DATA_PATH_SETTING,
                 IndexMetadata.INDEX_FORMAT_SETTING,
                 IndexMetadata.INDEX_HIDDEN_SETTING,
+                IndexMetadata.INDEX_DATA_STREAM_ROLLOVER_INHERIT_MAPPINGS_SETTING,
                 IndexMetadata.INDEX_REPLICATION_TYPE_SETTING,
                 IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING,
                 IndexMetadata.INDEX_BULK_ADAPTIVE_SHARD_SELECTION_ENABLED,
