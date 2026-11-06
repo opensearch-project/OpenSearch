@@ -23,15 +23,17 @@ import java.util.function.Consumer;
  */
 public class ForceMergeManagerSettings {
 
-    private Integer segmentCount;
-    private TimeValue forcemergeDelay;
-    private TimeValue schedulerInterval;
-    private TimeValue translogAge;
-    private Double cpuThreshold;
-    private Double diskThreshold;
-    private Double jvmThreshold;
-    private Integer concurrencyMultiplier;
-    private Boolean autoForceMergeFeatureEnabled;
+    // Written by the cluster settings update consumers on the cluster applier thread and read from other threads (the
+    // auto force merge task and, for the thresholds, the _forcemerge duress check on force merge threads).
+    private volatile Integer segmentCount;
+    private volatile TimeValue forcemergeDelay;
+    private volatile TimeValue schedulerInterval;
+    private volatile TimeValue translogAge;
+    private volatile Double cpuThreshold;
+    private volatile Double diskThreshold;
+    private volatile Double jvmThreshold;
+    private volatile Integer concurrencyMultiplier;
+    private volatile Boolean autoForceMergeFeatureEnabled;
     private final Consumer<TimeValue> modifySchedulerInterval;
 
     /**

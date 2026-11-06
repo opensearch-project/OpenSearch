@@ -67,6 +67,10 @@
       "primary_only": {
         "type" : "boolean",
         "description" : "Specify whether the operation should only perform on primary shards. Defaults to false."
+      },
+      "ignore_duress": {
+        "type" : "boolean",
+        "description" : "Specify whether the force merge should bypass the node-duress guardrail and run even when the node is under resource pressure (CPU, JVM heap, or disk usage over the force merge thresholds). When false, a force merge on a node under duress is rejected with 429 Too Many Requests. Defaults to false."
       }
     }
   }

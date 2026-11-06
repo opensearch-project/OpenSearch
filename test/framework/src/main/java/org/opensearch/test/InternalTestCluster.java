@@ -96,6 +96,7 @@ import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.autoforcemerge.ForceMergeManagerSettings;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineTestCase;
@@ -419,6 +420,11 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b");
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b");
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1b");
+        // Raise the force merge node-duress thresholds to their maximum so that load on shared CI hosts (or a nearly full
+        // CI disk) does not reject force merges with 429 in unrelated tests; tests of the guardrail set their own thresholds.
+        builder.put(ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100);
+        builder.put(ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100);
+        builder.put(ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100);
         builder.put(OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING.getKey(), random.nextBoolean());
         if (TEST_NIGHTLY) {
             builder.put(
