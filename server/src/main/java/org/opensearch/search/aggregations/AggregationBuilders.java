@@ -94,6 +94,7 @@ import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.TopHits;
 import org.opensearch.search.aggregations.metrics.TopHitsAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.TopMetricsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ValueCount;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
@@ -342,6 +343,13 @@ public class AggregationBuilders {
      */
     public static TopHitsAggregationBuilder topHits(String name) {
         return new TopHitsAggregationBuilder(name);
+    }
+
+    /**
+     * Create a new top_metrics aggregation with the given name.
+     */
+    public static TopMetricsAggregationBuilder topMetrics(String name) {
+        return new TopMetricsAggregationBuilder(name);
     }
 
     /**
