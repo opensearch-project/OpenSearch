@@ -126,4 +126,30 @@ public class WireConfigSnapshotTests extends OpenSearchTestCase {
         assertEquals(original.indexedPushdownFilters(), copy.indexedPushdownFilters());
         assertEquals(original.forceStrategy(), copy.forceStrategy());
     }
+
+    public void testTargetPartitionsOverrideCappedAtAvailableProcessors() {
+        int processors = Runtime.getRuntime().availableProcessors();
+        WireConfigSnapshot snapshot = WireConfigSnapshot.builder().build();
+
+        int excessivePartitions = processors + 100;
+        int effectivePartitions = Math.min(excessivePartitions, processors);
+
+        WireConfigSnapshot updated = WireConfigSnapshot.builder(snapshot).targetPartitions(effectivePartitions).build();
+
+        assertEquals(processors, updated.targetPartitions());
+    }
+
+    public void testTargetPartitionsOverrideLowerThanAvailableProcessors() {
+        int processors = Runtime.getRuntime().availableProcessors();
+        WireConfigSnapshot snapshot = WireConfigSnapshot.builder().build();
+
+        int lowerPartitions = 1;
+        int effectivePartitions = Math.min(lowerPartitions, processors);
+        WireConfigSnapshot updatedLower = WireConfigSnapshot.builder(snapshot).targetPartitions(effectivePartitions).build();
+        assertEquals(1, updatedLower.targetPartitions());
+
+        int exactPartitions = Math.min(processors, processors);
+        WireConfigSnapshot updatedExact = WireConfigSnapshot.builder(snapshot).targetPartitions(exactPartitions).build();
+        assertEquals(processors, updatedExact.targetPartitions());
+    }
 }
