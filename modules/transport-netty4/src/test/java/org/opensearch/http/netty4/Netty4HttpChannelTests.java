@@ -12,6 +12,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.http.HttpPipelinedResponse;
+import org.opensearch.http.HttpResponse;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Netty4NioSocketChannel;
 import org.junit.Before;
@@ -34,6 +35,7 @@ import io.netty.handler.codec.http.HttpVersion;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 public class Netty4HttpChannelTests extends OpenSearchTestCase {
     private Netty4HttpChannel netty4HttpChannel;
@@ -147,6 +149,36 @@ public class Netty4HttpChannelTests extends OpenSearchTestCase {
             if (response.refCnt() > 0) {
                 response.release();
             }
+        }
+    }
+
+    public void testAlreadyReferenceCountedResponseIsNotWrappedAgain() {
+        final Netty4HttpResponse delegate = newResponse();
+        assertResponsePassesThrough(new Netty4HttpPipelinedResponse(new HttpPipelinedResponse(0, delegate)));
+        assertEquals(0, delegate.refCnt());
+    }
+
+    public void testNonReferenceCountedDelegatePassesThrough() {
+        assertResponsePassesThrough(new HttpPipelinedResponse(0, mock(HttpResponse.class)));
+    }
+
+    public void testNonPipelinedResponsePassesThrough() {
+        final Netty4HttpResponse response = newResponse();
+        assertResponsePassesThrough(response);
+        assertEquals(0, response.refCnt());
+    }
+
+    private void assertResponsePassesThrough(HttpResponse response) {
+        final EmbeddedChannel embedded = new EmbeddedChannel();
+        final AtomicInteger completions = new AtomicInteger();
+        final AtomicReference<Exception> failure = new AtomicReference<>();
+        try {
+            new Netty4HttpChannel(embedded).sendResponse(response, ActionListener.wrap(r -> completions.incrementAndGet(), failure::set));
+            assertNull(failure.get());
+            assertEquals(1, completions.get());
+            assertSame(response, embedded.outboundMessages().peek());
+        } finally {
+            embedded.finishAndReleaseAll();
         }
     }
 
