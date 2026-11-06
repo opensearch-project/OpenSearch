@@ -1,0 +1,218 @@
+---
+"Remove a write block":
+  - skip:
+      version: " - 3.9.99"
+      reason: "The remove index block API (indices.remove_block) was added in 3.10.0"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.add_block:
+        index: test_index
+        block: write
+  - is_true: acknowledged
+
+  - do:
+      catch: /cluster_block_exception/
+      index:
+        index: test_index
+        body: { foo: bar }
+
+  - do:
+      indices.remove_block:
+        index: test_index
+        block: write
+  - is_true: acknowledged
+  - length: { indices: 1 }
+  - match: { indices.0.name: test_index }
+  - is_true: indices.0.unblocked
+
+  # the block and the setting are gone together
+  - do:
+      indices.get_settings:
+        index: test_index
+        name: index.blocks.write
+  - match: { test_index.settings.index.blocks.write: "false" }
+
+  - do:
+      index:
+        index: test_index
+        body: { foo: bar }
+
+---
+"Remove a block that is not set":
+  - skip:
+      version: " - 3.9.99"
+      reason: "The remove index block API (indices.remove_block) was added in 3.10.0"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.remove_block:
+        index: test_index
+        block: read
+  - is_true: acknowledged
+  - match: { indices.0.name: test_index }
+  - is_true: indices.0.unblocked
+
+  # removing it again is still fine
+  - do:
+      indices.remove_block:
+        index: test_index
+        block: read
+  - is_true: acknowledged
+  - is_true: indices.0.unblocked
+
+---
+"Remove read_only and write blocks that were set together":
+  - skip:
+      version: " - 3.9.99"
+      reason: "The remove index block API (indices.remove_block) was added in 3.10.0"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.put_settings:
+        index: test_index
+        body:
+          index.blocks.read_only: true
+          index.blocks.write: true
+
+  - do:
+      indices.remove_block:
+        index: test_index
+        block: write
+  - is_true: acknowledged
+  - is_true: indices.0.unblocked
+
+  - do:
+      indices.remove_block:
+        index: test_index
+        block: read_only
+  - is_true: acknowledged
+  - is_true: indices.0.unblocked
+
+  - do:
+      index:
+        index: test_index
+        body: { foo: bar }
+
+---
+"Remove a block from several indices with a wildcard":
+  - skip:
+      version: " - 3.9.99"
+      reason: "The remove index block API (indices.remove_block) was added in 3.10.0"
+
+  - do:
+      indices.create:
+        index: logs-1
+        body:
+          settings:
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: logs-2
+        body:
+          settings:
+            number_of_replicas: 0
+  - do:
+      indices.add_block:
+        index: logs-1
+        block: write
+  - do:
+      indices.add_block:
+        index: logs-2
+        block: write
+
+  - do:
+      indices.remove_block:
+        index: logs-*
+        block: write
+  - is_true: acknowledged
+  - length: { indices: 2 }
+
+  - do:
+      index:
+        index: logs-1
+        body: { foo: bar }
+  - do:
+      index:
+        index: logs-2
+        body: { foo: bar }
+
+---
+"Remove a block with unavailable and missing indices":
+  - skip:
+      version: " - 3.9.99"
+      reason: "The remove index block API (indices.remove_block) was added in 3.10.0"
+
+  - do:
+      catch: missing
+      indices.remove_block:
+        index: missing_index
+        block: write
+
+  - do:
+      indices.remove_block:
+        index: missing_index
+        block: write
+        ignore_unavailable: true
+  - is_true: acknowledged
+  - length: { indices: 0 }
+
+  - do:
+      indices.remove_block:
+        index: no_such_prefix_*
+        block: write
+  - is_true: acknowledged
+  - length: { indices: 0 }
+
+  - do:
+      catch: missing
+      indices.remove_block:
+        index: no_such_prefix_*
+        block: write
+        allow_no_indices: false
+
+---
+"Blocks that cannot be removed with this API are rejected":
+  - skip:
+      version: " - 3.9.99"
+      reason: "The remove index block API (indices.remove_block) was added in 3.10.0"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      catch: /search_only.*_scale/
+      indices.remove_block:
+        index: test_index
+        block: search_only
+
+  - do:
+      catch: /read_only_allow_delete block is for internal use only/
+      indices.remove_block:
+        index: test_index
+        block: read_only_allow_delete
+
+  - do:
+      catch: /No block found with name not_a_block/
+      indices.remove_block:
+        index: test_index
+        block: not_a_block
