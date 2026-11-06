@@ -18,7 +18,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.tasks.TaskId;
-import org.opensearch.search.SearchService;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
@@ -79,10 +78,10 @@ public class TimeoutTaskCancellationUtility {
         TimeoutHandler timeoutHandler
     ) {
         final TimeValue timeoutInterval = (cancelAfterTimeInterval == null) ? timeout : cancelAfterTimeInterval;
-        // Note: -1 (or no timeout) will help to turn off cancellation. The combinations will be request level (or, for a search, its
-        // workload group's) set at -1, or neither set and cluster level set to -1.
+        // Note: a negative interval (-1 in any unit, or no timeout) will help to turn off cancellation. The combinations will be request
+        // level (or, for a search, its workload group's) set to one, or neither set and cluster level set to one.
         ActionListener<Response> listenerToReturn = listener;
-        if (timeoutInterval.equals(SearchService.NO_TIMEOUT)) {
+        if (timeoutInterval.nanos() < 0) {
             return listenerToReturn;
         }
 
