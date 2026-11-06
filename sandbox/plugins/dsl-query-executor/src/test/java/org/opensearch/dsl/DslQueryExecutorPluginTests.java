@@ -9,12 +9,15 @@
 package org.opensearch.dsl;
 
 import org.opensearch.action.support.ActionFilter;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.dsl.action.ExecuteAction;
 import org.opensearch.dsl.action.SearchActionFilter;
 import org.opensearch.dsl.action.TransportExecuteAction;
 import org.opensearch.dsl.action.TransportValidateAction;
 import org.opensearch.dsl.action.ValidateAction;
+import org.opensearch.dsl.aggregation.metric.InternalAnalyticsCardinality;
 import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
 
@@ -56,5 +59,14 @@ public class DslQueryExecutorPluginTests extends OpenSearchTestCase {
         ActionPlugin.ActionHandler<?, ?> validateHandler = actions.get(1);
         assertEquals(ValidateAction.INSTANCE, validateHandler.getAction());
         assertEquals(TransportValidateAction.class, validateHandler.getTransportAction());
+    }
+
+    public void testRegistersAnalyticsCardinalityResponse() {
+        List<NamedWriteableRegistry.Entry> entries = plugin.getNamedWriteables();
+
+        assertEquals(1, entries.size());
+        NamedWriteableRegistry.Entry entry = entries.get(0);
+        assertEquals(InternalAggregation.class, entry.categoryClass);
+        assertEquals(InternalAnalyticsCardinality.NAME, entry.name);
     }
 }

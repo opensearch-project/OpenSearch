@@ -63,7 +63,7 @@ public class AggregationTreeWalker {
     public List<AggregationMetadata> walk(Collection<AggregationBuilder> aggs, RelDataType rowType, RelDataTypeFactory typeFactory)
         throws ConversionException {
         Map<String, AggregationMetadataBuilder> plans = new LinkedHashMap<>();
-        walkRecursive(aggs, new ArrayList<>(), plans, rowType);
+        walkRecursive(aggs, new ArrayList<>(), plans, rowType, typeFactory);
 
         List<AggregationMetadata> result = new ArrayList<>();
         for (AggregationMetadataBuilder builder : plans.values()) {
@@ -79,7 +79,8 @@ public class AggregationTreeWalker {
         Collection<AggregationBuilder> aggs,
         List<PathStep> currentPath,
         Map<String, AggregationMetadataBuilder> plans,
-        RelDataType rowType
+        RelDataType rowType,
+        RelDataTypeFactory typeFactory
     ) throws ConversionException {
         for (AggregationBuilder aggBuilder : aggs) {
             AggregationTranslator<?> type = registry.get(aggBuilder.getClass());
@@ -90,9 +91,9 @@ public class AggregationTreeWalker {
             // Reject unsupported parameters before any plan state accumulates.
             ((AggregationTranslator<AggregationBuilder>) type).validate(aggBuilder);
             if (type instanceof BucketTranslator) {
-                handleBucket((BucketTranslator<AggregationBuilder>) type, aggBuilder, currentPath, plans, rowType);
+                handleBucket((BucketTranslator<AggregationBuilder>) type, aggBuilder, currentPath, plans, rowType, typeFactory);
             } else if (type instanceof MetricTranslator) {
-                handleMetric((MetricTranslator<AggregationBuilder>) type, aggBuilder, currentPath, plans, rowType);
+                handleMetric((MetricTranslator<AggregationBuilder>) type, aggBuilder, currentPath, plans, rowType, typeFactory);
             } else {
                 throw new ConversionException("Unsupported aggregation translator kind: " + type.getClass().getSimpleName());
             }
@@ -104,7 +105,8 @@ public class AggregationTreeWalker {
         AggregationBuilder aggBuilder,
         List<PathStep> currentPath,
         Map<String, AggregationMetadataBuilder> plans,
-        RelDataType rowType
+        RelDataType rowType,
+        RelDataTypeFactory typeFactory
     ) throws ConversionException {
         GroupingInfo grouping = translator.getGrouping(aggBuilder);
 
@@ -124,7 +126,7 @@ public class AggregationTreeWalker {
         // Recurse into sub-aggregations
         Collection<AggregationBuilder> subAggs = translator.getSubAggregations(aggBuilder);
         if (subAggs != null && !subAggs.isEmpty()) {
-            walkRecursive(subAggs, accumulatedPath, plans, rowType);
+            walkRecursive(subAggs, accumulatedPath, plans, rowType, typeFactory);
         }
     }
 
@@ -133,10 +135,14 @@ public class AggregationTreeWalker {
         AggregationBuilder aggBuilder,
         List<PathStep> currentPath,
         Map<String, AggregationMetadataBuilder> plans,
-        RelDataType rowType
+        RelDataType rowType,
+        RelDataTypeFactory typeFactory
     ) throws ConversionException {
         AggregationMetadataBuilder builder = getOrCreateBuilder(currentPath, plans);
-        builder.addAggregateCall(translator.toAggregateCall(aggBuilder, rowType), translator.getAggregateFieldName(aggBuilder));
+        builder.addAggregateCall(
+            translator.toAggregateCall(aggBuilder, rowType, typeFactory),
+            translator.getAggregateFieldName(aggBuilder)
+        );
     }
 
     private AggregationMetadataBuilder getOrCreateBuilder(List<PathStep> path, Map<String, AggregationMetadataBuilder> plans) {
