@@ -34,6 +34,7 @@ import java.nio.ByteBuffer;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Outbound handler for Arrow Flight streaming responses.
@@ -161,9 +162,10 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             // docs/backpressure.md "Known limitation: unbounded eventloop queue".
             flightChannel.awaitReadyOrThrow();
 
+            final AtomicReference<Exception> sendFailure = new AtomicReference<>();
             final Runnable sendBatch = threadPool.getThreadContext().preserveContext(() -> {
                 try (BatchTask ignored = task) {
-                    processBatchTask(task);
+                    sendFailure.set(processBatchTask(task));
                 } catch (Exception e) {
                     messageListener.onResponseSent(requestId, action, e);
                 }
@@ -177,6 +179,11 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
                 Future<?> future = flightChannel.getExecutor().submit(sendBatch);
                 handedOff = true; // task accepted; it now owns (and will free) the source
                 awaitSend(future);
+                // The failed send already ended the stream; tell the caller too, so it stops producing.
+                final Exception failure = sendFailure.get();
+                if (failure != null) {
+                    throw syncSendFailure(failure);
+                }
             } else {
                 flightChannel.getExecutor().execute(sendBatch);
                 handedOff = true;
@@ -205,19 +212,27 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
         } catch (ExecutionException e) {
             // The work body catches its own exceptions and routes them to the listener, so this is not
             // expected; surface it rather than swallow if it ever happens.
-            Throwable cause = e.getCause() != null ? e.getCause() : e;
-            if (cause instanceof StreamException se) {
-                throw se;
-            }
-            throw new StreamException(StreamErrorCode.INTERNAL, "Error sending batch synchronously", cause);
+            throw syncSendFailure(e.getCause() != null ? e.getCause() : e);
         }
     }
 
-    private void processBatchTask(BatchTask task) {
+    private static StreamException syncSendFailure(Throwable cause) {
+        if (cause instanceof StreamException se) {
+            return se;
+        }
+        return new StreamException(StreamErrorCode.INTERNAL, "Error sending batch synchronously", cause);
+    }
+
+    /**
+     * Sends the batch and fails the stream if the send fails.
+     *
+     * @return the failure reported to the listener, or {@code null} if the batch was sent
+     */
+    private Exception processBatchTask(BatchTask task) {
         if (!(task.channel() instanceof FlightServerChannel flightChannel)) {
             Exception error = new IllegalStateException("Expected FlightServerChannel, got " + task.channel().getClass().getName());
             messageListener.onResponseSent(task.requestId(), task.action(), error);
-            return;
+            return error;
         }
 
         try {
@@ -225,14 +240,18 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             // header itself before mutating any root, so a header-serialization failure cannot orphan the source.
             flightChannel.sendBatch(task.response(), () -> getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()));
             messageListener.onResponseSent(task.requestId(), task.action(), task.response());
+            return null;
         } catch (FlightRuntimeException e) {
             // Fail the stream before notifying the listener so the consumer surfaces an error instead
             // of blocking forever on a never-arriving first frame.
             failStream(flightChannel, task, e);
-            messageListener.onResponseSent(task.requestId(), task.action(), FlightErrorMapper.fromFlightException(e));
+            final StreamException mapped = FlightErrorMapper.fromFlightException(e);
+            messageListener.onResponseSent(task.requestId(), task.action(), mapped);
+            return mapped;
         } catch (Exception e) {
             failStream(flightChannel, task, e);
             messageListener.onResponseSent(task.requestId(), task.action(), e);
+            return e;
         } catch (Throwable t) {
             // A non-Exception Throwable (e.g. OutOfMemoryError, or an AssertionError from Arrow/gRPC
             // under -ea) can be thrown by start()/putNext()/transfer AFTER the channel adopted the
@@ -244,6 +263,7 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             Exception wrapped = new RuntimeException("Fatal error sending Arrow batch", t);
             failStream(flightChannel, task, wrapped);
             messageListener.onResponseSent(task.requestId(), task.action(), wrapped);
+            return wrapped;
         }
     }
 

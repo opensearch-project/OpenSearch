@@ -88,6 +88,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.profile.ProfileShardResult;
@@ -340,9 +341,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        // searchStatusStatsUpdateListener will execute the logic within the original listener but
-        // also track the response status of the searchResponse.
-        ActionListener<SearchResponse> searchStatusStatsUpdateListener;
+        executeRequest(task, searchRequest, this::searchAsyncAction, wrapSearchListener(task, searchRequest, listener));
+    }
+
+    /**
+     * Wraps {@code listener} to resolve the request's cancellation interval, apply the task's cancellation timeout and record
+     * the response status, as for every search request.
+     */
+    private ActionListener<SearchResponse> wrapSearchListener(
+        Task task,
+        SearchRequest searchRequest,
+        ActionListener<SearchResponse> listener
+    ) {
         // Resolve cancel_after_time_interval once, before admission, and write it back so requests copied from this one
         // (ccs_minimize_roundtrips remote legs, collapse expansion sub-searches) inherit it.
         final TimeValue cancelAfterTimeInterval = resolveCancelAfterTimeInterval(cancelAfterTimeIntervalResolver, task, searchRequest);
@@ -362,7 +372,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
         }
         final ActionListener<SearchResponse> finalListner = listener;
-        searchStatusStatsUpdateListener = ActionListener.wrap((searchResponse) -> {
+        return ActionListener.wrap((searchResponse) -> {
             try {
                 indicesService.getSearchResponseStatusStats().inc(searchResponse.status());
             } finally {
@@ -375,7 +385,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 finalListner.onFailure(e);
             }
         });
-        executeRequest(task, searchRequest, this::searchAsyncAction, searchStatusStatsUpdateListener);
     }
 
     /**
@@ -416,17 +425,71 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * The single phase search action.
+     * A custom per-shard operation run through the regular search coordination: index resolution, routing, throttling,
+     * failover, partial results, request stats and slow logs. Implement either {@code executeOnShardTarget} variant.
      *
      * @opensearch.internal
      */
     public interface SinglePhaseSearchAction {
-        void executeOnShardTarget(
+        /**
+         * Runs the operation on one shard copy, without the shard request.
+         */
+        default void executeOnShardTarget(
             SearchTask searchTask,
             SearchShardTarget target,
             Transport.Connection connection,
             ActionListener<SearchPhaseResult> listener
-        );
+        ) {
+            throw new UnsupportedOperationException(getClass().getName() + " must implement executeOnShardTarget");
+        }
+
+        /**
+         * Runs the operation on one shard copy. {@code request} is the shard request the regular query phase would send,
+         * carrying the alias filter, routing and request start time.
+         */
+        default void executeOnShardTarget(
+            SearchTask searchTask,
+            SearchShardTarget target,
+            Transport.Connection connection,
+            ShardSearchRequest request,
+            ActionListener<SearchPhaseResult> listener
+        ) {
+            executeOnShardTarget(searchTask, target, connection, listener);
+        }
+
+        /**
+         * Returns whether to retry a failed shard copy on the next copy. For example, an operation that has already passed
+         * on some results of the shard returns {@code false}, so that no result is produced twice.
+         */
+        default boolean shouldTryNextCopy(SearchShardTarget target, Exception failure) {
+            return true;
+        }
+
+        /**
+         * Called once for each shard whose tried copies all failed.
+         */
+        default void onShardGroupFailure(int shardIndex, @Nullable SearchShardTarget target, Exception failure) {}
+
+        /**
+         * Builds the response sections from the shard results. An exception fails the request.
+         */
+        default InternalSearchResponse buildResponse(List<SearchPhaseResult> results) {
+            return InternalSearchResponse.empty();
+        }
+
+        /**
+         * Returns whether index pruning and the can-match pre-filter phase may skip shards before the operation runs.
+         */
+        default boolean allowShardSkipping() {
+            return false;
+        }
+
+        /**
+         * Returns whether the request gets the cancellation timeout and response status stats of a regular search.
+         */
+        default boolean applySearchRequestWrappers() {
+            return false;
+        }
     }
 
     public void executeRequest(
@@ -437,6 +500,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SinglePhaseSearchAction phaseSearchAction,
         ActionListener<SearchResponse> listener
     ) {
+        if (phaseSearchAction.applySearchRequestWrappers()) {
+            listener = wrapSearchListener(task, searchRequest, listener);
+        }
         executeRequest(task, searchRequest, new SearchAsyncActionProvider() {
             @Override
             public AbstractSearchAsyncAction<? extends SearchPhaseResult> asyncSearchAction(
@@ -456,55 +522,146 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 SearchResponse.Clusters clusters,
                 SearchRequestContext searchRequestContext
             ) {
-                return new AbstractSearchAsyncAction<SearchPhaseResult>(
+                if (phaseSearchAction.allowShardSkipping()) {
+                    maybeApplySearchIndexPruning(searchRequest, shardsIts, clusterState, timeProvider);
+                    if (preFilter) {
+                        return new CanMatchPreFilterSearchPhase(
+                            logger,
+                            searchTransportService,
+                            connectionLookup,
+                            aliasFilter,
+                            concreteIndexBoosts,
+                            indexRoutings,
+                            executor,
+                            searchRequest,
+                            listener,
+                            shardsIts,
+                            timeProvider,
+                            clusterState,
+                            task,
+                            (iter) -> new WrappingSearchAsyncActionPhase(
+                                singlePhaseAsyncAction(
+                                    actionName,
+                                    includeSearchContext,
+                                    phaseSearchAction,
+                                    task,
+                                    searchRequest,
+                                    executor,
+                                    iter,
+                                    timeProvider,
+                                    connectionLookup,
+                                    clusterState,
+                                    aliasFilter,
+                                    concreteIndexBoosts,
+                                    indexRoutings,
+                                    listener,
+                                    clusters,
+                                    searchRequestContext
+                                )
+                            ),
+                            clusters,
+                            searchRequestContext,
+                            tracer
+                        );
+                    }
+                }
+                return singlePhaseAsyncAction(
                     actionName,
-                    logger,
-                    searchTransportService,
+                    includeSearchContext,
+                    phaseSearchAction,
+                    task,
+                    searchRequest,
+                    executor,
+                    shardsIts,
+                    timeProvider,
                     connectionLookup,
+                    clusterState,
                     aliasFilter,
                     concreteIndexBoosts,
                     indexRoutings,
-                    executor,
-                    searchRequest,
                     listener,
-                    shardsIts,
-                    timeProvider,
-                    clusterState,
-                    task,
-                    new ArraySearchPhaseResults<>(shardsIts.size()),
-                    searchRequest.getMaxConcurrentShardRequests(),
                     clusters,
-                    searchRequestContext,
-                    tracer
-                ) {
-                    @Override
-                    protected void executePhaseOnShard(
-                        SearchShardIterator shardIt,
-                        SearchShardTarget shard,
-                        SearchActionListener<SearchPhaseResult> listener
-                    ) {
-                        final Transport.Connection connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
-                        phaseSearchAction.executeOnShardTarget(task, shard, connection, listener);
-                    }
+                    searchRequestContext
+                );
+            }
+        }, listener);
+    }
 
-                    @Override
-                    protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
-                        return new SearchPhase(getName()) {
-                            @Override
-                            public void run() {
-                                final AtomicArray<SearchPhaseResult> atomicArray = results.getAtomicArray();
-                                sendSearchResponse(InternalSearchResponse.empty(), atomicArray);
-                            }
-                        };
-                    }
+    private AbstractSearchAsyncAction<SearchPhaseResult> singlePhaseAsyncAction(
+        String actionName,
+        boolean includeSearchContext,
+        SinglePhaseSearchAction phaseSearchAction,
+        SearchTask task,
+        SearchRequest searchRequest,
+        Executor executor,
+        GroupShardsIterator<SearchShardIterator> shardsIts,
+        SearchTimeProvider timeProvider,
+        BiFunction<String, String, Transport.Connection> connectionLookup,
+        ClusterState clusterState,
+        Map<String, AliasFilter> aliasFilter,
+        Map<String, Float> concreteIndexBoosts,
+        Map<String, Set<String>> indexRoutings,
+        ActionListener<SearchResponse> listener,
+        SearchResponse.Clusters clusters,
+        SearchRequestContext searchRequestContext
+    ) {
+        return new AbstractSearchAsyncAction<SearchPhaseResult>(
+            actionName,
+            logger,
+            searchTransportService,
+            connectionLookup,
+            aliasFilter,
+            concreteIndexBoosts,
+            indexRoutings,
+            executor,
+            searchRequest,
+            listener,
+            shardsIts,
+            timeProvider,
+            clusterState,
+            task,
+            new ArraySearchPhaseResults<>(shardsIts.size()),
+            searchRequest.getMaxConcurrentShardRequests(),
+            clusters,
+            searchRequestContext,
+            tracer
+        ) {
+            @Override
+            protected void executePhaseOnShard(
+                SearchShardIterator shardIt,
+                SearchShardTarget shard,
+                SearchActionListener<SearchPhaseResult> listener
+            ) {
+                final Transport.Connection connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
+                phaseSearchAction.executeOnShardTarget(task, shard, connection, buildShardSearchRequest(shardIt), listener);
+            }
 
+            @Override
+            protected boolean shouldTryNextCopy(SearchShardTarget shard, Exception e) {
+                return phaseSearchAction.shouldTryNextCopy(shard, e);
+            }
+
+            @Override
+            protected void onShardGroupFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+                phaseSearchAction.onShardGroupFailure(shardIndex, shardTarget, exc);
+            }
+
+            @Override
+            protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                return new SearchPhase(getName()) {
                     @Override
-                    boolean buildPointInTimeFromSearchResults() {
-                        return includeSearchContext;
+                    public void run() {
+                        final AtomicArray<SearchPhaseResult> atomicArray = results.getAtomicArray();
+                        sendSearchResponse(phaseSearchAction.buildResponse(atomicArray.asList()), atomicArray);
                     }
                 };
             }
-        }, listener);
+
+            @Override
+            boolean buildPointInTimeFromSearchResults() {
+                return includeSearchContext;
+            }
+        };
     }
 
     void executeRequest(

@@ -48,6 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -743,6 +744,46 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
         } finally {
             flightExecutor.shutdownNow();
             flightExecutor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * A sync send that fails on the executor ends the stream, and the caller must learn of it too: it would otherwise
+     * believe the batch was sent, keep producing, and park on a stream that is never ready again.
+     */
+    public void testSyncSendFailureFailsStreamAndReachesCaller() throws Exception {
+        StreamException cancelled = StreamException.cancelled("client went away");
+        for (Exception sendFailure : List.of(new RuntimeException("send failed"), cancelled)) {
+            FlightServerChannel flightChannel = mock(FlightServerChannel.class);
+            when(flightChannel.getExecutor()).thenReturn(executor);
+            doThrow(sendFailure).when(flightChannel).sendBatch(any(TransportResponse.class), any());
+            FlightTransportChannel transportChannel = mock(FlightTransportChannel.class);
+
+            StreamException thrown = expectThrows(
+                StreamException.class,
+                () -> handler.sendResponseBatch(
+                    Version.CURRENT,
+                    Collections.emptySet(),
+                    flightChannel,
+                    transportChannel,
+                    1L,
+                    "test-action",
+                    mock(TransportResponse.class),
+                    false,
+                    false,
+                    true // sync
+                )
+            );
+            if (sendFailure == cancelled) {
+                assertSame(cancelled, thrown);
+            } else {
+                assertEquals(StreamErrorCode.INTERNAL, thrown.getErrorCode());
+                assertSame(sendFailure, thrown.getCause());
+            }
+            verify(flightChannel).sendError(any(), any(Exception.class));
+            verify(transportChannel).releaseChannel(true);
+            verify(mockListener).onResponseSent(anyLong(), anyString(), same(sendFailure));
+            verify(flightChannel, never()).releaseUnsent(any());
         }
     }
 

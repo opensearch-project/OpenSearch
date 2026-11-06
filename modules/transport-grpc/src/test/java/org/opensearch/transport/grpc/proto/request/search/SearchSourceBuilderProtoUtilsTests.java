@@ -338,6 +338,19 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Verify the result
         assertNotNull("DocValueFields should not be null", searchSourceBuilder.docValueFields());
         assertEquals("Should have 2 docValueFields", 2, searchSourceBuilder.docValueFields().size());
+        assertEquals("format1", searchSourceBuilder.docValueFields().get(0).format);
+    }
+
+    public void testParseProtoWithDocValueFieldWithoutFormat() throws IOException {
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
+            .addDocvalueFields(FieldAndFormat.newBuilder().setField("field1").build())
+            .build();
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils, aggregationRegistry);
+
+        assertEquals("field1", searchSourceBuilder.docValueFields().get(0).field);
+        assertNull("an unset format must not become an empty format", searchSourceBuilder.docValueFields().get(0).format);
     }
 
     public void testParseProtoWithFields() throws IOException {

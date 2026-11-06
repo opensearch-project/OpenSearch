@@ -33,6 +33,8 @@ import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider;
 import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider.OrderedGrpcInterceptor;
 import org.opensearch.transport.grpc.spi.GrpcServiceFactory;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverter;
+import org.opensearch.transport.grpc.spi.StreamSearchFormatHandler;
+import org.opensearch.transport.grpc.spi.StreamSearchResponseChannel;
 import org.opensearch.transport.grpc.ssl.SecureNetty4GrpcServerTransport;
 import org.junit.Before;
 
@@ -347,6 +349,42 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
         // Verify that no converters were loaded
         assertEquals(0, newPlugin.getQueryConverters().size());
+    }
+
+    public void testLoadStreamSearchFormatHandlers() {
+        GrpcPlugin newPlugin = new GrpcPlugin();
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+        StreamSearchFormatHandler arrow = formatHandler("arrow");
+        when(mockLoader.loadExtensions(StreamSearchFormatHandler.class)).thenReturn(List.of(arrow));
+
+        newPlugin.loadExtensions(mockLoader);
+
+        assertEquals(Map.of("arrow", arrow), newPlugin.getStreamSearchHandlers());
+    }
+
+    public void testDuplicateStreamSearchFormatIsRejected() {
+        GrpcPlugin newPlugin = new GrpcPlugin();
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+        when(mockLoader.loadExtensions(StreamSearchFormatHandler.class)).thenReturn(
+            List.of(formatHandler("arrow"), formatHandler("arrow"))
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newPlugin.loadExtensions(mockLoader));
+        assertTrue(e.getMessage().contains("[arrow]"));
+    }
+
+    private static StreamSearchFormatHandler formatHandler(String format) {
+        return new StreamSearchFormatHandler() {
+            @Override
+            public String format() {
+                return format;
+            }
+
+            @Override
+            public void execute(org.opensearch.action.search.SearchRequest request, StreamSearchResponseChannel channel) {
+                channel.fail(new UnsupportedOperationException());
+            }
+        };
     }
 
     public void testCreateComponents() {

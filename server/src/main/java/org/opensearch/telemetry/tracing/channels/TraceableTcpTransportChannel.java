@@ -9,6 +9,8 @@
 package org.opensearch.telemetry.tracing.channels;
 
 import org.opensearch.Version;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanScope;
@@ -96,6 +98,25 @@ public class TraceableTcpTransportChannel extends BaseTcpTransportChannel {
         } finally {
             endSpan();
         }
+    }
+
+    @Override
+    public void sendResponseBatch(TransportResponse response, boolean sync) {
+        try (SpanScope scope = tracer.withSpanInScope(span)) {
+            delegate.sendResponseBatch(response, sync);
+        } finally {
+            endSpan();
+        }
+    }
+
+    @Override
+    public boolean isCancelled() {
+        return delegate.isCancelled();
+    }
+
+    @Override
+    public void setBatchReadyTimeout(@Nullable TimeValue timeout) {
+        delegate.setBatchReadyTimeout(timeout);
     }
 
     public void completeStream() {

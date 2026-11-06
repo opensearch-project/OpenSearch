@@ -8,6 +8,7 @@
 
 package org.opensearch.telemetry.tracing.channels;
 
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanScope;
@@ -94,6 +95,23 @@ public class TraceableTcpTransportChannelTests extends OpenSearchTestCase {
         verify(delegate, times(1)).sendResponse(exception);
         verify(span, times(1)).setError(exception);
         verify(span, times(1)).endSpan();
+    }
+
+    public void testStreamingCallsReachTheDelegate() {
+        TransportChannel channel = TraceableTcpTransportChannel.create(delegate, span, tracer);
+        TransportResponse response = mock(TransportResponse.class);
+        TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 100));
+        when(delegate.isCancelled()).thenReturn(true);
+
+        channel.setBatchReadyTimeout(timeout);
+        channel.sendResponseBatch(response, true);
+
+        assertTrue(channel.isCancelled());
+        verify(delegate).setBatchReadyTimeout(timeout);
+        // A synchronous send must stay synchronous, or the producer could queue batches ahead of the consumer.
+        verify(delegate).sendResponseBatch(response, true);
+        verify(delegate, never()).sendResponseBatch(response);
+        verify(tracer).withSpanInScope(span);
     }
 
     @SuppressWarnings("unchecked")
