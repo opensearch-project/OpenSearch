@@ -135,6 +135,13 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
         this.storageService = storageService;
+        final String clientName = Repository.CLIENT_NAME.get(metadata.settings());
+        AzureStorageService.validateUploadSize(
+            chunkSize.getBytes(),
+            storageService.getBlobRequestOptionsForWriteBlob(clientName),
+            "setting [" + Repository.CHUNK_SIZE_SETTING.getKey() + "]",
+            AzureStorageSettings.WRITE_BLOCK_SIZE_SETTING.getConcreteSettingForNamespace(clientName).getKey()
+        );
 
         final String basePath = Strings.trimLeadingCharacter(Repository.BASE_PATH_SETTING.get(metadata.settings()), '/');
         if (Strings.hasLength(basePath)) {
