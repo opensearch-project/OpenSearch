@@ -268,13 +268,25 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
         assertEquals(expected, builder.toString());
     }
 
-    public void testLegacySearchSettingsFieldRejected() throws IOException {
+    public void testLegacySearchSettingsFieldSkippedOnGatewayRead() throws IOException {
         String json = "{\"_id\":\"test_id\",\"name\":\"test\",\"resiliency_mode\":\"enforced\","
             + "\"resource_limits\":{\"memory\":0.5},"
             + "\"search_settings\":{\"timeout\":\"30s\"},"
             + "\"updated_at\":1720047207}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, json);
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> WorkloadGroup.fromXContent(parser));
+        WorkloadGroup group = WorkloadGroup.fromXContent(parser);
+        assertEquals("test", group.getName());
+        assertEquals(0.5, group.getResourceLimits().get(ResourceType.MEMORY), 0.0);
+        assertTrue(group.getSettings().isEmpty());
+        assertEquals(1720047207, group.getUpdatedAtInMillis());
+    }
+
+    public void testLegacySearchSettingsFieldRejectedOnApiParse() throws IOException {
+        String json = "{\"name\":\"test\",\"resiliency_mode\":\"enforced\","
+            + "\"resource_limits\":{\"memory\":0.5},"
+            + "\"search_settings\":{\"timeout\":\"30s\"}}";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> WorkloadGroup.Builder.fromXContent(parser));
         assertTrue(exception.getMessage().contains("search_settings"));
     }
 
