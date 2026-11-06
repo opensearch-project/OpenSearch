@@ -44,6 +44,20 @@ public class StreamTransportService extends TransportService {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Number of stream transport connections opened to each node. Each connection has its own flow-control
+     * windows, and stream requests are spread across them round-robin. One connection can only have a bounded
+     * amount of data in flight per round trip, so on high-latency links throughput per node pair grows with
+     * the number of busy connections. A single stream always uses one connection.
+     */
+    public static final Setting<Integer> STREAM_TRANSPORT_CONNECTIONS_PER_NODE_SETTING = Setting.intSetting(
+        "transport.stream.connections_per_node",
+        1,
+        1,
+        16,
+        Setting.Property.NodeScope
+    );
+
     private volatile TimeValue streamTransportReqTimeout;
 
     public StreamTransportService(
@@ -63,10 +77,11 @@ public class StreamTransportService extends TransportService {
             threadPool,
             transportInterceptor,
             localNodeFactory,
-            // it's a single channel profile and let underlying client handle parallelism by creating multiple channels as needed
+            // STREAM-only profile; the stream transport opens one channel (connection) per configured connection
             new ClusterConnectionManager(
-                ConnectionProfile.buildSingleChannelProfile(
+                ConnectionProfile.buildSingleTypeProfile(
                     TransportRequestOptions.Type.STREAM,
+                    STREAM_TRANSPORT_CONNECTIONS_PER_NODE_SETTING.get(settings),
                     PROBE_CONNECT_TIMEOUT_SETTING.get(settings),
                     PROBE_HANDSHAKE_TIMEOUT_SETTING.get(settings),
                     TimeValue.MINUS_ONE,
