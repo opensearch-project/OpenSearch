@@ -40,6 +40,9 @@ final class HttpConversionUtil {
             return RestRequest.Method.TRACE;
         } else if (method == HttpMethod.CONNECT) {
             return RestRequest.Method.CONNECT;
+        } else if (HttpMethod.valueOf("QUERY").equals(method)) {
+            // QUERY (RFC 10008) is not a cached Netty constant, so compare by name rather than identity.
+            return RestRequest.Method.QUERY;
         } else {
             throw new IllegalArgumentException("Unexpected http method: " + method);
         }

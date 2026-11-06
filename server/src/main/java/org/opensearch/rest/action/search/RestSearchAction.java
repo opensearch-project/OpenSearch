@@ -80,6 +80,7 @@ import static org.opensearch.action.search.StreamSearchTransportService.STREAM_S
 import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
+import static org.opensearch.rest.RestRequest.Method.QUERY;
 import static org.opensearch.search.suggest.SuggestBuilders.termSuggestion;
 
 /**
@@ -124,8 +125,10 @@ public class RestSearchAction extends BaseRestHandler {
             asList(
                 new Route(GET, "/_search"),
                 new Route(POST, "/_search"),
+                new Route(QUERY, "/_search"),
                 new Route(GET, "/{index}/_search"),
-                new Route(POST, "/{index}/_search")
+                new Route(POST, "/{index}/_search"),
+                new Route(QUERY, "/{index}/_search")
             )
         );
     }
