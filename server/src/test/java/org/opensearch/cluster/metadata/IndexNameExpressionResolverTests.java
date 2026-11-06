@@ -2704,4 +2704,23 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
             .map(i -> i.getName())
             .collect(Collectors.toList());
     }
+
+    /**
+     * Empirical check: when the options-aware resolveExpressions overload is called with strict
+     * (non-lenient) options on an expression naming a missing index, does it throw?
+     */
+    public void testResolveExpressionsWithStrictOptionsThrowsForMissingIndex() {
+        Metadata.Builder mdBuilder = Metadata.builder().put(indexBuilder("existing-index").state(State.OPEN));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        // Default SearchRequest options: ignore_unavailable=false, allow_no_indices=true, expand open only
+        IndicesOptions strictOpts = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+
+        // A concrete missing index name should throw IndexNotFoundException
+        IndexNotFoundException ex = expectThrows(
+            IndexNotFoundException.class,
+            () -> indexNameExpressionResolver.resolveExpressions(state, strictOpts, "nonexistent-index")
+        );
+        assertTrue(ex.getMessage().contains("nonexistent-index"));
+    }
 }
