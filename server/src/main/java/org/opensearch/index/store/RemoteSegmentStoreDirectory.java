@@ -752,7 +752,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     String getMetadataFileForCommit(long primaryTerm, long generation) throws IOException {
         List<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
             MetadataFilenameUtils.getMetadataFilePrefixForCommit(primaryTerm, generation),
-            1
+            Integer.MAX_VALUE
         );
 
         if (metadataFiles.isEmpty()) {
@@ -760,17 +760,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 "Metadata file is not present for given primary term " + primaryTerm + " and generation " + generation
             );
         }
-        if (metadataFiles.size() != 1) {
-            throw new IllegalStateException(
-                "there should be only one metadata file for given primary term "
-                    + primaryTerm
-                    + "and generation "
-                    + generation
-                    + " but found "
-                    + metadataFiles.size()
-            );
-        }
-        return metadataFiles.get(0);
+        // Multiple metadata files can exist for the same commit when refreshes race a commit, and files uploaded
+        // by later refreshes can reference segments that are not part of the commit. All filename fields after the
+        // commit generation are inverted, so the earliest upload for the commit sorts last in lexicographic order.
+        return metadataFiles.get(metadataFiles.size() - 1);
     }
 
     private void postUpload(Directory from, String src, String remoteFilename, String checksum) throws IOException {
