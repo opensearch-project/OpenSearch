@@ -1,0 +1,630 @@
+---
+setup:
+  - skip:
+      version: " - 3.9.99"
+      reason: "the terminate processor was introduced in 3.10.0"
+
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "logs"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "outer_pipeline"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "inner_pipeline"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "default_with_terminate"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "final_pipeline"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "terminate_on_failure"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "terminate_stats"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "foreach_outer"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "foreach_inner"
+        ignore: 404
+  - do:
+      indices.delete:
+        index: test
+        ignore_unavailable: true
+  - do:
+      ingest.delete_pipeline:
+        id: "terminate_wrapped"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "terminate_in_final"
+        ignore: 404
+  - do:
+      indices.delete:
+        index: test_final
+        ignore_unavailable: true
+  - do:
+      indices.delete:
+        index: test_final_terminate
+        ignore_unavailable: true
+
+---
+"Terminate skips the rest of the pipeline in simulate":
+  - do:
+      ingest.put_pipeline:
+        id: "logs"
+        body: >
+          {
+            "processors": [
+              { "terminate": { "if": "ctx.format == 'json'", "tag": "skip-parsing" } },
+              { "grok": { "field": "message", "patterns": ["%{COMMONAPACHELOG}"] } },
+              { "remove": { "field": "message" } }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.simulate:
+        id: "logs"
+        body: >
+          {
+            "docs": [
+              { "_source": { "format": "json", "message": "{\"a\":1}" } }
+            ]
+          }
+  - length: { docs: 1 }
+  - is_false: docs.0.error
+  - match: { docs.0.doc._source.format: "json" }
+  - match: { docs.0.doc._source.message: "{\"a\":1}" }
+  - is_false: docs.0.doc._source.clientip
+  - is_true: docs.0.doc._ingest.timestamp
+
+  # the pipeline runs to the end when the condition does not match
+  - do:
+      ingest.simulate:
+        id: "logs"
+        body: >
+          {
+            "docs": [
+              {
+                "_source": {
+                  "format": "apache",
+                  "message": "127.0.0.1 - frank [10/Oct/2000:13:55:36 -0700] \"GET /apache_pb.gif HTTP/1.0\" 200 2326"
+                }
+              }
+            ]
+          }
+  - is_false: docs.0.error
+  - match: { docs.0.doc._source.clientip: "127.0.0.1" }
+  - is_false: docs.0.doc._source.message
+
+---
+"Terminate indexes the document as if the pipeline had finished":
+  - do:
+      ingest.put_pipeline:
+        id: "logs"
+        body: >
+          {
+            "processors": [
+              { "terminate": { "if": "ctx.format == 'json'", "tag": "skip-parsing" } },
+              { "grok": { "field": "message", "patterns": ["%{COMMONAPACHELOG}"] } },
+              { "remove": { "field": "message" } }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "logs"
+        body: { format: "json", message: "{\"a\":1}" }
+  - match: { result: created }
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        pipeline: "logs"
+        body:
+          format: "apache"
+          message: "127.0.0.1 - frank [10/Oct/2000:13:55:36 -0700] \"GET /apache_pb.gif HTTP/1.0\" 200 2326"
+  - match: { result: created }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.format: "json" }
+  - match: { _source.message: "{\"a\":1}" }
+  - is_false: _source.clientip
+
+  - do:
+      get:
+        index: test
+        id: "2"
+  - match: { _source.clientip: "127.0.0.1" }
+  - is_false: _source.message
+
+---
+"Terminate works for the documents of a bulk request":
+  - do:
+      ingest.put_pipeline:
+        id: "logs"
+        body: >
+          {
+            "processors": [
+              { "terminate": { "if": "ctx.format == 'json'", "tag": "skip-parsing" } },
+              { "grok": { "field": "message", "patterns": ["%{COMMONAPACHELOG}"] } },
+              { "remove": { "field": "message" } }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      bulk:
+        pipeline: "logs"
+        body:
+          - index:
+              _index: test
+              _id: "1"
+          - format: "json"
+            message: "{\"a\":1}"
+          - index:
+              _index: test
+              _id: "2"
+          - format: "apache"
+            message: "127.0.0.1 - frank [10/Oct/2000:13:55:36 -0700] \"GET /apache_pb.gif HTTP/1.0\" 200 2326"
+          - index:
+              _index: test
+              _id: "3"
+          - format: "json"
+            message: "{\"b\":2}"
+          - index:
+              _index: test
+              _id: "4"
+          - format: "apache"
+            message: "10.0.0.1 - frank [10/Oct/2000:13:55:36 -0700] \"GET /apache_pb.gif HTTP/1.0\" 200 2326"
+  - is_false: errors
+  - length: { items: 4 }
+
+  - do:
+      mget:
+        index: test
+        body:
+          ids: ["1", "2", "3", "4"]
+  - match: { docs.0._source.message: "{\"a\":1}" }
+  - is_false: docs.0._source.clientip
+  - match: { docs.1._source.clientip: "127.0.0.1" }
+  - is_false: docs.1._source.message
+  - match: { docs.2._source.message: "{\"b\":2}" }
+  - is_false: docs.2._source.clientip
+  - match: { docs.3._source.clientip: "10.0.0.1" }
+  - is_false: docs.3._source.message
+
+---
+"Terminate ends only the pipeline that it runs in":
+  - do:
+      ingest.put_pipeline:
+        id: "inner_pipeline"
+        body: >
+          {
+            "processors": [
+              { "set": { "field": "inner_before", "value": "ran" } },
+              { "terminate": {} },
+              { "set": { "field": "inner_after", "value": "ran" } }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "outer_pipeline"
+        body: >
+          {
+            "processors": [
+              { "set": { "field": "outer_before", "value": "ran" } },
+              { "pipeline": { "name": "inner_pipeline" } },
+              { "set": { "field": "outer_after", "value": "ran" } }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.simulate:
+        id: "outer_pipeline"
+        body: >
+          {
+            "docs": [
+              { "_source": { "foo": "bar" } }
+            ]
+          }
+  - is_false: docs.0.error
+  - match: { docs.0.doc._source.outer_before: "ran" }
+  - match: { docs.0.doc._source.inner_before: "ran" }
+  - is_false: docs.0.doc._source.inner_after
+  - match: { docs.0.doc._source.outer_after: "ran" }
+
+  - do:
+      bulk:
+        pipeline: "outer_pipeline"
+        body:
+          - index:
+              _index: test
+              _id: "1"
+          - foo: "bar"
+          - index:
+              _index: test
+              _id: "2"
+          - foo: "baz"
+  - is_false: errors
+
+  - do:
+      mget:
+        index: test
+        body:
+          ids: ["1", "2"]
+  - match: { docs.0._source.inner_before: "ran" }
+  - is_false: docs.0._source.inner_after
+  - match: { docs.0._source.outer_after: "ran" }
+  - match: { docs.1._source.inner_before: "ran" }
+  - is_false: docs.1._source.inner_after
+  - match: { docs.1._source.outer_after: "ran" }
+
+---
+"Terminate in the default pipeline does not skip the final pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "default_with_terminate"
+        body: >
+          {
+            "processors": [
+              { "set": { "field": "default_before", "value": "ran" } },
+              { "terminate": {} },
+              { "set": { "field": "default_after", "value": "ran" } }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "final_pipeline"
+        body: >
+          {
+            "processors": [
+              { "set": { "field": "final", "value": "ran" } }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create:
+        index: test_final
+        body:
+          settings:
+            index:
+              default_pipeline: "default_with_terminate"
+              final_pipeline: "final_pipeline"
+
+  - do:
+      index:
+        index: test_final
+        id: "1"
+        body: { foo: "bar" }
+  - match: { result: created }
+
+  - do:
+      bulk:
+        body:
+          - index:
+              _index: test_final
+              _id: "2"
+          - foo: "baz"
+          - index:
+              _index: test_final
+              _id: "3"
+          - foo: "qux"
+  - is_false: errors
+
+  - do:
+      mget:
+        index: test_final
+        body:
+          ids: ["1", "2", "3"]
+  - match: { docs.0._source.default_before: "ran" }
+  - is_false: docs.0._source.default_after
+  - match: { docs.0._source.final: "ran" }
+  - match: { docs.1._source.default_before: "ran" }
+  - is_false: docs.1._source.default_after
+  - match: { docs.1._source.final: "ran" }
+  - match: { docs.2._source.default_before: "ran" }
+  - is_false: docs.2._source.default_after
+  - match: { docs.2._source.final: "ran" }
+
+---
+"Terminate configured with if and ignore_failure or on_failure still ends the pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "terminate_wrapped"
+        body: >
+          {
+            "processors": [
+              { "terminate": { "if": "ctx.stop == 'ignore_failure'", "ignore_failure": true } },
+              { "set": { "field": "after_ignore_failure", "value": "ran" } },
+              {
+                "terminate": {
+                  "if": "ctx.stop == 'on_failure'",
+                  "on_failure": [ { "set": { "field": "never_set", "value": "x" } } ]
+                }
+              },
+              { "set": { "field": "after_on_failure", "value": "ran" } }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.simulate:
+        id: "terminate_wrapped"
+        body: >
+          {
+            "docs": [
+              { "_source": { "stop": "ignore_failure" } },
+              { "_source": { "stop": "on_failure" } },
+              { "_source": { "stop": "none" } }
+            ]
+          }
+  - length: { docs: 3 }
+  - is_false: docs.0.error
+  - is_false: docs.0.doc._source.after_ignore_failure
+  - is_false: docs.0.doc._source.after_on_failure
+  - is_false: docs.1.error
+  - match: { docs.1.doc._source.after_ignore_failure: "ran" }
+  - is_false: docs.1.doc._source.after_on_failure
+  - is_false: docs.1.doc._source.never_set
+  - is_false: docs.2.error
+  - match: { docs.2.doc._source.after_ignore_failure: "ran" }
+  - match: { docs.2.doc._source.after_on_failure: "ran" }
+
+---
+"Terminate in the final pipeline ends only the final pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "terminate_in_final"
+        body: >
+          {
+            "processors": [
+              { "set": { "field": "before_final", "value": "ran" } },
+              { "terminate": {} },
+              { "set": { "field": "after_final", "value": "ran" } }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create:
+        index: test_final_terminate
+        body:
+          settings:
+            index:
+              final_pipeline: "terminate_in_final"
+
+  - do:
+      index:
+        index: test_final_terminate
+        id: "1"
+        body: { foo: "bar" }
+  - match: { result: created }
+
+  - do:
+      get:
+        index: test_final_terminate
+        id: "1"
+  - match: { _source.foo: "bar" }
+  - match: { _source.before_final: "ran" }
+  - is_false: _source.after_final
+
+---
+"Terminate in an on_failure block ends the pipeline without failing the document":
+  - do:
+      ingest.put_pipeline:
+        id: "terminate_on_failure"
+        body: >
+          {
+            "processors": [
+              {
+                "fail": {
+                  "message": "expected failure",
+                  "on_failure": [
+                    { "set": { "field": "recovered", "value": "yes" } },
+                    { "terminate": {} },
+                    { "set": { "field": "not_reached_in_on_failure", "value": "yes" } }
+                  ]
+                }
+              },
+              { "set": { "field": "not_reached_in_pipeline", "value": "yes" } }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.simulate:
+        id: "terminate_on_failure"
+        body: >
+          {
+            "docs": [
+              { "_source": { "foo": "bar" } }
+            ]
+          }
+  - is_false: docs.0.error
+  - match: { docs.0.doc._source.foo: "bar" }
+  - match: { docs.0.doc._source.recovered: "yes" }
+  - is_false: docs.0.doc._source.not_reached_in_on_failure
+  - is_false: docs.0.doc._source.not_reached_in_pipeline
+  # the failure metadata of the on_failure block is removed again
+  - is_false: docs.0.doc._ingest.on_failure_message
+  - is_false: docs.0.doc._ingest.on_failure_processor_type
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "terminate_on_failure"
+        body: { foo: "bar" }
+  - match: { result: created }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.recovered: "yes" }
+  - is_false: _source.not_reached_in_pipeline
+
+---
+"Terminate is listed in verbose simulate and the skipped processors are not":
+  - do:
+      ingest.simulate:
+        verbose: true
+        body: >
+          {
+            "pipeline": {
+              "processors": [
+                { "set": { "field": "before", "value": "ran" } },
+                { "terminate": { "if": "ctx.stop == true", "tag": "stop-here", "description": "stop when asked" } },
+                { "set": { "field": "after", "value": "ran" } }
+              ]
+            },
+            "docs": [
+              { "_source": { "stop": true } },
+              { "_source": { "stop": false } }
+            ]
+          }
+  - length: { docs: 2 }
+
+  # the terminate processor is a success, and the processors after it are not listed
+  - length: { docs.0.processor_results: 2 }
+  - match: { docs.0.processor_results.0.processor_type: "set" }
+  - match: { docs.0.processor_results.1.processor_type: "terminate" }
+  - match: { docs.0.processor_results.1.status: "success" }
+  - match: { docs.0.processor_results.1.tag: "stop-here" }
+  - match: { docs.0.processor_results.1.description: "stop when asked" }
+  - match: { docs.0.processor_results.1.if.condition: "ctx.stop == true" }
+  - match: { docs.0.processor_results.1.if.result: true }
+  - match: { docs.0.processor_results.1.doc._source.before: "ran" }
+  - is_false: docs.0.processor_results.1.doc._source.after
+
+  # when the condition does not match, terminate is skipped like any conditional processor and the pipeline continues
+  - length: { docs.1.processor_results: 3 }
+  - match: { docs.1.processor_results.1.processor_type: "terminate" }
+  - match: { docs.1.processor_results.1.status: "skipped" }
+  - match: { docs.1.processor_results.2.status: "success" }
+  - match: { docs.1.processor_results.2.doc._source.after: "ran" }
+
+---
+"Terminate counts as a success in the ingest stats":
+  - do:
+      ingest.put_pipeline:
+        id: "terminate_stats"
+        body: >
+          {
+            "processors": [
+              { "set": { "field": "before", "value": "ran" } },
+              { "terminate": {} },
+              { "set": { "field": "after", "value": "ran" } }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "terminate_stats"
+        body: { foo: "bar" }
+  - match: { result: created }
+
+  - do:
+      cluster.state: {}
+
+  # Get cluster-manager node id
+  - set: { cluster_manager_node: cluster_manager }
+
+  # this suite runs on a single node, so the document was ingested on the cluster-manager node
+  - do:
+      nodes.stats:
+        metric: [ ingest ]
+  - gte: { nodes.$cluster_manager.ingest.pipelines.terminate_stats.count: 1 }
+  - match: { nodes.$cluster_manager.ingest.pipelines.terminate_stats.failed: 0 }
+  - gte: { nodes.$cluster_manager.ingest.pipelines.terminate_stats.processors.1.terminate.stats.count: 1 }
+  - match: { nodes.$cluster_manager.ingest.pipelines.terminate_stats.processors.1.terminate.stats.failed: 0 }
+  - match: { nodes.$cluster_manager.ingest.pipelines.terminate_stats.processors.2.set.stats.count: 0 }
+
+---
+"Terminate in a foreach that calls a pipeline waits for the loop and does not cut the called pipeline short":
+  - do:
+      ingest.put_pipeline:
+        id: "foreach_inner"
+        body: >
+          {
+            "processors": [
+              { "fail": { "message": "first call", "if": "ctx.calls == null" } },
+              { "set": { "field": "inner_second_processor", "value": "ran" } }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  # the first call of the pipeline fails and the processor terminates in its on_failure, the second call runs while that
+  # request is still waiting for the loop to finish
+  - do:
+      ingest.put_pipeline:
+        id: "foreach_outer"
+        body: >
+          {
+            "processors": [
+              {
+                "foreach": {
+                  "field": "items",
+                  "processor": {
+                    "pipeline": {
+                      "name": "foreach_inner",
+                      "on_failure": [
+                        { "set": { "field": "calls", "value": 1 } },
+                        { "terminate": {} }
+                      ]
+                    }
+                  }
+                }
+              },
+              { "set": { "field": "outer_after", "value": "ran" } }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.simulate:
+        id: "foreach_outer"
+        body: >
+          {
+            "docs": [
+              { "_source": { "items": ["a", "b"] } }
+            ]
+          }
+  - is_false: docs.0.error
+  - match: { docs.0.doc._source.calls: 1 }
+  - match: { docs.0.doc._source.inner_second_processor: "ran" }
+  - is_false: docs.0.doc._source.outer_after
+  - is_false: docs.0.doc._ingest.on_failure_message

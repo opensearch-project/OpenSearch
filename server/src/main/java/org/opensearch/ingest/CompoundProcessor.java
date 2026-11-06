@@ -194,14 +194,15 @@ public class CompoundProcessor implements Processor {
                 List<IngestDocumentWrapper> documentsDropped = new ArrayList<>();
                 List<IngestDocumentWrapper> documentsWithException = new ArrayList<>();
                 List<IngestDocumentWrapper> documentsToContinue = new ArrayList<>();
+                List<IngestDocumentWrapper> documentsTerminated = new ArrayList<>();
                 int totalFailed = 0;
-                // iterate all results to categorize them to: to continue, to drop, with exception
+                // iterate all results to categorize them to: to continue, to drop, with exception, terminated
                 for (IngestDocumentWrapper resultDocumentWrapper : allResults) {
                     IngestDocumentWrapper originalDocumentWrapper = slotToWrapperMap.get(resultDocumentWrapper.getSlot());
                     if (resultDocumentWrapper.getException() != null) {
                         ++totalFailed;
                         if (ignoreFailure) {
-                            documentsToContinue.add(originalDocumentWrapper);
+                            addToContinueOrTerminated(originalDocumentWrapper, documentsToContinue, documentsTerminated);
                         } else {
                             IngestProcessorException compoundProcessorException = newCompoundProcessorException(
                                 resultDocumentWrapper.getException(),
@@ -221,7 +222,7 @@ public class CompoundProcessor implements Processor {
                         if (resultDocumentWrapper.getIngestDocument() == null) {
                             documentsDropped.add(resultDocumentWrapper);
                         } else {
-                            documentsToContinue.add(resultDocumentWrapper);
+                            addToContinueOrTerminated(resultDocumentWrapper, documentsToContinue, documentsTerminated);
                         }
                     }
                 }
@@ -230,6 +231,12 @@ public class CompoundProcessor implements Processor {
                 }
                 if (!documentsDropped.isEmpty()) {
                     handler.accept(documentsDropped);
+                }
+                // a terminated document skips the remaining processors, and is handed back like one that completed all of them. The
+                // request to terminate is left set on the document: the enclosing compound processors have to see it too, and the
+                // pipeline clears it when it completes.
+                if (documentsTerminated.isEmpty() == false) {
+                    handler.accept(documentsTerminated);
                 }
                 if (!documentsToContinue.isEmpty()) {
                     innerBatchExecute(currentProcessor + 1, documentsToContinue, handler);
@@ -275,7 +282,7 @@ public class CompoundProcessor implements Processor {
             if (e != null) {
                 metric.failed();
                 if (ignoreFailure) {
-                    innerExecute(currentProcessor + 1, ingestDocument, handler);
+                    executeNextProcessor(currentProcessor, ingestDocument, handler);
                 } else {
                     IngestProcessorException compoundProcessorException = newCompoundProcessorException(e, processor, ingestDocument);
                     if (onFailureProcessors.isEmpty()) {
@@ -286,12 +293,40 @@ public class CompoundProcessor implements Processor {
                 }
             } else {
                 if (result != null) {
-                    innerExecute(currentProcessor + 1, result, handler);
+                    executeNextProcessor(currentProcessor, result, handler);
                 } else {
                     handler.accept(null, null);
                 }
             }
         });
+    }
+
+    /**
+     * Carries on with the processor after {@code currentProcessor}, unless a processor asked for the pipeline to stop with
+     * {@link IngestDocument#terminatePipeline()}: then the remaining processors are skipped and the document is handed back as it is,
+     * as a success. The request stays set on the document so that enclosing compound processors, which wrap processors that are
+     * configured with {@code ignore_failure} or {@code on_failure}, skip their remaining processors too. {@link Pipeline} clears it.
+     */
+    private void executeNextProcessor(int currentProcessor, IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        if (ingestDocument.isPipelineTerminated()) {
+            handler.accept(ingestDocument, null);
+        } else {
+            innerExecute(currentProcessor + 1, ingestDocument, handler);
+        }
+    }
+
+    private static void addToContinueOrTerminated(
+        IngestDocumentWrapper wrapper,
+        List<IngestDocumentWrapper> documentsToContinue,
+        List<IngestDocumentWrapper> documentsTerminated
+    ) {
+        // a batching processor can update the wrappers that it is given in place, which leaves a failed one without a document
+        IngestDocument ingestDocument = wrapper.getIngestDocument();
+        if (ingestDocument != null && ingestDocument.isPipelineTerminated()) {
+            documentsTerminated.add(wrapper);
+        } else {
+            documentsToContinue.add(wrapper);
+        }
     }
 
     void executeOnFailureAsync(
@@ -320,6 +355,13 @@ public class CompoundProcessor implements Processor {
             if (result == null) {
                 removeFailureMetadata(ingestDocument);
                 handler.accept(null, null);
+                return;
+            }
+            if (result.isPipelineTerminated()) {
+                // the remaining on_failure processors are skipped, and so are the processors that follow in the pipeline. The failure
+                // has been handled, so the document completes as it does when the on_failure processors have all run.
+                removeFailureMetadata(ingestDocument);
+                handler.accept(result, null);
                 return;
             }
             executeOnFailureAsync(currentOnFailureProcessor + 1, ingestDocument, exception, handler);
