@@ -9,7 +9,9 @@
 package org.opensearch.wlm;
 
 import org.opensearch.Version;
+import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -23,6 +25,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.tasks.Task;
@@ -46,6 +49,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -286,7 +290,9 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
         for (String action : List.of(
             WorkloadGroupSharedThrottleService.ACQUIRE_ACTION_NAME,
             WorkloadGroupSharedThrottleService.RELEASE_ACTION_NAME,
-            WorkloadGroupSharedThrottleService.CHECK_TASKS_ACTION_NAME
+            WorkloadGroupSharedThrottleService.CHECK_TASKS_ACTION_NAME,
+            WorkloadGroupSharedThrottleService.GRANT_ACTION_NAME,
+            WorkloadGroupSharedThrottleService.REGISTER_WAITER_ACTION_NAME
         )) {
             RequestHandlerRegistry<? extends TransportRequest> handler = ownerTransport.getRequestHandler(action);
             assertNotNull("handler must be registered for " + action, handler);
@@ -1190,6 +1196,79 @@ public class WorkloadGroupSharedThrottleServiceTransportTests extends OpenSearch
             "outcome must be delivered inline, not on the search pool, was [" + listener.thread.get() + "]",
             listener.thread.get().contains("[" + ThreadPool.Names.SEARCH + "]")
         );
+    }
+
+    /**
+     * Request queueing is reserved in this version, but a later-version node may already use its RPCs. Over the wire, this
+     * version answers each of them with "nothing happened" rather than an action-not-found error: a GRANT admits nothing, a
+     * REGISTER_WAITER is refused, and an ACQUIRE that asks to queue is answered as any other, without a registration. Its
+     * own acquires never ask to queue.
+     */
+    public void testReservedQueueingMessagesAreAnsweredWithNothingHappened() throws Exception {
+        WorkloadGroupSharedThrottleService.GrantPermitResponse grant = sendToOwner(
+            WorkloadGroupSharedThrottleService.GRANT_ACTION_NAME,
+            new WorkloadGroupSharedThrottleService.GrantPermitRequest(remoteKey, "permit-g"),
+            WorkloadGroupSharedThrottleService.GrantPermitResponse::new
+        );
+        assertEquals(OptionalLong.empty(), grant.admittedTaskId);
+
+        WorkloadGroupSharedThrottleService.RegisterWaiterResponse registration = sendToOwner(
+            WorkloadGroupSharedThrottleService.REGISTER_WAITER_ACTION_NAME,
+            new WorkloadGroupSharedThrottleService.RegisterWaiterRequest(remoteKey, coordinatorNode.getEphemeralId()),
+            WorkloadGroupSharedThrottleService.RegisterWaiterResponse::new
+        );
+        assertFalse(registration.registered);
+
+        // An acquire from a coordinator that asks to queue: granted below the limit, denied at it, and never registered.
+        WorkloadGroupSharedThrottleService.AcquirePermitResponse granted = sendToOwner(
+            WorkloadGroupSharedThrottleService.ACQUIRE_ACTION_NAME,
+            queueingAcquire("permit-1"),
+            WorkloadGroupSharedThrottleService.AcquirePermitResponse::new
+        );
+        assertTrue(granted.granted);
+        assertFalse(granted.registered);
+        WorkloadGroupSharedThrottleService.AcquirePermitResponse denied = sendToOwner(
+            WorkloadGroupSharedThrottleService.ACQUIRE_ACTION_NAME,
+            queueingAcquire("permit-2"),
+            WorkloadGroupSharedThrottleService.AcquirePermitResponse::new
+        );
+        assertFalse(denied.granted);
+        assertFalse(denied.notOwner);
+        assertFalse(denied.registered);
+        assertEquals(1, ownerService.tracker().inFlight(remoteKey));
+
+        AtomicReference<Boolean> sentWantsQueue = new AtomicReference<>();
+        coordinatorTransport.addSendBehavior(ownerTransport, (connection, requestId, action, request, options) -> {
+            if (request instanceof WorkloadGroupSharedThrottleService.AcquirePermitRequest acquire) {
+                sentWantsQueue.set(acquire.wantsQueue);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        CapturingListener listener = new CapturingListener();
+        coordinatorService.acquireAsync(remoteKey, 1, SharedThrottleTestPermits.NO_SUCH_TASK, false, listener);
+        listener.await();
+        assertTrue("the bucket is at its limit", WorkloadGroupSharedThrottleService.isDenial(listener.failure.get()));
+        assertEquals(Boolean.FALSE, sentWantsQueue.get());
+    }
+
+    // An acquire for remoteKey with limit 1, as a coordinator that retained the request would send it.
+    private WorkloadGroupSharedThrottleService.AcquirePermitRequest queueingAcquire(String permitId) {
+        return new WorkloadGroupSharedThrottleService.AcquirePermitRequest(
+            remoteKey,
+            1,
+            permitId,
+            WorkloadGroupSharedThrottleService.PERMIT_TTL_NANOS,
+            coordinatorNode.getEphemeralId(),
+            SharedThrottleTestPermits.NO_SUCH_TASK,
+            true
+        );
+    }
+
+    // Sends request from the coordinator's transport to the owner's registered handler and waits for the reply.
+    private <T extends TransportResponse> T sendToOwner(String action, TransportRequest request, Writeable.Reader<T> reader) {
+        PlainActionFuture<T> future = new PlainActionFuture<>();
+        coordinatorTransport.sendRequest(ownerNode, action, request, new ActionListenerResponseHandler<>(future, reader));
+        return future.actionGet(TimeValue.timeValueSeconds(10));
     }
 
     /** Captures the outcome of an async acquire, distinguishing onResponse(null) from an unfired listener via a latch. */

@@ -51,7 +51,10 @@ public class WlmStatsTests extends AbstractWireSerializingTestCase<WlmStats> {
         wlmStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals(
-            "{\"workload_groups\":{\"afakjklaj304041-afaka\":{\"total_completions\":123456789,\"total_rejections\":13,\"total_cancellations\":0,\"total_throttled\":5,\"total_would_throttle\":8,\"cpu\":{\"current_usage\":0.3,\"cancellations\":13,\"rejections\":2}}}}",
+            "{\"workload_groups\":{\"afakjklaj304041-afaka\":{\"total_completions\":123456789,\"total_rejections\":13,"
+                + "\"total_cancellations\":0,\"total_throttled\":5,\"total_would_throttle\":8,\"total_queued\":0,"
+                + "\"total_queue_rejections\":0,\"queued_current\":0,\"queued_peak\":0,\"total_queue_wait_millis\":0,"
+                + "\"cpu\":{\"current_usage\":0.3,\"cancellations\":13,\"rejections\":2}}}}",
             builder.toString()
         );
     }
