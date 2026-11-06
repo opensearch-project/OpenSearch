@@ -64,30 +64,31 @@ public class HttpPipeliningAggregator<Listener> {
         return new HttpPipelinedRequest(readSequence++, request);
     }
 
-    public List<Tuple<HttpPipelinedResponse, Listener>> write(final HttpPipelinedResponse response, Listener listener) {
-        if (outboundHoldingQueue.size() < maxEventsHeld) {
-            ArrayList<Tuple<HttpPipelinedResponse, Listener>> readyResponses = new ArrayList<>();
+    /**
+     * Holds a response until it can be polled in sequence. The next-in-sequence response may temporarily exceed the holding limit,
+     * including during a reentrant write, since it allows the queue to drain.
+     */
+    public void add(final HttpPipelinedResponse response, Listener listener) {
+        if (maxEventsHeld > 0 && (outboundHoldingQueue.size() < maxEventsHeld || response.getSequence() == writeSequence)) {
             outboundHoldingQueue.add(new Tuple<>(response, listener));
-            while (!outboundHoldingQueue.isEmpty()) {
-                /*
-                 * Since the response with the lowest sequence number is the top of the priority queue, we know if its sequence
-                 * number does not match the current write sequence number then we have not processed all preceding responses yet.
-                 */
-                final Tuple<HttpPipelinedResponse, Listener> top = outboundHoldingQueue.peek();
-
-                if (top.v1().getSequence() != writeSequence) {
-                    break;
-                }
-                outboundHoldingQueue.poll();
-                readyResponses.add(top);
-                writeSequence++;
-            }
-
-            return readyResponses;
         } else {
             int eventCount = outboundHoldingQueue.size() + 1;
             throw new IllegalStateException("Too many pipelined events [" + eventCount + "]. Max events allowed [" + maxEventsHeld + "].");
         }
+    }
+
+    /**
+     * Removes only the next ready response, or returns null if an earlier response is still outstanding.
+     * Remaining responses stay available for cleanup if the channel closes during a write.
+     */
+    public Tuple<HttpPipelinedResponse, Listener> poll() {
+        final Tuple<HttpPipelinedResponse, Listener> next = outboundHoldingQueue.peek();
+        if (next != null && next.v1().getSequence() == writeSequence) {
+            outboundHoldingQueue.poll();
+            writeSequence++;
+            return next;
+        }
+        return null;
     }
 
     public List<Tuple<HttpPipelinedResponse, Listener>> removeAllInflightResponses() {

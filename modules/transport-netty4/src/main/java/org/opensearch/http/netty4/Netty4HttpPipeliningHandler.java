@@ -42,16 +42,19 @@ import java.nio.channels.ClosedChannelException;
 import java.util.List;
 
 import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
+import io.netty.util.ReferenceCountUtil;
 
 /**
  * Implements HTTP pipelining ordering, ensuring that responses are completely served in the same order as their corresponding requests.
  */
-public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
+public final class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     private final Logger logger;
-    private final HttpPipeliningAggregator<ChannelPromise> aggregator;
+    private final int maxEventsHeld;
+    private PendingResponses pendingResponses;
 
     /**
      * Construct a new pipelining handler; this handler should be used downstream of HTTP decoding/aggregation.
@@ -62,50 +65,138 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
      */
     public Netty4HttpPipeliningHandler(Logger logger, final int maxEventsHeld) {
         this.logger = logger;
-        this.aggregator = new HttpPipeliningAggregator<>(maxEventsHeld);
+        this.maxEventsHeld = maxEventsHeld;
+    }
+
+    @Override
+    public void handlerAdded(ChannelHandlerContext ctx) {
+        pendingResponses = new PendingResponses(ctx, logger, maxEventsHeld);
     }
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
         assert msg instanceof Netty4HttpRequest : "Invalid message type: " + msg.getClass();
-        HttpPipelinedRequest pipelinedRequest = aggregator.read(((Netty4HttpRequest) msg));
+        HttpPipelinedRequest pipelinedRequest = pendingResponses.aggregator.read((Netty4HttpRequest) msg);
         ctx.fireChannelRead(pipelinedRequest);
     }
 
     @Override
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) {
         assert msg instanceof HttpPipelinedResponse : "Invalid message type: " + msg.getClass();
-        HttpPipelinedResponse response = (HttpPipelinedResponse) msg;
-        boolean success = false;
-        try {
-            List<Tuple<HttpPipelinedResponse, ChannelPromise>> readyResponses = aggregator.write(response, promise);
-            for (Tuple<HttpPipelinedResponse, ChannelPromise> readyResponse : readyResponses) {
-                ctx.write(readyResponse.v1().getDelegateRequest(), readyResponse.v2());
-            }
-            success = true;
-        } catch (IllegalStateException e) {
-            ctx.channel().close();
-        } finally {
-            if (success == false) {
-                promise.setFailure(new ClosedChannelException());
-            }
-        }
+        pendingResponses.write((HttpPipelinedResponse) msg, promise);
     }
 
     @Override
     public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
-        List<Tuple<HttpPipelinedResponse, ChannelPromise>> inflightResponses = aggregator.removeAllInflightResponses();
+        pendingResponses.close();
+        ctx.close(promise);
+    }
 
-        if (inflightResponses.isEmpty() == false) {
-            ClosedChannelException closedChannelException = new ClosedChannelException();
-            for (Tuple<HttpPipelinedResponse, ChannelPromise> inflightResponse : inflightResponses) {
-                try {
-                    inflightResponse.v2().setFailure(closedChannelException);
-                } catch (RuntimeException e) {
-                    logger.error("unexpected error while releasing pipelined http responses", e);
+    @Override
+    public void handlerRemoved(ChannelHandlerContext ctx) {
+        pendingResponses.close();
+    }
+
+    /**
+     * Holds responses until they are handed to Netty. The close future releases them before deferred pipeline teardown,
+     * even when an earlier handler consumes channelInactive. All state belongs to the context's executor.
+     */
+    private static final class PendingResponses {
+        private final ChannelHandlerContext ctx;
+        private final Logger logger;
+        private final HttpPipeliningAggregator<ChannelPromise> aggregator;
+        private final ChannelFutureListener closeListener;
+        // True while the drain loop is on the call stack, not until the network writes complete.
+        private boolean draining;
+        private boolean closed;
+
+        private PendingResponses(ChannelHandlerContext ctx, Logger logger, int maxEventsHeld) {
+            this.ctx = ctx;
+            this.logger = logger;
+            this.aggregator = new HttpPipeliningAggregator<>(maxEventsHeld);
+            closeListener = future -> {
+                if (ctx.executor().inEventLoop()) {
+                    close();
+                } else {
+                    ctx.executor().execute(this::close);
+                }
+            };
+            ctx.channel().closeFuture().addListener(closeListener);
+        }
+
+        private void write(HttpPipelinedResponse response, ChannelPromise promise) {
+            assert ctx.executor().inEventLoop();
+            // Prevent cancellation from releasing backing storage while queued. If cancellation already won, close:
+            // skipping a response would cause HTTP/1.1 clients to associate later responses with the wrong requests.
+            if (promise.setUncancellable() == false) {
+                rejectAndClose(response, promise);
+                return;
+            }
+            if (closed || ctx.channel().isActive() == false) {
+                reject(response, promise, new ClosedChannelException());
+                return;
+            }
+            try {
+                aggregator.add(response, promise);
+            } catch (IllegalStateException e) {
+                logger.debug("closing HTTP connection: {}", e.getMessage());
+                rejectAndClose(response, promise);
+                return;
+            }
+            drainReadyResponses();
+        }
+
+        private void drainReadyResponses() {
+            // A synchronous outbound handler can reenter write() during handoff. The active drain must
+            // pick up that queued response so it cannot overtake the response currently being forwarded.
+            if (draining) {
+                return;
+            }
+            draining = true;
+            try {
+                Tuple<HttpPipelinedResponse, ChannelPromise> next;
+                while (closed == false && (next = aggregator.poll()) != null) {
+                    // Poll one at a time so a reentrant close can still release all responses not yet handed to Netty.
+                    ctx.write(next.v1().getDelegateRequest(), next.v2());
+                }
+            } finally {
+                draining = false;
+            }
+        }
+
+        private void rejectAndClose(HttpPipelinedResponse response, ChannelPromise promise) {
+            close();
+            // This response was never queued, so close() could not release it.
+            reject(response, promise, new ClosedChannelException());
+            ctx.close();
+        }
+
+        private void close() {
+            assert ctx.executor().inEventLoop();
+            if (closed) {
+                return;
+            }
+            // Set the terminal state before invoking listeners, which can reenter write() or close().
+            closed = true;
+            ctx.channel().closeFuture().removeListener(closeListener);
+            List<Tuple<HttpPipelinedResponse, ChannelPromise>> pending = aggregator.removeAllInflightResponses();
+            if (pending.isEmpty() == false) {
+                ClosedChannelException failure = new ClosedChannelException();
+                for (Tuple<HttpPipelinedResponse, ChannelPromise> next : pending) {
+                    reject(next.v1(), next.v2(), failure);
                 }
             }
         }
-        ctx.close(promise);
+
+        private void reject(HttpPipelinedResponse response, ChannelPromise promise, ClosedChannelException failure) {
+            try {
+                ReferenceCountUtil.release(response.getDelegateRequest());
+            } catch (RuntimeException e) {
+                logger.error("unexpected error while releasing pipelined http response", e);
+            } finally {
+                promise.tryFailure(failure);
+            }
+        }
     }
+
 }
