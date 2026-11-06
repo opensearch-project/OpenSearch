@@ -17,6 +17,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.mockito.Mockito.mock;
@@ -114,5 +115,31 @@ public class FeatureValueResolverTests extends OpenSearchTestCase {
         FeatureValueResolver resolver = new FeatureValueResolver(storeFactory, Collections.singletonList(extractor1));
         Optional<String> result = resolver.resolve();
         assertFalse(result.isPresent());
+    }
+
+    public void testResolveSettlesTieOnceRemainingRulesShareFeatureValue() {
+        when(attr1.findAttributeMatches(extractor1, store1)).thenReturn(
+            Arrays.asList(new MatchLabel<>("r1", 0.9f), new MatchLabel<>("r2", 0.9f), new MatchLabel<>("r3", 0.5f))
+        );
+        when(attr2.findAttributeMatches(extractor2, store2)).thenReturn(
+            Arrays.asList(new MatchLabel<>("r1", 1f), new MatchLabel<>("r2", 1f), new MatchLabel<>("r3", 1f))
+        );
+        Map<String, String> featureValues = Map.of("r1", "G", "r2", "G", "r3", "H");
+
+        FeatureValueResolver resolver = new FeatureValueResolver(storeFactory, Arrays.asList(extractor1, extractor2), featureValues::get);
+        assertEquals(Optional.of("G"), resolver.resolve());
+    }
+
+    public void testResolveTieSkipsEliminatedMatches() {
+        // x has the top score but is not in the intersection, so a and b stay tied
+        when(attr1.findAttributeMatches(extractor1, store1)).thenReturn(
+            Arrays.asList(new MatchLabel<>("a", 1f), new MatchLabel<>("x", 1f), new MatchLabel<>("b", 1f))
+        );
+        when(attr2.findAttributeMatches(extractor2, store2)).thenReturn(
+            Arrays.asList(new MatchLabel<>("a", 1f), new MatchLabel<>("b", 1f))
+        );
+
+        FeatureValueResolver resolver = new FeatureValueResolver(storeFactory, Arrays.asList(extractor1, extractor2));
+        assertFalse(resolver.resolve().isPresent());
     }
 }
