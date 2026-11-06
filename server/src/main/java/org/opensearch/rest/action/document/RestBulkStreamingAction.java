@@ -21,6 +21,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.support.XContentHttpChunk;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.CompositeBytesReference;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContent;
@@ -200,7 +203,12 @@ public class RestBulkStreamingAction extends BaseRestHandler {
                     return false;
                 }
                 try {
-                    channel.sendResponse(new BytesRestResponse(channel, (Exception) ex));
+                    channel.sendResponse(new BytesRestResponse(channel, (Exception) ex) {
+                        @Override
+                        public BytesReference content() {
+                            return CompositeBytesReference.of(super.content(), new BytesArray("\r\n"));
+                        }
+                    });
                     return true;
                 } catch (final IOException e) {
                     throw new UncheckedIOException(e);
