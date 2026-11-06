@@ -34,24 +34,40 @@ package org.opensearch.search.fieldcaps;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.fieldcaps.FieldCapabilities;
+import org.opensearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.opensearch.action.fieldcaps.FieldCapabilitiesIndexRequest;
 import org.opensearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.support.ActiveShardCount;
+import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportService;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -135,7 +151,7 @@ public class FieldCapabilitiesIT extends ParameterizedStaticSettingsOpenSearchIn
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(FieldFilterPlugin.class);
+        return Arrays.asList(FieldFilterPlugin.class, MockTransportService.TestPlugin.class);
     }
 
     public void testFieldAlias() {
@@ -272,6 +288,144 @@ public class FieldCapabilitiesIT extends ParameterizedStaticSettingsOpenSearchIn
         newField = response.getField("field1");
         assertEquals(1, newField.size());
         assertTrue(newField.containsKey("keyword"));
+        assertEquals(0, response.getFailures().size());
+    }
+
+    public void testWithIndexFilterReportsAnIndexWithNoAvailableShard() {
+        createIndexWithUnassignedShards("unreadable", 1, Settings.builder().put("index.routing.allocation.require._name", "no_such_node"));
+        try {
+            FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index", "unreadable")
+                .setFields("*")
+                .setIndexFilter(QueryBuilders.rangeQuery("timestamp").gte("2019-11-01"))
+                .get();
+
+            assertIndices(response);
+            assertEquals(Set.of("unreadable"), response.getFailures().keySet());
+            assertEquals("No shard available for index [unreadable]", response.getFailures().get("unreadable").getMessage());
+        } finally {
+            assertAcked(client().admin().indices().prepareDelete("unreadable"));
+        }
+    }
+
+    public void testWithIndexFilterReportsAnIndexWithOneUnavailableShard() {
+        // One more shard than data nodes, at most one per node, so exactly one shard stays unassigned.
+        int shards = internalCluster().numDataNodes() + 1;
+        createIndexWithUnassignedShards(
+            "partly-readable",
+            shards,
+            Settings.builder().put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
+        );
+        // The assigned shards must be started, or none is readable and the whole index fails.
+        assertFalse(client().admin().cluster().prepareHealth("partly-readable").setWaitForActiveShards(shards - 1).get().isTimedOut());
+        try {
+            FieldCapabilitiesResponse response = client().prepareFieldCaps("partly-readable")
+                .setFields("*")
+                .setIndexFilter(QueryBuilders.rangeQuery("timestamp").gte("2019-11-01"))
+                .get();
+
+            assertIndices(response);
+            assertEquals(Set.of("partly-readable"), response.getFailures().keySet());
+            assertEquals("No shard available for index [partly-readable]", response.getFailures().get("partly-readable").getMessage());
+        } finally {
+            assertAcked(client().admin().indices().prepareDelete("partly-readable"));
+        }
+    }
+
+    public void testWithoutIndexFilterReportsAnIndexWithNoAvailableShard() {
+        createIndexWithUnassignedShards("unreadable", 1, Settings.builder().put("index.routing.allocation.require._name", "no_such_node"));
+        try {
+            FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index", "unreadable").setFields("*").get();
+
+            assertIndices(response, "old_index", "new_index");
+            assertEquals(Set.of("unreadable"), response.getFailures().keySet());
+        } finally {
+            assertAcked(client().admin().indices().prepareDelete("unreadable"));
+        }
+    }
+
+    public void testIndexMissingOnADataNodeIsReported() {
+        // A data node that no longer hosts the index, e.g. right after a relocation, while it still exists.
+        assertAcked(prepareCreate("relocated").setMapping("timestamp", "type=date"));
+        ensureGreen("relocated");
+        onShardRequestFor("relocated", (request, channel) -> channel.sendResponse(new IndexNotFoundException("relocated")));
+        try {
+            FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "relocated").setFields("*").get();
+
+            assertIndices(response, "old_index");
+            assertEquals(Set.of("relocated"), response.getFailures().keySet());
+        } finally {
+            clearTransportRules();
+        }
+    }
+
+    public void testIndexDeletedDuringTheRequestIsNotReported() {
+        assertAcked(prepareCreate("deleted").setMapping("timestamp", "type=date"));
+        ensureGreen("deleted");
+        onShardRequestFor(
+            "deleted",
+            (request, channel) -> client().admin()
+                .indices()
+                .prepareDelete("deleted")
+                .execute(ActionListener.wrap(r -> channel.sendResponse(new IndexNotFoundException("deleted")), e -> {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (IOException io) {
+                        throw new UncheckedIOException(io);
+                    }
+                }))
+        );
+        try {
+            FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index", "deleted").setFields("*").get();
+
+            assertIndices(response, "old_index", "new_index");
+            assertEquals(0, response.getFailures().size());
+        } finally {
+            clearTransportRules();
+        }
+    }
+
+    public void testReadBlockedIndexIsReported() {
+        assertAcked(prepareCreate("blocked").setMapping("timestamp", "type=date"));
+        ensureGreen("blocked");
+        enableIndexBlock("blocked", IndexMetadata.SETTING_BLOCKS_READ);
+        try {
+            FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "blocked").setFields("*").get();
+
+            assertIndices(response, "old_index");
+            assertEquals(Set.of("blocked"), response.getFailures().keySet());
+            assertTrue(response.getFailures().get("blocked") instanceof ClusterBlockException);
+        } finally {
+            disableIndexBlock("blocked", IndexMetadata.SETTING_BLOCKS_READ);
+        }
+    }
+
+    private void onShardRequestFor(String index, CheckedBiConsumer<FieldCapabilitiesIndexRequest, TransportChannel, Exception> behavior) {
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            ((MockTransportService) transportService).addRequestHandlingBehavior(
+                FieldCapabilitiesAction.NAME + "[index][s]",
+                (handler, request, channel, task) -> {
+                    FieldCapabilitiesIndexRequest indexRequest = (FieldCapabilitiesIndexRequest) request;
+                    if (index.equals(indexRequest.index())) {
+                        behavior.accept(indexRequest, channel);
+                    } else {
+                        handler.messageReceived(request, channel, task);
+                    }
+                }
+            );
+        }
+    }
+
+    private void clearTransportRules() {
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            ((MockTransportService) transportService).clearAllRules();
+        }
+    }
+
+    private void createIndexWithUnassignedShards(String index, int shards, Settings.Builder settings) {
+        CreateIndexResponse created = prepareCreate(index).setSettings(
+            settings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        ).setMapping("timestamp", "type=date").setWaitForActiveShards(ActiveShardCount.NONE).get();
+        assertTrue(created.isAcknowledged());
     }
 
     private void assertIndices(FieldCapabilitiesResponse response, String... indices) {

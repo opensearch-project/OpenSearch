@@ -120,3 +120,35 @@ setup:
 
   - match: {indices:                                      []}
   - length: {fields:                                      0}
+
+---
+"Field caps reports an index it could not check":
+  - skip:
+      version: " - 3.9.99"
+      reason: "failures added in 3.10"
+
+  - do:
+      indices.create:
+        index: test-unassigned
+        wait_for_active_shards: 0
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index.routing.allocation.require._name: no_such_node
+          mappings:
+            properties:
+              timestamp:
+                type: date
+
+  - do:
+      field_caps:
+        index: test-*
+        fields: "*"
+        body: { index_filter: { range: { timestamp: { gte: 2019 } } } }
+
+  - match: {indices:                                      ["test-2", "test-3"]}
+  - length: {failures:                                    1}
+  - match: {failures.0.index:                             "test-unassigned"}
+  - match: {failures.0.reason.type:                       "no_shard_available_action_exception"}
+  - match: {failures.0.reason.reason:                     "No shard available for index [test-unassigned]"}

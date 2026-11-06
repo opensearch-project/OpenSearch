@@ -32,6 +32,8 @@
 
 package org.opensearch.action.fieldcaps;
 
+import org.opensearch.Version;
+import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -39,11 +41,13 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTestCase<FieldCapabilitiesResponse> {
@@ -88,7 +92,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
     protected FieldCapabilitiesResponse mutateInstance(FieldCapabilitiesResponse response) {
         Map<String, Map<String, FieldCapabilities>> mutatedResponses = new HashMap<>(response.get());
 
-        int mutation = response.get().isEmpty() ? 0 : randomIntBetween(0, 2);
+        int mutation = response.get().isEmpty() ? randomFrom(0, 3) : randomIntBetween(0, 3);
 
         switch (mutation) {
             case 0:
@@ -109,8 +113,12 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
                     Collections.singletonMap(randomAlphaOfLength(10), FieldCapabilitiesTests.randomFieldCaps(toReplace))
                 );
                 break;
+            case 3:
+                Map<String, Exception> failures = new HashMap<>(response.getFailures());
+                failures.put(randomAlphaOfLength(11), new NoShardAvailableActionException(null, "unavailable"));
+                return new FieldCapabilitiesResponse(response.getIndices(), response.get(), failures);
         }
-        return new FieldCapabilitiesResponse(null, mutatedResponses);
+        return new FieldCapabilitiesResponse(null, mutatedResponses, response.getFailures());
     }
 
     @Override
@@ -159,6 +167,68 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
                 + "}").replaceAll("\\s+", ""),
             generatedResponse
         );
+    }
+
+    public void testToXContentWithFailures() throws IOException {
+        FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(
+            new String[] { "index1" },
+            Collections.emptyMap(),
+            Collections.singletonMap("index2", new NoShardAvailableActionException(null, "unavailable"))
+        );
+
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
+        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        assertEquals(
+            ("{"
+                + "    \"indices\": [\"index1\"],"
+                + "    \"fields\": {},"
+                + "    \"failures\": [{"
+                + "        \"index\": \"index2\","
+                + "        \"reason\": {"
+                + "            \"type\": \"no_shard_available_action_exception\","
+                + "            \"reason\": \"unavailable\""
+                + "        }"
+                + "    }]"
+                + "}").replaceAll("\\s+", ""),
+            BytesReference.bytes(builder).utf8ToString()
+        );
+    }
+
+    public void testFailuresSurviveXContentRoundTrip() throws IOException {
+        FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(
+            new String[] { "index1" },
+            Collections.emptyMap(),
+            Collections.singletonMap("index2", new NoShardAvailableActionException(null, "no shard available"))
+        );
+
+        FieldCapabilitiesResponse parsed = copyViaXContent(response);
+
+        assertEquals(Set.of("index2"), parsed.getFailures().keySet());
+        assertTrue(parsed.getFailures().get("index2").getMessage().contains("no shard available"));
+    }
+
+    public void testFailuresOnTheWire() throws IOException {
+        FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(
+            new String[] { "index1" },
+            Collections.emptyMap(),
+            Collections.singletonMap("index2", new NoShardAvailableActionException(null, "no shard available"))
+        );
+
+        FieldCapabilitiesResponse current = copyInstance(response, Version.CURRENT);
+        assertEquals(Set.of("index2"), current.getFailures().keySet());
+        assertEquals("no shard available", current.getFailures().get("index2").getMessage());
+
+        Version older = VersionUtils.randomVersionBetween(random(), Version.V_3_0_0, VersionUtils.getPreviousVersion(Version.V_3_10_0));
+        assertEquals(0, copyInstance(response, older).getFailures().size());
+    }
+
+    private FieldCapabilitiesResponse copyViaXContent(FieldCapabilitiesResponse response) throws IOException {
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
+        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        try (XContentParser parser = createParser(builder)) {
+            return FieldCapabilitiesResponse.fromXContent(parser);
+        }
     }
 
     public void testEmptyResponse() throws IOException {
