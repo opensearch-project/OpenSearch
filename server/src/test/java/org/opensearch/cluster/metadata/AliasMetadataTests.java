@@ -32,9 +32,11 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.AliasMetadata.Builder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
@@ -42,6 +44,7 @@ import org.opensearch.test.AbstractXContentTestCase;
 import java.io.IOException;
 import java.util.function.Predicate;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> {
@@ -67,6 +70,61 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
         assertThat(after, equalTo(before));
     }
 
+    public void testEnforcementIsPartOfIdentity() {
+        AliasMetadata with = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").enforcement("filtered_stats").build();
+        AliasMetadata without = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").build();
+        assertNotEquals(with, without);
+        assertNotEquals(with.hashCode(), without.hashCode());
+        assertEquals(with, AliasMetadata.newAliasMetadata(with, "alias"));
+    }
+
+    public void testEnforcementWithoutAFilterIsRejected() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> AliasMetadata.builder("alias").enforcement("pre_filter").build()
+        );
+        assertThat(e.getMessage(), containsString("[enforcement] requires a [filter] on alias [alias]"));
+    }
+
+    public void testTemplateAliasesValidateTheMode() throws IOException {
+        // Composable and component templates parse their aliases through fromXContent rather than the alias API.
+        String misspelled = "{\"alias\":{\"filter\":{\"term\":{\"f\":\"v\"}},\"enforcement\":\"pre_filer\"}}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, misspelled)) {
+            parser.nextToken(); // the enclosing object
+            parser.nextToken(); // the alias name, where fromXContent starts
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> AliasMetadata.Builder.fromXContent(parser));
+            assertThat(e.getMessage(), containsString("unknown alias enforcement [pre_filer]"));
+        }
+        String unfiltered = "{\"alias\":{\"enforcement\":\"pre_filter\"}}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, unfiltered)) {
+            parser.nextToken(); // the enclosing object
+            parser.nextToken(); // the alias name, where fromXContent starts
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> AliasMetadata.Builder.fromXContent(parser));
+            assertThat(e.getMessage(), containsString("[enforcement] requires a [filter]"));
+        }
+    }
+
+    public void testEnforcementRoundTripsOnCurrentVersion() throws IOException {
+        final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").enforcement("filtered_stats").build();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        before.writeTo(out);
+        assertThat(new AliasMetadata(out.bytes().streamInput()).enforcement(), equalTo("filtered_stats"));
+    }
+
+    public void testEnforcementIsNotSentToANodeThatPredatesIt() throws IOException {
+        final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").enforcement("filtered_stats").build();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_3_9_0);
+        before.writeTo(out);
+        final StreamInput in = out.bytes().streamInput();
+        in.setVersion(Version.V_3_9_0);
+        final AliasMetadata after = new AliasMetadata(in);
+        // The stream must be fully consumed, or the next field in cluster state would be read from the wrong offset.
+        assertThat(in.available(), equalTo(0));
+        assertNull(after.enforcement());
+        assertThat(after.alias(), equalTo("alias"));
+    }
+
     @Override
     protected void assertEqualInstances(AliasMetadata expectedInstance, AliasMetadata newInstance) {
         assertNotSame(newInstance, expectedInstance);
@@ -77,6 +135,7 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
                 .searchRouting(expectedInstance.searchRouting())
                 .writeIndex(randomBoolean() ? null : randomBoolean())
                 .isHidden(randomBoolean() ? null : randomBoolean())
+                .enforcement(expectedInstance.enforcement())
                 .build();
         }
         assertEquals(expectedInstance, newInstance);
@@ -121,13 +180,17 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
         if (randomBoolean()) {
             builder.indexRouting(randomAlphaOfLengthBetween(3, 10));
         }
-        if (randomBoolean()) {
+        final boolean filtered = randomBoolean();
+        if (filtered) {
             builder.filter("{\"term\":{\"year\":2016}}");
         }
         builder.writeIndex(randomBoolean());
 
         if (randomBoolean()) {
             builder.isHidden(randomBoolean());
+        }
+        if (filtered && randomBoolean()) {
+            builder.enforcement(randomFrom("post_filter", "pre_filter", "filtered_stats"));
         }
         return builder.build();
     }

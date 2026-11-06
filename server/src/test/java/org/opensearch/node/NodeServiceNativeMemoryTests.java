@@ -131,7 +131,8 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // cacheService
             false, // remoteStoreNodeStats
             true,  // nativeMemory
-            false  // concurrencyLimiter
+            false, // concurrencyLimiter
+            false  // filteredStatsCache
         );
 
         assertNotNull("nativeAllocatorStats should be present when supplier returns non-null", nodeStats.getNativeAllocatorStats());
@@ -176,7 +177,8 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // cacheService
             false, // remoteStoreNodeStats
             true,  // nativeMemory
-            false  // concurrencyLimiter
+            false, // concurrencyLimiter
+            false  // filteredStatsCache
         );
 
         assertNull("nativeAllocatorStats should be null when no supplier registered", nodeStats.getNativeAllocatorStats());
@@ -225,7 +227,8 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // cacheService
             false, // remoteStoreNodeStats
             false, // nativeMemory
-            false  // concurrencyLimiter
+            false, // concurrencyLimiter
+            false  // filteredStatsCache
         );
 
         assertNull("nativeAllocatorStats should be null when nativeMemory=false", nodeStats.getNativeAllocatorStats());
