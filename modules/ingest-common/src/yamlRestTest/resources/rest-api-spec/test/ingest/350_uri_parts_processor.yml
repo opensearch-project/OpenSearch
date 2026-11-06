@@ -1,0 +1,465 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "1"
+        ignore: 404
+
+---
+"Test uri_parts processor splits a URL with the simulate API":
+  - skip:
+      version: " - 3.9.99"
+      reason: "introduced in 3.10.0"
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "processors": [
+                {
+                  "uri_parts": {
+                    "field": "request_url"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_source": {
+                  "request_url": "https://alice@shop.example.com:8443/assets/logo.png?size=large#top"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._source.request_url: "https://alice@shop.example.com:8443/assets/logo.png?size=large#top" }
+  - match:
+      docs.0.doc._source.url:
+        original: "https://alice@shop.example.com:8443/assets/logo.png?size=large#top"
+        scheme: "https"
+        domain: "shop.example.com"
+        port: 8443
+        path: "/assets/logo.png"
+        extension: "png"
+        query: "size=large"
+        fragment: "top"
+        user_info: "alice"
+        username: "alice"
+
+---
+"Test uri_parts processor in an indexing pipeline with all options":
+  - skip:
+      version: " - 3.9.99"
+      reason: "introduced in 3.10.0"
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "uri_parts": {
+                  "field": "request_url",
+                  "target_field": "parsed",
+                  "keep_original": false,
+                  "remove_if_successful": true,
+                  "ignore_missing": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body: { request_url: "ftp://bob:secret@files.example.com/pub/archive.tar.gz" }
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        pipeline: "1"
+        body: { other: "no url here" }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - is_false: _source.request_url
+  - match:
+      _source.parsed:
+        scheme: "ftp"
+        domain: "files.example.com"
+        path: "/pub/archive.tar.gz"
+        extension: "gz"
+        user_info: "bob:secret"
+        username: "bob"
+        password: "secret"
+
+  - do:
+      get:
+        index: test
+        id: "2"
+  - match: { _source: { other: "no url here" } }
+
+---
+"Test uri_parts processor with IPv6, relative and partial inputs":
+  - skip:
+      version: " - 3.9.99"
+      reason: "introduced in 3.10.0"
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "processors": [
+                {
+                  "uri_parts": {
+                    "field": "u",
+                    "keep_original": false
+                  }
+                }
+              ]
+            },
+            "docs": [
+              { "_source": { "u": "http://[2001:db8::1]:8080/status" } },
+              { "_source": { "u": "https://example.com" } },
+              { "_source": { "u": "/a/b/.htaccess?x=1" } },
+              { "_source": { "u": "http://example.com/a%20b/c%2Fd.txt?q=a%26b" } },
+              { "_source": { "u": "https://example.com:443/dir.d/" } }
+            ]
+          }
+  - length: { docs: 5 }
+  - match: { docs.0.doc._source.url: { scheme: "http", domain: "[2001:db8::1]", port: 8080, path: "/status" } }
+  - match: { docs.1.doc._source.url: { scheme: "https", domain: "example.com" } }
+  - match: { docs.2.doc._source.url: { path: "/a/b/.htaccess", query: "x=1" } }
+  - match: { docs.3.doc._source.url: { scheme: "http", domain: "example.com", path: "/a%20b/c%2Fd.txt", extension: "txt", query: "q=a%26b" } }
+  - match: { docs.4.doc._source.url: { scheme: "https", domain: "example.com", port: 443, path: "/dir.d/" } }
+
+---
+"Test uri_parts processor replaces an existing target field":
+  - skip:
+      version: " - 3.9.99"
+      reason: "introduced in 3.10.0"
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "processors": [
+                {
+                  "uri_parts": {
+                    "field": "url.original"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              { "_source": { "url": { "original": "http://example.com/x.html", "stale": "gone" } } }
+            ]
+          }
+  - match: { docs.0.doc._source.url: { original: "http://example.com/x.html", scheme: "http", domain: "example.com", path: "/x.html", extension: "html" } }
+
+---
+"Test uri_parts processor invalid input fails the document":
+  - skip:
+      version: " - 3.9.99"
+      reason: "introduced in 3.10.0"
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "processors": [
+                {
+                  "uri_parts": {
+                    "field": "request_url"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              { "_source": { "request_url": "http://exa mple.com/" } },
+              { "_source": { "request_url": "mailto:alice@example.com" } },
+              { "_source": { "request_url": "http://example.com:70000/" } },
+              { "_source": { "request_url": "" } },
+              { "_source": { "request_url": 42 } },
+              { "_source": { "other": "x" } }
+            ]
+          }
+  - length: { docs: 6 }
+  - match: { docs.0.error.type: "illegal_argument_exception" }
+  - match: { docs.0.error.reason: "/unable\\sto\\sparse\\sfield\\s\\[request_url\\]\\sas\\sa\\sURI:\\sIllegal\\scharacter\\sin\\sauthority.*/" }
+  - match: { docs.1.error.type: "illegal_argument_exception" }
+  - match: { docs.1.error.reason: "/.*is\\san\\sopaque\\sURI.*/" }
+  - match: { docs.2.error.reason: "/.*port\\s\\[70000\\]\\sis\\sout\\sof\\srange.*/" }
+  - match: { docs.3.error.reason: "/field\\s\\[request_url\\]\\sis\\sempty.*/" }
+  - match: { docs.4.error.reason: "/.*cannot\\sbe\\scast\\sto\\s\\[java\\.lang\\.String\\].*/" }
+  - match: { docs.5.error.reason: "/field\\s\\[request_url\\]\\snot\\spresent\\sas\\spart\\sof\\spath\\s\\[request_url\\]/" }
+
+---
+"Test uri_parts processor invalid input reaches on_failure":
+  - skip:
+      version: " - 3.9.99"
+      reason: "introduced in 3.10.0"
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "processors": [
+                {
+                  "uri_parts": {
+                    "field": "request_url",
+                    "on_failure": [
+                      {
+                        "set": {
+                          "field": "parse_error",
+                          "value": "{{ _ingest.on_failure_message }}"
+                        }
+                      },
+                      {
+                        "set": {
+                          "field": "parse_error_processor",
+                          "value": "{{ _ingest.on_failure_processor_type }}"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "docs": [
+              { "_source": { "request_url": "http://example.com/a b" } }
+            ]
+          }
+  - match: { docs.0.doc._source.request_url: "http://example.com/a b" }
+  - match: { docs.0.doc._source.parse_error: "/unable\\sto\\sparse\\sfield\\s\\[request_url\\]\\sas\\sa\\sURI:\\sIllegal\\scharacter\\sin\\spath.*/" }
+  - match: { docs.0.doc._source.parse_error_processor: "uri_parts" }
+  - is_false: docs.0.doc._source.url
+
+---
+"Test uri_parts processor with ignore_failure":
+  - skip:
+      version: " - 3.9.99"
+      reason: "introduced in 3.10.0"
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "processors": [
+                {
+                  "uri_parts": {
+                    "field": "request_url",
+                    "ignore_failure": true
+                  }
+                },
+                {
+                  "set": {
+                    "field": "after",
+                    "value": true
+                  }
+                }
+              ]
+            },
+            "docs": [
+              { "_source": { "request_url": "http://example.com/a b" } }
+            ]
+          }
+  - match: { docs.0.doc._source.request_url: "http://example.com/a b" }
+  - match: { docs.0.doc._source.after: true }
+  - is_false: docs.0.doc._source.url
+
+---
+"Test uri_parts processor with ignore_missing and a conditional":
+  - skip:
+      version: " - 3.9.99"
+      reason: "introduced in 3.10.0"
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "processors": [
+                {
+                  "uri_parts": {
+                    "field": "request_url",
+                    "ignore_missing": true,
+                    "if": "ctx.parse != false",
+                    "tag": "parse-url",
+                    "description": "split the request url"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              { "_source": { "request_url": "http://example.com/a.png", "parse": true } },
+              { "_source": { "request_url": "http://example.com/a.png", "parse": false } },
+              { "_source": { "request_url": null } },
+              { "_source": { "other": "x" } }
+            ]
+          }
+  - length: { docs: 4 }
+  - match: { docs.0.doc._source.url.extension: "png" }
+  - is_false: docs.1.doc._source.url
+  - is_false: docs.2.doc._source.url
+  - is_false: docs.3.doc._source.url
+
+---
+"Test uri_parts processor configuration errors":
+  - skip:
+      version: " - 3.9.99"
+      reason: "introduced in 3.10.0"
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "uri_parts": {
+                  "target_field": "x"
+                }
+              }
+            ]
+          }
+  - match: { error.type: parse_exception }
+  - match: { error.reason: "[field] required property is missing" }
+
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "uri_parts": {
+                  "field": "request_url",
+                  "keep_original": "maybe"
+                }
+              }
+            ]
+          }
+  - match: { error.type: parse_exception }
+  - match: { error.reason: "/\\[keep_original\\]\\sproperty\\sisn't\\sa\\sboolean.*/" }
+
+  # a config that would remove its own output is a client error (400), whichever way the overlapping paths are spelled
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "uri_parts": {
+                  "field": "url",
+                  "remove_if_successful": true
+                }
+              }
+            ]
+          }
+  - match: { error.type: parse_exception }
+  - match: { error.reason: "[remove_if_successful] cannot be true when [field] [url] is the same as, or nested in, [target_field] [url], because the parsed output would be removed" }
+  - match: { error.root_cause.0.type: parse_exception }
+  - match: { error.root_cause.0.processor_type: uri_parts }
+  - match: { error.root_cause.0.property_name: remove_if_successful }
+
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "uri_parts": {
+                  "field": "url.full",
+                  "target_field": "url",
+                  "remove_if_successful": true
+                }
+              }
+            ]
+          }
+  - match: { error.type: parse_exception }
+  - match: { error.reason: "[remove_if_successful] cannot be true when [field] [url.full] is the same as, or nested in, [target_field] [url], because the parsed output would be removed" }
+
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "uri_parts": {
+                  "field": "_source.url",
+                  "target_field": "url",
+                  "remove_if_successful": true
+                }
+              }
+            ]
+          }
+  - match: { error.type: parse_exception }
+
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "uri_parts": {
+                  "field": "url",
+                  "target_field": "_source.url",
+                  "remove_if_successful": true
+                }
+              }
+            ]
+          }
+  - match: { error.type: parse_exception }
+
+  # trailing dots are ignored when a path is resolved, so "url." is the field "url" and the output would be removed here too
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "uri_parts": {
+                  "field": "url",
+                  "target_field": "url.",
+                  "remove_if_successful": true
+                }
+              }
+            ]
+          }
+  - match: { error.type: parse_exception }
+  - match: { error.reason: "[remove_if_successful] cannot be true when [field] [url] is the same as, or nested in, [target_field] [url.], because the parsed output would be removed" }
+
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "uri_parts": {
+                  "field": "request_url",
+                  "target_field": ""
+                }
+              }
+            ]
+          }
+  - match: { error.type: parse_exception }
+  - match: { error.reason: "[target_field] cannot be empty" }
