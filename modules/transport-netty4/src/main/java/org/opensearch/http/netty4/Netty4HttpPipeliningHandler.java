@@ -33,12 +33,13 @@
 package org.opensearch.http.netty4;
 
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.http.HttpPipelinedRequest;
 import org.opensearch.http.HttpPipelinedResponse;
+import org.opensearch.http.HttpPipeliningAggregator;
 
 import java.nio.channels.ClosedChannelException;
-import java.util.Comparator;
-import java.util.PriorityQueue;
+import java.util.List;
 
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFutureListener;
@@ -54,7 +55,6 @@ public final class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     private final Logger logger;
     private final int maxEventsHeld;
     private PendingResponses pendingResponses;
-    private int readSequence;
 
     /**
      * Construct a new pipelining handler; this handler should be used downstream of HTTP decoding/aggregation.
@@ -76,7 +76,7 @@ public final class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
         assert msg instanceof Netty4HttpRequest : "Invalid message type: " + msg.getClass();
-        HttpPipelinedRequest pipelinedRequest = new HttpPipelinedRequest(readSequence++, (Netty4HttpRequest) msg);
+        HttpPipelinedRequest pipelinedRequest = pendingResponses.aggregator.read((Netty4HttpRequest) msg);
         ctx.fireChannelRead(pipelinedRequest);
     }
 
@@ -93,35 +93,26 @@ public final class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void channelInactive(ChannelHandlerContext ctx) {
-        pendingResponses.close();
-        ctx.fireChannelInactive();
-    }
-
-    @Override
     public void handlerRemoved(ChannelHandlerContext ctx) {
         pendingResponses.close();
     }
 
     /**
-     * Owns responses until they are handed to Netty. Construction installs terminal cleanup: callers cannot create an unbound queue,
-     * remove entries, or override the enclosing handler's lifecycle. All state belongs to the context's executor.
+     * Holds responses until they are handed to Netty. The close future releases them before deferred pipeline teardown,
+     * even when an earlier handler consumes channelInactive. All state belongs to the context's executor.
      */
     private static final class PendingResponses {
         private final ChannelHandlerContext ctx;
         private final Logger logger;
-        private final int maxEventsHeld;
+        private final HttpPipeliningAggregator<ChannelPromise> aggregator;
         private final ChannelFutureListener closeListener;
-        // Allocate holding storage only when a response actually needs to wait.
-        private PriorityQueue<PendingResponse> queue;
-        private int writeSequence;
         private boolean draining;
         private boolean closed;
 
         private PendingResponses(ChannelHandlerContext ctx, Logger logger, int maxEventsHeld) {
             this.ctx = ctx;
             this.logger = logger;
-            this.maxEventsHeld = maxEventsHeld;
+            this.aggregator = new HttpPipeliningAggregator<>(maxEventsHeld);
             closeListener = future -> {
                 if (ctx.executor().inEventLoop()) {
                     close();
@@ -134,46 +125,35 @@ public final class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
         private void write(HttpPipelinedResponse response, ChannelPromise promise) {
             assert ctx.executor().inEventLoop();
-            // A completion listener may release the response's backing storage. It must not run while we still own the response.
-            if (promise.setUncancellable() == false) {
-                ReferenceCountUtil.release(response.getDelegateRequest());
-                return;
-            }
+            // Prevent cancellation from releasing backing storage while queued. A promise already cancelled must still
+            // pass through sequencing: Netty will discard its buffer on handoff, and later responses can then proceed.
+            promise.setUncancellable();
             if (closed || ctx.channel().isActive() == false) {
                 reject(response, promise, new ClosedChannelException());
                 return;
             }
-            if (maxEventsHeld > 0 && draining == false && response.getSequence() == writeSequence) {
-                draining = true;
-                try {
-                    // The common in-order path allocates neither a queue entry nor a list of ready responses.
-                    forward(response, promise);
-                    while (closed == false && queue != null && queue.isEmpty() == false) {
-                        if (queue.peek().response.getSequence() != writeSequence) {
-                            break;
-                        }
-                        PendingResponse next = queue.poll();
-                        forward(next.response, next.promise);
-                    }
-                } finally {
-                    draining = false;
-                }
-            } else if ((queue == null ? 0 : queue.size()) < maxEventsHeld) {
-                if (queue == null) {
-                    queue = new PriorityQueue<>(1, Comparator.comparingInt(entry -> entry.response.getSequence()));
-                }
-                queue.add(new PendingResponse(response, promise));
-            } else {
+            try {
+                aggregator.add(response, promise);
+            } catch (IllegalStateException e) {
+                logger.debug("closing HTTP connection: {}", e.getMessage());
                 close();
                 reject(response, promise, new ClosedChannelException());
                 ctx.close();
+                return;
             }
-        }
-
-        private void forward(HttpPipelinedResponse response, ChannelPromise promise) {
-            writeSequence++;
-            // Once handed off, Netty owns the buffer and promise. Reentrant writes wait until this handoff returns.
-            ctx.write(response.getDelegateRequest(), promise);
+            if (draining) {
+                return;
+            }
+            draining = true;
+            try {
+                Tuple<HttpPipelinedResponse, ChannelPromise> next;
+                while (closed == false && (next = aggregator.poll()) != null) {
+                    // Poll one at a time so a reentrant close can still release all responses not yet handed to Netty.
+                    ctx.write(next.v1().getDelegateRequest(), next.v2());
+                }
+            } finally {
+                draining = false;
+            }
         }
 
         private void close() {
@@ -184,15 +164,12 @@ public final class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             // Set the terminal state before invoking listeners, which can reenter write() or close().
             closed = true;
             ctx.channel().closeFuture().removeListener(closeListener);
-            PriorityQueue<PendingResponse> pending = queue;
-            queue = null;
-            if (pending != null && pending.isEmpty() == false) {
+            List<Tuple<HttpPipelinedResponse, ChannelPromise>> pending = aggregator.removeAllInflightResponses();
+            if (pending.isEmpty() == false) {
                 ClosedChannelException failure = new ClosedChannelException();
-                // Ordering no longer matters: linear traversal avoids sorting responses that will never be written.
-                for (PendingResponse next : pending) {
-                    reject(next.response, next.promise, failure);
+                for (Tuple<HttpPipelinedResponse, ChannelPromise> next : pending) {
+                    reject(next.v1(), next.v2(), failure);
                 }
-                pending.clear();
             }
         }
 
@@ -207,6 +184,4 @@ public final class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         }
     }
 
-    private record PendingResponse(HttpPipelinedResponse response, ChannelPromise promise) {
-    }
 }
