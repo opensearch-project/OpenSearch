@@ -64,18 +64,8 @@ public class HttpPipeliningAggregator<Listener> {
         return new HttpPipelinedRequest(readSequence++, request);
     }
 
-    public List<Tuple<HttpPipelinedResponse, Listener>> write(final HttpPipelinedResponse response, Listener listener) {
-        add(response, listener);
-        ArrayList<Tuple<HttpPipelinedResponse, Listener>> readyResponses = new ArrayList<>();
-        Tuple<HttpPipelinedResponse, Listener> next;
-        while ((next = poll()) != null) {
-            readyResponses.add(next);
-        }
-        return readyResponses;
-    }
-
     /**
-     * Holds a response until it can be polled in sequence. The next response may temporarily exceed the holding limit,
+     * Holds a response until it can be polled in sequence. The next-in-sequence response may temporarily exceed the holding limit,
      * including during a reentrant write, since it allows the queue to drain.
      */
     public void add(final HttpPipelinedResponse response, Listener listener) {

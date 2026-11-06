@@ -125,9 +125,14 @@ public final class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
         private void write(HttpPipelinedResponse response, ChannelPromise promise) {
             assert ctx.executor().inEventLoop();
-            // Prevent cancellation from releasing backing storage while queued. A promise already cancelled must still
-            // pass through sequencing: Netty will discard its buffer on handoff, and later responses can then proceed.
-            promise.setUncancellable();
+            // Prevent cancellation from releasing backing storage while queued. If cancellation already won, close:
+            // skipping a response would cause HTTP/1.1 clients to associate later responses with the wrong requests.
+            if (promise.setUncancellable() == false) {
+                close();
+                reject(response, promise, new ClosedChannelException());
+                ctx.close();
+                return;
+            }
             if (closed || ctx.channel().isActive() == false) {
                 reject(response, promise, new ClosedChannelException());
                 return;

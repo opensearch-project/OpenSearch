@@ -519,41 +519,69 @@ public class Netty4HttpPipeliningHandlerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testCancelledResponseDoesNotLeaveASequenceGap() {
-        assertCancelledResponseDoesNotLeaveASequenceGap(false);
+    public void testCancelledResponseClosesConnection() {
+        assertCancelledResponseClosesConnection(false, false);
     }
 
-    public void testCancelledOutOfOrderResponseDoesNotLeaveASequenceGap() {
-        assertCancelledResponseDoesNotLeaveASequenceGap(true);
+    public void testCancelledOutOfOrderResponseClosesConnection() {
+        assertCancelledResponseClosesConnection(true, false);
     }
 
-    private void assertCancelledResponseDoesNotLeaveASequenceGap(boolean outOfOrder) {
+    public void testCancelledResponseRejectsWritesWhileCloseIsDeferred() {
+        assertCancelledResponseClosesConnection(false, true);
+    }
+
+    private void assertCancelledResponseClosesConnection(boolean outOfOrder, boolean deferClose) {
         final Netty4HttpPipeliningHandler handler = new Netty4HttpPipeliningHandler(logger, 3);
-        final EmbeddedChannel channel = new EmbeddedChannel(handler);
+        final AtomicReference<Runnable> finishClose = new AtomicReference<>();
+        final EmbeddedChannel channel = new EmbeddedChannel(new ChannelOutboundHandlerAdapter() {
+            @Override
+            public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
+                if (deferClose) {
+                    finishClose.set(() -> ctx.close(promise));
+                } else {
+                    ctx.close(promise);
+                }
+            }
+        }, handler);
         final Netty4HttpResponse cancelled = newResponse();
-        final Netty4HttpResponse first = newResponse();
-        final Netty4HttpResponse last = newResponse();
+        final Netty4HttpResponse queued = newResponse();
+        final Netty4HttpResponse late = newResponse();
         final ChannelPromise cancelledPromise = channel.newPromise();
-        final ChannelPromise lastPromise = channel.newPromise();
+        final ChannelPromise queuedPromise = channel.newPromise();
+        final ChannelPromise latePromise = channel.newPromise();
         try {
+            channel.writeAndFlush(new HttpPipelinedResponse(outOfOrder ? 2 : 1, queued), queuedPromise);
+            assertFalse(queuedPromise.isDone());
             assertTrue(cancelledPromise.cancel(false));
-            // Model cancellation racing with Netty's promise validation, before the pipelining handler takes ownership.
+            // Model cancellation after Netty validates an off-loop write but before its task reaches this handler.
+            // A write cancelled before validation is discarded by Netty without invoking the handler.
             handler.write(channel.pipeline().context(handler), new HttpPipelinedResponse(outOfOrder ? 1 : 0, cancelled), cancelledPromise);
-            if (outOfOrder) {
-                channel.writeAndFlush(new HttpPipelinedResponse(0, first));
+            if (deferClose) {
+                channel.writeAndFlush(new HttpPipelinedResponse(2, late), latePromise);
+                assertTrue(latePromise.cause() instanceof ClosedChannelException);
+                assertEquals(0, late.refCnt());
+            } else {
+                channel.flush();
             }
-            channel.writeAndFlush(new HttpPipelinedResponse(outOfOrder ? 2 : 1, last), lastPromise);
-            assertTrue("Later responses must complete after a cancelled response", lastPromise.isSuccess());
-            assertTrue(channel.isActive());
-            if (outOfOrder) {
-                assertSame(first, channel.readOutbound());
-            }
-            assertSame(last, channel.readOutbound());
-            assertNull(channel.readOutbound());
+            assertNull("No response may be delivered for a different request after cancellation", channel.readOutbound());
+            assertTrue(cancelledPromise.isCancelled());
+            assertTrue(queuedPromise.cause() instanceof ClosedChannelException);
             assertEquals(0, cancelled.refCnt());
+            assertEquals(0, queued.refCnt());
+            if (deferClose) {
+                assertTrue("The transport remains active until the earlier handler completes close", channel.isActive());
+                assertNotNull(finishClose.get());
+                finishClose.getAndSet(null).run();
+            }
+            assertFalse(channel.isOpen());
         } finally {
+            channel.close();
+            if (finishClose.get() != null) {
+                finishClose.getAndSet(null).run();
+            }
             channel.finishAndReleaseAll();
-            releaseIfNeeded(cancelled, first, last);
+            releaseIfNeeded(cancelled, queued, late);
         }
     }
 
