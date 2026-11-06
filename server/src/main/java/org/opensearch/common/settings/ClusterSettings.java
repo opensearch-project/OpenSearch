@@ -43,6 +43,7 @@ import org.opensearch.action.search.pruning.SearchIndexPruningSettings;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.replication.TransportReplicationAction;
+import org.opensearch.action.termsenum.TransportTermsEnumAction;
 import org.opensearch.bootstrap.BootstrapSettings;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
@@ -463,6 +464,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                 SearchPipelineService.ENABLED_SYSTEM_GENERATED_FACTORIES_SETTING,
                 TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
+                TransportTermsEnumAction.MAX_SIZE_SETTING,
                 TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING,
                 TransportSearchAction.SEARCH_PHASE_TOOK_ENABLED,
                 SearchRequestStats.SEARCH_REQUEST_STATS_ENABLED,

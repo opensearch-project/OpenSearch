@@ -32,6 +32,8 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -42,6 +44,7 @@ import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.index.query.QueryShardContext;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -139,5 +142,70 @@ public abstract class ConstantFieldType extends MappedFieldType {
         } else {
             return new MatchNoDocsQuery();
         }
+    }
+
+    /**
+     * Returns the value every document of the index has for this field, or {@code null} if this field type
+     * does not support terms enumeration.
+     */
+    @Nullable
+    protected String constantValue(QueryShardContext context) {
+        return null;
+    }
+
+    /**
+     * Returns the {@link #constantValue} as a single synthesized term when it starts with {@code prefix}, sorts
+     * after {@code searchAfter} and {@code reader} has at least one live document. The prefix is matched
+     * literally, with ASCII-only case folding when {@code caseInsensitive} is set.
+     */
+    @Override
+    public TermsEnum termsEnum(
+        IndexReader reader,
+        String prefix,
+        boolean caseInsensitive,
+        @Nullable BytesRef searchAfter,
+        QueryShardContext context
+    ) throws IOException {
+        String value = constantValue(context);
+        if (value == null) {
+            return super.termsEnum(reader, prefix, caseInsensitive, searchAfter, context);
+        }
+        // an early exit only: the collector still checks each segment's live docs before returning the term
+        if (reader.numDocs() == 0) {
+            return null;
+        }
+        boolean matches = caseInsensitive ? startsWithIgnoreAsciiCase(value, prefix) : value.startsWith(prefix);
+        BytesRef term = new BytesRef(value);
+        if (matches == false || (searchAfter != null && term.compareTo(searchAfter) <= 0)) {
+            return null;
+        }
+        return new ConstantTermsEnum(term, reader.maxDoc());
+    }
+
+    /**
+     * Whether {@code value} starts with {@code prefix}, comparing code point by code point and folding the case of ASCII
+     * letters only; every other code point must be equal. This accepts exactly what the automaton built by
+     * {@code AutomatonQueries.caseInsensitivePrefix(prefix)} accepts, without allocating anything.
+     */
+    private static boolean startsWithIgnoreAsciiCase(String value, String prefix) {
+        int v = 0;
+        for (int p = 0; p < prefix.length();) {
+            if (v >= value.length()) {
+                return false;
+            }
+            int expected = prefix.codePointAt(p);
+            int actual = value.codePointAt(v);
+            // like AutomatonQueries.toCaseInsensitiveChar, only code points up to 128 match their other case
+            if (actual != expected && (expected > 128 || actual != otherCase(expected))) {
+                return false;
+            }
+            p += Character.charCount(expected);
+            v += Character.charCount(actual);
+        }
+        return true;
+    }
+
+    private static int otherCase(int codePoint) {
+        return Character.isLowerCase(codePoint) ? Character.toUpperCase(codePoint) : Character.toLowerCase(codePoint);
     }
 }

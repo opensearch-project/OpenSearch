@@ -876,6 +876,8 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             "nodes.usage",
             "nodes.reload_secure_settings",
             "search_shards",
+            // Experimental terms enumeration API is available through the low-level client, not the deprecated high-level client.
+            "terms_enum",
             "remote_store.restore",
             "remote_store.stats",
             "cluster.put_weighted_routing",
