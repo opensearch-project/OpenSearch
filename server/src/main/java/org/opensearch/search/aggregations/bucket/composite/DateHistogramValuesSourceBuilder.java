@@ -152,11 +152,14 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
         if (timeZone != null) {
             builder.field("time_zone", timeZone.toString());
         }
+        if (offset != 0) {
+            builder.field(Histogram.OFFSET_FIELD.getPreferredName(), offset);
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), dateHistogramInterval, timeZone);
+        return Objects.hash(super.hashCode(), dateHistogramInterval, timeZone, offset);
     }
 
     @Override
@@ -165,7 +168,9 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         DateHistogramValuesSourceBuilder other = (DateHistogramValuesSourceBuilder) obj;
-        return Objects.equals(dateHistogramInterval, other.dateHistogramInterval) && Objects.equals(timeZone, other.timeZone);
+        return Objects.equals(dateHistogramInterval, other.dateHistogramInterval)
+            && Objects.equals(timeZone, other.timeZone)
+            && offset == other.offset;
     }
 
     @Override
