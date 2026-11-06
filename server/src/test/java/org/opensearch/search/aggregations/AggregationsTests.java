@@ -72,6 +72,7 @@ import org.opensearch.search.aggregations.bucket.terms.StringRareTermsTests;
 import org.opensearch.search.aggregations.bucket.terms.StringTermsTests;
 import org.opensearch.search.aggregations.bucket.terms.UnsignedLongTermsTests;
 import org.opensearch.search.aggregations.metrics.InternalAvgTests;
+import org.opensearch.search.aggregations.metrics.InternalBoxplotTests;
 import org.opensearch.search.aggregations.metrics.InternalCardinalityTests;
 import org.opensearch.search.aggregations.metrics.InternalExtendedStatsTests;
 import org.opensearch.search.aggregations.metrics.InternalGeoCentroidTests;
@@ -166,6 +167,7 @@ public class AggregationsTests extends OpenSearchTestCase {
         new InternalTopHitsTests(),
         new InternalCompositeTests(),
         new InternalMedianAbsoluteDeviationTests(),
+        new InternalBoxplotTests(),
         new InternalMultiTermsTests()
     );
 
