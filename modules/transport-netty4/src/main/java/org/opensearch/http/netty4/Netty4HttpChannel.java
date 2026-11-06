@@ -36,6 +36,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.concurrent.CompletableContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.http.HttpChannel;
+import org.opensearch.http.HttpPipelinedResponse;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.transport.netty4.Netty4TcpChannel;
 
@@ -50,6 +51,7 @@ import java.util.function.Function;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPipeline;
 import io.netty.util.AttributeKey;
+import io.netty.util.ReferenceCounted;
 
 public class Netty4HttpChannel implements HttpChannel {
     private static final InetSocketAddress NO_SOCKET_ADDRESS = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
@@ -83,6 +85,12 @@ public class Netty4HttpChannel implements HttpChannel {
 
     @Override
     public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
+        if (response instanceof HttpPipelinedResponse pipelinedResponse
+            && response instanceof ReferenceCounted == false
+            && pipelinedResponse.getDelegateRequest() instanceof ReferenceCounted) {
+            // Netty must be able to release a write rejected before it reaches the pipelining handler.
+            response = new Netty4HttpPipelinedResponse(pipelinedResponse);
+        }
         channel.writeAndFlush(response, Netty4TcpChannel.addPromise(listener, channel));
     }
 
