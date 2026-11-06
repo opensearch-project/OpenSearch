@@ -53,7 +53,6 @@ configurations.named("internalClusterTestCompileClasspath").configure {
     force "org.slf4j:slf4j-api:${versions.slf4j}"
     force "net.java.dev.jna:jna:${versions.jna}"
     force "org.apache.commons:commons-compress:${versions.commonscompress}"
-    force "org.apache.commons:commons-codec:${versions.commonscompress}"
     force "commons-codec:commons-codec:${versions.commonscodec}"
   }
 }
