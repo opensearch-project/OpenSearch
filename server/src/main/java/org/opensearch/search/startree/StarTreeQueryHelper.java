@@ -26,6 +26,7 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.filter.DimensionFilter;
 import org.opensearch.search.startree.filter.StarTreeFilter;
@@ -51,7 +52,17 @@ public class StarTreeQueryHelper {
      * Checks if the search context can be supported by star-tree
      */
     public static boolean isStarTreeSupported(SearchContext context) {
-        return context.aggregations() != null && context.mapperService().isCompositeIndexPresent() && context.parsedPostFilter() == null;
+        return context.aggregations() != null
+            && context.mapperService().isCompositeIndexPresent()
+            && context.parsedPostFilter() == null
+            && hasAliasFilter(context) == false;
+    }
+
+    // Star-tree values cover the user's query only, so a filtered alias takes the normal path, as a post_filter does.
+    // Read the request: the parsed alias filter is not built yet when this check runs.
+    private static boolean hasAliasFilter(SearchContext context) {
+        AliasFilter aliasFilter = context.request() == null ? null : context.request().getAliasFilter();
+        return aliasFilter != null && aliasFilter.getQueryBuilder() != null;
     }
 
     public static CompositeIndexFieldInfo getSupportedStarTree(QueryShardContext context) {
