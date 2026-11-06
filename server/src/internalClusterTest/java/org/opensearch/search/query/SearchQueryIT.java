@@ -1740,6 +1740,140 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
         assertHitCount(response, 1L);
     }
 
+    private static String intervalsRangeFollowingFiscalYear(String rangeBody) {
+        return "{ \"intervals\" : { \"body\": { \"all_of\" : { \"mode\" : \"ordered\", \"max_gaps\" : 0, \"intervals\" : ["
+            + "{ \"match\" : { \"query\" : \"fiscal year\", \"mode\" : \"ordered\", \"max_gaps\" : 0 } },"
+            + "{ \"range\" : "
+            + rangeBody
+            + " } ] } } } }";
+    }
+
+    public void testIntervalsRange() throws Exception {
+        assertAcked(prepareCreate("test").setMapping("body", "type=text", "tag", "type=keyword"));
+        indexRandom(
+            true,
+            client().prepareIndex("test").setId("1").setSource("body", "fiscal year 2021 revenue", "tag", "2021"),
+            client().prepareIndex("test").setId("2").setSource("body", "fiscal year 2017 revenue", "tag", "2017"),
+            client().prepareIndex("test").setId("3").setSource("body", "2021 fiscal year revenue", "tag", "2021"),
+            client().prepareIndex("test").setId("4").setSource("body", "fiscal year 2023", "tag", "2023"),
+            client().prepareIndex("test").setId("5").setSource("body", "fiscal year 2019 outlook", "tag", "2019"),
+            client().prepareIndex("test").setId("6").setSource("body", "fiscal year 2024 outlook", "tag", "2024"),
+            client().prepareIndex("test").setId("7").setSource("body", "Beta", "tag", "beta")
+        );
+        indexRandomForConcurrentSearch("test");
+
+        // a year from 2019 to 2023 immediately after "fiscal year": inclusive bounds on both sides
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(wrapperQuery(intervalsRangeFollowingFiscalYear("{ \"gte\" : \"2019\", \"lte\" : \"2023\" }")))
+            .get();
+        assertNoFailures(response);
+        assertSearchHits(response, "1", "4", "5");
+
+        // exclusive bounds drop 2019 and 2023, "fiscal year 2017" and "2021 fiscal year" never match
+        response = client().prepareSearch("test")
+            .setQuery(wrapperQuery(intervalsRangeFollowingFiscalYear("{ \"gt\" : \"2019\", \"lt\" : \"2023\" }")))
+            .get();
+        assertNoFailures(response);
+        assertSearchHits(response, "1");
+
+        // the rule on its own matches the term anywhere in the field
+        response = client().prepareSearch("test")
+            .setQuery(wrapperQuery("{ \"intervals\" : { \"body\": { \"range\" : { \"gte\" : \"2021\", \"lte\" : \"2021\" } } } }"))
+            .get();
+        assertNoFailures(response);
+        assertSearchHits(response, "1", "3");
+
+        // bounds go through the field's search analyzer ("Beta" is indexed as "beta") unless another analyzer is given
+        response = client().prepareSearch("test")
+            .setQuery(wrapperQuery("{ \"intervals\" : { \"body\": { \"range\" : { \"gte\" : \"A\", \"lte\" : \"C\" } } } }"))
+            .get();
+        assertNoFailures(response);
+        assertSearchHits(response, "7");
+        response = client().prepareSearch("test")
+            .setQuery(
+                wrapperQuery(
+                    "{ \"intervals\" : { \"body\": { \"range\" : { \"gte\" : \"A\", \"lte\" : \"C\", \"analyzer\" : \"keyword\" } } } }"
+                )
+            )
+            .get();
+        assertNoFailures(response);
+        assertHitCount(response, 0L);
+
+        // an empty range is not an error
+        response = client().prepareSearch("test")
+            .setQuery(wrapperQuery("{ \"intervals\" : { \"body\": { \"range\" : { \"gt\" : \"2021\", \"lt\" : \"2021\" } } } }"))
+            .get();
+        assertNoFailures(response);
+        assertHitCount(response, 0L);
+    }
+
+    public void testIntervalsRangeErrors() throws Exception {
+        // one shard, so that the shard holding the documents is the only one and its failure is not a partial result
+        assertAcked(
+            prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
+                .setMapping("body", "type=text", "tag", "type=keyword")
+        );
+        indexRandom(
+            true,
+            client().prepareIndex("test").setId("1").setSource("body", "fiscal year 2021 revenue", "tag", "2021"),
+            client().prepareIndex("test").setId("2").setSource("body", "fiscal year 2017 revenue", "tag", "2017")
+        );
+        indexRandomForConcurrentSearch("test");
+
+        // more terms in the range than max_expansions allows
+        SearchPhaseExecutionException expansions = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> client().prepareSearch("test")
+                .setQuery(
+                    wrapperQuery(
+                        "{ \"intervals\" : { \"body\": { \"range\" : { \"gte\" : \"0\", \"lte\" : \"zzzz\", \"max_expansions\" : 2 } } } }"
+                    )
+                )
+                .get()
+        );
+        assertThat(expansions.getDetailedMessage(), containsString("expanded to too many terms (limit 2)"));
+
+        // and it fails in the same way as the wildcard rule does when it expands to too many terms
+        SearchPhaseExecutionException wildcardExpansions = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> client().prepareSearch("test")
+                .setQuery(
+                    wrapperQuery("{ \"intervals\" : { \"body\": { \"wildcard\" : { \"pattern\" : \"*\", \"max_expansions\" : 2 } } } }")
+                )
+                .get()
+        );
+        assertThat(wildcardExpansions.getDetailedMessage(), containsString("expanded to too many terms (limit 2)"));
+        assertEquals(wildcardExpansions.status(), expansions.status());
+
+        // the same range is fine when the limit is big enough
+        assertHitCount(
+            client().prepareSearch("test")
+                .setQuery(
+                    wrapperQuery(
+                        "{ \"intervals\" : { \"body\": { \"range\" : { \"gte\" : \"0\", \"lte\" : \"zzzz\", \"max_expansions\" : 128 } } } }"
+                    )
+                )
+                .get(),
+            2L
+        );
+
+        // keyword fields have no positions
+        assertFailures(
+            client().prepareSearch("test")
+                .setQuery(wrapperQuery("{ \"intervals\" : { \"tag\": { \"range\" : { \"gte\" : \"2017\", \"lte\" : \"2021\" } } } }")),
+            RestStatus.BAD_REQUEST,
+            containsString("Cannot create intervals over field [tag] with no positions indexed")
+        );
+
+        // lower bound above the upper bound
+        assertFailures(
+            client().prepareSearch("test")
+                .setQuery(wrapperQuery("{ \"intervals\" : { \"body\": { \"range\" : { \"gte\" : \"2023\", \"lte\" : \"2019\" } } } }")),
+            RestStatus.BAD_REQUEST,
+            containsString("greater than its upper bound")
+        );
+    }
+
     // see #2994
     public void testSimpleSpan() throws IOException, ExecutionException, InterruptedException {
         createIndex("test");
