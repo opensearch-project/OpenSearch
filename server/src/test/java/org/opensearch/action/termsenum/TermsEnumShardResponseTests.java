@@ -77,4 +77,13 @@ public class TermsEnumShardResponseTests extends AbstractWireSerializingTestCase
         assertTrue(unsupported.terms().isEmpty());
         assertFalse(unsupported.timedOut());
     }
+
+    public void testValidOrdinals() {
+        // the outcome goes between nodes as its ordinal, so reordering or adding values breaks mixed clusters
+        assertEquals(0, TermsEnumShardResponse.Outcome.OK.ordinal());
+        assertEquals(1, TermsEnumShardResponse.Outcome.SKIPPED.ordinal());
+        assertEquals(2, TermsEnumShardResponse.Outcome.FIELD_ABSENT.ordinal());
+        assertEquals(3, TermsEnumShardResponse.Outcome.FIELD_UNSUPPORTED.ordinal());
+        assertEquals(4, TermsEnumShardResponse.Outcome.values().length);
+    }
 }
