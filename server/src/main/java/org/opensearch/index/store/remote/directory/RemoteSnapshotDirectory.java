@@ -17,6 +17,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NoLockFactory;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
 import org.opensearch.index.store.remote.utils.TransferManager;
@@ -24,6 +25,7 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
+import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -88,7 +90,7 @@ public final class RemoteSnapshotDirectory extends Directory {
                 Thread.currentThread().interrupt();
                 throw new InterruptedIOException("interrupted while loading the shard snapshot");
             } catch (ExecutionException e) {
-                throw new IOException("failed to load the shard snapshot", e.getCause());
+                throw new IOException("failed to load the shard snapshot", e.getCause() != null ? e.getCause() : e);
             } catch (CancellationException e) {
                 // close() cancels a read that did not finish
                 throw new AlreadyClosedException("directory closed before the shard snapshot was loaded", e);
@@ -115,6 +117,9 @@ public final class RemoteSnapshotDirectory extends Directory {
     public IndexInput openInput(String name, IOContext context) throws IOException {
         final RemoteState state = remoteState();
         final BlobStoreIndexShardSnapshot.FileInfo fileInfo = state.fileInfoMap.get(name);
+        if (fileInfo == null) {
+            throw new NoSuchFileException(name);
+        }
 
         if (fileInfo.name().startsWith(VIRTUAL_FILE_PREFIX)) {
             return new ByteArrayIndexInput(fileInfo.physicalName(), fileInfo.metadata().hash().bytes);
@@ -125,13 +130,17 @@ public final class RemoteSnapshotDirectory extends Directory {
     @Override
     public void close() throws IOException {
         // Skips the read if it did not start yet. Has no effect on a read that finished.
-        remoteStateFuture.cancel(false);
+        FutureUtils.cancel(remoteStateFuture);
         localStoreDir.close();
     }
 
     @Override
     public long fileLength(String name) throws IOException {
-        return remoteState().fileInfoMap.get(name).length();
+        final BlobStoreIndexShardSnapshot.FileInfo fileInfo = remoteState().fileInfoMap.get(name);
+        if (fileInfo == null) {
+            throw new NoSuchFileException(name);
+        }
+        return fileInfo.length();
     }
 
     @Override

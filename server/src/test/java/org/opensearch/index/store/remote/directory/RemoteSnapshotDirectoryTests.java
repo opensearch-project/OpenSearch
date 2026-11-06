@@ -31,6 +31,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.concurrent.CancellationException;
@@ -132,6 +133,31 @@ public class RemoteSnapshotDirectoryTests extends OpenSearchTestCase {
 
         IOException e = expectThrows(IOException.class, dir::listAll);
         assertSame(cause, e.getCause());
+        dir.close();
+    }
+
+    public void testFailedSnapshotLoadWithoutCauseKeepsExecutionException() throws Exception {
+        // a Future that fails with an ExecutionException that has no cause
+        FutureTask<RemoteSnapshotDirectory.RemoteState> task = new FutureTask<>(() -> remoteState(1024)) {
+            @Override
+            public RemoteSnapshotDirectory.RemoteState get() throws ExecutionException {
+                throw new ExecutionException(null);
+            }
+        };
+        RemoteSnapshotDirectory dir = new RemoteSnapshotDirectory(task, fsDirectory);
+
+        IOException e = expectThrows(IOException.class, dir::listAll);
+        assertTrue(e.getCause() instanceof ExecutionException);
+        dir.close();
+    }
+
+    public void testUnknownFileThrowsNoSuchFileException() throws IOException {
+        RemoteSnapshotDirectory dir = new RemoteSnapshotDirectory(CompletableFuture.completedFuture(remoteState(1024)), fsDirectory);
+
+        NoSuchFileException openInput = expectThrows(NoSuchFileException.class, () -> dir.openInput("unknown", IOContext.DEFAULT));
+        assertEquals("unknown", openInput.getFile());
+        NoSuchFileException fileLength = expectThrows(NoSuchFileException.class, () -> dir.fileLength("unknown"));
+        assertEquals("unknown", fileLength.getFile());
         dir.close();
     }
 
