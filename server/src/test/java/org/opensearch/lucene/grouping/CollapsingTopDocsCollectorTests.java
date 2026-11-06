@@ -37,9 +37,18 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.CompositeReaderContext;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.FilterSortedDocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
@@ -73,6 +82,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
     private static class SegmentSearcher extends IndexSearcher {
@@ -651,6 +661,112 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
         w.close();
         reader.close();
         dir.close();
+    }
+
+    /**
+     * Keyword collapse must resolve each segment ordinal once per leaf, not on every hit.
+     * {@code lookupOrd} decompresses the terms dictionary; repeating it is the hot path in #18861.
+     */
+    public void testKeywordLookupOrdIsCachedPerLeaf() throws IOException {
+        final int uniqueGroups = 8;
+        final int docsPerSegment = 200;
+        final int segments = 2;
+        final Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        iwc.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
+        iwc.setRAMBufferSizeMB(256);
+
+        try (IndexWriter w = new IndexWriter(dir, iwc)) {
+            for (int segment = 0; segment < segments; segment++) {
+                for (int i = 0; i < docsPerSegment; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedDocValuesField("group", new BytesRef("g" + (i % uniqueGroups))));
+                    doc.add(new NumericDocValuesField("sort", i));
+                    w.addDocument(doc);
+                }
+                w.commit();
+            }
+        }
+
+        final DirectoryReader rawReader = DirectoryReader.open(dir);
+        assertEquals(segments, rawReader.leaves().size());
+        final AtomicInteger lookupOrdCalls = new AtomicInteger();
+        final DirectoryReader countingReader = new CountingLookupOrdDirectoryReader(rawReader, lookupOrdCalls, "group");
+        // Avoid Lucene's asserting wrappers, which can call lookupOrd themselves.
+        final IndexSearcher searcher = new IndexSearcher(countingReader);
+
+        // topN > unique groups so the grouping heap never fills and every hit calls currentValue()
+        Sort sort = new Sort(new SortField("sort", SortField.Type.INT));
+        MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("group");
+        final int topN = uniqueGroups + 10;
+        final int totalDocs = docsPerSegment * segments;
+
+        CollapsingTopDocsCollector<?> collector = CollapsingTopDocsCollector.createKeyword("group", fieldType, sort, topN);
+        searcher.search(new MatchAllDocsQuery(), collector);
+        CollapseTopFieldDocs topDocs = collector.getTopDocs();
+
+        assertEquals(uniqueGroups, topDocs.scoreDocs.length);
+        assertEquals((long) totalDocs, topDocs.totalHits.value());
+        assertEquals("lookupOrd once per unique segment ordinal, not per hit", uniqueGroups * segments, lookupOrdCalls.get());
+
+        countingReader.close();
+        dir.close();
+    }
+
+    /**
+     * Counts {@link SortedDocValues#lookupOrd(int)} on a single field. Used to prove keyword
+     * collapse does not decompress the terms dictionary on every collected document.
+     */
+    private static final class CountingLookupOrdDirectoryReader extends FilterDirectoryReader {
+        private final AtomicInteger lookupOrdCalls;
+        private final String field;
+
+        CountingLookupOrdDirectoryReader(DirectoryReader in, AtomicInteger lookupOrdCalls, String field) throws IOException {
+            super(in, new SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader reader) {
+                    return new FilterLeafReader(reader) {
+                        @Override
+                        public SortedDocValues getSortedDocValues(String fieldName) throws IOException {
+                            SortedDocValues dv = super.getSortedDocValues(fieldName);
+                            if (dv == null || field.equals(fieldName) == false) {
+                                return dv;
+                            }
+                            return new FilterSortedDocValues(dv) {
+                                @Override
+                                public BytesRef lookupOrd(int ord) throws IOException {
+                                    lookupOrdCalls.incrementAndGet();
+                                    return super.lookupOrd(ord);
+                                }
+                            };
+                        }
+
+                        @Override
+                        public CacheHelper getCoreCacheHelper() {
+                            return in.getCoreCacheHelper();
+                        }
+
+                        @Override
+                        public CacheHelper getReaderCacheHelper() {
+                            return in.getReaderCacheHelper();
+                        }
+                    };
+                }
+            });
+            this.lookupOrdCalls = lookupOrdCalls;
+            this.field = field;
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new CountingLookupOrdDirectoryReader(in, lookupOrdCalls, field);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
+        }
     }
 
     // Helper classes for test data
