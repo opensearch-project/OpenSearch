@@ -1,0 +1,99 @@
+---
+"Describe index settings without any index":
+  - skip:
+      version: " - 3.9.99"
+      reason: "Index settings describe API introduced in 3.10.0"
+  - do:
+      indices.describe_settings:
+        settings: "index.number_of_replicas,index.number_of_shards,index.refresh_interval,index.unknown"
+  - match: { settings.index\.number_of_replicas.dynamic: true }
+  - match: { settings.index\.number_of_replicas.default: "1" }
+  - match: { settings.index\.number_of_replicas.validation.type: "integer" }
+  - match: { settings.index\.number_of_replicas.validation.min: "0" }
+  - match: { settings.index\.number_of_shards.dynamic: false }
+  - match: { settings.index\.number_of_shards.validation.type: "integer" }
+  - match: { settings.index\.number_of_shards.validation.min: "1" }
+  - match: { settings.index\.refresh_interval.dynamic: true }
+  - match: { settings.index\.refresh_interval.default: "1s" }
+  - is_false: settings.index\.unknown
+  - length: { settings: 3 }
+---
+"Definitions do not change when an index exists":
+  - skip:
+      version: " - 3.9.99"
+      reason: "Index settings describe API introduced in 3.10.0"
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards: 3
+            number_of_replicas: 0
+  - do:
+      indices.describe_settings:
+        settings: "index.number_of_shards,index.number_of_replicas"
+  - match: { settings.index\.number_of_shards.dynamic: false }
+  - match: { settings.index\.number_of_replicas.dynamic: true }
+  - match: { settings.index\.number_of_replicas.default: "1" }
+  - length: { settings: 2 }
+---
+"The path is served by describe, not by get-settings as a name filter":
+  - skip:
+      version: " - 3.9.99"
+      reason: "Index settings describe API introduced in 3.10.0"
+  # Before this route existed, GET /_settings/_describe was indices.get_settings with name=_describe and returned a block
+  # per index. The literal segment now wins in the path trie: with an index present the result is still keyed by setting
+  # name, never by index. (The yaml client refuses parameters the spec does not declare, so the 400 for a get-settings
+  # parameter such as include_defaults is pinned by RestIndicesDescribeSettingsActionTests instead.)
+  - do:
+      indices.create:
+        index: route_check
+  - do:
+      indices.describe_settings:
+        settings: "index.number_of_shards"
+  - is_true: settings.index\.number_of_shards
+  - is_false: route_check
+---
+"There is no per-index form":
+  - skip:
+      version: " - 3.9.99"
+      reason: "Index settings describe API introduced in 3.10.0"
+  # /{index}/_settings/_describe is not registered by describe; indices.get_settings still owns /{index}/_settings/{name} and
+  # treats _describe as a setting-name filter that matches nothing, so the response is an empty object, not a definition.
+  - do:
+      indices.create:
+        index: per_index_form
+  - do:
+      indices.get_settings:
+        index: per_index_form
+        name: _describe
+  - is_false: per_index_form
+  - is_false: settings
+---
+"Expand a prefix":
+  - skip:
+      version: " - 3.9.99"
+      reason: "Index settings describe API introduced in 3.10.0"
+  - do:
+      indices.describe_settings:
+        settings: "index.unassigned.node_left.*"
+  - match: { settings.index\.unassigned\.node_left\.delayed_timeout.dynamic: true }
+  - match: { settings.index\.unassigned\.node_left\.delayed_timeout.default: "1m" }
+  - length: { settings: 1 }
+---
+"Reject wildcard shapes other than a trailing prefix":
+  - skip:
+      version: " - 3.9.99"
+      reason: "Index settings describe API introduced in 3.10.0"
+  - do:
+      catch: bad_request
+      indices.describe_settings:
+        settings: "*"
+  - do:
+      catch: bad_request
+      indices.describe_settings:
+        settings: "index.*.enabled"
+  - do:
+      catch: bad_request
+      indices.describe_settings:
+        settings: "index.?"

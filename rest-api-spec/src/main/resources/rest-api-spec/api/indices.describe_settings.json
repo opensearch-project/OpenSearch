@@ -1,0 +1,21 @@
+{
+  "indices.describe_settings": {
+    "documentation": {
+      "url": "https://opensearch.org/docs/latest/api-reference/index-apis/get-settings/",
+      "description": "Describes registered index settings using the receiving node's setting registry. Reports definition metadata, not the values configured on any index; definitions are node-global, so there is no per-index form (GET /{index}/_settings/_describe is served by indices.get_settings as a name filter). The default is the declared default; for the index.merge.scheduler.* settings that is the current cluster.index.merge.scheduler.* value, as with include_defaults, on nodes that host at least one index (an index-free node keeps reporting the processor-derived default, so for those three settings the answer can differ by receiving node). Unknown and filtered names are omitted. The whole result is returned in one response, sorted by setting name."
+    },
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {"path": "/_settings/_describe", "methods": ["GET"]}
+      ]
+    },
+    "params": {
+      "settings": {
+        "type": "list",
+        "required": true,
+        "description": "Setting names to describe. Each entry is either an exact name such as index.number_of_shards or a prefix ending in .* such as index.routing.allocation.*, which expands to every setting registered under it. Concrete affix keys are not registered settings and are reachable only by exact name. Group settings and prefix-only affix settings have open membership, so any key under their prefix is described with the group's or template's metadata. Exact names and prefixes may be mixed."
+      }
+    }
+  }
+}
