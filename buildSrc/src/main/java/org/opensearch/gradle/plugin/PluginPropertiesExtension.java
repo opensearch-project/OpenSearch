@@ -53,6 +53,8 @@ public class PluginPropertiesExtension {
 
     private String customFolderName = "";
 
+    private String dependencies = "";
+
     /** Other plugins this plugin extends through SPI */
     private List<String> extendedPlugins = new ArrayList<>();
 
@@ -84,6 +86,14 @@ public class PluginPropertiesExtension {
 
     public void setCustomFolderName(String customFolderName) {
         this.customFolderName = customFolderName;
+    }
+
+    public String getDependencies() {
+        return dependencies;
+    }
+
+    public void setDependencies(String dependencies) {
+        this.dependencies = dependencies;
     }
 
     public String getName() {

@@ -290,7 +290,9 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                 "java.version",
                 System.getProperty("java.specification.version"),
                 "classname",
-                "FakePlugin"
+                "FakePlugin",
+                "dependencies",
+                ""
             ),
             Arrays.stream(additionalProps)
         ).toArray(String[]::new);
@@ -313,7 +315,9 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                 "java.version",
                 System.getProperty("java.specification.version"),
                 "classname",
-                "FakePlugin"
+                "FakePlugin",
+                "opensearch.version",
+                ""
             ),
             Arrays.stream(additionalProps)
         ).toArray(String[]::new);
