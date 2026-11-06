@@ -8,7 +8,7 @@
 
 package org.opensearch.repositories.blobstore;
 
-import org.opensearch.common.annotation.InternalApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.ServerSideCopySource;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory.UploadedSegmentMetadata;
@@ -35,9 +35,9 @@ import java.util.Optional;
  * the remote store mints a fresh UUID suffix on every upload, so one Lucene name can correspond to several blobs
  * written by different primaries.
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
-@InternalApi
+@ExperimentalApi
 public final class RemoteStoreCopySource {
 
     private final ServerSideCopySource source;
