@@ -22,6 +22,7 @@ import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexShuttle;
+import org.apache.calcite.rex.RexSubQuery;
 import org.apache.calcite.rex.RexUtil;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
@@ -295,6 +296,24 @@ public class RelNodeUtils {
         return indices.toArray(String[]::new);
     }
 
+    /**
+     * Extracts the table expression exactly as stored on each {@link TableScan}. Unlike
+     * {@link #extractIndices(RelNode)}, comma expressions are not split because callers use the
+     * original expression as the stable key when replacing a scan in the logical plan. Includes
+     * scans held in a {@link RexSubQuery}'s relational body.
+     */
+    public static List<String> extractTableExpressions(RelNode plan) {
+        Set<String> expressions = new LinkedHashSet<>();
+        if (!collectTableExpressions(plan, expressions, 0)) {
+            throw new IllegalArgumentException(
+                "Query plan exceeds maximum depth ("
+                    + MAX_EXTRACT_INDICES_DEPTH
+                    + ") for table extraction. Simplify the query by reducing nested joins or subqueries."
+            );
+        }
+        return List.copyOf(expressions);
+    }
+
     private static boolean collectIndices(RelNode node, Set<String> indices, int depth) {
         if (depth >= MAX_EXTRACT_INDICES_DEPTH) {
             return false;
@@ -317,6 +336,35 @@ public class RelNodeUtils {
             }
         }
         return true;
+    }
+
+    private static boolean collectTableExpressions(RelNode node, Set<String> expressions, int depth) {
+        if (depth >= MAX_EXTRACT_INDICES_DEPTH) {
+            return false;
+        }
+        if (node instanceof TableScan scan) {
+            List<String> names = scan.getTable().getQualifiedName();
+            expressions.add(names.get(names.size() - 1));
+        }
+        for (RelNode input : node.getInputs()) {
+            if (!collectTableExpressions(input, expressions, depth + 1)) {
+                return false;
+            }
+        }
+        class SubqueryCollector extends RexShuttle {
+            private boolean complete = true;
+
+            @Override
+            public RexNode visitSubQuery(RexSubQuery subQuery) {
+                if (collectTableExpressions(subQuery.rel, expressions, depth + 1) == false) {
+                    complete = false;
+                }
+                return super.visitSubQuery(subQuery);
+            }
+        }
+        SubqueryCollector subqueryCollector = new SubqueryCollector();
+        node.accept(subqueryCollector);
+        return subqueryCollector.complete;
     }
 
     /** Collects every {@link RexInputRef} index appearing inside a {@link RexNode} tree. */
