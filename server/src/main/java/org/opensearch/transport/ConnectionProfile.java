@@ -136,8 +136,26 @@ public final class ConnectionProfile {
         @Nullable TimeValue pingInterval,
         @Nullable Boolean compressionEnabled
     ) {
+        return buildSingleTypeProfile(channelType, 1, connectTimeout, handshakeTimeout, pingInterval, compressionEnabled);
+    }
+
+    /**
+     * Builds a connection profile with {@code numConnections} channels, all of a single channel type. Allows
+     * passing connection and handshake timeouts and compression settings.
+     */
+    public static ConnectionProfile buildSingleTypeProfile(
+        TransportRequestOptions.Type channelType,
+        int numConnections,
+        @Nullable TimeValue connectTimeout,
+        @Nullable TimeValue handshakeTimeout,
+        @Nullable TimeValue pingInterval,
+        @Nullable Boolean compressionEnabled
+    ) {
+        if (numConnections < 1) {
+            throw new IllegalArgumentException("numConnections must be >= 1 but was: " + numConnections);
+        }
         Builder builder = new Builder();
-        builder.addConnections(1, channelType);
+        builder.addConnections(numConnections, channelType);
         final EnumSet<TransportRequestOptions.Type> otherTypes = EnumSet.allOf(TransportRequestOptions.Type.class);
         otherTypes.remove(channelType);
         builder.addConnections(0, otherTypes.toArray(new TransportRequestOptions.Type[0]));
