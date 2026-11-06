@@ -46,6 +46,8 @@ import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -63,6 +65,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
     TransportBroadcastByNodeAction.EmptyResult> {
 
     private final IndicesService indicesService;
+    private final AdmissionControlService admissionControlService;
 
     @Inject
     public TransportForceMergeAction(
@@ -70,7 +73,8 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        AdmissionControlService admissionControlService
     ) {
         super(
             ForceMergeAction.NAME,
@@ -82,6 +86,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
             ThreadPool.Names.FORCE_MERGE
         );
         this.indicesService = indicesService;
+        this.admissionControlService = admissionControlService;
     }
 
     @Override
@@ -107,11 +112,33 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
         return new ForceMergeRequest(in);
     }
 
+    /**
+     * Runs on the data node, on the {@link ThreadPool.Names#FORCE_MERGE} pool. Admission control is evaluated per shard,
+     * immediately before the merge starts, so that the decision reflects the resource usage of the node actually doing
+     * the work at the time the work begins. Shards of one node request are merged sequentially and each merge can run
+     * for a long time, so a single node-level check would go stale for the later shards.
+     * A rejection surfaces as an {@link org.opensearch.core.concurrency.OpenSearchRejectedExecutionException} shard
+     * failure; the remaining shards are still attempted.
+     */
     @Override
     protected EmptyResult shardOperation(ForceMergeRequest request, ShardRouting shardRouting) throws IOException {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex()).getShard(shardRouting.shardId().id());
+        if (isAdmissionControlRequired(indexShard)) {
+            admissionControlService.applyTransportAdmissionControl(actionName, AdmissionControlActionType.FORCE_MERGE);
+        }
         indexShard.forceMerge(request);
         return EmptyResult.INSTANCE;
+    }
+
+    /**
+     * Replicas of segment replication or remote store backed indices do not merge locally: their engine's force merge
+     * is a no-op and the merged segments are copied from the primary. Admission control is skipped for them because
+     * there is no local merge to protect, and rejecting them would only report spurious shard failures. The primary
+     * flag is read from the shard's current routing entry rather than the coordinator's routing, so a replica that was
+     * promoted after the request was built (and therefore merges) is admission controlled.
+     */
+    static boolean isAdmissionControlRequired(IndexShard indexShard) {
+        return indexShard.routingEntry().primary() || indexShard.indexSettings().isSegRepEnabledOrRemoteNode() == false;
     }
 
     /**

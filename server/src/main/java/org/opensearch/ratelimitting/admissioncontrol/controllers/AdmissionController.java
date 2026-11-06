@@ -77,20 +77,17 @@ public abstract class AdmissionController {
      * Add rejection count to the rejection count metric tracked by the admission controller
      */
     public void addRejectionCount(String admissionControlActionType, long count) {
-        if (!this.rejectionCountMap.containsKey(admissionControlActionType)) {
-            this.rejectionCountMap.put(admissionControlActionType, new AtomicLong(0));
-        }
-        this.rejectionCountMap.get(admissionControlActionType).getAndAdd(count);
+        // computeIfAbsent keeps the first increment atomic when concurrent requests are rejected for a new action type
+        this.rejectionCountMap.computeIfAbsent(admissionControlActionType, k -> new AtomicLong(0)).getAndAdd(count);
     }
 
     /**
      * @return current value of the rejection count metric tracked by the admission-controller.
      */
     public long getRejectionCount(String admissionControlActionType) {
-        if (this.rejectionCountMap.containsKey(admissionControlActionType)) {
-            return this.rejectionCountMap.get(admissionControlActionType).get();
-        }
-        return 0;
+        // single lookup: no check-then-act window, and an action type that was never rejected reads as 0
+        AtomicLong rejectionCount = this.rejectionCountMap.get(admissionControlActionType);
+        return rejectionCount == null ? 0 : rejectionCount.get();
     }
 
     /**
