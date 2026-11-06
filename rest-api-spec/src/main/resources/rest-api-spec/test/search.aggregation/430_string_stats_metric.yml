@@ -1,0 +1,463 @@
+setup:
+  - do:
+        indices.create:
+            index: test
+            body:
+              settings:
+                number_of_replicas: 0
+              mappings:
+                properties:
+                  host:
+                    type: keyword
+                  domain:
+                    type: keyword
+                  tags:
+                    type: keyword
+                  number:
+                    type: long
+  - do:
+        bulk:
+          refresh: true
+          body:
+            - index:
+                _index: test
+            - host: "10.0.0.1"
+              domain: "google.com"
+              tags: ["ab", "cde"]
+              number: 1
+            - index:
+                _index: test
+            - host: "10.0.0.1"
+              domain: "x7k2qz9vh3.net"
+              tags: "f"
+              number: 2
+            - index:
+                _index: test
+            - host: "10.0.0.1"
+              domain: "mail.google.com"
+              number: 3
+            - index:
+                _index: test
+            - host: "10.0.0.2"
+              domain: "aaaa"
+              number: 4
+            - index:
+                _index: test
+            - host: "10.0.0.2"
+              domain: "aaaaaa"
+              number: 5
+            - index:
+                _index: test
+            - host: "10.0.0.3"
+              number: 6
+
+---
+"basic test":
+  - skip:
+      version: " - 3.9.99"
+      reason: "string_stats aggregation added in 3.10.0"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          query:
+            term:
+              host: "10.0.0.1"
+          aggs:
+            shape:
+              string_stats:
+                field: domain
+
+  - match: { hits.total: 3 }
+
+  - match: { aggregations.shape.count: 3 }
+  - match: { aggregations.shape.min_length: 10 }
+  - match: { aggregations.shape.max_length: 15 }
+  - match: { aggregations.shape.avg_length: 13.0 }
+  # the Shannon entropy in bits of the 39 characters of the three values
+  - gte: { aggregations.shape.entropy: 4.0603 }
+  - lte: { aggregations.shape.entropy: 4.0605 }
+  # the distribution is only there when it is asked for
+  - is_false: aggregations.shape.distribution
+
+---
+"show distribution":
+  - skip:
+      version: " - 3.9.99"
+      reason: "string_stats aggregation added in 3.10.0"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          query:
+            term:
+              host: "10.0.0.1"
+          aggs:
+            shape:
+              string_stats:
+                field: domain
+                show_distribution: true
+
+  - match: { aggregations.shape.count: 3 }
+  - length: { aggregations.shape.distribution: 21 }
+  # 6 of the 39 characters are an o, 4 are a g, and 4 are a dot
+  - gte: { aggregations.shape.distribution.o: 0.1538 }
+  - lte: { aggregations.shape.distribution.o: 0.1539 }
+  - gte: { aggregations.shape.distribution.g: 0.1025 }
+  - lte: { aggregations.shape.distribution.g: 0.1027 }
+  - gte: { aggregations.shape.distribution.\.: 0.1025 }
+  - lte: { aggregations.shape.distribution.\.: 0.1027 }
+
+---
+"distribution switched off":
+  - skip:
+      version: " - 3.9.99"
+      reason: "string_stats aggregation added in 3.10.0"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            shape:
+              string_stats:
+                field: domain
+                show_distribution: false
+
+  - match: { aggregations.shape.count: 5 }
+  - is_false: aggregations.shape.distribution
+
+---
+"multi-valued field":
+  - skip:
+      version: " - 3.9.99"
+      reason: "string_stats aggregation added in 3.10.0"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            shape:
+              string_stats:
+                field: tags
+
+  # ab and cde of the first document, and f of the second, so that every value counts and not every document
+  - match: { aggregations.shape.count: 3 }
+  - match: { aggregations.shape.min_length: 1 }
+  - match: { aggregations.shape.max_length: 3 }
+  - match: { aggregations.shape.avg_length: 2.0 }
+
+---
+"order terms by a statistic":
+  - skip:
+      version: " - 3.9.99"
+      reason: "string_stats aggregation added in 3.10.0"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          query:
+            terms:
+              host: ["10.0.0.1", "10.0.0.2"]
+          aggs:
+            by_host:
+              terms:
+                field: host
+                order:
+                  domain_shape.entropy: desc
+              aggs:
+                domain_shape:
+                  string_stats:
+                    field: domain
+
+  - length: { aggregations.by_host.buckets: 2 }
+  - match: { aggregations.by_host.buckets.0.key: "10.0.0.1" }
+  - match: { aggregations.by_host.buckets.0.domain_shape.count: 3 }
+  - gte: { aggregations.by_host.buckets.0.domain_shape.entropy: 4.0603 }
+  # a single character has no entropy
+  - match: { aggregations.by_host.buckets.1.key: "10.0.0.2" }
+  - match: { aggregations.by_host.buckets.1.domain_shape.count: 2 }
+  - match: { aggregations.by_host.buckets.1.domain_shape.entropy: 0.0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          query:
+            terms:
+              host: ["10.0.0.1", "10.0.0.2"]
+          aggs:
+            by_host:
+              terms:
+                field: host
+                order:
+                  domain_shape.avg_length: asc
+              aggs:
+                domain_shape:
+                  string_stats:
+                    field: domain
+
+  # the averages are 13 and 5
+  - match: { aggregations.by_host.buckets.0.key: "10.0.0.2" }
+  - match: { aggregations.by_host.buckets.0.domain_shape.avg_length: 5.0 }
+  - match: { aggregations.by_host.buckets.1.key: "10.0.0.1" }
+
+---
+"statistics in buckets_path":
+  - skip:
+      version: " - 3.9.99"
+      reason: "string_stats aggregation added in 3.10.0"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            by_host:
+              terms:
+                field: host
+              aggs:
+                domain_shape:
+                  string_stats:
+                    field: domain
+            most_random:
+              max_bucket:
+                buckets_path: "by_host>domain_shape.entropy"
+            longest:
+              max_bucket:
+                buckets_path: "by_host>domain_shape.max_length"
+
+  - match: { aggregations.most_random.keys: ["10.0.0.1"] }
+  - gte: { aggregations.most_random.value: 4.0603 }
+  - match: { aggregations.longest.keys: ["10.0.0.1"] }
+  - match: { aggregations.longest.value: 15 }
+
+---
+"missing value":
+  - skip:
+      version: " - 3.9.99"
+      reason: "string_stats aggregation added in 3.10.0"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            shape:
+              string_stats:
+                field: domain
+                missing: "n/a"
+
+  # the sixth document has no domain, and the three characters of the value that stands in for it count for it
+  - match: { aggregations.shape.count: 6 }
+  - match: { aggregations.shape.min_length: 3 }
+  - match: { aggregations.shape.max_length: 15 }
+
+---
+"no documents":
+  - skip:
+      version: " - 3.9.99"
+      reason: "string_stats aggregation added in 3.10.0"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          query:
+            term:
+              host: "no-such-host"
+          aggs:
+            shape:
+              string_stats:
+                field: domain
+            shape_with_distribution:
+              string_stats:
+                field: domain
+                show_distribution: true
+
+  - match: { hits.total: 0 }
+  - match: { aggregations.shape.count: 0 }
+  - match: { aggregations.shape.min_length: null }
+  - match: { aggregations.shape.max_length: null }
+  - match: { aggregations.shape.avg_length: null }
+  - match: { aggregations.shape.entropy: null }
+  - is_false: aggregations.shape.distribution
+  - match: { aggregations.shape_with_distribution.count: 0 }
+  - match: { aggregations.shape_with_distribution.entropy: null }
+  - match: { aggregations.shape_with_distribution.distribution: null }
+
+---
+"unmapped field":
+  - skip:
+      version: " - 3.9.99"
+      reason: "string_stats aggregation added in 3.10.0"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            shape:
+              string_stats:
+                field: no_such_field
+
+  - match: { hits.total: 6 }
+  - match: { aggregations.shape.count: 0 }
+  - match: { aggregations.shape.entropy: null }
+
+---
+"typed keys":
+  - skip:
+      version: " - 3.9.99"
+      reason: "string_stats aggregation added in 3.10.0"
+
+  - do:
+      search:
+        typed_keys: true
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          query:
+            term:
+              host: "10.0.0.1"
+          aggs:
+            shape:
+              string_stats:
+                field: domain
+
+  - match: { aggregations.string_stats#shape.count: 3 }
+  - match: { aggregations.string_stats#shape.max_length: 15 }
+
+---
+"bad arguments":
+  - skip:
+      version: " - 3.9.99"
+      reason: "string_stats aggregation added in 3.10.0"
+
+  # the values are strings, so there is no format for them
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            shape:
+              string_stats:
+                field: domain
+                format: "0.0"
+
+  - match: { status: 400 }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            shape:
+              string_stats:
+                field: domain
+                show_distribution: "maybe"
+
+  - match: { status: 400 }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            shape:
+              string_stats:
+                field: domain
+                show_distributions: true
+
+  - match: { status: 400 }
+
+  # numbers are not strings
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            shape:
+              string_stats:
+                field: number
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.reason: '/Field\s+\[number\]\s+of\s+type\s+\[long\]\s+is\s+not\s+supported\s+for\s+aggregation\s+\[string_stats\]/' }
+
+---
+"unknown statistic":
+  - skip:
+      version: " - 3.9.99"
+      reason: "string_stats aggregation added in 3.10.0"
+
+  # the distribution is not a number, so it can not be used to order buckets, and neither can a name that is not a statistic
+  - do:
+      catch: /Unknown metric name \[bogus\] on multi-value metrics aggregation \[shape\]/
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            by_host:
+              terms:
+                field: host
+                order:
+                  shape.bogus: desc
+              aggs:
+                shape:
+                  string_stats:
+                    field: domain
+
+  - do:
+      catch: /Unknown metric name \[distribution\] on multi-value metrics aggregation \[shape\]/
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            by_host:
+              terms:
+                field: host
+                order:
+                  shape.distribution: desc
+              aggs:
+                shape:
+                  string_stats:
+                    field: domain
+                    show_distribution: true
+
+  - do:
+      catch: /Unknown value \[bogus\] in string_stats aggregation, expected one of \[count, min_length, max_length, avg_length, entropy\]/
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            by_host:
+              terms:
+                field: host
+              aggs:
+                shape:
+                  string_stats:
+                    field: domain
+            top:
+              max_bucket:
+                buckets_path: "by_host>shape.bogus"

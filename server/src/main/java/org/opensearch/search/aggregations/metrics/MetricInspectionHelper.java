@@ -69,6 +69,13 @@ public class MetricInspectionHelper {
         return agg.aggregationsList().size() > 0;
     }
 
+    /**
+     * @return whether the string_stats aggregation was computed from at least one value
+     */
+    public static boolean hasValue(InternalStringStats agg) {
+        return agg.getCount() > 0;
+    }
+
     public static boolean hasValue(InternalTDigestPercentileRanks agg) {
         return agg.getState().size() > 0;
     }

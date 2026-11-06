@@ -83,6 +83,7 @@ import org.opensearch.search.aggregations.metrics.InternalMinTests;
 import org.opensearch.search.aggregations.metrics.InternalScriptedMetricTests;
 import org.opensearch.search.aggregations.metrics.InternalStatsBucketTests;
 import org.opensearch.search.aggregations.metrics.InternalStatsTests;
+import org.opensearch.search.aggregations.metrics.InternalStringStatsTests;
 import org.opensearch.search.aggregations.metrics.InternalSumTests;
 import org.opensearch.search.aggregations.metrics.InternalTDigestPercentilesRanksTests;
 import org.opensearch.search.aggregations.metrics.InternalTDigestPercentilesTests;
@@ -163,6 +164,7 @@ public class AggregationsTests extends OpenSearchTestCase {
         new SignificantStringTermsTests(),
         new InternalScriptedMetricTests(),
         new InternalBinaryRangeTests(),
+        new InternalStringStatsTests(),
         new InternalTopHitsTests(),
         new InternalCompositeTests(),
         new InternalMedianAbsoluteDeviationTests(),
@@ -241,6 +243,9 @@ public class AggregationsTests extends OpenSearchTestCase {
              *
              * - we cannot insert into ExtendedMatrixStats "covariance" or "correlation" fields, their syntax is strict
              *
+             * - we cannot insert into the "distribution" of string_stats, its keys are the characters of the values and every value
+             * in it needs to be a number
+             *
              * - we cannot insert random values in top_hits, as all unknown fields
              * on a root level of SearchHit are interpreted as meta-fields and will be kept
              *
@@ -253,6 +258,7 @@ public class AggregationsTests extends OpenSearchTestCase {
                 || path.endsWith(CommonFields.VALUES.getPreferredName())
                 || path.endsWith("covariance")
                 || path.endsWith("correlation")
+                || path.endsWith("distribution")
                 || path.contains(CommonFields.VALUE.getPreferredName())
                 || path.endsWith(CommonFields.KEY.getPreferredName())) || path.contains("top_hits");
             mutated = insertRandomFields(mediaType, originalBytes, excludes, random());

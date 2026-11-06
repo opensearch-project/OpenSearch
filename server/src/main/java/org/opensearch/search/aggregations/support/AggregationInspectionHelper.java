@@ -61,6 +61,7 @@ import org.opensearch.search.aggregations.metrics.InternalMedianAbsoluteDeviatio
 import org.opensearch.search.aggregations.metrics.InternalMin;
 import org.opensearch.search.aggregations.metrics.InternalScriptedMetric;
 import org.opensearch.search.aggregations.metrics.InternalStats;
+import org.opensearch.search.aggregations.metrics.InternalStringStats;
 import org.opensearch.search.aggregations.metrics.InternalSum;
 import org.opensearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
 import org.opensearch.search.aggregations.metrics.InternalTDigestPercentiles;
@@ -215,6 +216,13 @@ public class AggregationInspectionHelper {
 
     public static boolean hasValue(InternalStats agg) {
         return agg.getCount() > 0;
+    }
+
+    /**
+     * @return whether the string_stats aggregation was computed from at least one value
+     */
+    public static boolean hasValue(InternalStringStats agg) {
+        return MetricInspectionHelper.hasValue(agg);
     }
 
     public static boolean hasValue(InternalTDigestPercentileRanks agg) {
