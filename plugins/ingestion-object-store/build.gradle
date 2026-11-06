@@ -15,8 +15,8 @@ opensearchplugin {
 }
 
 versions << [
-  'docker': '3.3.6',
-  'testcontainers': '1.19.7',
+  'docker': '3.4.0',
+  'testcontainers': '1.20.4',
   'ducttape': '1.0.8',
 ]
 
@@ -41,6 +41,8 @@ configurations.named("internalClusterTestRuntimeClasspath").configure {
     force "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
     force "org.slf4j:slf4j-api:${versions.slf4j}"
     force "net.java.dev.jna:jna:${versions.jna}"
+    force "org.apache.commons:commons-compress:${versions.commonscompress}"
+    force "commons-codec:commons-codec:${versions.commonscodec}"
   }
 }
 
@@ -50,6 +52,9 @@ configurations.named("internalClusterTestCompileClasspath").configure {
     force "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
     force "org.slf4j:slf4j-api:${versions.slf4j}"
     force "net.java.dev.jna:jna:${versions.jna}"
+    force "org.apache.commons:commons-compress:${versions.commonscompress}"
+    force "org.apache.commons:commons-codec:${versions.commonscompress}"
+    force "commons-codec:commons-codec:${versions.commonscodec}"
   }
 }
 
