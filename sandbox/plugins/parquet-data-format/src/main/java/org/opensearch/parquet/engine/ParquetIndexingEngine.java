@@ -25,6 +25,7 @@ import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
+import org.opensearch.parquet.ParquetFieldCodecs;
 import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.NativeSettings;
 import org.opensearch.parquet.bridge.RustBridge;
@@ -81,6 +82,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private Supplier<Schema> schemaSupplier;
     private Supplier<Long> mappingVersionSupplier;
     private final Supplier<Set<String>> lowCardinalityFieldsSupplier;
+    private final Supplier<ParquetFieldCodecs.FieldStorageConfig> fieldStorageSupplier;
     private volatile long cachedSchemaVersion = -1;
     private volatile Schema cachedSchema;
     private final ArrowBufferPool bufferPool;
@@ -154,11 +156,47 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         FormatChecksumStrategy checksumStrategy,
         ArrowNativeAllocator nativeAllocator
     ) {
+        this(
+            settings,
+            dataFormat,
+            shardPath,
+            schemaSupplier,
+            mappingVersionSupplier,
+            lowCardinalityFieldsSupplier,
+            () -> ParquetFieldCodecs.FieldStorageConfig.fromSettings(indexSettings.getSettings()),
+            indexSettings,
+            threadPool,
+            checksumStrategy,
+            nativeAllocator
+        );
+    }
+
+    /**
+     * Creates a new ParquetIndexingEngine whose per-field column configuration is resolved by the given supplier.
+     *
+     * @param fieldStorageSupplier supplier of the effective per-field encoding, compression and bloom filter
+     *                             configuration (mapping {@code codec}/{@code bloom_filter} parameters merged over
+     *                             the deprecated per-field index settings); see {@link ParquetFieldCodecs#resolve}
+     */
+    public ParquetIndexingEngine(
+        Settings settings,
+        ParquetDataFormat dataFormat,
+        ShardPath shardPath,
+        Supplier<Schema> schemaSupplier,
+        Supplier<Long> mappingVersionSupplier,
+        Supplier<Set<String>> lowCardinalityFieldsSupplier,
+        Supplier<ParquetFieldCodecs.FieldStorageConfig> fieldStorageSupplier,
+        IndexSettings indexSettings,
+        ThreadPool threadPool,
+        FormatChecksumStrategy checksumStrategy,
+        ArrowNativeAllocator nativeAllocator
+    ) {
         this.dataFormat = dataFormat;
         this.shardPath = shardPath;
         this.schemaSupplier = schemaSupplier;
         this.mappingVersionSupplier = mappingVersionSupplier;
         this.lowCardinalityFieldsSupplier = lowCardinalityFieldsSupplier;
+        this.fieldStorageSupplier = fieldStorageSupplier;
         this.bufferPool = new ArrowBufferPool(settings, nativeAllocator);
         this.indexSettings = indexSettings;
         this.nodeSettings = settings;
@@ -215,6 +253,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     private void pushSettingsToRust() {
         Settings settings = indexSettings.getSettings();
+        // Mapping-level codec/bloom_filter parameters merged over the deprecated per-field index settings.
+        ParquetFieldCodecs.FieldStorageConfig fieldStorage = fieldStorageSupplier.get();
         NativeSettings config = NativeSettings.builder()
             .indexName(indexSettings.getIndex().getName())
             .compressionType(ParquetSettings.COMPRESSION_TYPE.get(settings))
@@ -232,9 +272,9 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             .mergeDeferredColumnThreshold(ParquetSettings.MERGE_DEFERRED_COLUMN_THRESHOLD.get(settings))
             .mergeRayonThreads(ParquetSettings.MERGE_RAYON_THREADS.get(nodeSettings))
             .mergeIoThreads(ParquetSettings.MERGE_IO_THREADS.get(nodeSettings))
-            .fieldEncodings(ParquetSettings.getFieldEncodings(settings))
-            .fieldCompressions(ParquetSettings.getFieldCompressions(settings))
-            .fieldBloomFilterEnabled(ParquetSettings.getFieldBloomFilterEnabled(settings))
+            .fieldEncodings(fieldStorage.encodings())
+            .fieldCompressions(fieldStorage.compressions())
+            .fieldBloomFilterEnabled(fieldStorage.bloomFilterEnabled())
             .lowCardinalityEnabledFields(lowCardinalityFieldsSupplier.get())
             .typeEncodings(ParquetSettings.getTypeEncodings(nodeSettings))
             .typeCompressions(ParquetSettings.getTypeCompressions(nodeSettings))
