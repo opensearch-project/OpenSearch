@@ -68,6 +68,7 @@ import java.util.stream.IntStream;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -304,6 +305,240 @@ public class Netty4HttpPipeliningHandlerTests extends OpenSearchTestCase {
         } finally {
             channel.finishAndReleaseAll();
         }
+    }
+
+    public void testPendingResponseIsReleasedOnHandlerRemoval() {
+        final Netty4HttpPipeliningHandler handler = new Netty4HttpPipeliningHandler(logger, 3);
+        final EmbeddedChannel channel = new EmbeddedChannel(handler);
+        final Netty4HttpResponse response = newResponse();
+        final ChannelPromise promise = channel.newPromise();
+        try {
+            channel.writeAndFlush(new HttpPipelinedResponse(1, response), promise);
+            assertFalse(promise.isDone());
+            channel.pipeline().remove(handler);
+            assertTrue("Removing the owner must complete pending responses", promise.isDone());
+            assertTrue(promise.cause() instanceof ClosedChannelException);
+            assertEquals(0, response.refCnt());
+        } finally {
+            channel.finishAndReleaseAll();
+            if (response.refCnt() > 0) {
+                response.release();
+            }
+        }
+    }
+
+    public void testCloseFutureReleasesResponsesWhenInactiveIsSwallowed() {
+        final EmbeddedChannel channel = new EmbeddedChannel(new ChannelInboundHandlerAdapter() {
+            @Override
+            public void channelInactive(ChannelHandlerContext ctx) {
+                // A preceding handler does not propagate this event.
+            }
+        }, new Netty4HttpPipeliningHandler(logger, 3));
+        final Netty4HttpResponse response = newResponse();
+        final ChannelPromise promise = channel.newPromise();
+        try {
+            channel.writeAndFlush(new HttpPipelinedResponse(1, response), promise);
+            channel.unsafe().close(channel.newPromise());
+            channel.runPendingTasks();
+            assertTrue("The owner must be bound to transport closure", promise.isDone());
+            assertTrue(promise.cause() instanceof ClosedChannelException);
+            assertEquals(0, response.refCnt());
+        } finally {
+            channel.finishAndReleaseAll();
+            if (response.refCnt() > 0) {
+                response.release();
+            }
+        }
+    }
+
+    public void testReentrantResponseDuringCloseIsRejected() {
+        final EmbeddedChannel channel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, 3));
+        final Netty4HttpResponse first = newResponse();
+        final Netty4HttpResponse reentrant = newResponse();
+        final ChannelPromise firstPromise = channel.newPromise();
+        final ChannelPromise reentrantPromise = channel.newPromise();
+        firstPromise.addListener(future -> channel.writeAndFlush(new HttpPipelinedResponse(2, reentrant), reentrantPromise));
+        try {
+            channel.writeAndFlush(new HttpPipelinedResponse(1, first), firstPromise);
+            channel.close();
+            channel.runPendingTasks();
+            assertTrue(firstPromise.cause() instanceof ClosedChannelException);
+            assertTrue(reentrantPromise.cause() instanceof ClosedChannelException);
+            assertEquals("Queued buffers must be released before completing their promises", 0, first.refCnt());
+            assertEquals(0, reentrant.refCnt());
+        } finally {
+            channel.finishAndReleaseAll();
+            if (first.refCnt() > 0) {
+                first.release();
+            }
+            if (reentrant.refCnt() > 0) {
+                reentrant.release();
+            }
+        }
+    }
+
+    public void testCompletionCannotCancelAnOwnedResponse() {
+        final EmbeddedChannel channel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, 3));
+        final Netty4HttpResponse response = newResponse();
+        final ChannelPromise promise = channel.newPromise();
+        try {
+            channel.writeAndFlush(new HttpPipelinedResponse(1, response), promise);
+            assertFalse("Cancellation must not release buffers still owned by the queue", promise.cancel(false));
+            assertFalse(promise.isDone());
+            assertEquals(1, response.refCnt());
+            channel.close();
+            assertEquals(0, response.refCnt());
+            assertTrue(promise.cause() instanceof ClosedChannelException);
+        } finally {
+            channel.finishAndReleaseAll();
+            if (response.refCnt() > 0) {
+                response.release();
+            }
+        }
+    }
+
+    public void testReentrantWritesPreserveResponseOrder() {
+        final Netty4HttpResponse first = newResponse();
+        final Netty4HttpResponse second = newResponse();
+        final EmbeddedChannel channel = new EmbeddedChannel(new ChannelOutboundHandlerAdapter() {
+            @Override
+            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
+                if (msg == first) {
+                    ctx.channel().write(new HttpPipelinedResponse(1, second));
+                }
+                ctx.write(msg, promise);
+            }
+        }, new Netty4HttpPipeliningHandler(logger, 3));
+        try {
+            channel.writeAndFlush(new HttpPipelinedResponse(0, first));
+            assertSame(first, channel.outboundMessages().poll());
+            assertSame(second, channel.outboundMessages().poll());
+            assertNull(channel.readOutbound());
+        } finally {
+            channel.outboundMessages().clear();
+            channel.finishAndReleaseAll();
+            first.release();
+            second.release();
+        }
+    }
+
+    public void testReadyResponseCanDrainAFullQueue() {
+        final EmbeddedChannel channel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, 1));
+        final Netty4HttpResponse first = newResponse();
+        final Netty4HttpResponse second = newResponse();
+        try {
+            channel.writeAndFlush(new HttpPipelinedResponse(1, second));
+            channel.writeAndFlush(new HttpPipelinedResponse(0, first));
+            assertTrue("A ready response does not consume a holding slot", channel.isActive());
+            assertSame(first, channel.outboundMessages().poll());
+            assertSame(second, channel.outboundMessages().poll());
+        } finally {
+            channel.outboundMessages().clear();
+            channel.finishAndReleaseAll();
+            if (first.refCnt() > 0) {
+                first.release();
+            }
+            if (second.refCnt() > 0) {
+                second.release();
+            }
+        }
+    }
+
+    public void testOverflowReleasesAllOwnedResponses() {
+        final EmbeddedChannel channel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, 1));
+        final Netty4HttpResponse first = newResponse();
+        final Netty4HttpResponse second = newResponse();
+        final ChannelPromise firstPromise = channel.newPromise();
+        final ChannelPromise secondPromise = channel.newPromise();
+        try {
+            channel.writeAndFlush(new HttpPipelinedResponse(1, first), firstPromise);
+            channel.writeAndFlush(new HttpPipelinedResponse(2, second), secondPromise);
+            assertFalse(channel.isOpen());
+            assertTrue(firstPromise.cause() instanceof ClosedChannelException);
+            assertTrue(secondPromise.cause() instanceof ClosedChannelException);
+            assertEquals(0, first.refCnt());
+            assertEquals(0, second.refCnt());
+        } finally {
+            channel.finishAndReleaseAll();
+            if (first.refCnt() > 0) {
+                first.release();
+            }
+            if (second.refCnt() > 0) {
+                second.release();
+            }
+        }
+    }
+
+    public void testHandoffTransfersBufferOwnershipToNetty() {
+        final EmbeddedChannel channel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, 3));
+        final Netty4HttpResponse response = newResponse();
+        final ChannelPromise promise = channel.newPromise();
+        try {
+            channel.writeAndFlush(new HttpPipelinedResponse(0, response), promise);
+            assertTrue(promise.isSuccess());
+            channel.close();
+            assertEquals("The outbound transport still owns the written buffer", 1, response.refCnt());
+            assertSame(response, channel.readOutbound());
+        } finally {
+            channel.outboundMessages().clear();
+            channel.finishAndReleaseAll();
+            response.release();
+        }
+    }
+
+    public void testNonPositiveLimitRejectsResponses() {
+        for (int limit : new int[] { 0, -1 }) {
+            final EmbeddedChannel channel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, limit));
+            final Netty4HttpResponse response = newResponse();
+            final ChannelPromise promise = channel.newPromise();
+            try {
+                channel.writeAndFlush(new HttpPipelinedResponse(0, response), promise);
+                assertFalse(channel.isOpen());
+                assertTrue(promise.cause() instanceof ClosedChannelException);
+                assertEquals(0, response.refCnt());
+            } finally {
+                channel.finishAndReleaseAll();
+                if (response.refCnt() > 0) {
+                    response.release();
+                }
+            }
+        }
+    }
+
+    public void testRemovalDuringHandoffReleasesOnlyQueuedResponses() {
+        final Netty4HttpPipeliningHandler handler = new Netty4HttpPipeliningHandler(logger, 3);
+        final Netty4HttpResponse first = newResponse();
+        final Netty4HttpResponse second = newResponse();
+        final EmbeddedChannel channel = new EmbeddedChannel(new ChannelOutboundHandlerAdapter() {
+            @Override
+            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
+                ctx.pipeline().remove(handler);
+                ctx.write(msg, promise);
+            }
+        }, handler);
+        final ChannelPromise secondPromise = channel.newPromise();
+        try {
+            channel.writeAndFlush(new HttpPipelinedResponse(1, second), secondPromise);
+            channel.writeAndFlush(new HttpPipelinedResponse(0, first));
+            assertTrue(secondPromise.cause() instanceof ClosedChannelException);
+            assertEquals(0, second.refCnt());
+            assertEquals(1, first.refCnt());
+            assertSame(first, channel.readOutbound());
+            assertNull(channel.readOutbound());
+        } finally {
+            channel.outboundMessages().clear();
+            channel.finishAndReleaseAll();
+            if (first.refCnt() > 0) {
+                first.release();
+            }
+            if (second.refCnt() > 0) {
+                second.release();
+            }
+        }
+    }
+
+    private static Netty4HttpResponse newResponse() {
+        return new Netty4HttpResponse(EmptyHttpHeaders.INSTANCE, HTTP_1_1, RestStatus.OK, new BytesArray("response"));
     }
 
     private void assertPipeliningResponsesAreReleased(Consumer<EmbeddedChannel> closeChannel) {
