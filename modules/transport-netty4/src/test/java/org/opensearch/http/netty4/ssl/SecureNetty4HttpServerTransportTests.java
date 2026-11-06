@@ -9,6 +9,7 @@
 package org.opensearch.http.netty4.ssl;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
@@ -28,6 +29,7 @@ import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.http.NullDispatcher;
 import org.opensearch.http.netty4.Netty4HttpClient;
+import org.opensearch.http.netty4.Netty4HttpRawClient;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.plugins.TransportExceptionHandler;
 import org.opensearch.rest.BytesRestResponse;
@@ -41,27 +43,40 @@ import org.junit.After;
 import org.junit.Before;
 
 import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 
 import java.io.IOException;
+import java.net.Socket;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerAdapter;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.DuplexChannel;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.TooLongFrameException;
@@ -207,6 +222,105 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
     public void testExpectUnsupportedExpectation() throws InterruptedException {
         Settings settings = createSettings();
         runExpectHeaderTest(settings, "chocolate=yummy", 0, HttpResponseStatus.EXPECTATION_FAILED);
+    }
+
+    public void testTerminalRejectionClosesTls12ThenTcpAndDrainsCiphertext() throws Exception {
+        assertTerminalRejectionClosesTlsThenTcpAndDrainsCiphertext("TLSv1.2");
+    }
+
+    public void testTerminalRejectionClosesTls13ThenTcpAndDrainsCiphertext() throws Exception {
+        assertTerminalRejectionClosesTlsThenTcpAndDrainsCiphertext("TLSv1.3");
+    }
+
+    @SuppressForbidden(reason = "A raw socket distinguishes TLS close_notify from TCP EOF and sends ciphertext during draining")
+    private void assertTerminalRejectionClosesTlsThenTcpAndDrainsCiphertext(String protocol) throws Exception {
+        final int limit = 1024;
+        final Settings settings = createBuilderWithPort().put("http.host", "127.0.0.1")
+            .put(HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(), limit + "b")
+            .build();
+        final AtomicInteger dispatched = new AtomicInteger();
+        final AtomicBoolean observingDrain = new AtomicBoolean();
+        final AtomicInteger ciphertextForwardedToTls = new AtomicInteger();
+        final CompletableFuture<Channel> accepted = new CompletableFuture<>();
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
+            (request, channel, context) -> dispatched.incrementAndGet()
+        ).build();
+        final FipsAwareSslProvider<SSLContext> clientContextProvider = (keyStoreType, extension, jcaProvider, jsseProvider) -> {
+            try {
+                final SSLContext context = SSLContext.getInstance("TLS", jsseProvider);
+                context.init(null, InsecureTrustManagerFactory.INSTANCE.getTrustManagers(), null);
+                return context;
+            } catch (GeneralSecurityException e) {
+                throw new AssertionError("Cannot create the TLS client context", e);
+            }
+        };
+        try (
+            SecureNetty4HttpServerTransport transport = new SecureNetty4HttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                clusterSettings,
+                new SharedGroupFactory(settings),
+                secureHttpTransportSettingsProvider,
+                NoopTracer.INSTANCE
+            ) {
+                @Override
+                public ChannelHandler configureServerChannelHandler() {
+                    return new SslHttpChannelHandler(this, handlingSettings) {
+                        @Override
+                        protected void initChannel(Channel channel) throws Exception {
+                            super.initChannel(channel);
+                            channel.pipeline().addBefore("ssl_http", "tls_input_observer", new ChannelInboundHandlerAdapter() {
+                                @Override
+                                public void channelRead(ChannelHandlerContext ctx, Object msg) {
+                                    if (observingDrain.get()) {
+                                        ciphertextForwardedToTls.addAndGet(((ByteBuf) msg).readableBytes());
+                                    }
+                                    ctx.fireChannelRead(msg);
+                                }
+                            });
+                            accepted.complete(channel);
+                        }
+                    };
+                }
+            };
+            Socket socket = new Socket()
+        ) {
+            transport.start();
+            socket.connect(Netty4HttpRawClient.ipv4Address(transport.boundAddress().boundAddresses()), 10_000);
+            socket.setSoTimeout(10_000);
+            final SSLEngine engine = clientContextProvider.create().createSSLEngine();
+            engine.setUseClientMode(true);
+            engine.setEnabledProtocols(new String[] { protocol });
+            final Netty4HttpRawTlsClient client = new Netty4HttpRawTlsClient(engine, socket);
+            client.handshake();
+            final byte[] request = new Netty4HttpRawClient.RequestBuilder("POST", "/").rawBody(new byte[2 * limit]).chunked(true).bytes();
+            client.writeEncrypted(client.encrypt(request));
+            // Encrypt the remainder before receiving close_notify; a TLS engine may stop wrapping once the peer closes.
+            final byte[] trailingCiphertext = client.encrypt(new byte[4 * limit]);
+            final String response = new String(client.readUntilCloseNotify(), StandardCharsets.US_ASCII).toLowerCase(Locale.ROOT);
+            assertTrue(response.startsWith("http/1.1 413 "));
+            assertThat(response, containsString("\r\nconnection: close\r\n"));
+            assertThat(response, containsString("\r\ncontent-length: 0\r\n"));
+            assertTrue(response.endsWith("\r\n\r\n"));
+            assertEquals("TCP FIN must follow the authenticated TLS close_notify", -1, socket.getInputStream().read());
+
+            final Channel serverChannel = accepted.get(10, TimeUnit.SECONDS);
+            serverChannel.eventLoop().submit(() -> {
+                assertTrue(serverChannel.isActive());
+                assertTrue(((DuplexChannel) serverChannel).isOutputShutdown());
+                assertNotNull(serverChannel.pipeline().get("http_rejection"));
+                observingDrain.set(true);
+            }).get(10, TimeUnit.SECONDS);
+            client.writeEncrypted(trailingCiphertext);
+            socket.shutdownOutput();
+            assertTrue(serverChannel.closeFuture().await(10, TimeUnit.SECONDS));
+            assertEquals("Remaining ciphertext must be discarded before TLS decryption", 0, ciphertextForwardedToTls.get());
+            assertEquals(0, dispatched.get());
+        }
     }
 
     private void runExpectHeaderTest(

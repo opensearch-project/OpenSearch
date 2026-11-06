@@ -385,8 +385,7 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
             final String length = Integer.toString(request.content().length());
             channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray(length)));
         }).build();
-        final TestTransport transport = new TestTransport(settings, dispatcher);
-        transport.rejectionTimeouts = timeouts;
+        final TestTransport transport = new TestTransport(settings, dispatcher, timeouts);
         transport.start();
         return transport;
     }
@@ -399,7 +398,7 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
         final ResponseHold hold = new ResponseHold();
         final CountDownLatch decoderFailure = new CountDownLatch(1);
 
-        TestTransport(Settings settings, Dispatcher dispatcher) {
+        TestTransport(Settings settings, Dispatcher dispatcher, Netty4HttpRejectionHandler.Timeouts timeouts) {
             super(
                 settings,
                 Netty4HttpOversizedRequestTests.this.networkService,
@@ -409,7 +408,8 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 new SharedGroupFactory(settings),
-                NoopTracer.INSTANCE
+                NoopTracer.INSTANCE,
+                timeouts
             );
         }
 

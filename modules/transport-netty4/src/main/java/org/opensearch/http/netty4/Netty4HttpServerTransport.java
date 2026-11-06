@@ -209,6 +209,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private final int readTimeoutMillis;
 
     private final int maxCompositeBufferComponents;
+    private final Netty4HttpRejectionHandler.Timeouts rejectionTimeouts;
 
     private volatile ServerBootstrap serverBootstrap;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
@@ -235,10 +236,37 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         SharedGroupFactory sharedGroupFactory,
         Tracer tracer
     ) {
+        this(
+            settings,
+            networkService,
+            bigArrays,
+            threadPool,
+            xContentRegistry,
+            dispatcher,
+            clusterSettings,
+            sharedGroupFactory,
+            tracer,
+            Netty4HttpRejectionHandler.Timeouts.DEFAULT
+        );
+    }
+
+    Netty4HttpServerTransport(
+        Settings settings,
+        NetworkService networkService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        NamedXContentRegistry xContentRegistry,
+        Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        SharedGroupFactory sharedGroupFactory,
+        Tracer tracer,
+        Netty4HttpRejectionHandler.Timeouts rejectionTimeouts
+    ) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings, tracer);
         Netty4Utils.setAvailableProcessors(OpenSearchExecutors.NODE_PROCESSORS_SETTING.get(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
+        this.rejectionTimeouts = rejectionTimeouts;
 
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
@@ -609,12 +637,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         }
     }
 
-    /**
-     * Extension point that allows a NetworkPlugin to extend the netty pipeline and inspect headers after request decoding
-     */
-    /** Bounds of the handling of oversized requests; only changed by tests. */
-    volatile Netty4HttpRejectionHandler.Timeouts rejectionTimeouts = Netty4HttpRejectionHandler.Timeouts.DEFAULT;
-
     Netty4HttpObjectAggregator createHttpObjectAggregator(HttpHandlingSettings handlingSettings) {
         return new Netty4HttpObjectAggregator(
             handlingSettings.getMaxContentLength(),
@@ -624,6 +646,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         );
     }
 
+    /**
+     * Extension point that allows a NetworkPlugin to extend the netty pipeline and inspect headers after request decoding
+     */
     protected ChannelInboundHandlerAdapter createHeaderVerifier() {
         // pass-through
         return new ChannelInboundHandlerAdapter();
