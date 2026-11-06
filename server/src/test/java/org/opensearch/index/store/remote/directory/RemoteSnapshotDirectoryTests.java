@@ -10,6 +10,7 @@ package org.opensearch.index.store.remote.directory;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -29,8 +30,18 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
@@ -82,6 +93,168 @@ public class RemoteSnapshotDirectoryTests extends OpenSearchTestCase {
         assertArrayEquals(content, readBack);
         input.close();
         dir.close();
+    }
+
+    public void testListAllWaitsForSnapshotLoad() throws Exception {
+        CompletableFuture<RemoteSnapshotDirectory.RemoteState> remoteState = new CompletableFuture<>();
+        RemoteSnapshotDirectory dir = new RemoteSnapshotDirectory(remoteState, fsDirectory);
+
+        assertWaitsUntilCompleted(remoteState, remoteState(1024), () -> assertArrayEquals(new String[] { FILE_NAME }, dir.listAll()));
+        dir.close();
+    }
+
+    public void testFileLengthWaitsForSnapshotLoad() throws Exception {
+        CompletableFuture<RemoteSnapshotDirectory.RemoteState> remoteState = new CompletableFuture<>();
+        RemoteSnapshotDirectory dir = new RemoteSnapshotDirectory(remoteState, fsDirectory);
+
+        assertWaitsUntilCompleted(remoteState, remoteState(1024), () -> assertEquals(1024, dir.fileLength(FILE_NAME)));
+        dir.close();
+    }
+
+    public void testOpenInputWaitsForSnapshotLoad() throws Exception {
+        initBlockFile(1024);
+        CompletableFuture<RemoteSnapshotDirectory.RemoteState> remoteState = new CompletableFuture<>();
+        RemoteSnapshotDirectory dir = new RemoteSnapshotDirectory(remoteState, fsDirectory);
+
+        assertWaitsUntilCompleted(remoteState, remoteState(1024), () -> {
+            try (IndexInput input = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
+                assertTrue(input instanceof OnDemandBlockSnapshotIndexInput);
+                assertEquals(1024, input.length());
+            }
+        });
+        dir.close();
+    }
+
+    public void testFailedSnapshotLoadSurfacesOnFirstUse() throws IOException {
+        CompletableFuture<RemoteSnapshotDirectory.RemoteState> remoteState = new CompletableFuture<>();
+        RemoteSnapshotDirectory dir = new RemoteSnapshotDirectory(remoteState, fsDirectory);
+        IOException cause = new IOException("snap-uuid.dat not found");
+        remoteState.completeExceptionally(cause);
+
+        IOException e = expectThrows(IOException.class, dir::listAll);
+        assertSame(cause, e.getCause());
+        dir.close();
+    }
+
+    public void testFailedSnapshotLoadWithoutCauseKeepsExecutionException() throws Exception {
+        // a Future that fails with an ExecutionException that has no cause
+        FutureTask<RemoteSnapshotDirectory.RemoteState> task = new FutureTask<>(() -> remoteState(1024)) {
+            @Override
+            public RemoteSnapshotDirectory.RemoteState get() throws ExecutionException {
+                throw new ExecutionException(null);
+            }
+        };
+        RemoteSnapshotDirectory dir = new RemoteSnapshotDirectory(task, fsDirectory);
+
+        IOException e = expectThrows(IOException.class, dir::listAll);
+        assertTrue(e.getCause() instanceof ExecutionException);
+        dir.close();
+    }
+
+    public void testUnknownFileThrowsNoSuchFileException() throws IOException {
+        RemoteSnapshotDirectory dir = new RemoteSnapshotDirectory(CompletableFuture.completedFuture(remoteState(1024)), fsDirectory);
+
+        NoSuchFileException openInput = expectThrows(NoSuchFileException.class, () -> dir.openInput("unknown", IOContext.DEFAULT));
+        assertEquals("unknown", openInput.getFile());
+        NoSuchFileException fileLength = expectThrows(NoSuchFileException.class, () -> dir.fileLength("unknown"));
+        assertEquals("unknown", fileLength.getFile());
+        dir.close();
+    }
+
+    public void testInterruptWhileWaitingKeepsInterruptFlag() throws Exception {
+        RemoteSnapshotDirectory dir = new RemoteSnapshotDirectory(new CompletableFuture<>(), fsDirectory);
+        AtomicReference<Exception> thrown = new AtomicReference<>();
+        AtomicReference<Boolean> flagAfter = new AtomicReference<>();
+        Thread reader = new Thread(() -> {
+            try {
+                dir.listAll();
+            } catch (Exception e) {
+                thrown.set(e);
+                flagAfter.set(Thread.currentThread().isInterrupted());
+            }
+        });
+        reader.start();
+        assertBusy(() -> assertEquals(Thread.State.WAITING, reader.getState()));
+        reader.interrupt();
+        reader.join(10_000);
+
+        assertFalse(reader.isAlive());
+        assertTrue(thrown.get() instanceof InterruptedIOException);
+        assertEquals(Boolean.TRUE, flagAfter.get());
+        dir.close();
+    }
+
+    public void testSnapshotStateIsLoadedOnce() throws Exception {
+        AtomicInteger gets = new AtomicInteger();
+        CompletableFuture<RemoteSnapshotDirectory.RemoteState> remoteState = new CompletableFuture<>() {
+            @Override
+            public RemoteSnapshotDirectory.RemoteState get() throws InterruptedException, ExecutionException {
+                gets.incrementAndGet();
+                return super.get();
+            }
+        };
+        remoteState.complete(remoteState(1024));
+        RemoteSnapshotDirectory dir = new RemoteSnapshotDirectory(remoteState, fsDirectory);
+
+        dir.listAll();
+        dir.listAll();
+        dir.fileLength(FILE_NAME);
+        assertEquals(1, gets.get());
+        dir.close();
+    }
+
+    public void testCloseCancelsPendingSnapshotLoad() throws IOException {
+        CompletableFuture<RemoteSnapshotDirectory.RemoteState> remoteState = new CompletableFuture<>();
+        RemoteSnapshotDirectory dir = new RemoteSnapshotDirectory(remoteState, fsDirectory);
+        dir.close();
+        assertTrue(remoteState.isCancelled());
+    }
+
+    public void testUseAfterCloseOfPendingSnapshotLoadThrowsAlreadyClosed() throws IOException {
+        // a FutureTask that did not run, as the snapshot pool returns it
+        FutureTask<RemoteSnapshotDirectory.RemoteState> task = new FutureTask<>(() -> remoteState(1024));
+        RemoteSnapshotDirectory dir = new RemoteSnapshotDirectory(task, fsDirectory);
+        dir.close();
+
+        AlreadyClosedException e = expectThrows(AlreadyClosedException.class, dir::listAll);
+        assertTrue(e.getCause() instanceof CancellationException);
+    }
+
+    /** Runs the check on another thread, shows that it waits while the future is open, then completes the future. */
+    private void assertWaitsUntilCompleted(
+        CompletableFuture<RemoteSnapshotDirectory.RemoteState> future,
+        RemoteSnapshotDirectory.RemoteState state,
+        Check check
+    ) throws Exception {
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        CountDownLatch done = new CountDownLatch(1);
+        Thread reader = new Thread(() -> {
+            try {
+                check.run();
+            } catch (Throwable t) {
+                failure.set(t);
+            } finally {
+                done.countDown();
+            }
+        });
+        reader.start();
+        assertFalse("the call must wait for the shard snapshot", done.await(100, TimeUnit.MILLISECONDS));
+
+        future.complete(state);
+        assertTrue(done.await(10, TimeUnit.SECONDS));
+        reader.join();
+        assertNull(failure.get());
+    }
+
+    @FunctionalInterface
+    private interface Check {
+        void run() throws Exception;
+    }
+
+    private RemoteSnapshotDirectory.RemoteState remoteState(int size) {
+        FileInfo fileInfo = new FileInfo(FILE_NAME, new StoreFileMetadata(FILE_NAME, size, "", Version.LATEST), null);
+        BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot("snap", 1, Collections.singletonList(fileInfo), 0, 0, 0, 0);
+        return new RemoteSnapshotDirectory.RemoteState(snapshot, transferManager);
     }
 
     private RemoteSnapshotDirectory createDirectoryWithVirtualFile(byte[] content) {
