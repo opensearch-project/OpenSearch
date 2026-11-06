@@ -37,6 +37,7 @@ public class OSFlightClient {
         private Location location;
         private boolean forceTls = false;
         private int maxInboundMessageSize = OSFlightServer.MAX_GRPC_MESSAGE_SIZE;
+        private int flowControlWindow = 0;
         private InputStream trustedCertificates = null;
         private InputStream clientCertificate = null;
         private InputStream clientKey = null;
@@ -66,6 +67,16 @@ public class OSFlightClient {
         /** Override the hostname checked for TLS. Use with caution in production. */
         public Builder overrideHostname(final String hostname) {
             this.overrideHostname = hostname;
+            return this;
+        }
+
+        /**
+         * Set a fixed HTTP/2 flow-control window, in bytes, for this client's connection and streams.
+         * {@code 0} (the default) keeps gRPC's BDP auto-tuning.
+         */
+        public Builder flowControlWindow(int flowControlWindow) {
+            Preconditions.checkArgument(flowControlWindow >= 0, "flowControlWindow must be >= 0");
+            this.flowControlWindow = flowControlWindow;
             return this;
         }
 
@@ -219,6 +230,11 @@ public class OSFlightClient {
                 .maxInboundMessageSize(maxInboundMessageSize)
                 .maxInboundMetadataSize(maxInboundMessageSize)
                 .executor(executorService);
+
+            if (flowControlWindow > 0) {
+                // Fixed window; turns off BDP auto-tuning, whose ceiling is 8 MiB.
+                builder.flowControlWindow(flowControlWindow);
+            }
 
             if (channelType != null) {
                 builder.channelType(channelType);

@@ -368,6 +368,7 @@ class FlightTransport extends TcpTransport {
             .executor(clientExecutor)
             .intercept(factory)
             .grpcIntercept(new BufferReleasingClientInterceptor())
+            .flowControlWindow(Math.toIntExact(ServerConfig.FLIGHT_CLIENT_FLOW_CONTROL_WINDOW.get(settings).getBytes()))
             .build();
 
         try {
