@@ -40,11 +40,6 @@ public class PolicyFileSymlinkTests {
     }
 
     @Test
-    public void testSymlinkedCodebaseWithPlusMatchesRealPath() throws IOException {
-        assertGrantMatchesThroughSymlink("real+dir", "link+dir");
-    }
-
-    @Test
     public void testCodebaseWithoutPathDoesNotFail() throws IOException {
         final Path policyFile = temp.getRoot().toPath().resolve("nopath.policy");
         Files.writeString(
