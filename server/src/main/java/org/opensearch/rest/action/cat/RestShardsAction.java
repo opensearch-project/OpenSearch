@@ -205,6 +205,11 @@ public class RestShardsAction extends AbstractListAction {
      * Package-private for testing.
      */
     static boolean requestNeedsIndicesStats(RestRequest request) {
+        // With group_by / aggregate the rows and values come only from the group_by and aggregate columns; h, s and
+        // limit then select from, sort and cut that result, so they cannot add a need for stats.
+        if (TableSummarizer.isRequested(request)) {
+            return aggregationNeedsIndicesStats(request);
+        }
         // Non-consuming read: this runs pre-dispatch, and h is consumed later during response
         // rendering (buildDisplayHeaders). Matches the non-consuming access in RestTable.buildResponse.
         String hParam = request.params().get("h");
@@ -223,6 +228,34 @@ public class RestShardsAction extends AbstractListAction {
                 if (isRoutingOnlyToken(stripSortDirection(token)) == false) {
                     return true;
                 }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Stats are needed unless every group_by column and every column inside an aggregate is routing-only. A
+     * non-routing group_by column matters even when it is not displayed, because skipping stats would give it null
+     * values and merge groups. A request that cannot be parsed is treated as needing stats; it is rejected with a
+     * 400 later.
+     *
+     * Package-private for testing.
+     */
+    static boolean aggregationNeedsIndicesStats(RestRequest request) {
+        TableSummarizer.Spec spec;
+        try {
+            spec = TableSummarizer.parse(request);
+        } catch (IllegalArgumentException e) {
+            return true;
+        }
+        for (String column : spec.groupBy) {
+            if (isRoutingOnlyToken(column) == false) {
+                return true;
+            }
+        }
+        for (TableSummarizer.AggColumn aggregate : spec.aggregates) {
+            if (isRoutingOnlyToken(aggregate.field) == false) {
+                return true;
             }
         }
         return false;

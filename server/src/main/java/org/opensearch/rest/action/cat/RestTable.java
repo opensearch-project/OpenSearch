@@ -73,6 +73,19 @@ public class RestTable {
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {
         RestRequest request = channel.request();
+        // group_by / aggregate replace the table with its grouped and aggregated view. h, s and limit are
+        // then applied to that view like to any other table.
+        TableSummarizer.Spec summary = TableSummarizer.parse(request);
+        if (summary != null) {
+            if (table.getPageToken() != null) {
+                // A page is only part of the data, so aggregating it would silently produce wrong totals
+                throw new IllegalArgumentException("[group_by] and [aggregate] are not supported on paginated APIs");
+            }
+            table = TableSummarizer.summarize(table, summary);
+            // Non-consuming read: buildDisplayHeaders later calls request.param("h") to mark it
+            // consumed. Accessing the raw map here avoids reordering param-consumption semantics.
+            TableSummarizer.validateDisplayHeaders(table, request.params().get("h"));
+        }
         MediaType mediaType = getXContentType(request);
         if (mediaType != null) {
             return buildXContentBuilder(table, channel);
@@ -425,7 +438,8 @@ public class RestTable {
         }
     }
 
-    private static String renderValue(RestRequest request, Object value) {
+    // package-private for testing
+    static String renderValue(RestRequest request, Object value) {
         if (value == null) {
             return null;
         }
