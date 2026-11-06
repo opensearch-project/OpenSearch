@@ -150,7 +150,7 @@ public class PlannerImpl {
         // AnnotatedPredicates under OR/NOT (Lucene call buys nothing in those positions).
         modifiedRelNode = cbo(modifiedRelNode, rawRelNode, context, listener);
         RelNodeUtils.logPlan(LOGGER, "After CBO", modifiedRelNode);
-        Optional<RelNode> lateMat = OpenSearchLateMaterializationRewriter.rewrite(modifiedRelNode);
+        Optional<RelNode> lateMat = OpenSearchLateMaterializationRewriter.rewrite(modifiedRelNode, context);
         if (lateMat.isPresent()) {
             modifiedRelNode = lateMat.get();
             RelNodeUtils.logPlan(LOGGER, "After late-materialization", modifiedRelNode);
