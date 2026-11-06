@@ -33,15 +33,23 @@
 package org.opensearch.http.netty4;
 
 import org.opensearch.common.Randomness;
+import org.opensearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.http.HttpPipelinedRequest;
 import org.opensearch.http.HttpPipelinedResponse;
 import org.opensearch.http.HttpResponse;
+import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 
+import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -52,15 +60,19 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.EmptyHttpHeaders;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.QueryStringDecoder;
@@ -220,6 +232,114 @@ public class Netty4HttpPipeliningHandlerTests extends OpenSearchTestCase {
         for (ChannelPromise promise : promises) {
             assertTrue(promise.isDone());
             assertTrue(promise.cause() instanceof ClosedChannelException);
+        }
+    }
+
+    public void testPipeliningResponsesAreReleasedOnTransportClose() {
+        // A peer disconnect closes the transport without traversing outbound close handlers.
+        assertPipeliningResponsesAreReleased(channel -> channel.unsafe().close(channel.newPromise()));
+    }
+
+    public void testPipeliningResponsesAreReleasedOnUpstreamClose() {
+        // A decoder or timeout handler can close from a context before the pipelining handler.
+        assertPipeliningResponsesAreReleased(channel -> channel.pipeline().context(Netty4HttpPipeliningHandler.class).close());
+    }
+
+    public void testPipeliningResponseAfterTransportCloseIsRejected() {
+        final EmbeddedChannel channel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, 3));
+        final ChannelPromise promise = channel.newPromise();
+        channel.pipeline().addLast(new ChannelInboundHandlerAdapter() {
+            @Override
+            public void channelInactive(ChannelHandlerContext ctx) {
+                // An asynchronous response can arrive after the holding queue has been drained.
+                ctx.writeAndFlush(
+                    new HttpPipelinedResponse(
+                        1,
+                        new Netty4HttpResponse(EmptyHttpHeaders.INSTANCE, HTTP_1_1, RestStatus.OK, BytesArray.EMPTY)
+                    ),
+                    promise
+                );
+                ctx.fireChannelInactive();
+            }
+        });
+        try {
+            channel.unsafe().close(channel.newPromise());
+            channel.runPendingTasks();
+            assertTrue("A late response must not be queued on a closed channel", promise.isDone());
+            assertTrue(promise.cause() instanceof ClosedChannelException);
+        } finally {
+            channel.finishAndReleaseAll();
+        }
+    }
+
+    public void testResponseBufferAccountingIsReleasedOnTransportClose() throws IOException {
+        final Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .build();
+        final EmbeddedChannel channel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, 3));
+        try (
+            HierarchyCircuitBreakerService breakerService = new HierarchyCircuitBreakerService(
+                settings,
+                List.of(),
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+            ReleasableBytesStreamOutput output = new ReleasableBytesStreamOutput(
+                new BigArrays(null, breakerService, CircuitBreaker.REQUEST).withCircuitBreaking()
+            )
+        ) {
+            output.writeByte((byte) 1);
+            final CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+            assertTrue(breaker.getUsed() > 0);
+
+            // DefaultRestChannel also releases its response output from the HTTP completion listener.
+            new Netty4HttpChannel(channel).sendResponse(
+                new HttpPipelinedResponse(1, new Netty4HttpResponse(EmptyHttpHeaders.INSTANCE, HTTP_1_1, RestStatus.OK, output.bytes())),
+                ActionListener.wrap(output::close)
+            );
+            assertTrue("The response is held behind sequence zero", breaker.getUsed() > 0);
+
+            channel.unsafe().close(channel.newPromise());
+            channel.runPendingTasks();
+            assertEquals("Disconnected responses must return their buffer reservation", 0, breaker.getUsed());
+        } finally {
+            channel.finishAndReleaseAll();
+        }
+    }
+
+    private void assertPipeliningResponsesAreReleased(Consumer<EmbeddedChannel> closeChannel) {
+        final EmbeddedChannel channel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, 3));
+        final List<HttpPipelinedRequest> requests = new ArrayList<>();
+        final List<ChannelPromise> promises = new ArrayList<>();
+        final AtomicInteger completions = new AtomicInteger();
+        try {
+            for (int i = 0; i < 3; i++) {
+                channel.writeInbound(createHttpRequest("/" + i));
+                requests.add(channel.readInbound());
+            }
+
+            // Keep the first response outstanding so later responses remain in the holding queue.
+            for (int i = 1; i < requests.size(); i++) {
+                ChannelPromise promise = channel.newPromise();
+                promise.addListener(future -> completions.incrementAndGet());
+                promises.add(promise);
+                channel.writeAndFlush(requests.get(i).createResponse(RestStatus.OK, BytesArray.EMPTY), promise);
+                assertFalse(promise.isDone());
+            }
+
+            closeChannel.accept(channel);
+            channel.runPendingTasks();
+            assertFalse(channel.isOpen());
+            assertEquals("Queued response completion listeners must run on disconnect", promises.size(), completions.get());
+            for (ChannelPromise promise : promises) {
+                assertTrue(promise.isDone());
+                assertTrue(promise.cause() instanceof ClosedChannelException);
+            }
+            channel.close();
+            channel.runPendingTasks();
+            assertEquals("Each response must complete exactly once", promises.size(), completions.get());
+        } finally {
+            requests.forEach(HttpPipelinedRequest::release);
+            channel.finishAndReleaseAll();
         }
     }
 

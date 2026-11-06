@@ -75,6 +75,10 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     @Override
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) {
         assert msg instanceof HttpPipelinedResponse : "Invalid message type: " + msg.getClass();
+        if (ctx.channel().isActive() == false) {
+            promise.setFailure(new ClosedChannelException());
+            return;
+        }
         HttpPipelinedResponse response = (HttpPipelinedResponse) msg;
         boolean success = false;
         try {
@@ -94,6 +98,18 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
+        failInflightResponses();
+        ctx.close(promise);
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) {
+        // Transport disconnects and closes from earlier handlers can bypass this handler's outbound close method.
+        failInflightResponses();
+        ctx.fireChannelInactive();
+    }
+
+    private void failInflightResponses() {
         List<Tuple<HttpPipelinedResponse, ChannelPromise>> inflightResponses = aggregator.removeAllInflightResponses();
 
         if (inflightResponses.isEmpty() == false) {
@@ -106,6 +122,5 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                 }
             }
         }
-        ctx.close(promise);
     }
 }
