@@ -19,6 +19,7 @@ import org.opensearch.common.Table;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
@@ -114,8 +115,8 @@ public class RestWlmStatsAction extends BaseRestHandler {
 
                     List<WlmStats> paginatedStats = paginationStrategy.getRequestedEntities();
                     PageToken nextPageToken = paginationStrategy.getResponseToken();
-
-                    Table paginatedTable = createTableWithHeaders(nextPageToken, verbose);
+                    boolean textFormat = isTextFormat(request);
+                    Table paginatedTable = createTableWithHeaders(nextPageToken, verbose, textFormat);
                     buildTable(paginatedTable, paginatedStats, paginationStrategy);
 
                     return RestTable.buildResponse(paginatedTable, channel);
@@ -179,54 +180,80 @@ public class RestWlmStatsAction extends BaseRestHandler {
         channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, builder));
     }
 
-    protected Table createTableWithHeaders(PageToken pageToken, boolean verbose) {
+    // "|" separator cells are only meaningful for the plain-text table. Structured formats
+    // (json/yaml/cbor/smile) would serialize them as "|":"|" members, so add them for text only.
+    // Precedence mirrors RestTable: explicit ?format= first, then the Accept header, else plain text.
+    static boolean isTextFormat(RestRequest request) {
+        if (request.hasParam("format")) {
+            return MediaTypeRegistry.fromFormat(request.param("format")) == null;
+        }
+        return MediaTypeRegistry.fromMediaType(request.header("Accept")) == null;
+    }
+
+    protected Table createTableWithHeaders(PageToken pageToken, boolean verbose, boolean textFormat) {
         Table table = new Table(pageToken);
         table.startHeaders();
         table.addCell("NODE_ID", verbose ? "desc:Node ID" : "");
-        table.addCell("|");
+        addSeparator(table, textFormat);
         table.addCell("WORKLOAD_GROUP_ID", verbose ? "desc:Workload Group" : "");
-        table.addCell("|");
+        addSeparator(table, textFormat);
         table.addCell("TOTAL_COMPLETIONS", verbose ? "desc:Total Completed Queries" : "");
-        table.addCell("|");
+        addSeparator(table, textFormat);
         table.addCell("TOTAL_REJECTIONS", verbose ? "desc:Total Rejected Queries" : "");
-        table.addCell("|");
+        addSeparator(table, textFormat);
         table.addCell("TOTAL_CANCELLATIONS", verbose ? "desc:Total Canceled Queries" : "");
-        table.addCell("|");
+        addSeparator(table, textFormat);
         table.addCell("TOTAL_THROTTLED", verbose ? "desc:Total Throttled Queries" : "");
-        table.addCell("|");
+        addSeparator(table, textFormat);
         table.addCell("TOTAL_WOULD_THROTTLE", verbose ? "desc:Total Queries That Would Be Throttled In Monitor Mode" : "");
-        table.addCell("|");
+        addSeparator(table, textFormat);
         table.addCell("CPU_USAGE", verbose ? "desc:CPU Usage" : "");
-        table.addCell("|");
+        addSeparator(table, textFormat);
         table.addCell("MEMORY_USAGE", verbose ? "desc:Memory Usage" : "");
         table.endHeaders();
         return table;
     }
 
-    protected void addRow(Table table, String nodeId, String workloadGroupId, WorkloadGroupStats.WorkloadGroupStatsHolder statsHolder) {
+    /**
+     * Adds a column separator for plain-text table output.
+     * Structured formats must not include separator cells.
+     */
+    private static void addSeparator(Table table, boolean textFormat) {
+        if (textFormat) {
+            table.addCell("|");
+        }
+    }
+
+    protected void addRow(
+        Table table,
+        String nodeId,
+        String workloadGroupId,
+        WorkloadGroupStats.WorkloadGroupStatsHolder statsHolder,
+        boolean textFormat
+    ) {
         final String PLACEHOLDER = "NA";
 
         table.startRow();
         table.addCell(nodeId);
-        table.addCell("|");
+        addSeparator(table, textFormat);
         table.addCell(workloadGroupId);
-        table.addCell("|");
+        addSeparator(table, textFormat);
         table.addCell(statsHolder.getCompletions());
-        table.addCell("|");
+        addSeparator(table, textFormat);
         table.addCell(statsHolder.getRejections());
-        table.addCell("|");
+        addSeparator(table, textFormat);
         table.addCell(statsHolder.getCancellations());
-        table.addCell("|");
+        addSeparator(table, textFormat);
         table.addCell(statsHolder.getThrottled());
-        table.addCell("|");
+        addSeparator(table, textFormat);
         table.addCell(statsHolder.getWouldThrottle());
-        table.addCell("|");
+        addSeparator(table, textFormat);
 
         WorkloadGroupStats.ResourceStats cpuStats = statsHolder.getResourceStats().get(ResourceType.CPU);
         WorkloadGroupStats.ResourceStats memoryStats = statsHolder.getResourceStats().get(ResourceType.MEMORY);
 
         table.addCell(cpuStats != null ? cpuStats.getCurrentUsage() : PLACEHOLDER);
-        table.addCell("|");
+        addSeparator(table, textFormat);
         table.addCell(memoryStats != null ? memoryStats.getCurrentUsage() : PLACEHOLDER);
         table.endRow();
     }
@@ -246,6 +273,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
     protected void buildTable(Table table, List<WlmStats> paginatedStats, WlmPaginationStrategy paginationStrategy) {
         // Derive the footer width from the headers rather than hardcoding it, so adding a column cannot silently desync.
         final int COLUMN_COUNT = table.getHeaders().size();
+        final boolean textFormat = table.getHeaders().stream().anyMatch(c -> "|".equals(c.value));
 
         for (WlmStats wlmStats : paginatedStats) {
             String nodeId = wlmStats.getNode().getId();
@@ -254,7 +282,7 @@ public class RestWlmStatsAction extends BaseRestHandler {
             for (Map.Entry<String, WorkloadGroupStats.WorkloadGroupStatsHolder> entry : workloadGroupStats.getStats().entrySet()) {
                 String workloadGroupId = entry.getKey();
                 WorkloadGroupStats.WorkloadGroupStatsHolder statsHolder = entry.getValue();
-                addRow(table, nodeId, workloadGroupId, statsHolder);
+                addRow(table, nodeId, workloadGroupId, statsHolder, textFormat);
             }
         }
 

@@ -96,12 +96,12 @@ public class RestWlmStatsActionTests extends OpenSearchTestCase {
 
     public void testCreateTableWithHeaders() {
         PageToken token = new PageToken("a", "b");
-        Table table = action.createTableWithHeaders(token, true);
+        Table table = action.createTableWithHeaders(token, true, true);
         assertNotNull(table);
     }
 
     public void testAddRow() {
-        Table table = action.createTableWithHeaders(null, true);
+        Table table = action.createTableWithHeaders(null, true, true);
         WorkloadGroupStats.WorkloadGroupStatsHolder stats = new WorkloadGroupStats.WorkloadGroupStatsHolder(
             1,
             2,
@@ -111,19 +111,19 @@ public class RestWlmStatsActionTests extends OpenSearchTestCase {
             6,
             new HashMap<>()
         );
-        action.addRow(table, "node1", "group1", stats);
+        action.addRow(table, "node1", "group1", stats, true);
         assertEquals(1, table.getRows().size());
     }
 
     public void testAddFooterRow() {
-        Table table = action.createTableWithHeaders(null, true);
+        Table table = action.createTableWithHeaders(null, true, true);
         // Derive the width from the headers rather than hardcoding it, so adding a column cannot silently desync.
         action.addFooterRow(table, table.getHeaders().size());
         assertEquals(1, table.getRows().size());
     }
 
     public void testBuildTable() {
-        Table table = action.createTableWithHeaders(null, false);
+        Table table = action.createTableWithHeaders(null, false, true);
 
         WorkloadGroupStats.ResourceStats cpuStats = new WorkloadGroupStats.ResourceStats(0.5, 2, 8);
         WorkloadGroupStats.ResourceStats memoryStats = new WorkloadGroupStats.ResourceStats(0.6, 1, 9);
@@ -227,5 +227,29 @@ public class RestWlmStatsActionTests extends OpenSearchTestCase {
         );
 
         assertEquals(expectedRoutes, actualRoutes);
+    }
+
+    public void testHeadersHaveNoSeparatorsForStructuredFormats() {
+        Table table = action.createTableWithHeaders(null, false, false);
+        assertEquals(9, table.getHeaders().size());
+        assertFalse(table.getHeaders().stream().anyMatch(c -> "|".equals(c.value)));
+    }
+
+    public void testHeadersHaveSeparatorsForText() {
+        Table table = action.createTableWithHeaders(null, false, true);
+        assertEquals(17, table.getHeaders().size());
+        assertTrue(table.getHeaders().stream().anyMatch(c -> "|".equals(c.value)));
+    }
+
+    public void testIsTextFormat() {
+        assertTrue(RestWlmStatsAction.isTextFormat(request(Map.of("format", "text"), Map.of())));
+        assertFalse(RestWlmStatsAction.isTextFormat(request(Map.of("format", "json"), Map.of())));
+        assertTrue(RestWlmStatsAction.isTextFormat(request(Map.of(), Map.of())));                    // no format, no Accept
+        assertFalse(RestWlmStatsAction.isTextFormat(request(Map.of(), Map.of("Accept", List.of("application/json")))));
+        assertTrue(RestWlmStatsAction.isTextFormat(request(Map.of("format", "text"), Map.of("Accept", List.of("application/json")))));
+    }
+
+    private RestRequest request(Map<String, String> params, Map<String, List<String>> headers) {
+        return new FakeRestRequest.Builder(xContentRegistry()).withParams(params).withHeaders(headers).build();
     }
 }
