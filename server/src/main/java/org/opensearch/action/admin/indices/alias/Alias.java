@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.alias;
 
 import org.opensearch.OpenSearchGenerationException;
+import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
@@ -47,6 +48,7 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.search.internal.AliasFilter;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -66,6 +68,7 @@ public class Alias implements Writeable, ToXContentFragment {
     private static final ParseField SEARCH_ROUTING = new ParseField("search_routing", "searchRouting", "search-routing");
     private static final ParseField IS_WRITE_INDEX = new ParseField("is_write_index");
     private static final ParseField IS_HIDDEN = new ParseField("is_hidden");
+    private static final ParseField ENFORCEMENT = new ParseField("enforcement");
 
     private String name;
 
@@ -84,6 +87,9 @@ public class Alias implements Writeable, ToXContentFragment {
     @Nullable
     private Boolean isHidden;
 
+    @Nullable
+    private String enforcement;
+
     public Alias(StreamInput in) throws IOException {
         name = in.readString();
         filter = in.readOptionalString();
@@ -91,6 +97,9 @@ public class Alias implements Writeable, ToXContentFragment {
         searchRouting = in.readOptionalString();
         writeIndex = in.readOptionalBoolean();
         isHidden = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
+            enforcement = in.readOptionalString();
+        }
     }
 
     public Alias(String name) {
@@ -225,6 +234,27 @@ public class Alias implements Writeable, ToXContentFragment {
         return this;
     }
 
+    /**
+     * Returns how this alias's filter is applied when searching, or {@code null} for the default.
+     */
+    @Nullable
+    public String enforcement() {
+        return enforcement;
+    }
+
+    /**
+     * Sets how this alias's filter is applied when searching; it requires a filter.
+     *
+     * @param enforcement the mode, such as {@code pre_filter}, or {@code null} for the default
+     */
+    public Alias enforcement(@Nullable String enforcement) {
+        if (enforcement != null) {
+            AliasFilter.Enforcement.fromString(enforcement);
+        }
+        this.enforcement = enforcement;
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
@@ -233,6 +263,9 @@ public class Alias implements Writeable, ToXContentFragment {
         out.writeOptionalString(searchRouting);
         out.writeOptionalBoolean(writeIndex);
         out.writeOptionalBoolean(isHidden);
+        if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
+            out.writeOptionalString(enforcement);
+        }
     }
 
     /**
@@ -261,6 +294,8 @@ public class Alias implements Writeable, ToXContentFragment {
                     alias.indexRouting(parser.text());
                 } else if (SEARCH_ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.searchRouting(parser.text());
+                } else if (ENFORCEMENT.match(currentFieldName, parser.getDeprecationHandler())) {
+                    alias.enforcement(parser.text());
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if (IS_WRITE_INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -298,6 +333,10 @@ public class Alias implements Writeable, ToXContentFragment {
 
         if (isHidden != null) {
             builder.field(IS_HIDDEN.getPreferredName(), isHidden);
+        }
+
+        if (enforcement != null) {
+            builder.field(ENFORCEMENT.getPreferredName(), enforcement);
         }
 
         builder.endObject();
