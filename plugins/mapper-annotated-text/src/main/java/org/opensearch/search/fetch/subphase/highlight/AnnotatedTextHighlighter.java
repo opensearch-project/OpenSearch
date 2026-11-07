@@ -35,7 +35,6 @@ package org.opensearch.search.fetch.subphase.highlight;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
-import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
 import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
@@ -75,8 +74,9 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
     }
 
     @Override
-    protected Analyzer getAnalyzer(DocumentMapper docMapper) {
-        return new AnnotatedHighlighterAnalyzer(super.getAnalyzer(docMapper));
+    protected Analyzer wrapAnalyzer(Analyzer analyzer, Integer fieldMaxAnalyzedOffset) {
+        // loadFieldValues needs the annotation-aware analyzer to remain the outermost wrapper.
+        return new AnnotatedHighlighterAnalyzer(super.wrapAnalyzer(analyzer, fieldMaxAnalyzedOffset));
     }
 
     @Override
