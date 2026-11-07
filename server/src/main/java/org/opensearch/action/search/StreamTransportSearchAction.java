@@ -30,7 +30,6 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.client.node.NodeClient;
-import org.opensearch.wlm.WorkloadGroupService;
 
 import java.util.Map;
 import java.util.Set;
@@ -61,7 +60,8 @@ public class StreamTransportSearchAction extends TransportSearchAction {
         Tracer tracer,
         TaskResourceTrackingService taskResourceTrackingService,
         IndicesService indicesService,
-        WorkloadGroupService workloadGroupService
+        SearchExecutionGate searchExecutionGate,
+        SearchCancelAfterTimeIntervalResolver cancelAfterTimeIntervalResolver
     ) {
         super(
             client,
@@ -81,7 +81,8 @@ public class StreamTransportSearchAction extends TransportSearchAction {
             tracer,
             taskResourceTrackingService,
             indicesService,
-            workloadGroupService
+            searchExecutionGate,
+            cancelAfterTimeIntervalResolver
         );
     }
 

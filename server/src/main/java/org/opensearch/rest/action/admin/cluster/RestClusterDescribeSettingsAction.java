@@ -36,9 +36,6 @@ public class RestClusterDescribeSettingsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         var describeRequest = new ClusterDescribeSettingsRequest(request.paramAsStringArray("settings", new String[0]));
-        describeRequest.clusterManagerNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", describeRequest.clusterManagerNodeTimeout())
-        );
         return channel -> client.execute(ClusterDescribeSettingsAction.INSTANCE, describeRequest, new RestToXContentListener<>(channel));
     }
 }

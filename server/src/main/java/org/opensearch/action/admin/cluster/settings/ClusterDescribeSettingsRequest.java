@@ -8,20 +8,30 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
+import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
+import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.AbstractScopedSettings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.regex.Pattern;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
-/** Requests definitions for exact cluster setting names.
+/** Requests definitions for cluster setting names, given exactly or as a single trailing-wildcard prefix such as
+ * {@code cluster.routing.allocation.*}. The whole result is returned in one response, in ascending key order.
  * @opensearch.internal
  */
-public class ClusterDescribeSettingsRequest extends ClusterManagerNodeReadRequest<ClusterDescribeSettingsRequest> {
+public class ClusterDescribeSettingsRequest extends ActionRequest {
+    /**
+     * The only admitted wildcard shape: one or more literal dotted segments followed by a trailing {@code .*}. The
+     * character class is the one {@link AbstractScopedSettings#isValidKey} accepts, so a prefix is built from the same
+     * characters a real key may contain. {@code *}, {@code *.x}, {@code a.*.b}, {@code a.?.*} and {@code a.**} all fail.
+     */
+    private static final Pattern PREFIX_WILDCARD = Pattern.compile("^(?:[-\\w]+[.])+\\*$");
+
     private final String[] names;
 
     public ClusterDescribeSettingsRequest(String... names) {
@@ -47,15 +57,23 @@ public class ClusterDescribeSettingsRequest extends ClusterManagerNodeReadReques
     public ActionRequestValidationException validate() {
         ActionRequestValidationException exception = null;
         if (names.length == 0) {
-            exception = addValidationError("settings must contain at least one exact setting name", exception);
+            exception = addValidationError("settings must contain at least one setting name or prefix", exception);
         }
         for (String name : names) {
-            if (name == null
-                || name.isBlank()
-                || name.contains("*")
-                || name.contains("?")
-                || AbstractScopedSettings.isValidKey(name) == false) {
-                exception = addValidationError("settings must contain exact setting names, without wildcards", exception);
+            if (name == null || name.isBlank()) {
+                exception = addValidationError("settings must not contain blank names", exception);
+                break;
+            }
+            boolean wildcard = Regex.isSimpleMatchPattern(name);
+            if (wildcard && PREFIX_WILDCARD.matcher(name).matches() == false) {
+                exception = addValidationError(
+                    "settings may use a single trailing wildcard such as cluster.routing.allocation.*; got [" + name + "]",
+                    exception
+                );
+                break;
+            }
+            if (wildcard == false && AbstractScopedSettings.isValidKey(name) == false) {
+                exception = addValidationError("settings must contain exact setting names; got [" + name + "]", exception);
                 break;
             }
         }

@@ -8,13 +8,13 @@
 
 package org.opensearch.wlm.stats;
 
-import org.opensearch.Version;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadGroupThrottleSettings;
 import org.opensearch.wlm.stats.WorkloadGroupState.ResourceTypeState;
 
 import java.io.IOException;
@@ -132,8 +132,9 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             this.rejections = in.readVLong();
             this.failures = in.readVLong();
             this.cancellations = in.readVLong();
-            // Gated on 3.10, not the older gate: a pre-3.10 peer never writes it, and reading it would desync the stream.
-            if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
+            // Gated on the throttling version, not the older gate: an older peer never writes it, and reading it would desync
+            // the stream.
+            if (in.getVersion().onOrAfter(WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION)) {
                 this.throttled = in.readVLong();
                 this.wouldThrottle = in.readVLong();
             }
@@ -200,7 +201,7 @@ public class WorkloadGroupStats implements ToXContentObject, Writeable {
             out.writeVLong(statsHolder.failures);
             out.writeVLong(statsHolder.cancellations);
             // version-gated to match the StreamInput ctor; read/write gates and order must stay in sync.
-            if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
+            if (out.getVersion().onOrAfter(WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION)) {
                 out.writeVLong(statsHolder.throttled);
                 out.writeVLong(statsHolder.wouldThrottle);
             }
