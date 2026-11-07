@@ -145,4 +145,31 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
         assertThat(bytesRef.slice(13, 10), Matchers.not(Matchers.instanceOf(CompositeBytesReference.class))); // strictly within sub
         assertThat(bytesRef.slice(12, 15), Matchers.not(Matchers.instanceOf(CompositeBytesReference.class))); // equal to sub
     }
+
+    public void testEmptyReferencesAreDropped() {
+        // Zero-length references used to create duplicate entries in the offsets table, breaking the
+        // binary search in getOffsetIndex: get() threw ArrayIndexOutOfBoundsException and slice()
+        // threw IllegalArgumentException for offsets shared with an empty reference.
+        BytesReference ref = CompositeBytesReference.of(
+            BytesArray.EMPTY,
+            new BytesArray("ab"),
+            BytesArray.EMPTY,
+            new BytesArray("cd"),
+            BytesArray.EMPTY
+        );
+        assertEquals(4, ref.length());
+        assertEquals((byte) 'a', ref.get(0));
+        assertEquals((byte) 'b', ref.get(1));
+        assertEquals((byte) 'c', ref.get(2));
+        assertEquals((byte) 'd', ref.get(3));
+        assertEquals(2, ref.indexOf((byte) 'c', 0));
+        assertEquals(new BytesArray("c"), ref.slice(2, 1));
+        assertEquals(new BytesArray("bcd"), ref.slice(1, 3));
+        assertEquals(new BytesArray("abcd"), ref);
+
+        // a composite collapsing to a single non-empty reference returns that reference as is
+        BytesReference single = new BytesArray("abcd");
+        assertSame(single, CompositeBytesReference.of(BytesArray.EMPTY, single));
+        assertSame(BytesArray.EMPTY, CompositeBytesReference.of(BytesArray.EMPTY, BytesArray.EMPTY));
+    }
 }
