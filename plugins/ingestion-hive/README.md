@@ -4,7 +4,7 @@ The ingestion-hive plugin enables pull-based ingestion from Apache Hive tables i
 
 ## Overview
 
-This plugin implements a custom ingestion source for the [pull-based ingestion framework](https://docs.opensearch.org/docs/latest/api-reference/document-apis/pull-based-ingestion/). It allows OpenSearch to ingest data from partitioned Hive tables without requiring an intermediate streaming layer like Kafka.
+This plugin implements a custom ingestion source for the [pull-based ingestion framework](https://docs.opensearch.org/latest/api-reference/document-apis/pull-based-ingestion/). It allows OpenSearch to ingest data from partitioned Hive tables without requiring an intermediate streaming layer like Kafka.
 
 Key features:
 - Connects to Hive Metastore via Thrift (framed or unframed transport)
