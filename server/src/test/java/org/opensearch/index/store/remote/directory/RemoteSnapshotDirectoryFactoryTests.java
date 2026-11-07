@@ -33,12 +33,11 @@ import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -60,20 +59,16 @@ public class RemoteSnapshotDirectoryFactoryTests extends OpenSearchTestCase {
     }
 
     /**
-     * The cluster applier thread calls newDirectory for every shard it starts. It must not wait for the repository, otherwise a node
+     * The cluster applier thread calls newDirectory for every shard it starts. It must not read the repository, otherwise a node
      * with many searchable snapshot shards starts them one after the other.
      */
-    public void testNewDirectoryDoesNotWaitForRepository() throws Exception {
-        CountDownLatch repositoryRead = new CountDownLatch(1);
+    public void testNewDirectoryDoesNotReadRepository() throws Exception {
         FileInfo fileInfo = new FileInfo(FILE_NAME, new StoreFileMetadata(FILE_NAME, 10, "", org.apache.lucene.util.Version.LATEST), null);
         BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot("snap", 1, Collections.singletonList(fileInfo), 0, 0, 0, 0);
 
         BlobStoreRepository repository = mock(BlobStoreRepository.class);
         BlobContainer blobContainer = mock(BlobContainer.class);
-        when(repository.shardContainer(any(IndexId.class), anyInt())).thenAnswer(invocation -> {
-            assertTrue("repository read must be released by the test", repositoryRead.await(5, TimeUnit.SECONDS));
-            return blobContainer;
-        });
+        when(repository.shardContainer(any(IndexId.class), anyInt())).thenReturn(blobContainer);
         when(repository.loadShardSnapshot(any(BlobContainer.class), any(SnapshotId.class))).thenReturn(snapshot);
         RepositoriesService repositoriesService = mock(RepositoriesService.class);
         when(repositoriesService.repository("repo")).thenReturn(repository);
@@ -95,11 +90,11 @@ public class RemoteSnapshotDirectoryFactoryTests extends OpenSearchTestCase {
         Path shardDir = createTempDir().resolve(shardId.getIndex().getUUID()).resolve("0");
         ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
 
-        // returns while the repository read is still blocked
         Directory directory = factory.newDirectory(indexSettings, shardPath);
         assertTrue(directory instanceof RemoteSnapshotDirectory);
+        verify(repository, never()).shardContainer(any(IndexId.class), anyInt());
+        verify(repository, never()).loadShardSnapshot(any(BlobContainer.class), any(SnapshotId.class));
 
-        repositoryRead.countDown();
         assertArrayEquals(new String[] { FILE_NAME }, directory.listAll());
         assertArrayEquals(new String[] { FILE_NAME }, directory.listAll());
         // the snapshot file is read once, not on every call

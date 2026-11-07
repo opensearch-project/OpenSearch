@@ -30,7 +30,6 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.Future;
 import java.util.function.Supplier;
 
 /**
@@ -89,11 +88,9 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
         FSDirectory localStoreDir = FSDirectory.open(Files.createDirectories(localStorePath));
         // make sure directory is flushed to persistent storage
         localStoreDir.syncMetaData();
-        // The repository read runs on the snapshot pool. The directory waits for it on first use, not here, because this method runs
-        // on the cluster applier thread. The first use is Store#failIfCorrupted (it calls listAll) at the start of the shard recovery,
-        // on a generic thread. The snapshot pool also satisfies BlobStoreRepository::assertSnapshotOrGenericThread, which checks that
-        // the blob store is used on a snapshot or generic thread, also after a node restart.
-        final Future<RemoteSnapshotDirectory.RemoteState> remoteState = threadPool.executor(ThreadPool.Names.SNAPSHOT).submit(() -> {
+        // The repository is read on first use of the directory, not here, because this method runs on the cluster applier thread. The
+        // first use is Store#failIfCorrupted (it calls listAll) at the start of the shard recovery, on a generic thread.
+        return new RemoteSnapshotDirectory(() -> {
             // shardContainer(IndexId, shardId) method uses the id and pathType information to generate the blobPath and
             // hence the blobContainer. We have used a dummy name as it plays no relevance in the blobPath generation.
             final BlobContainer blobContainer = blobStoreRepository.shardContainer(
@@ -106,7 +103,6 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
             final BlobStoreIndexShardSnapshot snapshot = (BlobStoreIndexShardSnapshot) indexShardSnapshot;
             TransferManager transferManager = new TransferManager(blobContainer::readBlob, remoteStoreFileCache, threadPool);
             return new RemoteSnapshotDirectory.RemoteState(snapshot, transferManager);
-        });
-        return new RemoteSnapshotDirectory(remoteState, localStoreDir);
+        }, localStoreDir);
     }
 }
