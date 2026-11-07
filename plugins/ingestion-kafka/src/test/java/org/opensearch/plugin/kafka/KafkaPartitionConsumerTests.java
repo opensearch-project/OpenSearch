@@ -17,7 +17,6 @@ import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.config.SslConfigs;
-import org.apache.kafka.common.config.types.Password;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -138,7 +137,7 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
         assertEquals(KafkaConsumer.class, consumer.getClass());
     }
 
-    public void testHidePasswords() {
+    public void testToRedactedString() {
         Map<String, Object> params = new HashMap<>();
         params.put("topic", "test-topic");
         params.put("bootstrap_servers", "localhost:9092");
@@ -149,15 +148,15 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
         params.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, "/path/to/truststore.jks");
         Properties consumerProp = KafkaPartitionConsumer.createConsumerProperties("client1", new KafkaSourceConfig(1000, params));
 
-        Properties loggable = KafkaPartitionConsumer.hidePasswords(consumerProp);
+        String loggable = KafkaPartitionConsumer.toRedactedString(consumerProp);
 
-        assertEquals(Password.HIDDEN, loggable.get(SaslConfigs.SASL_JAAS_CONFIG));
-        assertEquals(Password.HIDDEN, loggable.get(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG));
-        assertEquals(Password.HIDDEN, loggable.get(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG));
-        assertEquals(Password.HIDDEN, loggable.get(SslConfigs.SSL_KEY_PASSWORD_CONFIG));
-        assertEquals("/path/to/truststore.jks", loggable.get(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG));
-        assertEquals("localhost:9092", loggable.get(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG));
-        assertFalse(loggable.toString().contains("secret"));
+        assertTrue(loggable.contains(SaslConfigs.SASL_JAAS_CONFIG + "=(redacted)"));
+        assertTrue(loggable.contains(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG + "=(redacted)"));
+        assertTrue(loggable.contains(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG + "=(redacted)"));
+        assertTrue(loggable.contains(SslConfigs.SSL_KEY_PASSWORD_CONFIG + "=(redacted)"));
+        assertTrue(loggable.contains(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG + "=\"/path/to/truststore.jks\""));
+        assertTrue(loggable.contains(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG + "=localhost:9092"));
+        assertFalse(loggable.contains("secret"));
         // the consumer still gets the real values
         assertEquals("key-secret", consumerProp.get(SslConfigs.SSL_KEY_PASSWORD_CONFIG));
     }

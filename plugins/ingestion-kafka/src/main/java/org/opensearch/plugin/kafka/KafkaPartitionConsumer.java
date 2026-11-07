@@ -17,9 +17,9 @@ import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.config.ConfigDef;
-import org.apache.kafka.common.config.types.Password;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
+import org.apache.kafka.common.utils.ConfigUtils;
+import org.apache.kafka.common.utils.Utils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.IngestionShardConsumer;
@@ -110,25 +110,18 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         // apply user provided overrides
         consumerProp.putAll(config.getConsumerConfigurations());
 
-        logger.info("Kafka consumer properties for topic {}: {}", config.getTopic(), hidePasswords(consumerProp));
+        logger.info("Kafka consumer properties for topic {}: {}", config.getTopic(), toRedactedString(consumerProp));
         return consumerProp;
     }
 
     /**
-     * Copy the consumer properties for logging, with the values of properties Kafka defines as passwords replaced by
-     * {@link Password#HIDDEN}, as Kafka's own config log does.
+     * Render the consumer properties for logging. Values of sensitive properties, and of properties ConsumerConfig
+     * does not define (whose sensitivity is unknown), are redacted, as Kafka's own config log does.
      * @param consumerProp the consumer properties
-     * @return a copy of the properties that is safe to log
+     * @return a string that is safe to log
      */
-    static Properties hidePasswords(Properties consumerProp) {
-        Map<String, ConfigDef.ConfigKey> configKeys = ConsumerConfig.configDef().configKeys();
-        Properties loggable = new Properties();
-        for (Map.Entry<Object, Object> entry : consumerProp.entrySet()) {
-            ConfigDef.ConfigKey key = configKeys.get(String.valueOf(entry.getKey()));
-            boolean isPassword = key != null && key.type == ConfigDef.Type.PASSWORD;
-            loggable.put(entry.getKey(), isPassword ? Password.HIDDEN : entry.getValue());
-        }
-        return loggable;
+    static String toRedactedString(Properties consumerProp) {
+        return ConfigUtils.configMapToRedactedString(Utils.propsToMap(consumerProp), ConsumerConfig.configDef());
     }
 
     /**
