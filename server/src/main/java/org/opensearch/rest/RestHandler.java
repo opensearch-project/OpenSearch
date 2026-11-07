@@ -32,6 +32,7 @@
 
 package org.opensearch.rest;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.rest.RestRequest.Method;
@@ -98,6 +99,21 @@ public interface RestHandler {
      * The list of {@link Route}s that this RestHandler is responsible for handling.
      */
     default List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Parameter metadata exposed by this handler.
+     * <p>
+     * An empty list means the handler has not migrated to {@link RestParameter}. Declarations
+     * supplement the existing consumption-based validation; they are not an exhaustive allow-list.
+     * Declared parameters must still be consumed, and legacy accessors remain supported.
+     * {@link BaseRestHandler} rejects a missing {@link RestParameter.Property#Required} parameter
+     * before the handler runs. Requiredness applies to every route of this handler: a path parameter
+     * absent from some routes must be declared without {@code Required}.
+     */
+    @ExperimentalApi
+    default List<RestParameter<?>> parameters() {
         return Collections.emptyList();
     }
 
@@ -178,6 +194,11 @@ public interface RestHandler {
         @Override
         public List<Route> routes() {
             return delegate.routes();
+        }
+
+        @Override
+        public List<RestParameter<?>> parameters() {
+            return delegate.parameters();
         }
 
         @Override

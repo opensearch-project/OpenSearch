@@ -34,7 +34,9 @@ package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.rest.BaseRestHandler;
+import org.opensearch.rest.RestParameter;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
 import org.opensearch.transport.client.node.NodeClient;
@@ -43,6 +45,9 @@ import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.opensearch.rest.RestParameter.Property.Deprecated;
+import static org.opensearch.rest.RestParameter.Property.Path;
+import static org.opensearch.rest.RestParameter.Property.Required;
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 import static org.opensearch.transport.client.Requests.deleteRepositoryRequest;
 
@@ -55,9 +60,19 @@ public class RestDeleteRepositoryAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteRepositoryAction.class);
 
+    private static final RestParameter<String> REPOSITORY = RestParameter.simpleString("repository", Required, Path);
+    private static final RestParameter<TimeValue> TIMEOUT = RestParameter.timeValue("timeout");
+    private static final RestParameter<TimeValue> CLUSTER_MANAGER_TIMEOUT = RestParameter.timeValue("cluster_manager_timeout");
+    private static final RestParameter<TimeValue> MASTER_TIMEOUT = RestParameter.timeValue("master_timeout", Deprecated);
+
     @Override
     public List<Route> routes() {
         return singletonList(new Route(DELETE, "/_snapshot/{repository}"));
+    }
+
+    @Override
+    public List<RestParameter<?>> parameters() {
+        return List.of(REPOSITORY, TIMEOUT, CLUSTER_MANAGER_TIMEOUT, MASTER_TIMEOUT);
     }
 
     @Override
@@ -67,12 +82,15 @@ public class RestDeleteRepositoryAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        DeleteRepositoryRequest deleteRepositoryRequest = deleteRepositoryRequest(request.param("repository"));
-        deleteRepositoryRequest.timeout(request.paramAsTime("timeout", deleteRepositoryRequest.timeout()));
+        // Apply the name after the deprecated-timeout check so both timeout parameters still
+        // fail as a duplicate, matching the previous error precedence.
+        DeleteRepositoryRequest deleteRepositoryRequest = deleteRepositoryRequest(null);
+        deleteRepositoryRequest.timeout(TIMEOUT.get(request, deleteRepositoryRequest.timeout()));
         deleteRepositoryRequest.clusterManagerNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", deleteRepositoryRequest.clusterManagerNodeTimeout())
+            CLUSTER_MANAGER_TIMEOUT.get(request, deleteRepositoryRequest.clusterManagerNodeTimeout())
         );
         parseDeprecatedMasterTimeoutParameter(deleteRepositoryRequest, request, deprecationLogger, getName());
+        deleteRepositoryRequest.name(REPOSITORY.get(request));
         return channel -> client.admin().cluster().deleteRepository(deleteRepositoryRequest, new RestToXContentListener<>(channel));
     }
 }
