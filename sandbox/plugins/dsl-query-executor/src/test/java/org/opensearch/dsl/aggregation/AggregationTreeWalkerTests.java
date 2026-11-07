@@ -305,13 +305,27 @@ public class AggregationTreeWalkerTests extends OpenSearchTestCase {
         assertTrue(e.getMessage().contains("min_doc_count"));
     }
 
-    public void testValidateRejectsMetricMissing() {
-        AvgAggregationBuilder agg = new AvgAggregationBuilder("avg_price").field("price").missing(42);
+    public void testValidateRejectsMetricScript() {
+        AvgAggregationBuilder agg = new AvgAggregationBuilder("avg_price").script(new Script("doc['price'].value"));
 
         ConversionException e = expectThrows(
             ConversionException.class,
             () -> walker.walk(List.of(agg), ctx.getRowType(), ctx.getCluster().getTypeFactory())
         );
-        assertTrue(e.getMessage().contains("missing"));
+        assertTrue(e.getMessage().contains("script"));
+    }
+
+    /** {@code missing} on a metric is supported: the walk allocates a COALESCE literal column. */
+    public void testMetricMissingWalksToLiteralColumn() throws ConversionException {
+        AvgAggregationBuilder agg = new AvgAggregationBuilder("avg_price").field("price").missing(42);
+
+        List<AggregationMetadata> result = walker.walk(List.of(agg), ctx.getRowType(), ctx.getCluster().getTypeFactory());
+
+        assertEquals(1, result.size());
+        AggregationMetadata metadata = result.get(0);
+        assertEquals(1, metadata.getLiteralColumns().size());
+        // The aggregate's input is the appended coalesced column, not the raw field.
+        int baseFieldCount = ctx.getRowType().getFieldCount();
+        assertEquals(List.of(baseFieldCount), metadata.getAggregateCalls().get(0).getArgList());
     }
 }
