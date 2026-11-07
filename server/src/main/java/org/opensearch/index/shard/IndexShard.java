@@ -2161,7 +2161,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @Deprecated
     public GatedCloseable<IndexCommit> acquireLastIndexCommitAndRefresh(boolean flushFirst) throws EngineException {
         GatedCloseable<IndexCommit> indexCommit = acquireLastIndexCommit(flushFirst);
-        getIndexer().refresh("Snapshot for Remote Store based Shard");
+        try {
+            getIndexer().refresh("Snapshot for Remote Store based Shard");
+        } catch (Exception e) {
+            IOUtils.closeWhileHandlingException(indexCommit);
+            throw e;
+        }
         return indexCommit;
     }
 
@@ -2194,7 +2199,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @ExperimentalApi
     public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshotAndRefresh(boolean flushFirst) throws EngineException, IOException {
         GatedCloseable<CatalogSnapshot> catalogSnapshot = acquireLastCommittedSnapshot(flushFirst);
-        getIndexer().refresh("Snapshot for Remote Store based Shard");
+        try {
+            getIndexer().refresh("Snapshot for Remote Store based Shard");
+        } catch (Exception e) {
+            IOUtils.closeWhileHandlingException(catalogSnapshot);
+            throw e;
+        }
         return catalogSnapshot;
     }
 
