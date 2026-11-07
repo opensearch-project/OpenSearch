@@ -52,6 +52,7 @@ import org.opensearch.index.mapper.MappedFieldType;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -59,7 +60,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder> implements WithFieldName {
+public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder> implements WithFieldName, ComplementAwareQueryBuilder {
     public static final String NAME = "exists";
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
@@ -245,6 +246,25 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         }
 
         return fields;
+    }
+
+    /**
+     * Returns a {@link NotExistsQueryBuilder} for the same field, representing documents
+     * where this field is absent. The complement is always valid regardless of field cardinality,
+     * so {@link #requiresCardinalityCheck()} returns {@code false}.
+     */
+    @Override
+    public List<QueryBuilder> getComplement(QueryShardContext context) {
+        return List.of(new NotExistsQueryBuilder(fieldName));
+    }
+
+    /**
+     * The complement of "field exists" is "field absent" — this is unambiguous regardless of
+     * how many values a document has for the field, so no cardinality check is needed.
+     */
+    @Override
+    public boolean requiresCardinalityCheck() {
+        return false;
     }
 
     @Override
