@@ -42,9 +42,10 @@ public class FilterPredicateGuardTests extends OpenSearchTestCase {
         }
         RexNode bigOr = buildFlatOr(predicates);
 
-        // 30 predicates with limit 10 — should fail
+        // 30 predicates with limit 10 — should fail. The guard short-circuits, so the message
+        // reports "more than [limit]" rather than the exact leaf count (which it never computes).
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> FilterPredicateGuard.validate(bigOr, 10));
-        assertTrue(e.getMessage().contains("30 predicates"));
+        assertTrue(e.getMessage().contains("more than 10 predicates"));
         assertTrue(e.getMessage().contains("maximum allowed [10]"));
     }
 
@@ -93,6 +94,108 @@ public class FilterPredicateGuardTests extends OpenSearchTestCase {
         // NOT(a=1) — 1 leaf predicate; NOT itself doesn't count
         RexNode notNode = rexBuilder.makeCall(SqlStdOperatorTable.NOT, makeComparison());
         assertEquals("leaf count", 1, FilterPredicateGuard.countLeaves(notNode));
+    }
+
+    /**
+     * Guard-level stack safety: {@link FilterPredicateGuard} must count a very deep tree without
+     * recursing on the JVM call stack. This asserts the guard's OWN traversal is iterative — it does
+     * NOT claim the system accepts trees this deep. In production, depth is bounded far below this by
+     * the PPL/SQL parser ({@code plugins.query.max_expression_depth}) and the DSL XContent nesting
+     * limit, and Calcite would overflow building such a tree before the guard ever ran. This test
+     * builds the RexNode directly to exercise the guard in isolation.
+     */
+    public void testDeeplyNestedConditionRejectedWithoutStackOverflow() {
+        RexNode deep = buildDeepAndChain(200_000);
+        // limit 500 (the production default) — the deep chain has 200k leaves, so the guard rejects it.
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> FilterPredicateGuard.validate(deep, 500));
+        assertTrue(e.getMessage().contains("more than 500 predicates"));
+        assertTrue(e.getMessage().contains("maximum allowed [500]"));
+    }
+
+    /**
+     * Guard-level stack safety for the low-leaf-count case: a tree that is deep but has few leaves
+     * must still be walked iteratively (no StackOverflowError) and pass the count check. Again this
+     * exercises the guard in isolation; it is not a statement that the system accepts 200k-deep
+     * conditions (it does not — see the class Javadoc on upstream depth bounds).
+     */
+    public void testDeeplyNestedConditionWithinLimitDoesNotOverflow() {
+        // 200k-deep chain of NOT(...) around a single comparison: exactly 1 leaf predicate, but
+        // 200k levels of nesting. A recursive count would overflow; the iterative count must not.
+        RexNode deepButOneLeaf = makeComparison();
+        for (int i = 0; i < 200_000; i++) {
+            deepButOneLeaf = rexBuilder.makeCall(SqlStdOperatorTable.NOT, deepButOneLeaf);
+        }
+        // 1 leaf, limit 500 — passes without throwing (and without StackOverflowError).
+        FilterPredicateGuard.validate(deepButOneLeaf, 500);
+        assertEquals("leaf count", 1, FilterPredicateGuard.countLeaves(deepButOneLeaf));
+    }
+
+    /**
+     * The disabled guard (limit 0) must return immediately without walking the tree at all, so an
+     * arbitrarily deep condition can't overflow when the guard is turned off.
+     */
+    public void testDisabledGuardSkipsDeepTreeEntirely() {
+        RexNode deep = buildDeepAndChain(200_000);
+        FilterPredicateGuard.validate(deep, 0); // no throw, no overflow
+    }
+
+    /**
+     * {@code countLeavesUpTo} must stop counting once it reaches the limit, capping the work the
+     * guard does on a hostile tree. A 50-leaf flat OR probed with limit 10 returns exactly 10.
+     */
+    public void testCountLeavesUpToShortCircuitsAtLimit() {
+        List<RexNode> predicates = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            predicates.add(makeComparison());
+        }
+        RexNode bigOr = buildFlatOr(predicates);
+        assertEquals("short-circuited count", 10, FilterPredicateGuard.countLeavesUpTo(bigOr, 10));
+        // Full count still reachable via the unbounded entry point.
+        assertEquals("full count", 50, FilterPredicateGuard.countLeaves(bigOr));
+    }
+
+    /** Boundary: exactly maxCount leaves passes; maxCount + 1 is rejected. */
+    public void testBoundaryExactlyAtLimitPassesOverByOneRejected() {
+        List<RexNode> atLimit = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            atLimit.add(makeComparison());
+        }
+        // Exactly 10 leaves, limit 10 — passes (validate rejects only when count > maxCount).
+        FilterPredicateGuard.validate(buildFlatOr(atLimit), 10);
+
+        List<RexNode> overByOne = new ArrayList<>();
+        for (int i = 0; i < 11; i++) {
+            overByOne.add(makeComparison());
+        }
+        // 11 leaves, limit 10 — rejected.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> FilterPredicateGuard.validate(buildFlatOr(overByOne), 10)
+        );
+        assertTrue(e.getMessage().contains("maximum allowed [10]"));
+    }
+
+    /** A negative limit disables the guard, exactly like 0. */
+    public void testNegativeLimitDisablesGuard() {
+        List<RexNode> predicates = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            predicates.add(makeComparison());
+        }
+        FilterPredicateGuard.validate(buildFlatOr(predicates), -1); // no throw
+    }
+
+    /** A bare leaf predicate at the top level (not wrapped in a connective) counts as one. */
+    public void testBareLeafCountsAsOne() {
+        assertEquals("bare comparison is one leaf", 1, FilterPredicateGuard.countLeaves(makeComparison()));
+    }
+
+    /** Right-leaning AND chain: AND(a, AND(a, AND(a, ...))) with {@code depth} leaf comparisons. */
+    private RexNode buildDeepAndChain(int depth) {
+        RexNode node = makeComparison();
+        for (int i = 1; i < depth; i++) {
+            node = rexBuilder.makeCall(SqlStdOperatorTable.AND, makeComparison(), node);
+        }
+        return node;
     }
 
     private RexNode makeComparison() {

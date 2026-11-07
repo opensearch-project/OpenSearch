@@ -19,6 +19,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
@@ -112,6 +113,11 @@ public abstract class FilterFieldType extends MappedFieldType {
     @Override
     public boolean isSearchable() {
         return delegate.isSearchable();
+    }
+
+    @Override
+    public boolean isSearchableViaDocValues(IndexSettings indexSettings) {
+        return delegate.isSearchableViaDocValues(indexSettings);
     }
 
     @Override

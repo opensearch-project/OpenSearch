@@ -297,14 +297,21 @@ public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
         ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
         assertThat(response.isTimedOut(), is(false));
 
-        // assert that join requests fail with the right exception
+        // assert that join requests fail with the right exception. A join that reaches the cluster-manager while the
+        // disconnect is pending is refused when connecting; a join that was already queued behind the node-left task when
+        // the connection closed is refused when it runs. Either way the node retries and rejoins on a fresh connection.
         boolean logFound = testLogsAppender.waitForLog("failed to join", 30, TimeUnit.SECONDS);
         assertTrue("Expected log was not found within the timeout period", logFound);
         logFound = testLogsAppender.waitForLog(
             "IllegalStateException[cannot make a new connection as disconnect to node",
             30,
             TimeUnit.SECONDS
-        );
+        )
+            || testLogsAppender.waitForLog(
+                "IllegalStateException[cluster-manager is no longer connected to joining node",
+                30,
+                TimeUnit.SECONDS
+            );
         assertTrue("Expected log was not found within the timeout period", logFound);
     }
 

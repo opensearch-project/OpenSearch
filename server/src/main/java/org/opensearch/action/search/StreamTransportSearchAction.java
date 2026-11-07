@@ -59,7 +59,9 @@ public class StreamTransportSearchAction extends TransportSearchAction {
         SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory,
         Tracer tracer,
         TaskResourceTrackingService taskResourceTrackingService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        SearchExecutionGate searchExecutionGate,
+        SearchCancelAfterTimeIntervalResolver cancelAfterTimeIntervalResolver
     ) {
         super(
             client,
@@ -78,7 +80,9 @@ public class StreamTransportSearchAction extends TransportSearchAction {
             searchRequestOperationsCompositeListenerFactory,
             tracer,
             taskResourceTrackingService,
-            indicesService
+            indicesService,
+            searchExecutionGate,
+            cancelAfterTimeIntervalResolver
         );
     }
 

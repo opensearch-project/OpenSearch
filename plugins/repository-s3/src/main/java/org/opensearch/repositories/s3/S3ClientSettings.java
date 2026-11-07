@@ -180,6 +180,13 @@ public final class S3ClientSettings {
         key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(5), Property.NodeScope)
     );
 
+    /** The timeout for an entire S3 API call, including retries. Zero leaves the SDK timeout unset. */
+    static final Setting.AffixSetting<TimeValue> API_CALL_TIMEOUT_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "api_call_timeout",
+        key -> Setting.timeSetting(key, TimeValue.ZERO, TimeValue.ZERO, Property.NodeScope)
+    );
+
     /** The connection timeout for connecting to s3. */
     static final Setting.AffixSetting<TimeValue> CONNECTION_TIMEOUT_SETTING = Setting.affixKeySetting(
         PREFIX,
@@ -294,6 +301,9 @@ public final class S3ClientSettings {
     /** The request timeout for the s3 client */
     final int requestTimeoutMillis;
 
+    /** The timeout for an entire S3 API call, including retries, or zero if unset. */
+    final int apiCallTimeoutMillis;
+
     /** The connection timeout for the s3 client */
     final int connectionTimeoutMillis;
 
@@ -334,6 +344,7 @@ public final class S3ClientSettings {
         Protocol protocol,
         int readTimeoutMillis,
         int requestTimeoutMillis,
+        int apiCallTimeoutMillis,
         int connectionTimeoutMillis,
         int connectionTTLMillis,
         int maxConnections,
@@ -354,6 +365,7 @@ public final class S3ClientSettings {
         this.protocol = protocol;
         this.readTimeoutMillis = readTimeoutMillis;
         this.requestTimeoutMillis = requestTimeoutMillis;
+        this.apiCallTimeoutMillis = apiCallTimeoutMillis;
         this.connectionTimeoutMillis = connectionTimeoutMillis;
         this.connectionTTLMillis = connectionTTLMillis;
         this.maxConnections = maxConnections;
@@ -393,6 +405,9 @@ public final class S3ClientSettings {
         );
         final int newRequestTimeoutMillis = Math.toIntExact(
             getRepoSettingOrDefault(REQUEST_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(requestTimeoutMillis)).millis()
+        );
+        final int newApiCallTimeoutMillis = Math.toIntExact(
+            getRepoSettingOrDefault(API_CALL_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(apiCallTimeoutMillis)).millis()
         );
         final int newConnectionTimeoutMillis = Math.toIntExact(
             getRepoSettingOrDefault(CONNECTION_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(connectionTimeoutMillis))
@@ -439,6 +454,7 @@ public final class S3ClientSettings {
             && proxySettings.getPort() == newProxyPort
             && newReadTimeoutMillis == readTimeoutMillis
             && newRequestTimeoutMillis == requestTimeoutMillis
+            && newApiCallTimeoutMillis == apiCallTimeoutMillis
             && newConnectionTimeoutMillis == connectionTimeoutMillis
             && newConnectionTTLMillis == connectionTTLMillis
             && newMaxConnections == maxConnections
@@ -462,6 +478,7 @@ public final class S3ClientSettings {
             newProtocol,
             newReadTimeoutMillis,
             newRequestTimeoutMillis,
+            newApiCallTimeoutMillis,
             newConnectionTimeoutMillis,
             newConnectionTTLMillis,
             newMaxConnections,
@@ -594,6 +611,7 @@ public final class S3ClientSettings {
             awsProtocol,
             Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis()),
             Math.toIntExact(getConfigValue(settings, clientName, REQUEST_TIMEOUT_SETTING).millis()),
+            Math.toIntExact(getConfigValue(settings, clientName, API_CALL_TIMEOUT_SETTING).millis()),
             Math.toIntExact(getConfigValue(settings, clientName, CONNECTION_TIMEOUT_SETTING).millis()),
             Math.toIntExact(getConfigValue(settings, clientName, CONNECTION_TTL_SETTING).millis()),
             Math.toIntExact(getConfigValue(settings, clientName, MAX_CONNECTIONS_SETTING)),
@@ -670,6 +688,7 @@ public final class S3ClientSettings {
         final S3ClientSettings that = (S3ClientSettings) o;
         return readTimeoutMillis == that.readTimeoutMillis
             && requestTimeoutMillis == that.requestTimeoutMillis
+            && apiCallTimeoutMillis == that.apiCallTimeoutMillis
             && connectionTimeoutMillis == that.connectionTimeoutMillis
             && connectionTTLMillis == that.connectionTTLMillis
             && maxConnections == that.maxConnections
@@ -695,6 +714,7 @@ public final class S3ClientSettings {
             proxySettings,
             readTimeoutMillis,
             requestTimeoutMillis,
+            apiCallTimeoutMillis,
             connectionTimeoutMillis,
             connectionTTLMillis,
             maxConnections,

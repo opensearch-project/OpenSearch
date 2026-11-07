@@ -897,30 +897,129 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         );
     }
 
+    /**
+     * Wire-level description of a multi-value expand. {@code outputType} is the Calcite-derived
+     * record type when the spec is built from a {@link RelNode}; it is {@code null} when the spec
+     * was decoded from serialized bytes, in which case the record type is derived from the input.
+     */
     private record MultiValueExpandSpec(int fieldIndex, Integer limit, boolean append, boolean distinct, Type.Struct outputType) {
     }
 
-    private static final class MultiValueExpandDetail implements Extension.SingleRelDetail {
-        private static final String TYPE_URL = "opensearch://analytics/multi_value_expand/v1";
+    /**
+     * {@link ExtensionSingle} detail for the multi-value expand, mirrored by
+     * {@code substrait_consumer.rs} on the Rust side. The 16-byte payload carries
+     * {@code fieldIndex, limit, append, distinct} as big-endian i32s; the output schema is not on
+     * the wire and is re-derived from the input on decode ({@link #deriveRecordType(Rel)}).
+     */
+    static final class MultiValueExpandDetail implements Extension.SingleRelDetail {
+        static final String TYPE_URL = "opensearch://analytics/multi_value_expand/v1";
+        private static final int PAYLOAD_BYTES = 16;
         private final MultiValueExpandSpec spec;
 
         private MultiValueExpandDetail(MultiValueExpandSpec spec) {
             this.spec = spec;
         }
 
+        /** Whether {@code any} carries a multi-value expand payload this class can decode. */
+        static boolean matches(Any any) {
+            return any != null && TYPE_URL.equals(any.getTypeUrl());
+        }
+
+        /** Inverse of {@link #toProto}; the record type is derived lazily from the input. */
+        static MultiValueExpandDetail fromProto(Any any) {
+            if (!matches(any)) {
+                throw new IllegalArgumentException("Not a multi-value expand extension: " + (any == null ? null : any.getTypeUrl()));
+            }
+            ByteString value = any.getValue();
+            if (value.size() != PAYLOAD_BYTES) {
+                throw new IllegalArgumentException(
+                    "Malformed multi-value expand payload: expected " + PAYLOAD_BYTES + " bytes, got " + value.size()
+                );
+            }
+            ByteBuffer payload = value.asReadOnlyByteBuffer();
+            int fieldIndex = payload.getInt();
+            int limit = payload.getInt();
+            int append = payload.getInt();
+            int distinct = payload.getInt();
+            if (fieldIndex < 0 || limit < -1 || (append != 0 && append != 1) || (distinct != 0 && distinct != 1)) {
+                throw new IllegalArgumentException(
+                    "Malformed multi-value expand payload: fieldIndex="
+                        + fieldIndex
+                        + " limit="
+                        + limit
+                        + " append="
+                        + append
+                        + " distinct="
+                        + distinct
+                );
+            }
+            return new MultiValueExpandDetail(
+                new MultiValueExpandSpec(fieldIndex, limit < 0 ? null : limit, append == 1, distinct == 1, null)
+            );
+        }
+
         @Override
         public Type.Struct deriveRecordType(Rel input) {
-            return spec.outputType();
+            if (spec.outputType() != null) {
+                return spec.outputType();
+            }
+            // Decoded from the wire: rebuild the same shape substrait_consumer.rs produces. The
+            // expanded column is the LIST's element type, nullable (unnest preserves nulls); in
+            // append mode it is added after the input columns, otherwise it replaces the LIST column.
+            List<Type> inputFields = input.getRecordType().fields();
+            if (spec.fieldIndex() >= inputFields.size()) {
+                throw new IllegalArgumentException(
+                    "multi-value expand field index " + spec.fieldIndex() + " is outside " + inputFields.size() + " input columns"
+                );
+            }
+            Type source = inputFields.get(spec.fieldIndex());
+            if (!(source instanceof Type.ListType list)) {
+                throw new IllegalArgumentException("multi-value expand field " + spec.fieldIndex() + " is not a LIST: " + source);
+            }
+            Type element = list.elementType().withNullable(true);
+            List<Type> outputFields = new ArrayList<>(inputFields);
+            if (spec.append()) {
+                outputFields.add(element);
+            } else {
+                outputFields.set(spec.fieldIndex(), element);
+            }
+            return Type.Struct.builder().nullable(input.getRecordType().nullable()).addAllFields(outputFields).build();
         }
 
         @Override
         public Any toProto(io.substrait.relation.RelProtoConverter converter) {
-            ByteBuffer payload = ByteBuffer.allocate(16);
+            ByteBuffer payload = ByteBuffer.allocate(PAYLOAD_BYTES);
             payload.putInt(spec.fieldIndex());
             payload.putInt(spec.limit() == null ? -1 : spec.limit());
             payload.putInt(spec.append() ? 1 : 0);
             payload.putInt(spec.distinct() ? 1 : 0);
             return Any.newBuilder().setTypeUrl(TYPE_URL).setValue(ByteString.copyFrom(payload.array())).build();
+        }
+    }
+
+    /**
+     * {@link ProtoPlanConverter} that understands this backend's own {@link ExtensionSingle}
+     * details. The stock converter maps every unknown extension to an {@code EmptyDetail} whose
+     * record type is an empty struct, so any field reference above it (e.g. the GROUP BY key of a
+     * PARTIAL aggregate over the expanded column) fails with
+     * "Field reference offset (N) must be less than number of fields in struct (0)" when a
+     * shard-stage plan is decoded on the coordinator to splice the reduce fragment on top.
+     */
+    private static final class OpenSearchProtoPlanConverter extends ProtoPlanConverter {
+        OpenSearchProtoPlanConverter(SimpleExtension.ExtensionCollection extensions) {
+            super(extensions);
+        }
+
+        @Override
+        protected io.substrait.relation.ProtoRelConverter getProtoRelConverter(io.substrait.extension.ExtensionLookup functionLookup) {
+            return new io.substrait.relation.ProtoRelConverter(functionLookup, extensionCollection, protoExtensionConverter) {
+                @Override
+                protected Extension.SingleRelDetail detailFromExtensionSingleRel(Any any) {
+                    return MultiValueExpandDetail.matches(any)
+                        ? MultiValueExpandDetail.fromProto(any)
+                        : super.detailFromExtensionSingleRel(any);
+                }
+            };
         }
     }
 
@@ -1102,11 +1201,11 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     // ── Plan serde helpers ──────────────────────────────────────────────────────
 
-    /** Decodes serialized Substrait bytes into a model-level {@link Plan}. */
+    /** Decodes serialized Substrait bytes into a model-level {@link Plan}, including this backend's own extension rels. */
     private Plan decodePlan(byte[] bytes) {
         try {
             io.substrait.proto.Plan proto = io.substrait.proto.Plan.parseFrom(bytes);
-            return new ProtoPlanConverter(extensions).from(proto);
+            return new OpenSearchProtoPlanConverter(extensions).from(proto);
         } catch (InvalidProtocolBufferException e) {
             throw new IllegalArgumentException("Failed to decode Substrait plan bytes", e);
         }

@@ -146,6 +146,20 @@ public class CatalogSnapshotManager implements Closeable {
      * Applies the results of a completed merge to the latest catalog snapshot.
      * Replaces the merged segments with the new merged segment and commits a new snapshot.
      *
+     * <p>Sources are identified by <em>generation</em>, never by {@link Segment} identity. A
+     * {@code Segment} is a record whose {@code equals} covers its whole file set, and a refresh
+     * that applies deletes rewrites an existing generation's live-docs file — so that generation
+     * reappears as a different value while an in-flight merge still holds the record it selected.
+     * Generations come from a single monotonic counter and are never reused, so the number alone
+     * identifies a source unambiguously.
+     *
+     * <p>A source generation may also be gone entirely: a refresh that deletes every document in a
+     * generation drops it (see {@code RefreshResult.droppedGenerations}). Neither case invalidates
+     * the merge. Deletes landing mid-merge are carried onto the merged segment by Lucene's
+     * {@code commitMerge}, and its {@code .liv} is flushed before the merged file set is recorded,
+     * so the output already reflects them. Both cases therefore apply normally; a merge applied
+     * twice is still rejected by the generation-collision check below.
+     *
      * @param mergeResult the result of the merge containing the merged writer file set
      * @param oneMerge    the merge specification identifying which segments were merged
      * @return the newly created merged {@link Segment}
@@ -156,21 +170,28 @@ public class CatalogSnapshotManager implements Closeable {
         List<Segment> segmentList = new ArrayList<>(latestCatalogSnapshot.getSegments());
 
         Segment segmentToAdd = getSegment(mergeResult.getMergedWriterFileSet());
-        Set<Segment> segmentsToRemove = new HashSet<>(oneMerge.getSegmentsToMerge());
+        Set<Segment> sourceSegments = new HashSet<>(oneMerge.getSegmentsToMerge());
+        Set<Long> generationsToRemove = new HashSet<>();
+        for (Segment source : sourceSegments) {
+            generationsToRemove.add(source.generation());
+        }
 
-        // All source segments must exist in the current snapshot
-        if (!segmentList.containsAll(segmentsToRemove)) {
-            throw new IllegalStateException(
-                "Merge source segments must all exist in the current catalog snapshot. Missing: "
-                    + segmentsToRemove.stream()
-                        .filter(s -> !segmentList.contains(s))
-                        .map(s -> "gen=" + s.generation())
-                        .collect(java.util.stream.Collectors.joining(", "))
-            );
+        // Not an error — see the method javadoc. Logged because it means this merge raced a
+        // delete-bearing refresh, which is worth seeing when reasoning about merge throughput.
+        if (logger.isDebugEnabled()) {
+            List<Long> absent = generationsToRemove.stream()
+                .filter(gen -> segmentList.stream().noneMatch(s -> s.generation() == gen))
+                .sorted()
+                .collect(java.util.stream.Collectors.toList());
+            if (absent.isEmpty() == false) {
+                logger.debug("merge sources no longer in the catalog (dropped by a concurrent refresh): gen={}", absent);
+            }
         }
 
         // Merged segment generation must not collide with any segment that will be retained
-        if (segmentList.stream().filter(s -> !segmentsToRemove.contains(s)).anyMatch(s -> s.generation() == segmentToAdd.generation())) {
+        if (segmentList.stream()
+            .filter(s -> generationsToRemove.contains(s.generation()) == false)
+            .anyMatch(s -> s.generation() == segmentToAdd.generation())) {
             throw new IllegalStateException(
                 "Merged segment generation [" + segmentToAdd.generation() + "] collides with a retained segment generation"
             );
@@ -179,8 +200,9 @@ public class CatalogSnapshotManager implements Closeable {
         // Row count conservation: merged output must not exceed sum of input rows.
         // Compaction with deletes may drop rows, so the merged total can be lower —
         // only a merged count strictly greater than the source total is an invariant violation.
-        if (!assertRowCountConservation(segmentsToRemove, segmentToAdd)) {
-            long inputRows = segmentsToRemove.stream()
+        // Compared against the sources as the merge read them, which is what produced the output.
+        if (!assertRowCountConservation(sourceSegments, segmentToAdd)) {
+            long inputRows = sourceSegments.stream()
                 .flatMap(s -> s.dfGroupedSearchableFiles().values().stream())
                 .mapToLong(WriterFileSet::numRows)
                 .sum();
@@ -199,7 +221,7 @@ public class CatalogSnapshotManager implements Closeable {
         for (int segIdx = 0, cnt = segmentList.size(); segIdx < cnt; segIdx++) {
             assert segIdx >= newSegIdx;
             Segment currSegment = segmentList.get(segIdx);
-            if (segmentsToRemove.contains(currSegment)) {
+            if (generationsToRemove.contains(currSegment.generation())) {
                 if (!inserted) {
                     segmentList.set(segIdx, segmentToAdd);
                     inserted = true;

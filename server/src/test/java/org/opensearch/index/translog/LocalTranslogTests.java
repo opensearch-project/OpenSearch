@@ -88,6 +88,7 @@ import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.LocalCheckpointTrackerTests;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.Translog.Location;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
@@ -303,6 +304,124 @@ public class LocalTranslogTests extends OpenSearchTestCase {
     private Location addToTranslogAndList(Translog translog, List<Translog.Operation> list, Translog.Operation op) throws IOException {
         list.add(op);
         return translog.add(op);
+    }
+
+    private List<Translog.Operation> buildHttpLogLikeOps(int n, long seqNoBase) {
+        final List<Translog.Operation> ops = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            final long seqNo = seqNoBase + i;
+            final String id = String.format(java.util.Locale.ROOT, "%020d", seqNo);
+            // ~300 byte source, representative of an http_logs document body
+            final byte[] source = new byte[300];
+            for (int b = 0; b < source.length; b++) {
+                source[b] = (byte) ((seqNo * 31 + b) & 0xFF);
+            }
+            ops.add(new Translog.Index(id, seqNo, primaryTerm.get(), source));
+        }
+        return ops;
+    }
+
+    /**
+     * A batch add must produce a byte-identical translog file, identical Locations, and the same readable ops as the
+     * same operations added one at a time. We build two translogs from identical configs/ops and compare on disk.
+     */
+    public void testBatchAddByteIdenticalToSingleAdds() throws IOException {
+        // Use a small, fixed buffer so the batch spans the writer's buffer-flush threshold at least once.
+        final int opCount = 250;
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1ms")
+            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1b")
+            .build();
+
+        final Path singleDir = createTempDir();
+        final Path batchDir = createTempDir();
+        final TranslogConfig singleConfig = new TranslogConfig(
+            shardId,
+            singleDir,
+            IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings),
+            NON_RECYCLING_INSTANCE,
+            new ByteSizeValue(4, ByteSizeUnit.KB),
+            "",
+            false
+        );
+        final TranslogConfig batchConfig = new TranslogConfig(
+            shardId,
+            batchDir,
+            IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings),
+            NON_RECYCLING_INSTANCE,
+            new ByteSizeValue(4, ByteSizeUnit.KB),
+            "",
+            false
+        );
+
+        final String singleUUID = Translog.createEmptyTranslog(singleDir, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        final String batchUUID = Translog.createEmptyTranslog(batchDir, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+
+        final List<Translog.Location> singleLocations = new ArrayList<>();
+        final Translog.Location[] batchLocations;
+        final byte[] singleBytes;
+        final byte[] batchBytes;
+        final long gen;
+
+        final List<Translog.Operation> ops = buildHttpLogLikeOps(opCount, 0);
+
+        try (
+            Translog singleTranslog = openTranslog(singleConfig, singleUUID);
+            Translog batchTranslog = openTranslog(batchConfig, batchUUID)
+        ) {
+            for (Translog.Operation op : ops) {
+                singleLocations.add(singleTranslog.add(op));
+            }
+            batchLocations = batchTranslog.add(ops);
+
+            singleTranslog.sync();
+            batchTranslog.sync();
+
+            // 1. Identical Locations (generation, offset, size) per op
+            assertThat(batchLocations.length, equalTo(singleLocations.size()));
+            for (int i = 0; i < opCount; i++) {
+                assertThat("location mismatch at op " + i, batchLocations[i], equalTo(singleLocations.get(i)));
+            }
+
+            // 2. snapshot reads all ops back from the batch translog, in order and equal to the inputs
+            try (Translog.Snapshot snapshot = batchTranslog.newSnapshot()) {
+                assertThat(snapshot.totalOperations(), equalTo(opCount));
+                for (int i = 0; i < opCount; i++) {
+                    final Translog.Operation read = snapshot.next();
+                    assertThat("op " + i + " read back", read, equalTo(ops.get(i)));
+                }
+                assertNull(snapshot.next());
+            }
+
+            // 3. Read the on-disk write-generation file from each translog while both are still open (after sync).
+            gen = singleTranslog.currentFileGeneration();
+            assertThat("both translogs on same generation", batchTranslog.currentFileGeneration(), equalTo(gen));
+            singleBytes = Files.readAllBytes(singleDir.resolve(Translog.getFilename(gen)));
+            batchBytes = Files.readAllBytes(batchDir.resolve(Translog.getFilename(gen)));
+        }
+
+        // Byte-identical .tlog payloads. The two files share an identical header layout (same version, same UUID
+        // length) and differ only in the UUID bytes, so compare the operations region after the header for exact
+        // byte identity.
+        assertThat("translog file length differs", batchBytes.length, equalTo(singleBytes.length));
+        final int headerSize = TranslogHeader.headerSizeInBytes(singleUUID);
+        for (int i = headerSize; i < singleBytes.length; i++) {
+            assertThat("operation byte region differs at offset " + i, batchBytes[i], equalTo(singleBytes[i]));
+        }
+    }
+
+    /** A single-element batch and an empty batch must behave sanely and match the single-op path. */
+    public void testBatchAddEdgeCounts() throws IOException {
+        assertThat(translog.add(new ArrayList<>()).length, equalTo(0));
+        final List<Translog.Operation> one = buildHttpLogLikeOps(1, 0);
+        final Translog.Location[] locs = translog.add(one);
+        assertThat(locs.length, equalTo(1));
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            assertThat(snapshot.totalOperations(), equalTo(1));
+            assertThat(snapshot.next(), equalTo(one.get(0)));
+            assertNull(snapshot.next());
+        }
     }
 
     public void testIdParsingFromFile() {
@@ -749,6 +868,30 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         translog.close();
         AlreadyClosedException ex = expectThrows(AlreadyClosedException.class, () -> translog.newSnapshot());
         assertEquals(ex.getMessage(), "translog is already closed");
+    }
+
+    /**
+     * A local-only translog must keep the layout it has always had: no footer, so the file is exactly as long as
+     * the offset recorded in its checkpoint and no content checksum is derived. The footer is a remote-store
+     * concern only (see {@link TranslogFooter}).
+     */
+    public void testLocalTranslogGenerationHasNoFooter() throws IOException {
+        translog.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+        translog.add(new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 2 }));
+        translog.rollGeneration();
+        final long closedGeneration = translog.currentFileGeneration() - 1;
+
+        final Path translogFile = translogDir.resolve(Translog.getFilename(closedGeneration));
+        final Checkpoint checkpoint = Checkpoint.read(translogDir.resolve(Translog.getCommitCheckpointFileName(closedGeneration)));
+        assertThat(Files.size(translogFile), equalTo(checkpoint.offset));
+        assertThat(TranslogFooter.readChecksum(translogFile, checkpoint.offset), nullValue());
+
+        final TranslogReader reader = translog.readers.stream()
+            .filter(r -> r.getGeneration() == closedGeneration)
+            .findFirst()
+            .orElseThrow();
+        assertThat(reader.getTranslogChecksum(), nullValue());
+        assertThat(reader.getTranslogContentChecksum(), nullValue());
     }
 
     public void testRangeSnapshot() throws Exception {
@@ -1666,6 +1809,99 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             assertEquals(4, checkpointFsyncCalls.get());
             assertEquals(3, translogFsyncCalls.get());
             // Sequence numbers are marked as persisted after sync
+            assertThat(persistedSeqNos, contains(1L, 2L, 3L, 4L));
+        }
+    }
+
+    public void testTranslogWriterFsyncedOnSegmentsOnlyNode() throws IOException {
+        Path tempDir = createTempDir();
+        // A segments_only node: a segment repository attribute and deliberately no translog repository, so the
+        // translog is local and is the only durable copy of the operations written here.
+        final IndexSettings segmentsOnlySettings = IndexSettingsModule.newIndexSettings(
+            shardId.getIndex(),
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build(),
+            Settings.builder()
+                .put("node.attr." + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "seg-repo")
+                .build()
+        );
+        assertTrue("precondition: the node looks remote", segmentsOnlySettings.isAssignedOnRemoteNode());
+        assertFalse("precondition: the translog is local", segmentsOnlySettings.isRemoteTranslogStoreEnabled());
+
+        final TranslogConfig config = new TranslogConfig(
+            shardId,
+            tempDir,
+            segmentsOnlySettings,
+            NON_RECYCLING_INSTANCE,
+            new ByteSizeValue(1, ByteSizeUnit.KB),
+            "",
+            false
+        );
+
+        final Set<Long> persistedSeqNos = new HashSet<>();
+        final AtomicInteger translogFsyncCalls = new AtomicInteger();
+        final AtomicInteger checkpointFsyncCalls = new AtomicInteger();
+
+        final ChannelFactory channelFactory = (file, openOption) -> {
+            FileChannel delegate = FileChannel.open(file, openOption);
+            boolean success = false;
+            try {
+                final boolean isCkpFile = file.getFileName().toString().endsWith(".ckp");
+                final FileChannel channel;
+                if (isCkpFile) {
+                    channel = new FilterFileChannel(delegate) {
+                        @Override
+                        public void force(boolean metaData) throws IOException {
+                            checkpointFsyncCalls.incrementAndGet();
+                        }
+                    };
+                } else {
+                    channel = new FilterFileChannel(delegate) {
+                        @Override
+                        public void force(boolean metaData) throws IOException {
+                            translogFsyncCalls.incrementAndGet();
+                        }
+                    };
+                }
+                success = true;
+                return channel;
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(delegate);
+                }
+            }
+        };
+
+        String translogUUID = Translog.createEmptyTranslog(
+            config.getTranslogPath(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            channelFactory,
+            primaryTerm.get()
+        );
+
+        try (
+            Translog translog = new LocalTranslog(
+                config,
+                translogUUID,
+                new DefaultTranslogDeletionPolicy(-1, -1, 0),
+                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                primaryTerm::get,
+                persistedSeqNos::add,
+                TranslogOperationHelper.DEFAULT,
+                channelFactory
+            )
+        ) {
+            TranslogWriter writer = translog.getCurrent();
+            byte[] bytes = new byte[256];
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 1);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 2);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 3);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 4);
+            writer.sync();
+            // Identical to testTranslogWriterFsyncedWithLocalTranslog: the remote segment repository must not cause
+            // the fsync to be skipped, because nothing uploads this translog and the local file is the durable copy.
+            assertEquals("checkpoint must be fsynced", 4, checkpointFsyncCalls.get());
+            assertEquals("translog must be fsynced", 3, translogFsyncCalls.get());
             assertThat(persistedSeqNos, contains(1L, 2L, 3L, 4L));
         }
     }

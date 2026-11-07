@@ -196,6 +196,10 @@ tasks.register("regen") {
       encoding: 'UTF-8') {
       fileset(dir: outputPath, includes: 'Painless*.java')
     }
+    // Avoid inheritDoc warnings for the package-private visitor interface.
+    ant.replaceregexp(match: '(?m)^\\s*\\* \\{@inheritDoc\\}\\r?\\n\\s*\\*\\r?\\n', flags: 'g', replace: '', encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'PainlessParserBaseVisitor.java')
+    }
     // make the lexer abstract
     ant.replaceregexp(match: '(class \\QPainless\\ELexer)',
       replace: 'abstract \\1',

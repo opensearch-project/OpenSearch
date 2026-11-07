@@ -19,6 +19,7 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.CorrelationId;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.core.Uncollect;
+import org.apache.calcite.rel.hint.RelHint;
 import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalCorrelate;
 import org.apache.calcite.rel.logical.LogicalFilter;
@@ -41,6 +42,7 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.sql.type.SqlTypeTransforms;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.Optionality;
+import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.test.OpenSearchTestCase;
@@ -809,6 +811,130 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         assertEquals("implicit GROUP BY expansion appends a scalar field", 1, payload.getInt());
         assertEquals("implicit GROUP BY expansion de-duplicates within each document", 1, payload.getInt());
         assertEquals(List.of("tags", "count"), plan.getRelations(0).getRoot().getNamesList());
+    }
+
+    /**
+     * Multi-shard LIST GROUP BY: the coordinator decodes the shard-stage bytes (which carry the
+     * multi-value expand as an {@code ExtensionSingleRel}) to splice the FINAL aggregate on top.
+     * The stock proto converter turns unknown extensions into an empty-struct detail, so the
+     * PARTIAL aggregate's GROUP BY field reference fails with
+     * "Field reference offset (N) must be less than number of fields in struct (0)". The decoder
+     * must rebuild the extension with its real output schema so the round trip succeeds and the
+     * extension survives re-serialization unchanged.
+     */
+    public void testAttachFragmentOnTopDecodesMultiValueExpandExtension() throws Exception {
+        RelNode scan = buildListTableScan("test_index");
+        AggregateCall count = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "count"
+        );
+        LogicalAggregate partial = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(0), null, List.of(count));
+        byte[] innerBytes = newConvertor().convertFragment(partial);
+        assertTrue(
+            "shard fragment must carry the expand extension",
+            rootRel(decodeSubstrait(innerBytes)).getProject().getInput().getAggregate().getInput().hasExtensionSingle()
+        );
+
+        // FINAL half: SUM(count) grouped by the expanded (now scalar VARCHAR) tags column.
+        RelDataType element = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
+        RelDataType partialRowType = typeFactory.builder()
+            .add("tags", element)
+            .add("count", typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true))
+            .build();
+        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 1, partialRowType, List.of("datafusion"), List.of());
+        AggregateCall sumCounts = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true),
+            "count"
+        );
+        LogicalAggregate finalAgg = LogicalAggregate.create(stageInput, List.of(), ImmutableBitSet.of(0), null, List.of(sumCounts));
+
+        byte[] combined = newConvertor().attachFragmentOnTop(finalAgg, innerBytes);
+
+        Rel root = rootRel(decodeSubstrait(combined));
+        assertTrue("root must be the FINAL aggregate", root.hasAggregate());
+        Rel inner = root.getAggregate().getInput();
+        assertTrue("FINAL aggregate must sit on the shard fragment's output projection", inner.hasProject());
+        Rel partialAgg = inner.getProject().getInput();
+        assertTrue(partialAgg.hasAggregate());
+        Rel expanded = partialAgg.getAggregate().getInput();
+        assertTrue("expand extension must survive decode + re-encode", expanded.hasExtensionSingle());
+        assertEquals("opensearch://analytics/multi_value_expand/v1", expanded.getExtensionSingle().getDetail().getTypeUrl());
+        java.nio.ByteBuffer payload = expanded.getExtensionSingle().getDetail().getValue().asReadOnlyByteBuffer();
+        assertEquals(0, payload.getInt());
+        assertEquals(-1, payload.getInt());
+        assertEquals(1, payload.getInt());
+        assertEquals(1, payload.getInt());
+        assertEquals(
+            "PARTIAL GROUP BY key must still reference the appended expanded column",
+            1,
+            partialAgg.getAggregate()
+                .getGroupings(0)
+                .getGroupingExpressions(0)
+                .getSelection()
+                .getDirectReference()
+                .getStructField()
+                .getField()
+        );
+    }
+
+    /**
+     * FINAL half of a multi-shard LIST GROUP BY. The stage input is still typed with the
+     * pre-expansion ARRAY key, but the PARTIAL fragment already emits the scalar element, so the
+     * FINAL aggregate must not expand again and its Read must declare the key as a string —
+     * otherwise DataFusion rejects the plan with "Field 'tags' in Substrait schema has a
+     * different type (List(Utf8)) than the corresponding field in the table schema (Utf8View)".
+     */
+    public void testFinalAggregateRetypesExpandedStageInputKeyInsteadOfExpanding() throws Exception {
+        RelDataType element = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
+        RelDataType list = typeFactory.createTypeWithNullability(typeFactory.createArrayType(element, -1), true);
+        RelDataType partialRowType = typeFactory.builder()
+            .add("tags", list)
+            .add("count", typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true))
+            .build();
+        RelNode stageInput = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 1, partialRowType, List.of("datafusion"), List.of());
+        AggregateCall sumCounts = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true),
+            "count"
+        );
+        LogicalAggregate finalAgg = LogicalAggregate.create(
+            stageInput,
+            List.of(RelHint.builder(OpenSearchAggregate.FINAL_MODE_HINT).build()),
+            ImmutableBitSet.of(0),
+            null,
+            List.of(sumCounts)
+        );
+
+        Rel root = rootRel(decodeSubstrait(newConvertor().convertFragment(finalAgg)));
+        assertTrue("FINAL aggregate must be emitted without an expansion Project", root.hasAggregate());
+        Rel input = root.getAggregate().getInput();
+        assertTrue("FINAL aggregate must read the stage input directly, not a second expand", input.hasRead());
+        io.substrait.proto.Type keyType = input.getRead().getBaseSchema().getStruct().getTypes(0);
+        assertTrue("stage-input key must be declared with the element type: " + keyType, keyType.hasString());
+        assertEquals("input-1", input.getRead().getNamedTable().getNames(0));
+
+        // Without the FINAL hint the same shape is a PARTIAL over a worker stage input and must still expand.
+        LogicalAggregate partialOverStageInput = LogicalAggregate.create(
+            stageInput,
+            List.of(),
+            ImmutableBitSet.of(0),
+            null,
+            List.of(sumCounts)
+        );
+        Rel partialRoot = rootRel(decodeSubstrait(newConvertor().convertFragment(partialOverStageInput)));
+        assertTrue(partialRoot.hasProject());
+        assertTrue(partialRoot.getProject().getInput().getAggregate().getInput().hasExtensionSingle());
     }
 
     public void testExplicitMvExpandCorrelateEmitsAppendExtensionWithLimit() throws Exception {

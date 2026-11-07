@@ -81,6 +81,7 @@ public class S3RepositoryPluginTests extends OpenSearchTestCase {
                 );
             }
             assertTrue(plugin.getSettings().contains(S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE));
+            assertTrue(plugin.getSettings().contains(S3ClientSettings.API_CALL_TIMEOUT_SETTING));
         } finally {
             if (threadPool != null) {
                 terminate(threadPool);

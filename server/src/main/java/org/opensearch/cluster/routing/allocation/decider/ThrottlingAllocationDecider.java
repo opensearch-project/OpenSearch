@@ -278,7 +278,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             }
         } else {
             // if this is a search shard that recovers from remote store, ignore outgoing recovery limits.
-            if (shardRouting.isSearchOnly() && candidateNode.node().isRemoteStoreNode()) {
+            if (shardRouting.isSearchOnly() && candidateNode.node().isRemoteSegmentStoreNode()) {
                 return allocation.decision(
                     YES,
                     NAME,
@@ -332,8 +332,8 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         }
     }
 
-    private static boolean isRemoteStoreNode(ShardRouting shardRouting, RoutingAllocation allocation) {
-        return allocation.nodes().getNodes().get(shardRouting.currentNodeId()).isRemoteStoreNode();
+    private static boolean isRemoteSegmentStoreNode(ShardRouting shardRouting, RoutingAllocation allocation) {
+        return allocation.nodes().getNodes().get(shardRouting.currentNodeId()).isRemoteSegmentStoreNode();
     }
 
     /**
@@ -382,7 +382,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 assert shardRouting.isSearchOnly();
                 // check if the moving away search replica is using remote store, if not
                 // throw an error as the primary it will use for recovery is not active.
-                if (isRemoteStoreNode(shardRouting, allocation) == false) {
+                if (isRemoteSegmentStoreNode(shardRouting, allocation) == false) {
                     return allocation.decision(Decision.NO, NAME, "primary shard for this replica is not yet active");
                 }
             }
