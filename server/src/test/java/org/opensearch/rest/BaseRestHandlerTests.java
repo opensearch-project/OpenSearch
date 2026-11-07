@@ -329,7 +329,7 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
         verifyNoMoreInteractions(handlerSpy);
     }
 
-    public void testDeclaredParameterIsAcceptedWithoutBeingRead() throws Exception {
+    public void testDeclaredParameterMustStillBeConsumed() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
         BaseRestHandler handler = new BaseRestHandler() {
             private final RestParameter<String> index = RestParameter.simpleString(
@@ -358,11 +358,56 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
 
         final HashMap<String, String> params = new HashMap<>();
         params.put("index", "logs");
+        for (String value : List.of("true", "garbage")) {
+            params.put("local", value);
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
+            RestChannel channel = new FakeRestChannel(request, false, 1);
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> handler.handleRequest(request, channel, mockClient)
+            );
+            assertThat(e.getMessage(), containsString("unrecognized parameter: [local]"));
+            assertFalse(executed.get());
+        }
+    }
+
+    public void testDeclarationsSupportTypedAndLegacyAccessors() throws Exception {
+        final AtomicBoolean executed = new AtomicBoolean();
+        BaseRestHandler handler = new BaseRestHandler() {
+            private final RestParameter<Boolean> local = RestParameter.boolParam("local", false);
+
+            @Override
+            public List<RestParameter<?>> parameters() {
+                return List.of(local);
+            }
+
+            @Override
+            protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+                assertTrue(local.get(request));
+                assertEquals("value", request.param("legacy"));
+                return channel -> executed.set(true);
+            }
+
+            @Override
+            public String getName() {
+                return "test_declared_and_legacy_parameters";
+            }
+        };
+        final HashMap<String, String> params = new HashMap<>();
         params.put("local", "true");
+        params.put("legacy", "value");
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
-        RestChannel channel = new FakeRestChannel(request, false, 1);
-        handler.handleRequest(request, channel, mockClient);
+        handler.handleRequest(request, new FakeRestChannel(request, false, 1), mockClient);
         assertTrue(executed.get());
+
+        executed.set(false);
+        params.put("local", "garbage");
+        RestRequest invalid = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> handler.handleRequest(invalid, new FakeRestChannel(invalid, false, 1), mockClient)
+        );
+        assertFalse(executed.get());
     }
 
     public void testDeclaredParametersRejectMissingRequired() {

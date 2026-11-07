@@ -103,12 +103,14 @@ public interface RestHandler {
     }
 
     /**
-     * Request parameters this handler accepts.
+     * Parameter metadata exposed by this handler.
      * <p>
-     * An empty list means the handler has not migrated to {@link RestParameter}. Migrated handlers
-     * declare every accepted path and query parameter here. {@link BaseRestHandler} treats that
-     * declaration as the allow-list and rejects a missing {@link RestParameter.Property#Required}
-     * parameter before the handler runs.
+     * An empty list means the handler has not migrated to {@link RestParameter}. Declarations
+     * supplement the existing consumption-based validation; they are not an exhaustive allow-list.
+     * Declared parameters must still be consumed, and legacy accessors remain supported.
+     * {@link BaseRestHandler} rejects a missing {@link RestParameter.Property#Required} parameter
+     * before the handler runs. Requiredness applies to every route of this handler: a path parameter
+     * absent from some routes must be declared without {@code Required}.
      */
     @ExperimentalApi
     default List<RestParameter<?>> parameters() {

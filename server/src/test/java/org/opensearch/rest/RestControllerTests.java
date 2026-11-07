@@ -66,6 +66,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -244,6 +245,50 @@ public class RestControllerTests extends OpenSearchTestCase {
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.OK);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
         assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testDeclaredPathParameterWithGlobalAndIndexedRoutes() {
+        RestParameter<String> index = RestParameter.simpleString("index", RestParameter.Property.Path);
+        List<String> requestedIndices = new ArrayList<>();
+        restController.registerHandler(new BaseRestHandler() {
+            @Override
+            public List<Route> routes() {
+                return List.of(new Route(RestRequest.Method.GET, "/_search"), new Route(RestRequest.Method.GET, "/{index}/_search"));
+            }
+
+            @Override
+            public List<RestParameter<?>> parameters() {
+                return List.of(index);
+            }
+
+            @Override
+            protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+                requestedIndices.add(index.get(request));
+                return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, ""));
+            }
+
+            @Override
+            public String getName() {
+                return "test_optional_index_route";
+            }
+        });
+
+        RestRequest globalRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_search").build();
+        AssertingChannel globalChannel = new AssertingChannel(globalRequest, false, RestStatus.OK);
+        ThreadContext threadContext = client.threadPool().getThreadContext();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            restController.dispatchRequest(globalRequest, globalChannel, threadContext);
+        }
+        assertTrue(globalChannel.getSendResponseCalled());
+        assertEquals(Collections.singletonList(null), requestedIndices);
+
+        RestRequest indexedRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/logs/_search").build();
+        AssertingChannel indexedChannel = new AssertingChannel(indexedRequest, false, RestStatus.OK);
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            restController.dispatchRequest(indexedRequest, indexedChannel, threadContext);
+        }
+        assertTrue(indexedChannel.getSendResponseCalled());
+        assertEquals(Arrays.asList(null, "logs"), requestedIndices);
     }
 
     public void testRegisterAsDeprecatedHandler() {

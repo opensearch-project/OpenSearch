@@ -28,8 +28,8 @@ import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
  * declares the parameter once, and {@link #get(RestRequest)} consumes, parses, and applies the
  * required-or-default contract.
  * <p>
- * Path parameters are required for the route that contains them. An optional path segment is still
- * expressed by registering another route, not by a flag on the parameter. Query parameters are
+ * An optional path segment is expressed by registering another route. A path parameter absent from
+ * some of the handler's routes must be declared without {@link Property#Required}. Query parameters are
  * optional when they have a default (static, or supplied per call) and required when marked
  * {@link Property#Required}.
  * <pre>{@code
@@ -57,7 +57,7 @@ public final class RestParameter<T> {
     @ExperimentalApi
     public enum Property {
         /**
-         * The parameter must be present. Mutually exclusive with a static default.
+         * The parameter must be present on every route of this handler. Mutually exclusive with a static default.
          */
         Required,
 
@@ -68,8 +68,7 @@ public final class RestParameter<T> {
         Path,
 
         /**
-         * The parameter is accepted but deprecated. Declaration keeps it on the allow-list; the
-         * handler still owns the deprecation log.
+         * The parameter is deprecated. The handler still owns consumption and the deprecation log.
          */
         Deprecated
     }
@@ -381,20 +380,4 @@ public final class RestParameter<T> {
         return "RestParameter{key=" + key + ", properties=" + properties + "}";
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        RestParameter<?> that = (RestParameter<?>) o;
-        return hasDefault == that.hasDefault && key.equals(that.key) && properties.equals(that.properties);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(key, hasDefault, properties);
-    }
 }

@@ -115,14 +115,11 @@ public abstract class BaseRestHandler implements RestHandler {
         // prepare the request for execution; has the side effect of touching the request parameters
         final RestChannelConsumer action = prepareRequest(request, client);
 
-        final Set<String> declaredKeys = declaredParameters.stream().map(RestParameter::getKey).collect(Collectors.toSet());
         // validate unconsumed params, but we must exclude params used to format the response
-        // and params the handler has declared. use a sorted set so the unconsumed parameters
-        // appear in a reliable sorted order
+        // Use a sorted set so the unconsumed parameters appear in a reliable sorted order.
         final SortedSet<String> unconsumedParams = request.unconsumedParams()
             .stream()
             .filter(p -> responseParams().contains(p) == false)
-            .filter(p -> declaredKeys.contains(p) == false)
             .collect(Collectors.toCollection(TreeSet::new));
 
         // validate the non-response params
@@ -130,7 +127,7 @@ public abstract class BaseRestHandler implements RestHandler {
             final Set<String> candidateParams = new HashSet<>();
             candidateParams.addAll(request.consumedParams());
             candidateParams.addAll(responseParams());
-            candidateParams.addAll(declaredKeys);
+            declaredParameters.forEach(parameter -> candidateParams.add(parameter.getKey()));
             throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
         }
 
