@@ -38,6 +38,7 @@ import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rules.ExtractLiteralAggRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggLiteralArgProjectSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchAggregateConstantShiftRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
@@ -448,6 +449,10 @@ public class PlannerImpl {
      *   <li>{@link OpenSearchAggregateReduceRule} — {@code AVG} / {@code STDDEV} / {@code VAR} →
      *       primitive {@code SUM} / {@code COUNT} (+ {@code SUM_SQ} for variance) plus a scalar
      *       {@link org.apache.calcite.rel.logical.LogicalProject} computing the quotient.</li>
+     *   <li>{@link OpenSearchAggregateConstantShiftRule} — hoists a constant out of an integer aggregate
+     *       argument: {@code SUM(x ± k)} → {@code SUM(x) ± k * COUNT(x)}, {@code COUNT(x ± k)} → {@code COUNT(x)},
+     *       {@code MIN/MAX(x ± k)} → {@code MIN/MAX(x) ± k}, so N such terms over one column share one set of
+     *       accumulators and the scan no longer materializes a derived {@code x ± k} column per term.</li>
      * </ul>
      */
     private static RelNode decomposeAggregates(RelNode input, RuleProfilingListener listener) {
@@ -456,7 +461,16 @@ public class PlannerImpl {
             .addRuleInstance(new OpenSearchCheckedLongSumRule())
             .addRuleInstance(new OpenSearchCheckedLongSumWindowRule())
             .addRuleInstance(new OpenSearchDistinctCountRule())
-            .addRuleInstance(new OpenSearchAggregateReduceRule())
+            // One rule collection, not separate instances, because the three feed each other inside a single
+            // fixpoint loop: the reduce rule turns AVG(x ± k) into SUM(x ± k) / COUNT(x ± k) and the shift rule
+            // must then see those calls; the reduce rule also emits its x*x column in a NEW Project stacked on
+            // the aggregate's existing one, so the shift rule would find a bare input ref where x ± k used to
+            // be and stay silent — PROJECT_MERGE in the same collection folds the pair first. As separate
+            // instances the merge would run only after both rules had settled, and each instance costs a full
+            // traversal. The trailing PROJECT_MERGE below is still needed for the pull-up-constants Project.
+            .addRuleCollection(
+                List.of(new OpenSearchAggregateReduceRule(), new OpenSearchAggregateConstantShiftRule(), CoreRules.PROJECT_MERGE)
+            )
             .addRuleInstance(CoreRules.AGGREGATE_PROJECT_PULL_UP_CONSTANTS)
             // AGGREGATE_PROJECT_PULL_UP_CONSTANTS lifts constant group keys into a Project above
             // the Aggregate. That Project lands directly beneath the query's own projection, and
