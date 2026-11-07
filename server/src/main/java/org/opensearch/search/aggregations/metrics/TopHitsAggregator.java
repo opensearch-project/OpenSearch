@@ -64,6 +64,7 @@ import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.SubSearchContext;
 import org.opensearch.search.rescore.RescoreContext;
+import org.opensearch.search.rescore.RescoreProcessor;
 import org.opensearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
@@ -193,16 +194,20 @@ class TopHitsAggregator extends MetricsAggregator {
         TopDocs topDocs = topDocsCollector.topDocs();
         float maxScore = Float.NaN;
         if (subSearchContext.sort() == null) {
-            for (RescoreContext ctx : context().rescore()) {
-                try {
-                    topDocs = ctx.rescorer().rescore(topDocs, context.searcher(), ctx);
-                } catch (IOException e) {
-                    throw new OpenSearchException("Rescore TopHits Failed", e);
-                }
+            final TopDocsAndMaxScore rescored;
+            try {
+                // The collector kept the full rescore window, but the reduce uses only the top from + size hits of each shard.
+                rescored = RescoreProcessor.rescore(
+                    topDocs,
+                    context.searcher(),
+                    context.rescore(),
+                    subSearchContext.from() + subSearchContext.size()
+                );
+            } catch (IOException e) {
+                throw new OpenSearchException("Rescore TopHits Failed", e);
             }
-            if (topDocs.scoreDocs.length > 0) {
-                maxScore = topDocs.scoreDocs[0].score;
-            }
+            topDocs = rescored.topDocs;
+            maxScore = rescored.maxScore;
         } else if (subSearchContext.trackScores()) {
             TopFieldCollector.populateScores(topDocs.scoreDocs, subSearchContext.searcher(), subSearchContext.query());
             maxScore = collectors.maxScoreCollector.getMaxScore();

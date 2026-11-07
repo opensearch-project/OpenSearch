@@ -52,6 +52,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
@@ -385,6 +386,41 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertThat(searchHit.getId(), equalTo("4"));
         assertThat(searchHit.getInnerHits().get("question").getTotalHits().value(), equalTo(1L));
         assertThat(searchHit.getInnerHits().get("question").getAt(0).getId(), equalTo("2"));
+    }
+
+    public void testInnerHitExplainWithRescore() throws Exception {
+        // Two shards, so the fetch phase gets the rescore ids from the coordinator.
+        assertAcked(
+            prepareCreate("articles").setSettings(Settings.builder().put("index.number_of_shards", 2))
+                .setMapping(
+                    addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "article", "comment"), "body", "text")
+                )
+        );
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        requests.add(createIndexRequest("articles", "article", "p1", null, "body", "fox"));
+        requests.add(createIndexRequest("articles", "comment", "c1", "p1", "body", "fox"));
+        indexRandom(true, requests);
+
+        // The comment is in the rescore window but not in the top docs. Only the parent matches both clauses, thus it is the top hit.
+        SearchResponse response = client().prepareSearch("articles")
+            .setSize(1)
+            .setQuery(
+                boolQuery().should(
+                    hasChildQuery("comment", matchQuery("body", "fox"), ScoreMode.None).innerHit(new InnerHitBuilder().setExplain(true))
+                ).should(matchQuery("body", "fox"))
+            )
+            .addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(10))
+            .get();
+        assertNoFailures(response);
+        assertHitCount(response, 2);
+        assertThat(response.getHits().getHits().length, equalTo(1));
+        SearchHit hit = response.getHits().getAt(0);
+        assertThat(hit.getId(), equalTo("p1"));
+        assertThat(hit.getExplanation(), nullValue());
+        SearchHit innerHit = hit.getInnerHits().get("comment").getAt(0);
+        assertThat(innerHit.getId(), equalTo("c1"));
+        // Do not check for a rescore part. The rescore never applies to inner hit scores.
+        assertTrue(innerHit.getExplanation().isMatch());
     }
 
     public void testParentChildMultipleLayers() throws Exception {

@@ -80,10 +80,20 @@ public class RescoreContext {
         rescoredDocs = docIds;
     }
 
+    /**
+     * After the rescore, this is reliable only for the top docs of the shard.
+     *
+     * @return true if the rescorer applied to {@code docId}
+     */
     public boolean isRescored(int docId) {
         return rescoredDocs != null && rescoredDocs.contains(docId);
     }
 
+    /**
+     * After the rescore, this holds only the ids that are in the top docs of the shard.
+     *
+     * @return the doc ids that the rescorer applied to, or {@code null} if not known
+     */
     public Set<Integer> getRescoredDocs() {
         return rescoredDocs;
     }
