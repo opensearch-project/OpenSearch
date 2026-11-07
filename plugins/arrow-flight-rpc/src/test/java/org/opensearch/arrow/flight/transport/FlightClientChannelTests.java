@@ -43,6 +43,8 @@ import org.opensearch.transport.stream.StreamTransportResponse;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
@@ -377,6 +379,59 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         }
     }
 
+    /**
+     * The channels of one node connection close one after another. With a group they share one deadline, so
+     * streams whose consumers never let go cost about one timeout in total rather than one per channel.
+     */
+    public void testGroupedChannelsCloseAgainstOneDeadline() throws Exception {
+        final int numChannels = 3;
+        final long timeoutMillis = 300;
+        FlightTransportConfig config = new FlightTransportConfig();
+        config.setStreamCloseTimeout(TimeValue.timeValueMillis(timeoutMillis));
+        CountDownLatch releaseGetStream = new CountDownLatch(1);
+        CountDownLatch allInsideGetStream = new CountDownLatch(numChannels);
+        List<FlightClientChannel> channels = new ArrayList<>();
+        try {
+            for (int i = 0; i < numChannels; i++) {
+                FlightClient client = mock(FlightClient.class);
+                FlightStream stream = mock(FlightStream.class);
+                when(stream.next()).thenReturn(true);
+                when(client.getStream(any(Ticket.class), any())).thenAnswer(inv -> {
+                    allInsideGetStream.countDown();
+                    assertTrue("test must release getStream", releaseGetStream.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+                    return stream;
+                });
+                channels.add(createChannel(client, stubHeaderContext(), config));
+            }
+            FlightClientChannel.Group group = new FlightClientChannel.Group(channels);
+            for (FlightClientChannel c : channels) {
+                c.setGroup(group);
+            }
+            AtomicReference<TransportException> handlerException = new AtomicReference<>();
+            for (FlightClientChannel c : channels) {
+                sendStreamRequest(
+                    c,
+                    streamingHandler(ThreadPool.Names.GENERIC, streamResponse -> streamResponse.close(), handlerException)
+                );
+            }
+            assertTrue("a stream must be opening on every channel", allInsideGetStream.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+
+            long start = System.nanoTime();
+            for (FlightClientChannel c : channels) {
+                c.close();
+            }
+            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+
+            assertThat("close must wait for the streams", elapsedMillis, greaterThanOrEqualTo(timeoutMillis));
+            assertThat("the channels must share one deadline", elapsedMillis, lessThan(2 * timeoutMillis));
+        } finally {
+            releaseGetStream.countDown();
+            for (FlightClientChannel c : channels) {
+                c.close();
+            }
+        }
+    }
+
     // ── stream failure reporting ───────────────────────────────────────────────
 
     /**
@@ -590,6 +645,10 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
      * service so the channel resolves it from its response handlers as it would in production.
      */
     private void sendStreamRequest(TransportResponseHandler<TestResponse> handler) {
+        sendStreamRequest(channel, handler);
+    }
+
+    private void sendStreamRequest(FlightClientChannel target, TransportResponseHandler<TestResponse> handler) {
         Transport.Connection connection = new Transport.Connection() {
             @Override
             public DiscoveryNode getNode() {
@@ -598,7 +657,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
             @Override
             public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) {
-                channel.sendMessage(requestId, new BytesArray("test message"), ActionListener.wrap(r -> {}, e -> {
+                target.sendMessage(requestId, new BytesArray("test message"), ActionListener.wrap(r -> {}, e -> {
                     throw new AssertionError("send failed", e);
                 }));
             }

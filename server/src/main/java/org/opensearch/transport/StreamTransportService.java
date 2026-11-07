@@ -45,10 +45,17 @@ public class StreamTransportService extends TransportService {
     );
 
     /**
-     * Number of stream transport connections opened to each node. Each connection has its own flow-control
-     * windows, and stream requests are spread across them round-robin. One connection can only have a bounded
-     * amount of data in flight per round trip, so on high-latency links throughput per node pair grows with
-     * the number of busy connections. A single stream always uses one connection.
+     * Number of stream transport connections opened to each node, including nodes of remote clusters reached
+     * through the stream transport.
+     * <p>
+     * Each connection has its own flow-control windows, and stream requests to a node take that node's
+     * connections in turn. One connection carries at most about one window of data per round trip, so on
+     * high-latency links the throughput between two nodes grows with the number of busy connections. A single
+     * stream always uses one connection.
+     * <p>
+     * Each extra connection costs a socket on both nodes, and the receiver can buffer up to one flow-control
+     * window of unread data per connection. Connections open on first use. The cap of 16 bounds that cost; past
+     * a few connections per node pair, nodes rarely have enough concurrent streams to keep them busy.
      */
     public static final Setting<Integer> STREAM_TRANSPORT_CONNECTIONS_PER_NODE_SETTING = Setting.intSetting(
         "transport.stream.connections_per_node",
