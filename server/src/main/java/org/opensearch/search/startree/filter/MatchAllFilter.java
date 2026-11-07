@@ -22,7 +22,7 @@ import java.util.Iterator;
  * Matches all StarTreeNodes
  */
 @ExperimentalApi
-public class MatchAllFilter implements DimensionFilter {
+public final class MatchAllFilter implements DimensionFilter {
 
     public final String dimensionName;
     public final String subDimensionName;
@@ -38,7 +38,9 @@ public class MatchAllFilter implements DimensionFilter {
     }
 
     @Override
-    public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) throws IOException {}
+    public DimensionFilter forSegment(StarTreeValues starTreeValues, SearchContext searchContext) {
+        return this; // no per-segment state
+    }
 
     @Override
     public void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector)

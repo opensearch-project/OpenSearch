@@ -53,14 +53,10 @@ public class StarTreeTraversalUtil {
     public static FixedBitSet getStarTreeResult(StarTreeValues starTreeValues, StarTreeFilter starTreeFilter, SearchContext searchContext)
         throws IOException {
 
-        // Initialising all dimension filters for this segment
-        for (String dimension : starTreeFilter.getDimensions()) {
-            for (DimensionFilter dimensionFilter : starTreeFilter.getFiltersForDimension(dimension)) {
-                dimensionFilter.initialiseForSegment(starTreeValues, searchContext);
-            }
-        }
+        // The request's filter is shared by concurrent search slices, which traverse other segments at the same time
+        StarTreeFilter segmentFilter = starTreeFilter.forSegment(starTreeValues, searchContext);
 
-        StarTreeResult starTreeResult = traverseStarTree(starTreeValues, starTreeFilter);
+        StarTreeResult starTreeResult = traverseStarTree(starTreeValues, segmentFilter);
 
         // Initialize FixedBitSet with size maxMatchedDoc + 1
         FixedBitSet bitSet = new FixedBitSet(starTreeResult.maxMatchedDoc + 1);
@@ -86,7 +82,7 @@ public class StarTreeTraversalUtil {
             logger.debug("remainingPredicateColumn : {}, maxMatchedDoc : {} ", remainingPredicateColumn, starTreeResult.maxMatchedDoc);
 
             // Get the query value directly
-            List<DimensionFilter> dimensionFilters = starTreeFilter.getFiltersForDimension(remainingPredicateColumn);
+            List<DimensionFilter> dimensionFilters = segmentFilter.getFiltersForDimension(remainingPredicateColumn);
             StarTreeValuesIterator valuesIterator = starTreeValues.getDimensionValuesIterator(
                 dimensionFilters.getFirst().getMatchingDimension()
             );

@@ -180,6 +180,17 @@ public class StarTreeFilterTests extends AggregatorTestCase {
         return directory;
     }
 
+    /**
+     * Star-tree results are never computed for a partition of a segment, with or without assertions: each partition would
+     * add the whole segment. Both entry points refuse a context that partitions segments.
+     */
+    public void testStarTreeResultsRefuseSegmentPartitions() {
+        SearchContext partitioned = Mockito.mock(SearchContext.class);
+        Mockito.when(partitioned.shouldUseIntraSegmentSearch()).thenReturn(true);
+        expectThrows(IllegalStateException.class, () -> StarTreeQueryHelper.getStarTreeFilteredValues(partitioned, null, null));
+        expectThrows(IllegalStateException.class, () -> StarTreeQueryHelper.getStarTreeResult(null, partitioned, List.of()));
+    }
+
     private void testStarTreeFilter(int maxLeafDoc, boolean skipStarNodeCreationForSDVDimension) throws IOException {
         List<Document> docs = new ArrayList<>();
 

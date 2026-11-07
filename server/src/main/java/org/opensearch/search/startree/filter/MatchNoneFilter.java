@@ -18,11 +18,11 @@ import org.opensearch.search.startree.StarTreeNodeCollector;
  * Filter which matches no StarTreeNodes.
  */
 @ExperimentalApi
-public class MatchNoneFilter implements DimensionFilter {
+public final class MatchNoneFilter implements DimensionFilter {
 
     @Override
-    public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) {
-        // Nothing to do as we won't match anything.
+    public DimensionFilter forSegment(StarTreeValues starTreeValues, SearchContext searchContext) {
+        return this; // no per-segment state: nothing matches
     }
 
     @Override
