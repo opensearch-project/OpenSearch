@@ -146,6 +146,7 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
         params.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, "keystore-secret");
         params.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, "key-secret");
         params.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, "/path/to/truststore.jks");
+        params.put("custom.setting", "value");
         Properties consumerProp = KafkaPartitionConsumer.createConsumerProperties("client1", new KafkaSourceConfig(1000, params));
 
         String loggable = KafkaPartitionConsumer.toRedactedString(consumerProp);
@@ -156,6 +157,7 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
         assertTrue(loggable.contains(SslConfigs.SSL_KEY_PASSWORD_CONFIG + "=(redacted)"));
         assertTrue(loggable.contains(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG + "=\"/path/to/truststore.jks\""));
         assertTrue(loggable.contains(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG + "=localhost:9092"));
+        assertTrue(loggable.contains("custom.setting=(redacted)"));
         assertFalse(loggable.contains("secret"));
         // the consumer still gets the real values
         assertEquals("key-secret", consumerProp.get(SslConfigs.SSL_KEY_PASSWORD_CONFIG));
