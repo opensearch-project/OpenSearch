@@ -482,7 +482,7 @@ class FlightTransport extends TcpTransport {
      */
     private static ConnectionProfile perConnectionProfile(ConnectionProfile profile) {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
-        builder.addConnections(profile.getNumConnections(), TransportRequestOptions.Type.STREAM);
+        builder.addConnections(profile.getNumConnectionsPerType(TransportRequestOptions.Type.STREAM), TransportRequestOptions.Type.STREAM);
         EnumSet<TransportRequestOptions.Type> others = EnumSet.complementOf(EnumSet.of(TransportRequestOptions.Type.STREAM));
         builder.addConnections(0, others.toArray(new TransportRequestOptions.Type[0]));
         if (profile.getConnectTimeout() != null) {

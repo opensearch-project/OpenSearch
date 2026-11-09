@@ -54,8 +54,9 @@ import java.util.function.BiConsumer;
 class FlightClientChannel implements TcpChannel {
     private static final Logger logger = LogManager.getLogger(FlightClientChannel.class);
     /**
-     * One sequence for every channel in this node, so correlation ids stay unique across channels. They key
-     * per-client header state and appear in logs. Seeded from the clock so ids differ across restarts.
+     * One sequence for every channel of this node, so no two streams share a correlation id, even when several
+     * channels go to the same node. Response headers are matched to their stream by it, and both nodes log it.
+     * Seeded from the clock so ids differ across restarts.
      */
     private static final AtomicLong CORRELATION_ID_GENERATOR = new AtomicLong(System.currentTimeMillis() << 20);
     private final FlightClient client;
@@ -607,10 +608,12 @@ class FlightClientChannel implements TcpChannel {
 
         /** Cancels the streams of every channel, once, and returns the deadline shared by all closes. */
         long startClose(long timeoutNanos) {
-            if (closeDeadlineNanos.compareAndSet(null, System.nanoTime() + timeoutNanos)) {
+            final long deadlineNanos = System.nanoTime() + timeoutNanos;
+            if (closeDeadlineNanos.compareAndSet(null, deadlineNanos)) {
                 for (FlightClientChannel channel : channels) {
                     channel.cancelActiveStreams();
                 }
+                return deadlineNanos;
             }
             return closeDeadlineNanos.get();
         }
