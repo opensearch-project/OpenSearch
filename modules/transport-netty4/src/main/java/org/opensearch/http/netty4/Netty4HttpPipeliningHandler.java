@@ -50,7 +50,7 @@ import io.netty.util.ReferenceCountUtil;
 /**
  * Implements HTTP pipelining ordering, ensuring that responses are completely served in the same order as their corresponding requests.
  */
-public final class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
+public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     private final Logger logger;
     private final HttpPipeliningAggregator<ChannelPromise> aggregator;
@@ -162,6 +162,11 @@ public final class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                     // Poll one at a time so a reentrant close can still release all responses not yet handed to Netty.
                     ctx.write(next.v1().getDelegateRequest(), next.v2());
                 }
+            } catch (IllegalStateException e) {
+                logger.debug("closing HTTP connection: {}", e.getMessage());
+                // A duplicate queued response became stale. All remaining responses are still owned by the queue.
+                close();
+                ctx.close();
             } finally {
                 draining = false;
             }

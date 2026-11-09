@@ -494,6 +494,60 @@ public class Netty4HttpPipeliningHandlerTests extends OpenSearchTestCase {
         }
     }
 
+    public void testStaleResponseClosesConnectionAndReleasesQueuedResponses() {
+        final EmbeddedChannel channel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, 3));
+        final Netty4HttpResponse first = newResponse();
+        final Netty4HttpResponse queued = newResponse();
+        final Netty4HttpResponse stale = newResponse();
+        final ChannelPromise queuedPromise = channel.newPromise();
+        final ChannelPromise stalePromise = channel.newPromise();
+        try {
+            assertTrue(channel.writeAndFlush(new HttpPipelinedResponse(0, first)).isSuccess());
+            assertSame(first, channel.readOutbound());
+            first.release();
+
+            channel.writeAndFlush(new HttpPipelinedResponse(2, queued), queuedPromise);
+            assertFalse(queuedPromise.isDone());
+            channel.writeAndFlush(new HttpPipelinedResponse(0, stale), stalePromise);
+
+            assertFalse("A stale response must close the connection instead of blocking the queue", channel.isOpen());
+            assertTrue(queuedPromise.cause() instanceof ClosedChannelException);
+            assertTrue(stalePromise.cause() instanceof ClosedChannelException);
+            assertEquals(0, queued.refCnt());
+            assertEquals(0, stale.refCnt());
+            assertNull(channel.readOutbound());
+        } finally {
+            channel.finishAndReleaseAll();
+            releaseIfNeeded(first, queued, stale);
+        }
+    }
+
+    public void testDuplicateQueuedSequenceClosesConnection() {
+        final EmbeddedChannel channel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, 3));
+        final Netty4HttpResponse first = newResponse();
+        final Netty4HttpResponse second = newResponse();
+        final Netty4HttpResponse duplicate = newResponse();
+        final Netty4HttpResponse later = newResponse();
+        try {
+            final ChannelFuture secondWrite = channel.writeAndFlush(new HttpPipelinedResponse(1, second));
+            final ChannelFuture duplicateWrite = channel.writeAndFlush(new HttpPipelinedResponse(1, duplicate));
+            final ChannelFuture laterWrite = channel.writeAndFlush(new HttpPipelinedResponse(2, later));
+            assertFalse(secondWrite.isDone());
+            assertFalse(duplicateWrite.isDone());
+            assertFalse(laterWrite.isDone());
+            channel.writeAndFlush(new HttpPipelinedResponse(0, first));
+
+            assertFalse("A duplicate already in the queue must not block every later response", channel.isOpen());
+            assertTrue(secondWrite.isDone());
+            assertTrue(duplicateWrite.isDone());
+            assertTrue(laterWrite.cause() instanceof ClosedChannelException);
+            assertEquals(0, later.refCnt());
+        } finally {
+            channel.finishAndReleaseAll();
+            releaseIfNeeded(first, second, duplicate, later);
+        }
+    }
+
     public void testHandoffTransfersBufferOwnershipToNetty() {
         final EmbeddedChannel channel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, 3));
         final Netty4HttpResponse response = newResponse();

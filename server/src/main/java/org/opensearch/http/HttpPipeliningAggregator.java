@@ -69,6 +69,7 @@ public class HttpPipeliningAggregator<Listener> {
      * including during a reentrant write, since it allows the queue to drain.
      */
     public void add(final HttpPipelinedResponse response, Listener listener) {
+        ensureNotStale(response);
         if (maxEventsHeld > 0 && (outboundHoldingQueue.size() < maxEventsHeld || response.getSequence() == writeSequence)) {
             outboundHoldingQueue.add(new Tuple<>(response, listener));
         } else {
@@ -88,7 +89,20 @@ public class HttpPipeliningAggregator<Listener> {
             writeSequence++;
             return next;
         }
+        if (next != null) {
+            // A duplicate can become stale after the first response with its sequence has been polled.
+            ensureNotStale(next.v1());
+        }
         return null;
+    }
+
+    private void ensureNotStale(HttpPipelinedResponse response) {
+        // Compare the sequence distance so counter wraparound does not make the next response appear stale.
+        if (response.getSequence() - writeSequence < 0) {
+            throw new IllegalStateException(
+                "Stale pipelined response [" + response.getSequence() + "]. Next expected sequence [" + writeSequence + "]."
+            );
+        }
     }
 
     public List<Tuple<HttpPipelinedResponse, Listener>> removeAllInflightResponses() {
