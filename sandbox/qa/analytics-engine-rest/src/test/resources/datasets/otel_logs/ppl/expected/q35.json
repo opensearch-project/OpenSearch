@@ -1,0 +1,15 @@
+{
+  "schema": [
+    {"name": "time", "type": "bigint"},
+    {"name": "serviceName", "type": "string"}
+  ],
+  "datarows": [
+    [1780156899000, "recommendation"],
+    [1780156898000, "recommendation"],
+    [1780156897000, "recommendation"],
+    [1780156896000, "recommendation"],
+    [1780156895000, "recommendation"]
+  ],
+  "total": 5,
+  "size": 5
+}

@@ -120,8 +120,7 @@ public class XContentHelper {
                 throw e;
             }
         } else {
-            if (bytes instanceof BytesArray) {
-                final BytesArray array = (BytesArray) bytes;
+            if (bytes instanceof BytesArray array) {
                 return mediaType.xContent()
                     .createParser(xContentRegistry, deprecationHandler, array.array(), array.offset(), array.length());
             }
@@ -170,8 +169,7 @@ public class XContentHelper {
                     compressedStreamInput = new BufferedInputStream(compressedStreamInput);
                 }
                 input = compressedStreamInput;
-            } else if (bytes instanceof BytesArray) {
-                final BytesArray arr = (BytesArray) bytes;
+            } else if (bytes instanceof BytesArray arr) {
                 final byte[] raw = arr.array();
                 final int offset = arr.offset();
                 final int length = arr.length();
@@ -298,8 +296,7 @@ public class XContentHelper {
         }
 
         // It is safe to use EMPTY here because this never uses namedObject
-        if (bytes instanceof BytesArray) {
-            final BytesArray array = (BytesArray) bytes;
+        if (bytes instanceof BytesArray array) {
             try (
                 XContentParser parser = mediaType.xContent()
                     .createParser(

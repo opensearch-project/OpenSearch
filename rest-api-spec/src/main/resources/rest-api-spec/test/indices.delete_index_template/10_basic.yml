@@ -28,11 +28,29 @@ setup:
               number_of_replicas: 0
           "priority": 51
 
+  - do:
+      allowed_warnings:
+        - "index template [test_template_3] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test_template_3] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test_template_3
+        body:
+          index_patterns: test-*
+          data_stream: {}
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+          "priority": 49
+
 ---
 teardown:
   - do:
       indices.delete_data_stream:
         name: test-1
+        ignore: 404
+  - do:
+      indices.delete_data_stream:
+        name: test-2
         ignore: 404
   - do:
       indices.delete_index_template:
@@ -41,6 +59,10 @@ teardown:
   - do:
       indices.delete_index_template:
         name: test_template_2
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: test_template_3
         ignore: 404
 
 ---
@@ -56,3 +78,18 @@ teardown:
   - do:
       indices.delete_index_template:
         name: test_template_1
+
+# issue: https://github.com/opensearch-project/OpenSearch/issues/20078
+---
+"Delete not using index template for data stream but index pattern matches":
+  - skip:
+      version: " - 3.3.99"
+      reason: "fixed in 3.4.0"
+
+  - do:
+      indices.create_data_stream:
+        name: test-2
+
+  - do:
+      indices.delete_index_template:
+        name: test_template_3

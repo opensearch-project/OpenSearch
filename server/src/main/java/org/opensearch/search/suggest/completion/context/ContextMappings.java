@@ -306,10 +306,9 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || (obj instanceof ContextMappings) == false) {
+        if (!(obj instanceof ContextMappings other)) {
             return false;
         }
-        ContextMappings other = ((ContextMappings) obj);
         return contextMappings.equals(other.contextMappings);
     }
 

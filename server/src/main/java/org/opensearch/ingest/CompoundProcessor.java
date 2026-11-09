@@ -42,7 +42,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -119,8 +118,8 @@ public class CompoundProcessor implements Processor {
     private static List<Processor> flattenProcessors(List<Processor> processors) {
         List<Processor> flattened = new ArrayList<>();
         for (Processor processor : processors) {
-            if (processor instanceof CompoundProcessor) {
-                flattened.addAll(((CompoundProcessor) processor).flattenProcessors());
+            if (processor instanceof CompoundProcessor compoundProc) {
+                flattened.addAll(compoundProc.flattenProcessors());
             } else {
                 flattened.add(processor);
             }
@@ -189,8 +188,8 @@ public class CompoundProcessor implements Processor {
             allResults.addAll(results);
             // counter equals to 0 means all documents are processed and called back.
             if (counter.addAndGet(-results.size()) == 0) {
-                long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
-                metric.afterN(allResults.size(), ingestTimeInMillis);
+                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+                metric.afterN(allResults.size(), ingestTimeInNanos);
 
                 List<IngestDocumentWrapper> documentsDropped = new ArrayList<>();
                 List<IngestDocumentWrapper> documentsWithException = new ArrayList<>();
@@ -270,8 +269,8 @@ public class CompoundProcessor implements Processor {
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
         metric.before();
         processor.execute(ingestDocument, (result, e) -> {
-            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
-            metric.after(ingestTimeInMillis);
+            long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+            metric.after(ingestTimeInNanos);
 
             if (e != null) {
                 metric.failed();
@@ -352,8 +351,8 @@ public class CompoundProcessor implements Processor {
     }
 
     static IngestProcessorException newCompoundProcessorException(Exception e, Processor processor, IngestDocument document) {
-        if (e instanceof IngestProcessorException && ((IngestProcessorException) e).getHeader("processor_type") != null) {
-            return (IngestProcessorException) e;
+        if (e instanceof IngestProcessorException ingestException && ingestException.getHeader("processor_type") != null) {
+            return ingestException;
         }
 
         IngestProcessorException exception = new IngestProcessorException(e);

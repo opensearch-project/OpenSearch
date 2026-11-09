@@ -1,0 +1,1 @@
+source=%INDEX% | stats list(amount) as la, list(label) as ll

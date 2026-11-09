@@ -44,6 +44,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
@@ -73,6 +74,8 @@ public class RoutingAllocation {
 
     private final Metadata metadata;
 
+    private final Settings clusterSettings;
+
     private final RoutingTable routingTable;
 
     private final DiscoveryNodes nodes;
@@ -84,6 +87,8 @@ public class RoutingAllocation {
     private final SnapshotShardSizeInfo shardSizeInfo;
 
     private Map<ShardId, Set<String>> ignoredShardToNodes = null;
+
+    private AwarenessAttributeValues awarenessAttributeValues = null;
 
     private boolean ignoreDisable = false;
 
@@ -117,9 +122,30 @@ public class RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
+        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, Settings.EMPTY);
+    }
+
+    /**
+     * Creates a new {@link RoutingAllocation}
+     *  @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
+     * @param routingNodes Routing nodes in the current cluster
+     * @param clusterState cluster state before rerouting
+     * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
+     * @param nodeSettings node level settings to use as defaults for cluster scoped settings
+     */
+    public RoutingAllocation(
+        AllocationDeciders deciders,
+        RoutingNodes routingNodes,
+        ClusterState clusterState,
+        ClusterInfo clusterInfo,
+        SnapshotShardSizeInfo shardSizeInfo,
+        long currentNanoTime,
+        Settings nodeSettings
+    ) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
         this.metadata = clusterState.metadata();
+        this.clusterSettings = Settings.builder().put(nodeSettings).put(metadata.settings()).build();
         this.routingTable = clusterState.routingTable();
         this.nodes = clusterState.nodes();
         this.customs = clusterState.customs();
@@ -169,6 +195,13 @@ public class RoutingAllocation {
     }
 
     /**
+     * Returns cluster scoped settings, including node-level defaults overridden by dynamic cluster-state settings.
+     */
+    public Settings clusterSettings() {
+        return clusterSettings;
+    }
+
+    /**
      * Get discovery nodes in current routing
      * @return discovery nodes
      */
@@ -214,6 +247,23 @@ public class RoutingAllocation {
 
     public DebugMode getDebugMode() {
         return this.debugDecision;
+    }
+
+    /**
+     * Returns the distinct values of the given awareness attribute across the nodes eligible to hold a shard of the
+     * given type, with the cluster-level allocation exclude filters applied. Used by
+     * {@link org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider}, which is consulted once
+     * per (shard, node) pair, so the result is memoized here. The memo is valid only for this allocation round: a new
+     * {@link RoutingAllocation} is created per round, so it is discarded along with it and never needs invalidating.
+     *
+     * @param attributeName the awareness attribute to collect values for
+     * @param searchOnly    whether the shard is search-only, selecting search nodes rather than data nodes
+     */
+    public Set<String> awarenessAttributeValues(String attributeName, boolean searchOnly) {
+        if (awarenessAttributeValues == null) {
+            awarenessAttributeValues = new AwarenessAttributeValues(this);
+        }
+        return awarenessAttributeValues.get(attributeName, searchOnly);
     }
 
     public void addIgnoreShardForNode(ShardId shardId, String nodeId) {

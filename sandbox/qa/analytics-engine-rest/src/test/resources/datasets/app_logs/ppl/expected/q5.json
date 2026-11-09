@@ -1,0 +1,36 @@
+{
+  "schema": [
+    {
+      "name": "avgresponsetime",
+      "type": "double"
+    },
+    {
+      "name": "requests",
+      "type": "bigint"
+    },
+    {
+      "name": "servicename",
+      "type": "string"
+    },
+    {
+      "name": "responsecode",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      1234.0,
+      18,
+      "api-service",
+      "SUCCESS"
+    ],
+    [
+      567.0,
+      18,
+      "web-service",
+      "FAILURE"
+    ]
+  ],
+  "total": 2,
+  "size": 2
+}

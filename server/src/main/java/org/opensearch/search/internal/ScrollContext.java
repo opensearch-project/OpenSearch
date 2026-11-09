@@ -32,10 +32,16 @@
 
 package org.opensearch.search.internal;
 
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.search.Scroll;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Wrapper around information that needs to stay around when scrolling.
@@ -43,9 +49,43 @@ import org.opensearch.search.Scroll;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class ScrollContext {
+public final class ScrollContext implements Releasable {
     public TotalHits totalHits = null;
     public float maxScore = Float.NaN;
     public ScoreDoc lastEmittedDoc;
     public Scroll scroll;
+
+    /**
+     * Cache for sequential stored field readers per segment.
+     * These readers are optimized for sequential access and cache decompressed blocks.
+     *
+     * Thread-safety note: Scroll requests are serialized (client waits for response before
+     * sending next request), so while different threads may use this cache, they won't
+     * access it concurrently. The underlying StoredFieldsReader has mutable state (BlockState)
+     * but is safe for sequential single-threaded access across different threads.
+     */
+    private Map<Object, StoredFieldsReader> sequentialReaderCache;
+
+    public StoredFieldsReader getCachedSequentialReader(Object segmentKey) {
+        return sequentialReaderCache != null ? sequentialReaderCache.get(segmentKey) : null;
+    }
+
+    public void cacheSequentialReader(Object segmentKey, StoredFieldsReader reader) {
+        if (sequentialReaderCache == null) {
+            sequentialReaderCache = new HashMap<>();
+        }
+        sequentialReaderCache.put(segmentKey, reader);
+    }
+
+    @Override
+    public void close() {
+        if (sequentialReaderCache != null) {
+            for (StoredFieldsReader reader : sequentialReaderCache.values()) {
+                try {
+                    reader.close();
+                } catch (IOException e) {}
+            }
+            sequentialReaderCache = null;
+        }
+    }
 }

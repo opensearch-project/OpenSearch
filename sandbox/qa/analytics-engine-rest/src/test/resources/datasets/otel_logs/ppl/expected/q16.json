@@ -1,0 +1,15 @@
+{
+  "schema": [
+    {"name": "sum_sev", "type": "bigint"},
+    {"name": "serviceName", "type": "string"}
+  ],
+  "datarows": [
+    [270, "cart"],
+    [268, "payment"],
+    [233, "checkout"],
+    [231, "search"],
+    [78, "recommendation"]
+  ],
+  "total": 5,
+  "size": 5
+}

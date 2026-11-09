@@ -718,6 +718,11 @@ public class TestSearchContext extends SearchContext {
         return indexService != null && indexService.getIndexSettings().getStarTreeIndexEnabled();
     }
 
+    @Override
+    public boolean shouldUseIntraSegmentSearch() {
+        return false;
+    }
+
     /**
      * Clean the query results by consuming all of it
      */
@@ -731,7 +736,7 @@ public class TestSearchContext extends SearchContext {
      * Add profilers to the query
      */
     public TestSearchContext withProfilers() {
-        this.profilers = new Profilers(searcher, concurrentSegmentSearchEnabled);
+        this.profilers = new Profilers(searcher, concurrentSegmentSearchEnabled, query -> List.of());
         return this;
     }
 }

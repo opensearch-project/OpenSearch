@@ -75,17 +75,26 @@ public final class OutboundHandler {
         }
     }
 
-    public void sendBytes(TcpChannel channel, SendContext sendContext) throws IOException {
+    public void sendBytes(long requestId, TcpChannel channel, SendContext sendContext) throws IOException {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         BytesReference reference = sendContext.get();
         // stash thread context so that channel event loop is not polluted by thread context
         try (ThreadContext.StoredContext existing = threadPool.getThreadContext().stashContext()) {
-            channel.sendMessage(reference, sendContext);
+            if (requestId == -1) {
+                channel.sendMessage(reference, sendContext);
+            } else {
+                channel.sendMessage(requestId, reference, sendContext);
+            }
         } catch (RuntimeException ex) {
             sendContext.onFailure(ex);
             CloseableChannel.closeChannel(channel);
             throw ex;
         }
+
+    }
+
+    public void sendBytes(TcpChannel channel, SendContext sendContext) throws IOException {
+        sendBytes(-1, channel, sendContext);
     }
 
     /**

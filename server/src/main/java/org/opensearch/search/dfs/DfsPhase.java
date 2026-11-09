@@ -35,10 +35,10 @@ package org.opensearch.search.dfs;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.opensearch.core.tasks.TaskCancelledException;
+import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.rescore.RescoreContext;
 
@@ -86,8 +86,8 @@ public class DfsPhase {
 
             searcher.createWeight(context.searcher().rewrite(context.query()), ScoreMode.COMPLETE, 1);
             for (RescoreContext rescoreContext : context.rescore()) {
-                for (Query query : rescoreContext.getQueries()) {
-                    searcher.createWeight(context.searcher().rewrite(query), ScoreMode.COMPLETE, 1);
+                for (ParsedQuery parsedQuery : rescoreContext.getParsedQueries()) {
+                    searcher.createWeight(context.searcher().rewrite(parsedQuery.query()), ScoreMode.COMPLETE, 1);
                 }
             }
 

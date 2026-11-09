@@ -1,0 +1,49 @@
+{
+  "schema": [
+    {
+      "name": "total_monitors",
+      "type": "bigint"
+    },
+    {
+      "name": "total_errors",
+      "type": "bigint"
+    },
+    {
+      "name": "application_id",
+      "type": "string"
+    },
+    {
+      "name": "log_level",
+      "type": "string"
+    },
+    {
+      "name": "description",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      4,
+      21,
+      "ap127143",
+      "INFO",
+      "Application Monitor Tracking"
+    ],
+    [
+      4,
+      14,
+      "ap127143",
+      "WARN",
+      "Application Monitor Tracking"
+    ],
+    [
+      2,
+      2,
+      "ap127143",
+      "ERROR",
+      "Application Monitor Tracking"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

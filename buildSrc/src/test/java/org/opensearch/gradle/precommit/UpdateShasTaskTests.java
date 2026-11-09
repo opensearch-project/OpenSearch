@@ -36,7 +36,6 @@ import org.opensearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
-import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
@@ -123,10 +122,10 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
         Project project = ProjectBuilder.builder().build();
         project.getPlugins().apply(JavaPlugin.class);
 
-        Configuration compileClasspath = project.getConfigurations().getByName("compileClasspath");
-        Configuration someCompileConfiguration = project.getConfigurations().create("someCompileConfiguration");
         // Declare a configuration that is going to resolve the compile classpath of the application
-        project.getConfigurations().add(compileClasspath.extendsFrom(someCompileConfiguration));
+        project.getConfigurations()
+            .getByName("compileClasspath")
+            .extendsFrom(project.getConfigurations().create("someCompileConfiguration"));
 
         return project;
     }

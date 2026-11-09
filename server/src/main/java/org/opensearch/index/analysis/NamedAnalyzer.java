@@ -70,8 +70,8 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
         this.scope = scope;
         this.analyzer = analyzer;
         this.positionIncrementGap = positionIncrementGap;
-        if (analyzer instanceof org.opensearch.index.analysis.AnalyzerComponentsProvider) {
-            this.analysisMode = ((org.opensearch.index.analysis.AnalyzerComponentsProvider) analyzer).getComponents().analysisMode();
+        if (analyzer instanceof AnalyzerComponentsProvider analyzerComponentsProvider) {
+            this.analysisMode = analyzerComponentsProvider.getComponents().analysisMode();
         } else {
             this.analysisMode = AnalysisMode.ALL;
         }
@@ -129,8 +129,8 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
             return; // everything allowed if this analyzer is in ALL mode
         }
         if (this.getAnalysisMode() != mode) {
-            if (analyzer instanceof AnalyzerComponentsProvider) {
-                TokenFilterFactory[] tokenFilters = ((AnalyzerComponentsProvider) analyzer).getComponents().getTokenFilters();
+            if (analyzer instanceof AnalyzerComponentsProvider analyzerComponentsProvider) {
+                TokenFilterFactory[] tokenFilters = analyzerComponentsProvider.getComponents().getTokenFilters();
                 List<String> offendingFilters = new ArrayList<>();
                 for (TokenFilterFactory tokenFilter : tokenFilters) {
                     AnalysisMode filterMode = tokenFilter.getAnalysisMode();
@@ -176,8 +176,7 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof NamedAnalyzer)) return false;
-        NamedAnalyzer that = (NamedAnalyzer) o;
+        if (!(o instanceof NamedAnalyzer that)) return false;
         return Objects.equals(name, that.name);
     }
 

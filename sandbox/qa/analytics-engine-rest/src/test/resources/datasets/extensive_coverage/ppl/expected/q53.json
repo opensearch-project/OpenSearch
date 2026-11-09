@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "first_val",
+      "type": "double"
+    },
+    {
+      "name": "last_val",
+      "type": "double"
+    },
+    {
+      "name": "category",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      100.5,
+      180.5,
+      "A"
+    ],
+    [
+      200.75,
+      225.75,
+      "B"
+    ],
+    [
+      300.0,
+      350.0,
+      "C"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

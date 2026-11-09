@@ -1,0 +1,1 @@
+{"mappings":{"properties":{"processor_type":{"type":"keyword"},"filter_in_count":{"type":"long"},"cluster_name":{"type":"keyword"}}}}

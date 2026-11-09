@@ -6,36 +6,13 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.indices.replication;
 
 import org.opensearch.action.StepListener;
 import org.opensearch.common.UUIDs;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationListener;
 
@@ -56,7 +33,7 @@ public class MergedSegmentReplicationTarget extends AbstractSegmentReplicationTa
         SegmentReplicationSource source,
         ReplicationListener listener
     ) {
-        super("merged_segment_replication_target", indexShard, checkpoint, source, listener);
+        super("merged_segment_replication_target", indexShard, checkpoint, source, false, listener);
     }
 
     @Override
@@ -78,16 +55,30 @@ public class MergedSegmentReplicationTarget extends AbstractSegmentReplicationTa
         List<StoreFileMetadata> filesToFetch,
         StepListener<GetSegmentFilesResponse> getFilesListener
     ) {
-        source.getMergedSegmentFiles(getId(), checkpoint, filesToFetch, indexShard, this::updateFileRecoveryBytes, getFilesListener);
+        source.getMergedSegmentFiles(
+            getId(),
+            checkpoint,
+            filesToFetch,
+            indexShard,
+            this::updateMergedSegmentFileRecoveryBytes,
+            getFilesListener
+        );
     }
 
     @Override
     protected void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse) throws Exception {
+        assert checkpoint instanceof MergedSegmentCheckpoint;
         multiFileWriter.renameAllTempFiles();
+        indexShard.addPendingMergeSegmentCheckpoint((MergedSegmentCheckpoint) checkpoint);
     }
 
     @Override
     public MergedSegmentReplicationTarget retryCopy() {
         return new MergedSegmentReplicationTarget(indexShard, checkpoint, source, listener);
+    }
+
+    protected void updateMergedSegmentFileRecoveryBytes(String fileName, long bytesRecovered) {
+        indexShard.mergedSegmentTransferTracker().addTotalBytesReceived(bytesRecovered);
+        updateFileRecoveryBytes(fileName, bytesRecovered);
     }
 }

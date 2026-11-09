@@ -35,9 +35,12 @@ package org.opensearch.action.termvectors;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
+import org.opensearch.action.support.single.shard.SingleShardRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.util.concurrent.AtomicArray;
@@ -50,13 +53,16 @@ import org.opensearch.transport.TransportService;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
  * Performs the multi term get operation.
  *
  * @opensearch.internal
  */
-public class TransportMultiTermVectorsAction extends HandledTransportAction<MultiTermVectorsRequest, MultiTermVectorsResponse> {
+public class TransportMultiTermVectorsAction extends HandledTransportAction<MultiTermVectorsRequest, MultiTermVectorsResponse>
+    implements
+        TransportIndicesResolvingAction<MultiTermVectorsRequest> {
 
     private final ClusterService clusterService;
     private final TransportShardMultiTermsVectorAction shardAction;
@@ -185,5 +191,10 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                 }
             });
         }
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(MultiTermVectorsRequest request) {
+        return ResolvedIndices.of(request.getRequests().stream().map(SingleShardRequest::index).collect(Collectors.toSet()));
     }
 }

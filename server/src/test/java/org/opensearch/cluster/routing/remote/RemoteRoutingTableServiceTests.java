@@ -21,6 +21,7 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
 import org.opensearch.cluster.routing.StringKeyDiffProvider;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
@@ -28,6 +29,7 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.compress.DeflateCompressor;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.TestCapturingListener;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.compress.Compressor;
@@ -35,7 +37,8 @@ import org.opensearch.core.compress.NoneCompressor;
 import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateUtils;
-import org.opensearch.index.remote.RemoteStoreEnums;
+import org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable;
+import org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
@@ -71,8 +74,6 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.PATH_DELIMIT
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_FILE;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_METADATA_PREFIX;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE;
-import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE_FORMAT;
-import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.REMOTE_ROUTING_TABLE_DIFF_FORMAT;
 import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_FILE;
 import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_METADATA_PREFIX;
 import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_PATH_TOKEN;
@@ -568,8 +569,14 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
         ClusterState clusterState = createClusterState(indexName);
         String uploadedFileName = String.format(Locale.ROOT, "index-routing/" + indexName);
+        RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(
+            uploadedFileName,
+            clusterState.stateUUID(),
+            compressor,
+            Version.CURRENT
+        );
         when(blobContainer.readBlob(indexName)).thenReturn(
-            INDEX_ROUTING_TABLE_FORMAT.serialize(
+            remoteIndexRoutingTable.indexRoutingTableFormat.serialize(
                 clusterState.getRoutingTable().getIndicesRouting().get(indexName),
                 uploadedFileName,
                 compressor
@@ -581,7 +588,8 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         remoteRoutingTableService.getAsyncIndexRoutingReadAction(
             "cluster-uuid",
             uploadedFileName,
-            new LatchedActionListener<>(listener, latch)
+            new LatchedActionListener<>(listener, latch),
+            Version.CURRENT
         );
         latch.await();
 
@@ -599,27 +607,36 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         RoutingTableIncrementalDiff diff = new RoutingTableIncrementalDiff(previousState.getRoutingTable(), currentState.getRoutingTable());
 
         String uploadedFileName = String.format(Locale.ROOT, "routing-table-diff/" + indexName);
-        when(blobContainer.readBlob(indexName)).thenReturn(
-            REMOTE_ROUTING_TABLE_DIFF_FORMAT.serialize(diff, uploadedFileName, compressor).streamInput()
-        );
-
-        TestCapturingListener<Diff<RoutingTable>> listener = new TestCapturingListener<>();
-        CountDownLatch latch = new CountDownLatch(1);
-
-        remoteRoutingTableService.getAsyncIndexRoutingTableDiffReadAction(
-            "cluster-uuid",
+        RemoteRoutingTableDiff remoteRoutingTableDiff = new RemoteRoutingTableDiff(
             uploadedFileName,
-            new LatchedActionListener<>(listener, latch)
+            currentState.stateUUID(),
+            compressor,
+            Version.CURRENT
         );
-        latch.await();
+        when(blobContainer.readBlob(indexName)).thenAnswer(
+            invocation -> remoteRoutingTableDiff.remoteRoutingTableDiffFormat.serialize(diff, uploadedFileName, compressor).streamInput()
+        );
 
-        assertNull(listener.getFailure());
-        assertNotNull(listener.getResult());
-        Diff<RoutingTable> resultDiff = listener.getResult();
-        assertEquals(
-            currentState.getRoutingTable().getIndicesRouting(),
-            resultDiff.apply(previousState.getRoutingTable()).getIndicesRouting()
-        );
+        for (Version version : List.of(Version.CURRENT, Version.V_3_1_0, Version.V_3_2_0)) {
+            TestCapturingListener<Diff<RoutingTable>> listener = new TestCapturingListener<>();
+            CountDownLatch latch = new CountDownLatch(1);
+
+            remoteRoutingTableService.getAsyncIndexRoutingTableDiffReadAction(
+                "cluster-uuid",
+                uploadedFileName,
+                new LatchedActionListener<>(listener, latch),
+                version
+            );
+            latch.await();
+
+            assertNull(listener.getFailure());
+            assertNotNull(listener.getResult());
+            Diff<RoutingTable> resultDiff = listener.getResult();
+            assertEquals(
+                currentState.getRoutingTable().getIndicesRouting(),
+                resultDiff.apply(previousState.getRoutingTable()).getIndicesRouting()
+            );
+        }
     }
 
     public void testGetAsyncIndexRoutingWriteAction() throws Exception {
@@ -776,14 +793,6 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             .build();
     }
 
-    private BlobPath getPath() {
-        BlobPath indexRoutingPath = basePath.add(INDEX_ROUTING_TABLE);
-        return RemoteStoreEnums.PathType.HASHED_PREFIX.path(
-            RemoteStorePathStrategy.PathInput.builder().basePath(indexRoutingPath).indexUUID("uuid").build(),
-            RemoteStoreEnums.PathHashAlgorithm.FNV_1A_BASE64
-        );
-    }
-
     public void testDeleteStaleIndexRoutingPaths() throws IOException {
         doNothing().when(blobContainer).deleteBlobsIgnoringIfNotExists(any());
         when(blobStore.blobContainer(any())).thenReturn(blobContainer);
@@ -800,9 +809,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         doThrow(new IOException("test exception")).when(blobContainer).deleteBlobsIgnoringIfNotExists(Mockito.anyList());
 
         remoteRoutingTableService.doStart();
-        IOException thrown = assertThrows(IOException.class, () -> {
-            remoteRoutingTableService.deleteStaleIndexRoutingPaths(stalePaths);
-        });
+        IOException thrown = assertThrows(IOException.class, () -> { remoteRoutingTableService.deleteStaleIndexRoutingPaths(stalePaths); });
         assertEquals("test exception", thrown.getMessage());
         verify(blobContainer).deleteBlobsIgnoringIfNotExists(stalePaths);
     }
@@ -823,10 +830,127 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         doThrow(new IOException("test exception")).when(blobContainer).deleteBlobsIgnoringIfNotExists(Mockito.anyList());
 
         remoteRoutingTableService.doStart();
-        IOException thrown = assertThrows(IOException.class, () -> {
-            remoteRoutingTableService.deleteStaleIndexRoutingDiffPaths(stalePaths);
-        });
+        IOException thrown = assertThrows(
+            IOException.class,
+            () -> { remoteRoutingTableService.deleteStaleIndexRoutingDiffPaths(stalePaths); }
+        );
         assertEquals("test exception", thrown.getMessage());
         verify(blobContainer).deleteBlobsIgnoringIfNotExists(stalePaths);
+    }
+
+    public void testDeleteStaleIndexRoutingPathsWithMultiStreamBlobContainer() throws IOException {
+        AsyncMultiStreamBlobContainer container = mock(AsyncMultiStreamBlobContainer.class);
+        when(blobStore.blobContainer(any())).thenReturn(container);
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(1);
+            listener.onResponse(null);
+            return null;
+        }).when(container).deleteBlobsAsyncIgnoringIfNotExists(any(), any());
+
+        when(blobStore.blobContainer(any())).thenReturn(container);
+        List<String> stalePaths = Arrays.asList("path1", "path2");
+        remoteRoutingTableService.doStart();
+        remoteRoutingTableService.deleteStaleIndexRoutingPaths(stalePaths);
+        verify(container).deleteBlobsAsyncIgnoringIfNotExists(eq(stalePaths), any());
+    }
+
+    public void testDeleteStaleIndexRoutingDiffPathsWithMultiStreamBlobContainer() throws IOException {
+        AsyncMultiStreamBlobContainer container = mock(AsyncMultiStreamBlobContainer.class);
+        when(blobStore.blobContainer(any())).thenReturn(container);
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(1);
+            listener.onResponse(null);
+            return null;
+        }).when(container).deleteBlobsAsyncIgnoringIfNotExists(any(), any());
+
+        List<String> stalePaths = Arrays.asList("path1", "path2");
+        remoteRoutingTableService.doStart();
+        remoteRoutingTableService.deleteStaleIndexRoutingDiffPaths(stalePaths);
+        verify(container).deleteBlobsAsyncIgnoringIfNotExists(eq(stalePaths), any());
+    }
+
+    public void testDeleteAsyncInternalSuccess() throws Exception {
+        AsyncMultiStreamBlobContainer container = mock(AsyncMultiStreamBlobContainer.class);
+        List<String> fileNames = Arrays.asList("file1", "file2");
+
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(1);
+            listener.onResponse(null);
+            return null;
+        }).when(container).deleteBlobsAsyncIgnoringIfNotExists(eq(fileNames), any());
+
+        Settings settings = Settings.builder()
+            .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, "routing_repository")
+            .put(REMOTE_PUBLICATION_SETTING_KEY, "true")
+            .build();
+        InternalRemoteRoutingTableService testRemoteRoutingTableService = new InternalRemoteRoutingTableService(
+            repositoriesServiceSupplier,
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool,
+            "test-cluster"
+        );
+
+        testRemoteRoutingTableService.doStart();
+        testRemoteRoutingTableService.deleteAsyncInternal(container, fileNames, TimeValue.timeValueSeconds(10));
+
+        verify(container).deleteBlobsAsyncIgnoringIfNotExists(eq(fileNames), any());
+    }
+
+    public void testDeleteAsyncInternalExecutionException() throws Exception {
+        AsyncMultiStreamBlobContainer container = mock(AsyncMultiStreamBlobContainer.class);
+        List<String> fileNames = Arrays.asList("file1", "file2");
+
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(1);
+            listener.onFailure(new IOException("deletion failed"));
+            return null;
+        }).when(container).deleteBlobsAsyncIgnoringIfNotExists(eq(fileNames), any());
+
+        Settings settings = Settings.builder()
+            .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, "routing_repository")
+            .put(REMOTE_PUBLICATION_SETTING_KEY, "true")
+            .build();
+        InternalRemoteRoutingTableService testRemoteRoutingTableService = new InternalRemoteRoutingTableService(
+            repositoriesServiceSupplier,
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool,
+            "test-cluster"
+        );
+
+        testRemoteRoutingTableService.doStart();
+        IOException thrown = assertThrows(IOException.class, () -> {
+            testRemoteRoutingTableService.deleteAsyncInternal(container, fileNames, TimeValue.timeValueSeconds(10));
+        });
+
+        assertEquals("deletion failed", thrown.getMessage());
+    }
+
+    public void testDeleteAsyncInternalTimeout() throws Exception {
+        AsyncMultiStreamBlobContainer container = mock(AsyncMultiStreamBlobContainer.class);
+        List<String> fileNames = Arrays.asList("file1", "file2");
+
+        // Don't call listener to simulate timeout
+        doNothing().when(container).deleteBlobsAsyncIgnoringIfNotExists(eq(fileNames), any());
+
+        Settings settings = Settings.builder()
+            .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, "routing_repository")
+            .put(REMOTE_PUBLICATION_SETTING_KEY, "true")
+            .build();
+        InternalRemoteRoutingTableService testRemoteRoutingTableService = new InternalRemoteRoutingTableService(
+            repositoriesServiceSupplier,
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool,
+            "test-cluster"
+        );
+
+        testRemoteRoutingTableService.doStart();
+        IOException thrown = assertThrows(IOException.class, () -> {
+            testRemoteRoutingTableService.deleteAsyncInternal(container, fileNames, TimeValue.timeValueMillis(1));
+        });
+
+        assertTrue(thrown.getMessage().contains("Delete operation timed out"));
     }
 }

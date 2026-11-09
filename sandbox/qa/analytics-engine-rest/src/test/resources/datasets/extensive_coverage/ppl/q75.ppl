@@ -1,0 +1,1 @@
+source=test_data | eval `@timestamp` = timestamp | timechart span=1h count() by category

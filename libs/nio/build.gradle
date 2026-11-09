@@ -28,12 +28,11 @@
  * under the License.
  */
 
-import org.opensearch.gradle.info.BuildParams
-
 apply plugin: 'opensearch.publish'
 
 dependencies {
   api project(':libs:opensearch-common')
+  implementation project(':libs:agent-sm:agent-policy')
 
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
@@ -52,8 +51,6 @@ tasks.named('forbiddenApisMain').configure {
 }
 
 tasks.test {
-    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-        jvmArgs += ["--add-opens", "java.base/java.nio.channels=ALL-UNNAMED"]
-        jvmArgs += ["--add-opens", "java.base/java.net=ALL-UNNAMED"]
-    }
+    jvmArgs += ["--add-opens", "java.base/java.nio.channels=ALL-UNNAMED"]
+    jvmArgs += ["--add-opens", "java.base/java.net=ALL-UNNAMED"]
 }

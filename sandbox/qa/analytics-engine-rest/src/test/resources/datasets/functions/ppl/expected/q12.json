@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "min_amount",
+      "type": "float"
+    },
+    {
+      "name": "min_temp",
+      "type": "float"
+    },
+    {
+      "name": "user",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      -99.97,
+      -9.93,
+      "ALICE"
+    ],
+    [
+      -99.2,
+      -8.54,
+      "CHARLIE"
+    ],
+    [
+      -88.31,
+      -9.72,
+      "BOB"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

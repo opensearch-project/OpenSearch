@@ -1,0 +1,48 @@
+{
+  "schema": [
+    {
+      "name": "avg_cpu",
+      "type": "double"
+    },
+    {
+      "name": "avg_memory",
+      "type": "double"
+    },
+    {
+      "name": "host",
+      "type": "string"
+    },
+    {
+      "name": "total_load",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      82.12,
+      62.72,
+      "host1",
+      144.84
+    ],
+    [
+      43.72,
+      59.48,
+      "host4",
+      103.19999999999999
+    ],
+    [
+      41.12,
+      61.12,
+      "host3",
+      102.24
+    ],
+    [
+      41.08,
+      59.4,
+      "host2",
+      100.47999999999999
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

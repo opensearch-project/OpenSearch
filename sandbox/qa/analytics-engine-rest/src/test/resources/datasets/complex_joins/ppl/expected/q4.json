@@ -1,0 +1,49 @@
+{
+  "schema": [
+    {
+      "name": "pod_restarts",
+      "type": "bigint"
+    },
+    {
+      "name": "kubernetes.pod_name",
+      "type": "string"
+    },
+    {
+      "name": "avg_cpu",
+      "type": "double"
+    },
+    {
+      "name": "host",
+      "type": "string"
+    },
+    {
+      "name": "health_score",
+      "type": "bigint"
+    }
+  ],
+  "datarows": [
+    [
+      5,
+      "pod-0",
+      85.0,
+      "pod-0",
+      50
+    ],
+    [
+      5,
+      "pod-1",
+      90.0,
+      "pod-1",
+      50
+    ],
+    [
+      5,
+      "pod-2",
+      95.0,
+      "pod-2",
+      50
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

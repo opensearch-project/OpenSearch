@@ -31,9 +31,9 @@
 
 package org.opensearch.snapshots;
 
-import org.apache.lucene.index.IndexCommit;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -41,6 +41,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.Store;
@@ -141,12 +142,13 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
                         MapperService mapperService,
                         SnapshotId snapshotId,
                         IndexId indexId,
-                        IndexCommit snapshotIndexCommit,
+                        CatalogSnapshot catalogSnapshot,
                         String shardStateIdentifier,
                         IndexShardSnapshotStatus snapshotStatus,
                         Version repositoryMetaVersion,
                         Map<String, Object> userMetadata,
-                        ActionListener<String> listener
+                        ActionListener<String> listener,
+                        IndexMetadata indexMetadata
                     ) {
                         assertThat(userMetadata, is(Collections.singletonMap(MOCK_FILTERED_META, initialMetaValue)));
                         super.snapshotShard(
@@ -154,12 +156,13 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
                             mapperService,
                             snapshotId,
                             indexId,
-                            snapshotIndexCommit,
+                            catalogSnapshot,
                             shardStateIdentifier,
                             snapshotStatus,
                             repositoryMetaVersion,
                             userMetadata,
-                            listener
+                            listener,
+                            indexMetadata
                         );
                     }
 

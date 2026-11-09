@@ -32,8 +32,11 @@
 
 package org.opensearch.index.reindex;
 
+import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
@@ -45,12 +48,15 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.ParentTaskAssigningClient;
 
-public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteByQueryRequest, BulkByScrollResponse> {
+public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteByQueryRequest, BulkByScrollResponse>
+    implements
+        TransportIndicesResolvingAction<DeleteByQueryRequest> {
 
     private final ThreadPool threadPool;
     private final Client client;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
+    private final TransportSearchAction transportSearchAction;
 
     @Inject
     public TransportDeleteByQueryAction(
@@ -59,7 +65,8 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         Client client,
         TransportService transportService,
         ScriptService scriptService,
-        ClusterService clusterService
+        ClusterService clusterService,
+        TransportSearchAction transportSearchAction
     ) {
         super(
             DeleteByQueryAction.NAME,
@@ -71,12 +78,14 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         this.client = client;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
+        this.transportSearchAction = transportSearchAction;
     }
 
     @Override
     public void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
         BulkByScrollParallelizationHelper.startSlicedAction(
+            clusterService.state().metadata(),
             request,
             bulkByScrollTask,
             DeleteByQueryAction.INSTANCE,
@@ -93,5 +102,10 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                     .start();
             }
         );
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(DeleteByQueryRequest request) {
+        return transportSearchAction.resolveIndices(request.getSearchRequest());
     }
 }

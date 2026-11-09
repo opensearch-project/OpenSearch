@@ -64,7 +64,7 @@ public class UpdateRuleResponse extends ActionResponse implements ToXContent, To
     /**
      * rule getter
      */
-    Rule getRule() {
+    public Rule getRule() {
         return rule;
     }
 }

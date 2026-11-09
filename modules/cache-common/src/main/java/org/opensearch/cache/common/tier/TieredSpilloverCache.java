@@ -348,28 +348,33 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             boolean wasCacheMiss = false;
             boolean wasRejectedByPolicy = false;
             BiFunction<Tuple<Tuple<ICacheKey<K>, V>, Boolean>, Throwable, Void> handler = (pairInfo, ex) -> {
-                Tuple<ICacheKey<K>, V> pair = pairInfo.v1();
-                boolean rejectedByPolicy = pairInfo.v2();
-                if (pair != null && !rejectedByPolicy) {
-                    boolean didAddToCache = false;
-                    try (ReleasableLock ignore = writeLock.acquire()) {
-                        onHeapCache.put(pair.v1(), pair.v2());
-                        didAddToCache = true;
-                    } catch (Exception e) {
-                        // TODO: Catch specific exceptions to know whether this resulted from cache or underlying removal
-                        // listeners/stats. Needs better exception handling at underlying layers.For now swallowing
-                        // exception.
-                        logger.warn("Exception occurred while putting item onto heap cache", e);
+                try {
+                    if (pairInfo != null) {
+                        Tuple<ICacheKey<K>, V> pair = pairInfo.v1();
+                        boolean rejectedByPolicy = pairInfo.v2();
+                        if (pair != null && !rejectedByPolicy) {
+                            boolean didAddToCache = false;
+                            try (ReleasableLock ignore = writeLock.acquire()) {
+                                onHeapCache.put(pair.v1(), pair.v2());
+                                didAddToCache = true;
+                            } catch (Exception e) {
+                                // TODO: Catch specific exceptions to know whether this resulted from cache or underlying removal
+                                // listeners/stats. Needs better exception handling at underlying layers.For now swallowing
+                                // exception.
+                                logger.warn("Exception occurred while putting item onto heap cache", e);
+                            }
+                            if (didAddToCache) {
+                                updateStatsOnPut(TIER_DIMENSION_VALUE_ON_HEAP, key, pair.v2());
+                            }
+                        }
+                    } else {
+                        if (ex != null) {
+                            logger.warn("Exception occurred while trying to compute the value", ex);
+                        }
                     }
-                    if (didAddToCache) {
-                        updateStatsOnPut(TIER_DIMENSION_VALUE_ON_HEAP, key, pair.v2());
-                    }
-                } else {
-                    if (ex != null) {
-                        logger.warn("Exception occurred while trying to compute the value", ex);
-                    }
+                } finally {
+                    completableFutureMap.remove(key);// Remove key from map as not needed anymore.
                 }
-                completableFutureMap.remove(key);// Remove key from map as not needed anymore.
                 return null;
             };
             V value = null;

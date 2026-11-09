@@ -14,9 +14,11 @@ import org.apache.lucene.util.Constants;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.ResourceUsageCollectorService;
+import org.opensearch.plugin.stats.NativeAllocatorPoolStats;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.AdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.IoBasedAdmissionController;
+import org.opensearch.ratelimitting.admissioncontrol.controllers.NativeMemoryBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControlStats;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControllerStats;
@@ -26,9 +28,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Supplier;
 
 import static org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER;
 import static org.opensearch.ratelimitting.admissioncontrol.controllers.IoBasedAdmissionController.IO_BASED_ADMISSION_CONTROLLER;
+import static org.opensearch.ratelimitting.admissioncontrol.controllers.NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER;
 
 /**
  * Admission control Service that bootstraps and manages all the Admission Controllers in OpenSearch.
@@ -41,6 +45,7 @@ public class AdmissionControlService {
     private final ClusterService clusterService;
     private final Settings settings;
     private final ResourceUsageCollectorService resourceUsageCollectorService;
+    private final Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier;
 
     /**
      *
@@ -48,12 +53,15 @@ public class AdmissionControlService {
      * @param clusterService ClusterService Instance
      * @param threadPool ThreadPool Instance
      * @param resourceUsageCollectorService Instance used to get node resource usage stats
+     * @param nativeAllocatorStatsSupplier Nullable supplier of native allocator pool stats, forwarded to the
+     *                                     native-memory admission controller for indexing-pool based rejection
      */
     public AdmissionControlService(
         Settings settings,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ResourceUsageCollectorService resourceUsageCollectorService
+        ResourceUsageCollectorService resourceUsageCollectorService,
+        Supplier<NativeAllocatorPoolStats> nativeAllocatorStatsSupplier
     ) {
         this.threadPool = threadPool;
         this.admissionControlSettings = new AdmissionControlSettings(clusterService.getClusterSettings(), settings);
@@ -61,6 +69,7 @@ public class AdmissionControlService {
         this.clusterService = clusterService;
         this.settings = settings;
         this.resourceUsageCollectorService = resourceUsageCollectorService;
+        this.nativeAllocatorStatsSupplier = nativeAllocatorStatsSupplier;
         this.initialize();
     }
 
@@ -72,6 +81,7 @@ public class AdmissionControlService {
         registerAdmissionController(CPU_BASED_ADMISSION_CONTROLLER);
         if (Constants.LINUX) {
             registerAdmissionController(IO_BASED_ADMISSION_CONTROLLER);
+            registerAdmissionController(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER);
         }
     }
 
@@ -113,6 +123,14 @@ public class AdmissionControlService {
                     this.resourceUsageCollectorService,
                     this.clusterService,
                     this.settings
+                );
+            case NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER:
+                return new NativeMemoryBasedAdmissionController(
+                    admissionControllerName,
+                    this.resourceUsageCollectorService,
+                    this.clusterService,
+                    this.settings,
+                    this.nativeAllocatorStatsSupplier
                 );
             default:
                 throw new IllegalArgumentException("Not Supported AdmissionController : " + admissionControllerName);

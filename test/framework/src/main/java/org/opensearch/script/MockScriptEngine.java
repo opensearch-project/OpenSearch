@@ -321,6 +321,14 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(ContextAwareGroupingScript.class)) {
+            ContextAwareGroupingScript.Factory factory = () -> new ContextAwareGroupingScript() {
+                @Override
+                public String execute(Map<String, Object> ctx) {
+                    return (String) script.apply(ctx);
+                }
+            };
+            return context.factoryClazz.cast(factory);
         }
 
         ContextCompiler compiler = contexts.get(context);

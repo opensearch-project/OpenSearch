@@ -32,6 +32,8 @@
 
 package org.opensearch.index.reindex;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsExchange;
 import com.sun.net.httpserver.HttpsParameters;
@@ -48,6 +50,7 @@ import org.opensearch.common.ssl.PemTrustConfig;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
+import org.opensearch.test.BouncyCastleThreadFilter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.hamcrest.Matchers;
@@ -82,9 +85,10 @@ import static org.mockito.Mockito.mock;
  * right SSL keys + trust settings.
  */
 @SuppressForbidden(reason = "use http server")
+@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 public class ReindexRestClientSslTests extends OpenSearchTestCase {
 
-    private static final String STRONG_PRIVATE_SECRET = "6!6428DQXwPpi7@$ggeg/=";
+    private static final String STRONG_PRIVATE_SECRET = "6!6428DQXwPpi7@$ggeg/="; // has to be at least 112 bit strong to test in FIPS mode.
     private static HttpsServer server;
     private static Consumer<HttpsExchange> handler = ignore -> {};
 
@@ -129,7 +133,6 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
     }
 
     public void testClientFailsWithUntrustedCertificate() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final List<Thread> threads = new ArrayList<>();
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
@@ -164,8 +167,7 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
         }
     }
 
-    public void testClientSucceedsWithVerificationDisabled() throws IOException {
-        assumeFalse("Cannot disable verification in FIPS JVM", inFipsJvm());
+    public void testClientWithVerificationDisabled() throws IOException {
         final List<Thread> threads = new ArrayList<>();
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())

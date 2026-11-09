@@ -1,0 +1,34 @@
+setup:
+  - skip:
+      version: " - 3.3.99"
+      reason: "Error trace support was added in 3.4"
+---
+"Returns a detailed error stack trace when requested":
+
+  - do:
+      bulk:
+        error_trace: true
+        body:
+          - '{"update": {"_index": "index_does_not_exist_321", "_id": "123"}}'
+          - '{"doc": {"field": "value"}}'
+
+  - match: { errors: true }
+  - match: { items.0.update.status: 404 }
+  - match: { items.0.update.error.type: document_missing_exception }
+  - match: { items.0.update.error.reason: "[123]: document missing" }
+  - match: { items.0.update.error.stack_trace: "/.*\\[\\[index_does_not_exist_321\\]\\[0\\].*DocumentMissingException\\[\\[123\\]:.*document.*missing\\].*/" }
+---
+"Skips a detailed error stack trace when requested":
+
+  - do:
+      bulk:
+        error_trace: false
+        body:
+          - '{"update": {"_index": "index_does_not_exist_321", "_id": "123"}}'
+          - '{"doc": {"field": "value"}}'
+
+  - match: { errors: true }
+  - match: { items.0.update.status: 404 }
+  - match: { items.0.update.error.type: document_missing_exception }
+  - match: { items.0.update.error.reason: "[123]: document missing" }
+  - match: { items.0.update.error.stack_trace: null }

@@ -23,9 +23,11 @@ import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateUtils;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.indices.IndicesModule;
+import org.opensearch.repositories.blobstore.ChecksumWritableBlobStoreFormat;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
@@ -70,7 +72,7 @@ public class RemoteDiscoveryNodesTests extends OpenSearchTestCase {
         RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(nodes, METADATA_VERSION, clusterUUID, compressor);
         assertEquals(remoteObjectForUpload.clusterUUID(), clusterUUID);
 
-        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(TEST_BLOB_NAME, clusterUUID, compressor);
+        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(TEST_BLOB_NAME, clusterUUID, compressor, Version.CURRENT);
         assertEquals(remoteObjectForDownload.clusterUUID(), clusterUUID);
     }
 
@@ -79,7 +81,7 @@ public class RemoteDiscoveryNodesTests extends OpenSearchTestCase {
         RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(nodes, METADATA_VERSION, clusterUUID, compressor);
         assertNull(remoteObjectForUpload.getFullBlobName());
 
-        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(TEST_BLOB_NAME, clusterUUID, compressor);
+        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(TEST_BLOB_NAME, clusterUUID, compressor, Version.CURRENT);
         assertEquals(remoteObjectForDownload.getFullBlobName(), TEST_BLOB_NAME);
     }
 
@@ -88,13 +90,13 @@ public class RemoteDiscoveryNodesTests extends OpenSearchTestCase {
         RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(nodes, METADATA_VERSION, clusterUUID, compressor);
         assertNull(remoteObjectForUpload.getBlobFileName());
 
-        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(TEST_BLOB_NAME, clusterUUID, compressor);
+        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(TEST_BLOB_NAME, clusterUUID, compressor, Version.CURRENT);
         assertEquals(remoteObjectForDownload.getBlobFileName(), TEST_BLOB_FILE_NAME);
     }
 
     public void testBlobPathTokens() {
         String uploadedFile = "user/local/opensearch/discovery-nodes";
-        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(uploadedFile, clusterUUID, compressor);
+        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(uploadedFile, clusterUUID, compressor, Version.CURRENT);
         assertArrayEquals(remoteObjectForDownload.getBlobPathTokens(), new String[] { "user", "local", "opensearch", "discovery-nodes" });
     }
 
@@ -152,8 +154,42 @@ public class RemoteDiscoveryNodesTests extends OpenSearchTestCase {
         InputStream in = mock(InputStream.class);
         when(in.read(any(byte[].class))).thenThrow(new IOException("mock-exception"));
         String uploadedFile = "user/local/opensearch/discovery-nodes";
-        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(uploadedFile, clusterUUID, compressor);
+        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(uploadedFile, clusterUUID, compressor, Version.CURRENT);
         IOException ioe = assertThrows(IOException.class, () -> remoteObjectForDownload.deserialize(in));
+    }
+
+    public void testSerializationOnOldVersionDeserializationOnNewVersions() throws IOException {
+        DiscoveryNodes nodes = getDiscoveryNodes();
+
+        // Create format with V_3_1_0 for serialization using the same ChecksumWritableBlobStoreFormat
+        // which is being used in RemoteDiscoveryNodes class.
+        ChecksumWritableBlobStoreFormat<DiscoveryNodes> serializeFormat = new ChecksumWritableBlobStoreFormat<>(
+            "nodes",
+            is -> DiscoveryNodes.readFrom(is, null)
+        );
+
+        // Serialize using 3.1.0 format
+        byte[] serializedData = serializeFormat.serialize((out, discoveryNode) -> {
+            out.setVersion(Version.V_3_1_0);
+            discoveryNode.writeToWithAttribute(out);
+        }, nodes, "test-blob", compressor).streamInput().readAllBytes();
+
+        // Deserialize assuming serialization was performed using version 3.4.0, which should fail
+        RemoteDiscoveryNodes deserialize34 = new RemoteDiscoveryNodes("test-blob", clusterUUID, compressor, Version.V_3_4_0);
+        assertThrows(Exception.class, () -> {
+            try (InputStream inputStream = new ByteArrayInputStream(serializedData)) {
+                deserialize34.deserialize(inputStream);
+            }
+        });
+
+        // Deserialize assuming serialization was performed using version 3.1.0, which should pass
+        RemoteDiscoveryNodes deserialize31 = new RemoteDiscoveryNodes("test-blob", clusterUUID, compressor, Version.V_3_1_0);
+        DiscoveryNodes readNodes31;
+        try (InputStream inputStream = new ByteArrayInputStream(serializedData)) {
+            readNodes31 = deserialize31.deserialize(inputStream);
+        }
+        assertEquals(nodes.getSize(), readNodes31.getSize());
+        assertEquals(nodes.getClusterManagerNodeId(), readNodes31.getClusterManagerNodeId());
     }
 
     public static DiscoveryNodes getDiscoveryNodes() {

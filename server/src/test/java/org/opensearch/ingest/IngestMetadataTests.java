@@ -68,8 +68,7 @@ public class IngestMetadataTests extends OpenSearchTestCase {
         map.put(pipeline.getId(), pipeline);
         map.put(pipeline2.getId(), pipeline2);
         IngestMetadata ingestMetadata = new IngestMetadata(map);
-        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
-        builder.prettyPrint();
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values())).prettyPrint();
         builder.startObject();
         ingestMetadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();

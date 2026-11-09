@@ -1,0 +1,42 @@
+{
+  "schema": [
+    {
+      "name": "critical_alerts",
+      "type": "bigint"
+    },
+    {
+      "name": "max_cpu",
+      "type": "bigint"
+    },
+    {
+      "name": "max_memory",
+      "type": "bigint"
+    },
+    {
+      "name": "host",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      6,
+      95,
+      91,
+      "host1"
+    ],
+    [
+      3,
+      40,
+      95,
+      "host3"
+    ],
+    [
+      3,
+      56,
+      95,
+      "host4"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

@@ -60,12 +60,28 @@ public class WarmerStats implements Writeable, ToXContentFragment {
 
     }
 
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new WarmerStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private WarmerStats(Builder builder) {
+        this.current = builder.current;
+        this.total = builder.total;
+        this.totalTimeInMillis = builder.totalTimeInMillis;
+    }
+
     public WarmerStats(StreamInput in) throws IOException {
         current = in.readVLong();
         total = in.readVLong();
         totalTimeInMillis = in.readVLong();
     }
 
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link Builder} instead.
+     */
+    @Deprecated
     public WarmerStats(long current, long total, long totalTimeInMillis) {
         this.current = current;
         this.total = total;
@@ -110,6 +126,41 @@ public class WarmerStats implements Writeable, ToXContentFragment {
      */
     public TimeValue totalTime() {
         return new TimeValue(totalTimeInMillis);
+    }
+
+    /**
+     * Builder for the {@link WarmerStats} class.
+     * Provides a fluent API for constructing a WarmerStats object.
+     */
+    public static class Builder {
+        private long current = 0;
+        private long total = 0;
+        private long totalTimeInMillis = 0;
+
+        public Builder() {}
+
+        public Builder current(long current) {
+            this.current = current;
+            return this;
+        }
+
+        public Builder total(long total) {
+            this.total = total;
+            return this;
+        }
+
+        public Builder totalTimeInMillis(long time) {
+            this.totalTimeInMillis = time;
+            return this;
+        }
+
+        /**
+         * Creates a {@link WarmerStats} object from the builder's current state.
+         * @return A new WarmerStats instance.
+         */
+        public WarmerStats build() {
+            return new WarmerStats(this);
+        }
     }
 
     @Override

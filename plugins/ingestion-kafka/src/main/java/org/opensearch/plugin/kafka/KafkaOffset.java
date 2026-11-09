@@ -71,10 +71,9 @@ public class KafkaOffset implements IngestionShardPointer {
         if (o == null) {
             throw new IllegalArgumentException("the pointer is null");
         }
-        if (!(o instanceof KafkaOffset)) {
+        if (!(o instanceof KafkaOffset other)) {
             throw new IllegalArgumentException("the pointer is of type " + o.getClass() + " and not KafkaOffset");
         }
-        KafkaOffset other = (KafkaOffset) o;
         return Long.compare(offset, other.offset);
     }
 

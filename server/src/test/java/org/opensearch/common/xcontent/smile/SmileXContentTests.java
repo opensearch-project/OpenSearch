@@ -32,13 +32,13 @@
 
 package org.opensearch.common.xcontent.smile;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.dataformat.smile.SmileFactory;
-
 import org.opensearch.common.xcontent.BaseXContentTestCase;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
+
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.dataformat.smile.SmileFactory;
 
 public class SmileXContentTests extends BaseXContentTestCase {
 

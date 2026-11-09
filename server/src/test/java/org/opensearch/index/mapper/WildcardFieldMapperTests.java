@@ -128,7 +128,14 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
         assertEquals(DocValuesType.SORTED_SET, fields[1].fieldType().docValuesType());
 
+        // doc_values is true by default
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "wildcard")));
+        doc = mapper.parse(source(b -> b.field("field", "1234")));
+        fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
+
+        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "wildcard").field("doc_values", false)));
         doc = mapper.parse(source(b -> b.field("field", "1234")));
         fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -388,5 +395,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         final BytesRef binaryValue = new BytesRef(value);
         doc.add(new SortedSetDocValuesField(FIELD_NAME, binaryValue));
         return doc;
+    }
+
+    private Settings pluggableSettings() {
+        return Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
     }
 }

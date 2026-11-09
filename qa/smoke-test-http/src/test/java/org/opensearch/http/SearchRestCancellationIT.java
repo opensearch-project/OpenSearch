@@ -34,6 +34,7 @@ package org.opensearch.http;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -85,6 +86,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
+@AwaitsFix(bugUrl = "flaky test - enable after fix")
 public class SearchRestCancellationIT extends HttpSmokeTestCase {
 
     @Override

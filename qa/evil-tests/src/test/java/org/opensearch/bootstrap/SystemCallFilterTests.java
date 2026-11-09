@@ -32,6 +32,9 @@
 
 package org.opensearch.bootstrap;
 
+import com.sun.jna.Native;
+import com.sun.jna.NativeLong;
+
 import org.apache.lucene.util.Constants;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -39,7 +42,12 @@ import org.opensearch.test.OpenSearchTestCase;
 public class SystemCallFilterTests extends OpenSearchTestCase {
 
     /** command to try to run in tests */
-    static final String EXECUTABLE = Constants.WINDOWS ? "calc" : "ls";
+    static final String[] EXECUTABLE = new String[] { Constants.WINDOWS ? "calc" : "ls" };
+
+    /** PTRACE_ATTACH from linux/ptrace.h */
+    static final int PTRACE_ATTACH = 16;
+    /** pid that cannot exist (above PID_MAX_LIMIT), so unfiltered calls never touch a real process */
+    static final int NO_SUCH_PID = Integer.MAX_VALUE;
 
     @SuppressWarnings("removal")
     @Override
@@ -97,5 +105,56 @@ public class SystemCallFilterTests extends OpenSearchTestCase {
         };
         t.start();
         t.join();
+    }
+
+    public void testNoPtrace() throws Exception {
+        final SystemCallFilter.Arch arch = linuxArch();
+        assertBlocked("ptrace", arch.ptrace, (long) PTRACE_ATTACH, (long) NO_SUCH_PID, 0L, 0L);
+    }
+
+    public void testNoProcessVmReadvOrWritev() throws Exception {
+        final SystemCallFilter.Arch arch = linuxArch();
+        assertBlocked("process_vm_readv", arch.processVmReadv, (long) NO_SUCH_PID, 0L, 0L, 0L, 0L, 0L);
+        assertBlocked("process_vm_writev", arch.processVmWritev, (long) NO_SUCH_PID, 0L, 0L, 0L, 0L, 0L);
+    }
+
+    public void testNoPidfdGetfd() throws Exception {
+        final SystemCallFilter.Arch arch = linuxArch();
+        // an invalid pidfd fails with EBADF when unfiltered
+        assertBlocked("pidfd_getfd", arch.pidfdGetfd, -1L, 0L, 0L);
+    }
+
+    // make sure thread inherits this too
+    public void testNoPtraceFromThread() throws Exception {
+        final SystemCallFilter.Arch arch = linuxArch();
+        final Throwable[] failure = new Throwable[1];
+        Thread t = new Thread(() -> {
+            try {
+                assertBlocked("ptrace", arch.ptrace, (long) PTRACE_ATTACH, (long) NO_SUCH_PID, 0L, 0L);
+            } catch (Throwable e) {
+                failure[0] = e;
+            }
+        });
+        t.start();
+        t.join();
+        if (failure[0] != null) {
+            throw new AssertionError("ptrace was not blocked on a new thread", failure[0]);
+        }
+    }
+
+    private static SystemCallFilter.Arch linuxArch() {
+        assumeTrue("process inspection syscalls are only filtered on Linux", Constants.LINUX);
+        final SystemCallFilter.Arch arch = SystemCallFilter.ARCHITECTURES.get(Constants.OS_ARCH);
+        assumeTrue("unsupported architecture: " + Constants.OS_ARCH, arch != null);
+        return arch;
+    }
+
+    // pass every argument as a long so unused register bits are deterministic when unfiltered
+    private static void assertBlocked(String name, int number, Object... args) {
+        final SystemCallFilter.LinuxLibrary libc = Native.loadLibrary("c", SystemCallFilter.LinuxLibrary.class);
+        final long ret = libc.syscall(new NativeLong(number), args).longValue();
+        final int errno = Native.getLastError();
+        assertEquals(name + " should have failed", -1L, ret);
+        assertEquals(name + " should have been denied by the system call filter", SystemCallFilter.EACCES, errno);
     }
 }

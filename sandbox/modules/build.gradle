@@ -12,8 +12,8 @@ configure(subprojects.findAll { it.parent.path == project.path }) {
   apply plugin: 'opensearch.opensearchplugin'
 
   opensearchplugin {
-    name project.name
-    licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
-    noticeFile rootProject.file('NOTICE.txt')
+    name = project.name
+    licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+    noticeFile = rootProject.file('NOTICE.txt')
   }
 }

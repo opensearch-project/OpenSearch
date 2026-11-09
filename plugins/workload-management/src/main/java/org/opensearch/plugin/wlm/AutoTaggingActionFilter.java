@@ -11,34 +11,63 @@ package org.opensearch.plugin.wlm;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilterChain;
+import org.opensearch.action.support.ActionRequestMetadata;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.plugin.wlm.rule.attribute_extractor.IndicesExtractor;
+import org.opensearch.plugin.wlm.spi.AttributeExtractorExtension;
 import org.opensearch.rule.InMemoryRuleProcessingService;
+import org.opensearch.rule.RuleAttribute;
+import org.opensearch.rule.attribute_extractor.AttributeExtractor;
+import org.opensearch.rule.autotagging.Attribute;
+import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.WlmMode;
 import org.opensearch.wlm.WorkloadGroupTask;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+
+import static org.opensearch.plugin.wlm.WorkloadManagementPlugin.PRINCIPAL_ATTRIBUTE_NAME;
 
 /**
  * This class is responsible to evaluate and assign the WORKLOAD_GROUP_ID header in ThreadContext
  */
 public class AutoTaggingActionFilter implements ActionFilter {
     private final InMemoryRuleProcessingService ruleProcessingService;
-    ThreadPool threadPool;
+    private final ThreadPool threadPool;
+    private final Map<Attribute, AttributeExtractorExtension> attributeExtensions;
+    private final WlmClusterSettingValuesProvider wlmClusterSettingValuesProvider;
+    private final FeatureType featureType;
 
     /**
      * Main constructor
      * @param ruleProcessingService provides access to in memory view of rules
      * @param threadPool to access assign the label
+     * @param attributeExtensions
+     * @param wlmClusterSettingValuesProvider
+     * @param featureType
      */
-    public AutoTaggingActionFilter(InMemoryRuleProcessingService ruleProcessingService, ThreadPool threadPool) {
+    public AutoTaggingActionFilter(
+        InMemoryRuleProcessingService ruleProcessingService,
+        ThreadPool threadPool,
+        Map<Attribute, AttributeExtractorExtension> attributeExtensions,
+        WlmClusterSettingValuesProvider wlmClusterSettingValuesProvider,
+        FeatureType featureType
+    ) {
         this.ruleProcessingService = ruleProcessingService;
         this.threadPool = threadPool;
+        this.attributeExtensions = attributeExtensions;
+        this.wlmClusterSettingValuesProvider = wlmClusterSettingValuesProvider;
+        this.featureType = featureType;
     }
 
     @Override
@@ -51,18 +80,83 @@ public class AutoTaggingActionFilter implements ActionFilter {
         Task task,
         String action,
         Request request,
+        ActionRequestMetadata<Request, Response> actionRequestMetadata,
         ActionListener<Response> listener,
         ActionFilterChain<Request, Response> chain
     ) {
-        final boolean isValidRequest = request instanceof SearchRequest;
+        final boolean isSearchRequest = request instanceof SearchRequest;
+        final boolean isSearchScrollRequest = request instanceof SearchScrollRequest;
+        final boolean isValidRequest = isSearchRequest || isSearchScrollRequest;
 
-        if (!isValidRequest) {
+        if (!isValidRequest || wlmClusterSettingValuesProvider.getWlmMode() == WlmMode.DISABLED) {
             chain.proceed(task, action, request, listener);
             return;
         }
-        Optional<String> label = ruleProcessingService.evaluateLabel(List.of(new IndicesExtractor((IndicesRequest) request)));
+        List<AttributeExtractor<String>> attributeExtractors = new ArrayList<>();
+        if (isSearchRequest) {
+            attributeExtractors.add(new IndicesExtractor((IndicesRequest) request));
+        } else {
+            // Scroll: recover the original user-provided indices from ParsedScrollId
+            final String[] originalIndices = ((SearchScrollRequest) request).originalIndicesOrEmpty();
+            if (originalIndices.length > 0) {
+                attributeExtractors.add(new AttributeExtractor<>() {
+                    @Override
+                    public Attribute getAttribute() {
+                        return RuleAttribute.INDEX_PATTERN;
+                    }
 
-        label.ifPresent(s -> threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, s));
+                    @Override
+                    public Iterable<String> extract() {
+                        return Arrays.asList(originalIndices);
+                    }
+
+                    @Override
+                    public LogicalOperator getLogicalOperator() {
+                        return LogicalOperator.AND;
+                    }
+                });
+            }
+        }
+
+        List<String> principalValues = null;
+        if (featureType.getAllowedAttributesRegistry().containsKey(PRINCIPAL_ATTRIBUTE_NAME)) {
+            Attribute attribute = featureType.getAllowedAttributesRegistry().get(PRINCIPAL_ATTRIBUTE_NAME);
+            assert attributeExtensions.containsKey(attribute);
+            final AttributeExtractor<String> extractor = attributeExtensions.get(attribute).getAttributeExtractor();
+            // Materialize once: extract() has no re-iterability contract, and an empty second read would disable throttling.
+            final List<String> values = new ArrayList<>();
+            extractor.extract().forEach(values::add);
+            principalValues = values;
+            attributeExtractors.add(new AttributeExtractor<>() {
+                @Override
+                public Attribute getAttribute() {
+                    return extractor.getAttribute();
+                }
+
+                @Override
+                public Iterable<String> extract() {
+                    return values;
+                }
+
+                @Override
+                public LogicalOperator getLogicalOperator() {
+                    return extractor.getLogicalOperator();
+                }
+            });
+        }
+
+        Optional<String> label = ruleProcessingService.evaluateLabel(attributeExtractors);
+        ThreadContext threadContext = threadPool.getThreadContext();
+        if (threadContext.getRequestHeadersOnly().containsKey(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER) == false) {
+            label.ifPresent(s -> threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, s));
+        }
+        // Carried on the task, not the thread context; see WorkloadGroupTask#setThrottlePrincipal.
+        if (principalValues != null && task instanceof WorkloadGroupTask) {
+            String principal = String.join(WorkloadGroupTask.WORKLOAD_GROUP_PRINCIPAL_VALUE_DELIMITER, principalValues);
+            if (principal.isEmpty() == false) {
+                ((WorkloadGroupTask) task).setThrottlePrincipal(principal);
+            }
+        }
         chain.proceed(task, action, request, listener);
     }
 }

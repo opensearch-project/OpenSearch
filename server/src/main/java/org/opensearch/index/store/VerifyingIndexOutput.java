@@ -33,6 +33,7 @@
 package org.opensearch.index.store;
 
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lucene.store.FilterIndexOutput;
 
 import java.io.IOException;
@@ -41,9 +42,10 @@ import java.io.IOException;
  * abstract class for verifying what was written.
  * subclasses override {@link #writeByte(byte)} and {@link #writeBytes(byte[], int, int)}
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
 // do NOT optimize this class for performance
+@ExperimentalApi
 public abstract class VerifyingIndexOutput extends FilterIndexOutput {
 
     /** Sole constructor */

@@ -1,0 +1,56 @@
+{
+  "schema": [
+    {
+      "name": "host",
+      "type": "string"
+    },
+    {
+      "name": "total_metrics",
+      "type": "bigint"
+    },
+    {
+      "name": "avg_cpu",
+      "type": "double"
+    },
+    {
+      "name": "avg_memory",
+      "type": "double"
+    },
+    {
+      "name": "performance_score",
+      "type": "double"
+    }
+  ],
+  "datarows": [
+    [
+      "host2",
+      25,
+      41.08,
+      59.4,
+      49.76
+    ],
+    [
+      "host3",
+      25,
+      41.12,
+      61.12,
+      48.88
+    ],
+    [
+      "host4",
+      25,
+      43.72,
+      59.48,
+      48.4
+    ],
+    [
+      "host1",
+      25,
+      82.12,
+      62.72,
+      27.58
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

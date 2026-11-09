@@ -8,7 +8,7 @@
 
 package org.opensearch.indices.pollingingest;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.Locale;
 
@@ -16,7 +16,7 @@ import java.util.Locale;
  * Defines the error handling strategy when an error is encountered either during polling records from ingestion source
  * or during processing the polled records.
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface IngestionErrorStrategy {
 
     /**
@@ -47,7 +47,7 @@ public interface IngestionErrorStrategy {
     /**
      * Indicates available error handling strategies
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     enum ErrorStrategy {
         DROP,
         BLOCK;
@@ -64,7 +64,7 @@ public interface IngestionErrorStrategy {
     /**
      * Indicates different stages of encountered errors
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     enum ErrorStage {
         POLLING,
         PROCESSING

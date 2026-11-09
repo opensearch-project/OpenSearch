@@ -61,6 +61,7 @@ public class BuildParams {
     private static Boolean isInternal;
     private static Integer defaultParallel;
     private static Boolean isSnapshotBuild;
+    private static Boolean buildUnreleasedFromSource;
     private static BwcVersions bwcVersions;
 
     /**
@@ -145,6 +146,10 @@ public class BuildParams {
 
     public static boolean isSnapshotBuild() {
         return value(BuildParams.isSnapshotBuild);
+    }
+
+    public static boolean buildUnreleasedFromSource() {
+        return value(BuildParams.buildUnreleasedFromSource);
     }
 
     private static <T> T value(T object) {
@@ -254,6 +259,10 @@ public class BuildParams {
 
         public void setIsSnapshotBuild(final boolean isSnapshotBuild) {
             BuildParams.isSnapshotBuild = isSnapshotBuild;
+        }
+
+        public void setBuildUnreleasedFromSource(final boolean buildUnreleasedFromSource) {
+            BuildParams.buildUnreleasedFromSource = buildUnreleasedFromSource;
         }
 
         public void setBwcVersions(BwcVersions bwcVersions) {

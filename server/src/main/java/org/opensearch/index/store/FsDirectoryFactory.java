@@ -84,7 +84,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         return newFSDirectory(location, lockFactory, indexSettings);
     }
 
-    protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+    public Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
         final String storeType = indexSettings.getSettings()
             .get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey());
         IndexModule.Type type;
@@ -99,14 +99,18 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 final Set<String> nioExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS));
-                if (primaryDirectory instanceof MMapDirectory) {
-                    MMapDirectory mMapDirectory = (MMapDirectory) primaryDirectory;
+                if (primaryDirectory instanceof MMapDirectory mMapDirectory) {
+                    // Setting the read advise by context: REF: https://github.com/opensearch-project/OpenSearch/issues/21012
+                    mMapDirectory.setReadAdvice(MMapDirectory.ADVISE_BY_CONTEXT);
                     return new HybridDirectory(lockFactory, setPreload(mMapDirectory, preLoadExtensions), nioExtensions);
                 } else {
                     return primaryDirectory;
                 }
             case MMAPFS:
-                return setPreload(new MMapDirectory(location, lockFactory), preLoadExtensions);
+                final MMapDirectory mMapDirectory = new MMapDirectory(location, lockFactory);
+                // Setting the read advise by context: REF: https://github.com/opensearch-project/OpenSearch/issues/21012
+                mMapDirectory.setReadAdvice(MMapDirectory.ADVISE_BY_CONTEXT);
+                return setPreload(mMapDirectory, preLoadExtensions);
             // simplefs was removed in Lucene 9; support for enum is maintained for bwc
             case SIMPLEFS:
             case NIOFS:

@@ -1,0 +1,1 @@
+source=function_tests | where message is not null | eval trimmed = ltrim(message) | fields message, trimmed | head 10

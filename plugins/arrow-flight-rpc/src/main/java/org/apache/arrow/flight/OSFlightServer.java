@@ -25,8 +25,6 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.InvocationTargetException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -47,23 +45,25 @@ import org.apache.arrow.flight.grpc.ServerInterceptorAdapter;
 import org.apache.arrow.flight.grpc.ServerInterceptorAdapter.KeyFactory;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.util.Preconditions;
+import org.opensearch.secure_sm.AccessController;
 
 /**
  * Clone of {@link org.apache.arrow.flight.FlightServer} to support setting SslContext. It can be discarded once FlightServer.Builder supports setting SslContext directly.
  * <p>
  * It changes {@link org.apache.arrow.flight.FlightServer.Builder} to allow hook to configure the NettyServerBuilder.
  */
-@SuppressWarnings("removal")
 public class OSFlightServer {
     /** The maximum size of an individual gRPC message. This effectively disables the limit. */
     static final int MAX_GRPC_MESSAGE_SIZE = Integer.MAX_VALUE;
-    /** The default number of bytes that can be queued on an output stream before blocking. */
-    static final int DEFAULT_BACKPRESSURE_THRESHOLD = 10 * 1024 * 1024; // 10MB
+    /** Default per-stream outbound buffered-bytes threshold; can be overridden via
+     *  {@code arrow.flight.channel.outbound_buffer_threshold}. See
+     *  {@code docs/backpressure.md} for sizing guidance. */
+    static final int DEFAULT_BACKPRESSURE_THRESHOLD = 64 * 1024 * 1024; // 64MB
 
     private static final MethodHandle FLIGHT_SERVER_CTOR_MH;
 
     static {
-            FLIGHT_SERVER_CTOR_MH = AccessController.doPrivileged((PrivilegedAction<MethodHandle>) () -> {
+            FLIGHT_SERVER_CTOR_MH = AccessController.doPrivileged(() -> {
                     try {
                 return MethodHandles
                 .privateLookupIn(FlightServer.class, MethodHandles.lookup())
@@ -78,6 +78,7 @@ public class OSFlightServer {
     public final static class Builder {
         private BufferAllocator allocator;
         private Location location;
+        private final List<Location> listenAddresses = new ArrayList<>();
         private FlightProducer producer;
         private final Map<String, Object> builderOptions;
         private ServerAuthHandler authHandler = ServerAuthHandler.NO_OP;
@@ -120,11 +121,15 @@ public class OSFlightServer {
             this.middleware(FlightConstants.HEADER_KEY, new ServerHeaderMiddleware.Factory());
 
             final NettyServerBuilder builder;
-            switch (location.getUri().getScheme()) {
+            
+            // Use primary location for initial setup
+            Location primaryLocation = location != null ? location : listenAddresses.get(0);
+            
+            switch (primaryLocation.getUri().getScheme()) {
                 case LocationSchemes.GRPC_DOMAIN_SOCKET:
                 {
                     // The implementation is platform-specific, so we have to find the classes at runtime
-                    builder = NettyServerBuilder.forAddress(location.toSocketAddress());
+                    builder = NettyServerBuilder.forAddress(primaryLocation.toSocketAddress());
                     try {
                         try {
                             // Linux
@@ -162,21 +167,21 @@ public class OSFlightServer {
                 case LocationSchemes.GRPC:
                 case LocationSchemes.GRPC_INSECURE:
                 {
-                    builder = NettyServerBuilder.forAddress(location.toSocketAddress());
+                    builder = NettyServerBuilder.forAddress(primaryLocation.toSocketAddress());
                     break;
                 }
                 case LocationSchemes.GRPC_TLS:
                 {
-                    if (certChain == null) {
+                    if (certChain == null && sslContext == null) {
                         throw new IllegalArgumentException(
                             "Must provide a certificate and key to serve gRPC over TLS");
                     }
-                    builder = NettyServerBuilder.forAddress(location.toSocketAddress());
+                    builder = NettyServerBuilder.forAddress(primaryLocation.toSocketAddress());
                     break;
                 }
                 default:
                     throw new IllegalArgumentException(
-                        "Scheme is not supported: " + location.getUri().getScheme());
+                        "Scheme is not supported: " + primaryLocation.getUri().getScheme());
             }
 
             if (certChain != null && sslContext == null) {
@@ -257,10 +262,17 @@ public class OSFlightServer {
                     return null;
                 });
 
+            // Add additional listen addresses
+            for (Location listenAddress : listenAddresses) {
+                if (!listenAddress.equals(primaryLocation)) {
+                    builder.addListenAddress(listenAddress.toSocketAddress());
+                }
+            }
+            
             builder.intercept(new ServerInterceptorAdapter(interceptors));
 
             try {
-                return (FlightServer)FLIGHT_SERVER_CTOR_MH.invoke(location, builder.build(), grpcExecutor);
+                return (FlightServer)FLIGHT_SERVER_CTOR_MH.invoke(primaryLocation, builder.build(), grpcExecutor);
             } catch (final Throwable ex) {
                 throw new IllegalStateException("Unable to instantiate FlightServer", ex);
             }
@@ -458,6 +470,11 @@ public class OSFlightServer {
 
         public Builder location(Location location) {
             this.location = Preconditions.checkNotNull(location);
+            return this;
+        }
+        
+        public Builder addListenAddress(Location location) {
+            this.listenAddresses.add(Preconditions.checkNotNull(location));
             return this;
         }
 

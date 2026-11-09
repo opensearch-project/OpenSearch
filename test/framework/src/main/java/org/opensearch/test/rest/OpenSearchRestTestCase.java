@@ -37,14 +37,12 @@ import org.apache.hc.client5.http.classic.methods.HttpPut;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.ssl.ClientTlsStrategyBuilder;
-import org.apache.hc.core5.function.Factory;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.message.BasicHeader;
 import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
-import org.apache.hc.core5.reactor.ssl.TlsDetails;
 import org.apache.hc.core5.ssl.SSLContexts;
 import org.apache.hc.core5.util.Timeout;
 import org.opensearch.Version;
@@ -79,6 +77,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.snapshots.SnapshotState;
+import org.opensearch.test.KeyStoreUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
 import org.hamcrest.Matchers;
@@ -87,7 +86,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -722,30 +720,6 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         client().performRequest(refreshRequest);
     }
 
-    private static void deleteAllSLMPolicies() throws IOException {
-        Map<String, Object> policies;
-
-        try {
-            Response response = adminClient().performRequest(new Request("GET", "/_slm/policy"));
-            policies = entityAsMap(response);
-        } catch (ResponseException e) {
-            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()
-                || RestStatus.BAD_REQUEST.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
-                // If bad request returned, SLM is not enabled.
-                return;
-            }
-            throw e;
-        }
-
-        if (policies == null || policies.isEmpty()) {
-            return;
-        }
-
-        for (String policyName : policies.keySet()) {
-            adminClient().performRequest(new Request("DELETE", "/_slm/policy/" + policyName));
-        }
-    }
-
     /**
      * Logs a message if there are still running tasks. The reasoning is that any tasks still running are state the is trying to bleed into
      * other tests.
@@ -841,23 +815,13 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
             }
             try {
-                final String keyStoreType = keystorePath.endsWith(".p12") ? "PKCS12" : "jks";
-                KeyStore keyStore = KeyStore.getInstance(keyStoreType);
+                KeyStore keyStore = KeyStore.getInstance(KeyStoreUtils.inferStoreType(keystorePath));
                 try (InputStream is = Files.newInputStream(path)) {
                     keyStore.load(is, keystorePass.toCharArray());
                 }
                 final SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
                 builder.setHttpClientConfigCallback(httpClientBuilder -> {
-                    final TlsStrategy tlsStrategy = ClientTlsStrategyBuilder.create()
-                        .setSslContext(sslcontext)
-                        // See https://issues.apache.org/jira/browse/HTTPCLIENT-2219
-                        .setTlsDetailsFactory(new Factory<SSLEngine, TlsDetails>() {
-                            @Override
-                            public TlsDetails create(final SSLEngine sslEngine) {
-                                return new TlsDetails(sslEngine.getSession(), sslEngine.getApplicationProtocol());
-                            }
-                        })
-                        .build();
+                    final TlsStrategy tlsStrategy = ClientTlsStrategyBuilder.create().setSslContext(sslcontext).buildAsync();
 
                     final PoolingAsyncClientConnectionManager connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
                         .setTlsStrategy(tlsStrategy)

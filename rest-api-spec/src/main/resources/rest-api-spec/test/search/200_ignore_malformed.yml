@@ -2,7 +2,7 @@
 setup:
   - do:
       indices.create:
-          index:  test
+          index: test
           body:
             mappings:
               properties:
@@ -13,6 +13,19 @@ setup:
                 my_ip:
                   type: ip
                   ignore_malformed: true
+  - do:
+      indices.create:
+        index: index_level_setting
+        body:
+          settings:
+            index.mapping.ignore_malformed: true
+          mappings:
+            properties:
+              my_date:
+                type: date
+                ignore_malformed: false
+              my_ip:
+                type: ip
 
   - do:
       index:
@@ -40,6 +53,7 @@ setup:
 
   - do:
       search:
+        index: test
         rest_total_hits_as_int: true
         body: { query: { exists: { "field": "_ignored" } } }
 
@@ -50,6 +64,7 @@ setup:
 
   - do:
       search:
+        index: test
         rest_total_hits_as_int: true
         body: { query: { term: { "_ignored": "my_date" } } }
 
@@ -60,6 +75,7 @@ setup:
 
   - do:
       search:
+        index: test
         rest_total_hits_as_int: true
         body: { query: { terms: { "_ignored": [ "my_date", "my_ip" ] } } }
 
@@ -70,6 +86,7 @@ setup:
 
   - do:
       search:
+        index: test
         rest_total_hits_as_int: true
         body: { query: { ids: { "values": [ "3" ] } } }
 
@@ -81,9 +98,21 @@ setup:
 
   - do:
       search:
+        index: test
         rest_total_hits_as_int: true
         stored_fields: [ "my_date" ]
         body: { query: { ids: { "values": [ "3" ] } } }
 
   - length:   { hits.hits: 1  }
   - is_true:  hits.hits.0._ignored
+
+---
+"field-level setting shall override index-level setting":
+  - skip:
+      version: " - 3.1.99"
+      reason: "Versions pre-3.2.0 are affected by the bug"
+  - do:
+      catch: /failed to parse field \[my_date\] of type \[date\]/
+      index:
+        index: index_level_setting
+        body: { "my_date": "bar", "my_ip": "quux" }

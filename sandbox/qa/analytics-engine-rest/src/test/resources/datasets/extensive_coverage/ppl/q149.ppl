@@ -1,0 +1,1 @@
+source=test_data | eval new_ts = timestampadd(DAY, 5, timestamp) | fields timestamp, new_ts | head 3

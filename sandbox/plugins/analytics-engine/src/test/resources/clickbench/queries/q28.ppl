@@ -1,0 +1,10 @@
+/*
+SELECT CounterID, AVG(length(URL)) AS l, COUNT(*) AS c
+FROM hits WHERE URL <> '' GROUP BY CounterID HAVING COUNT(*) > 100000 ORDER BY l DESC LIMIT 25;
+*/
+source=hits
+| where URL != ''
+| stats bucket_nullable=false avg(length(URL)) as l, count() as c by CounterID
+| where c > 100000
+| sort - l
+| head 25

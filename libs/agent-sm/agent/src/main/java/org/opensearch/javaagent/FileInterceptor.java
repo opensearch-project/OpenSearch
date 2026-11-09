@@ -9,6 +9,8 @@
 package org.opensearch.javaagent;
 
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
+import org.opensearch.javaagent.bootstrap.internal.StackCallerClassChainExtractor;
+import org.opensearch.javaagent.bootstrap.internal.StackCallerProtectionDomainChainExtractor;
 
 import java.io.FilePermission;
 import java.lang.reflect.Method;
@@ -74,8 +76,23 @@ public class FileInterceptor {
         final boolean isDelete = isMutating == false ? name.startsWith("delete") : false;
 
         // This is Windows implementation of UNIX Domain Sockets (close)
-        if (isDelete == true
-            && walker.getCallerClass().getName().equalsIgnoreCase("sun.nio.ch.PipeImpl$Initializer$LoopbackConnector") == true) {
+        boolean isUnixSocketCaller = false;
+        if (isDelete == true) {
+            final Collection<Class<?>> chain = walker.walk(StackCallerClassChainExtractor.INSTANCE);
+
+            if (walker.getCallerClass().getName().equalsIgnoreCase("sun.nio.ch.PipeImpl$Initializer$LoopbackConnector") == true) {
+                isUnixSocketCaller = true;
+            } else {
+                for (final Class<?> caller : chain) {
+                    if (caller.getName().equalsIgnoreCase("sun.nio.ch.PipeImpl$Initializer$LoopbackConnector")) {
+                        isUnixSocketCaller = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (isDelete == true && isUnixSocketCaller == true) {
             final NetPermission permission = new NetPermission("accessUnixDomainSocket");
             for (ProtectionDomain domain : callers) {
                 if (!policy.implies(domain, permission)) {

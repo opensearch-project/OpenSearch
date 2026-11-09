@@ -166,7 +166,8 @@ public class ClusterInfoTests extends OpenSearchTestCase {
                 randomLong(),
                 randomDoubleBetween(0, 100, false),
                 randomDoubleBetween(0, 100, false),
-                null
+                null,
+                randomDoubleBetween(0, 100, false)
             );
             builder.put(key, nodeResourceUsageStats);
         }
@@ -187,9 +188,11 @@ public class ClusterInfoTests extends OpenSearchTestCase {
                     randomLong(),
                     randomLong(),
                     randomLong(),
+                    randomLong(),
                     FileCacheStatsType.OVER_ALL_STATS
                 ),
                 new FileCacheStats(
+                    randomLong(),
                     randomLong(),
                     randomLong(),
                     randomLong(),
@@ -207,9 +210,11 @@ public class ClusterInfoTests extends OpenSearchTestCase {
                     randomLong(),
                     randomLong(),
                     randomLong(),
+                    randomLong(),
                     FileCacheStatsType.BLOCK_FILE_STATS
                 ),
                 new FileCacheStats(
+                    randomLong(),
                     randomLong(),
                     randomLong(),
                     randomLong(),

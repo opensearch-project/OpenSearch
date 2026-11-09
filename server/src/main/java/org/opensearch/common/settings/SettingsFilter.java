@@ -77,6 +77,19 @@ public final class SettingsFilter {
     }
 
     /**
+     * Whether {@code key} is hidden by one of the patterns: a literal pattern hides exactly that key, a wildcard pattern every
+     * key it matches. This is the per-key rule {@link #filter(Settings)} applies to a whole {@link Settings}.
+     */
+    public boolean isFiltered(String key) {
+        for (String pattern : patterns) {
+            if (Regex.isSimpleMatchPattern(pattern) ? Regex.simpleMatch(pattern, key) : pattern.equals(key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Returns <code>true</code> iff the given string is either a valid settings key pattern or a simple regular expression
      * @see Regex
      * @see AbstractScopedSettings#isValidKey(String)

@@ -184,4 +184,52 @@ public class ProcessorExecutionDetailTests extends OpenSearchTestCase {
             assertEquals(ProcessorExecutionDetail.ProcessorStatus.FAIL, detail.getStatus());
         }
     }
+
+    public void testGetErrorMessage() {
+        ProcessorExecutionDetail detail = new ProcessorExecutionDetail(
+            "testProcessor",
+            123L,
+            Map.of("key1", "value1"),
+            List.of(1, 2, 3),
+            ProcessorExecutionDetail.ProcessorStatus.FAIL,
+            "processor 1 fail",
+            "tag123"
+        );
+        assertEquals("processor 1 fail", detail.getErrorMessage());
+
+        ProcessorExecutionDetail detailNoError = new ProcessorExecutionDetail(
+            "testProcessor",
+            123L,
+            Map.of("key1", "value1"),
+            List.of(1, 2, 3),
+            ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
+            null,
+            null
+        );
+        assertNull(detailNoError.getErrorMessage());
+    }
+
+    public void testGetTag() {
+        ProcessorExecutionDetail detail = new ProcessorExecutionDetail(
+            "testProcessor",
+            123L,
+            Map.of("key1", "value1"),
+            List.of(1, 2, 3),
+            ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
+            null,
+            "tag123"
+        );
+        assertEquals("tag123", detail.getTag());
+
+        ProcessorExecutionDetail detailNoTag = new ProcessorExecutionDetail(
+            "testProcessor",
+            123L,
+            Map.of("key1", "value1"),
+            List.of(1, 2, 3),
+            ProcessorExecutionDetail.ProcessorStatus.SUCCESS,
+            null,
+            null
+        );
+        assertNull(detailNoTag.getTag());
+    }
 }

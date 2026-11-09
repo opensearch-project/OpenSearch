@@ -21,11 +21,14 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.action.ActionFuture;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rule.RuleEntityParser;
@@ -50,6 +53,7 @@ import org.opensearch.transport.client.Client;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -77,6 +81,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -99,6 +104,11 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         client = setUpMockClient(searchRequestBuilder);
         rule = mock(Rule.class);
         clusterService = mock(ClusterService.class);
+        Settings testSettings = Settings.EMPTY;
+        ClusterSettings clusterSettings = new ClusterSettings(testSettings, new HashSet<>());
+        when(clusterService.getSettings()).thenReturn(testSettings);
+        clusterSettings.registerSetting(IndexStoredRulePersistenceService.MAX_WLM_RULES_SETTING);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         ClusterState clusterState = mock(ClusterState.class);
         Metadata metadata = mock(Metadata.class);
         when(clusterService.state()).thenReturn(clusterState);
@@ -109,6 +119,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         queryBuilder = mock(QueryBuilder.class);
         when(queryBuilder.filter(any())).thenReturn(queryBuilder);
         when(ruleQueryMapper.from(any(GetRuleRequest.class))).thenReturn(queryBuilder);
+        when(ruleQueryMapper.getCardinalityQuery()).thenReturn(mock(QueryBuilder.class));
         when(ruleEntityParser.parse(anyString())).thenReturn(rule);
 
         rulePersistenceService = new IndexStoredRulePersistenceService(
@@ -142,6 +153,25 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         ArgumentCaptor<CreateRuleResponse> responseCaptor = ArgumentCaptor.forClass(CreateRuleResponse.class);
         verify(listener).onResponse(responseCaptor.capture());
         assertNotNull(responseCaptor.getValue().getRule());
+    }
+
+    public void testCardinalityCheckBasedFailure() throws Exception {
+        CreateRuleRequest createRuleRequest = mock(CreateRuleRequest.class);
+        when(createRuleRequest.getRule()).thenReturn(rule);
+        when(rule.toXContent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(
+            new SearchHits(new SearchHit[] {}, new TotalHits(10000, TotalHits.Relation.EQUAL_TO), 1.0f)
+        );
+        when(searchRequestBuilder.get()).thenReturn(searchResponse);
+
+        ActionListener<CreateRuleResponse> listener = mock(ActionListener.class);
+        rulePersistenceService.createRule(createRuleRequest, listener);
+
+        ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(OpenSearchRejectedExecutionException.class);
+        verify(listener).onFailure(exceptionCaptor.capture());
+        assertNotNull(exceptionCaptor.getValue());
     }
 
     public void testConcurrentCreateDuplicateRules() throws InterruptedException {
@@ -285,6 +315,33 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         verify(listener).onFailure(exceptionCaptor.capture());
         Exception exception = exceptionCaptor.getValue();
         assertTrue(exception instanceof ResourceNotFoundException);
+    }
+
+    public void testGetRuleSkipsSearchWhenIndexMissing() {
+        when(clusterService.state().metadata().hasIndex(TEST_INDEX_NAME)).thenReturn(false);
+        GetRuleRequest getRuleRequest = mock(GetRuleRequest.class);
+        when(getRuleRequest.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
+        ActionListener<GetRuleResponse> listener = mock(ActionListener.class);
+
+        rulePersistenceService.getRule(getRuleRequest, listener);
+
+        ArgumentCaptor<GetRuleResponse> responseCaptor = ArgumentCaptor.forClass(GetRuleResponse.class);
+        verify(listener).onResponse(responseCaptor.capture());
+        assertTrue(responseCaptor.getValue().getRules().isEmpty());
+        verify(client, never()).prepareSearch(anyString());
+    }
+
+    public void testGetRuleReturnsEmptyWhenIndexDeletedAfterCheck() {
+        GetRuleRequest getRuleRequest = mock(GetRuleRequest.class);
+        when(getRuleRequest.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
+        when(searchRequestBuilder.get()).thenThrow(new IndexNotFoundException(TEST_INDEX_NAME));
+        ActionListener<GetRuleResponse> listener = mock(ActionListener.class);
+
+        rulePersistenceService.getRule(getRuleRequest, listener);
+
+        ArgumentCaptor<GetRuleResponse> responseCaptor = ArgumentCaptor.forClass(GetRuleResponse.class);
+        verify(listener).onResponse(responseCaptor.capture());
+        assertTrue(responseCaptor.getValue().getRules().isEmpty());
     }
 
     private Client setUpMockClient(SearchRequestBuilder searchRequestBuilder) {

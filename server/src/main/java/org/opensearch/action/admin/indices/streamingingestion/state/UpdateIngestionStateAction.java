@@ -13,7 +13,7 @@ import org.opensearch.action.ActionType;
 /**
  * Transport action for updating ingestion state.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class UpdateIngestionStateAction extends ActionType<UpdateIngestionStateResponse> {
 

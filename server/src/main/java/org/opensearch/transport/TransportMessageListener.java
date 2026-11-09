@@ -32,8 +32,10 @@
 package org.opensearch.transport;
 
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.transport.stream.StreamTransportResponse;
 
 /**
  * Listens for transport messages
@@ -62,6 +64,9 @@ public interface TransportMessageListener {
      */
     default void onResponseSent(long requestId, String action, TransportResponse response) {}
 
+    @ExperimentalApi
+    default void onStreamResponseSent(long requestId, String action, StreamTransportResponse response) {}
+
     /***
      * Called for every failed action response after the response has been passed to the underlying network implementation.
      * @param requestId the request ID (unique per client)
@@ -88,7 +93,7 @@ public interface TransportMessageListener {
 
     /**
      * Called for every response received
-     * @param requestId the request id for this reponse
+     * @param requestId the request id for this response
      * @param context the response context or null if the context was already processed ie. due to a timeout.
      */
     default void onResponseReceived(long requestId, Transport.ResponseContext context) {}

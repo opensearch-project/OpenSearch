@@ -41,6 +41,9 @@ import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
+import java.io.ByteArrayOutputStream;
+import java.util.Base64;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportSearchHelperTests extends OpenSearchTestCase {
@@ -91,5 +94,24 @@ public class TransportSearchHelperTests extends OpenSearchTestCase {
         assertNull(parseScrollId.getContext()[2].getClusterAlias());
         assertEquals(42, parseScrollId.getContext()[2].getSearchContextId().getId());
         assertThat(parseScrollId.getContext()[2].getSearchContextId().getSessionId(), equalTo("c"));
+    }
+
+    public void testParseScrollIdRejectsOversizedCount() throws Exception {
+        // Craft a scroll_id with a varint-encoded count far exceeding the payload size.
+        // This would previously cause an OOM by allocating a huge array.
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        // Write type string: length=1, char='q' (any valid type)
+        baos.write(1); // vint string length
+        baos.write('q');
+        // Write a massive vint count (Integer.MAX_VALUE encoded as 5-byte varint)
+        baos.write(0xFF);
+        baos.write(0xFF);
+        baos.write(0xFF);
+        baos.write(0xFF);
+        baos.write(0x07);
+        String scrollId = Base64.getUrlEncoder().encodeToString(baos.toByteArray());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> TransportSearchHelper.parseScrollId(scrollId));
+        assertEquals("Cannot parse scroll id", e.getMessage());
     }
 }

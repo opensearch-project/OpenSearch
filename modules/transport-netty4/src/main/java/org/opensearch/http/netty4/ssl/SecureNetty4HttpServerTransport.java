@@ -38,6 +38,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpHandlingSettings;
 import org.opensearch.http.HttpServerTransport;
+import org.opensearch.http.netty4.HttpResponseHeadersFactories;
 import org.opensearch.http.netty4.Netty4HttpChannel;
 import org.opensearch.http.netty4.Netty4HttpServerTransport;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
@@ -194,7 +195,7 @@ public class SecureNetty4HttpServerTransport extends Netty4HttpServerTransport {
         }
 
         protected SslHttpChannelHandler(final Netty4HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
-            super(transport, handlingSettings);
+            super(transport, handlingSettings, HttpResponseHeadersFactories.newHttp3Aware(settings, transport));
         }
 
         @Override

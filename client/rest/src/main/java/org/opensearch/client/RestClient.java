@@ -50,7 +50,6 @@ import org.apache.hc.client5.http.classic.methods.HttpPut;
 import org.apache.hc.client5.http.classic.methods.HttpTrace;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.config.RequestConfig;
-import org.apache.hc.client5.http.entity.GzipDecompressingEntity;
 import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
 import org.apache.hc.client5.http.impl.auth.BasicAuthCache;
 import org.apache.hc.client5.http.impl.auth.BasicScheme;
@@ -137,7 +136,11 @@ import static java.util.Collections.singletonList;
  * Requests can be either synchronous or asynchronous. The asynchronous variants all end with {@code Async}.
  * <p>
  * Requests can be traced by enabling trace logging for "tracer". The trace logger outputs requests and responses in curl format.
+ *
+ * @deprecated the {@code RestClient} is deprecated and is going to be removed in future releases, please consider using the
+ * official <a href="https://github.com/opensearch-project/opensearch-java">OpenSearch Java client</a>
  */
+@Deprecated
 public class RestClient implements Closeable {
 
     private static final Log logger = LogFactory.getLog(RestClient.class);
@@ -483,12 +486,6 @@ public class RestClient implements Closeable {
         throws IOException {
         RequestLogger.logResponse(logger, request.httpRequest, node.getHost(), httpResponse);
         int statusCode = httpResponse.getCode();
-
-        Optional.ofNullable(httpResponse.getEntity())
-            .map(HttpEntity::getContentEncoding)
-            .filter("gzip"::equalsIgnoreCase)
-            .map(gzipHeaderValue -> new GzipDecompressingEntity(httpResponse.getEntity()))
-            .ifPresent(httpResponse::setEntity);
 
         Response response = new Response(new RequestLine(request.httpRequest), node.getHost(), httpResponse);
         if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {

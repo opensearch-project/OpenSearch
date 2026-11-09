@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "text",
+      "type": "string"
+    },
+    {
+      "name": "matches",
+      "type": "boolean"
+    }
+  ],
+  "datarows": [
+    [
+      "hello world test",
+      true
+    ],
+    [
+      "sample data entry",
+      false
+    ],
+    [
+      "test example record",
+      true
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

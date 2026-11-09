@@ -1,0 +1,70 @@
+{
+  "schema": [
+    {
+      "name": "user",
+      "type": "string"
+    },
+    {
+      "name": "status",
+      "type": "string"
+    },
+    {
+      "name": "is_null_status",
+      "type": "boolean"
+    }
+  ],
+  "datarows": [
+    [
+      "ALICE",
+      null,
+      true
+    ],
+    [
+      "CHARLIE",
+      null,
+      true
+    ],
+    [
+      "CHARLIE",
+      null,
+      true
+    ],
+    [
+      "BOB",
+      null,
+      true
+    ],
+    [
+      "CHARLIE",
+      null,
+      true
+    ],
+    [
+      "ALICE",
+      null,
+      true
+    ],
+    [
+      "ALICE",
+      null,
+      true
+    ],
+    [
+      "ALICE",
+      null,
+      true
+    ],
+    [
+      "CHARLIE",
+      null,
+      true
+    ],
+    [
+      "BOB",
+      null,
+      true
+    ]
+  ],
+  "total": 10,
+  "size": 10
+}

@@ -47,19 +47,19 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * @opensearch.internal
  */
-public final class TcpTransportChannel extends BaseTcpTransportChannel {
+public class TcpTransportChannel extends BaseTcpTransportChannel {
 
     private final AtomicBoolean released = new AtomicBoolean();
-    private final ProtocolOutboundHandler outboundHandler;
-    private final String action;
-    private final long requestId;
-    private final Version version;
-    private final Set<String> features;
-    private final boolean compressResponse;
-    private final boolean isHandshake;
+    protected final ProtocolOutboundHandler outboundHandler;
+    protected final String action;
+    protected final long requestId;
+    protected final Version version;
+    protected final Set<String> features;
+    protected final boolean compressResponse;
+    protected final boolean isHandshake;
     private final Releasable breakerRelease;
 
-    TcpTransportChannel(
+    protected TcpTransportChannel(
         ProtocolOutboundHandler outboundHandler,
         TcpChannel channel,
         String action,
@@ -89,9 +89,9 @@ public final class TcpTransportChannel extends BaseTcpTransportChannel {
     @Override
     public void sendResponse(TransportResponse response) throws IOException {
         try {
-            if (response instanceof QuerySearchResult && ((QuerySearchResult) response).getShardSearchRequest() != null) {
+            if (response instanceof QuerySearchResult querySearchResult && querySearchResult.getShardSearchRequest() != null) {
                 // update outbound network time with current time before sending response over network
-                ((QuerySearchResult) response).getShardSearchRequest().setOutboundNetworkTime(System.currentTimeMillis());
+                querySearchResult.getShardSearchRequest().setOutboundNetworkTime(System.currentTimeMillis());
             }
             outboundHandler.sendResponse(version, features, getChannel(), requestId, action, response, compressResponse, isHandshake);
         } finally {
@@ -110,7 +110,7 @@ public final class TcpTransportChannel extends BaseTcpTransportChannel {
 
     private Exception releaseBy;
 
-    private void release(boolean isExceptionResponse) {
+    protected void release(boolean isExceptionResponse) {
         if (released.compareAndSet(false, true)) {
             assert (releaseBy = new Exception()) != null; // easier to debug if it's already closed
             breakerRelease.close();

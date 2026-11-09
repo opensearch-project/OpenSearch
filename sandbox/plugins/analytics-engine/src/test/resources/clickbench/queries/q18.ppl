@@ -1,0 +1,6 @@
+/*
+SELECT UserID, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, SearchPhrase LIMIT 10;
+*/
+source=hits
+| stats bucket_nullable=false count() by UserID, SearchPhrase
+| head 10

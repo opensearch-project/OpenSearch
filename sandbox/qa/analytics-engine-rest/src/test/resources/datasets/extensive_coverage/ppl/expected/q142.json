@@ -1,0 +1,20 @@
+{
+  "schema": [
+    {
+      "name": "id",
+      "type": "string"
+    },
+    {
+      "name": "parsed",
+      "type": "timestamp"
+    }
+  ],
+  "datarows": [
+    [
+      "1",
+      "2026-05-15 00:00:00"
+    ]
+  ],
+  "total": 1,
+  "size": 1
+}

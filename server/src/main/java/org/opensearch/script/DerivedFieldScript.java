@@ -111,14 +111,16 @@ public abstract class DerivedFieldScript {
     }
 
     private int getObjectByteSize(Object obj) {
-        if (obj instanceof String) {
-            return ((String) obj).getBytes(StandardCharsets.UTF_8).length;
+        if (obj instanceof String str) {
+            return str.getBytes(StandardCharsets.UTF_8).length;
         } else if (obj instanceof Integer) {
             return Integer.BYTES;
         } else if (obj instanceof Long) {
             return Long.BYTES;
         } else if (obj instanceof Double) {
             return Double.BYTES;
+        } else if (obj instanceof Float) {
+            return Float.BYTES;
         } else if (obj instanceof Boolean) {
             return Byte.BYTES; // Assuming 1 byte for boolean
         } else if (obj instanceof Tuple) {

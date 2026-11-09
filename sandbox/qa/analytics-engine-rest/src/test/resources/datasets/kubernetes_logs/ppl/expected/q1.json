@@ -1,0 +1,25 @@
+{
+  "schema": [
+    {
+      "name": "count()",
+      "type": "bigint"
+    },
+    {
+      "name": "cluster.name",
+      "type": "string"
+    },
+    {
+      "name": "kubernetes.namespace",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      34,
+      "fdas-prod",
+      "production"
+    ]
+  ],
+  "total": 1,
+  "size": 1
+}

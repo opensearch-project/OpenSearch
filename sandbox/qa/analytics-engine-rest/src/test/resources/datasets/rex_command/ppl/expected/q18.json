@@ -1,0 +1,25 @@
+{
+  "schema": [
+    {
+      "name": "sent",
+      "type": "string"
+    },
+    {
+      "name": "received",
+      "type": "string"
+    },
+    {
+      "name": "total_bytes",
+      "type": "bigint"
+    }
+  ],
+  "datarows": [
+    [
+      "1024",
+      "2048",
+      3072
+    ]
+  ],
+  "total": 1,
+  "size": 1
+}

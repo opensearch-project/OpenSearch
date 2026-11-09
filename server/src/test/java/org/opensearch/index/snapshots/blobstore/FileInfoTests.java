@@ -193,4 +193,50 @@ public class FileInfoTests extends OpenSearchTestCase {
             assertEquals(numBytes, metadata.length());
         }
     }
+
+    public void testPhysicalNameWithSlash() throws IOException {
+        // Physical names with slashes should now be valid
+        String name = "foobar";
+        String physicalName = "path/to/_foobar";  // contains slash
+        long length = 100;
+
+        XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
+        builder.startObject();
+        builder.field(FileInfo.NAME, name);
+        builder.field(FileInfo.PHYSICAL_NAME, physicalName);
+        builder.field(FileInfo.LENGTH, length);
+        builder.field(FileInfo.WRITTEN_BY, Version.LATEST.toString());
+        builder.field(FileInfo.CHECKSUM, "666");
+        builder.endObject();
+        byte[] xContent = BytesReference.toBytes(BytesReference.bytes(builder));
+
+        // Should parse successfully without throwing
+        final BlobStoreIndexShardSnapshot.FileInfo parsedInfo;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
+            parser.nextToken();
+            parsedInfo = BlobStoreIndexShardSnapshot.FileInfo.fromXContent(parser);
+        }
+        assertThat(parsedInfo.physicalName(), equalTo(physicalName));
+    }
+
+    public void testPhysicalNameWithPathTraversal() throws IOException {
+        // Path traversal and absolute paths in physical name should be rejected
+        String[] maliciousNames = { "../etc/passwd", "path/../../secret", "/absolute/path" };
+        for (String malicious : maliciousNames) {
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
+            builder.startObject();
+            builder.field(FileInfo.NAME, "segments_1");
+            builder.field(FileInfo.PHYSICAL_NAME, malicious);
+            builder.field(FileInfo.LENGTH, 100);
+            builder.field(FileInfo.WRITTEN_BY, Version.LATEST.toString());
+            builder.field(FileInfo.CHECKSUM, "666");
+            builder.endObject();
+            byte[] xContent = BytesReference.toBytes(BytesReference.bytes(builder));
+
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
+                parser.nextToken();
+                expectThrows(OpenSearchParseException.class, () -> FileInfo.fromXContent(parser));
+            }
+        }
+    }
 }

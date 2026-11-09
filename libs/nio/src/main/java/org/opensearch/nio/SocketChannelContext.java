@@ -36,6 +36,7 @@ import org.opensearch.common.concurrent.CompletableContext;
 import org.opensearch.common.util.net.NetUtils;
 import org.opensearch.nio.utils.ByteBufferUtils;
 import org.opensearch.nio.utils.ExceptionsHelper;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -44,9 +45,6 @@ import java.net.SocketOption;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Set;
@@ -142,12 +140,10 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             return true;
         } else if (connectContext.isCompletedExceptionally()) {
             Exception exception = connectException;
-            if (exception == null) {
-                throw new AssertionError("Should have received connection exception");
-            } else if (exception instanceof IOException) {
-                throw (IOException) exception;
-            } else {
-                throw (RuntimeException) exception;
+            switch (exception) {
+                case null -> throw new AssertionError("Should have received connection exception");
+                case IOException ioException -> throw ioException;
+                default -> throw (RuntimeException) exception;
             }
         }
 
@@ -388,12 +384,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         }
     }
 
-    @SuppressWarnings("removal")
     private static void connect(SocketChannel socketChannel, InetSocketAddress remoteAddress) throws IOException {
-        try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> socketChannel.connect(remoteAddress));
-        } catch (PrivilegedActionException e) {
-            throw (IOException) e.getCause();
-        }
+        AccessController.doPrivilegedChecked(() -> socketChannel.connect(remoteAddress));
     }
 }

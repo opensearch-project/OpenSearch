@@ -1,0 +1,52 @@
+{
+  "schema": [
+    {
+      "name": "msgcontent",
+      "type": "string"
+    },
+    {
+      "name": "service",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "timeout occurred",
+      "auth"
+    ],
+    [
+      "transaction completed",
+      "payment"
+    ],
+    [
+      "rate limit exceeded",
+      "auth"
+    ],
+    [
+      "connection pool exhausted",
+      "db"
+    ],
+    [
+      "cache hit",
+      "cache"
+    ],
+    [
+      "query executed",
+      "analytics"
+    ],
+    [
+      "user \\\"admin\\\" logged in",
+      "admin"
+    ],
+    [
+      "error: \\\"connection refused\\\"",
+      "proxy"
+    ],
+    [
+      "intrusion detected",
+      "security"
+    ]
+  ],
+  "total": 9,
+  "size": 9
+}

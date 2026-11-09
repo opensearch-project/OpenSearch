@@ -154,4 +154,9 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
+
+    @Override
+    protected boolean supportsIntraSegmentSearch() {
+        return true;
+    }
 }

@@ -56,9 +56,11 @@ import org.junit.Before;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -86,16 +88,15 @@ public class RestShardsActionTests extends OpenSearchTestCase {
                 .resolve(shardRouting.shardId().getIndex().getUUID())
                 .resolve(String.valueOf(shardRouting.shardId().id()));
             CommonStats commonStats = new CommonStats();
-            commonStats.docs = new DocsStats(numDocs, numDeletedDocs, 0);
-            ShardStats shardStats = new ShardStats(
-                shardRouting,
-                new ShardPath(false, path, path, shardRouting.shardId()),
-                commonStats,
-                null,
-                null,
-                null,
-                null
-            );
+            commonStats.docs = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
+            ShardStats shardStats = new ShardStats.Builder().shardRouting(shardRouting)
+                .shardPath(new ShardPath(false, path, path, shardRouting.shardId()))
+                .commonStats(commonStats)
+                .commitStats(null)
+                .seqNoStats(null)
+                .retentionLeaseStats(null)
+                .pollingIngestStats(null)
+                .build();
             shardStatsMap.put(shardRouting, shardStats);
             shardRoutings.add(shardRouting);
         }
@@ -146,6 +147,138 @@ public class RestShardsActionTests extends OpenSearchTestCase {
         assertEquals("test", table.getPageToken().getPaginatedEntity());
     }
 
+    // --- Phase 2: routing-only fast path tests ---
+
+    public void testIndicesStatsRequiredWhenNoHParam() {
+        // No h= → default headers include 'docs' and 'store' which need stats.
+        assertTrue(RestShardsAction.requestNeedsIndicesStats(new FakeRestRequest()));
+    }
+
+    public void testIndicesStatsRequiredWhenHIsRoutingOnly() {
+        FakeRestRequest req = new FakeRestRequest();
+        req.params().put("h", "index,shard,prirep,state,node,ip");
+        assertFalse(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
+    public void testIndicesStatsRequiredWhenHUsesAliases() {
+        FakeRestRequest req = new FakeRestRequest();
+        // i=index, sh=shard, p=prirep, st=state, n=node, ip=ip, ur=unassigned.reason
+        req.params().put("h", "i,sh,p,st,n,ip,ur");
+        assertFalse(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
+    public void testIndicesStatsRequiredWhenHContainsStatsColumn() {
+        FakeRestRequest req = new FakeRestRequest();
+        req.params().put("h", "index,shard,docs"); // docs requires stats
+        assertTrue(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
+    public void testIndicesStatsRequiredWhenHContainsWildcard() {
+        FakeRestRequest req = new FakeRestRequest();
+        // Wildcards conservatively force the slow path.
+        req.params().put("h", "index,shard*");
+        assertTrue(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
+    public void testIndicesStatsRequiredWhenSortReferencesStatsColumn() {
+        FakeRestRequest req = new FakeRestRequest();
+        req.params().put("h", "index,shard,node");
+        req.params().put("s", "docs:desc"); // sort on stats column → stats still needed
+        assertTrue(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
+    public void testIndicesStatsNotRequiredWhenSortIsRoutingOnly() {
+        FakeRestRequest req = new FakeRestRequest();
+        req.params().put("h", "index,shard,node");
+        req.params().put("s", "index:asc,shard:desc"); // routing columns only
+        assertFalse(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
+    public void testIndicesStatsNotRequiredWhenSortSuffixIsUpperCaseOrSpaced() {
+        FakeRestRequest req = new FakeRestRequest();
+        req.params().put("h", "index,shard,node");
+        // Mixed-case direction suffix and surrounding whitespace must still resolve to routing-only.
+        req.params().put("s", "index:DESC, shard:Asc");
+        assertFalse(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
+    public void testIndicesStatsRequiredOnUnknownColumn() {
+        FakeRestRequest req = new FakeRestRequest();
+        // Unknown column conservatively forces slow path (don't optimize unrecognized tokens).
+        req.params().put("h", "index,shard,not_a_column");
+        assertTrue(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
+    public void testStripSortDirectionHandlesSuffixesAndSpacing() {
+        // Bare column, no suffix.
+        assertEquals("index", RestShardsAction.stripSortDirection("index"));
+        // Standard suffixes.
+        assertEquals("index", RestShardsAction.stripSortDirection("index:desc"));
+        assertEquals("shard", RestShardsAction.stripSortDirection("shard:asc"));
+        // Case-insensitive direction.
+        assertEquals("index", RestShardsAction.stripSortDirection("index:DESC"));
+        assertEquals("shard", RestShardsAction.stripSortDirection("shard:Asc"));
+        // Whitespace around the token and around the direction is tolerated.
+        assertEquals("index", RestShardsAction.stripSortDirection("  index:desc  "));
+        assertEquals("index", RestShardsAction.stripSortDirection("index :desc"));
+        assertEquals("index", RestShardsAction.stripSortDirection("index: desc"));
+        // A non-direction suffix is left intact (it is not a sort direction).
+        assertEquals("index:foo", RestShardsAction.stripSortDirection("index:foo"));
+        // Direction-only and null tokens collapse to empty (→ conservative slow path).
+        assertEquals("", RestShardsAction.stripSortDirection(":desc"));
+        assertEquals("", RestShardsAction.stripSortDirection(null));
+    }
+
+    public void testIndicesStatsNotRequiredWhenSortSuffixHasSpaceAfterColon() {
+        FakeRestRequest req = new FakeRestRequest();
+        req.params().put("h", "index,shard,node");
+        // Space after the colon must still resolve to a routing-only column.
+        req.params().put("s", "index: desc");
+        assertFalse(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
+    public void testIndicesStatsRequiredWhenSortIsDirectionOnly() {
+        FakeRestRequest req = new FakeRestRequest();
+        req.params().put("h", "index,shard,node");
+        // A malformed direction-only sort token forces the conservative slow path.
+        req.params().put("s", ":desc");
+        assertTrue(RestShardsAction.requestNeedsIndicesStats(req));
+    }
+
+    /**
+     * Guards {@link RestShardsAction#ROUTING_ONLY_COLUMNS} against silent drift: every entry must
+     * resolve to a real column name or alias in the shards table. If a column is renamed or removed
+     * (or an entry is mistyped) the stale entry would silently take the slow path forever; this test
+     * turns that into a loud failure. See the INVARIANT note on ROUTING_ONLY_COLUMNS.
+     */
+    public void testRoutingOnlyColumnsAreValidTableColumns() {
+        final RestShardsAction action = new RestShardsAction();
+        final Table table = action.getTableWithHeader(new FakeRestRequest());
+
+        final Set<String> validNames = new HashSet<>();
+        for (Table.Cell header : table.getHeaders()) {
+            validNames.add(header.value.toString());
+            final String aliases = header.attr.get("alias");
+            if (aliases != null) {
+                for (String alias : aliases.split(",")) {
+                    final String trimmed = alias.trim();
+                    if (trimmed.isEmpty() == false) {
+                        validNames.add(trimmed);
+                    }
+                }
+            }
+        }
+
+        for (String routingOnly : RestShardsAction.ROUTING_ONLY_COLUMNS) {
+            assertTrue(
+                "ROUTING_ONLY_COLUMNS entry ["
+                    + routingOnly
+                    + "] does not match any _cat/shards column name or alias; update the set or the table header so they stay in sync",
+                validNames.contains(routingOnly)
+            );
+        }
+    }
+
     private void assertTable(Table table) {
         // now, verify the table is correct
         List<Table.Cell> headers = table.getHeaders();
@@ -158,7 +291,7 @@ public class RestShardsActionTests extends OpenSearchTestCase {
         assertThat(headers.get(6).value, equalTo("ip"));
         assertThat(headers.get(7).value, equalTo("id"));
         assertThat(headers.get(8).value, equalTo("node"));
-        assertThat(headers.get(79).value, equalTo("docs.deleted"));
+        assertThat(headers.get(92).value, equalTo("docs.deleted"));
 
         final List<List<Table.Cell>> rows = table.getRows();
         assertThat(rows.size(), equalTo(shardRoutings.size()));
@@ -174,9 +307,9 @@ public class RestShardsActionTests extends OpenSearchTestCase {
             assertThat(row.get(4).value, equalTo(shardStats.getStats().getDocs().getCount()));
             assertThat(row.get(6).value, equalTo(localNode.getHostAddress()));
             assertThat(row.get(7).value, equalTo(localNode.getId()));
-            assertThat(row.get(77).value, equalTo(shardStats.getDataPath()));
-            assertThat(row.get(78).value, equalTo(shardStats.getStatePath()));
-            assertThat(row.get(79).value, equalTo(shardStats.getStats().getDocs().getDeleted()));
+            assertThat(row.get(90).value, equalTo(shardStats.getDataPath()));
+            assertThat(row.get(91).value, equalTo(shardStats.getStatePath()));
+            assertThat(row.get(92).value, equalTo(shardStats.getStats().getDocs().getDeleted()));
         }
     }
 }

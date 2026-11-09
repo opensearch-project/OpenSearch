@@ -76,6 +76,7 @@ public class ReactorNetty4HttpRequestSizeLimitIT extends OpenSearchReactorNetty4
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), LIMIT)
+            .put(ReactorNetty4HttpServerTransport.SETTING_H2_MAX_CONCURRENT_STREAMS.getKey(), 1500L)
             .build();
     }
 
@@ -101,7 +102,7 @@ public class ReactorNetty4HttpRequestSizeLimitIT extends OpenSearchReactorNetty4
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
-        try (ReactorHttpClient nettyHttpClient = ReactorHttpClient.create(false)) {
+        try (ReactorHttpClient nettyHttpClient = ReactorHttpClient.create(false, Settings.EMPTY)) {
             final Collection<FullHttpResponse> singleResponse = nettyHttpClient.post(transportAddress.address(), requests.subList(0, 1));
             try {
                 assertThat(singleResponse, hasSize(1));
@@ -124,14 +125,16 @@ public class ReactorNetty4HttpRequestSizeLimitIT extends OpenSearchReactorNetty4
         ensureGreen();
 
         List<Tuple<String, CharSequence>> requestUris = new ArrayList<>();
-        for (int i = 0; i < 1500; i++) {
+        // See please https://github.com/netty/netty/pull/17068 why 128 is the cap, we should be able to
+        // make it configurable in the Netty next release.
+        for (int i = 0; i < 128; i++) {
             requestUris.add(Tuple.tuple("/_cluster/settings", "{ \"transient\": {\"search.default_search_timeout\": \"40s\" } }"));
         }
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
-        try (ReactorHttpClient nettyHttpClient = ReactorHttpClient.create(false)) {
+        try (ReactorHttpClient nettyHttpClient = ReactorHttpClient.create(false, Settings.EMPTY)) {
             final Collection<FullHttpResponse> responses = nettyHttpClient.put(transportAddress.address(), requestUris);
             try {
                 assertThat(responses, hasSize(requestUris.size()));

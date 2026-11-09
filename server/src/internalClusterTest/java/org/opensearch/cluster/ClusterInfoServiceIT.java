@@ -44,6 +44,7 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
@@ -149,6 +150,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         );
     }
 
+    @SuppressForbidden(reason = "Fixed sleeps are prone to flakiness but no documented failures here")
     public void testClusterInfoServiceCollectsInformation() throws InterruptedException {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueSeconds(1))
@@ -250,6 +252,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         }
     }
 
+    @SuppressForbidden(reason = "Fixed sleeps are prone to flakiness but no documented failures here")
     public void testClusterInfoServiceCollectsNodeResourceStatsInformation() throws InterruptedException {
 
         // setting time window as ResourceUsageTracker needs atleast both of these to be ready to start collecting the
@@ -257,7 +260,8 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueSeconds(1))
             .put(ResourceTrackerSettings.GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(5000))
-            .put(ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueSeconds(1));
+            .put(ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueSeconds(5));
 
         internalCluster().startClusterManagerOnlyNode(settingsBuilder.build());
         internalCluster().startWarmOnlyNodes(1, settingsBuilder.build());
@@ -279,6 +283,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         assertEquals(2, nodeResourceUsageStats.size());
     }
 
+    @SuppressForbidden(reason = "Fixed sleeps are prone to flakiness but no documented failures here")
     public void testClusterInfoServiceInformationClearOnError() throws InterruptedException {
         internalCluster().startNodes(
             2,
@@ -288,6 +293,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
                 .put(ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
                 .put(ResourceTrackerSettings.GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(5000))
                 .put(ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
+                .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueSeconds(5))
                 .build()
         );
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)).get();

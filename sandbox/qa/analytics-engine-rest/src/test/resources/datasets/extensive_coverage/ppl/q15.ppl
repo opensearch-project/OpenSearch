@@ -1,0 +1,1 @@
+source=test_data | stats avg(value) as avgval, min(value) as minval, max(value) as maxval by category

@@ -705,16 +705,16 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     }
 
     private static ShingleTokenFilterFactory.Factory getShingleFilterFactory(Analyzer analyzer) {
-        if (analyzer instanceof NamedAnalyzer) {
-            analyzer = ((NamedAnalyzer) analyzer).analyzer();
+        if (analyzer instanceof NamedAnalyzer namedAnalyzer) {
+            analyzer = namedAnalyzer.analyzer();
         }
-        if (analyzer instanceof AnalyzerComponentsProvider) {
-            final TokenFilterFactory[] tokenFilters = ((AnalyzerComponentsProvider) analyzer).getComponents().getTokenFilters();
+        if (analyzer instanceof AnalyzerComponentsProvider analyzerComponentsProvider) {
+            final TokenFilterFactory[] tokenFilters = analyzerComponentsProvider.getComponents().getTokenFilters();
             for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
-                if (tokenFilterFactory instanceof ShingleTokenFilterFactory) {
-                    return ((ShingleTokenFilterFactory) tokenFilterFactory).getInnerFactory();
-                } else if (tokenFilterFactory instanceof ShingleTokenFilterFactory.Factory) {
-                    return (ShingleTokenFilterFactory.Factory) tokenFilterFactory;
+                if (tokenFilterFactory instanceof ShingleTokenFilterFactory shingleTokenFilterFactory) {
+                    return shingleTokenFilterFactory.getInnerFactory();
+                } else if (tokenFilterFactory instanceof ShingleTokenFilterFactory.Factory factory) {
+                    return factory;
                 }
             }
         }

@@ -120,6 +120,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private final Boolean remoteTranslogEnabled;
 
+    private final TranslogOperationHelper translogOperationHelper;
+
     private TranslogWriter(
         final ShardId shardId,
         final Checkpoint initialCheckpoint,
@@ -135,7 +137,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final LongConsumer persistedSequenceNumberConsumer,
         final BigArrays bigArrays,
         TranslogCheckedContainer translogCheckedContainer,
-        Boolean remoteTranslogEnabled
+        Boolean remoteTranslogEnabled,
+        TranslogOperationHelper translogOperationHelper
     ) throws IOException {
         super(initialCheckpoint.generation, channel, path, header);
         assert initialCheckpoint.offset == channel.position() : "initial checkpoint offset ["
@@ -162,6 +165,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.tragedy = tragedy;
         this.translogCheckedContainer = translogCheckedContainer;
         this.remoteTranslogEnabled = remoteTranslogEnabled;
+        this.translogOperationHelper = translogOperationHelper;
     }
 
     public static TranslogWriter create(
@@ -181,6 +185,44 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final BigArrays bigArrays,
         Boolean remoteTranslogEnabled
     ) throws IOException {
+        return create(
+            shardId,
+            translogUUID,
+            fileGeneration,
+            file,
+            channelFactory,
+            bufferSize,
+            initialMinTranslogGen,
+            initialGlobalCheckpoint,
+            globalCheckpointSupplier,
+            minTranslogGenerationSupplier,
+            primaryTerm,
+            tragedy,
+            persistedSequenceNumberConsumer,
+            bigArrays,
+            remoteTranslogEnabled,
+            TranslogOperationHelper.DEFAULT
+        );
+    }
+
+    public static TranslogWriter create(
+        ShardId shardId,
+        String translogUUID,
+        long fileGeneration,
+        Path file,
+        ChannelFactory channelFactory,
+        ByteSizeValue bufferSize,
+        final long initialMinTranslogGen,
+        long initialGlobalCheckpoint,
+        final LongSupplier globalCheckpointSupplier,
+        final LongSupplier minTranslogGenerationSupplier,
+        final long primaryTerm,
+        TragicExceptionHolder tragedy,
+        final LongConsumer persistedSequenceNumberConsumer,
+        final BigArrays bigArrays,
+        Boolean remoteTranslogEnabled,
+        TranslogOperationHelper translogOperationHelper
+    ) throws IOException {
         final Path checkpointFile = file.getParent().resolve(Translog.CHECKPOINT_FILE_NAME);
 
         final FileChannel channel = channelFactory.open(file);
@@ -189,6 +231,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             checkpointChannel = channelFactory.open(checkpointFile, StandardOpenOption.WRITE);
             final TranslogHeader header = new TranslogHeader(translogUUID, primaryTerm);
             header.write(channel, !Boolean.TRUE.equals(remoteTranslogEnabled));
+            // The running checksum serves the remote store only: it produces the whole-file checksum verified on upload
+            // and feeds the footer written on close, which lets a download be skipped when the local copy is current.
+            // A local-only translog is never downloaded, so it keeps the footer-less layout it has always had.
             TranslogCheckedContainer translogCheckedContainer = null;
             if (Boolean.TRUE.equals(remoteTranslogEnabled)) {
                 ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
@@ -231,7 +276,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 persistedSequenceNumberConsumer,
                 bigArrays,
                 translogCheckedContainer,
-                remoteTranslogEnabled
+                remoteTranslogEnabled,
+                translogOperationHelper
             );
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
@@ -295,6 +341,61 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return location;
     }
 
+    /**
+     * Adds a batch of already-serialized operations to the translog in a single critical section. Each entry in
+     * {@code data} is framed exactly as a single {@link #add(BytesReference, long)} call would frame it, so the
+     * on-disk bytes are byte-identical to performing N individual adds. The force-write threshold is evaluated once
+     * before the batch (mirroring the per-op check amortised over the batch) and the writer monitor is entered a
+     * single time for the whole batch rather than once per operation.
+     *
+     * @param data   the per-operation serialized bytes (each already size-framed and checksummed)
+     * @param seqNos the sequence number associated with each operation, parallel to {@code data}
+     * @return the locations the operations were written to, parallel to {@code data}
+     * @throws IOException if writing to the translog resulted in an I/O exception
+     */
+    public Translog.Location[] add(final BytesReference[] data, final long[] seqNos) throws IOException {
+        assert data.length == seqNos.length : "data and seqNos length mismatch: " + data.length + " != " + seqNos.length;
+        final int count = data.length;
+        final Translog.Location[] locations = new Translog.Location[count];
+
+        long bufferedBytesBeforeAdd = this.bufferedBytes;
+        if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
+            writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
+        }
+
+        synchronized (this) {
+            ensureOpen();
+            if (buffer == null) {
+                buffer = new ReleasableBytesStreamOutput(bigArrays);
+            }
+            assert bufferedBytes == buffer.size();
+            for (int i = 0; i < count; i++) {
+                final BytesReference d = data[i];
+                final long seqNo = seqNos[i];
+                final long offset = totalOffset;
+                totalOffset += d.length();
+                d.writeTo(buffer);
+
+                assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
+                assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
+
+                minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
+                maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
+
+                nonFsyncedSequenceNumbers.add(seqNo);
+
+                operationCounter++;
+
+                assert assertNoSeqNumberConflict(seqNo, d);
+
+                locations[i] = new Translog.Location(generation, offset, d.length());
+            }
+            bufferedBytes = buffer.size();
+        }
+
+        return locations;
+    }
+
     private synchronized boolean assertNoSeqNumberConflict(long seqNo, BytesReference data) throws IOException {
         if (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             // nothing to do
@@ -307,18 +408,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 );
                 // TODO: We haven't had timestamp for Index operations in Lucene yet, we need to loosen this check without timestamp.
                 final boolean sameOp;
-                if (newOp instanceof Translog.Index && prvOp instanceof Translog.Index) {
-                    final Translog.Index o1 = (Translog.Index) prvOp;
-                    final Translog.Index o2 = (Translog.Index) newOp;
-                    sameOp = Objects.equals(o1.id(), o2.id())
-                        && Objects.equals(o1.source(), o2.source())
-                        && Objects.equals(o1.routing(), o2.routing())
-                        && o1.primaryTerm() == o2.primaryTerm()
-                        && o1.seqNo() == o2.seqNo()
-                        && o1.version() == o2.version();
-                } else if (newOp instanceof Translog.Delete && prvOp instanceof Translog.Delete) {
-                    final Translog.Delete o1 = (Translog.Delete) newOp;
-                    final Translog.Delete o2 = (Translog.Delete) prvOp;
+                if (newOp instanceof Translog.Index newIndex && prvOp instanceof Translog.Index prvIndex) {
+                    final Translog.Index o1 = prvIndex;
+                    final Translog.Index o2 = newIndex;
+                    sameOp = translogOperationHelper.hasSameIndexOperation(o1, o2);
+                } else if (newOp instanceof Translog.Delete newDelete && prvOp instanceof Translog.Delete prvDelete) {
+                    final Translog.Delete o1 = newDelete;
+                    final Translog.Delete o2 = prvDelete;
                     sameOp = Objects.equals(o1.id(), o2.id())
                         && o1.primaryTerm() == o2.primaryTerm()
                         && o1.seqNo() == o2.seqNo()
@@ -455,12 +551,36 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             closeWithTragicEvent(ex);
                             throw ex;
                         }
+                        // For a remote-store translog the generation is now immutable: append the footer carrying the
+                        // checksum of everything written so far (header + operations). It is placed past the offset
+                        // recorded in the last synced checkpoint, so readers that predate the footer never see it; a
+                        // crash before this point simply leaves a footer-less generation behind, which is still valid
+                        // and is downloaded in full like any other. Local-only translogs carry no footer (see create).
+                        Long translogContentChecksum = null;
+                        Long translogChecksum = null;
+                        if (translogCheckedContainer != null) {
+                            translogContentChecksum = translogCheckedContainer.getChecksum();
+                            try {
+                                // Not fsynced: the upload is the durability point, and a torn footer only means the
+                                // generation is fetched again instead of being reused.
+                                final byte[] footer = TranslogFooter.write(channel, translogContentChecksum, false);
+                                // The remote store verifies the whole uploaded object, footer included.
+                                translogCheckedContainer.updateFromBytes(footer, 0, footer.length);
+                            } catch (final Exception ex) {
+                                // closed is already set, so close() would be a no-op: release the channel explicitly.
+                                tragedy.setTragicException(ex);
+                                IOUtils.closeWhileHandlingException(channel);
+                                throw ex;
+                            }
+                            translogChecksum = translogCheckedContainer.getChecksum();
+                        }
                         return new TranslogReader(
                             getLastSyncedCheckpoint(),
                             channel,
                             path,
                             header,
-                            (translogCheckedContainer != null) ? translogCheckedContainer.getChecksum() : null
+                            translogChecksum,
+                            translogContentChecksum
                         );
                     } else {
                         throw new AlreadyClosedException(

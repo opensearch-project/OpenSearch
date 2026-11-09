@@ -37,10 +37,12 @@ import org.opensearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.ProjectDependency;
+import org.gradle.api.artifacts.component.ComponentIdentifier;
+import org.gradle.api.artifacts.component.ProjectComponentIdentifier;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.TaskProvider;
 
 public class DependencyLicensesPrecommitPlugin extends PrecommitPlugin {
@@ -54,9 +56,9 @@ public class DependencyLicensesPrecommitPlugin extends PrecommitPlugin {
         final Configuration runtimeClasspath = project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME);
         final Configuration compileOnly = project.getConfigurations()
             .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
+        Spec<ComponentIdentifier> spec = ci -> ci instanceof ProjectComponentIdentifier == false;
         final Provider<FileCollection> provider = project.provider(
-            () -> GradleUtils.getFiles(project, runtimeClasspath, dependency -> dependency instanceof ProjectDependency == false)
-                .minus(compileOnly)
+            () -> GradleUtils.getFirstLevelModuleDependencyFiles(project, runtimeClasspath, spec).minus(compileOnly)
         );
 
         // only require dependency licenses for non-opensearch deps

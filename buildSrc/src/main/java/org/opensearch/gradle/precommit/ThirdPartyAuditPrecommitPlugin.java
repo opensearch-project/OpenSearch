@@ -51,14 +51,14 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
     public TaskProvider<? extends Task> createTask(Project project) {
         project.getPlugins().apply(CompileOnlyResolvePlugin.class);
         project.getConfigurations().create("forbiddenApisCliJar");
-        project.getDependencies().add("forbiddenApisCliJar", "de.thetaphi:forbiddenapis:3.8");
+        project.getDependencies().add("forbiddenApisCliJar", "de.thetaphi:forbiddenapis:3.10");
 
         Configuration jdkJarHellConfig = project.getConfigurations().create(JDK_JAR_HELL_CONFIG_NAME);
         if (BuildParams.isInternal() && project.getPath().equals(":libs:opensearch-core") == false) {
             // External plugins will depend on this already via transitive dependencies.
             // Internal projects are not all plugins, so make sure the check is available
             // we are not doing this for this project itself to avoid jar hell with itself
-            project.getDependencies().add(JDK_JAR_HELL_CONFIG_NAME, project.project(LIBS_OPENSEARCH_CORE_PROJECT_PATH));
+            project.getDependencies().add(JDK_JAR_HELL_CONFIG_NAME, project.getDependencies().project(LIBS_OPENSEARCH_CORE_PROJECT_PATH));
         }
 
         TaskProvider<ExportOpenSearchBuildResourcesTask> resourcesTask = project.getTasks()

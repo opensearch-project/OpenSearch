@@ -67,6 +67,10 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         return max <= 0 ? 0 : (short) (Math.round((100d * used) / max));
     }
 
+    public static double calculatePercentageWithDecimals(long used, long max) {
+        return max <= 0 ? 0.0 : Math.round((100d * used) / max * 100.0) / 100.0;
+    }
+
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeLong(timestamp);
@@ -92,6 +96,10 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         return calculatePercentage(overallFileCacheStats.getActive(), overallFileCacheStats.getUsed());
     }
 
+    public double getOverallActivePercent() {
+        return calculatePercentageWithDecimals(overallFileCacheStats.getActive(), overallFileCacheStats.getTotal());
+    }
+
     public ByteSizeValue getUsed() {
         return new ByteSizeValue(overallFileCacheStats.getUsed());
     }
@@ -108,6 +116,10 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         return new ByteSizeValue(overallFileCacheStats.getEvicted());
     }
 
+    public ByteSizeValue getRemoved() {
+        return new ByteSizeValue(overallFileCacheStats.getRemoved());
+    }
+
     public long getCacheHits() {
         return overallFileCacheStats.getCacheHits();
     }
@@ -121,6 +133,18 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         return blockFileCacheStats;
     }
 
+    public FileCacheStats getOverallFileCacheStats() {
+        return overallFileCacheStats;
+    }
+
+    public FileCacheStats getFullFileCacheStats() {
+        return fullFileCacheStats;
+    }
+
+    public FileCacheStats getPinnedFileCacheStats() {
+        return pinnedFileCacheStats;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.AGGREGATE_FILE_CACHE);
@@ -130,6 +154,7 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.USED_IN_BYTES, Fields.USED, getUsed());
         builder.humanReadableField(Fields.PINNED_IN_BYTES, Fields.PINNED, getPinnedUsage());
         builder.humanReadableField(Fields.EVICTIONS_IN_BYTES, Fields.EVICTIONS, getEvicted());
+        builder.humanReadableField(Fields.REMOVED_IN_BYTES, Fields.REMOVED, getRemoved());
         builder.field(Fields.ACTIVE_PERCENT, getActivePercent());
         builder.field(Fields.USED_PERCENT, getUsedPercent());
         builder.field(Fields.HIT_COUNT, getCacheHits());
@@ -153,6 +178,8 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         static final String PINNED_IN_BYTES = "pinned_in_bytes";
         static final String EVICTIONS = "evictions";
         static final String EVICTIONS_IN_BYTES = "evictions_in_bytes";
+        static final String REMOVED = "removed";
+        static final String REMOVED_IN_BYTES = "removed_in_bytes";
         static final String TOTAL = "total";
         static final String TOTAL_IN_BYTES = "total_in_bytes";
 

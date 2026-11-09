@@ -111,4 +111,13 @@ public interface ClusterPlugin {
         onNodeStarted();
     }
 
+    /**
+     * @return true if this plugin will handle cluster state management on behalf of the node, so the node does not
+     * need to discover a cluster manager and be part of a cluster.
+     *
+     * Note that if any ClusterPlugin returns true from this method, the node will start in clusterless mode.
+     */
+    default boolean isClusterless() {
+        return false;
+    }
 }

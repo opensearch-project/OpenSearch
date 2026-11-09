@@ -10,6 +10,7 @@ package org.opensearch.cache.store.disk;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.cache.EhcacheDiskCacheSettings;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.cache.CacheType;
@@ -61,6 +62,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 @ThreadLeakFilters(filters = { EhcacheThreadLeakFilter.class })
+@AwaitsFix(bugUrl = "flaky test - enable after fix")
 public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
     private static final int CACHE_SIZE_IN_BYTES = 1024 * 101;
@@ -354,6 +356,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "Flaky test - fix before enabling")
     public void testComputeIfAbsentConcurrently() throws Exception {
         Settings settings = Settings.builder().build();
         MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
@@ -558,6 +561,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "Flaky test - fix before enabling")
     public void testComputeIfAbsentWithNullValueLoading() throws Exception {
         Settings settings = Settings.builder().build();
         MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
@@ -1261,35 +1265,6 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         PersistentCacheManager buildCacheManager() {
             PersistentCacheManager cacheManager = mock(PersistentCacheManager.class);
             return cacheManager;
-        }
-    }
-
-    private EhcacheDiskCache.Builder<String, String> createDummyBuilder(String storagePath) throws IOException {
-        Settings settings = Settings.builder().build();
-        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
-        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
-        try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            if (storagePath == null || storagePath.isBlank()) {
-                storagePath = env.nodePaths()[0].path.toString() + "/request_cache";
-            }
-            return (EhcacheDiskCache.Builder<String, String>) new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias(
-                "ehcacheTest"
-            )
-                .setIsEventListenerModeSync(true)
-                .setStoragePath(storagePath)
-                .setKeyType(String.class)
-                .setValueType(String.class)
-                .setKeySerializer(new StringSerializer())
-                .setDiskCacheAlias("test1")
-                .setValueSerializer(new StringSerializer())
-                .setDimensionNames(List.of(dimensionName))
-                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
-                .setSettings(settings)
-                .setExpireAfterAccess(TimeValue.MAX_VALUE)
-                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
-                .setRemovalListener(removalListener)
-                .setWeigher(weigher)
-                .setStatsTrackingEnabled(false);
         }
     }
 

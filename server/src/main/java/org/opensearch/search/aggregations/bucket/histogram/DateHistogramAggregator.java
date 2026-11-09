@@ -31,10 +31,14 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.Nullable;
@@ -58,6 +62,7 @@ import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
+import org.opensearch.search.aggregations.bucket.HistogramSkiplistLeafCollector;
 import org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge;
 import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
@@ -88,6 +93,8 @@ import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedSta
  * @opensearch.internal
  */
 class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAggregator, StarTreePreComputeCollector {
+    private static final Logger logger = LogManager.getLogger(DateHistogramAggregator.class);
+
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
     private final Rounding rounding;
@@ -105,7 +112,14 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private boolean starTreeDateRoundingRequired = true;
 
     private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
-    public final String fieldName;
+    private final String fieldName;
+    private final boolean fieldIndexSort;
+
+    // Collector usage tracking fields
+    private int noOpCollectorsUsed;
+    private int singleValuedCollectorsUsed;
+    private int multiValuedCollectorsUsed;
+    private int skipListCollectorsUsed;
 
     DateHistogramAggregator(
         String name,
@@ -173,6 +187,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         this.fieldName = (valuesSource instanceof ValuesSource.Numeric.FieldData)
             ? ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName()
             : null;
+        this.fieldIndexSort = this.fieldName == null ? false : context.getQueryShardContext().indexSortedOnField(fieldName);
         this.starTreeDateDimension = (context.getQueryShardContext().getStarTreeQueryContext() != null)
             ? fetchStarTreeCalendarUnit()
             : null;
@@ -206,14 +221,25 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
+            noOpCollectorsUsed++;
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
+        DocValuesSkipper skipper = null;
+        if (this.fieldName != null) {
+            skipper = ctx.reader().getDocValuesSkipper(this.fieldName);
+        }
         final SortedNumericDocValues values = valuesSource.longValues(ctx);
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
 
+        if (HistogramSkiplistLeafCollector.canUseSkiplist(hardBounds, parent, skipper, singleton)) {
+            skipListCollectorsUsed++;
+            return new HistogramSkiplistLeafCollector(singleton, skipper, preparedRounding, bucketOrds, sub, this);
+        }
+
         if (singleton != null) {
             // Optimized path for single-valued fields
+            singleValuedCollectorsUsed++;
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -222,10 +248,21 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                         collectValue(sub, doc, owningBucketOrd, preparedRounding.round(value));
                     }
                 }
+
+                @Override
+                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                    super.collect(stream, owningBucketOrd);
+                }
+
+                @Override
+                public void collectRange(int min, int max) throws IOException {
+                    super.collectRange(min, max);
+                }
             };
         }
 
         // Original path for multi-valued fields
+        multiValuedCollectorsUsed++;
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -243,6 +280,16 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                         previousRounded = rounded;
                     }
                 }
+            }
+
+            @Override
+            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                super.collect(stream, owningBucketOrd);
+            }
+
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                super.collectRange(min, max);
             }
         };
     }
@@ -305,7 +352,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             @Override
             public void setSubCollectors() throws IOException {
                 for (Aggregator aggregator : subAggregators) {
-                    this.subCollectors.add(((StarTreePreComputeCollector) aggregator).getStarTreeBucketCollector(ctx, starTree, this));
+                    this.subCollectors.add(
+                        ((StarTreePreComputeCollector) aggregator.unwrapAggregator()).getStarTreeBucketCollector(ctx, starTree, this)
+                    );
                 }
             }
 
@@ -382,8 +431,13 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
         add.accept("total_buckets", bucketOrds.size());
         filterRewriteOptimizationContext.populateDebugInfo(add);
+        add.accept("no_op_collectors_used", noOpCollectorsUsed);
+        add.accept("single_valued_collectors_used", singleValuedCollectorsUsed);
+        add.accept("multi_valued_collectors_used", multiValuedCollectorsUsed);
+        add.accept("skip_list_collectors_used", skipListCollectorsUsed);
     }
 
     /**

@@ -1,0 +1,1 @@
+source=security_logs | rename source_ip as client_ip, event_type as event | stats count() as total by client_ip, event | sort - total | head 10

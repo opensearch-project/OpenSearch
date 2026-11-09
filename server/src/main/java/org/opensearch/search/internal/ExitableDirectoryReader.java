@@ -39,12 +39,18 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocAndFloatFeatureBuffer;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 
@@ -108,6 +114,9 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public PointValues getPointValues(String field) throws IOException {
+            if (Strings.isEmpty(field)) {
+                return null;
+            }
             final PointValues pointValues = in.getPointValues(field);
             if (pointValues == null) {
                 return null;
@@ -152,7 +161,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         private final QueryCancellation queryCancellation;
 
-        private ExitableTerms(Terms terms, QueryCancellation queryCancellation) {
+        ExitableTerms(Terms terms, QueryCancellation queryCancellation) {
             super(terms);
             this.queryCancellation = queryCancellation;
         }
@@ -165,6 +174,16 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         @Override
         public TermsEnum iterator() throws IOException {
             return new ExitableTermsEnum(in.iterator(), queryCancellation);
+        }
+
+        @Override
+        public BytesRef getMin() throws IOException {
+            return in.getMin();
+        }
+
+        @Override
+        public BytesRef getMax() throws IOException {
+            return in.getMax();
         }
     }
 
@@ -195,6 +214,95 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         public BytesRef next() throws IOException {
             checkAndThrowWithSampling();
             return in.next();
+        }
+
+        @Override
+        public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
+            // Let the codec reuse its postings implementation beneath our cancellation wrapper.
+            if (reuse instanceof ExitablePostingsEnum exitable) {
+                reuse = exitable.unwrap();
+            }
+            final PostingsEnum postings = in.postings(reuse, flags);
+            return new ExitablePostingsEnum(postings, queryCancellation);
+        }
+    }
+
+    /**
+     * Wrapper class for {@link PostingsEnum} that checks for query cancellation or timeout
+     * during document iteration. This closes the gap where field data loading iterates
+     * postings (e.g., {@code OrdinalsBuilder.addDoc()}) without cancellation checks.
+     *
+     * <p>Extends {@link FilterLeafReader.FilterPostingsEnum} so that callers (including plugins
+     * with custom codec PostingsEnum implementations) can use {@link #unwrap()} to access the
+     * underlying delegate PostingsEnum.
+     */
+    static class ExitablePostingsEnum extends FilterLeafReader.FilterPostingsEnum {
+
+        private static final int CANCELLATION_CHECK_INTERVAL = 1 << 13;
+        // Bulk bitset filling is substantially cheaper per document than scalar iteration. Use the
+        // same maximum doc-ID interval as CancellableBulkScorer, without fragmenting sparse lists.
+        private static final int MAX_DOCS_PER_BITSET_CHECK = 1 << 20;
+
+        private final QueryCancellation queryCancellation;
+        private int calls;
+        // docs filled since the last cancellation check. Starts at the budget so we check before the first fill.
+        private int docsSinceBitSetCheck = MAX_DOCS_PER_BITSET_CHECK;
+
+        ExitablePostingsEnum(PostingsEnum in, QueryCancellation queryCancellation) {
+            super(in);
+            this.queryCancellation = queryCancellation;
+        }
+
+        private void checkAndThrowWithSampling() {
+            if ((calls++ & (CANCELLATION_CHECK_INTERVAL - 1)) == 0) {
+                queryCancellation.checkCancelled();
+            }
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            checkAndThrowWithSampling();
+            return super.nextDoc();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            checkAndThrowWithSampling();
+            return super.advance(target);
+        }
+
+        @Override
+        public int docIDRunEnd() throws IOException {
+            return in.docIDRunEnd();
+        }
+
+        @Override
+        public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+            // Delegate to the codec's bulk implementation, but bound each call since it bypasses
+            // the cancellation checks in nextDoc() and advance().
+            for (int doc = in.docID(); doc < upTo; doc = in.docID()) {
+                if (docsSinceBitSetCheck >= MAX_DOCS_PER_BITSET_CHECK) {
+                    queryCancellation.checkCancelled();
+                    docsSinceBitSetCheck = 0;
+                }
+                final int limit = (int) Math.min((long) doc + MAX_DOCS_PER_BITSET_CHECK, upTo);
+                in.intoBitSet(limit, bitSet, offset);
+                docsSinceBitSetCheck += limit - doc;
+            }
+        }
+
+        @Override
+        public void nextPostings(int upTo, DocAndFloatFeatureBuffer buffer) throws IOException {
+            final int remaining = CANCELLATION_CHECK_INTERVAL - (calls & (CANCELLATION_CHECK_INTERVAL - 1));
+            if (remaining == CANCELLATION_CHECK_INTERVAL) {
+                queryCancellation.checkCancelled();
+            }
+            // Preserve native batches even for sparse postings, whose doc-ID span may be large.
+            in.nextPostings(upTo, buffer);
+            final int size = Math.max(1, buffer.size);
+            // Charge the returned postings to the scalar sampling budget. If the batch exhausts it,
+            // make the next scalar or batch call check cancellation, even if it overshot the boundary.
+            calls = size >= remaining ? 0 : calls + size;
         }
     }
 
@@ -338,7 +446,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
     }
 
-    private static class ExitableIntersectVisitor implements PointValues.IntersectVisitor {
+    static class ExitableIntersectVisitor implements PointValues.IntersectVisitor {
 
         private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 13) - 1; // 8191
 
@@ -346,7 +454,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         private final QueryCancellation queryCancellation;
         private int calls;
 
-        private ExitableIntersectVisitor(QueryCancellation queryCancellation) {
+        ExitableIntersectVisitor(QueryCancellation queryCancellation) {
             this.queryCancellation = queryCancellation;
         }
 
@@ -356,7 +464,16 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             }
         }
 
-        private void setVisitor(PointValues.IntersectVisitor in) {
+        // Charges a bulk visit of `count` docs to the sampling budget, so bulk visits can be forwarded.
+        private void checkAndThrowWithSampling(long count) {
+            final int remaining = MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK + 1 - (calls & MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK);
+            if (remaining == MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK + 1) {
+                queryCancellation.checkCancelled();
+            }
+            calls = count >= remaining ? 0 : calls + (int) count;
+        }
+
+        void setVisitor(PointValues.IntersectVisitor in) {
             this.in = in;
         }
 
@@ -367,9 +484,27 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
+        public void visit(DocIdSetIterator iterator) throws IOException {
+            checkAndThrowWithSampling(iterator.cost());
+            in.visit(iterator);
+        }
+
+        @Override
+        public void visit(IntsRef ref) throws IOException {
+            checkAndThrowWithSampling(ref.length);
+            in.visit(ref);
+        }
+
+        @Override
         public void visit(int docID, byte[] packedValue) throws IOException {
             checkAndThrowWithSampling();
             in.visit(docID, packedValue);
+        }
+
+        @Override
+        public void visit(DocIdSetIterator iterator, byte[] packedValue) throws IOException {
+            checkAndThrowWithSampling(iterator.cost());
+            in.visit(iterator, packedValue);
         }
 
         @Override

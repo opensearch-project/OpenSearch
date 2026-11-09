@@ -40,12 +40,15 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
+import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -78,14 +81,29 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean blobExists(String blobName) {
+    public boolean blobExists(String blobName) throws IOException {
         logger.trace("blobExists({})", blobName);
         try {
             return blobStore.blobExists(buildKey(blobName));
-        } catch (URISyntaxException | BlobStorageException e) {
-            logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore, e.getMessage());
+        } catch (BlobStorageException e) {
+            throw new IOException("Can not check if blob [" + blobName + "] exists", e);
+        } catch (URISyntaxException e) {
+            throw new IOException("Can not check if blob [" + blobName + "] exists", e);
         }
-        return false;
+    }
+
+    @Override
+    public BlobMetadata getBlobMetadata(String blobName) throws IOException {
+        try {
+            return new PlainBlobMetadata(blobName, blobStore.getBlobLength(buildKey(blobName)));
+        } catch (BlobStorageException e) {
+            if (e.getStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
+                throw new NoSuchFileException(blobName);
+            }
+            throw new IOException("Can not read metadata for blob " + blobName, e);
+        } catch (URISyntaxException e) {
+            throw new IOException("Can not read metadata for blob " + blobName, e);
+        }
     }
 
     private InputStream openInputStream(String blobName, long position, @Nullable Long length) throws IOException {
@@ -123,7 +141,23 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     @Override
     public long readBlobPreferredLength() {
-        return DEFAULT_MINIMUM_READ_SIZE_IN_BYTES;
+        return blobStore.getReadBlobPreferredLength();
+    }
+
+    @Override
+    public boolean isConditionalWriteSupported() {
+        return true;
+    }
+
+    @Override
+    public VersionedBlob readBlobWithVersion(String blobName) throws IOException {
+        return blobStore.readBlobWithVersion(buildKey(blobName));
+    }
+
+    @Override
+    public String writeBlobConditionally(String blobName, InputStream inputStream, long blobSize, @Nullable String expectedVersionToken)
+        throws IOException {
+        return blobStore.writeBlobConditionally(buildKey(blobName), inputStream, blobSize, expectedVersionToken);
     }
 
     @Override
@@ -134,6 +168,25 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         } catch (URISyntaxException | BlobStorageException e) {
             throw new IOException("Can not write blob " + blobName, e);
         }
+    }
+
+    @Override
+    public void writeBlobWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata,
+        @Nullable CryptoMetadata cryptoMetadata
+    ) throws IOException {
+        if (cryptoMetadata != null) {
+            throw new UnsupportedOperationException(
+                "Azure Blob Storage repository does not currently support CryptoMetadata. "
+                    + "Consider using repository-level encryption settings instead."
+            );
+        }
+        // Azure does not support custom metadata, so we just delegate to writeBlob
+        writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
     }
 
     @Override
@@ -193,6 +246,22 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             return blobStore.listBlobsByPrefix(keyPath, prefix);
         } catch (URISyntaxException | BlobStorageException e) {
             logger.warn("can not access [{}] in container {{}}: {}", prefix, blobStore, e.getMessage());
+            throw new IOException(e);
+        }
+    }
+
+    @Override
+    public List<BlobMetadata> listBlobsByPrefixInSortedOrder(String blobNamePrefix, int limit, BlobNameSortOrder blobNameSortOrder)
+        throws IOException {
+        if (limit < 0) {
+            throw new IllegalArgumentException("limit should not be a negative value");
+        }
+        if (blobNameSortOrder != BlobNameSortOrder.LEXICOGRAPHIC) {
+            return super.listBlobsByPrefixInSortedOrder(blobNamePrefix, limit, blobNameSortOrder);
+        }
+        try {
+            return blobStore.listBlobsByPrefixInSortedOrder(keyPath, blobNamePrefix, limit);
+        } catch (URISyntaxException | BlobStorageException e) {
             throw new IOException(e);
         }
     }

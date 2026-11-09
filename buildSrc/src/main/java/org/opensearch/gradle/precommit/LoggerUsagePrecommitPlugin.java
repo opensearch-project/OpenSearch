@@ -43,7 +43,7 @@ public class LoggerUsagePrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         Object dependency = BuildParams.isInternal()
-            ? project.project(":test:logger-usage")
+            ? project.getDependencies().project(":test:logger-usage")
             : ("org.opensearch.test:logger-usage:" + VersionProperties.getOpenSearch());
 
         Configuration loggerUsageConfig = project.getConfigurations().create("loggerUsagePlugin");

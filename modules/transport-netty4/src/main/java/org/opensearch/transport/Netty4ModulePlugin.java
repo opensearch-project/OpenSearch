@@ -45,7 +45,10 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpServerTransport;
+import org.opensearch.http.netty4.Netty4CompositeHttpServerTransport;
+import org.opensearch.http.netty4.Netty4Http3ServerTransport;
 import org.opensearch.http.netty4.Netty4HttpServerTransport;
+import org.opensearch.http.netty4.http3.Http3Utils;
 import org.opensearch.http.netty4.ssl.SecureNetty4HttpServerTransport;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
@@ -62,6 +65,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_HTTP3_ENABLED;
+
 public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
 
     public static final String NETTY_TRANSPORT_NAME = "netty4";
@@ -77,6 +82,7 @@ public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
             Netty4HttpServerTransport.SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
             Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT,
             Netty4HttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE,
+            Netty4HttpServerTransport.SETTING_HTTP_PIPELINE_DEPTH,
             Netty4Transport.WORKER_COUNT,
             Netty4Transport.NETTY_RECEIVE_PREDICTOR_SIZE,
             Netty4Transport.NETTY_RECEIVE_PREDICTOR_MIN,
@@ -164,21 +170,53 @@ public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
         SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider,
         Tracer tracer
     ) {
-        return Collections.singletonMap(
-            NETTY_SECURE_HTTP_TRANSPORT_NAME,
-            () -> new SecureNetty4HttpServerTransport(
-                settings,
-                networkService,
-                bigArrays,
-                threadPool,
-                xContentRegistry,
-                dispatcher,
-                clusterSettings,
-                getSharedGroupFactory(settings),
-                secureHttpTransportSettingsProvider,
-                tracer
-            )
-        );
+        if (Http3Utils.isHttp3Available() == true && SETTING_HTTP_HTTP3_ENABLED.get(settings).booleanValue() == true) {
+            return Collections.singletonMap(
+                NETTY_SECURE_HTTP_TRANSPORT_NAME,
+                () -> new Netty4CompositeHttpServerTransport(
+                    new SecureNetty4HttpServerTransport(
+                        settings,
+                        networkService,
+                        bigArrays,
+                        threadPool,
+                        xContentRegistry,
+                        dispatcher,
+                        clusterSettings,
+                        getSharedGroupFactory(settings),
+                        secureHttpTransportSettingsProvider,
+                        tracer
+                    ),
+                    new Netty4Http3ServerTransport(
+                        settings,
+                        networkService,
+                        bigArrays,
+                        threadPool,
+                        xContentRegistry,
+                        dispatcher,
+                        clusterSettings,
+                        getSharedGroupFactory(settings),
+                        secureHttpTransportSettingsProvider,
+                        tracer
+                    )
+                )
+            );
+        } else {
+            return Collections.singletonMap(
+                NETTY_SECURE_HTTP_TRANSPORT_NAME,
+                () -> new SecureNetty4HttpServerTransport(
+                    settings,
+                    networkService,
+                    bigArrays,
+                    threadPool,
+                    xContentRegistry,
+                    dispatcher,
+                    clusterSettings,
+                    getSharedGroupFactory(settings),
+                    secureHttpTransportSettingsProvider,
+                    tracer
+                )
+            );
+        }
     }
 
     @Override

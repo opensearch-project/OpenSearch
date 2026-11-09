@@ -1,0 +1,1 @@
+source = big5 | stats count() by span(`@timestamp`, 1h)

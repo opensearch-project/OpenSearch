@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "count()",
+      "type": "bigint"
+    },
+    {
+      "name": "service_name",
+      "type": "string"
+    },
+    {
+      "name": "application_id",
+      "type": "bigint"
+    }
+  ],
+  "datarows": [
+    [
+      3,
+      "api-service",
+      107149
+    ],
+    [
+      9,
+      "db-service",
+      107149
+    ],
+    [
+      5,
+      "web-service",
+      107149
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

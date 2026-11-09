@@ -7,7 +7,7 @@
  */
 
 /**
- * Foundation implementation for a object lifecycle.
+ * Foundation implementation for an object lifecycle.
  *
  * See {@link org.opensearch.common.lifecycle.Lifecycle} for example usage
  *

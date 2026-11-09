@@ -1,0 +1,80 @@
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:00Z", "service": "auth", "host": "host1", "level": "ERROR", "message": "Connection timeout while connecting to database", "latency": 5000, "status": 500}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:01Z", "service": "auth", "host": "host1", "level": "ERROR", "message": "Database connection refused", "latency": 100, "status": 500}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:02Z", "service": "payment", "host": "host2", "level": "INFO", "message": "Payment processed successfully", "latency": 45, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:03Z", "service": "auth", "host": "host1", "level": "WARN", "message": "Slow query detected timeout approaching", "latency": 2500, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:04Z", "service": "payment", "host": "host2", "level": "ERROR", "message": "Payment gateway timeout error", "latency": 10000, "status": 504}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:05Z", "service": "order", "host": "host3", "level": "INFO", "message": "Order created successfully", "latency": 120, "status": 201}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:06Z", "service": "auth", "host": "host2", "level": "ERROR", "message": "Authentication failed connection timeout", "latency": 3000, "status": 401}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:07Z", "service": "order", "host": "host3", "level": "ERROR", "message": "Database connection pool exhausted", "latency": 8000, "status": 500}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:08Z", "service": "payment", "host": "host2", "level": "INFO", "message": "Refund processed", "latency": 80, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:09Z", "service": "order", "host": "host3", "level": "WARN", "message": "High latency detected in order processing", "latency": 1500, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:10Z", "service": "auth", "host": "host1", "level": "INFO", "message": "User logged in successfully", "latency": 50, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:11Z", "service": "payment", "host": "host2", "level": "ERROR", "message": "Credit card validation timeout", "latency": 6000, "status": 500}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:12Z", "service": "order", "host": "host3", "level": "ERROR", "message": "Inventory service connection refused", "latency": 200, "status": 503}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:13Z", "service": "auth", "host": "host2", "level": "INFO", "message": "Session refreshed", "latency": 30, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:14Z", "service": "payment", "host": "host1", "level": "WARN", "message": "Payment retry attempted after timeout", "latency": 4000, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:15Z", "service": "order", "host": "host3", "level": "INFO", "message": "Order shipped notification sent", "latency": 90, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:16Z", "service": "auth", "host": "host1", "level": "ERROR", "message": "LDAP server timeout during authentication", "latency": 7000, "status": 500}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:17Z", "service": "payment", "host": "host2", "level": "ERROR", "message": "Database deadlock detected", "latency": 5500, "status": 500}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:18Z", "service": "order", "host": "host3", "level": "INFO", "message": "Order cancelled by user", "latency": 60, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:19Z", "service": "auth", "host": "host2", "level": "WARN", "message": "Multiple failed login attempts detected", "latency": 100, "status": 429}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:20Z", "service": "payment", "host": "host1", "level": "INFO", "message": "Payment verification completed", "latency": 150, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:21Z", "service": "order", "host": "host3", "level": "ERROR", "message": "Shipping service connection timeout", "latency": 9000, "status": 504}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:22Z", "service": "auth", "host": "host1", "level": "INFO", "message": "Password reset email sent", "latency": 200, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:23Z", "service": "payment", "host": "host2", "level": "ERROR", "message": "Fraud detection service timeout", "latency": 8500, "status": 500}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:24Z", "service": "order", "host": "host3", "level": "WARN", "message": "Low inventory warning", "latency": 70, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:25Z", "service": "auth", "host": "host2", "level": "ERROR", "message": "Token validation failed connection error", "latency": 4500, "status": 401}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:26Z", "service": "payment", "host": "host1", "level": "INFO", "message": "Subscription renewed", "latency": 110, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:27Z", "service": "order", "host": "host3", "level": "ERROR", "message": "Order validation timeout exceeded", "latency": 11000, "status": 500}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:28Z", "service": "auth", "host": "host1", "level": "INFO", "message": "Two-factor authentication completed", "latency": 180, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:29Z", "service": "payment", "host": "host2", "level": "WARN", "message": "High transaction volume detected", "latency": 300, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:30Z", "service": "order", "host": "host3", "level": "INFO", "message": "Order tracking updated", "latency": 95, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:31Z", "service": "auth", "host": "host2", "level": "ERROR", "message": "Session store connection refused", "latency": 150, "status": 500}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:32Z", "service": "payment", "host": "host1", "level": "ERROR", "message": "Payment processor API timeout", "latency": 12000, "status": 504}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:33Z", "service": "order", "host": "host3", "level": "WARN", "message": "Delayed order processing", "latency": 2000, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:34Z", "service": "auth", "host": "host1", "level": "INFO", "message": "User profile updated", "latency": 75, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:35Z", "service": "payment", "host": "host2", "level": "ERROR", "message": "Currency conversion service timeout", "latency": 7500, "status": 500}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:36Z", "service": "order", "host": "host3", "level": "INFO", "message": "Return initiated", "latency": 130, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:37Z", "service": "auth", "host": "host2", "level": "WARN", "message": "Suspicious activity detected", "latency": 250, "status": 403}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:38Z", "service": "payment", "host": "host1", "level": "INFO", "message": "Invoice generated", "latency": 140, "status": 200}
+{"index": {}}
+{"timestamp": "2026-05-20T10:00:39Z", "service": "order", "host": "host3", "level": "ERROR", "message": "Warehouse system connection timeout", "latency": 10500, "status": 504}

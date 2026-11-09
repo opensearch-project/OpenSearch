@@ -1,0 +1,1 @@
+source=otel_logs | stats count() as c by severityText, serviceName | sort - c

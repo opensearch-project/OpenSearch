@@ -19,6 +19,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.crypto.DataKeyPair;
 import org.opensearch.common.crypto.MasterKeyProvider;
+import org.opensearch.secure_sm.AccessController;
 
 import java.util.Map;
 import java.util.function.Supplier;
@@ -51,7 +52,7 @@ public class KmsMasterKeyProvider implements MasterKeyProvider {
                 .keySpec(DataKeySpec.AES_256)
                 .keyId(keyArn)
                 .build();
-            GenerateDataKeyResponse dataKeyPair = SocketAccess.doPrivileged(() -> clientReference.get().generateDataKey(request));
+            GenerateDataKeyResponse dataKeyPair = AccessController.doPrivileged(() -> clientReference.get().generateDataKey(request));
             return new DataKeyPair(dataKeyPair.plaintext().asByteArray(), dataKeyPair.ciphertextBlob().asByteArray());
         }
     }
@@ -63,7 +64,7 @@ public class KmsMasterKeyProvider implements MasterKeyProvider {
                 .ciphertextBlob(SdkBytes.fromByteArray(encryptedKey))
                 .encryptionContext(encryptionContext)
                 .build();
-            DecryptResponse decryptResponse = SocketAccess.doPrivileged(() -> clientReference.get().decrypt(decryptRequest));
+            DecryptResponse decryptResponse = AccessController.doPrivileged(() -> clientReference.get().decrypt(decryptRequest));
             return decryptResponse.plaintext().asByteArray();
         }
     }

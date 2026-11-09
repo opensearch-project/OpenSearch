@@ -60,6 +60,7 @@ import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
@@ -74,9 +75,19 @@ import org.opensearch.search.aggregations.metrics.InternalMax;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.profile.NetworkTime;
+import org.opensearch.search.profile.ProfileResult;
+import org.opensearch.search.profile.ProfileShardResult;
+import org.opensearch.search.profile.SearchProfileShardResults;
+import org.opensearch.search.profile.aggregation.AggregationProfileShardResult;
+import org.opensearch.search.profile.fetch.FetchProfileShardResult;
+import org.opensearch.search.profile.query.CollectorResult;
+import org.opensearch.search.profile.query.QueryProfileShardResult;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.suggest.SortBy;
 import org.opensearch.search.suggest.Suggest;
@@ -91,6 +102,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -330,8 +342,9 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         }
         int nShards = randomIntBetween(1, 20);
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
-        AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(nShards, suggestions, queryResultSize, false);
         for (int trackTotalHits : new int[] { SearchContext.TRACK_TOTAL_HITS_DISABLED, SearchContext.TRACK_TOTAL_HITS_ACCURATE }) {
+            // Generate fresh query results for each iteration since profiles get consumed
+            AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(nShards, suggestions, queryResultSize, false);
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(
                 queryResults.asList(),
                 new ArrayList<>(),
@@ -370,6 +383,55 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             }
             assertThat(suggestSize, lessThanOrEqualTo(maxSuggestSize));
             assertThat(mergedResponse.hits().getHits().length, equalTo(reducedQueryPhase.sortedTopDocs.scoreDocs.length - suggestSize));
+
+            // Verify profile merging worked correctly (when profiles are present)
+            if (mergedResponse.profileResults != null) {
+                assertEquals("Should have profiles for all shards", nShards, mergedResponse.profileResults.getShardResults().size());
+
+                for (Map.Entry<String, ProfileShardResult> entry : mergedResponse.profileResults.getShardResults().entrySet()) {
+                    ProfileShardResult mergedProfile = entry.getValue();
+
+                    if (!mergedProfile.getQueryProfileResults().isEmpty()) {
+                        QueryProfileShardResult queryResult = mergedProfile.getQueryProfileResults().get(0);
+                        assertEquals(
+                            "Main query should be BooleanQuery",
+                            "BooleanQuery",
+                            queryResult.getQueryResults().get(0).getQueryName()
+                        );
+                        assertEquals("Should have 2 query children", 2, queryResult.getQueryResults().get(0).getProfiledChildren().size());
+                        assertEquals(
+                            "Collector should be TotalHitCountCollector",
+                            "TotalHitCountCollector",
+                            queryResult.getCollectorResult().getName()
+                        );
+                    }
+
+                    if (!mergedProfile.getAggregationProfileResults().getProfileResults().isEmpty()) {
+                        ProfileResult aggProfile = mergedProfile.getAggregationProfileResults().getProfileResults().get(0);
+                        assertEquals("Aggregation should be GlobalAggregator", "GlobalAggregator", aggProfile.getQueryName());
+                        assertEquals("Should have 1 aggregation child", 1, aggProfile.getProfiledChildren().size());
+                    }
+
+                    if (!mergedProfile.getFetchProfileResult().getFetchProfileResults().isEmpty()) {
+                        ProfileResult fetchProfile = mergedProfile.getFetchProfileResult().getFetchProfileResults().get(0);
+                        assertEquals("Fetch phase should be FetchPhase", "FetchPhase", fetchProfile.getQueryName());
+                        assertEquals("Should have 2 fetch children", 2, fetchProfile.getProfiledChildren().size());
+                        assertEquals(
+                            "First fetch child should be LoadStoredFields",
+                            "LoadStoredFields",
+                            fetchProfile.getProfiledChildren().get(0).getQueryName()
+                        );
+                        assertEquals(
+                            "Second fetch child should be LoadDocValues",
+                            "LoadDocValues",
+                            fetchProfile.getProfiledChildren().get(1).getQueryName()
+                        );
+                    }
+
+                    assertNotNull("Network time should be preserved", mergedProfile.getNetworkTime());
+                }
+            }
+
             Suggest suggestResult = mergedResponse.suggest();
             for (Suggest.Suggestion<?> suggestion : reducedQueryPhase.suggest) {
                 assertThat(suggestion, instanceOf(CompletionSuggestion.class));
@@ -386,6 +448,215 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
                 }
             }
         }
+    }
+
+    public void testMergeFetchProfiles() {
+        int nShards = 2;
+
+        List<SearchShardTarget> shardTargets = new ArrayList<>();
+        for (int shardIndex = 0; shardIndex < nShards; shardIndex++) {
+            SearchShardTarget shardTarget = new SearchShardTarget(
+                "node_" + shardIndex,
+                new ShardId("index", "uuid", shardIndex),
+                null,
+                OriginalIndices.NONE
+            );
+            shardTargets.add(shardTarget);
+        }
+
+        Map<String, ProfileShardResult> queryProfileMap = new HashMap<>();
+
+        for (int shardIndex = 0; shardIndex < nShards; shardIndex++) {
+            List<ProfileResult> queryChildren = Arrays.asList(
+                new ProfileResult("TermQuery", "field:value", Collections.emptyMap(), Collections.emptyMap(), 15L, Collections.emptyList()),
+                new ProfileResult(
+                    "BooleanQuery",
+                    "must clauses",
+                    Collections.emptyMap(),
+                    Collections.emptyMap(),
+                    25L,
+                    Collections.emptyList()
+                )
+            );
+            ProfileResult mainQuery = new ProfileResult(
+                "BooleanQuery",
+                "main query",
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                100L,
+                queryChildren
+            );
+
+            List<CollectorResult> collectorChildren = Arrays.asList(
+                new CollectorResult("SimpleTopScoreDocCollector", "collecting docs", 30L, Collections.emptyList())
+            );
+            CollectorResult collectorResult = new CollectorResult("TotalHitCountCollector", "counting hits", 50L, collectorChildren);
+
+            QueryProfileShardResult queryShardResult = new QueryProfileShardResult(
+                Arrays.asList(mainQuery),
+                20L, // rewrite time
+                collectorResult
+            );
+
+            List<ProfileResult> aggChildren = Arrays.asList(
+                new ProfileResult(
+                    "TermsAggregator",
+                    "terms on field",
+                    Collections.emptyMap(),
+                    Collections.emptyMap(),
+                    40L,
+                    Collections.emptyList()
+                )
+            );
+            ProfileResult aggProfile = new ProfileResult(
+                "GlobalAggregator",
+                "global agg",
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                60L,
+                aggChildren
+            );
+            AggregationProfileShardResult aggResults = new AggregationProfileShardResult(Arrays.asList(aggProfile));
+
+            // Create empty fetch profile (will be replaced by merge)
+            FetchProfileShardResult emptyFetchResults = new FetchProfileShardResult(Collections.emptyList());
+
+            NetworkTime networkTime = new NetworkTime(5L, 10L);
+
+            ProfileShardResult queryProfile = new ProfileShardResult(
+                Arrays.asList(queryShardResult),
+                aggResults,
+                emptyFetchResults,
+                networkTime
+            );
+
+            String shardId = shardTargets.get(shardIndex).toString();
+            queryProfileMap.put(shardId, queryProfile);
+        }
+
+        SearchProfileShardResults queryProfiles = new SearchProfileShardResults(queryProfileMap);
+
+        List<SearchPhaseResult> fetchResults = new ArrayList<>();
+
+        for (int shardIndex = 0; shardIndex < nShards; shardIndex++) {
+            SearchShardTarget shardTarget = shardTargets.get(shardIndex);
+
+            FetchSearchResult fetchResult = new FetchSearchResult(new ShardSearchContextId("", shardIndex), shardTarget);
+
+            List<ProfileResult> fetchChildren = Arrays.asList(
+                new ProfileResult(
+                    "LoadStoredFields",
+                    "loading _source",
+                    Collections.emptyMap(),
+                    Collections.emptyMap(),
+                    12L,
+                    Collections.emptyList()
+                ),
+                new ProfileResult(
+                    "LoadDocValues",
+                    "loading doc values",
+                    Collections.emptyMap(),
+                    Collections.emptyMap(),
+                    8L,
+                    Collections.emptyList()
+                )
+            );
+            ProfileResult fetchPhase = new ProfileResult(
+                "FetchPhase",
+                "fetch documents",
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                35L,
+                fetchChildren
+            );
+
+            FetchProfileShardResult fetchProfileShardResult = new FetchProfileShardResult(Arrays.asList(fetchPhase));
+
+            ProfileShardResult fetchProfileResult = new ProfileShardResult(
+                Collections.emptyList(), // no query results in fetch
+                new AggregationProfileShardResult(Collections.emptyList()), // no agg results in fetch
+                fetchProfileShardResult,
+                new NetworkTime(2L, 3L)
+            );
+
+            fetchResult.profileResults(fetchProfileResult);
+            fetchResults.add(fetchResult);
+        }
+
+        SearchProfileShardResults mergedProfiles = searchPhaseController.mergeFetchProfiles(queryProfiles, fetchResults);
+
+        assertNotNull("Merged profiles should not be null", mergedProfiles);
+        assertEquals("Should have profiles for all shards", nShards, mergedProfiles.getShardResults().size());
+
+        for (int shardIndex = 0; shardIndex < nShards; shardIndex++) {
+            String shardId = shardTargets.get(shardIndex).toString();
+            ProfileShardResult mergedProfile = mergedProfiles.getShardResults().get(shardId);
+
+            assertNotNull("Merged profile should exist for shard " + shardId, mergedProfile);
+
+            List<QueryProfileShardResult> queryResults = mergedProfile.getQueryProfileResults();
+            assertNotNull("Query profile results should be preserved", queryResults);
+            assertEquals("Should have one query profile result", 1, queryResults.size());
+
+            QueryProfileShardResult queryResult = queryResults.get(0);
+            assertEquals("Query rewrite time should be preserved", 20L, queryResult.getRewriteTime());
+            assertNotNull("Collector result should be preserved", queryResult.getCollectorResult());
+            assertEquals("Collector name should be preserved", "TotalHitCountCollector", queryResult.getCollectorResult().getName());
+            assertEquals("Should have collector children", 1, queryResult.getCollectorResult().getProfiledChildren().size());
+
+            List<ProfileResult> queryProfileResults = queryResult.getQueryResults();
+            assertEquals("Should have one main query", 1, queryProfileResults.size());
+            ProfileResult mainQuery = queryProfileResults.get(0);
+            assertEquals("Main query name should be preserved", "BooleanQuery", mainQuery.getQueryName());
+            assertEquals("Main query time should be preserved", 100L, mainQuery.getTime());
+            assertEquals("Should have query children", 2, mainQuery.getProfiledChildren().size());
+
+            AggregationProfileShardResult aggResult = mergedProfile.getAggregationProfileResults();
+            assertNotNull("Aggregation profile should be preserved", aggResult);
+            assertEquals("Should have one aggregation profile", 1, aggResult.getProfileResults().size());
+            ProfileResult aggProfile = aggResult.getProfileResults().get(0);
+            assertEquals("Aggregation name should be preserved", "GlobalAggregator", aggProfile.getQueryName());
+            assertEquals("Should have aggregation children", 1, aggProfile.getProfiledChildren().size());
+
+            FetchProfileShardResult fetchProfile = mergedProfile.getFetchProfileResult();
+            assertNotNull("Fetch profile should be merged", fetchProfile);
+            assertEquals("Should have one fetch profile result", 1, fetchProfile.getFetchProfileResults().size());
+
+            ProfileResult fetchPhase = fetchProfile.getFetchProfileResults().get(0);
+            assertEquals("Fetch phase name should be correct", "FetchPhase", fetchPhase.getQueryName());
+            assertEquals("Fetch phase time should be correct", 35L, fetchPhase.getTime());
+            assertEquals("Should have fetch children", 2, fetchPhase.getProfiledChildren().size());
+
+            List<ProfileResult> fetchChildren = fetchPhase.getProfiledChildren();
+            assertEquals("First fetch child should be LoadStoredFields", "LoadStoredFields", fetchChildren.get(0).getQueryName());
+            assertEquals("First fetch child time should be correct", 12L, fetchChildren.get(0).getTime());
+            assertEquals("Second fetch child should be LoadDocValues", "LoadDocValues", fetchChildren.get(1).getQueryName());
+            assertEquals("Second fetch child time should be correct", 8L, fetchChildren.get(1).getTime());
+
+            NetworkTime networkTime = mergedProfile.getNetworkTime();
+            assertNotNull("Network time should be preserved", networkTime);
+            assertEquals("Inbound network time should be from query phase", 5L, networkTime.getInboundNetworkTime());
+            assertEquals("Outbound network time should be from query phase", 10L, networkTime.getOutboundNetworkTime());
+        }
+    }
+
+    public void testMergeFetchProfilesWithNullQueryProfiles() {
+        // Test that the caller properly handles null queryProfiles
+        SearchPhaseController searchPhaseController = new SearchPhaseController(
+            writableRegistry(),
+            r -> InternalAggregationTestCase.emptyReduceContextBuilder()
+        );
+
+        // Create some fetch results (though they won't be used since queryProfiles is null)
+        List<SearchPhaseResult> fetchResults = new ArrayList<>();
+        FetchSearchResult fetchResult = new FetchSearchResult();
+        fetchResults.add(fetchResult);
+
+        // The caller should handle null queryProfiles and not call mergeFetchProfiles
+        // This simulates what happens in buildResponse when shardResults is null
+        SearchProfileShardResults mergedProfiles = null != null ? searchPhaseController.mergeFetchProfiles(null, fetchResults) : null;
+
+        assertNull("Merged profiles should be null when queryProfiles is null", mergedProfiles);
     }
 
     /**
@@ -410,7 +681,11 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
                 clusterAlias,
                 OriginalIndices.NONE
             );
-            QuerySearchResult querySearchResult = new QuerySearchResult(new ShardSearchContextId("", shardIndex), searchShardTarget, null);
+            QuerySearchResult querySearchResult = new QuerySearchResult(
+                new ShardSearchContextId("", shardIndex),
+                searchShardTarget,
+                createMockShardSearchRequest()
+            );
             final TopDocs topDocs;
             float maxScore = 0;
             if (searchHitsSize == 0) {
@@ -452,9 +727,97 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             querySearchResult.size(searchHitsSize);
             querySearchResult.suggest(new Suggest(new ArrayList<>(shardSuggestion)));
             querySearchResult.setShardIndex(shardIndex);
+
+            // Add query profile data
+            List<ProfileResult> queryChildren = Arrays.asList(
+                new ProfileResult(
+                    "TermQuery",
+                    "field:value",
+                    Collections.emptyMap(),
+                    Collections.emptyMap(),
+                    randomIntBetween(10, 20),
+                    Collections.emptyList()
+                ),
+                new ProfileResult(
+                    "BooleanQuery",
+                    "must clauses",
+                    Collections.emptyMap(),
+                    Collections.emptyMap(),
+                    randomIntBetween(15, 30),
+                    Collections.emptyList()
+                )
+            );
+            ProfileResult mainQuery = new ProfileResult(
+                "BooleanQuery",
+                "main query",
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                randomIntBetween(50, 100),
+                queryChildren
+            );
+
+            List<CollectorResult> collectorChildren = Arrays.asList(
+                new CollectorResult("SimpleTopScoreDocCollector", "collecting docs", randomIntBetween(20, 40), Collections.emptyList())
+            );
+            CollectorResult collectorResult = new CollectorResult(
+                "TotalHitCountCollector",
+                "counting hits",
+                randomIntBetween(30, 60),
+                collectorChildren
+            );
+
+            QueryProfileShardResult queryShardResult = new QueryProfileShardResult(
+                Arrays.asList(mainQuery),
+                randomIntBetween(5, 15), // rewrite time
+                collectorResult
+            );
+
+            // Create aggregation profile
+            List<ProfileResult> aggChildren = Arrays.asList(
+                new ProfileResult(
+                    "TermsAggregator",
+                    "terms on field",
+                    Collections.emptyMap(),
+                    Collections.emptyMap(),
+                    randomIntBetween(25, 50),
+                    Collections.emptyList()
+                )
+            );
+            ProfileResult aggProfile = new ProfileResult(
+                "GlobalAggregator",
+                "global agg",
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                randomIntBetween(40, 80),
+                aggChildren
+            );
+            AggregationProfileShardResult aggResults = new AggregationProfileShardResult(Arrays.asList(aggProfile));
+
+            // Create empty fetch profile (will be replaced by merge)
+            FetchProfileShardResult emptyFetchResults = new FetchProfileShardResult(Collections.emptyList());
+
+            ProfileShardResult profileShardResult = new ProfileShardResult(
+                Arrays.asList(queryShardResult),
+                aggResults,
+                emptyFetchResults,
+                new NetworkTime(randomIntBetween(2, 8), randomIntBetween(3, 10))
+            );
+
+            querySearchResult.profileResults(profileShardResult);
+
             queryResults.set(shardIndex, querySearchResult);
         }
         return queryResults;
+    }
+
+    // Helper method to create a mock ShardSearchRequest for testing
+    private static ShardSearchRequest createMockShardSearchRequest() {
+        // Create a minimal mock ShardSearchRequest with network timing
+        ShardSearchRequest request = new ShardSearchRequest(new ShardId("test", "test", 0), System.currentTimeMillis(), AliasFilter.EMPTY);
+        // Set network timing
+        request.setInboundNetworkTime(randomIntBetween(1, 5));
+        request.setOutboundNetworkTime(randomIntBetween(1, 5));
+        return request;
     }
 
     private static AtomicArray<SearchPhaseResult> generateQueryResultsWithIntSortedField(
@@ -635,6 +998,46 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             }
             SearchHit[] hits = searchHits.toArray(new SearchHit[0]);
             fetchSearchResult.hits(new SearchHits(hits, new TotalHits(hits.length, Relation.EQUAL_TO), maxScore));
+
+            // Add fetch profile data
+            List<ProfileResult> fetchChildren = Arrays.asList(
+                new ProfileResult(
+                    "LoadStoredFields",
+                    "loading _source",
+                    Collections.emptyMap(),
+                    Collections.emptyMap(),
+                    randomIntBetween(5, 15),
+                    Collections.emptyList()
+                ),
+                new ProfileResult(
+                    "LoadDocValues",
+                    "loading doc values",
+                    Collections.emptyMap(),
+                    Collections.emptyMap(),
+                    randomIntBetween(3, 10),
+                    Collections.emptyList()
+                )
+            );
+            ProfileResult fetchPhase = new ProfileResult(
+                "FetchPhase",
+                "fetch documents",
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                randomIntBetween(20, 40),
+                fetchChildren
+            );
+
+            FetchProfileShardResult fetchProfileShardResult = new FetchProfileShardResult(Arrays.asList(fetchPhase));
+
+            ProfileShardResult fetchProfileResult = new ProfileShardResult(
+                Collections.emptyList(), // no query results in fetch
+                new AggregationProfileShardResult(Collections.emptyList()), // no agg results in fetch
+                fetchProfileShardResult,
+                new NetworkTime(randomIntBetween(1, 3), randomIntBetween(1, 3))
+            );
+
+            fetchSearchResult.profileResults(fetchProfileResult);
+
             fetchResults.set(shardIndex, fetchSearchResult);
         }
         return fetchResults;
@@ -662,7 +1065,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
         request.setBatchedReduceSize(bufferSize);
-        ArraySearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
             fixedExecutor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             SearchProgressListener.NOOP,
@@ -731,18 +1134,17 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             result.setSearchShardTarget(new SearchShardTarget("node", new ShardId("a", "b", shardId), null, OriginalIndices.NONE));
             consumer.consumeResult(result, latch::countDown);
             numEmptyResponses--;
-
         }
         latch.await();
         final int numTotalReducePhases;
         if (numShards > bufferSize) {
             if (bufferSize == 2) {
-                assertEquals(1, ((QueryPhaseResultConsumer) consumer).getNumReducePhases());
+                assertEquals(1, consumer.getNumReducePhases());
                 assertEquals(1, reductions.size());
                 assertEquals(false, reductions.get(0));
                 numTotalReducePhases = 2;
             } else {
-                assertEquals(0, ((QueryPhaseResultConsumer) consumer).getNumReducePhases());
+                assertEquals(0, consumer.getNumReducePhases());
                 assertEquals(0, reductions.size());
                 numTotalReducePhases = 1;
             }
@@ -1307,11 +1709,8 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
 
     private void testReduceCase(boolean shouldFail) throws Exception {
         int expectedNumResults = randomIntBetween(20, 200);
-        int bufferSize = randomIntBetween(2, expectedNumResults - 1);
-        SearchRequest request = new SearchRequest();
-
-        request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
-        request.setBatchedReduceSize(bufferSize);
+        int batchedReduceSize = randomIntBetween(2, expectedNumResults - 1);
+        SearchRequest request = getAggregationSearchRequestWithBatchedReduceSize(batchedReduceSize);
         AtomicBoolean hasConsumedFailure = new AtomicBoolean();
         AssertingCircuitBreaker circuitBreaker = new AssertingCircuitBreaker(CircuitBreaker.REQUEST);
         boolean shouldFailPartial = shouldFail && randomBoolean();
@@ -1326,34 +1725,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
             expectedNumResults,
             exc -> hasConsumedFailure.set(true)
         );
-        CountDownLatch latch = new CountDownLatch(expectedNumResults);
-        Thread[] threads = new Thread[expectedNumResults];
-        for (int i = 0; i < expectedNumResults; i++) {
-            final int index = i;
-            threads[index] = new Thread(() -> {
-                QuerySearchResult result = new QuerySearchResult(
-                    new ShardSearchContextId(UUIDs.randomBase64UUID(), index),
-                    new SearchShardTarget("node", new ShardId("a", "b", index), null, OriginalIndices.NONE),
-                    null
-                );
-                result.topDocs(
-                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
-                    new DocValueFormat[0]
-                );
-                InternalAggregations aggs = InternalAggregations.from(
-                    Collections.singletonList(new InternalMax("test", 0d, DocValueFormat.RAW, Collections.emptyMap()))
-                );
-                result.aggregations(aggs);
-                result.setShardIndex(index);
-                result.size(1);
-                consumer.consumeResult(result, latch::countDown);
-            });
-            threads[index].start();
-        }
-        for (int i = 0; i < expectedNumResults; i++) {
-            threads[i].join();
-        }
-        latch.await();
+        consumeShardLevelQueryPhaseResultsAsync(expectedNumResults, consumer);
         if (shouldFail) {
             if (shouldFailPartial == false) {
                 circuitBreaker.shouldBreak.set(true);
@@ -1369,6 +1741,102 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         assertThat(circuitBreaker.allocated, equalTo(0L));
     }
 
+    public void testCancellationWithoutCircuitBreaker() throws Exception {
+        int expectedNumResults = randomIntBetween(20, 200);
+        int batchedReduceSize = randomIntBetween(2, expectedNumResults - 1);
+        SearchRequest request = getAggregationSearchRequestWithBatchedReduceSize(batchedReduceSize);
+        AssertingCircuitBreaker circuitBreaker = new AssertingCircuitBreaker(CircuitBreaker.REQUEST);
+        // To make it deterministic, we can count the number of times the partialReduce and reduce are called
+        // The exception is only thrown during the call to reduce which will happen once all shard level
+        // results have arrived
+        int partialReduceMethodCallCount = expectedNumResults / batchedReduceSize;
+        AtomicInteger checkCount = new AtomicInteger(expectedNumResults + partialReduceMethodCallCount);
+
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+            fixedExecutor,
+            circuitBreaker,
+            SearchProgressListener.NOOP,
+            request,
+            expectedNumResults,
+            exc -> {},
+            () -> {
+                return checkCount.decrementAndGet() <= 0;
+            }
+        );
+
+        consumeShardLevelQueryPhaseResultsAsync(expectedNumResults, consumer);
+
+        assertThrows(TaskCancelledException.class, consumer::reduce);
+    }
+
+    public void testCancellationDoesNotMaskCircuitBreakerException() throws Exception {
+        int expectedNumResults = randomIntBetween(20, 200);
+        int batchedReduceSize = randomIntBetween(2, expectedNumResults - 1);
+        SearchRequest request = getAggregationSearchRequestWithBatchedReduceSize(batchedReduceSize);
+        AssertingCircuitBreaker circuitBreaker = new AssertingCircuitBreaker(CircuitBreaker.REQUEST);
+
+        // making sure circuit breaker trips first
+        circuitBreaker.shouldBreak.set(true);
+        int partialReduceMethodCallCount = expectedNumResults / batchedReduceSize;
+        AtomicInteger checkCount = new AtomicInteger(expectedNumResults + partialReduceMethodCallCount);
+        QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(
+            fixedExecutor,
+            circuitBreaker,
+            SearchProgressListener.NOOP,
+            request,
+            expectedNumResults,
+            exc -> {},
+            () -> {
+                return checkCount.decrementAndGet() <= 0;
+            }
+        );
+
+        consumeShardLevelQueryPhaseResultsAsync(expectedNumResults, consumer);
+
+        assertThrows(CircuitBreakingException.class, () -> consumer.reduce());
+    }
+
+    private static SearchRequest getAggregationSearchRequestWithBatchedReduceSize(int batchedReduceSize) {
+        SearchRequest request = new SearchRequest();
+
+        request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
+        request.setBatchedReduceSize(batchedReduceSize);
+        return request;
+    }
+
+    private static void consumeShardLevelQueryPhaseResultsAsync(int expectedNumResults, QueryPhaseResultConsumer consumer)
+        throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(expectedNumResults);
+        Thread[] threads = new Thread[expectedNumResults];
+        for (int i = 0; i < expectedNumResults; i++) {
+            final int index = i;
+            threads[index] = new Thread(() -> {
+                QuerySearchResult result = new QuerySearchResult(
+                    new ShardSearchContextId(UUIDs.randomBase64UUID(), index),
+                    new SearchShardTarget("node", new ShardId("a", "b", index), null, OriginalIndices.NONE),
+                    null
+                );
+                result.topDocs(
+                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
+                    new DocValueFormat[0]
+                );
+                InternalAggregations aggs = InternalAggregations.from(
+                    Collections.singletonList(new InternalMax("test", 0d, DocValueFormat.RAW, Collections.emptyMap()))
+                );
+                result.aggregations(aggs);
+                result.setShardIndex(index);
+                result.size(1);
+
+                consumer.consumeResult(result, latch::countDown);
+            });
+            threads[index].start();
+        }
+        for (int i = 0; i < expectedNumResults; i++) {
+            threads[i].join();
+        }
+        latch.await();
+    }
+
     private static class AssertingCircuitBreaker extends NoopCircuitBreaker {
         private final AtomicBoolean shouldBreak = new AtomicBoolean(false);
 
@@ -1380,7 +1848,7 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
 
         @Override
         public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-            assert bytes >= 0;
+            assert bytes >= 0 : bytes + " is less than 0";
             if (shouldBreak.get()) {
                 throw new CircuitBreakingException(label, getDurability());
             }

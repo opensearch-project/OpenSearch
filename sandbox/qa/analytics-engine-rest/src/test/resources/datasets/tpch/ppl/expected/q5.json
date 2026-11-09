@@ -1,0 +1,15 @@
+{
+  "schema" : [
+    {
+      "name" : "n_name",
+      "type" : "string"
+    },
+    {
+      "name" : "revenue",
+      "type" : "double"
+    }
+  ],
+  "total" : 0,
+  "datarows" : [ ],
+  "size" : 0
+}

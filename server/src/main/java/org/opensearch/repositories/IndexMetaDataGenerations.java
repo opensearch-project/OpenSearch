@@ -42,6 +42,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -96,7 +97,7 @@ public final class IndexMetaDataGenerations {
     /**
      * Get the blob id by {@link SnapshotId} and {@link IndexId}. If none is found, we fall back to the value
      * of {@link SnapshotId#getUUID()} to allow for extended backwards compatibility use-cases with
-     * {@link org.opensearch.LegacyESVersion} versions which used the snapshot UUID as the index metadata blob id.
+     * versions which used the snapshot UUID as the index metadata blob id.
      *
      * @param snapshotId Snapshot Id
      * @param indexId    Index Id
@@ -152,8 +153,14 @@ public final class IndexMetaDataGenerations {
         final Map<SnapshotId, Map<IndexId, String>> updatedIndexMetaLookup = new HashMap<>(lookup);
         updatedIndexMetaLookup.keySet().removeAll(snapshotIds);
         final Map<String, String> updatedIndexMetaIdentifiers = new HashMap<>(identifiers);
-        updatedIndexMetaIdentifiers.keySet()
-            .removeIf(k -> updatedIndexMetaLookup.values().stream().noneMatch(identifiers -> identifiers.containsValue(k)));
+        // Collect the identifiers referenced by the remaining snapshots once, instead of re-scanning every remaining
+        // snapshot's lookup map for each identifier, which is quadratic in the number of tracked index metadata entries
+        // and dominates snapshot deletion time on repositories with a large number of snapshots and indices.
+        final Set<String> referencedIdentifiers = updatedIndexMetaLookup.values()
+            .stream()
+            .flatMap(m -> m.values().stream())
+            .collect(Collectors.toSet());
+        updatedIndexMetaIdentifiers.keySet().retainAll(referencedIdentifiers);
         return new IndexMetaDataGenerations(updatedIndexMetaLookup, updatedIndexMetaIdentifiers);
     }
 
@@ -167,10 +174,9 @@ public final class IndexMetaDataGenerations {
         if (this == that) {
             return true;
         }
-        if (that instanceof IndexMetaDataGenerations == false) {
+        if (!(that instanceof IndexMetaDataGenerations other)) {
             return false;
         }
-        final IndexMetaDataGenerations other = (IndexMetaDataGenerations) that;
         return lookup.equals(other.lookup) && identifiers.equals(other.identifiers);
     }
 

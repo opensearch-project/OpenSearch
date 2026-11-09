@@ -45,12 +45,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.opensearch.tasks.TaskResultsService.TASK_INDEX;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -130,6 +133,11 @@ public class SystemIndicesTests extends OpenSearchTestCase {
         assertTrue(systemIndices.isSystemIndex(".tasks"));
         assertTrue(systemIndices.isSystemIndex(".tasks1"));
         assertTrue(systemIndices.isSystemIndex(".tasks-old"));
+        assertTrue(
+            SystemIndexRegistry.matchesSystemIndexDescriptor(Set.of(".tasks"))
+                .stream()
+                .anyMatch(UnrestrictedSystemIndexDescriptor.class::isInstance)
+        );
     }
 
     public void testPluginCannotOverrideBuiltInSystemIndex() {
@@ -189,6 +197,19 @@ public class SystemIndicesTests extends OpenSearchTestCase {
             equalTo(Set.of(".system-index1", ".system-index-pattern1"))
         );
         assertThat(SystemIndexRegistry.matchesSystemIndexPattern(Set.of(".not-system")), equalTo(Collections.emptySet()));
+
+        assertThat(
+            SystemIndexRegistry.matchesSystemIndexDescriptor(Set.of(".system-index1", ".system-index2")),
+            containsInAnyOrder(
+                Stream.concat(
+                    plugin1.getSystemIndexDescriptors(Settings.EMPTY).stream(),
+                    plugin2.getSystemIndexDescriptors(Settings.EMPTY).stream()
+                ).toArray()
+            )
+        );
+
+        assertTrue(SystemIndexRegistry.matchesSystemIndexPattern(".system-index1"));
+        assertFalse(SystemIndexRegistry.matchesSystemIndexPattern(".not-system-index"));
     }
 
     public void testRegisteredSystemIndexGetAllDescriptors() {
@@ -259,6 +280,18 @@ public class SystemIndicesTests extends OpenSearchTestCase {
             Set.of("other-index")
         );
         assertEquals(0, noMatchingSystemIndices.size());
+
+        Predicate<String> plugin1systemIndexPredicate = SystemIndexRegistry.getPluginSystemIndexPredicate(
+            SystemIndexPlugin1.class.getCanonicalName()
+        );
+        assertTrue(plugin1systemIndexPredicate.test(SystemIndexPlugin1.SYSTEM_INDEX_1));
+        assertFalse(plugin1systemIndexPredicate.test(SystemIndexPlugin2.SYSTEM_INDEX_2));
+        assertFalse(plugin1systemIndexPredicate.test("unknown"));
+
+        Predicate<String> unknownPluginSystemIndexPredicate = SystemIndexRegistry.getPluginSystemIndexPredicate("unknown_plugin");
+        assertFalse(unknownPluginSystemIndexPredicate.test(SystemIndexPlugin1.SYSTEM_INDEX_1));
+        assertFalse(unknownPluginSystemIndexPredicate.test(SystemIndexPlugin2.SYSTEM_INDEX_2));
+        assertFalse(unknownPluginSystemIndexPredicate.test("unknown"));
     }
 
     static final class SystemIndexPlugin1 extends Plugin implements SystemIndexPlugin {

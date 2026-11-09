@@ -761,7 +761,7 @@ class ClusterFormationTasks {
         start.doLast(opensearchRunner)
         start.doFirst {
             // If the node runs in a FIPS 140-2 JVM, the BCFKS default keystore will be password protected
-            if (BuildParams.inFipsJvm) {
+            if (BuildParams.isInFipsJvm()) {
                 node.config.systemProperties.put('javax.net.ssl.trustStorePassword', 'password')
                 node.config.systemProperties.put('javax.net.ssl.keyStorePassword', 'password')
             }

@@ -62,7 +62,10 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksResponse> {
 
     public void testEmptyToString() {
-        assertEquals("{\n" + "  \"tasks\" : [ ]\n" + "}", new ListTasksResponse(null, null, null).toString());
+        assertEquals("""
+            {
+              "tasks" : [ ]
+            }""", new ListTasksResponse(null, null, null).toString());
     }
 
     public void testNonEmptyToString() {
@@ -86,42 +89,40 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
             0L
         );
         ListTasksResponse tasksResponse = new ListTasksResponse(singletonList(info), emptyList(), emptyList());
-        assertEquals(
-            "{\n"
-                + "  \"tasks\" : [\n"
-                + "    {\n"
-                + "      \"node\" : \"node1\",\n"
-                + "      \"id\" : 1,\n"
-                + "      \"type\" : \"dummy-type\",\n"
-                + "      \"action\" : \"dummy-action\",\n"
-                + "      \"description\" : \"dummy-description\",\n"
-                + "      \"start_time\" : \"1970-01-01T00:00:00.000Z\",\n"
-                + "      \"start_time_in_millis\" : 0,\n"
-                + "      \"running_time\" : \"1nanos\",\n"
-                + "      \"running_time_in_nanos\" : 1,\n"
-                + "      \"cancellable\" : true,\n"
-                + "      \"cancelled\" : false,\n"
-                + "      \"parent_task_id\" : \"node1:0\",\n"
-                + "      \"headers\" : {\n"
-                + "        \"foo\" : \"bar\"\n"
-                + "      },\n"
-                + "      \"resource_stats\" : {\n"
-                + "        \"dummy-type1\" : {\n"
-                + "          \"cpu_time_in_nanos\" : 100,\n"
-                + "          \"memory_in_bytes\" : 100\n"
-                + "        },\n"
-                + "        \"thread_info\" : {\n"
-                + "          \"thread_executions\" : 10,\n"
-                + "          \"active_threads\" : 10\n"
-                + "        }\n"
-                + "      },\n"
-                + "      \"cancellation_time\" : \"0s\",\n"
-                + "      \"cancellation_time_millis\" : 0\n"
-                + "    }\n"
-                + "  ]\n"
-                + "}",
-            tasksResponse.toString()
-        );
+        assertEquals("""
+            {
+              "tasks" : [
+                {
+                  "node" : "node1",
+                  "id" : 1,
+                  "type" : "dummy-type",
+                  "action" : "dummy-action",
+                  "description" : "dummy-description",
+                  "start_time" : "1970-01-01T00:00:00.000Z",
+                  "start_time_in_millis" : 0,
+                  "running_time" : "1nanos",
+                  "running_time_in_nanos" : 1,
+                  "cancellable" : true,
+                  "cancelled" : false,
+                  "parent_task_id" : "node1:0",
+                  "headers" : {
+                    "foo" : "bar"
+                  },
+                  "resource_stats" : {
+                    "dummy-type1" : {
+                      "cpu_time_in_nanos" : 100,
+                      "memory_in_bytes" : 100
+                    },
+                    "thread_info" : {
+                      "thread_executions" : 10,
+                      "active_threads" : 10
+                    }
+                  },
+                  "cancellation_time" : "0s",
+                  "cancellation_time_millis" : 0
+                }
+              ]
+            }""", tasksResponse.toString());
     }
 
     @Override

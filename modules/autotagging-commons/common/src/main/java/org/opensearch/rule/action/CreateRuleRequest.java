@@ -49,14 +49,7 @@ public class CreateRuleRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        try {
-            rule.getFeatureType().getFeatureValueValidator().validate(rule.getFeatureValue());
-            return null;
-        } catch (Exception e) {
-            ActionRequestValidationException validationException = new ActionRequestValidationException();
-            validationException.addValidationError("Validation failed: " + e.getMessage());
-            return validationException;
-        }
+        return null;
     }
 
     @Override

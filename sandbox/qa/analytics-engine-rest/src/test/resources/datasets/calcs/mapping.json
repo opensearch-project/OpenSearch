@@ -1,0 +1,98 @@
+{
+    "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0
+    },
+    "mappings" : {
+        "properties" : {
+            "key" : {
+                "type" : "keyword"
+            },
+            "num0" : {
+                "type" : "double"
+            },
+            "num1" : {
+                "type" : "double"
+            },
+            "num2" : {
+                "type" : "double"
+            },
+            "num3" : {
+                "type" : "double"
+            },
+            "num4" : {
+                "type" : "double"
+            },
+            "str0" : {
+                "type" : "keyword"
+            },
+            "str1" : {
+                "type" : "keyword"
+            },
+            "str2" : {
+                "type" : "keyword"
+            },
+            "str3" : {
+                "type" : "keyword"
+            },
+            "int0" : {
+                "type" : "integer"
+            },
+            "int1" : {
+                "type" : "integer"
+            },
+            "int2" : {
+                "type" : "integer"
+            },
+            "int3" : {
+                "type" : "integer"
+            },
+            "bool0" : {
+                "type" : "boolean"
+            },
+            "bool1" : {
+                "type" : "boolean"
+            },
+            "bool2" : {
+                "type" : "boolean"
+            },
+            "bool3" : {
+                "type" : "boolean"
+            },
+            "date0" : {
+                "type" : "date",
+                "format": "year_month_day"
+            },
+            "date1" : {
+                "type" : "date",
+                "format": "year_month_day"
+            },
+            "date2" : {
+                "type" : "date",
+                "format": "year_month_day"
+            },
+            "date3" : {
+                "type" : "date",
+                "format": "year_month_day"
+            },
+            "time0" : {
+                "type" : "date",
+                "format": "date_time_no_millis"
+            },
+            "time1" : {
+                "type" : "date",
+                "format": "hour_minute_second"
+            },
+            "datetime0" : {
+                "type" : "date",
+                "format": "date_time_no_millis"
+            },
+            "datetime1" : {
+                "type" : "date"
+            },
+            "zzz" : {
+                "type" : "keyword"
+            }
+        }
+    }
+}

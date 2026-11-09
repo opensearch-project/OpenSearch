@@ -307,5 +307,4 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
     }
-
 }

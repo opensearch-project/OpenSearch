@@ -1,0 +1,1 @@
+source=%INDEX% | eval r = case(amount < 11, 'low', amount < 21, 'mid' else 'high') | sort id | fields id, r

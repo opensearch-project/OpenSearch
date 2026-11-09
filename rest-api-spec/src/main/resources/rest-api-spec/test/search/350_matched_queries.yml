@@ -101,3 +101,101 @@ setup:
   - match: { hits.hits.0.matched_queries.match_field_2: 10 }
   - length: { hits.hits.1.matched_queries: 1 }
   - match: { hits.hits.1.matched_queries.match_field_1: 1 }
+
+---
+
+"named queries in rescore":
+  - skip:
+      version: " - 3.1.99"
+      reason: "named queries in rescore is supported in 3.2.0 and above"
+
+  - do:
+      indices.create:
+        index: test
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index" : { "_index" : "test_1", "_id" : "1" } }'
+          - '{"field" : 1, "title": "hello world" }'
+          - '{ "index" : { "_index" : "test_1", "_id" : "2" } }'
+          - '{"field" : 2, "title": "hello universe" }'
+
+  - do:
+      search:
+        index: test_1
+        body:
+          query:
+            match: {
+              field: {
+                query: 1,
+                _name: main_query
+              }
+            }
+          rescore:
+            window_size: 10
+            query:
+              rescore_query:
+                match: {
+                  title: {
+                    query: "hello",
+                    _name: rescore_query
+                  }
+                }
+              query_weight: 0.5
+              rescore_query_weight: 1.5
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits.0.matched_queries: 2 }
+  - match: { hits.hits.0.matched_queries: [ "main_query", "rescore_query" ] }
+
+---
+
+"named queries in rescore with scores":
+  - skip:
+      version: " - 3.1.99"
+      reason: "named queries in rescore is supported in 3.2.0 and above"
+
+  - do:
+      indices.create:
+        index: test
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index" : { "_index" : "test_1", "_id" : "1" } }'
+          - '{"field" : 1, "title": "hello world" }'
+          - '{ "index" : { "_index" : "test_1", "_id" : "2" } }'
+          - '{"field" : 2, "title": "hello universe" }'
+
+  - do:
+      search:
+        include_named_queries_score: true
+        index: test_1
+        body:
+          query:
+            match: {
+              field: {
+                query: 1,
+                _name: main_query
+              }
+            }
+          rescore:
+            window_size: 10
+            query:
+              rescore_query:
+                match: {
+                  title: {
+                    query: "hello",
+                    _name: rescore_query
+                  }
+                }
+              query_weight: 0.5
+              rescore_query_weight: 1.5
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits.0.matched_queries: 2 }
+  - gte: { hits.hits.0.matched_queries.main_query: 0.0 }
+  - gte: { hits.hits.0.matched_queries.rescore_query: 0.0 }

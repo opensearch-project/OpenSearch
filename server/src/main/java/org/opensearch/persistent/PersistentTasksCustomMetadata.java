@@ -34,7 +34,6 @@ package org.opensearch.persistent;
 
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.ResourceNotFoundException;
-import org.opensearch.Version;
 import org.opensearch.cluster.AbstractNamedDiffable;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.NamedDiff;
@@ -219,11 +218,6 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             .stream()
             .filter(task -> taskName.equals(task.taskName) && nodeId.equals(task.assignment.executorNode))
             .count();
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override

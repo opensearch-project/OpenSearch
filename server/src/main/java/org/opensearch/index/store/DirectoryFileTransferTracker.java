@@ -153,16 +153,15 @@ public class DirectoryFileTransferTracker {
     }
 
     public DirectoryFileTransferTracker.Stats stats() {
-        return new Stats(
-            transferredBytesStarted.get(),
-            transferredBytesFailed.get(),
-            transferredBytesSucceeded.get(),
-            lastTransferTimestampMs.get(),
-            totalTransferTimeInMs.get(),
-            transferredBytesMovingAverageReference.get().getAverage(),
-            lastSuccessfulTransferInBytes.get(),
-            transferredBytesPerSecMovingAverageReference.get().getAverage()
-        );
+        return new Stats.Builder().transferredBytesStarted(transferredBytesStarted.get())
+            .transferredBytesFailed(transferredBytesFailed.get())
+            .transferredBytesSucceeded(transferredBytesSucceeded.get())
+            .lastTransferTimestampMs(lastTransferTimestampMs.get())
+            .totalTransferTimeInMs(totalTransferTimeInMs.get())
+            .transferredBytesMovingAverage(transferredBytesMovingAverageReference.get().getAverage())
+            .lastSuccessfulTransferInBytes(lastSuccessfulTransferInBytes.get())
+            .transferredBytesPerSecMovingAverage(transferredBytesPerSecMovingAverageReference.get().getAverage())
+            .build();
     }
 
     /**
@@ -181,6 +180,27 @@ public class DirectoryFileTransferTracker {
         public final long lastSuccessfulTransferInBytes;
         public final double transferredBytesPerSecMovingAverage;
 
+        /**
+         * Private constructor that takes a builder.
+         * This is the sole entry point for creating a new Stats object.
+         * @param builder The builder instance containing all the values.
+         */
+        private Stats(Builder builder) {
+            this.transferredBytesStarted = builder.transferredBytesStarted;
+            this.transferredBytesFailed = builder.transferredBytesFailed;
+            this.transferredBytesSucceeded = builder.transferredBytesSucceeded;
+            this.lastTransferTimestampMs = builder.lastTransferTimestampMs;
+            this.totalTransferTimeInMs = builder.totalTransferTimeInMs;
+            this.transferredBytesMovingAverage = builder.transferredBytesMovingAverage;
+            this.lastSuccessfulTransferInBytes = builder.lastSuccessfulTransferInBytes;
+            this.transferredBytesPerSecMovingAverage = builder.transferredBytesPerSecMovingAverage;
+        }
+
+        /**
+         * This constructor will be deprecated starting in version 3.4.0.
+         * Use {@link Builder} instead.
+         */
+        @Deprecated
         public Stats(
             long transferredBytesStarted,
             long transferredBytesFailed,
@@ -210,6 +230,71 @@ public class DirectoryFileTransferTracker {
             this.transferredBytesMovingAverage = in.readDouble();
             this.lastSuccessfulTransferInBytes = in.readLong();
             this.transferredBytesPerSecMovingAverage = in.readDouble();
+        }
+
+        /**
+         * Builder for the {@link Stats} class.
+         * Provides a fluent API for constructing a Stats object.
+         */
+        public static class Builder {
+            private long transferredBytesStarted = 0;
+            private long transferredBytesFailed = 0;
+            private long transferredBytesSucceeded = 0;
+            private long lastTransferTimestampMs = 0;
+            private long totalTransferTimeInMs = 0;
+            private double transferredBytesMovingAverage = 0;
+            private long lastSuccessfulTransferInBytes = 0;
+            private double transferredBytesPerSecMovingAverage = 0;
+
+            public Builder() {}
+
+            public Builder transferredBytesStarted(long started) {
+                this.transferredBytesStarted = started;
+                return this;
+            }
+
+            public Builder transferredBytesFailed(long failed) {
+                this.transferredBytesFailed = failed;
+                return this;
+            }
+
+            public Builder transferredBytesSucceeded(long succeeded) {
+                this.transferredBytesSucceeded = succeeded;
+                return this;
+            }
+
+            public Builder lastTransferTimestampMs(long timestamp) {
+                this.lastTransferTimestampMs = timestamp;
+                return this;
+            }
+
+            public Builder totalTransferTimeInMs(long time) {
+                this.totalTransferTimeInMs = time;
+                return this;
+            }
+
+            public Builder transferredBytesMovingAverage(double average) {
+                this.transferredBytesMovingAverage = average;
+                return this;
+            }
+
+            public Builder lastSuccessfulTransferInBytes(long bytes) {
+                this.lastSuccessfulTransferInBytes = bytes;
+                return this;
+            }
+
+            public Builder transferredBytesPerSecMovingAverage(double average) {
+                this.transferredBytesPerSecMovingAverage = average;
+                return this;
+            }
+
+            /**
+             * Creates a {@link Stats} object from the builder's current state.
+             * @return A new Stats instance.
+             */
+            public Stats build() {
+                return new Stats(this);
+            }
         }
 
         @Override

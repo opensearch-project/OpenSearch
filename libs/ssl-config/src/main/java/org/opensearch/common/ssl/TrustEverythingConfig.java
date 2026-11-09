@@ -40,6 +40,7 @@ import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Locale;
 
 /**
  * A {@link SslTrustConfig} that trusts all certificates. Used when {@link SslVerificationMode#isCertificateVerificationEnabled()} is
@@ -90,6 +91,15 @@ final class TrustEverythingConfig implements SslTrustConfig {
 
     @Override
     public X509ExtendedTrustManager createTrustManager() {
+        if (KeyStoreUtil.IN_FIPS_MODE) {
+            var message = String.format(
+                Locale.ROOT,
+                "The use of %s is not permitted in FIPS mode. This issue may be caused by the '%s' setting.",
+                TRUST_EVERYTHING.getClass().getSimpleName(),
+                "ssl.verification_mode=NONE"
+            );
+            throw new IllegalStateException(message);
+        }
         return TRUST_MANAGER;
     }
 

@@ -282,8 +282,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 leastAvailableSpaceUsages = Collections.unmodifiableMap(leastAvailableUsagesBuilder);
                 mostAvailableSpaceUsages = Collections.unmodifiableMap(mostAvailableUsagesBuilder);
                 nodeFileCacheStats = Collections.unmodifiableMap(
-                    nodesStatsResponse.getNodes()
-                        .stream()
+                    adjustNodesStats(nodesStatsResponse.getNodes()).stream()
                         .filter(nodeStats -> nodeStats.getNode().isWarmNode())
                         .collect(Collectors.toMap(nodeStats -> nodeStats.getNode().getId(), NodeStats::getFileCacheStats))
                 );
@@ -509,9 +508,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 nodesResourceUsageStats = nodeStats.getResourceUsageStats();
                 Map<String, NodeResourceUsageStats> nodeResourceUsageStatsMap = nodesResourceUsageStats.getNodeIdToResourceUsageStatsMap();
                 if (nodeResourceUsageStatsMap != null && nodeResourceUsageStatsMap.containsKey(nodeId)) {
-                    newNodeResourceUsageStats.put(nodeId, nodesResourceUsageStats.getNodeIdToResourceUsageStatsMap().get(nodeId));
+                    newNodeResourceUsageStats.put(nodeId, nodeResourceUsageStatsMap.get(nodeId));
                 } else {
-                    logger.warn("No resource usage stats available for node: {}", nodeStats.getNode().getName());
+                    logger.debug("No resource usage stats available for node: {}", nodeStats.getNode().getName());
                 }
 
             }
@@ -570,8 +569,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         @Override
         public void onRejection(Exception e) {
-            final boolean shutDown = e instanceof OpenSearchRejectedExecutionException
-                && ((OpenSearchRejectedExecutionException) e).isExecutorShutdown();
+            final boolean shutDown = e instanceof OpenSearchRejectedExecutionException osre && osre.isExecutorShutdown();
             logger.log(shutDown ? Level.DEBUG : Level.WARN, "refreshing cluster info rejected [{}]", reason, e);
         }
     }

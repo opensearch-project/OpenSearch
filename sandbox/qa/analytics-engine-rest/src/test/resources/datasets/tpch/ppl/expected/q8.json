@@ -1,0 +1,24 @@
+{
+  "schema" : [
+    {
+      "name" : "o_year",
+      "type" : "int"
+    },
+    {
+      "name" : "mkt_share",
+      "type" : "double"
+    }
+  ],
+  "total" : 2,
+  "datarows" : [
+    [
+      1995,
+      0.0
+    ],
+    [
+      1996,
+      0.0
+    ]
+  ],
+  "size" : 2
+}

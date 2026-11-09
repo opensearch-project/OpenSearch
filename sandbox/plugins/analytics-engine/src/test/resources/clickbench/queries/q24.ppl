@@ -1,0 +1,7 @@
+/*
+SELECT * FROM hits WHERE URL LIKE '%google%' ORDER BY EventTime LIMIT 10;
+*/
+source=hits
+| where like(URL, '%google%', true)
+| sort EventTime
+| head 10

@@ -72,8 +72,8 @@ public class EarlyTerminatingCollectorManager<C extends Collector>
 
     @Override
     public void onEarlyTermination(int maxCountHits, boolean forcedTermination) {
-        if (manager instanceof EarlyTerminatingListener) {
-            ((EarlyTerminatingListener) manager).onEarlyTermination(maxCountHits, forcedTermination);
+        if (manager instanceof EarlyTerminatingListener earlyTerminatingListener) {
+            earlyTerminatingListener.onEarlyTermination(maxCountHits, forcedTermination);
         }
     }
 }

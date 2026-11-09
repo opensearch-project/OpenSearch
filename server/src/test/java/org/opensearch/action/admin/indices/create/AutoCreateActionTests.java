@@ -32,16 +32,30 @@
 
 package org.opensearch.action.admin.indices.create;
 
+import org.opensearch.action.support.ActionFilters;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.MetadataCreateDataStreamService;
+import org.opensearch.cluster.metadata.MetadataCreateIndexService;
+import org.opensearch.cluster.metadata.ResolvedIndices;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class AutoCreateActionTests extends OpenSearchTestCase {
 
@@ -81,6 +95,39 @@ public class AutoCreateActionTests extends OpenSearchTestCase {
         request = new CreateIndexRequest("my-index");
         result = AutoCreateAction.resolveAutoCreateDataStream(request, metadata);
         assertThat(result, nullValue());
+    }
+
+    public void testResolveIndices() {
+        Metadata.Builder mdBuilder = new Metadata.Builder();
+        DataStreamTemplate dataStreamTemplate = new DataStreamTemplate();
+        mdBuilder.put(
+            "1",
+            new ComposableIndexTemplate(Collections.singletonList("datastream-*"), null, null, 20L, null, null, dataStreamTemplate)
+        );
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        AutoCreateAction.TransportAction action = new AutoCreateAction.TransportAction(
+            mock(TransportService.class),
+            clusterService,
+            mock(ThreadPool.class),
+            mock(ActionFilters.class),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            mock(MetadataCreateIndexService.class),
+            mock(MetadataCreateDataStreamService.class)
+        );
+
+        ResolvedIndices resolvedIndices = action.resolveIndices(new CreateIndexRequest("<index-{now/d}>"));
+        assertTrue(
+            resolvedIndices.toString(),
+            resolvedIndices.local().containsAny(resolved -> resolved.matches("index-\\d+\\.\\d+\\.\\d+"))
+        );
+
+        resolvedIndices = action.resolveIndices(new CreateIndexRequest("datastream-test"));
+        assertEquals(ResolvedIndices.of("datastream-test"), resolvedIndices);
     }
 
 }

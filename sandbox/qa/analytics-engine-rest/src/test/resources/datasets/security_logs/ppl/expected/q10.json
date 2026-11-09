@@ -1,0 +1,48 @@
+{
+  "schema": [
+    {
+      "name": "blocked_count",
+      "type": "bigint"
+    },
+    {
+      "name": "unique_users",
+      "type": "bigint"
+    },
+    {
+      "name": "source_ip",
+      "type": "ip"
+    },
+    {
+      "name": "action",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      8,
+      5,
+      "10.0.0.100",
+      "blocked"
+    ],
+    [
+      8,
+      3,
+      "10.0.0.100",
+      "denied"
+    ],
+    [
+      8,
+      4,
+      "192.168.1.150",
+      "blocked"
+    ],
+    [
+      8,
+      5,
+      "192.168.1.150",
+      "denied"
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

@@ -1,0 +1,1 @@
+source=test_data | eval time_diff = timediff(time(timestamp), time('00:00:00')) | fields timestamp, time_diff | head 3

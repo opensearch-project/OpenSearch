@@ -44,7 +44,7 @@ public class CompletionsStatsTests extends OpenSearchTestCase {
 
     public void testSerialize() throws IOException {
         FieldMemoryStats map = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();
-        CompletionStats stats = new CompletionStats(randomNonNegativeLong(), map);
+        CompletionStats stats = new CompletionStats.Builder().sizeInBytes(randomNonNegativeLong()).fieldMemoryStats(map).build();
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);
         StreamInput input = out.bytes().streamInput();

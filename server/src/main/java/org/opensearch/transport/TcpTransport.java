@@ -150,7 +150,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
     private final OutboundHandler outboundHandler;
-    private final InboundHandler inboundHandler;
+    protected final InboundHandler inboundHandler;
     private final NativeOutboundHandler handshakerHandler;
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
     private final RequestHandlers requestHandlers = new RequestHandlers();
@@ -216,7 +216,39 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             )
         );
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
-        this.inboundHandler = new InboundHandler(
+        this.inboundHandler = createInboundHandler(
+            nodeName,
+            version,
+            features,
+            statsTracker,
+            threadPool,
+            bigArrays,
+            outboundHandler,
+            namedWriteableRegistry,
+            handshaker,
+            keepAlive,
+            requestHandlers,
+            responseHandlers,
+            tracer
+        );
+    }
+
+    protected InboundHandler createInboundHandler(
+        String nodeName,
+        Version version,
+        String[] features,
+        StatsTracker statsTracker,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        OutboundHandler outboundHandler,
+        NamedWriteableRegistry namedWriteableRegistry,
+        TransportHandshaker handshaker,
+        TransportKeepAlive keepAlive,
+        RequestHandlers requestHandlers,
+        ResponseHandlers responseHandlers,
+        Tracer tracer
+    ) {
+        return new InboundHandler(
             nodeName,
             version,
             features,
@@ -239,6 +271,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     public StatsTracker getStatsTracker() {
         return statsTracker;
+    }
+
+    public PageCacheRecycler getPageCacheRecycler() {
+        return pageCacheRecycler;
     }
 
     public ThreadPool getThreadPool() {
@@ -276,7 +312,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         private final boolean compress;
         private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
-        NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
+        public NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
             this.node = node;
             this.channels = Collections.unmodifiableList(channels);
             assert channels.size() == connectionProfile.getNumConnections() : "expected channels size to be == "
@@ -921,7 +957,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      *
      * @throws IllegalStateException if the transport is not started / open
      */
-    private void ensureOpen() {
+    protected void ensureOpen() {
         if (lifecycle.started() == false) {
             throw new IllegalStateException("transport has been stopped");
         }
@@ -934,14 +970,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final long messagesSent = statsTracker.getMessagesSent();
         final long messagesReceived = statsTracker.getMessagesReceived();
         final long bytesRead = statsTracker.getBytesRead();
-        return new TransportStats(
-            acceptedChannels.size(),
-            outboundConnectionCount.get(),
-            messagesReceived,
-            bytesRead,
-            messagesSent,
-            bytesWritten
-        );
+        return new TransportStats.Builder().serverOpen(acceptedChannels.size())
+            .totalOutboundConnections(outboundConnectionCount.get())
+            .rxCount(messagesReceived)
+            .rxSize(bytesRead)
+            .txCount(messagesSent)
+            .txSize(bytesWritten)
+            .build();
     }
 
     /**

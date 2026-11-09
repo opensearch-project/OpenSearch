@@ -1,0 +1,21 @@
+{
+  "schema": [
+    {
+      "name": "text",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "hello world test"
+    ],
+    [
+      "test example record"
+    ],
+    [
+      "another test case"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

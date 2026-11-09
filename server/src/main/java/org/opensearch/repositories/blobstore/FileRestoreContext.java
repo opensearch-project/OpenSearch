@@ -205,7 +205,7 @@ public abstract class FileRestoreContext {
         }
         // read the snapshot data persisted
         try {
-            Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory());
+            Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory(), store.shouldSetParentField());
         } catch (IOException e) {
             throw new IndexShardRestoreFailedException(shardId, "Failed to fetch index version after copying it over", e);
         }

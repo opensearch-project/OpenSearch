@@ -16,7 +16,7 @@ public class RangeTests extends OpenSearchTestCase {
     public void testDefaultConstructor() {
         Range range = new Range();
         assertEquals(Version.fromString("0.0.0"), range.getLowerBound());
-        assertEquals(Version.fromString("999.999.999"), range.getUpperBound());
+        assertEquals(Version.fromString("99.99.99"), range.getUpperBound());
         assertTrue(range.isIncludeLower());
         assertTrue(range.isIncludeUpper());
 

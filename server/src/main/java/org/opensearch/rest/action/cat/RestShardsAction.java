@@ -54,6 +54,7 @@ import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.get.GetStats;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergedSegmentWarmerStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.seqno.SeqNoStats;
@@ -70,6 +71,7 @@ import org.opensearch.transport.client.node.NodeClient;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Arrays.asList;
@@ -122,6 +124,7 @@ public class RestShardsAction extends AbstractListAction {
         shardsRequest.setIndices(indices);
         shardsRequest.setRequestLimitCheckSupported(isRequestLimitCheckSupported());
         shardsRequest.setPageParams(pageParams);
+        shardsRequest.setIndicesStatsRequired(requestNeedsIndicesStats(request));
         parseDeprecatedMasterTimeoutParameter(shardsRequest, request, deprecationLogger, getName());
         return channel -> client.execute(CatShardsAction.INSTANCE, shardsRequest, new RestResponseListener<CatShardsResponse>(channel) {
             @Override
@@ -138,6 +141,125 @@ public class RestShardsAction extends AbstractListAction {
                 );
             }
         });
+    }
+
+    /**
+     * Canonical names and aliases for shard columns that are derivable purely from cluster state
+     * (ShardRouting + DiscoveryNodes + UnassignedInfo). These do NOT require a per-shard
+     * IndicesStats broadcast.
+     *
+     * INVARIANT: every entry here must be a real column name or alias defined in
+     * {@link #getTableWithHeader(RestRequest)} AND must be derivable purely from cluster state /
+     * routing (i.e. it must NOT require the IndicesStats fan-out). If a routing-only column is added
+     * to the table but not added here, it silently falls out of the fast path (a performance
+     * regression, not a correctness bug). The guard test
+     * {@code RestShardsActionTests#testRoutingOnlyColumnsAreValidTableColumns} fails loudly if any
+     * entry here stops matching a real table column/alias, catching typos, renames and removals.
+     */
+    static final Set<String> ROUTING_ONLY_COLUMNS = Set.of(
+        // index
+        "index",
+        "i",
+        "idx",
+        // shard
+        "shard",
+        "s",
+        "sh",
+        // prirep
+        "prirep",
+        "p",
+        "pr",
+        "primaryOrReplica",
+        // state
+        "state",
+        "st",
+        // node identity
+        "ip",
+        "id",
+        "node",
+        "n",
+        // unassigned info
+        "unassigned.reason",
+        "ur",
+        "unassigned.at",
+        "ua",
+        "unassigned.for",
+        "uf",
+        "unassigned.details",
+        "ud",
+        // recovery source type (derived from ShardRouting.recoverySource)
+        "recoverysource.type",
+        "rs"
+    );
+
+    /**
+     * Returns true if the IndicesStats broadcast is required to build the response. The fast path
+     * (false) applies only when:
+     * <ul>
+     *   <li>h= is explicitly set (the default header set includes 'docs' and 'store' which need stats)</li>
+     *   <li>every token in h= matches a routing-only column (no wildcards, no stats columns)</li>
+     *   <li>s= (if set) only references routing-only columns</li>
+     * </ul>
+     * In all other cases we err on the side of correctness and fetch stats as today.
+     *
+     * Package-private for testing.
+     */
+    static boolean requestNeedsIndicesStats(RestRequest request) {
+        // Non-consuming read: this runs pre-dispatch, and h is consumed later during response
+        // rendering (buildDisplayHeaders). Matches the non-consuming access in RestTable.buildResponse.
+        String hParam = request.params().get("h");
+        if (hParam == null || hParam.isEmpty()) {
+            return true; // default headers include stats columns
+        }
+        for (String token : Strings.splitStringByCommaToArray(hParam)) {
+            if (isRoutingOnlyToken(token) == false) {
+                return true;
+            }
+        }
+        String sParam = request.param("s");
+        if (sParam != null && sParam.isEmpty() == false) {
+            for (String token : Strings.splitStringByCommaToArray(sParam)) {
+                // strip :asc / :desc direction suffix before checking (case-insensitive, whitespace-tolerant)
+                if (isRoutingOnlyToken(stripSortDirection(token)) == false) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isRoutingOnlyToken(String token) {
+        if (token == null) return false;
+        String trimmed = token.trim();
+        if (trimmed.isEmpty()) return false;
+        // Wildcards conservatively force the slow path — we don't expand them here.
+        if (trimmed.indexOf('*') >= 0 || trimmed.indexOf('?') >= 0) return false;
+        return ROUTING_ONLY_COLUMNS.contains(trimmed);
+    }
+
+    /**
+     * Strip a trailing sort-direction suffix ({@code :asc} / {@code :desc}, case-insensitive and
+     * whitespace-tolerant) from a {@code s=} token, returning the bare column name. The cut point is
+     * derived from the token itself (the last {@code :}), so it never relies on the lower-cased copy
+     * having the same length as the original; {@code _cat} column names never contain {@code :}.
+     * Returns the trimmed token unchanged when no direction suffix is present, and an empty string
+     * for a null or direction-only token (which then conservatively forces the stats fetch).
+     *
+     * Package-private for testing.
+     */
+    static String stripSortDirection(String token) {
+        if (token == null) {
+            return "";
+        }
+        String trimmed = token.trim();
+        int colon = trimmed.lastIndexOf(':');
+        if (colon >= 0) {
+            String direction = trimmed.substring(colon + 1).trim().toLowerCase(Locale.ROOT);
+            if (direction.equals("asc") || direction.equals("desc")) {
+                return trimmed.substring(0, colon).trim();
+            }
+        }
+        return trimmed;
     }
 
     @Override
@@ -214,6 +336,39 @@ public class RestShardsAction extends AbstractListAction {
         table.addCell("merges.total_size", "alias:mts,mergesTotalSize;default:false;text-align:right;desc:size merged");
         table.addCell("merges.total_time", "alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges");
 
+        table.addCell(
+            "merges.warmer.total_invocations",
+            "alias:mswti,mergedSegmentWarmerTotalInvocations;default:false;text-align:right;desc:total invocations of merged segment warmer"
+        );
+        table.addCell(
+            "merges.warmer.total_time",
+            "alias:mswtt,mergedSegmentWarmerTotalTime;default:false;text-align:right;desc:total wallclock time spent in the warming operation"
+        );
+        table.addCell(
+            "merges.warmer.ongoing_count",
+            "alias:mswoc,mergedSegmentWarmerOngoingCount;default:false;text-align:right;desc:point-in-time metric for number of in-progress warm operations"
+        );
+        table.addCell(
+            "merges.warmer.total_bytes_received",
+            "alias:mswtbr,mergedSegmentWarmerTotalBytesReceived;default:false;text-align:right;desc:total bytes received by a replica shard during the warm operation"
+        );
+        table.addCell(
+            "merges.warmer.total_bytes_sent",
+            "alias:mswtbs,mergedSegmentWarmerTotalBytesSent;default:false;text-align:right;desc:total bytes sent by a primary shard during the warm operation"
+        );
+        table.addCell(
+            "merges.warmer.total_receive_time",
+            "alias:mswtrt,mergedSegmentWarmerTotalReceiveTime;default:false;text-align:right;desc:total wallclock time spent receiving merged segments by a replica shard"
+        );
+        table.addCell(
+            "merges.warmer.total_failure_count",
+            "alias:mswtfc,mergedSegmentWarmerTotalFailureCount;default:false;text-align:right;desc:total failures in merged segment warmer"
+        );
+        table.addCell(
+            "merges.warmer.total_send_time",
+            "alias:mswtst,mergedSegmentWarmerTotalSendTime;default:false;text-align:right;desc:total wallclock time spent sending merged segments by a primary shard"
+        );
+
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
         table.addCell("refresh.external_total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total external refreshes");
@@ -233,6 +388,7 @@ public class RestShardsAction extends AbstractListAction {
         table.addCell("search.query_current", "alias:sqc,searchQueryCurrent;default:false;text-align:right;desc:current query phase ops");
         table.addCell("search.query_time", "alias:sqti,searchQueryTime;default:false;text-align:right;desc:time spent in query phase");
         table.addCell("search.query_total", "alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops");
+        table.addCell("search.query_failed", "alias:sqf,searchQueryFailed;default:false;text-align:right;desc:failed query phase ops");
         table.addCell(
             "search.concurrent_query_current",
             "alias:scqc,searchConcurrentQueryCurrent;default:false;text-align:right;desc:current concurrent query phase ops"
@@ -249,6 +405,24 @@ public class RestShardsAction extends AbstractListAction {
             "search.concurrent_avg_slice_count",
             "alias:casc,searchConcurrentAvgSliceCount;default:false;text-align:right;desc:average query concurrency"
         );
+
+        table.addCell(
+            "search.startree_query_current",
+            "alias:stqc,startreeQueryCurrent;default:false;text-align:right;desc:current star tree query ops"
+        );
+        table.addCell(
+            "search.startree_query_time",
+            "alias:stqti,startreeQueryTime;default:false;text-align:right;desc:time spent in star tree queries"
+        );
+        table.addCell(
+            "search.startree_query_total",
+            "alias:stqto,startreeQueryTotal;default:false;text-align:right;desc:total star tree resolved queries"
+        );
+        table.addCell(
+            "search.startree_query_failed",
+            "alias:stqf,startreeQueryFailed;default:false;text-align:right;desc:failed star tree query ops"
+        );
+
         table.addCell("search.scroll_current", "alias:scc,searchScrollCurrent;default:false;text-align:right;desc:open scroll contexts");
         table.addCell(
             "search.scroll_time",
@@ -431,6 +605,63 @@ public class RestShardsAction extends AbstractListAction {
             table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getTotalSize));
             table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getTotalTime));
 
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalInvocationsCount
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalTime
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getOngoingCount
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalReceivedSize
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalSentSize
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalReceiveTime
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalFailureCount
+                )
+            );
+            table.addCell(
+                getOrNull(
+                    commonStats,
+                    (c) -> c.getMerge() == null ? null : c.getMerge().getWarmerStats(),
+                    MergedSegmentWarmerStats::getTotalSendTime
+                )
+            );
+
             table.addCell(getOrNull(commonStats, CommonStats::getRefresh, RefreshStats::getTotal));
             table.addCell(getOrNull(commonStats, CommonStats::getRefresh, RefreshStats::getTotalTime));
             table.addCell(getOrNull(commonStats, CommonStats::getRefresh, RefreshStats::getExternalTotal));
@@ -444,10 +675,16 @@ public class RestShardsAction extends AbstractListAction {
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getQueryCurrent()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getQueryTime()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getQueryCount()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getQueryFailedCount()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getConcurrentQueryCurrent()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getConcurrentQueryTime()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getConcurrentQueryCount()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getConcurrentAvgSliceCount()));
+
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getStarTreeQueryCurrent()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getStarTreeQueryTime()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getStarTreeQueryCount()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getStarTreeQueryFailed()));
 
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollCurrent()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollTime()));

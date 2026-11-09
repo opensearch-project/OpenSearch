@@ -67,6 +67,23 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(greaterThanAssertion.getField(), equalTo("field"));
         assertThat(greaterThanAssertion.getExpectedValue(), instanceOf(Integer.class));
         assertThat((Integer) greaterThanAssertion.getExpectedValue(), equalTo(3));
+
+        // test mixed types
+
+        // long vs int
+        greaterThanAssertion.doAssert(3000000000L, 2);
+
+        // int vs long
+        greaterThanAssertion.doAssert(3, 2L);
+
+        // Double vs Float
+        greaterThanAssertion.doAssert(3.0d, 2.0f);
+
+        // Float vs Double
+        greaterThanAssertion.doAssert(3.0f, 2.0d);
+
+        // sanity: both as floating-point but different concrete classes
+        greaterThanAssertion.doAssert(Double.valueOf(3.0), Float.valueOf(2.0f));
     }
 
     public void testParseLessThan() throws Exception {
@@ -77,6 +94,23 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(lessThanAssertion.getField(), equalTo("field"));
         assertThat(lessThanAssertion.getExpectedValue(), instanceOf(Integer.class));
         assertThat((Integer) lessThanAssertion.getExpectedValue(), equalTo(3));
+
+        // test mixed types
+
+        // long vs int. Should throw AssertionError instead of ClassCastException
+        expectThrows(AssertionError.class, "Expected AssertionError", () -> lessThanAssertion.doAssert(3000000000L, 2));
+
+        // int vs long
+        lessThanAssertion.doAssert(2, 3L);
+
+        // Double vs Float
+        lessThanAssertion.doAssert(2.0d, 3.0f);
+
+        // Float vs Double
+        lessThanAssertion.doAssert(2.0f, 3.0d);
+
+        // Should throw AssertionError instead of ClassCastException
+        expectThrows(AssertionError.class, "Expected AssertionError", () -> lessThanAssertion.doAssert(3.0f, 2.0d));
     }
 
     public void testParseLength() throws Exception {

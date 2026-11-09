@@ -1,0 +1,1 @@
+source=regex_logs | where raw_message like "Transaction ID:%" | grok raw_message 'Transaction ID: %{WORD:transaction_id} Amount: \$%{NUMBER:amount} Status: %{WORD:status} Card: \*\*\*\*%{INT:last_four}' | where status="FAILED" | stats count() as failure_count by last_four, status | sort - failure_count

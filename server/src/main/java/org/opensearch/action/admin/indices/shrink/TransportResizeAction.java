@@ -33,10 +33,12 @@
 package org.opensearch.action.admin.indices.shrink;
 
 import org.apache.lucene.index.IndexWriter;
+import org.opensearch.action.admin.indices.create.CreateIndexAction;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -44,6 +46,7 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -79,7 +82,9 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE
  *
  * @opensearch.internal
  */
-public class TransportResizeAction extends TransportClusterManagerNodeAction<ResizeRequest, ResizeResponse> {
+public class TransportResizeAction extends TransportClusterManagerNodeAction<ResizeRequest, ResizeResponse>
+    implements
+        TransportIndicesResolvingAction<ResizeRequest> {
     private final MetadataCreateIndexService createIndexService;
     private final Client client;
 
@@ -144,8 +149,8 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
     ) {
 
         // there is no need to fetch docs stats for split but we keep it simple and do it anyway for simplicity of the code
-        final String sourceIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getSourceIndex());
-        final String targetIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getTargetIndexRequest().index());
+        final String sourceIndex = resolveSourceIndex(resizeRequest);
+        final String targetIndex = resolveTargetIndex(resizeRequest);
         IndexMetadata indexMetadata = state.metadata().index(sourceIndex);
         if (indexMetadata.getSettings().getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false) == true) {
             throw new IllegalStateException("cannot resize warm index");
@@ -225,6 +230,15 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
                 }));
         }
 
+    }
+
+    /**
+     * Reports the resize source index as the main resolved index. The target index is reported as sub-action "indices:admin/create".
+     */
+    @Override
+    public ResolvedIndices resolveIndices(ResizeRequest resizeRequest) {
+        return ResolvedIndices.of(resolveSourceIndex(resizeRequest))
+            .withLocalSubActions(CreateIndexAction.INSTANCE, ResolvedIndices.Local.of(resolveTargetIndex(resizeRequest)));
     }
 
     // static for unittesting this method
@@ -414,5 +428,13 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
                 );
             }
         }
+    }
+
+    private String resolveSourceIndex(ResizeRequest resizeRequest) {
+        return indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getSourceIndex());
+    }
+
+    private String resolveTargetIndex(ResizeRequest resizeRequest) {
+        return indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getTargetIndexRequest().index());
     }
 }

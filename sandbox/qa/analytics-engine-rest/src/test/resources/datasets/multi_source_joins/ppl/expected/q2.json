@@ -1,0 +1,35 @@
+{
+  "schema": [
+    {
+      "name": "unique_users",
+      "type": "bigint"
+    },
+    {
+      "name": "realm",
+      "type": "string"
+    },
+    {
+      "name": "description",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      39,
+      "realm1",
+      "Tax Withholding W4R Form Users"
+    ],
+    [
+      30,
+      "realm2",
+      "Tax Withholding W4R Form Users"
+    ],
+    [
+      15,
+      "realm3",
+      "Tax Withholding W4R Form Users"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

@@ -308,19 +308,20 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
         instant1 = nowInMillis;
         instant2 = instant1 + 100;
-        expected = new DateRangeIncludingNowQuery(
-            new ApproximateScoreQuery(
+        expected = new ApproximateScoreQuery(
+            new DateRangeIncludingNowQuery(
                 new IndexOrDocValuesQuery(
                     LongPoint.newRangeQuery("field", instant1, instant2),
                     SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
-                ),
-                new ApproximatePointRangeQuery(
-                    "field",
-                    pack(new long[] { instant1 }).bytes,
-                    pack(new long[] { instant2 }).bytes,
-                    new long[] { instant1 }.length,
-                    ApproximatePointRangeQuery.LONG_FORMAT
                 )
+            ),
+            new ApproximatePointRangeQuery(
+                "field",
+                pack(new long[] { instant1 }).bytes,
+                pack(new long[] { instant2 }).bytes,
+                new long[] { instant1 }.length,
+                ApproximatePointRangeQuery.LONG_FORMAT
+
             )
         );
         assertEquals(expected, ft.rangeQuery("now", instant2, true, true, null, null, null, context));

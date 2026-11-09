@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StreamContext;
@@ -57,6 +58,7 @@ public class RemoteTransferContainer implements Closeable {
     private final boolean isRemoteDataIntegritySupported;
     private final AtomicBoolean readBlock = new AtomicBoolean();
     private final Map<String, String> metadata;
+    private final CryptoMetadata cryptoMetadata;
 
     private static final Logger log = LogManager.getLogger(RemoteTransferContainer.class);
 
@@ -91,6 +93,7 @@ public class RemoteTransferContainer implements Closeable {
             offsetRangeInputStreamSupplier,
             expectedChecksum,
             isRemoteDataIntegritySupported,
+            null,
             null
         );
     }
@@ -119,6 +122,46 @@ public class RemoteTransferContainer implements Closeable {
         boolean isRemoteDataIntegritySupported,
         Map<String, String> metadata
     ) {
+        this(
+            fileName,
+            remoteFileName,
+            contentLength,
+            failTransferIfFileExists,
+            writePriority,
+            offsetRangeInputStreamSupplier,
+            expectedChecksum,
+            isRemoteDataIntegritySupported,
+            metadata,
+            null
+        );
+    }
+
+    /**
+     * Construct a new RemoteTransferContainer object with metadata and CryptoMetadata.
+     *
+     * @param fileName                       Name of the local file
+     * @param remoteFileName                 Name of the remote file
+     * @param contentLength                  Total content length of the file to be uploaded
+     * @param failTransferIfFileExists       A boolean to determine if upload has to be failed if file exists
+     * @param writePriority                  The {@link WritePriority} of current upload
+     * @param offsetRangeInputStreamSupplier A supplier to create OffsetRangeInputStreams
+     * @param expectedChecksum               The expected checksum value for the file being uploaded
+     * @param isRemoteDataIntegritySupported A boolean to signify whether the remote repository supports server side data integrity verification
+     * @param metadata                       Object metadata to be stored with the file
+     * @param cryptoMetadata                 CryptoMetadata for index-level encryption settings
+     */
+    public RemoteTransferContainer(
+        String fileName,
+        String remoteFileName,
+        long contentLength,
+        boolean failTransferIfFileExists,
+        WritePriority writePriority,
+        OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier,
+        Long expectedChecksum,
+        boolean isRemoteDataIntegritySupported,
+        Map<String, String> metadata,
+        CryptoMetadata cryptoMetadata
+    ) {
         this.fileName = fileName;
         this.remoteFileName = remoteFileName;
         this.contentLength = contentLength;
@@ -128,6 +171,7 @@ public class RemoteTransferContainer implements Closeable {
         this.expectedChecksum = expectedChecksum;
         this.isRemoteDataIntegritySupported = isRemoteDataIntegritySupported;
         this.metadata = metadata;
+        this.cryptoMetadata = cryptoMetadata;
     }
 
     /**
@@ -143,6 +187,7 @@ public class RemoteTransferContainer implements Closeable {
             .doRemoteDataIntegrityCheck(isRemoteDataIntegrityCheckPossible())
             .expectedChecksum(isRemoteDataIntegrityCheckPossible() ? expectedChecksum : null)
             .metadata(metadata)
+            .cryptoMetadata(cryptoMetadata)
             .build();
     }
 

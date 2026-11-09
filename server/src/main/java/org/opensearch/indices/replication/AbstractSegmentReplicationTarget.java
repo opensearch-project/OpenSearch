@@ -9,9 +9,6 @@
 package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.action.StepListener;
 import org.opensearch.common.util.CancellableThreads;
@@ -47,17 +44,20 @@ public abstract class AbstractSegmentReplicationTarget extends ReplicationTarget
     protected final SegmentReplicationSource source;
     protected final SegmentReplicationState state;
     protected final MultiFileWriter multiFileWriter;
+    protected final boolean isRetry;
 
     public AbstractSegmentReplicationTarget(
         String name,
         IndexShard indexShard,
         ReplicationCheckpoint checkpoint,
         SegmentReplicationSource source,
+        boolean isRetry,
         ReplicationListener listener
     ) {
         super(name, indexShard, new ReplicationLuceneIndex(), listener);
         this.checkpoint = checkpoint;
         this.source = source;
+        this.isRetry = isRetry;
         this.state = new SegmentReplicationState(
             indexShard.routingEntry(),
             stateIndex,
@@ -162,6 +162,28 @@ public abstract class AbstractSegmentReplicationTarget extends ReplicationTarget
         getCheckpointMetadata(checkpointInfoListener);
 
         checkpointInfoListener.whenComplete(checkpointInfo -> {
+            ReplicationCheckpoint getMetadataCheckpoint = checkpointInfo.getCheckpoint();
+            // Only enforce strict checkpoint validation during normal replication, not during recovery.
+            // During recovery (shard is INITIALIZING or RELOCATING), the replica may have a stale checkpoint
+            // from before a restart, and should accept the primary's current state even if it appears older.
+            // See: https://github.com/opensearch-project/OpenSearch/issues/19234
+            boolean isRecovering = indexShard.routingEntry().initializing() || indexShard.routingEntry().relocating();
+            if (indexShard.indexSettings().isSegRepLocalEnabled()
+                && checkpoint.isAheadOf(getMetadataCheckpoint)
+                && false == isRecovering
+                && false == isRetry) {
+                // Fixes https://github.com/opensearch-project/OpenSearch/issues/18490
+                listener.onFailure(
+                    new ReplicationFailedException(
+                        "Rejecting stale metadata checkpoint ["
+                            + getMetadataCheckpoint
+                            + "] since initial checkpoint ["
+                            + checkpoint
+                            + "] is ahead of it"
+                    )
+                );
+                return;
+            }
             updateCheckpoint(checkpointInfo.getCheckpoint(), checkpointUpdater);
             final List<StoreFileMetadata> filesToFetch = getFiles(checkpointInfo);
             state.setStage(SegmentReplicationState.Stage.GET_FILES);
@@ -246,8 +268,8 @@ public abstract class AbstractSegmentReplicationTarget extends ReplicationTarget
 
     // pkg private for tests
     private boolean validateLocalChecksum(StoreFileMetadata file) {
-        try (IndexInput indexInput = indexShard.store().directory().openInput(file.name(), IOContext.READONCE)) {
-            String checksum = Store.digestToString(CodecUtil.retrieveChecksum(indexInput));
+        try {
+            final String checksum = indexShard.store().checksumLocalFile(file.name());
             if (file.checksum().equals(checksum)) {
                 return true;
             } else {

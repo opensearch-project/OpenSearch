@@ -82,6 +82,26 @@ public class DerivedFieldScriptTests extends ScriptTestCase {
         return factory.newFactory(Collections.emptyMap(), lookup);
     }
 
+    public void testEmittingFloatField() throws IOException {
+        SearchLookup lookup = mock(SearchLookup.class);
+
+        // Mock LeafReaderContext
+        MemoryIndex index = new MemoryIndex();
+        LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
+
+        LeafSearchLookup leafSearchLookup = mock(LeafSearchLookup.class);
+        when(lookup.getLeafSearchLookup(leafReaderContext)).thenReturn(leafSearchLookup);
+
+        // Script that emits a float value
+        DerivedFieldScript script = compile("emit(3.14f)", lookup).newInstance(leafReaderContext);
+        script.setDocument(1);
+        script.execute();
+
+        List<Object> result = script.getEmittedValues();
+        assertEquals(1, result.size());
+        assertEquals(3.14f, result.get(0));
+    }
+
     public void testEmittingDoubleField() throws IOException {
         // Mocking field value to be returned
         NumberFieldType fieldType = new NumberFieldType("test_double_field", NumberType.DOUBLE);

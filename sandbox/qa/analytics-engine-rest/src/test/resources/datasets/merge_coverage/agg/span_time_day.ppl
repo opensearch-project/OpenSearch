@@ -1,0 +1,1 @@
+source=%INDEX% | stats count() by span(ts, 1d)

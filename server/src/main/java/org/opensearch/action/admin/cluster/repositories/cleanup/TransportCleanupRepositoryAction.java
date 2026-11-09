@@ -52,6 +52,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.RemoteStoreSettings;
@@ -114,7 +115,8 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        @Nullable DataFormatRegistry dataFormatRegistry
     ) {
         super(
             CleanupRepositoryAction.NAME,
@@ -130,7 +132,8 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
         this.remoteSegmentStoreDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
             () -> repositoriesService,
             threadPool,
-            remoteStoreSettings.getSegmentsPathFixedPrefix()
+            remoteStoreSettings.getSegmentsPathFixedPrefix(),
+            dataFormatRegistry
         );
         this.remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(
             () -> repositoriesService,

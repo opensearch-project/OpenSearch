@@ -28,6 +28,7 @@
  */
 package org.opensearch.gradle.test
 
+import groovy.ant.AntBuilder
 import org.opensearch.gradle.Version
 import org.gradle.api.GradleException
 import org.gradle.api.Project

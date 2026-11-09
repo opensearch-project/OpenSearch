@@ -14,6 +14,7 @@ import org.opensearch.gradle.util.GradleUtils
 
 apply plugin: 'opensearch.java-rest-test'
 apply plugin: 'opensearch.opensearchplugin'
+apply from: "$rootDir/gradle/sandbox-testclusters.gradle"
 
 opensearchplugin {
   description = 'Die with dignity plugin'
@@ -32,6 +33,7 @@ javaRestTest {
 
 testClusters.javaRestTest {
   systemProperty "die.with.dignity.test", "whatever"
+  installSandboxStack(delegate)
 }
 
 test.enabled = false

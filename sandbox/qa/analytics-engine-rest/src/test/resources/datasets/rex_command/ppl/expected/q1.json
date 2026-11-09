@@ -1,0 +1,36 @@
+{
+  "schema": [
+    {
+      "name": "loglevel",
+      "type": "string"
+    },
+    {
+      "name": "service",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "ERROR",
+      "auth"
+    ],
+    [
+      "INFO",
+      "payment"
+    ],
+    [
+      "WARN",
+      "auth"
+    ],
+    [
+      "ERROR",
+      "db"
+    ],
+    [
+      "INFO",
+      "cache"
+    ]
+  ],
+  "total": 5,
+  "size": 5
+}

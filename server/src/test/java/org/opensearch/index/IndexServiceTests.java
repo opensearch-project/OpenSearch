@@ -55,6 +55,7 @@ import org.opensearch.index.shard.IndexShard.AsyncShardRefreshTask;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
@@ -67,6 +68,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -76,7 +78,9 @@ import static org.opensearch.test.InternalSettingsPlugin.TRANSLOG_RETENTION_CHEC
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.awaitility.Awaitility.await;
 
 /** Unit test(s) for IndexService */
 public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
@@ -154,9 +158,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         // now close the index
         final Index index = indexService.index();
         assertAcked(client().admin().indices().prepareClose(index.getName()));
-        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
-
-        final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        final IndexService closedIndexService = getIndexService(index);
         assertNotSame(indexService, closedIndexService);
         assertFalse(task.mustReschedule());
         assertFalse(task.isClosed());
@@ -164,8 +166,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
 
         // now reopen the index
         assertAcked(client().admin().indices().prepareOpen(index.getName()));
-        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
-        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        indexService = getIndexService(index);
         assertNotSame(closedIndexService, indexService);
 
         task = new IndexService.BaseAsyncTask(indexService, TimeValue.timeValueMillis(100000)) {
@@ -244,9 +245,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         // now close the index
         final Index index = indexService.index();
         assertAcked(client().admin().indices().prepareClose(index.getName()));
-        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
-
-        final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        final IndexService closedIndexService = getIndexService(index);
         assertNotSame(indexService, closedIndexService);
         assertNotSame(refreshTask, closedIndexService.getRefreshTask());
         assertFalse(closedIndexService.getRefreshTask().mustReschedule());
@@ -255,8 +254,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
 
         // now reopen the index
         assertAcked(client().admin().indices().prepareOpen(index.getName()));
-        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
-        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        indexService = getIndexService(index);
         assertNotSame(closedIndexService, indexService);
         refreshTask = indexService.getRefreshTask();
         assertTrue(indexService.getRefreshTask().mustReschedule());
@@ -282,9 +280,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         // now close the index
         final Index index = indexService.index();
         assertAcked(client().admin().indices().prepareClose(index.getName()));
-        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
-
-        final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        final IndexService closedIndexService = getIndexService(index);
         assertNotSame(indexService, closedIndexService);
         assertNotSame(fsyncTask, closedIndexService.getFsyncTask());
         assertFalse(closedIndexService.getFsyncTask().mustReschedule());
@@ -293,8 +289,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
 
         // now reopen the index
         assertAcked(client().admin().indices().prepareOpen(index.getName()));
-        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
-        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        indexService = getIndexService(index);
         assertNotSame(closedIndexService, indexService);
         fsyncTask = indexService.getFsyncTask();
         assertTrue(indexService.getRefreshTask().mustReschedule());
@@ -461,16 +456,14 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertThat(translog.totalOperations(), equalTo(translogOps));
         assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(translogOps));
         assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.DEFAULT));
-
-        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(indexService.index());
+        indexService = getIndexService(indexService.index());
         assertTrue(indexService.getTrimTranslogTask().mustReschedule());
 
         final Engine readOnlyEngine = getEngine(indexService.getShard(0));
         assertBusy(() -> assertTrue(isTranslogEmpty(readOnlyEngine)));
 
         assertAcked(client().admin().indices().prepareOpen("test").setWaitForActiveShards(ActiveShardCount.DEFAULT));
-
-        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(indexService.index());
+        indexService = getIndexService(indexService.index());
         translog = IndexShardTestCase.getTranslog(indexService.getShard(0));
         assertThat(translog.totalOperations(), equalTo(0));
         assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(0));
@@ -607,6 +600,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         task = indexService.getReplicationTask();
         assertTrue(task.isScheduled());
         assertTrue(task.mustReschedule());
+        assertTrue(task.shouldRun());
         assertEquals(5000, task.getInterval().millis());
 
         // test we can update the interval
@@ -622,7 +616,107 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         assertTrue(task.isClosed());
         assertTrue(updatedTask.isScheduled());
         assertTrue(updatedTask.mustReschedule());
+        assertTrue(updatedTask.shouldRun());
         assertEquals(1000, updatedTask.getInterval().millis());
+
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("segrep_index")
+            .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), "true"))
+            .get();
+
+        updatedTask = indexService.getReplicationTask();
+        assertTrue(updatedTask.isScheduled());
+        assertTrue(updatedTask.mustReschedule());
+        assertFalse(updatedTask.shouldRun());
+
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("segrep_index")
+            .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), "false"))
+            .get();
+
+        updatedTask = indexService.getReplicationTask();
+        assertTrue(updatedTask.isScheduled());
+        assertTrue(updatedTask.mustReschedule());
+        assertTrue(updatedTask.shouldRun());
+    }
+
+    public void testPublishReferencedSegmentsTask() throws Exception {
+        // create with docrep - task should not schedule
+        IndexService indexService = createIndex(
+            "docrep_index",
+            Settings.builder().put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build()
+        );
+        final Index index = indexService.index();
+        ensureGreen(index.getName());
+        IndexService.AsyncPublishReferencedSegmentsTask task = indexService.getPublishReferencedSegmentsTask();
+        assertFalse(task.isScheduled());
+        assertFalse(task.mustReschedule());
+        assertFalse(task.shouldRun());
+
+        // create for segrep - task should schedule
+        indexService = createIndex(
+            "segrep_index",
+            Settings.builder()
+                .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+                .put(IndexSettings.INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.getKey(), "5s")
+                .build()
+        );
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder().put(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey(), true)
+            )
+            .get();
+
+        final Index srIndex = indexService.index();
+        ensureGreen(srIndex.getName());
+        task = indexService.getPublishReferencedSegmentsTask();
+        assertTrue(task.isScheduled());
+        assertTrue(task.mustReschedule());
+        assertEquals(5000, task.getInterval().millis());
+        assertTrue(task.shouldRun());
+
+        // test update the refresh interval, AsyncPublishReferencedSegmentsTask should not be updated
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("segrep_index")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "5s"))
+            .get();
+
+        IndexService.AsyncPublishReferencedSegmentsTask updatedTask = indexService.getPublishReferencedSegmentsTask();
+        assertSame(task, updatedTask);
+        assertTrue(task.isScheduled());
+        assertTrue(task.mustReschedule());
+        assertEquals(5000, task.getInterval().millis());
+        assertTrue(task.shouldRun());
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder().putNull(RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.getKey())
+            )
+            .get();
+
+        // test we can update the publishReferencedSegmentsInterval
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("segrep_index")
+            .setSettings(Settings.builder().put(IndexSettings.INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.getKey(), "1s"))
+            .get();
+
+        updatedTask = indexService.getPublishReferencedSegmentsTask();
+        assertNotSame(task, updatedTask);
+        assertFalse(task.isScheduled());
+        assertTrue(task.isClosed());
+        assertTrue(updatedTask.isScheduled());
+        assertTrue(updatedTask.mustReschedule());
+        assertEquals(1000, updatedTask.getInterval().millis());
+        assertFalse(task.shouldRun());
     }
 
     public void testBaseAsyncTaskWithFixedIntervalDisabled() throws Exception {
@@ -678,14 +772,14 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
             }
         ) {
             // In zero state, we have a random sleep duration
-            long sleepDurationMs = task.getSleepDuration().millis();
-            assertTrue(sleepDurationMs > 0);
+            long sleepDurationNanos = task.getSleepDuration().nanos();
+            assertTrue(sleepDurationNanos > 0);
             task.run();
             latch.await();
             // Since we have refresh taking up 2s, then the next refresh should have sleep duration of 3s. Here we check
             // the sleep duration to be non-zero since the sleep duration is calculated dynamically.
-            sleepDurationMs = task.getSleepDuration().millis();
-            assertTrue(sleepDurationMs > 0);
+            sleepDurationNanos = task.getSleepDuration().nanos();
+            assertTrue(sleepDurationNanos > 0);
             assertEquals(0, latch.getCount());
             indexService.close("test", false);
             assertBusy(() -> { assertEquals(TimeValue.ZERO, task.getSleepDuration()); });
@@ -713,14 +807,14 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
             }
         ) {
             // In zero state, we have a random sleep duration
-            long sleepDurationMs = task.getSleepDuration().millis();
-            assertTrue(sleepDurationMs > 0);
+            long sleepDurationNanos = task.getSleepDuration().nanos();
+            assertTrue(sleepDurationNanos > 0);
             task.run();
             latch.await();
             indexService.close("test", false);
             // Since we have refresh taking up 2s and refresh interval as 1s, then the next refresh should happen immediately.
-            sleepDurationMs = task.getSleepDuration().millis();
-            assertEquals(0, sleepDurationMs);
+            sleepDurationNanos = task.getSleepDuration().nanos();
+            assertEquals(0, sleepDurationNanos);
             assertEquals(0, latch.getCount());
         }
     }
@@ -828,6 +922,10 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
 
         // OS test case fails if test leaves behind transient cluster setting so need to clear it.
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull("*")).get();
+    }
 
+    private IndexService getIndexService(Index index) {
+        return await().atMost(10, TimeUnit.SECONDS)
+            .until(() -> getInstanceFromNode(IndicesService.class).indexService(index), notNullValue());
     }
 }

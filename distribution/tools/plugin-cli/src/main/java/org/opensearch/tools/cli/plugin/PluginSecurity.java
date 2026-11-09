@@ -36,6 +36,7 @@ import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.Terminal.Verbosity;
 import org.opensearch.cli.UserException;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.secure_sm.policy.PolicyFile;
 
@@ -96,6 +97,7 @@ class PluginSecurity {
     }
 
     /** Format permission type, name, and actions into a string */
+    @SuppressForbidden(reason = "https://github.com/opensearch-project/OpenSearch/issues/19640")
     static String formatPermission(Permission permission) {
         StringBuilder sb = new StringBuilder();
 

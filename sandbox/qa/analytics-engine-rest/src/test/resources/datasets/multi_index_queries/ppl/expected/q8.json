@@ -1,0 +1,36 @@
+{
+  "schema": [
+    {
+      "name": "hit_count",
+      "type": "bigint"
+    },
+    {
+      "name": "endpoint",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      26,
+      "/api/products"
+    ],
+    [
+      43,
+      "/api/orders"
+    ],
+    [
+      43,
+      "/api/payments"
+    ],
+    [
+      43,
+      "/api/users"
+    ],
+    [
+      45,
+      "/SCS/Retail/v1/orders"
+    ]
+  ],
+  "total": 5,
+  "size": 5
+}

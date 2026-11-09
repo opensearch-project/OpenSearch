@@ -59,12 +59,12 @@ public abstract class MultiValuesSource<VS extends ValuesSource> {
             values = new HashMap<>(valuesSourceConfigs.size());
             for (Map.Entry<String, ValuesSourceConfig> entry : valuesSourceConfigs.entrySet()) {
                 final ValuesSource valuesSource = entry.getValue().getValuesSource();
-                if (valuesSource instanceof ValuesSource.Numeric == false) {
+                if (!(valuesSource instanceof ValuesSource.Numeric numericValuesSource)) {
                     throw new AggregationExecutionException(
                         "ValuesSource type " + valuesSource.toString() + "is not supported for multi-valued aggregation"
                     );
                 }
-                values.put(entry.getKey(), (ValuesSource.Numeric) valuesSource);
+                values.put(entry.getKey(), numericValuesSource);
             }
         }
 

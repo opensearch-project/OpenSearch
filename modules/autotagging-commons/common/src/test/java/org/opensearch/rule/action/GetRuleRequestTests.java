@@ -15,17 +15,26 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
-import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_MAP;
+import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_VALUE_ONE;
 import static org.opensearch.rule.utils.RuleTestUtils.SEARCH_AFTER;
 import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
 
 public class GetRuleRequestTests extends OpenSearchTestCase {
+
+    private final Map<String, Set<String>> attributeFilters = Map.of(
+        RuleTestUtils.MockRuleAttributes.MOCK_RULE_ATTRIBUTE_ONE.getName(),
+        Set.of(ATTRIBUTE_VALUE_ONE)
+    );
+
     /**
      * Test case to verify the serialization and deserialization of GetRuleRequest
      */
     public void testSerialization() throws IOException {
-        GetRuleRequest request = new GetRuleRequest(_ID_ONE, ATTRIBUTE_MAP, null, RuleTestUtils.MockRuleFeatureType.INSTANCE);
+
+        GetRuleRequest request = new GetRuleRequest(_ID_ONE, attributeFilters, null, RuleTestUtils.MockRuleFeatureType.INSTANCE);
         assertEquals(_ID_ONE, request.getId());
         assertNull(request.validate());
         assertNull(request.getSearchAfter());
@@ -58,9 +67,9 @@ public class GetRuleRequestTests extends OpenSearchTestCase {
     }
 
     public void testValidate() {
-        GetRuleRequest request = new GetRuleRequest("", ATTRIBUTE_MAP, null, RuleTestUtils.MockRuleFeatureType.INSTANCE);
+        GetRuleRequest request = new GetRuleRequest("", attributeFilters, null, RuleTestUtils.MockRuleFeatureType.INSTANCE);
         assertThrows(IllegalArgumentException.class, request::validate);
-        request = new GetRuleRequest(_ID_ONE, ATTRIBUTE_MAP, "", RuleTestUtils.MockRuleFeatureType.INSTANCE);
+        request = new GetRuleRequest(_ID_ONE, attributeFilters, "", RuleTestUtils.MockRuleFeatureType.INSTANCE);
         assertThrows(IllegalArgumentException.class, request::validate);
     }
 }

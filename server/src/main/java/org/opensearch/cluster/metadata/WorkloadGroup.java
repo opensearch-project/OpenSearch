@@ -8,11 +8,14 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -21,6 +24,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.MutableWorkloadGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadGroupThrottleSettings;
 import org.joda.time.Instant;
 
 import java.io.IOException;
@@ -45,6 +49,8 @@ import java.util.Optional;
 @PublicApi(since = "2.18.0")
 public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements ToXContentObject {
 
+    private static final Logger logger = LogManager.getLogger(WorkloadGroup.class);
+
     public static final String _ID_STRING = "_id";
     public static final String NAME_STRING = "name";
     public static final String UPDATED_AT_STRING = "updated_at";
@@ -60,6 +66,16 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
     }
 
     public WorkloadGroup(String name, String _id, MutableWorkloadGroupFragment mutableWorkloadGroupFragment, long updatedAt) {
+        this(name, _id, mutableWorkloadGroupFragment, updatedAt, false);
+    }
+
+    private WorkloadGroup(
+        String name,
+        String _id,
+        MutableWorkloadGroupFragment mutableWorkloadGroupFragment,
+        long updatedAt,
+        boolean deserializing
+    ) {
         Objects.requireNonNull(name, "WorkloadGroup.name can't be null");
         Objects.requireNonNull(mutableWorkloadGroupFragment.getResourceLimits(), "WorkloadGroup.resourceLimits can't be null");
         Objects.requireNonNull(mutableWorkloadGroupFragment.getResiliencyMode(), "WorkloadGroup.resiliencyMode can't be null");
@@ -69,8 +85,39 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         if (mutableWorkloadGroupFragment.getResourceLimits().isEmpty()) {
             throw new IllegalArgumentException("WorkloadGroup.resourceLimits should at least have 1 resource limit");
         }
-        if (!isValid(updatedAt)) {
+        if (updatedAt <= 0L) {
             throw new IllegalArgumentException("WorkloadGroup.updatedAtInMillis is not a valid epoch");
+        }
+
+        // Drop null clear-markers; they only mean something during an update merge.
+        Settings normalizedSettings = stripClearMarkers(mutableWorkloadGroupFragment.getSettings());
+        Settings normalizedThrottling = stripClearMarkers(mutableWorkloadGroupFragment.getThrottling());
+        if (normalizedSettings.equals(mutableWorkloadGroupFragment.getSettings()) == false
+            || normalizedThrottling.equals(mutableWorkloadGroupFragment.getThrottling()) == false) {
+            // Skip re-validation here; validateMergedConfig below decides strict vs. lenient.
+            mutableWorkloadGroupFragment = new MutableWorkloadGroupFragment(
+                mutableWorkloadGroupFragment.getResiliencyMode(),
+                mutableWorkloadGroupFragment.getResourceLimits(),
+                normalizedSettings,
+                normalizedThrottling,
+                false
+            );
+        }
+
+        // Cross-field checks. Advisory on deserialization, since throwing while applying cluster state wedges the node.
+        if (deserializing) {
+            try {
+                WorkloadGroupThrottleSettings.validateMergedConfig(mutableWorkloadGroupFragment.getThrottling());
+            } catch (IllegalArgumentException e) {
+                logger.warn(
+                    "Accepting workload group [{}] with a throttling config this node considers invalid ({}); "
+                        + "throttling will not be enforced for it here",
+                    name,
+                    e.getMessage()
+                );
+            }
+        } else {
+            WorkloadGroupThrottleSettings.validateMergedConfig(mutableWorkloadGroupFragment.getThrottling());
         }
 
         this.name = name;
@@ -90,7 +137,7 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
     }
 
     public WorkloadGroup(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), new MutableWorkloadGroupFragment(in), in.readLong());
+        this(in.readString(), in.readString(), new MutableWorkloadGroupFragment(in), in.readLong(), true);
     }
 
     public static WorkloadGroup updateExistingWorkloadGroup(
@@ -104,12 +151,67 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         }
         final ResiliencyMode mode = Optional.ofNullable(mutableWorkloadGroupFragment.getResiliencyMode())
             .orElse(existingGroup.getResiliencyMode());
+        final Settings updatedSettings = mergeSettings(existingGroup.getSettings(), mutableWorkloadGroupFragment.getSettings());
+        final Settings updatedThrottling = mergeSettings(
+            existingGroup.getMutableWorkloadGroupFragment().getThrottling(),
+            mutableWorkloadGroupFragment.getThrottling()
+        );
         return new WorkloadGroup(
             existingGroup.getName(),
             existingGroup.get_id(),
-            new MutableWorkloadGroupFragment(mode, updatedResourceLimits),
+            new MutableWorkloadGroupFragment(mode, updatedResourceLimits, updatedSettings, updatedThrottling),
             Instant.now().getMillis()
         );
+    }
+
+    /**
+     * Drops null-valued keys from a settings bag before storage. A null value is the API gesture for "clear this key",
+     * which only carries meaning during an update merge (which consumes it); any that reach a persisted group, e.g. a
+     * null sent on create where there is nothing to clear, are dropped so stored config never contains a null value.
+     *
+     * @param s the settings to normalize (may be null)
+     * @return the settings with all null-valued keys removed, or empty if {@code s} is null
+     */
+    private static Settings stripClearMarkers(Settings s) {
+        if (s == null) {
+            return Settings.EMPTY;
+        }
+        Settings.Builder builder = Settings.builder();
+        for (String key : s.keySet()) {
+            String value = s.get(key);
+            if (value != null) {
+                builder.put(key, value);
+            }
+        }
+        return builder.build();
+    }
+
+    /**
+     * Merges an incoming settings bag from an update request onto the existing one:
+     * a null incoming bag (field absent) keeps existing, an empty incoming bag clears all, and a non-empty bag overlays
+     * its values with a per-key null value clearing that key.
+     *
+     * @param existing the currently stored settings
+     * @param incoming the settings from the update request (may be null)
+     * @return the merged settings
+     */
+    private static Settings mergeSettings(Settings existing, Settings incoming) {
+        if (incoming == null) {
+            return Settings.builder().put(existing).build();
+        }
+        if (incoming.isEmpty()) {
+            return Settings.EMPTY;
+        }
+        Settings.Builder builder = Settings.builder().put(existing);
+        for (String key : incoming.keySet()) {
+            String value = incoming.get(key);
+            if (value == null) {
+                builder.remove(key);
+            } else {
+                builder.put(key, value);
+            }
+        }
+        return builder.build();
     }
 
     @Override
@@ -139,8 +241,13 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         return builder;
     }
 
+    /**
+     * Deserializes a workload group from XContent. This is the on-disk gateway read of persisted cluster state at startup
+     * ({@code WorkloadGroupMetadata#context()} == ALL_CONTEXTS), so it builds leniently. The create/update API path parses
+     * via {@link Builder#fromXContent} and calls the strict {@link Builder#build()}, so it is unaffected.
+     */
     public static WorkloadGroup fromXContent(final XContentParser parser) throws IOException {
-        return Builder.fromXContent(parser).build();
+        return Builder.fromXContent(parser).build(true);
     }
 
     public static Diff<WorkloadGroup> readDiff(final StreamInput in) throws IOException {
@@ -177,6 +284,25 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
 
     public Map<ResourceType, Double> getResourceLimits() {
         return getMutableWorkloadGroupFragment().getResourceLimits();
+    }
+
+    @ExperimentalApi
+    public Settings getSettings() {
+        return getMutableWorkloadGroupFragment().getSettings();
+    }
+
+    /**
+     * @deprecated Use {@link #getSettings()} instead. This method exists only for binary compatibility
+     * with 3.6.x clients and will be removed in a future major version.
+     */
+    @Deprecated
+    public Map<String, String> getSearchSettings() {
+        Settings s = getSettings();
+        Map<String, String> map = new HashMap<>();
+        for (String key : s.keySet()) {
+            map.put(key, s.get(key));
+        }
+        return map;
     }
 
     public String get_id() {
@@ -242,6 +368,11 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
                         throw new IllegalArgumentException(fieldName + " is not a valid object in WorkloadGroup");
                     }
                     mutableWorkloadGroupFragment1.parseField(parser, fieldName);
+                } else if (token == XContentParser.Token.VALUE_NULL) {
+                    if (fieldName.equals(MutableWorkloadGroupFragment.SETTINGS_STRING)
+                        || fieldName.equals(MutableWorkloadGroupFragment.THROTTLING_STRING)) {
+                        mutableWorkloadGroupFragment1.parseField(parser, fieldName);
+                    }
                 }
             }
             return builder.mutableWorkloadGroupFragment(mutableWorkloadGroupFragment1);
@@ -268,7 +399,16 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         }
 
         public WorkloadGroup build() {
-            return new WorkloadGroup(name, _id, mutableWorkloadGroupFragment, updatedAt);
+            return build(false);
+        }
+
+        /**
+         * @param deserializing {@code true} on the deserialization path (wire and on-disk gateway read), where merged
+         *                      throttle validation is advisory (accept-with-warning) so a config a newer peer wrote cannot
+         *                      wedge this node; {@code false} on create/update, which rejects an invalid config outright.
+         */
+        public WorkloadGroup build(boolean deserializing) {
+            return new WorkloadGroup(name, _id, mutableWorkloadGroupFragment, updatedAt, deserializing);
         }
 
         public MutableWorkloadGroupFragment getMutableWorkloadGroupFragment() {

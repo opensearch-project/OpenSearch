@@ -32,6 +32,8 @@
 
 package org.opensearch.bootstrap;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
@@ -40,6 +42,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.plugins.PluginTestUtil;
 import org.opensearch.plugins.Platforms;
+import org.opensearch.test.BouncyCastleThreadFilter;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -70,6 +73,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * that prevents the Spawner class from doing its job. Also needs to run in a separate JVM to other
  * tests that extend OpenSearchTestCase for the same reason.
  */
+@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
     private static final String CONTROLLER_SOURCE = "#!/bin/bash\n"

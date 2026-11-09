@@ -217,10 +217,10 @@ public class Nysiis implements StringEncoder {
      */
     @Override
     public Object encode(Object obj) throws EncoderException {
-        if (!(obj instanceof String)) {
+        if (!(obj instanceof String o)) {
             throw new EncoderException("Parameter supplied to Nysiis encode is not of type java.lang.String");
         }
-        return this.nysiis((String) obj);
+        return this.nysiis(o);
     }
 
     /**

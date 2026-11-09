@@ -378,7 +378,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
      */
     public void testHeaders() throws Exception {
         for (String method : getHttpMethods()) {
-            final Set<String> standardHeaders = new HashSet<>(Arrays.asList("Connection", "Host", "User-agent", "Date"));
+            final Set<String> standardHeaders = new HashSet<>(Arrays.asList("Connection", "Host", "User-agent", "Date", "Accept-encoding"));
             if (method.equals("HEAD") == false) {
                 standardHeaders.add("Content-length");
             }
@@ -482,6 +482,18 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
             request.addParameter("routing", "foo^bar");
             Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
             assertEquals(pathPrefix + "/200?routing=foo%5Ebar", response.getRequestLine().getUri());
+        }
+        {
+            Request request = new Request("PUT", "/200");
+            request.addParameter("pretty", null);
+            Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
+            assertEquals(pathPrefix + "/200?pretty", response.getRequestLine().getUri());
+        }
+        {
+            Request request = new Request("PUT", "/200");
+            request.addParameter("pretty", "");
+            Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
+            assertEquals(pathPrefix + "/200?pretty=", response.getRequestLine().getUri());
         }
     }
 

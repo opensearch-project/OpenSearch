@@ -1,0 +1,1 @@
+source=%INDEX% | timechart span=1week avg(price)

@@ -139,6 +139,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -512,7 +513,13 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public Collection<Class<? extends Plugin>> getPlugins() {
-        Set<Class<? extends Plugin>> plugins = new HashSet<>(nodeConfigurationSource.nodePlugins());
+        // Use LinkedHashSet so plugin iteration order matches the user's nodePlugins() declaration.
+        // Components from earlier plugins (e.g. those registered via PluginComponentRegistry) are
+        // visible to later plugins' createComponents() only when init order respects declared
+        // dependencies. HashSet here would make order JVM-allocation-hash dependent and lead to
+        // non-deterministic ITs (a sibling plugin's createComponents could run before the plugin
+        // it depends on, despite being listed first in nodePlugins()).
+        Set<Class<? extends Plugin>> plugins = new LinkedHashSet<>(nodeConfigurationSource.nodePlugins());
         plugins.addAll(mockPlugins);
         return plugins;
     }
@@ -2647,7 +2654,11 @@ public final class InternalTestCluster extends TestCluster {
                 final String name = nodeAndClient.name;
                 final CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class, nodeAndClient.node);
                 CircuitBreaker fdBreaker = breakerService.getBreaker(CircuitBreaker.FIELDDATA);
-                assertThat("Fielddata breaker not reset to 0 on node: " + name, fdBreaker.getUsed(), equalTo(0L));
+                try {
+                    assertBusy(() -> assertThat("Fielddata breaker not reset to 0 on node: " + name, fdBreaker.getUsed(), equalTo(0L)));
+                } catch (Exception e) {
+                    throw new AssertionError("Exception during check for request breaker reset to 0", e);
+                }
 
                 // Anything that uses transport or HTTP can increase the
                 // request breaker (because they use bigarrays), because of
@@ -2687,6 +2698,9 @@ public final class InternalTestCluster extends TestCluster {
                     false,
                     false,
                     false,
+                    false,
+                    false,
+                    false, // fileCacheDetailed
                     false,
                     false,
                     false,

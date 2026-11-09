@@ -115,7 +115,9 @@ public final class FilterRewriteOptimizationContext {
             return false;
         }
 
-        if (leafCtx.reader().hasDeletions()) return false;
+        // Since we explicitly create bitset of matching docIds for each bucket
+        // in case of sub-aggregations, deleted documents can be filtered out
+        if (leafCtx.reader().hasDeletions() && hasSubAgg == false) return false;
 
         PointValues values = leafCtx.reader().getPointValues(aggregatorBridge.fieldType.name());
         if (values == null) return false;

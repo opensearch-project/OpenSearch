@@ -25,27 +25,88 @@ import java.util.List;
 public final class PipelinedRequest extends SearchRequest {
     private final Pipeline pipeline;
     private final PipelineProcessingContext requestContext;
+    private final SystemGeneratedPipelineHolder systemGeneratedPipelineHolder;
 
-    PipelinedRequest(Pipeline pipeline, SearchRequest transformedRequest, PipelineProcessingContext requestContext) {
+    PipelinedRequest(
+        Pipeline pipeline,
+        SearchRequest transformedRequest,
+        PipelineProcessingContext requestContext,
+        SystemGeneratedPipelineHolder systemGeneratedPipelineHolder
+    ) {
         super(transformedRequest);
+        // The SearchRequest copy constructor invoked by super(...) intentionally does not carry over the search
+        // pipeline id, so preserve it here. Otherwise pipeline() would read null on the resolved request even though
+        // this request is the one the pipeline was resolved for, and consumers that read the id later in the request
+        // lifecycle (e.g. during coordinator query rewrite) would not see it.
+        this.pipeline(transformedRequest.pipeline());
         this.pipeline = pipeline;
         this.requestContext = requestContext;
+        this.systemGeneratedPipelineHolder = systemGeneratedPipelineHolder;
+    }
+
+    PipelinedRequest(SearchRequest transformedRequest, PipelinedRequest original) {
+        super(transformedRequest);
+        // As above, super(...) does not carry the pipeline id over. Carry the original request's id forward so this
+        // re-wrapped request keeps reporting the pipeline it was resolved for, consistent with reusing the original's
+        // resolved pipeline/context below.
+        this.pipeline(original.pipeline());
+        this.pipeline = original.pipeline;
+        this.requestContext = original.requestContext;
+        this.systemGeneratedPipelineHolder = original.systemGeneratedPipelineHolder;
     }
 
     public void transformRequest(ActionListener<SearchRequest> requestListener) {
-        pipeline.transformRequest(this, requestListener, requestContext);
+        List<Pipeline> pipelines = getPipelines();
+
+        ActionListener<SearchRequest> currentListener = requestListener;
+        boolean hasProcessor = false;
+
+        // Build listener chain backwards
+        for (int i = pipelines.size() - 1; i >= 0; i--) {
+            Pipeline p = pipelines.get(i);
+            if (p.getSearchRequestProcessors().isEmpty()) {
+                continue;
+            }
+            hasProcessor = true;
+            ActionListener<SearchRequest> nextListener = currentListener;
+            currentListener = ActionListener.wrap(
+                searchRequest -> p.transformRequest((PipelinedRequest) searchRequest, nextListener),
+                requestListener::onFailure
+            );
+        }
+
+        if (hasProcessor) {
+            // Kick off with the original request
+            currentListener.onResponse(this);
+        } else {
+            requestListener.onResponse(this);
+        }
     }
 
     public ActionListener<SearchResponse> transformResponseListener(ActionListener<SearchResponse> responseListener) {
-        return pipeline.transformResponseListener(this, ActionListener.wrap(response -> {
-            // Extract processor execution details
+        List<Pipeline> pipelines = getPipelines();
+
+        ActionListener<SearchResponse> currentListener = ActionListener.wrap(response -> {
+            // Always try to attach processor execution details even there is no search response processor
+            // since search request and phase results processors also can add execution details.
             List<ProcessorExecutionDetail> details = requestContext.getProcessorExecutionDetails();
-            // Add details to the response's InternalResponse if available
             if (!details.isEmpty() && response.getInternalResponse() != null) {
                 response.getInternalResponse().getProcessorResult().addAll(details);
             }
             responseListener.onResponse(response);
-        }, responseListener::onFailure), requestContext);
+        }, responseListener::onFailure);
+
+        // Build chain backwards
+        for (int i = pipelines.size() - 1; i >= 0; i--) {
+            Pipeline p = pipelines.get(i);
+            if (p.getSearchResponseProcessors().isEmpty()) {
+                continue;
+            }
+            ActionListener<SearchResponse> nextListener = currentListener;
+            currentListener = p.transformResponseListener(this, nextListener);
+        }
+
+        return currentListener;
     }
 
     public <Result extends SearchPhaseResult> void transformSearchPhaseResults(
@@ -54,7 +115,19 @@ public final class PipelinedRequest extends SearchRequest {
         final String currentPhase,
         final String nextPhase
     ) {
-        pipeline.runSearchPhaseResultsTransformer(searchPhaseResult, searchPhaseContext, currentPhase, nextPhase, requestContext);
+        List<Pipeline> pipelines = getPipelines();
+
+        // Run forward chain
+        for (Pipeline p : pipelines) {
+            if (p.getSearchPhaseResultsProcessors().isEmpty()) {
+                continue;
+            }
+            p.runSearchPhaseResultsTransformer(searchPhaseResult, searchPhaseContext, currentPhase, nextPhase, requestContext);
+        }
+    }
+
+    private List<Pipeline> getPipelines() {
+        return List.of(systemGeneratedPipelineHolder.prePipeline(), pipeline, systemGeneratedPipelineHolder.postPipeline());
     }
 
     // Visible for testing
@@ -64,5 +137,9 @@ public final class PipelinedRequest extends SearchRequest {
 
     public PipelineProcessingContext getPipelineProcessingContext() {
         return requestContext;
+    }
+
+    public SystemGeneratedPipelineHolder getSystemGeneratedPipelineHolder() {
+        return systemGeneratedPipelineHolder;
     }
 }

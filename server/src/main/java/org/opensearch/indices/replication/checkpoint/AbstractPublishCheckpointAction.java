@@ -44,6 +44,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Abstract base class for publish checkpoint.
@@ -112,8 +113,10 @@ public abstract class AbstractPublishCheckpointAction<
         TransportRequest request,
         String action,
         boolean waitForCompletion,
-        TimeValue waitTimeout
+        TimeValue waitTimeout,
+        ActionListener<Void> listener
     ) {
+        ActionListener<Void> notifyOnceListener = ActionListener.notifyOnce(listener);
         String primaryAllocationId = indexShard.routingEntry().allocationId().getId();
         long primaryTerm = indexShard.getPendingPrimaryTerm();
         final ThreadContext threadContext = threadPool.getThreadContext();
@@ -206,14 +209,22 @@ public abstract class AbstractPublishCheckpointAction<
             );
             if (waitForCompletion) {
                 try {
-                    latch.await(waitTimeout.seconds(), TimeUnit.SECONDS);
+                    if (latch.await(waitTimeout.seconds(), TimeUnit.SECONDS) == false) {
+                        notifyOnceListener.onFailure(
+                            new TimeoutException("Timed out waiting for publish checkpoint to complete. Checkpoint: " + checkpoint)
+                        );
+                    }
                 } catch (InterruptedException e) {
+                    notifyOnceListener.onFailure(e);
                     logger.warn(
                         () -> new ParameterizedMessage("Interrupted while waiting for publish checkpoint complete [{}]", checkpoint),
                         e
                     );
                 }
             }
+            notifyOnceListener.onResponse(null);
+        } catch (Exception e) {
+            notifyOnceListener.onFailure(e);
         }
     }
 

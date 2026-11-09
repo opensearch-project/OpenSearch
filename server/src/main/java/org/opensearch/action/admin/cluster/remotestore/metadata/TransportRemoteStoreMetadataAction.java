@@ -198,7 +198,11 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
             IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.get(indexMetadata.getSettings()),
             index.getUUID(),
             shardId,
-            indexSettings.getRemoteStorePathStrategy()
+            indexSettings.getRemoteStorePathStrategy(),
+            null,
+            RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata()),
+            false,
+            indexSettings
         );
 
         Map<String, RemoteSegmentMetadata> segmentMetadataMapWithFilenames = remoteDirectory.readLatestNMetadataFiles(5);
@@ -240,10 +244,11 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
         ShardId shardId,
         IndexSettings indexSettings
     ) throws IOException {
-        String repository = IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(indexMetadata.getSettings());
-        if (repository == null) {
+        // The setting's validator rejects an unset value, which a segments_only index always has.
+        if (IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.exists(indexMetadata.getSettings()) == false) {
             return Collections.emptyMap();
         }
+        String repository = IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(indexMetadata.getSettings());
 
         RemoteTranslogTransferTracker tracker = new RemoteTranslogTransferTracker(shardId, 1000);
         FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, tracker);
@@ -257,7 +262,8 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
             tracker,
             indexSettings.getRemoteStorePathStrategy(),
             new RemoteStoreSettings(clusterService.getSettings(), clusterService.getClusterSettings()),
-            RemoteStoreUtils.determineTranslogMetadataEnabled(indexMetadata)
+            RemoteStoreUtils.determineTranslogMetadataEnabled(indexMetadata),
+            RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata())
         );
 
         Map<String, TranslogTransferMetadata> metadataMap = manager.readLatestNMetadataFiles(5);

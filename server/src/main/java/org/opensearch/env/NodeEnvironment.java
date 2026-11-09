@@ -507,7 +507,7 @@ public final class NodeEnvironment implements Closeable {
     }
 
     public static String generateNodeId(Settings settings) {
-        Random random = Randomness.get(settings, NODE_ID_SEED_SETTING);
+        Random random = NODE_ID_SEED_SETTING.exists(settings) ? new Random(NODE_ID_SEED_SETTING.get(settings)) : Randomness.get();
         return UUIDs.randomBase64UUID(random);
     }
 
@@ -674,18 +674,6 @@ public final class NodeEnvironment implements Closeable {
             Path customLocation = resolveIndexCustomLocation(indexSettings.customDataPath(), index.getUUID());
             logger.trace("deleting custom index {} directory [{}]", index, customLocation);
             IOUtils.rm(customLocation);
-        }
-    }
-
-    private void deleteIndexFileCacheDirectory(Index index) {
-        final Path indexCachePath = fileCacheNodePath().fileCachePath.resolve(index.getUUID());
-        logger.trace("deleting index {} file cache directory, path: [{}]", index, indexCachePath);
-        if (Files.exists(indexCachePath)) {
-            try {
-                IOUtils.rm(indexCachePath);
-            } catch (IOException e) {
-                logger.error(() -> new ParameterizedMessage("Failed to delete cache path for index {}", index), e);
-            }
         }
     }
 
@@ -1291,6 +1279,12 @@ public final class NodeEnvironment implements Closeable {
         return indexSubPaths;
     }
 
+    public static void processDirectoryFiles(Path path, List<Path> indexSubPaths) throws IOException {
+        try (Stream<Path> shardStream = Files.list(path)) {
+            shardStream.filter(NodeEnvironment::isShardPath).map(Path::toAbsolutePath).forEach(indexSubPaths::add);
+        }
+    }
+
     @Deprecated(forRemoval = true)
     public static List<Path> collectFileCacheDataPath(NodePath fileCacheNodePath) throws IOException {
         return collectFileCacheDataPath(fileCacheNodePath, Settings.EMPTY);
@@ -1301,9 +1295,7 @@ public final class NodeEnvironment implements Closeable {
             try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(directoryPath)) {
                 for (Path indexPath : indexStream) {
                     if (Files.isDirectory(indexPath)) {
-                        try (Stream<Path> shardStream = Files.list(indexPath)) {
-                            shardStream.filter(NodeEnvironment::isShardPath).map(Path::toAbsolutePath).forEach(indexSubPaths::add);
-                        }
+                        processDirectoryFiles(indexPath, indexSubPaths);
                     }
                 }
             }

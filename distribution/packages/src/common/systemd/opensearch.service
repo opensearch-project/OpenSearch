@@ -96,9 +96,8 @@ ProtectControlGroups=yes
 LockPersonality=yes
 
 
-# System call filtering
 # System call filterings which restricts which system calls a process can make
-# @ means allowed
+# @ means predefined sets
 # ~ means not allowed
 # These syscalls are related to mmap which is needed for OpenSearch Services
 SystemCallFilter=seccomp mincore
@@ -146,9 +145,13 @@ ReadOnlyPaths=-/etc/os-release -/usr/lib/os-release -/etc/system-release
 ## Allow read access to Linux IO stats
 ReadOnlyPaths=/proc/self/mountinfo /proc/diskstats
 
+## Allow read access to native memory stats (RssAnon via /proc/self/status)
+ReadOnlyPaths=/proc/self/status
+
 ## Allow read access to control group stats
 ReadOnlyPaths=/proc/self/cgroup /sys/fs/cgroup/cpu /sys/fs/cgroup/cpu/-
 ReadOnlyPaths=/sys/fs/cgroup/cpuacct /sys/fs/cgroup/cpuacct/- /sys/fs/cgroup/memory /sys/fs/cgroup/memory/-
+ReadOnlyPaths=/sys/fs/cgroup/system.slice/-
 
 
 RestrictNamespaces=true

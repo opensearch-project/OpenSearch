@@ -33,10 +33,12 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.search.Sort;
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentContraints;
+import org.opensearch.common.xcontent.XContentConstraints;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -49,6 +51,7 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.ReloadableCustomAnalyzer;
 import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -64,10 +67,13 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
+import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.instanceOf;
@@ -79,6 +85,11 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Arrays.asList(InternalSettingsPlugin.class, ReloadableFilterPlugin.class);
+    }
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
     public void testTypeValidation() {
@@ -93,7 +104,14 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testGetMetadataFieldsReturnsExpectedSet() throws Throwable {
         final MapperService mapperService = createIndex("test1").mapperService();
-        assertEquals(mapperService.getMetadataFields(), IndicesModule.getBuiltInMetadataFields());
+        // Metadata fields are the built-ins plus the system-managed row-id field (DocumentInput.ROW_ID_FIELD) that the
+        // composite-engine plugin registers node-wide as a metadata field, so it is expected on every index when the
+        // sandbox stack is installed.
+        final Set<String> expected = new HashSet<>(IndicesModule.getBuiltInMetadataFields());
+        if (shouldInstallSandboxStack()) {
+            expected.add(DocumentInput.ROW_ID_FIELD);
+        }
+        assertEquals(expected, mapperService.getMetadataFields());
     }
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {
@@ -174,7 +192,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             () -> createIndex(
                 "test1",
                 Settings.builder()
-                    .put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), XContentContraints.DEFAULT_MAX_DEPTH + 1)
+                    .put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), XContentConstraints.DEFAULT_MAX_DEPTH + 1)
                     .build()
             )
         );
@@ -182,8 +200,11 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         assertThat(
             ex.getMessage(),
             is(
-                "The provided value 1001 of the index setting 'index.mapping.depth.limit' exceeds per-JVM configured limit of 1000. "
-                    + "Please change the setting value or increase per-JVM limit using 'opensearch.xcontent.depth.max' system property."
+                "The provided value "
+                    + (XContentConstraints.DEFAULT_MAX_DEPTH + 1)
+                    + " of the index setting 'index.mapping.depth.limit' exceeds per-JVM configured limit of "
+                    + XContentConstraints.DEFAULT_MAX_DEPTH
+                    + ". Please change the setting value or increase per-JVM limit using 'opensearch.xcontent.depth.max' system property."
             )
         );
     }
@@ -223,14 +244,14 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         );
     }
 
-    public void testIndexSortWithNestedFields() throws IOException {
-        Settings settings = Settings.builder().put("index.sort.field", "foo").build();
+    public void testIndexSortWithNestedFieldsWithOlderVersion() throws IOException {
+        Settings settings = settings(Version.V_3_0_0).put("index.sort.field", "foo").build();
         IllegalArgumentException invalidNestedException = expectThrows(
             IllegalArgumentException.class,
-            () -> createIndex("test", settings, "t", "nested_field", "type=nested", "foo", "type=keyword")
+            () -> createIndexWithSimpleMappings("test", settings, "nested_field", "type=nested", "foo", "type=keyword")
         );
         assertThat(invalidNestedException.getMessage(), containsString("cannot have nested fields when index sort is activated"));
-        IndexService indexService = createIndex("test", settings, "t", "foo", "type=keyword");
+        IndexService indexService = createIndexWithSimpleMappings("test", settings, "foo", "type=keyword");
         CompressedXContent nestedFieldMapping = new CompressedXContent(
             BytesReference.bytes(
                 XContentFactory.jsonBuilder()
@@ -248,6 +269,64 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             () -> indexService.mapperService().merge("t", nestedFieldMapping, updateOrPreflight())
         );
         assertThat(invalidNestedException.getMessage(), containsString("cannot have nested fields when index sort is activated"));
+    }
+
+    public void testIndexSortWithNestedFieldsWithNewVersion() throws IOException {
+        Settings settings = settings(Version.CURRENT).put("index.sort.field", "foo").build();
+        IndexService indexService = createIndex("test", settings, "t", "nested_field", "type=nested", "foo", "type=keyword");
+        assertTrue(indexService.getIndexSortSupplier() != null);
+        assertEquals("foo", indexService.getIndexSortSupplier().get().getSort()[0].getField());
+        assertTrue(indexService.mapperService().getIndexSettings().getIndexSortConfig().hasIndexSort());
+        final Sort oldSort = indexService.getIndexSortSupplier().get();
+
+        // adding new nested Field to existing index, index sort should remain same
+        CompressedXContent nestedFieldMapping = new CompressedXContent(
+            BytesReference.bytes(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("nested_field2")
+                    .field("type", "nested")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        indexService.mapperService().merge("t", nestedFieldMapping, updateOrPreflight());
+        final Sort newSort = indexService.getIndexSortSupplier().get();
+
+        assertTrue(indexService.getIndexSortSupplier() != null);
+        assertEquals(oldSort, newSort);
+        assertEquals(1, indexService.getIndexSortSupplier().get().getSort().length);
+        assertEquals("foo", indexService.getIndexSortSupplier().get().getSort()[0].getField());
+    }
+
+    public void testIndexSortWithNestedFieldsValidation() throws IOException {
+        Settings settings = Settings.builder().putList("index.sort.field", "contacts.age").put("index.sort.order", "desc").build();
+
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("contacts")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("name")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("age")
+            .field("type", "integer")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> createIndex("test_nested", settings, "t", mapping)
+        );
+
+        assertThat(exception.getMessage(), containsString("index sorting on nested fields is not supported"));
+
     }
 
     public void testFieldAliasWithMismatchedNestedScope() throws Throwable {
@@ -336,7 +415,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             () -> createIndex(
                 "test1",
                 Settings.builder()
-                    .put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), XContentContraints.DEFAULT_MAX_NAME_LEN + 1)
+                    .put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), XContentConstraints.DEFAULT_MAX_NAME_LEN + 1)
                     .build()
             )
         );
@@ -549,6 +628,41 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
         );
     }
 
+    public void testReloadSearchAnalyzersWithReloadCachedResources() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
+            .put("index.analysis.analyzer.reloadableAnalyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.reloadableAnalyzer.filter", "myReloadableFilter")
+            .build();
+
+        MapperService mapperService = createIndex("test_index", settings).mapperService();
+        CompressedXContent mapping = new CompressedXContent(
+            BytesReference.bytes(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field")
+                    .field("type", "text")
+                    .field("analyzer", "simple")
+                    .field("search_analyzer", "reloadableAnalyzer")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+
+        mapperService.merge("_doc", mapping, MergeReason.MAPPING_UPDATE);
+
+        // Call with reloadCachedResources=true — exercises the reload loop and no-op default
+        List<String> reloaded = mapperService.reloadSearchAnalyzers(getInstanceFromNode(AnalysisRegistry.class), true);
+        assertEquals(1, reloaded.size());
+        assertEquals("reloadableAnalyzer", reloaded.get(0));
+    }
+
     public void testMapperDynamicAllowedIgnored() {
         final List<Function<Settings.Builder, Settings.Builder>> scenarios = List.of(
             (builder) -> builder.putNull(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey()),
@@ -619,6 +733,16 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
                 }
             });
         }
+    }
+
+    /** Validates that {@code index.mapping.dynamic_properties.lucene_field.limit} is a recognized index setting. */
+    public void testDynamicPropertiesLuceneFieldLimitSettingRecognized() throws IOException {
+        long customLimit = 5_000L;
+        MapperService mapperService = createIndex(
+            "test",
+            Settings.builder().put(MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING.getKey(), customLimit).build()
+        ).mapperService();
+        assertEquals(customLimit, mapperService.getIndexSettings().getMappingDynamicPropertiesLuceneFieldLimit());
     }
 
 }

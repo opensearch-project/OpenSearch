@@ -1,0 +1,1 @@
+source=test_data | eval tag_count = reduce(split(tags, ','), 0, (acc, x) -> acc + 1) | fields tags, tag_count | head 3

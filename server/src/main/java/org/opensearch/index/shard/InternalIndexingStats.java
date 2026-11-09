@@ -154,20 +154,18 @@ final class InternalIndexingStats implements IndexingOperationListener {
         private final MaxMetric maxLastIndexRequestTimestamp = new MaxMetric();
 
         IndexingStats.Stats stats(boolean isThrottled, long currentThrottleMillis) {
-            return new IndexingStats.Stats(
-                indexMetric.count(),
-                TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()),
-                indexCurrent.count(),
-                indexFailed.count(),
-                deleteMetric.count(),
-                TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()),
-                deleteCurrent.count(),
-                noopUpdates.count(),
-                isThrottled,
-                TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis),
-                new IndexingStats.Stats.DocStatusStats(),
-                maxLastIndexRequestTimestamp.get()
-            );
+            return new IndexingStats.Stats.Builder().indexCount(indexMetric.count())
+                .indexTimeInMillis(TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()))
+                .indexCurrent(indexCurrent.count())
+                .indexFailedCount(indexFailed.count())
+                .deleteCount(deleteMetric.count())
+                .deleteTimeInMillis(TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()))
+                .deleteCurrent(deleteCurrent.count())
+                .noopUpdateCount(noopUpdates.count())
+                .isThrottled(isThrottled)
+                .throttleTimeInMillis(TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis))
+                .maxLastIndexRequestTimestamp(maxLastIndexRequestTimestamp.get())
+                .build();
         }
     }
 }

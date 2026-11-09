@@ -29,6 +29,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
@@ -850,5 +851,9 @@ public class SemanticVersionFieldMapperTests extends MapperTestCase {
             () -> searchOnlyFieldType.fielddataBuilder("test_index", null)
         );
         assertThat(fieldDataException.getMessage(), containsString("does not have doc_values enabled"));
+    }
+
+    private Settings pluggableSettings() {
+        return Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
     }
 }

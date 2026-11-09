@@ -1,0 +1,1 @@
+source = lineitem | join ON p_partkey = l_partkey part | where p_brand = 'Brand#23' and p_container = 'MED BOX' and l_quantity < [ source = lineitem | where l_partkey = p_partkey | stats avg(l_quantity) as avg | eval `0.2 * avg` = 0.2 * avg | fields `0.2 * avg` ] | stats sum(l_extendedprice) as sum | eval avg_yearly = sum / 7.0 | fields avg_yearly

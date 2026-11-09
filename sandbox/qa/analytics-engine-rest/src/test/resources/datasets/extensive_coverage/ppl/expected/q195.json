@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "text",
+      "type": "string"
+    },
+    {
+      "name": "pos",
+      "type": "int"
+    }
+  ],
+  "datarows": [
+    [
+      "hello world test",
+      13
+    ],
+    [
+      "sample data entry",
+      0
+    ],
+    [
+      "test example record",
+      1
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

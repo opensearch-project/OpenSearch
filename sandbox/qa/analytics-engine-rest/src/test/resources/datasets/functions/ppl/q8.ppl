@@ -1,0 +1,1 @@
+source=function_tests | eval has_ip = isnotnull(ip_address) | where has_ip = true | fields user, ip_address, has_ip | head 10

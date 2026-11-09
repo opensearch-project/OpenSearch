@@ -1,0 +1,78 @@
+{
+  "schema": [
+    {
+      "name": "category",
+      "type": "string"
+    },
+    {
+      "name": "product",
+      "type": "string"
+    },
+    {
+      "name": "amount",
+      "type": "double"
+    },
+    {
+      "name": "rnk",
+      "type": "bigint"
+    }
+  ],
+  "datarows": [
+    [
+      "books",
+      "algorithm design",
+      110.0,
+      1
+    ],
+    [
+      "books",
+      "business strategy",
+      99.99,
+      2
+    ],
+    [
+      "books",
+      "programming guide",
+      89.99,
+      3
+    ],
+    [
+      "clothing",
+      "winter jacket",
+      320.0,
+      1
+    ],
+    [
+      "clothing",
+      "formal suit",
+      275.0,
+      2
+    ],
+    [
+      "clothing",
+      "backpack",
+      195.0,
+      3
+    ],
+    [
+      "electronics",
+      "professional camera",
+      3200.0,
+      1
+    ],
+    [
+      "electronics",
+      "gaming desktop",
+      2500.0,
+      2
+    ],
+    [
+      "electronics",
+      "laptop computer",
+      1250.0,
+      3
+    ]
+  ],
+  "total": 9,
+  "size": 9
+}

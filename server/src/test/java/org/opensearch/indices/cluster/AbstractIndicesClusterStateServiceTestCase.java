@@ -45,6 +45,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
@@ -62,6 +63,7 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.test.OpenSearchTestCase;
@@ -270,7 +272,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
             final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
             final DiscoveryNodes discoveryNodes,
             final MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
-            final MergedSegmentPublisher mergedSegmentPublisher
+            final MergedSegmentPublisher mergedSegmentPublisher,
+            final ReferencedSegmentsPublisher referencedSegmentsPublisher
         ) throws IOException {
             failRandomly();
             RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode);
@@ -281,8 +284,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
         }
 
         @Override
-        public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeValue) throws IOException,
-            InterruptedException {
+        public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue lockTimeout, TimeValue deletionRetryTimeout)
+            throws IOException, InterruptedException, ShardLockObtainFailedException {
 
         }
 

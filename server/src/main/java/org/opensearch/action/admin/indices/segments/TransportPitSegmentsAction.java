@@ -17,6 +17,8 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.OptionallyResolvedIndices;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.PlainShardsIterator;
 import org.opensearch.cluster.routing.RecoverySource;
@@ -96,7 +98,7 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
      */
     @Override
     protected void doExecute(Task task, PitSegmentsRequest request, ActionListener<IndicesSegmentResponse> listener) {
-        if (request.getPitIds().size() == 1 && "_all".equals(request.getPitIds().get(0))) {
+        if (isAllPitsRequest(request)) {
             pitService.getAllPits(ActionListener.wrap(response -> {
                 request.clearAndSetPitIds(response.getPitInfos().stream().map(ListPitInfo::getPitId).collect(Collectors.toList()));
                 super.doExecute(task, request, listener);
@@ -104,6 +106,19 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
         } else {
             super.doExecute(task, request, listener);
         }
+    }
+
+    @Override
+    public OptionallyResolvedIndices resolveIndices(PitSegmentsRequest request) {
+        if (isAllPitsRequest(request)) {
+            return ResolvedIndices.unknown();
+        } else {
+            return ResolvedIndices.of(this.pitService.getIndicesForPitsFlat(request.getPitIds()));
+        }
+    }
+
+    private boolean isAllPitsRequest(PitSegmentsRequest request) {
+        return request.getPitIds().size() == 1 && "_all".equals(request.getPitIds().get(0));
     }
 
     /**

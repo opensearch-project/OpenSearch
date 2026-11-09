@@ -1,0 +1,921 @@
+{"index": {}}
+{"@timestamp": "2026-05-13T11:45:54.648417", "raw_message": "User: eve logged in from IP: 172.16.0.20 at 2026-05-13T11:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "User: bob logged in from IP: 192.168.1.50 at 2026-05-14T02:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "User: charlie logged in from IP: 10.0.0.5 at 2026-05-13T18:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "User: david logged in from IP: 10.0.0.5 at 2026-05-13T17:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "User: alice logged in from IP: 172.16.0.20 at 2026-05-13T09:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "User: charlie logged in from IP: 10.0.0.5 at 2026-05-14T02:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "User: eve logged in from IP: 172.16.0.20 at 2026-05-13T06:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "User: eve logged in from IP: 172.16.0.20 at 2026-05-14T02:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "User: bob logged in from IP: 172.16.0.20 at 2026-05-13T09:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:45:54.648417", "raw_message": "User: eve logged in from IP: 192.168.1.10 at 2026-05-13T13:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:45:54.648417", "raw_message": "User: eve logged in from IP: 192.168.1.10 at 2026-05-13T16:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "User: eve logged in from IP: 192.168.1.50 at 2026-05-13T14:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:45:54.648417", "raw_message": "User: alice logged in from IP: 192.168.1.10 at 2026-05-13T20:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "User: david logged in from IP: 172.16.0.20 at 2026-05-13T18:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "User: bob logged in from IP: 172.16.0.20 at 2026-05-13T17:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "User: david logged in from IP: 192.168.1.10 at 2026-05-13T23:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:45:54.648417", "raw_message": "User: bob logged in from IP: 192.168.1.10 at 2026-05-13T03:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "User: eve logged in from IP: 192.168.1.50 at 2026-05-13T21:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "User: david logged in from IP: 192.168.1.10 at 2026-05-13T21:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "User: bob logged in from IP: 172.16.0.20 at 2026-05-13T17:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "User: david logged in from IP: 192.168.1.10 at 2026-05-13T09:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "User: alice logged in from IP: 192.168.1.50 at 2026-05-13T18:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "User: charlie logged in from IP: 192.168.1.50 at 2026-05-13T14:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:45:54.648417", "raw_message": "User: david logged in from IP: 192.168.1.10 at 2026-05-13T20:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "User: david logged in from IP: 10.0.0.5 at 2026-05-13T04:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "User: bob logged in from IP: 192.168.1.10 at 2026-05-13T09:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "User: alice logged in from IP: 192.168.1.50 at 2026-05-13T02:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:45:54.648417", "raw_message": "User: david logged in from IP: 172.16.0.20 at 2026-05-13T15:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "User: charlie logged in from IP: 192.168.1.50 at 2026-05-13T12:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:45:54.648417", "raw_message": "User: david logged in from IP: 192.168.1.50 at 2026-05-13T03:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "User: bob logged in from IP: 10.0.0.5 at 2026-05-13T02:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:45:54.648417", "raw_message": "User: eve logged in from IP: 172.16.0.20 at 2026-05-13T07:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "User: charlie logged in from IP: 192.168.1.50 at 2026-05-13T23:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "User: bob logged in from IP: 172.16.0.20 at 2026-05-13T12:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:45:54.648417", "raw_message": "User: david logged in from IP: 172.16.0.20 at 2026-05-14T01:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "User: alice logged in from IP: 192.168.1.50 at 2026-05-13T04:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "User: charlie logged in from IP: 192.168.1.10 at 2026-05-13T23:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:45:54.648417", "raw_message": "User: bob logged in from IP: 192.168.1.10 at 2026-05-13T05:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:45:54.648417", "raw_message": "User: eve logged in from IP: 10.0.0.5 at 2026-05-13T19:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "User: bob logged in from IP: 172.16.0.20 at 2026-05-13T09:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "User: bob logged in from IP: 172.16.0.20 at 2026-05-13T17:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:45:54.648417", "raw_message": "User: charlie logged in from IP: 192.168.1.10 at 2026-05-13T22:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "User: david logged in from IP: 192.168.1.10 at 2026-05-13T08:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "User: bob logged in from IP: 192.168.1.50 at 2026-05-13T21:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:45:54.648417", "raw_message": "User: bob logged in from IP: 10.0.0.5 at 2026-05-13T20:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:45:54.648417", "raw_message": "User: bob logged in from IP: 172.16.0.20 at 2026-05-13T19:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "User: bob logged in from IP: 172.16.0.20 at 2026-05-13T09:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:45:54.648417", "raw_message": "User: bob logged in from IP: 10.0.0.5 at 2026-05-13T05:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:45:54.648417", "raw_message": "User: alice logged in from IP: 172.16.0.20 at 2026-05-14T01:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "User: eve logged in from IP: 192.168.1.50 at 2026-05-13T23:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "User: david logged in from IP: 172.16.0.20 at 2026-05-14T00:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:45:54.648417", "raw_message": "User: alice logged in from IP: 192.168.1.10 at 2026-05-13T15:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "User: david logged in from IP: 192.168.1.50 at 2026-05-13T23:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "User: eve logged in from IP: 10.0.0.5 at 2026-05-13T14:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "User: alice logged in from IP: 192.168.1.50 at 2026-05-13T04:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:45:54.648417", "raw_message": "User: david logged in from IP: 192.168.1.50 at 2026-05-13T22:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "User: alice logged in from IP: 172.16.0.20 at 2026-05-13T23:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:45:54.648417", "raw_message": "User: bob logged in from IP: 192.168.1.10 at 2026-05-13T13:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "User: bob logged in from IP: 192.168.1.10 at 2026-05-13T21:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "User: alice logged in from IP: 192.168.1.50 at 2026-05-13T10:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:45:54.648417", "raw_message": "User: eve logged in from IP: 192.168.1.10 at 2026-05-13T16:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "User: alice logged in from IP: 10.0.0.5 at 2026-05-13T21:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "User: alice logged in from IP: 192.168.1.10 at 2026-05-13T21:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "User: alice logged in from IP: 10.0.0.5 at 2026-05-13T08:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:45:54.648417", "raw_message": "User: alice logged in from IP: 10.0.0.5 at 2026-05-13T03:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "User: charlie logged in from IP: 10.0.0.5 at 2026-05-13T10:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "User: eve logged in from IP: 172.16.0.20 at 2026-05-13T06:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "User: alice logged in from IP: 192.168.1.10 at 2026-05-13T08:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:45:54.648417", "raw_message": "User: david logged in from IP: 192.168.1.50 at 2026-05-13T22:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "User: charlie logged in from IP: 172.16.0.20 at 2026-05-14T02:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "User: bob logged in from IP: 192.168.1.50 at 2026-05-13T12:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:45:54.648417", "raw_message": "User: alice logged in from IP: 172.16.0.20 at 2026-05-14T01:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "User: david logged in from IP: 172.16.0.20 at 2026-05-13T04:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:45:54.648417", "raw_message": "User: eve logged in from IP: 10.0.0.5 at 2026-05-13T11:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "User: david logged in from IP: 10.0.0.5 at 2026-05-13T23:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "User: eve logged in from IP: 10.0.0.5 at 2026-05-13T09:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "User: charlie logged in from IP: 172.16.0.20 at 2026-05-13T09:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:45:54.648417", "raw_message": "User: david logged in from IP: 192.168.1.50 at 2026-05-14T01:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:45:54.648417", "raw_message": "User: eve logged in from IP: 10.0.0.5 at 2026-05-13T22:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "User: bob logged in from IP: 192.168.1.10 at 2026-05-13T14:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "User: charlie logged in from IP: 192.168.1.50 at 2026-05-14T00:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "User: charlie logged in from IP: 192.168.1.50 at 2026-05-13T17:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "User: alice logged in from IP: 172.16.0.20 at 2026-05-13T12:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "User: eve logged in from IP: 192.168.1.50 at 2026-05-13T08:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "User: eve logged in from IP: 192.168.1.10 at 2026-05-13T17:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "User: alice logged in from IP: 10.0.0.5 at 2026-05-13T14:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:45:54.648417", "raw_message": "User: david logged in from IP: 172.16.0.20 at 2026-05-13T20:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "User: alice logged in from IP: 192.168.1.50 at 2026-05-13T08:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "User: charlie logged in from IP: 192.168.1.10 at 2026-05-13T23:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "User: charlie logged in from IP: 192.168.1.10 at 2026-05-13T12:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:45:54.648417", "raw_message": "User: charlie logged in from IP: 192.168.1.10 at 2026-05-13T15:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "User: alice logged in from IP: 192.168.1.10 at 2026-05-13T06:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:45:54.648417", "raw_message": "User: david logged in from IP: 192.168.1.10 at 2026-05-13T16:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "User: bob logged in from IP: 192.168.1.10 at 2026-05-13T04:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "User: david logged in from IP: 10.0.0.5 at 2026-05-14T00:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:45:54.648417", "raw_message": "User: bob logged in from IP: 172.16.0.20 at 2026-05-13T20:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "User: charlie logged in from IP: 192.168.1.10 at 2026-05-13T12:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "User: bob logged in from IP: 172.16.0.20 at 2026-05-13T17:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "User: charlie logged in from IP: 192.168.1.10 at 2026-05-13T17:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:45:54.648417", "raw_message": "User: david logged in from IP: 192.168.1.10 at 2026-05-13T03:45:54.648417", "log_level": "INFO", "source": "auth_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "Transaction ID: TXN000002 Amount: $113.1 Status: SUCCESS Card: ****5678", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:45:54.648417", "raw_message": "Transaction ID: TXN000001 Amount: $382.34 Status: FAILED Card: ****9012", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:45:54.648417", "raw_message": "Transaction ID: TXN000033 Amount: $430.66 Status: FAILED Card: ****9012", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:45:54.648417", "raw_message": "Transaction ID: TXN000020 Amount: $372.47 Status: FAILED Card: ****5678", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:45:54.648417", "raw_message": "Transaction ID: TXN000020 Amount: $102.25 Status: SUCCESS Card: ****5678", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "Transaction ID: TXN000007 Amount: $289.7 Status: SUCCESS Card: ****5678", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "Transaction ID: TXN000016 Amount: $55.72 Status: SUCCESS Card: ****9012", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:45:54.648417", "raw_message": "Transaction ID: TXN000045 Amount: $166.49 Status: SUCCESS Card: ****3456", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "Transaction ID: TXN000025 Amount: $332.08 Status: SUCCESS Card: ****7890", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:45:54.648417", "raw_message": "Transaction ID: TXN000027 Amount: $122.4 Status: FAILED Card: ****7890", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "Transaction ID: TXN000043 Amount: $228.61 Status: FAILED Card: ****5678", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "Transaction ID: TXN000009 Amount: $130.85 Status: SUCCESS Card: ****5678", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:45:54.648417", "raw_message": "Transaction ID: TXN000031 Amount: $94.72 Status: SUCCESS Card: ****1234", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "Transaction ID: TXN000024 Amount: $330.54 Status: SUCCESS Card: ****3456", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "Transaction ID: TXN000010 Amount: $384.04 Status: FAILED Card: ****5678", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "Transaction ID: TXN000025 Amount: $349.46 Status: SUCCESS Card: ****9012", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:45:54.648417", "raw_message": "Transaction ID: TXN000044 Amount: $118.66 Status: PENDING Card: ****1234", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "Transaction ID: TXN000045 Amount: $180.17 Status: SUCCESS Card: ****1234", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "Transaction ID: TXN000026 Amount: $189.56 Status: SUCCESS Card: ****9012", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "Transaction ID: TXN000033 Amount: $309.44 Status: FAILED Card: ****5678", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "Transaction ID: TXN000015 Amount: $263.05 Status: SUCCESS Card: ****3456", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:45:54.648417", "raw_message": "Transaction ID: TXN000017 Amount: $421.55 Status: FAILED Card: ****9012", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:45:54.648417", "raw_message": "Transaction ID: TXN000021 Amount: $330.35 Status: SUCCESS Card: ****3456", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "Transaction ID: TXN000047 Amount: $302.77 Status: SUCCESS Card: ****5678", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "Transaction ID: TXN000021 Amount: $281.02 Status: PENDING Card: ****7890", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "Transaction ID: TXN000017 Amount: $289.17 Status: SUCCESS Card: ****5678", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "Transaction ID: TXN000043 Amount: $197.52 Status: PENDING Card: ****7890", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "Transaction ID: TXN000028 Amount: $200.3 Status: SUCCESS Card: ****7890", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:45:54.648417", "raw_message": "Transaction ID: TXN000030 Amount: $259.71 Status: SUCCESS Card: ****7890", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:45:54.648417", "raw_message": "Transaction ID: TXN000002 Amount: $48.76 Status: PENDING Card: ****1234", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "Transaction ID: TXN000043 Amount: $51.75 Status: FAILED Card: ****5678", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "Transaction ID: TXN000043 Amount: $259.33 Status: FAILED Card: ****5678", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "Transaction ID: TXN000022 Amount: $138.17 Status: FAILED Card: ****3456", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "Transaction ID: TXN000002 Amount: $67.0 Status: SUCCESS Card: ****3456", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:45:54.648417", "raw_message": "Transaction ID: TXN000038 Amount: $357.36 Status: PENDING Card: ****1234", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "Transaction ID: TXN000041 Amount: $204.29 Status: FAILED Card: ****9012", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "Transaction ID: TXN000021 Amount: $51.46 Status: PENDING Card: ****7890", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "Transaction ID: TXN000027 Amount: $47.52 Status: PENDING Card: ****5678", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "Transaction ID: TXN000021 Amount: $437.51 Status: SUCCESS Card: ****7890", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "Transaction ID: TXN000044 Amount: $186.5 Status: SUCCESS Card: ****1234", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "Transaction ID: TXN000040 Amount: $371.39 Status: PENDING Card: ****5678", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "Transaction ID: TXN000048 Amount: $205.35 Status: SUCCESS Card: ****1234", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:45:54.648417", "raw_message": "Transaction ID: TXN000049 Amount: $406.63 Status: SUCCESS Card: ****1234", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:45:54.648417", "raw_message": "Transaction ID: TXN000049 Amount: $454.97 Status: SUCCESS Card: ****1234", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:45:54.648417", "raw_message": "Transaction ID: TXN000007 Amount: $53.85 Status: SUCCESS Card: ****7890", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:45:54.648417", "raw_message": "Transaction ID: TXN000011 Amount: $235.52 Status: SUCCESS Card: ****7890", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:45:54.648417", "raw_message": "Transaction ID: TXN000038 Amount: $57.64 Status: SUCCESS Card: ****7890", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:45:54.648417", "raw_message": "Transaction ID: TXN000040 Amount: $117.89 Status: SUCCESS Card: ****9012", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "Transaction ID: TXN000048 Amount: $326.48 Status: FAILED Card: ****1234", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:45:54.648417", "raw_message": "Transaction ID: TXN000042 Amount: $98.2 Status: SUCCESS Card: ****3456", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "Transaction ID: TXN000030 Amount: $177.95 Status: SUCCESS Card: ****5678", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "Transaction ID: TXN000029 Amount: $248.39 Status: PENDING Card: ****5678", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "Transaction ID: TXN000008 Amount: $37.79 Status: SUCCESS Card: ****1234", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "Transaction ID: TXN000041 Amount: $88.04 Status: SUCCESS Card: ****3456", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:45:54.648417", "raw_message": "Transaction ID: TXN000032 Amount: $388.59 Status: SUCCESS Card: ****7890", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "Transaction ID: TXN000017 Amount: $136.1 Status: SUCCESS Card: ****3456", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "Transaction ID: TXN000014 Amount: $91.33 Status: SUCCESS Card: ****1234", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "Transaction ID: TXN000004 Amount: $346.36 Status: FAILED Card: ****1234", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:45:54.648417", "raw_message": "Transaction ID: TXN000014 Amount: $173.05 Status: FAILED Card: ****7890", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "Transaction ID: TXN000040 Amount: $77.21 Status: FAILED Card: ****1234", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "Transaction ID: TXN000012 Amount: $185.1 Status: SUCCESS Card: ****5678", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "Transaction ID: TXN000030 Amount: $346.43 Status: SUCCESS Card: ****9012", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:45:54.648417", "raw_message": "Transaction ID: TXN000047 Amount: $273.32 Status: SUCCESS Card: ****3456", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:45:54.648417", "raw_message": "Transaction ID: TXN000032 Amount: $215.28 Status: FAILED Card: ****3456", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:45:54.648417", "raw_message": "Transaction ID: TXN000033 Amount: $116.02 Status: PENDING Card: ****1234", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:45:54.648417", "raw_message": "Transaction ID: TXN000011 Amount: $310.05 Status: FAILED Card: ****9012", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "Transaction ID: TXN000032 Amount: $220.81 Status: SUCCESS Card: ****1234", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:45:54.648417", "raw_message": "Transaction ID: TXN000009 Amount: $60.19 Status: SUCCESS Card: ****1234", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "Transaction ID: TXN000002 Amount: $204.63 Status: FAILED Card: ****5678", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:45:54.648417", "raw_message": "Transaction ID: TXN000013 Amount: $235.42 Status: SUCCESS Card: ****9012", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "Transaction ID: TXN000036 Amount: $57.91 Status: SUCCESS Card: ****5678", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "Transaction ID: TXN000047 Amount: $127.44 Status: FAILED Card: ****9012", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "Transaction ID: TXN000014 Amount: $199.59 Status: SUCCESS Card: ****3456", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:45:54.648417", "raw_message": "Transaction ID: TXN000028 Amount: $13.72 Status: PENDING Card: ****5678", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "Transaction ID: TXN000025 Amount: $243.94 Status: SUCCESS Card: ****7890", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:45:54.648417", "raw_message": "Transaction ID: TXN000019 Amount: $194.53 Status: FAILED Card: ****3456", "log_level": "ERROR", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:45:54.648417", "raw_message": "Transaction ID: TXN000031 Amount: $408.96 Status: SUCCESS Card: ****9012", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "Transaction ID: TXN000013 Amount: $238.05 Status: SUCCESS Card: ****7890", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:45:54.648417", "raw_message": "Transaction ID: TXN000008 Amount: $222.64 Status: SUCCESS Card: ****7890", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "Transaction ID: TXN000004 Amount: $361.96 Status: SUCCESS Card: ****3456", "log_level": "INFO", "source": "payment_service"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "API Request: PUT /api/users Response: 200 Duration: 1019ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "API Request: GET /api/users Response: 201 Duration: 1259ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:45:54.648417", "raw_message": "API Request: GET /api/payments Response: 201 Duration: 1523ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "API Request: DELETE /api/products Response: 502 Duration: 2614ms User-Agent: PostmanRuntime/7.26.8", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "API Request: DELETE /api/payments Response: 401 Duration: 1274ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "API Request: PUT /api/products Response: 200 Duration: 1581ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:45:54.648417", "raw_message": "API Request: GET /api/orders Response: 200 Duration: 1164ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "API Request: DELETE /api/products Response: 401 Duration: 2406ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "API Request: GET /api/orders Response: 500 Duration: 1696ms User-Agent: curl/7.68.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:45:54.648417", "raw_message": "API Request: DELETE /api/orders Response: 400 Duration: 2909ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:45:54.648417", "raw_message": "API Request: PUT /api/payments Response: 400 Duration: 2410ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:45:54.648417", "raw_message": "API Request: POST /api/payments Response: 200 Duration: 1534ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "API Request: DELETE /api/payments Response: 200 Duration: 1268ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "API Request: GET /api/orders Response: 201 Duration: 1629ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "API Request: POST /api/payments Response: 503 Duration: 2781ms User-Agent: Mozilla/5.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:45:54.648417", "raw_message": "API Request: PUT /api/products Response: 200 Duration: 695ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:45:54.648417", "raw_message": "API Request: DELETE /api/products Response: 200 Duration: 1935ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "API Request: GET /api/payments Response: 200 Duration: 1206ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:45:54.648417", "raw_message": "API Request: PUT /api/orders Response: 200 Duration: 836ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "API Request: POST /api/payments Response: 400 Duration: 240ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:45:54.648417", "raw_message": "API Request: POST /api/payments Response: 201 Duration: 1036ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "API Request: PUT /api/orders Response: 201 Duration: 1173ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:45:54.648417", "raw_message": "API Request: PUT /api/products Response: 503 Duration: 2704ms User-Agent: curl/7.68.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:45:54.648417", "raw_message": "API Request: DELETE /api/products Response: 200 Duration: 2398ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "API Request: DELETE /api/orders Response: 500 Duration: 1233ms User-Agent: PostmanRuntime/7.26.8", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "API Request: GET /api/products Response: 200 Duration: 2326ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "API Request: PUT /api/payments Response: 400 Duration: 2825ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "API Request: DELETE /api/orders Response: 201 Duration: 1946ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "API Request: GET /api/products Response: 502 Duration: 1507ms User-Agent: PostmanRuntime/7.26.8", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "API Request: GET /api/products Response: 503 Duration: 119ms User-Agent: curl/7.68.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "API Request: GET /api/payments Response: 500 Duration: 1460ms User-Agent: curl/7.68.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "API Request: DELETE /api/products Response: 200 Duration: 1676ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:45:54.648417", "raw_message": "API Request: DELETE /api/users Response: 500 Duration: 674ms User-Agent: PostmanRuntime/7.26.8", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "API Request: DELETE /api/payments Response: 500 Duration: 2587ms User-Agent: Mozilla/5.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:45:54.648417", "raw_message": "API Request: DELETE /api/users Response: 401 Duration: 2723ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "API Request: POST /api/products Response: 503 Duration: 2723ms User-Agent: Mozilla/5.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:45:54.648417", "raw_message": "API Request: PUT /api/products Response: 200 Duration: 1421ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "API Request: PUT /api/orders Response: 502 Duration: 2062ms User-Agent: curl/7.68.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "API Request: PUT /api/users Response: 200 Duration: 1669ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "API Request: GET /api/products Response: 401 Duration: 1495ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:45:54.648417", "raw_message": "API Request: DELETE /api/orders Response: 502 Duration: 771ms User-Agent: PostmanRuntime/7.26.8", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "API Request: DELETE /api/payments Response: 200 Duration: 894ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:45:54.648417", "raw_message": "API Request: GET /api/users Response: 200 Duration: 2731ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:45:54.648417", "raw_message": "API Request: DELETE /api/orders Response: 502 Duration: 1402ms User-Agent: PostmanRuntime/7.26.8", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "API Request: POST /api/users Response: 200 Duration: 450ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "API Request: POST /api/users Response: 500 Duration: 702ms User-Agent: PostmanRuntime/7.26.8", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:45:54.648417", "raw_message": "API Request: POST /api/users Response: 201 Duration: 1590ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "API Request: DELETE /api/payments Response: 200 Duration: 1510ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:45:54.648417", "raw_message": "API Request: POST /api/payments Response: 200 Duration: 1385ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "API Request: PUT /api/orders Response: 200 Duration: 2977ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "API Request: PUT /api/payments Response: 200 Duration: 148ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:45:54.648417", "raw_message": "API Request: PUT /api/payments Response: 200 Duration: 1567ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "API Request: PUT /api/orders Response: 401 Duration: 761ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "API Request: DELETE /api/payments Response: 201 Duration: 1369ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:45:54.648417", "raw_message": "API Request: DELETE /api/users Response: 500 Duration: 2149ms User-Agent: curl/7.68.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "API Request: GET /api/orders Response: 200 Duration: 2235ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "API Request: PUT /api/orders Response: 200 Duration: 1368ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "API Request: PUT /api/payments Response: 500 Duration: 783ms User-Agent: PostmanRuntime/7.26.8", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "API Request: GET /api/products Response: 200 Duration: 2467ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "API Request: GET /api/products Response: 401 Duration: 2845ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:45:54.648417", "raw_message": "API Request: GET /api/products Response: 201 Duration: 2248ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:45:54.648417", "raw_message": "API Request: GET /api/orders Response: 201 Duration: 1990ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:45:54.648417", "raw_message": "API Request: POST /api/orders Response: 200 Duration: 335ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:45:54.648417", "raw_message": "API Request: PUT /api/payments Response: 200 Duration: 1497ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "API Request: DELETE /api/products Response: 201 Duration: 2200ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "API Request: PUT /api/products Response: 200 Duration: 1128ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "API Request: PUT /api/payments Response: 200 Duration: 354ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:45:54.648417", "raw_message": "API Request: POST /api/orders Response: 502 Duration: 2479ms User-Agent: Mozilla/5.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "API Request: DELETE /api/payments Response: 201 Duration: 478ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:45:54.648417", "raw_message": "API Request: GET /api/payments Response: 502 Duration: 1058ms User-Agent: curl/7.68.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:45:54.648417", "raw_message": "API Request: DELETE /api/payments Response: 502 Duration: 255ms User-Agent: PostmanRuntime/7.26.8", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "API Request: POST /api/users Response: 502 Duration: 2164ms User-Agent: Mozilla/5.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "API Request: POST /api/orders Response: 500 Duration: 2016ms User-Agent: curl/7.68.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:45:54.648417", "raw_message": "API Request: GET /api/products Response: 200 Duration: 1841ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:45:54.648417", "raw_message": "API Request: DELETE /api/products Response: 201 Duration: 260ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "API Request: GET /api/products Response: 500 Duration: 1598ms User-Agent: curl/7.68.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:45:54.648417", "raw_message": "API Request: POST /api/orders Response: 200 Duration: 1756ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "API Request: DELETE /api/orders Response: 503 Duration: 2414ms User-Agent: PostmanRuntime/7.26.8", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "API Request: DELETE /api/users Response: 200 Duration: 656ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "API Request: PUT /api/products Response: 502 Duration: 1092ms User-Agent: PostmanRuntime/7.26.8", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "API Request: DELETE /api/products Response: 401 Duration: 1759ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "API Request: DELETE /api/orders Response: 200 Duration: 2889ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:45:54.648417", "raw_message": "API Request: DELETE /api/products Response: 503 Duration: 1607ms User-Agent: Mozilla/5.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:45:54.648417", "raw_message": "API Request: POST /api/users Response: 201 Duration: 1322ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "API Request: POST /api/payments Response: 502 Duration: 2895ms User-Agent: curl/7.68.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:45:54.648417", "raw_message": "API Request: GET /api/orders Response: 500 Duration: 1587ms User-Agent: curl/7.68.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "API Request: DELETE /api/payments Response: 400 Duration: 2150ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "API Request: GET /api/orders Response: 201 Duration: 1375ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "API Request: POST /api/users Response: 200 Duration: 2470ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "API Request: PUT /api/products Response: 401 Duration: 1048ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "API Request: DELETE /api/orders Response: 500 Duration: 2244ms User-Agent: PostmanRuntime/7.26.8", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:45:54.648417", "raw_message": "API Request: PUT /api/users Response: 400 Duration: 1416ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "API Request: POST /api/payments Response: 200 Duration: 2305ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:45:54.648417", "raw_message": "API Request: GET /api/users Response: 200 Duration: 2977ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "API Request: POST /api/products Response: 200 Duration: 2884ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "API Request: GET /api/payments Response: 200 Duration: 1601ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "API Request: POST /api/products Response: 201 Duration: 887ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "API Request: GET /api/products Response: 201 Duration: 825ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:45:54.648417", "raw_message": "API Request: DELETE /api/orders Response: 201 Duration: 735ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "API Request: POST /api/payments Response: 200 Duration: 691ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:45:54.648417", "raw_message": "API Request: PUT /api/products Response: 503 Duration: 1733ms User-Agent: curl/7.68.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:45:54.648417", "raw_message": "API Request: PUT /api/products Response: 201 Duration: 2611ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:45:54.648417", "raw_message": "API Request: PUT /api/users Response: 200 Duration: 241ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:45:54.648417", "raw_message": "API Request: GET /api/payments Response: 502 Duration: 2126ms User-Agent: Mozilla/5.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "API Request: PUT /api/payments Response: 502 Duration: 1035ms User-Agent: PostmanRuntime/7.26.8", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:45:54.648417", "raw_message": "API Request: DELETE /api/payments Response: 200 Duration: 307ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "API Request: PUT /api/payments Response: 400 Duration: 1279ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "API Request: POST /api/payments Response: 201 Duration: 1866ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "API Request: GET /api/orders Response: 200 Duration: 585ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "API Request: DELETE /api/users Response: 200 Duration: 2444ms User-Agent: curl/7.68.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "API Request: POST /api/products Response: 201 Duration: 2047ms User-Agent: PostmanRuntime/7.26.8", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "API Request: PUT /api/payments Response: 502 Duration: 1803ms User-Agent: PostmanRuntime/7.26.8", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "API Request: POST /api/orders Response: 502 Duration: 2114ms User-Agent: Mozilla/5.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:45:54.648417", "raw_message": "API Request: POST /api/payments Response: 500 Duration: 1645ms User-Agent: Mozilla/5.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "API Request: DELETE /api/payments Response: 500 Duration: 1224ms User-Agent: curl/7.68.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "API Request: POST /api/payments Response: 400 Duration: 760ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:45:54.648417", "raw_message": "API Request: DELETE /api/orders Response: 201 Duration: 546ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:45:54.648417", "raw_message": "API Request: POST /api/users Response: 200 Duration: 2629ms User-Agent: Mozilla/5.0", "log_level": "INFO", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "API Request: DELETE /api/products Response: 500 Duration: 1656ms User-Agent: Mozilla/5.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:45:54.648417", "raw_message": "API Request: DELETE /api/orders Response: 503 Duration: 157ms User-Agent: curl/7.68.0", "log_level": "ERROR", "source": "api_gateway"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at UserService.java:143 Thread: async-worker-7 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:45:54.648417", "raw_message": "Exception: java.io.IOException at DatabaseHelper.java:379 Thread: http-nio-8080-exec-9 Message: Connection timeout", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "Exception: java.sql.SQLException at PaymentProcessor.java:177 Thread: http-nio-8080-exec-9 Message: Connection timeout", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "Exception: java.io.IOException at PaymentProcessor.java:367 Thread: http-nio-8080-exec-1 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at UserService.java:285 Thread: scheduler-thread-7 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at OrderController.java:284 Thread: scheduler-thread-7 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "Exception: java.sql.SQLException at OrderController.java:50 Thread: scheduler-thread-9 Message: Connection timeout", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:45:54.648417", "raw_message": "Exception: java.io.IOException at DatabaseHelper.java:47 Thread: scheduler-thread-10 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "Exception: java.sql.SQLException at UserService.java:221 Thread: async-worker-9 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at UserService.java:299 Thread: scheduler-thread-9 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at UserService.java:71 Thread: scheduler-thread-3 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at PaymentProcessor.java:181 Thread: http-nio-8080-exec-6 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at OrderController.java:126 Thread: http-nio-8080-exec-8 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at UserService.java:197 Thread: http-nio-8080-exec-4 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at DatabaseHelper.java:297 Thread: scheduler-thread-10 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at UserService.java:244 Thread: async-worker-8 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at DatabaseHelper.java:443 Thread: http-nio-8080-exec-5 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "Exception: java.io.IOException at DatabaseHelper.java:220 Thread: http-nio-8080-exec-3 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at OrderController.java:193 Thread: http-nio-8080-exec-8 Message: Connection timeout", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at UserService.java:311 Thread: http-nio-8080-exec-6 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "Exception: java.io.IOException at OrderController.java:206 Thread: http-nio-8080-exec-10 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "Exception: java.io.IOException at DatabaseHelper.java:440 Thread: http-nio-8080-exec-9 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "Exception: java.io.IOException at DatabaseHelper.java:61 Thread: scheduler-thread-1 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:45:54.648417", "raw_message": "Exception: java.io.IOException at OrderController.java:73 Thread: http-nio-8080-exec-10 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at OrderController.java:428 Thread: async-worker-5 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "Exception: java.io.IOException at OrderController.java:402 Thread: http-nio-8080-exec-4 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "Exception: java.io.IOException at PaymentProcessor.java:430 Thread: http-nio-8080-exec-7 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "Exception: java.sql.SQLException at PaymentProcessor.java:427 Thread: scheduler-thread-3 Message: Connection timeout", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at UserService.java:390 Thread: async-worker-10 Message: Connection timeout", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "Exception: java.io.IOException at OrderController.java:206 Thread: async-worker-1 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at PaymentProcessor.java:429 Thread: http-nio-8080-exec-5 Message: Connection timeout", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at UserService.java:418 Thread: async-worker-7 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at UserService.java:147 Thread: http-nio-8080-exec-1 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at UserService.java:188 Thread: scheduler-thread-3 Message: Connection timeout", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at PaymentProcessor.java:112 Thread: http-nio-8080-exec-3 Message: Connection timeout", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T07:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at PaymentProcessor.java:254 Thread: scheduler-thread-6 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "Exception: java.io.IOException at UserService.java:451 Thread: async-worker-7 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:45:54.648417", "raw_message": "Exception: java.io.IOException at OrderController.java:172 Thread: scheduler-thread-5 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "Exception: java.sql.SQLException at UserService.java:125 Thread: http-nio-8080-exec-5 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "Exception: java.io.IOException at OrderController.java:18 Thread: http-nio-8080-exec-7 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at PaymentProcessor.java:16 Thread: scheduler-thread-7 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at PaymentProcessor.java:328 Thread: scheduler-thread-5 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:45:54.648417", "raw_message": "Exception: java.io.IOException at PaymentProcessor.java:29 Thread: scheduler-thread-2 Message: Connection timeout", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at DatabaseHelper.java:78 Thread: async-worker-3 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at PaymentProcessor.java:316 Thread: async-worker-1 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at PaymentProcessor.java:12 Thread: http-nio-8080-exec-7 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "Exception: java.io.IOException at OrderController.java:415 Thread: http-nio-8080-exec-6 Message: Connection timeout", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:45:54.648417", "raw_message": "Exception: java.io.IOException at UserService.java:71 Thread: scheduler-thread-4 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:45:54.648417", "raw_message": "Exception: java.io.IOException at UserService.java:365 Thread: async-worker-5 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at OrderController.java:46 Thread: async-worker-6 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at UserService.java:433 Thread: async-worker-2 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at PaymentProcessor.java:336 Thread: http-nio-8080-exec-4 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "Exception: java.io.IOException at UserService.java:326 Thread: http-nio-8080-exec-8 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at DatabaseHelper.java:57 Thread: http-nio-8080-exec-3 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at UserService.java:430 Thread: scheduler-thread-7 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at OrderController.java:370 Thread: async-worker-8 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "Exception: java.io.IOException at DatabaseHelper.java:12 Thread: http-nio-8080-exec-7 Message: Connection timeout", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at PaymentProcessor.java:81 Thread: scheduler-thread-8 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at DatabaseHelper.java:361 Thread: async-worker-1 Message: Connection timeout", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at UserService.java:471 Thread: scheduler-thread-10 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "Exception: java.sql.SQLException at DatabaseHelper.java:344 Thread: async-worker-3 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "Exception: java.sql.SQLException at PaymentProcessor.java:246 Thread: async-worker-3 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "Exception: java.io.IOException at OrderController.java:183 Thread: scheduler-thread-4 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:45:54.648417", "raw_message": "Exception: java.io.IOException at UserService.java:497 Thread: http-nio-8080-exec-9 Message: Connection timeout", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:45:54.648417", "raw_message": "Exception: java.sql.SQLException at OrderController.java:193 Thread: async-worker-7 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "Exception: java.sql.SQLException at OrderController.java:53 Thread: http-nio-8080-exec-5 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "Exception: java.sql.SQLException at DatabaseHelper.java:393 Thread: scheduler-thread-3 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "Exception: java.io.IOException at UserService.java:208 Thread: scheduler-thread-10 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "Exception: java.io.IOException at DatabaseHelper.java:421 Thread: async-worker-7 Message: Connection timeout", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at DatabaseHelper.java:402 Thread: async-worker-5 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "Exception: java.io.IOException at OrderController.java:354 Thread: http-nio-8080-exec-2 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "Exception: java.sql.SQLException at OrderController.java:385 Thread: async-worker-5 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "Exception: java.io.IOException at PaymentProcessor.java:492 Thread: http-nio-8080-exec-10 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at UserService.java:162 Thread: scheduler-thread-4 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "Exception: java.io.IOException at PaymentProcessor.java:423 Thread: scheduler-thread-9 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "Exception: java.sql.SQLException at DatabaseHelper.java:31 Thread: async-worker-3 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "Exception: java.sql.SQLException at DatabaseHelper.java:436 Thread: async-worker-9 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at PaymentProcessor.java:162 Thread: http-nio-8080-exec-9 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "Exception: java.io.IOException at UserService.java:408 Thread: http-nio-8080-exec-8 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at PaymentProcessor.java:466 Thread: http-nio-8080-exec-9 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at PaymentProcessor.java:18 Thread: async-worker-4 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "Exception: java.io.IOException at PaymentProcessor.java:206 Thread: http-nio-8080-exec-4 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:45:54.648417", "raw_message": "Exception: java.io.IOException at OrderController.java:88 Thread: http-nio-8080-exec-8 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at DatabaseHelper.java:479 Thread: scheduler-thread-8 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:45:54.648417", "raw_message": "Exception: java.io.IOException at PaymentProcessor.java:166 Thread: http-nio-8080-exec-6 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at UserService.java:118 Thread: scheduler-thread-7 Message: Database connection failed", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at OrderController.java:80 Thread: scheduler-thread-2 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "Exception: java.lang.IllegalArgumentException at UserService.java:409 Thread: async-worker-3 Message: Invalid parameter value", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:45:54.648417", "raw_message": "Exception: java.lang.NullPointerException at UserService.java:452 Thread: scheduler-thread-7 Message: Connection timeout", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "Exception: java.sql.SQLException at DatabaseHelper.java:289 Thread: http-nio-8080-exec-7 Message: Object reference not set", "log_level": "ERROR", "source": "application"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "Database Query: SELECT * FROM orders WHERE status=\"757\" ExecutionTime: 2.23s Rows: 4441", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "Database Query: SELECT * FROM users WHERE id=\"900\" ExecutionTime: 2.36s Rows: 7384", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "Database Query: SELECT * FROM orders WHERE user_id=\"696\" ExecutionTime: 0.21s Rows: 721", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T06:45:54.648417", "raw_message": "Database Query: SELECT * FROM orders WHERE created_at=\"836\" ExecutionTime: 3.92s Rows: 5312", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE created_at=\"326\" ExecutionTime: 1.68s Rows: 4185", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "Database Query: SELECT * FROM products WHERE user_id=\"474\" ExecutionTime: 4.11s Rows: 7581", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE status=\"276\" ExecutionTime: 1.88s Rows: 4267", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T22:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE status=\"124\" ExecutionTime: 2.89s Rows: 840", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "Database Query: SELECT * FROM orders WHERE user_id=\"558\" ExecutionTime: 4.65s Rows: 7840", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "Database Query: SELECT * FROM users WHERE status=\"937\" ExecutionTime: 2.02s Rows: 6342", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "Database Query: SELECT * FROM users WHERE id=\"4\" ExecutionTime: 4.0s Rows: 5469", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "Database Query: SELECT * FROM products WHERE created_at=\"89\" ExecutionTime: 1.14s Rows: 2512", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "Database Query: SELECT * FROM orders WHERE id=\"894\" ExecutionTime: 2.46s Rows: 7810", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "Database Query: SELECT * FROM orders WHERE user_id=\"21\" ExecutionTime: 1.85s Rows: 4376", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "Database Query: SELECT * FROM orders WHERE created_at=\"654\" ExecutionTime: 2.86s Rows: 8570", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "Database Query: SELECT * FROM users WHERE created_at=\"971\" ExecutionTime: 0.36s Rows: 2867", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:45:54.648417", "raw_message": "Database Query: SELECT * FROM products WHERE status=\"618\" ExecutionTime: 4.31s Rows: 3517", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE status=\"827\" ExecutionTime: 2.32s Rows: 5323", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE created_at=\"686\" ExecutionTime: 4.75s Rows: 5743", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:45:54.648417", "raw_message": "Database Query: SELECT * FROM users WHERE id=\"85\" ExecutionTime: 2.11s Rows: 7905", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE created_at=\"393\" ExecutionTime: 3.77s Rows: 1095", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "Database Query: SELECT * FROM products WHERE user_id=\"257\" ExecutionTime: 0.14s Rows: 2668", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T13:45:54.648417", "raw_message": "Database Query: SELECT * FROM users WHERE created_at=\"560\" ExecutionTime: 1.17s Rows: 13", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "Database Query: SELECT * FROM users WHERE status=\"113\" ExecutionTime: 0.95s Rows: 15", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T15:45:54.648417", "raw_message": "Database Query: SELECT * FROM orders WHERE status=\"74\" ExecutionTime: 4.1s Rows: 8616", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE user_id=\"736\" ExecutionTime: 4.67s Rows: 3349", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "Database Query: SELECT * FROM products WHERE id=\"175\" ExecutionTime: 1.83s Rows: 372", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "Database Query: SELECT * FROM users WHERE id=\"374\" ExecutionTime: 3.87s Rows: 1754", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "Database Query: SELECT * FROM users WHERE status=\"570\" ExecutionTime: 1.17s Rows: 3822", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "Database Query: SELECT * FROM orders WHERE status=\"928\" ExecutionTime: 1.01s Rows: 8509", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T05:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE id=\"462\" ExecutionTime: 2.25s Rows: 8006", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "Database Query: SELECT * FROM products WHERE user_id=\"889\" ExecutionTime: 3.18s Rows: 7247", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T14:45:54.648417", "raw_message": "Database Query: SELECT * FROM users WHERE created_at=\"334\" ExecutionTime: 4.92s Rows: 2003", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T19:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE created_at=\"634\" ExecutionTime: 4.67s Rows: 4690", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "Database Query: SELECT * FROM products WHERE id=\"495\" ExecutionTime: 3.47s Rows: 6915", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "Database Query: SELECT * FROM orders WHERE id=\"309\" ExecutionTime: 3.16s Rows: 5074", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-14T02:45:54.648417", "raw_message": "Database Query: SELECT * FROM users WHERE status=\"478\" ExecutionTime: 1.18s Rows: 9098", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T09:45:54.648417", "raw_message": "Database Query: SELECT * FROM products WHERE user_id=\"727\" ExecutionTime: 0.74s Rows: 4650", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE created_at=\"772\" ExecutionTime: 4.35s Rows: 1612", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "Database Query: SELECT * FROM users WHERE created_at=\"975\" ExecutionTime: 0.23s Rows: 2922", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T08:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE status=\"381\" ExecutionTime: 1.55s Rows: 6422", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE user_id=\"124\" ExecutionTime: 3.12s Rows: 7698", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "Database Query: SELECT * FROM products WHERE created_at=\"495\" ExecutionTime: 1.88s Rows: 3633", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE created_at=\"206\" ExecutionTime: 1.17s Rows: 1204", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE status=\"891\" ExecutionTime: 2.33s Rows: 5440", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "Database Query: SELECT * FROM orders WHERE created_at=\"918\" ExecutionTime: 4.51s Rows: 5794", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE status=\"604\" ExecutionTime: 2.19s Rows: 9772", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:45:54.648417", "raw_message": "Database Query: SELECT * FROM users WHERE id=\"352\" ExecutionTime: 0.94s Rows: 2693", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "Database Query: SELECT * FROM users WHERE user_id=\"301\" ExecutionTime: 2.97s Rows: 4655", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "Database Query: SELECT * FROM orders WHERE status=\"870\" ExecutionTime: 0.11s Rows: 8940", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T02:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE user_id=\"295\" ExecutionTime: 4.01s Rows: 561", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T16:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE created_at=\"208\" ExecutionTime: 2.08s Rows: 2146", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T23:45:54.648417", "raw_message": "Database Query: SELECT * FROM users WHERE created_at=\"818\" ExecutionTime: 4.58s Rows: 7060", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "Database Query: SELECT * FROM users WHERE user_id=\"98\" ExecutionTime: 0.87s Rows: 1371", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-14T00:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE created_at=\"528\" ExecutionTime: 4.81s Rows: 5713", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T10:45:54.648417", "raw_message": "Database Query: SELECT * FROM orders WHERE status=\"677\" ExecutionTime: 3.0s Rows: 4752", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "Database Query: SELECT * FROM orders WHERE user_id=\"390\" ExecutionTime: 1.14s Rows: 20", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE user_id=\"956\" ExecutionTime: 3.65s Rows: 756", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T21:45:54.648417", "raw_message": "Database Query: SELECT * FROM products WHERE id=\"370\" ExecutionTime: 2.25s Rows: 364", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE id=\"127\" ExecutionTime: 3.96s Rows: 3929", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T12:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE user_id=\"294\" ExecutionTime: 3.84s Rows: 2713", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T18:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE status=\"915\" ExecutionTime: 3.16s Rows: 2967", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T04:45:54.648417", "raw_message": "Database Query: SELECT * FROM transactions WHERE user_id=\"310\" ExecutionTime: 4.93s Rows: 2900", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T17:45:54.648417", "raw_message": "Database Query: SELECT * FROM products WHERE id=\"360\" ExecutionTime: 0.71s Rows: 3946", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:45:54.648417", "raw_message": "Database Query: SELECT * FROM products WHERE status=\"818\" ExecutionTime: 4.81s Rows: 4763", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T11:45:54.648417", "raw_message": "Database Query: SELECT * FROM products WHERE created_at=\"685\" ExecutionTime: 3.57s Rows: 1901", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:45:54.648417", "raw_message": "Database Query: SELECT * FROM products WHERE created_at=\"733\" ExecutionTime: 1.45s Rows: 5860", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T03:45:54.648417", "raw_message": "Database Query: SELECT * FROM users WHERE status=\"110\" ExecutionTime: 4.76s Rows: 447", "log_level": "WARN", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-13T20:45:54.648417", "raw_message": "Database Query: SELECT * FROM orders WHERE id=\"117\" ExecutionTime: 1.74s Rows: 7201", "log_level": "INFO", "source": "database"}
+{"index": {}}
+{"@timestamp": "2026-05-14T01:45:54.648417", "raw_message": "Database Query: SELECT * FROM orders WHERE id=\"442\" ExecutionTime: 0.36s Rows: 4727", "log_level": "INFO", "source": "database"}
+

@@ -28,7 +28,7 @@
  * under the License.
  */
 
-import org.opensearch.gradle.JavaPackageType 
+import org.opensearch.gradle.JavaPackageType
 
 apply plugin: 'opensearch.internal-distribution-archive-setup'
 
@@ -103,14 +103,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
 distribution_archives {
   integTestZip {
     content {
-      archiveFiles(transportModulesFiles, 'zip', null, 'x64', JavaPackageType.NONE)
-    }
-  }
-
-  darwinTar {
-    archiveClassifier = 'darwin-x64'
-    content {
-      archiveFiles(modulesFiles('darwin-x64'), 'tar', 'darwin', 'x64', JavaPackageType.JDK)
+      archiveFiles(integTestModulesFiles, 'zip', null, 'x64', JavaPackageType.NONE)
     }
   }
 
@@ -118,13 +111,6 @@ distribution_archives {
     archiveClassifier = 'darwin-arm64'
     content {
       archiveFiles(modulesFiles('darwin-arm64'), 'tar', 'darwin', 'arm64', JavaPackageType.JDK)
-    }
-  }
-
-  noJdkDarwinTar {
-    archiveClassifier = 'no-jdk-darwin-x64'
-    content {
-      archiveFiles(modulesFiles('darwin-x64'), 'tar', 'darwin', 'x64', JavaPackageType.NONE)
     }
   }
 
@@ -193,7 +179,7 @@ distribution_archives {
     }
   }
 
-  
+
   linuxPpc64leTar {
     archiveClassifier = 'linux-ppc64le'
     content {
@@ -244,8 +230,18 @@ subprojects {
   group = "org.opensearch.distribution"
 }
 
+tasks.configureEach { t ->
+  if (t.name ==~ /^build.+Tar$/) {
+    def base = t.name - 'Tar'   // buildLinuxTar -> buildLinux
+    def stage = tasks.findByName(base)
+    if (stage != null) {
+      t.dependsOn(stage)
+    }
+  }
+}
+
 tasks.each {
   if (it.name.startsWith("build")) {
-    it.dependsOn project(':libs:agent-sm:agent').assemble
+    it.dependsOn project(':libs:agent-sm:agent').tasks.named('assemble')
   }
 }

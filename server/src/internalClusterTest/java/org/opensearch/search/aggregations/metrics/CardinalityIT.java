@@ -50,10 +50,12 @@ import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -62,6 +64,8 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY;
 import static org.opensearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.opensearch.search.aggregations.AggregationBuilders.global;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
@@ -82,7 +86,13 @@ public class CardinalityIT extends ParameterizedStaticSettingsOpenSearchIntegTes
     public static Collection<Object[]> parameters() {
         return Arrays.asList(
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
-            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+            new Object[] { Settings.builder().put(CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(), "segment").build() },
+            new Object[] { Settings.builder().put(CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(), "force").build() },
+            new Object[] {
+                Settings.builder()
+                    .put(CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(), "balanced")
+                    .put(CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE.getKey(), 1000)
+                    .build() }
         );
     }
 
@@ -665,5 +675,76 @@ public class CardinalityIT extends ParameterizedStaticSettingsOpenSearchIntegTes
             equalTo(2L)
         );
         internalCluster().wipeIndices("cache_test_idx");
+    }
+
+    public void testCardinalityWithIntraSegmentPartitioning() throws Exception {
+        createIndex("test_cardinality_agg", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
+        try {
+            List<IndexRequestBuilder> builders = new ArrayList<>(5000);
+            for (int i = 0; i < 5000; i++) {
+                builders.add(client().prepareIndex("test_cardinality_agg").setSource("category", i % 100));
+            }
+            indexBulkWithSegments(builders, 2);
+            indexRandomForConcurrentSearch("test_cardinality_agg");
+            SearchResponse response = client().prepareSearch("test_cardinality_agg")
+                .addAggregation(cardinality("cardinality").field("category"))
+                .get();
+            Cardinality cardinalityAgg = response.getAggregations().get("cardinality");
+            assertThat(cardinalityAgg, notNullValue());
+            assertThat(cardinalityAgg.getValue(), equalTo(100L));
+        } finally {
+            internalCluster().wipeIndices("test_cardinality_agg");
+        }
+    }
+
+    /**
+     * Thresholds low enough that the hybrid collector falls back from BitArrays to roaring bitmaps, and from roaring bitmaps
+     * to direct hashing, must not change any result.
+     */
+    public void testAsSubAggWithHybridCollectorFallbacks() throws Exception {
+        assertAcked(
+            prepareCreate("hybrid_idx").setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
+                .setMapping("group", "type=keyword", "user", "type=keyword")
+        );
+        ensureGreen("hybrid_idx");
+        String memoryThreshold = CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_MEMORY_THRESHOLD.getKey();
+        try {
+            List<IndexRequestBuilder> builders = new ArrayList<>(20_000);
+            for (int i = 0; i < 20_000; i++) {
+                builders.add(client().prepareIndex("hybrid_idx").setSource("group", "g" + (i % 200), "user", "u" + i));
+            }
+            indexBulkWithSegments(builders, 3);
+            indexRandomForConcurrentSearch("hybrid_idx");
+            // 50kb overflows a segment's BitArrays (~200 buckets x ~3000 ordinals) but not its roaring bitmaps; 1b overflows both
+            for (String threshold : new String[] { "50kb", "1b" }) {
+                assertAcked(
+                    client().admin()
+                        .cluster()
+                        .prepareUpdateSettings()
+                        .setTransientSettings(Settings.builder().put(memoryThreshold, threshold))
+                );
+                for (String hint : new String[] { null, "direct" }) {
+                    CardinalityAggregationBuilder card = cardinality("cardinality").field("user");
+                    if (hint != null) {
+                        card.executionHint(hint);
+                    }
+                    SearchResponse response = client().prepareSearch("hybrid_idx")
+                        .addAggregation(terms("terms").field("group").size(200).subAggregation(card))
+                        .get();
+                    assertSearchResponse(response);
+                    Terms terms = response.getAggregations().get("terms");
+                    assertThat(terms.getBuckets().size(), equalTo(200));
+                    for (Terms.Bucket bucket : terms.getBuckets()) {
+                        Cardinality count = bucket.getAggregations().get("cardinality");
+                        assertThat("threshold " + threshold + " hint " + hint, count.getValue(), equalTo(100L));
+                    }
+                }
+            }
+        } finally {
+            assertAcked(
+                client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull(memoryThreshold))
+            );
+            internalCluster().wipeIndices("hybrid_idx");
+        }
     }
 }

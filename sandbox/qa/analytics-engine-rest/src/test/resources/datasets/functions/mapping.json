@@ -1,0 +1,34 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "timestamp": {
+        "type": "date"
+      },
+      "user": {
+        "type": "keyword"
+      },
+      "ip_address": {
+        "type": "ip"
+      },
+      "amount": {
+        "type": "float"
+      },
+      "temperature": {
+        "type": "float"
+      },
+      "message": {
+        "type": "text"
+      },
+      "status": {
+        "type": "keyword"
+      },
+      "unix_time": {
+        "type": "long"
+      }
+    }
+  }
+}

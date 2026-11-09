@@ -32,9 +32,6 @@
 
 package org.opensearch.common.xcontent;
 
-import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
-import com.fasterxml.jackson.dataformat.smile.SmileConstants;
-
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -47,6 +44,9 @@ import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.OutputStream;
+
+import tools.jackson.dataformat.cbor.CBORConstants;
+import tools.jackson.dataformat.smile.SmileConstants;
 
 /**
  * The content type of {@link XContent}.

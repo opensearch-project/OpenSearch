@@ -57,6 +57,11 @@ public class NodesHotThreadsRequestBuilder extends NodesOperationRequestBuilder<
         return this;
     }
 
+    public NodesHotThreadsRequestBuilder setSnapshots(int snapshots) {
+        request.snapshots(snapshots);
+        return this;
+    }
+
     public NodesHotThreadsRequestBuilder setIgnoreIdleThreads(boolean ignoreIdleThreads) {
         request.ignoreIdleThreads(ignoreIdleThreads);
         return this;

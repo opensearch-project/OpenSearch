@@ -123,24 +123,26 @@ final class PemUtils {
         try (PEMParser pemParser = new PEMParser(Files.newBufferedReader(keyPath, StandardCharsets.UTF_8))) {
             Object object = readObject(keyPath, pemParser);
 
-            if (object instanceof PKCS8EncryptedPrivateKeyInfo) { // encrypted private key in pkcs8-format
-                var privateKeyInfo = (PKCS8EncryptedPrivateKeyInfo) object;
-                var inputDecryptorProvider = new JcePKCSPBEInputDecryptorProviderBuilder().setProvider(
-                    BouncyCastleFipsProvider.PROVIDER_NAME
-                ).build(passwordSupplier.get());
-                return privateKeyInfo.decryptPrivateKeyInfo(inputDecryptorProvider);
-            } else if (object instanceof PEMEncryptedKeyPair) { // encrypted private key
-                var encryptedKeyPair = (PEMEncryptedKeyPair) object;
-                var decryptorProvider = new JcePEMDecryptorProviderBuilder().setProvider(BouncyCastleFipsProvider.PROVIDER_NAME)
-                    .build(passwordSupplier.get());
-                var keyPair = encryptedKeyPair.decryptKeyPair(decryptorProvider);
-                return keyPair.getPrivateKeyInfo();
-            } else if (object instanceof PEMKeyPair) { // unencrypted private key
-                return ((PEMKeyPair) object).getPrivateKeyInfo();
-            } else if (object instanceof PrivateKeyInfo) { // unencrypted private key in pkcs8-format
-                return (PrivateKeyInfo) object;
-            } else {
-                throw new SslConfigException(
+            switch (object) {
+                case PKCS8EncryptedPrivateKeyInfo privateKeyInfo -> {
+                    var inputDecryptorProvider = new JcePKCSPBEInputDecryptorProviderBuilder().setProvider(
+                        BouncyCastleFipsProvider.PROVIDER_NAME
+                    ).build(passwordSupplier.get());
+                    return privateKeyInfo.decryptPrivateKeyInfo(inputDecryptorProvider);
+                }
+                case PEMEncryptedKeyPair encryptedKeyPair -> {
+                    var decryptorProvider = new JcePEMDecryptorProviderBuilder().setProvider(BouncyCastleFipsProvider.PROVIDER_NAME)
+                        .build(passwordSupplier.get());
+                    var keyPair = encryptedKeyPair.decryptKeyPair(decryptorProvider);
+                    return keyPair.getPrivateKeyInfo();
+                }
+                case PEMKeyPair pemKeyPair -> {
+                    return pemKeyPair.getPrivateKeyInfo();  // unencrypted private key
+                }
+                case PrivateKeyInfo privateKeyInfo -> {
+                    return privateKeyInfo;  // unencrypted private key in pkcs8-format
+                }
+                default -> throw new SslConfigException(
                     String.format(
                         Locale.ROOT,
                         "error parsing private key [%s], invalid encrypted private key class: [%s]",

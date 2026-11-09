@@ -31,7 +31,11 @@ public class Lucene90DocValuesConsumerWrapper implements Closeable {
         String dataCodec,
         String dataExtension,
         String metaCodec,
-        String metaExtension
+        String metaExtension,
+        String skipIndexCodec,
+        String skipIndexExtension,
+        String disiCodec,
+        String disiExtension
     ) throws IOException {
         lucene90DocValuesConsumer = new Lucene90DocValuesConsumer(
             state,
@@ -39,7 +43,11 @@ public class Lucene90DocValuesConsumerWrapper implements Closeable {
             dataCodec,
             dataExtension,
             metaCodec,
-            metaExtension
+            metaExtension,
+            skipIndexCodec,
+            skipIndexExtension,
+            disiCodec,
+            disiExtension
         );
     }
 

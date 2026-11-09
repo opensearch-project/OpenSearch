@@ -32,12 +32,12 @@
 
 package org.opensearch.index.query;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import tools.jackson.core.io.JsonStringEncoder;
 
 public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>> extends AbstractQueryTestCase<QB> {
 
@@ -60,7 +60,9 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
         Object value;
         if (isString) {
             JsonStringEncoder encoder = JsonStringEncoder.getInstance();
-            value = "\"" + new String(encoder.quoteAsString((String) testQuery.value())) + "\"";
+            final StringBuilder sb = new StringBuilder();
+            encoder.quoteAsString((String) testQuery.value(), sb);
+            value = "\"" + sb.toString() + "\"";
         } else {
             value = testQuery.value();
         }

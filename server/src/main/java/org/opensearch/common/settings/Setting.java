@@ -177,7 +177,15 @@ public class Setting<T> implements ToXContentObject {
          * Mark this setting as immutable on snapshot restore
          * i.e. the setting will not be allowed to be removed or modified during restore
          */
-        UnmodifiableOnRestore
+        UnmodifiableOnRestore,
+
+        /**
+         * Marks a setting as sensitive. Can only be applied to dynamic settings.
+         * The Sensitive property has default enforcement but enables plugins to implement
+         * different policies for these settings. In practice the security plugin will
+         * require higher privileges for modifying sensitive settings.
+         */
+        Sensitive
     }
 
     private final Key key;
@@ -187,6 +195,8 @@ public class Setting<T> implements ToXContentObject {
     protected final Function<String, T> parser;
     protected final Validator<T> validator;
     private final EnumSet<Property> properties;
+    @Nullable
+    private volatile String description;
 
     private static final EnumSet<Property> EMPTY_PROPERTIES = EnumSet.noneOf(Property.class);
 
@@ -216,6 +226,9 @@ public class Setting<T> implements ToXContentObject {
                 throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
             } else if (propertiesAsSet.contains(Property.UnmodifiableOnRestore) && propertiesAsSet.contains(Property.Dynamic)) {
                 throw new IllegalArgumentException("UnmodifiableOnRestore setting [" + key + "] cannot be dynamic");
+            }
+            if (propertiesAsSet.contains(Property.Sensitive) && propertiesAsSet.contains(Property.Dynamic) == false) {
+                throw new IllegalArgumentException("sensitive setting [" + key + "] must be dynamic");
             }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
@@ -361,6 +374,14 @@ public class Setting<T> implements ToXContentObject {
         return properties.contains(Property.UnmodifiableOnRestore);
     }
 
+    /**
+     * Returns <code>true</code> if this setting is sensitive, meaning it requires security admin
+     * privileges to be updated dynamically. Otherwise <code>false</code>.
+     */
+    public final boolean isSensitive() {
+        return properties.contains(Property.Sensitive);
+    }
+
     public final boolean isInternalIndex() {
         return properties.contains(Property.InternalIndex);
     }
@@ -431,6 +452,15 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
+     * Whether {@code key} is a name this setting reports for itself, as opposed to a variant it merely accepts. A plain setting
+     * reports only its own key; a list setting accepts its legacy indexed form ({@code key.0}) but does not report it. Affix and
+     * group settings override this.
+     */
+    boolean isCanonicalKey(String key) {
+        return key.equals(getKey());
+    }
+
+    /**
      * Validate the current setting value only without dependencies with {@link Setting.Validator#validate(Object)}.
      * @param settings a settings object for settings that has a default value depending on another setting if available
      */
@@ -452,6 +482,41 @@ public class Setting<T> implements ToXContentObject {
      */
     public T getDefault(Settings settings) {
         return parser.apply(getDefaultRaw(settings));
+    }
+
+    /**
+     * Returns the function this setting uses to parse a raw string value. Callers that need declared bounds can check the
+     * returned instance against the bounded parser types such as {@link IntegerParser} or {@link ByteSizeValueParser}.
+     */
+    public Function<String, T> getParser() {
+        return parser;
+    }
+
+    /**
+     * Attaches a one-sentence description of what this setting controls.
+     * <p>
+     * This is the only mutable state on a setting. It is written in two places: chained onto a {@code static final}
+     * declaration, for example {@code Setting.boolSetting("x", false, NodeScope).withDescription("...")}, where the write
+     * happens during class initialisation; and by {@link AffixSetting#getConcreteSetting(String)}, which stamps the template's
+     * description onto the fresh concrete instance returned by the delegate factory before that instance escapes. The field is
+     * {@code volatile} so that a description written on one thread is visible to the request thread that later reads it through
+     * {@link #getDescription()}.
+     * <p>
+     * Setting a different description twice is a programming error, reported via {@code assert} rather than an exception so
+     * that a mistake in a static initialiser does not surface as an {@code ExceptionInInitializerError}. Re-setting the same
+     * text is tolerated.
+     */
+    public Setting<T> withDescription(String description) {
+        Objects.requireNonNull(description, "description");
+        assert this.description == null || this.description.equals(description) : "description already set for [" + getKey() + "]";
+        this.description = description;
+        return this;
+    }
+
+    /** The declared description, or {@code null} when none has been written. */
+    @Nullable
+    public String getDescription() {
+        return description;
     }
 
     /**
@@ -501,9 +566,8 @@ public class Setting<T> implements ToXContentObject {
                     map = new HashMap<>();
                     while (it.hasNext()) {
                         final Setting<?> setting = it.next();
-                        if (setting instanceof AffixSetting) {
+                        if (setting instanceof AffixSetting<?> as) {
                             // Collect all possible concrete settings
-                            AffixSetting<?> as = ((AffixSetting<?>) setting);
                             for (String ns : as.getNamespaces(settings)) {
                                 Setting<?> s = as.getConcreteSettingForNamespace(ns);
                                 map.put(s, s.get(settings, false));
@@ -969,22 +1033,58 @@ public class Setting<T> implements ToXContentObject {
             );
         }
 
+        /** Covariant return so fields declared as {@code AffixSetting<T>} can chain {@code .withDescription(...)}. */
+        @Override
+        public AffixSetting<T> withDescription(String description) {
+            super.withDescription(description);
+            return this;
+        }
+
         @Override
         public Setting<T> getConcreteSetting(String key) {
             if (match(key)) {
                 String namespace = this.key.getNamespace(key);
-                return delegateFactory.apply(namespace, key);
+                return describeConcrete(delegateFactory.apply(namespace, key));
             } else {
                 throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
             }
         }
 
+        /**
+         * The concrete key the pattern captures is canonical: {@code cluster.remote.alpha.seeds}, or for a prefix-only pattern,
+         * which captures the whole key, any depth such as {@code node.attr.a.b}. A prefix-and-suffix pattern also accepts any
+         * suffix after the concrete key, and {@link #getConcreteSetting} builds a setting carrying whatever key was asked for, so
+         * the suffix is judged by the delegate built for the concrete key: a group delegate reports its members
+         * ({@code prefix.ns.limit.initial}), whereas a list or plain delegate reports only its own key, so
+         * {@code cluster.remote.alpha.seeds.0} and {@code cluster.remote.alpha.seeds.other} are not canonical.
+         */
+        @Override
+        boolean isCanonicalKey(String key) {
+            if (match(key) == false) {
+                return false;
+            }
+            String concrete = this.key.getConcreteString(key);
+            return key.equals(concrete) || delegateFactory.apply(this.key.getNamespace(key), concrete).isCanonicalKey(key);
+        }
+
         private Setting<T> getConcreteSetting(String namespace, String key) {
             if (match(key)) {
-                return delegateFactory.apply(namespace, key);
+                return describeConcrete(delegateFactory.apply(namespace, key));
             } else {
                 throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
             }
+        }
+
+        /**
+         * A concrete key inherits the template's description unless the delegate declared its own. The delegate factory returns
+         * a new {@link Setting} on every call (see {@link AbstractScopedSettings#get}), so this writes to an instance that no
+         * other thread can observe yet.
+         */
+        private Setting<T> describeConcrete(Setting<T> concrete) {
+            if (getDescription() != null && concrete.getDescription() == null) {
+                concrete.withDescription(getDescription());
+            }
+            return concrete;
         }
 
         /**
@@ -1118,6 +1218,12 @@ public class Setting<T> implements ToXContentObject {
         @Override
         public boolean isGroupSetting() {
             return true;
+        }
+
+        /** Membership is open: every key under the group prefix is a member a user may set and is reported under that name. */
+        @Override
+        boolean isCanonicalKey(String key) {
+            return match(key);
         }
 
         @Override
@@ -2040,11 +2146,11 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Property... properties) {
-        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), b -> parseBoolean(b, key, isFiltered(properties)), properties);
+        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), new BooleanParser(key, isFiltered(properties)), properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, Property... properties) {
-        return new Setting<>(key, fallbackSetting, b -> parseBoolean(b, key, isFiltered(properties)), properties);
+        return new Setting<>(key, fallbackSetting, new BooleanParser(key, isFiltered(properties)), properties);
     }
 
     public static Setting<Boolean> boolSetting(
@@ -2057,18 +2163,44 @@ public class Setting<T> implements ToXContentObject {
             new SimpleKey(key),
             fallbackSetting,
             fallbackSetting::getRaw,
-            b -> parseBoolean(b, key, isFiltered(properties)),
+            new BooleanParser(key, isFiltered(properties)),
             validator,
             properties
         );
     }
 
     public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Validator<Boolean> validator, Property... properties) {
-        return new Setting<>(key, Boolean.toString(defaultValue), b -> parseBoolean(b, key, isFiltered(properties)), validator, properties);
+        return new Setting<>(key, Boolean.toString(defaultValue), new BooleanParser(key, isFiltered(properties)), validator, properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Function<Settings, String> defaultValueFn, Property... properties) {
-        return new Setting<>(key, defaultValueFn, b -> parseBoolean(b, key, isFiltered(properties)), properties);
+        return new Setting<>(key, defaultValueFn, new BooleanParser(key, isFiltered(properties)), properties);
+    }
+
+    /**
+     * Parser for boolean settings. Exists as a named type (rather than a lambda) so that the setting's value type can be
+     * recognised by inspection; it is deliberately not {@link Writeable}, since {@link WriteableSetting} reconstructs boolean
+     * settings from their type alone.
+     *
+     * @opensearch.internal
+     */
+    public static final class BooleanParser implements Function<String, Boolean> {
+        private final String key;
+        private final boolean isFiltered;
+
+        public BooleanParser(String key, boolean isFiltered) {
+            this.key = key;
+            this.isFiltered = isFiltered;
+        }
+
+        public String getKey() {
+            return key;
+        }
+
+        @Override
+        public Boolean apply(String b) {
+            return parseBoolean(b, key, isFiltered);
+        }
     }
 
     static boolean parseBoolean(String b, String key, boolean isFiltered) {
@@ -2244,22 +2376,31 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
-     * A writeable parser for memory size value
+     * A writeable parser for memory size value. Supports resolving percentages against
+     * either JVM heap or available native memory (total physical minus JVM heap).
      */
     public static class MemorySizeValueParser implements Function<String, ByteSizeValue>, Writeable {
         private String key;
+        private boolean useNativeMemory;
 
         public MemorySizeValueParser(String key) {
+            this(key, false);
+        }
+
+        public MemorySizeValueParser(String key, boolean useNativeMemory) {
             this.key = key;
+            this.useNativeMemory = useNativeMemory;
         }
 
         public MemorySizeValueParser(StreamInput in) throws IOException {
             key = in.readString();
+            useNativeMemory = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(key);
+            out.writeBoolean(useNativeMemory);
         }
 
         public String getKey() {
@@ -2268,18 +2409,20 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public ByteSizeValue apply(String s) {
-            return MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key);
+            return useNativeMemory
+                ? MemorySizeValue.parseBytesSizeValueOrNativeMemoryRatio(s, key)
+                : MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key);
         }
 
         public boolean equals(Object obj) {
             if (this == obj) return true;
             if (obj == null || getClass() != obj.getClass()) return false;
             MemorySizeValueParser that = (MemorySizeValueParser) obj;
-            return Objects.equals(key, that.key);
+            return Objects.equals(key, that.key) && useNativeMemory == that.useNativeMemory;
         }
 
         public int hashCode() {
-            return Objects.hash(key);
+            return Objects.hash(key, useNativeMemory);
         }
     }
 
@@ -2295,6 +2438,19 @@ public class Setting<T> implements ToXContentObject {
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, Setting<ByteSizeValue> fallbackSetting, Property... properties) {
         return new Setting<>(key, fallbackSetting, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
+    }
+
+    /**
+     * Creates a setting which specifies a memory size as either an absolute bytes value or
+     * a percentage of available native memory (total physical memory minus JVM heap).
+     *
+     * @param key the key for the setting
+     * @param defaultPercentage the default value of this setting as a percentage of native memory
+     * @param properties properties for this setting like scope, filtering...
+     * @return the setting object
+     */
+    public static Setting<ByteSizeValue> nativeMemorySizeSetting(String key, String defaultPercentage, Property... properties) {
+        return new Setting<>(key, (s) -> defaultPercentage, new MemorySizeValueParser(key, true), properties);
     }
 
     public static <T> Setting<List<T>> listSetting(

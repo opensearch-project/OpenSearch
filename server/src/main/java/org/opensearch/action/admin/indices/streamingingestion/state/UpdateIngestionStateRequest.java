@@ -12,7 +12,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -25,9 +25,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  *
  * <p> This is for internal use only and will not be exposed to the user. </p>
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class UpdateIngestionStateRequest extends BroadcastRequest<UpdateIngestionStateRequest> {
     private String[] index;
     private int[] shards;

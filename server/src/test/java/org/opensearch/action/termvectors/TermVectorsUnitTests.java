@@ -49,16 +49,14 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.termvectors.TermVectorsRequest.Flag;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.action.document.RestTermVectorsAction;
 import org.opensearch.test.OpenSearchTestCase;
@@ -107,6 +105,52 @@ public class TermVectorsUnitTests extends OpenSearchTestCase {
         inResponse = new TermVectorsResponse(esBuffer);
         assertTrue(inResponse.isExists());
 
+    }
+
+    public void testTermStatisticsForTermNotInIndex() throws IOException {
+        // The top level statistics come from a document that has none of the terms of the first one.
+        String json = termStatisticsJson(EnumSet.of(Flag.TermStatistics), 1);
+        assertThat(json, Matchers.containsString("\"fox\":{\"doc_freq\":0,\"ttf\":0,\"term_freq\":1}"));
+        assertThat(json, Matchers.containsString("\"quick\":{\"doc_freq\":0,\"ttf\":0,\"term_freq\":1}"));
+    }
+
+    public void testTermStatisticsForTermInIndex() throws IOException {
+        String json = termStatisticsJson(EnumSet.of(Flag.TermStatistics), 0);
+        assertThat(json, Matchers.containsString("\"fox\":{\"doc_freq\":1,\"ttf\":1,\"term_freq\":1}"));
+        assertThat(json, Matchers.containsString("\"quick\":{\"doc_freq\":1,\"ttf\":1,\"term_freq\":1}"));
+    }
+
+    public void testTermStatisticsNotRequested() throws IOException {
+        String json = termStatisticsJson(EnumSet.noneOf(Flag.class), 0);
+        assertThat(json, Matchers.containsString("\"fox\":{\"term_freq\":1}"));
+        assertThat(json, Matchers.not(Matchers.containsString("doc_freq")));
+    }
+
+    /** Renders the term vectors of document 0, with top level statistics read from document {@code statisticsDoc}. */
+    private String termStatisticsJson(EnumSet<Flag> flags, int statisticsDoc) throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(new StandardAnalyzer()));
+        FieldType type = new FieldType(TextField.TYPE_NOT_STORED);
+        type.setStoreTermVectors(true);
+        type.freeze();
+        Document doc = new Document();
+        doc.add(new Field("title", "quick fox", type));
+        writer.addDocument(doc);
+        Document other = new Document();
+        other.add(new Field("title", "lazy dog", type));
+        writer.addDocument(other);
+        writer.close();
+        DirectoryReader dr = DirectoryReader.open(dir);
+        Fields termVectors = dr.termVectors().get(0);
+        Fields topLevelFields = dr.termVectors().get(statisticsDoc);
+
+        TermVectorsResponse response = new TermVectorsResponse("index", "id");
+        response.setExists(true);
+        response.setFields(termVectors, null, flags, topLevelFields);
+        dr.close();
+        dir.close();
+
+        return BytesReference.bytes(response.toXContent(JsonXContent.contentBuilder(), ToXContent.EMPTY_PARAMS)).utf8ToString();
     }
 
     private void writeEmptyTermVector(TermVectorsResponse outResponse) throws IOException {
@@ -257,52 +301,6 @@ public class TermVectorsUnitTests extends OpenSearchTestCase {
             // read
             ByteArrayInputStream opensearchInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
             InputStreamStreamInput opensearchBuffer = new InputStreamStreamInput(opensearchInBuffer);
-            TermVectorsRequest req2 = new TermVectorsRequest(opensearchBuffer);
-
-            assertThat(request.offsets(), equalTo(req2.offsets()));
-            assertThat(request.fieldStatistics(), equalTo(req2.fieldStatistics()));
-            assertThat(request.payloads(), equalTo(req2.payloads()));
-            assertThat(request.positions(), equalTo(req2.positions()));
-            assertThat(request.termStatistics(), equalTo(req2.termStatistics()));
-            assertThat(request.preference(), equalTo(pref));
-            assertThat(request.routing(), equalTo(null));
-            assertEquals(new BytesArray("{}"), request.doc());
-            assertEquals(MediaTypeRegistry.JSON, request.xContentType());
-        }
-    }
-
-    public void testStreamRequestLegacyVersion() throws IOException {
-        for (int i = 0; i < 10; i++) {
-            TermVectorsRequest request = new TermVectorsRequest("index", "id");
-            request.offsets(random().nextBoolean());
-            request.fieldStatistics(random().nextBoolean());
-            request.payloads(random().nextBoolean());
-            request.positions(random().nextBoolean());
-            request.termStatistics(random().nextBoolean());
-            String pref = random().nextBoolean() ? "somePreference" : null;
-            request.preference(pref);
-            request.doc(new BytesArray("{}"), randomBoolean(), MediaTypeRegistry.JSON);
-
-            // write using older version which contains types
-            ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
-            OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setVersion(LegacyESVersion.fromId(7000099));
-            request.writeTo(out);
-
-            // First check the type on the stream was written as "_doc" by manually parsing the stream until the type
-            ByteArrayInputStream opensearchInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
-            InputStreamStreamInput opensearchBuffer = new InputStreamStreamInput(opensearchInBuffer);
-            TaskId.readFromStream(opensearchBuffer);
-            if (opensearchBuffer.readBoolean()) {
-                new ShardId(opensearchBuffer);
-            }
-            opensearchBuffer.readOptionalString();
-            assertThat(opensearchBuffer.readString(), equalTo("_doc"));
-
-            // now read the stream as normal to check it is parsed correct if received from an older node
-            opensearchInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
-            opensearchBuffer = new InputStreamStreamInput(opensearchInBuffer);
-            opensearchBuffer.setVersion(LegacyESVersion.fromId(7000099));
             TermVectorsRequest req2 = new TermVectorsRequest(opensearchBuffer);
 
             assertThat(request.offsets(), equalTo(req2.offsets()));

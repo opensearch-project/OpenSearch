@@ -20,6 +20,15 @@ setup:
                     doc_values: true
 
   - do:
+      indices.create:
+        index: test1
+        body:
+          mappings:
+            properties:
+              my_field:
+                type: wildcard
+
+  - do:
       index:
         index: test
         id: 1
@@ -77,6 +86,19 @@ setup:
           my_field: "\\*"
   - do:
       indices.refresh: {}
+
+---
+# Verify that mappings doc_values is stored.
+"Mappings":
+  - skip:
+      version: "- 3.4.0"
+      reason: "the default value of doc_values is false before 3.4.0"
+
+  - do:
+      indices.get_mapping:
+        index: test1
+  - is_true: test1.mappings
+  - match: { test1.mappings.properties.my_field.doc_values: true }
 
 ---
 "term query matches exact value":
@@ -203,6 +225,113 @@ setup:
               my_field:
                 value: ".*06-08.*cluster-manager node.*"
   - match: { hits.total.value: 2 }
+
+---
+"wildcard field short terms query matches":
+  - do:
+      indices.create:
+        index: test2
+        body:
+          mappings:
+            properties:
+              my_field:
+                type: wildcard
+
+  - do:
+      index:
+        index: test2
+        id: 1
+        body:
+          my_field: "ab"
+  - do:
+      index:
+        index: test2
+        id: 2
+        body:
+          my_field: "axxb"
+  - do:
+      index:
+        index: test2
+        id: 3
+        body:
+          my_field: "ba"
+  - do:
+      index:
+        index: test2
+        id: 4
+        body:
+          my_field: "ac"
+  - do:
+      index:
+        index: test2
+        id: 5
+        body:
+          my_field: "a-cde"
+  - do:
+      index:
+        index: test2
+        id: 6
+        body:
+          my_field: "cde-a"
+  - do:
+      index:
+        index: test2
+        id: 7
+        body:
+          my_field: "cde"
+  - do:
+      index:
+        index: test2
+        id: 8
+        body:
+          my_field: "a-cd"
+  - do:
+      indices.refresh:
+        index: test2
+
+  - do:
+      search:
+        index: test2
+        body:
+          size: 0
+          query:
+            wildcard:
+              my_field:
+                value: "*a*b*"
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test2
+        body:
+          size: 0
+          query:
+            regexp:
+              my_field:
+                value: ".*a.*b.*"
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test2
+        body:
+          size: 0
+          query:
+            wildcard:
+              my_field:
+                value: "*a*cde*"
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test2
+        body:
+          size: 0
+          query:
+            regexp:
+              my_field:
+                value: ".*a.*cde.*"
+  - match: { hits.total.value: 1 }
 
 ---
 "regexp query matches lowercase-normalized field":
@@ -393,3 +522,30 @@ setup:
             terms: { my_field: [ "\\*" ] }
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "9" }
+
+---
+"sort on doc value enabled wildcard":
+  - skip:
+      version: " - 3.2.99"
+      reason: "sorting on doc value enabled wildcard has bug before 3.3.0"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field:
+                value: "*"
+          sort:
+            - my_field.doc_values:
+                order: asc
+          size: 4
+  - match: { hits.total.value: 8 }
+  - match: { hits.hits.0._id: "8" }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: test,test1,test2
+        ignore: 404

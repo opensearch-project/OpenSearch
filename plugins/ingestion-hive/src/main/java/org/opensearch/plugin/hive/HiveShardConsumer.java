@@ -1,0 +1,776 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.plugin.hive;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
+import org.apache.parquet.schema.Type;
+import org.apache.parquet.schema.Types;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IngestionShardConsumer;
+import org.opensearch.index.IngestionShardPointer;
+import org.opensearch.secure_sm.AccessController;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+/**
+ * Shard consumer that reads from Hive tables via Pull-Based Ingestion.
+ * Each shard independently queries Hive Metastore for new partitions (incremental fetch),
+ * determines ownership via consistent hashing, and reads assigned Parquet data files.
+ */
+public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, HiveMessage> {
+
+    private static final Logger logger = LogManager.getLogger(HiveShardConsumer.class);
+    private static final String LATEST_PARTITION_SENTINEL = "__LATEST__";
+
+    private final int shardId;
+    private final HiveSourceConfig config;
+    private final int numShards;
+
+    // Catalog connection for metadata queries (table schema, partition discovery)
+    MetastoreCatalog catalog;
+    private Configuration hadoopConf;
+    private MessageType tableSchema;
+    private String tableInputFormat;
+    List<String> partitionKeys;
+
+    // Partition tracking: watermark tracks the last fully-processed partition so that
+    // incremental discovery only fetches partitions newer than the watermark.
+    private String watermark;
+    String watermarkPartitionTime;
+    private long watermarkCreateTime;
+    long lastMetastoreQueryTime;
+
+    // Current processing state: pendingWork is the queue of partitions to process.
+    // Each PartitionWork tracks its files and progress. sequenceNumber is a monotonically
+    // increasing counter used for pointer ordering and checkpoint recovery.
+    List<PartitionWork> pendingWork;
+    int currentWorkIndex;
+    HiveFileReader currentFileReader;
+    private String currentFile;
+    private long currentRowIndex;
+    // Row to skip to when reopening the current file after a transient read failure.
+    private long resumeRowIndex;
+    private long sequenceNumber;
+    private boolean seekInclusive;
+
+    /**
+     * Creates a new HiveShardConsumer.
+     *
+     * @param clientId the client identifier for this consumer
+     * @param shardId the shard ID this consumer is responsible for
+     * @param config the Hive source configuration
+     */
+    public HiveShardConsumer(String clientId, int shardId, HiveSourceConfig config) {
+        this.shardId = shardId;
+        this.config = config;
+        this.numShards = config.getNumShards();
+        this.watermark = config.getConsumeStartOffset();
+        this.watermarkCreateTime = 0;
+        this.pendingWork = new ArrayList<>();
+        this.currentWorkIndex = 0;
+        this.sequenceNumber = 0;
+        this.lastMetastoreQueryTime = 0;
+    }
+
+    /**
+     * Closes and reconnects to Metastore. Used for recovery after connection failures.
+     */
+    private void reconnectMetastore() throws IOException {
+        catalog.reconnect();
+        fetchTableSchema();
+    }
+
+    /**
+     * Seeks to the position indicated by the pointer. Sets the watermark to the pointer's partition
+     * so that partition discovery resumes from that point, then seeks within the partition to the
+     * correct file and row.
+     */
+    private void seekToPointer(HivePointer pointer, boolean includeStart) throws Exception {
+        resumeRowIndex = 0;
+        // Handle "latest" reset: skip all existing partitions, only read new ones
+        if (LATEST_PARTITION_SENTINEL.equals(pointer.getPartitionName())) {
+            List<MetastoreCatalog.PartitionInfo> existing = catalog.getAllPartitions(config.getDatabase(), config.getTable());
+            if (!existing.isEmpty()) {
+                watermark = existing.stream().map(this::partitionToName).max(String::compareTo).orElse("");
+                watermarkPartitionTime = existing.stream().map(this::extractPartitionTime).max(String::compareTo).orElse("");
+                watermarkCreateTime = existing.stream().mapToInt(MetastoreCatalog.PartitionInfo::getCreateTime).max().orElse(0);
+            }
+            sequenceNumber = 0;
+            // The metastore was just queried above; record it so the next read
+            // honors the monitor interval instead of immediately re-querying.
+            lastMetastoreQueryTime = System.currentTimeMillis();
+            logger.info("Shard {} reset to latest, skipping {} existing partitions", shardId, existing.size());
+            return;
+        }
+
+        // Set watermark to the pointer's partition and use inclusive filter so that
+        // discoverNewPartitions fetches this partition and everything after it.
+        // All three watermark variants must be reset; a stale watermarkPartitionTime
+        // would exclude the target partition from the discovery below in
+        // partition-time mode and silently skip the rows being retried.
+        this.watermark = pointer.getPartitionName();
+        this.watermarkPartitionTime = "";
+        this.watermarkCreateTime = 0;
+        this.sequenceNumber = includeStart ? pointer.getSequenceNumber() : pointer.getSequenceNumber() + 1;
+        this.pendingWork = new ArrayList<>();
+        this.currentWorkIndex = 0;
+        this.seekInclusive = true;
+
+        // Discover partitions from the pointer's partition onward (inclusive)
+        discoverNewPartitions();
+        this.seekInclusive = false;
+
+        // Seek to the correct file within the pointer's partition
+        String targetFile = pointer.getFilePath();
+        long targetRow = includeStart ? pointer.getRowIndex() : pointer.getRowIndex() + 1;
+
+        for (int i = 0; i < pendingWork.size(); i++) {
+            PartitionWork work = pendingWork.get(i);
+            if (work.partitionName.equals(pointer.getPartitionName())) {
+                // Advance the watermark to the target partition so incremental
+                // discovery fetches only its successors; the target itself is
+                // already in pendingWork and is consumed from there
+                watermark = pointer.getPartitionName();
+                watermarkPartitionTime = work.partitionTime;
+                watermarkCreateTime = work.createTime;
+                currentWorkIndex = i;
+                for (int f = 0; f < work.files.size(); f++) {
+                    if (work.files.get(f).equals(targetFile)) {
+                        work.currentFileIndex = f + 1;
+                        currentFile = work.files.get(f);
+                        currentFileReader = createFileReader(currentFile);
+                        // Skip rows up to target position
+                        for (long r = 0; r < targetRow; r++) {
+                            if (currentFileReader.readNext() == null) break;
+                        }
+                        currentRowIndex = targetRow;
+                        logger.info(
+                            "Shard {} seeked to partition={}, file={}, row={}",
+                            shardId,
+                            pointer.getPartitionName(),
+                            targetFile,
+                            targetRow
+                        );
+                        return;
+                    }
+                }
+                break;
+            }
+        }
+        // Partition/file not found, set watermark to pointer's partition so next discovery skips past it
+        watermark = pointer.getPartitionName();
+        logger.info("Shard {} seek target not found, continuing from watermark {}", shardId, watermark);
+    }
+
+    private void fetchTableSchema() throws IOException {
+        MetastoreCatalog.TableInfo tableInfo = catalog.getTableInfo(config.getDatabase(), config.getTable());
+        tableInputFormat = tableInfo.getInputFormat();
+        tableSchema = hiveSchemaToParquet(tableInfo.getColumns());
+        partitionKeys = tableInfo.getPartitionKeys();
+        if (partitionKeys == null) {
+            partitionKeys = Collections.emptyList();
+        }
+        logger.info("Table schema for shard {}: {}, partitionKeys: {}", shardId, tableSchema, partitionKeys);
+    }
+
+    private void ensureInitialized() throws Exception {
+        if (catalog == null) {
+            logger.info("Initializing HiveShardConsumer for shard {} with metastore URI: {}", shardId, config.getMetastoreUri());
+
+            MetastoreCatalog newCatalog = new ThriftMetastoreCatalog(config);
+            newCatalog.connect();
+
+            try {
+                AccessController.doPrivilegedChecked(() -> {
+                    ClassLoader original = Thread.currentThread().getContextClassLoader();
+                    try {
+                        Thread.currentThread().setContextClassLoader(HiveShardConsumer.class.getClassLoader());
+                        hadoopConf = new Configuration();
+                        String s3FsImpl = S3HadoopFileSystem.class.getName();
+                        hadoopConf.set("fs.s3.impl", s3FsImpl);
+                        hadoopConf.set("fs.s3a.impl", s3FsImpl);
+                        hadoopConf.set("fs.s3n.impl", s3FsImpl);
+                        for (Map.Entry<String, String> entry : config.getHadoopProperties().entrySet()) {
+                            hadoopConf.set(entry.getKey(), entry.getValue());
+                        }
+                    } finally {
+                        Thread.currentThread().setContextClassLoader(original);
+                    }
+                });
+            } catch (Exception e) {
+                logger.error(() -> new ParameterizedMessage("Failed to initialize Hadoop config for shard {}", shardId), e);
+                newCatalog.close();
+                throw e;
+            }
+
+            catalog = newCatalog;
+
+            try {
+                fetchTableSchema();
+            } catch (Exception e) {
+                logger.error(() -> new ParameterizedMessage("Failed to fetch table schema for shard {}", shardId), e);
+                catalog.close();
+                catalog = null;
+                hadoopConf = null;
+                throw e;
+            }
+            logger.info("HiveShardConsumer initialized successfully for shard {}", shardId);
+        }
+    }
+
+    /**
+     * Resumes reading from the given pointer position. Restores watermark, seeks to the
+     * correct partition and file, and skips rows up to the pointer's row index.
+     */
+    @Override
+    public List<ReadResult<HivePointer, HiveMessage>> readNext(
+        HivePointer pointer,
+        boolean includeStart,
+        long maxMessages,
+        int timeoutMillis
+    ) {
+        return executeWithRetry(() -> {
+            ensureInitialized();
+            if (pointer != null && !pointer.getPartitionName().isEmpty()) {
+                seekToPointer(pointer, includeStart);
+            }
+            return doReadNext(maxMessages);
+        });
+    }
+
+    @Override
+    public List<ReadResult<HivePointer, HiveMessage>> readNext(long maxMessages, int timeoutMillis) {
+        return executeWithRetry(() -> doReadNext(maxMessages));
+    }
+
+    private List<ReadResult<HivePointer, HiveMessage>> executeWithRetry(ReadAction action) {
+        try {
+            return action.execute();
+        } catch (IOException e) {
+            logger.warn("IO error for shard {}, attempting recovery: {}", shardId, e.getMessage());
+            try {
+                if (currentFileReader != null) {
+                    prepareCurrentFileResume();
+                }
+                if (catalog != null) {
+                    // catalog is null when the initial connection itself failed;
+                    // the retried action re-runs ensureInitialized and reconnects.
+                    reconnectMetastore();
+                }
+                return action.execute();
+            } catch (Exception retryEx) {
+                retryEx.addSuppressed(e);
+                throw new RuntimeException("Read failure for shard " + shardId + " after retry", retryEx);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Read failure for shard " + shardId, e);
+        }
+    }
+
+    @FunctionalInterface
+    private interface ReadAction {
+        List<ReadResult<HivePointer, HiveMessage>> execute() throws Exception;
+    }
+
+    /**
+     * Core read loop. Discovers new partitions if needed, then reads rows from the current
+     * file and converts them to JSON messages. Returns up to maxMessages results per call.
+     */
+    private List<ReadResult<HivePointer, HiveMessage>> doReadNext(long maxMessages) throws Exception {
+        ensureInitialized();
+
+        // Step 1: Check if it's time to query Metastore for new partitions.
+        // This only triggers when all current work is done and the monitor interval has elapsed.
+        if (shouldRefreshPartitions()) {
+            discoverNewPartitions();
+        }
+
+        // Step 2: If there's nothing to read (no pending partitions, no open file), return empty.
+        if (currentWorkIndex >= pendingWork.size() && currentFileReader == null) {
+            return Collections.emptyList();
+        }
+
+        // Step 3: If no file is currently open, open the next one from pending work.
+        if (currentFileReader == null) {
+            if (!openNextFile()) {
+                return Collections.emptyList();
+            }
+        }
+
+        // Step 4: Read rows from the current file, converting each to a JSON message.
+        // When a file is exhausted, move to the next file (possibly in the next partition).
+        // Stop when maxMessages is reached or all pending files are consumed.
+        List<ReadResult<HivePointer, HiveMessage>> results = new ArrayList<>();
+        long count = 0;
+        while (count < maxMessages) {
+            Map<String, Object> row;
+            try {
+                row = currentFileReader.readNext();
+            } catch (IOException e) {
+                // Return the rows already read so nothing is lost, and arrange for the
+                // next call to reopen this file and continue from the current row.
+                logger.warn(
+                    new ParameterizedMessage(
+                        "Transient read failure on shard {} file {} at row {}; returning partial batch and resuming from this position",
+                        shardId,
+                        currentFile,
+                        currentRowIndex
+                    ),
+                    e
+                );
+                prepareCurrentFileResume();
+                return results;
+            }
+            if (row == null) {
+                // Current file exhausted, try the next file
+                closeCurrentReader();
+                if (!openNextFile()) {
+                    break;
+                }
+                continue;
+            }
+
+            PartitionWork work = pendingWork.get(currentWorkIndex);
+            HivePointer ptr = new HivePointer(work.partitionName, currentFile, currentRowIndex, sequenceNumber);
+            byte[] json = rowToJson(row, ptr);
+            HiveMessage msg = new HiveMessage(json, System.currentTimeMillis());
+            results.add(new ReadResult<>(ptr, msg));
+            currentRowIndex++;
+            sequenceNumber++;
+            count++;
+        }
+        return results;
+    }
+
+    /**
+     * Incremental partition fetch: query Metastore for partitions added after watermark.
+     * Supports both partition-name and create-time ordering strategies.
+     */
+    void discoverNewPartitions() throws Exception {
+        // Reset work queue before fetching new partitions. Callers only invoke this when
+        // all prior work is consumed, so the reader should already be closed; close it
+        // defensively so a future caller cannot leak an open reader.
+        closeCurrentReader();
+        pendingWork.clear();
+        currentWorkIndex = 0;
+
+        List<MetastoreCatalog.PartitionInfo> partitions;
+        switch (config.getPartitionOrder()) {
+            case CREATE_TIME:
+                partitions = discoverByCreateTime();
+                partitions.sort(Comparator.comparingInt(MetastoreCatalog.PartitionInfo::getCreateTime));
+                break;
+            case PARTITION_TIME:
+                partitions = discoverByPartitionTime();
+                partitions.sort(Comparator.comparing(this::extractPartitionTime));
+                break;
+            default:
+                partitions = discoverByPartitionName();
+                partitions.sort((a, b) -> {
+                    String aVal = String.join("/", a.getValues());
+                    String bVal = String.join("/", b.getValues());
+                    return aVal.compareTo(bVal);
+                });
+                break;
+        }
+
+        logger.info("Shard {} discovered {} candidate partitions from Metastore", shardId, partitions.size());
+
+        // Assign partitions to this shard using consistent hashing on partition name.
+        // Each shard deterministically owns a subset of partitions (no coordination needed).
+        for (MetastoreCatalog.PartitionInfo partition : partitions) {
+            String partName = partitionToName(partition);
+            if (Math.floorMod(partName.hashCode(), numShards) == shardId) {
+                List<String> files = listDataFiles(partition.getLocation());
+                if (!files.isEmpty()) {
+                    String partTime = extractPartitionTime(partition);
+                    pendingWork.add(new PartitionWork(partName, partTime, files, partition.getCreateTime()));
+                    logger.info("Shard {} assigned partition {} with {} files", shardId, partName, files.size());
+                }
+            }
+        }
+
+        lastMetastoreQueryTime = System.currentTimeMillis();
+    }
+
+    private List<MetastoreCatalog.PartitionInfo> discoverByPartitionName() throws IOException {
+        if (watermark == null || watermark.isEmpty()) {
+            return catalog.getAllPartitions(config.getDatabase(), config.getTable());
+        }
+        String filter = buildPartitionFilter(watermark, seekInclusive);
+        return catalog.getPartitionsByFilter(config.getDatabase(), config.getTable(), filter);
+    }
+
+    // Partition-time mode: full retrieval with client-side filtering by extracted timestamp.
+    // Cannot use Metastore filter because lexicographic order may differ from time order.
+    private List<MetastoreCatalog.PartitionInfo> discoverByPartitionTime() throws IOException {
+        List<MetastoreCatalog.PartitionInfo> all = catalog.getAllPartitions(config.getDatabase(), config.getTable());
+        if (watermarkPartitionTime == null || watermarkPartitionTime.isEmpty()) {
+            return all;
+        }
+        return all.stream().filter(p -> extractPartitionTime(p).compareTo(watermarkPartitionTime) > 0).collect(Collectors.toList());
+    }
+
+    // Neither Hive Metastore nor AWS Glue support server-side filtering by createTime.
+    // Client-side filtering after full partition list retrieval is the only option.
+    private List<MetastoreCatalog.PartitionInfo> discoverByCreateTime() throws IOException {
+        List<MetastoreCatalog.PartitionInfo> all = catalog.getAllPartitions(config.getDatabase(), config.getTable());
+        if (watermarkCreateTime <= 0 && (watermark == null || watermark.isEmpty())) {
+            return all;
+        }
+        return all.stream().filter(p -> p.getCreateTime() > watermarkCreateTime).collect(Collectors.toList());
+    }
+
+    /**
+     * Determines if it's time to query the Metastore for new partitions.
+     * Only refreshes when all pending work is complete and the monitor interval has elapsed,
+     * preventing excessive Metastore queries during active reading.
+     */
+    private boolean shouldRefreshPartitions() {
+        if (lastMetastoreQueryTime == 0) return true;
+        boolean noPendingWork = currentWorkIndex >= pendingWork.size() && currentFileReader == null;
+        boolean intervalElapsed = System.currentTimeMillis() - lastMetastoreQueryTime >= config.getMonitorIntervalMillis();
+        return noPendingWork && intervalElapsed;
+    }
+
+    /**
+     * Opens the next data file from the pending work queue. When all files in a partition
+     * are consumed, updates the watermark and advances to the next partition.
+     */
+    boolean openNextFile() throws IOException {
+        while (currentWorkIndex < pendingWork.size()) {
+            PartitionWork work = pendingWork.get(currentWorkIndex);
+            if (work.currentFileIndex < work.files.size()) {
+                // More files in current partition: open the next one
+                currentFile = work.files.get(work.currentFileIndex);
+                currentFileReader = createFileReader(currentFile);
+                if (resumeRowIndex > 0) {
+                    // Reopening after a transient failure: skip the rows that were
+                    // already delivered from this file.
+                    try {
+                        for (long r = 0; r < resumeRowIndex; r++) {
+                            if (currentFileReader.readNext() == null) break;
+                        }
+                    } catch (IOException e) {
+                        closeCurrentReader();
+                        throw e;
+                    }
+                    currentRowIndex = resumeRowIndex;
+                    resumeRowIndex = 0;
+                } else {
+                    currentRowIndex = 0;
+                }
+                work.currentFileIndex++;
+                return true;
+            } else {
+                // All files in this partition are consumed. Advance watermark so that
+                // future partition discovery skips this partition, then move to the next.
+                watermark = work.partitionName;
+                watermarkPartitionTime = work.partitionTime;
+                watermarkCreateTime = work.createTime;
+                currentWorkIndex++;
+            }
+        }
+        // All pending partitions have been fully read
+        return false;
+    }
+
+    /**
+     * Creates a file reader based on the table's input format.
+     * Currently supports Parquet. Additional formats (ORC, Avro, etc.) can be added here.
+     */
+    HiveFileReader createFileReader(String filePath) throws IOException {
+        if (tableInputFormat != null && tableInputFormat.toLowerCase(Locale.ROOT).contains("parquet")) {
+            return new ParquetHiveFileReader(filePath, hadoopConf, tableSchema);
+        }
+        throw new IOException("Unsupported input format: " + tableInputFormat);
+    }
+
+    /**
+     * Prepares to resume the file that was being read when a transient failure occurred:
+     * closes the reader, re-queues the file, and remembers the next undelivered row so
+     * that openNextFile reopens the same file and skips the rows already delivered.
+     */
+    private void prepareCurrentFileResume() {
+        closeCurrentReader();
+        if (currentWorkIndex < pendingWork.size()) {
+            PartitionWork work = pendingWork.get(currentWorkIndex);
+            if (work.currentFileIndex > 0) {
+                work.currentFileIndex--;
+                resumeRowIndex = currentRowIndex;
+            }
+        }
+    }
+
+    private void closeCurrentReader() {
+        if (currentFileReader != null) {
+            try {
+                currentFileReader.close();
+            } catch (IOException e) {
+                logger.warn("Error closing file reader", e);
+            }
+            currentFileReader = null;
+        }
+    }
+
+    List<String> listDataFiles(String location) throws IOException {
+        Path path = new Path(location);
+        ClassLoader original = Thread.currentThread().getContextClassLoader();
+        try {
+            Thread.currentThread().setContextClassLoader(HiveShardConsumer.class.getClassLoader());
+            FileSystem fs = FileSystem.get(path.toUri(), hadoopConf);
+            if (!fs.exists(path)) {
+                return Collections.emptyList();
+            }
+            FileStatus[] statuses = fs.listStatus(path);
+            List<String> files = new ArrayList<>();
+            for (FileStatus status : statuses) {
+                String name = status.getPath().getName();
+                if (!status.isDirectory() && !name.startsWith("_") && !name.startsWith(".")) {
+                    files.add(status.getPath().toString());
+                }
+            }
+            Collections.sort(files);
+            return files;
+        } finally {
+            Thread.currentThread().setContextClassLoader(original);
+        }
+    }
+
+    /**
+     * Builds a Metastore partition filter expression that matches partitions lexicographically
+     * after the watermark. For composite partitions (e.g., "year=2024/month=01/day=15"),
+     * generates: (year > "2024") OR (year = "2024" AND month > "01") OR
+     *            (year = "2024" AND month = "01" AND day > "15")
+     * When inclusive is true, uses >= for the last key to include the watermark partition itself.
+     */
+    String buildPartitionFilter(String watermark, boolean inclusive) {
+        String[] segments = watermark.split("/");
+        List<String> clauses = new ArrayList<>();
+        for (int i = 0; i < segments.length; i++) {
+            if (!segments[i].contains("=")) continue;
+            StringBuilder clause = new StringBuilder();
+            for (int j = 0; j < i; j++) {
+                String[] kv = segments[j].split("=", 2);
+                if (!clause.isEmpty()) clause.append(" AND ");
+                clause.append(kv[0]).append(" = ").append(quoteFilterValue(kv[1]));
+            }
+            String[] kv = segments[i].split("=", 2);
+            if (!clause.isEmpty()) clause.append(" AND ");
+            String op = (inclusive && i == segments.length - 1) ? " >= " : " > ";
+            clause.append(kv[0]).append(op).append(quoteFilterValue(kv[1]));
+            clauses.add("(" + clause + ")");
+        }
+        return clauses.isEmpty() ? "" : String.join(" OR ", clauses);
+    }
+
+    /**
+     * Quotes a partition value for a Metastore filter expression. The Metastore filter
+     * grammar accepts backslash escapes lexically, but both Hive 3.x (TrimQuotes) and
+     * 4.x (unquoteString) only strip the outer quotes without unescaping, so escaping
+     * would silently change the compared value. Switch the quote character instead,
+     * and reject the rare values this grammar cannot express.
+     */
+    static String quoteFilterValue(String value) {
+        if (value.endsWith("\\")) {
+            // A trailing backslash would escape the closing quote and break the lexer.
+            throw new IllegalArgumentException("Partition value ending with a backslash cannot be used in a Metastore filter: " + value);
+        }
+        if (value.contains("\"") == false) {
+            return "\"" + value + "\"";
+        }
+        if (value.contains("'") == false) {
+            return "'" + value + "'";
+        }
+        throw new IllegalArgumentException(
+            "Partition value containing both quote characters cannot be used in a Metastore filter: " + value
+        );
+    }
+
+    String partitionToName(MetastoreCatalog.PartitionInfo partition) {
+        List<String> values = partition.getValues();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < partitionKeys.size(); i++) {
+            if (i > 0) sb.append("/");
+            sb.append(partitionKeys.get(i)).append("=").append(values.get(i));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Extracts a timestamp string from partition values using the configured partition_time_pattern.
+     * Pattern variables like $year, $month, $day are replaced with the corresponding partition key values.
+     */
+    String extractPartitionTime(MetastoreCatalog.PartitionInfo partition) {
+        String pattern = config.getPartitionTimePattern();
+        if (pattern == null) {
+            return String.join("/", partition.getValues());
+        }
+        List<String> values = partition.getValues();
+        String result = pattern;
+        for (int i = 0; i < partitionKeys.size(); i++) {
+            result = result.replace("$" + partitionKeys.get(i), values.get(i));
+        }
+        return result;
+    }
+
+    byte[] rowToJson(Map<String, Object> row, HivePointer pointer) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("_id", pointer.asString());
+        builder.startObject("_source");
+        builder.mapContents(row);
+        builder.endObject();
+        builder.endObject();
+        return BytesReference.toBytes(BytesReference.bytes(builder));
+    }
+
+    @Override
+    public IngestionShardPointer earliestPointer() {
+        return new HivePointer("", "", 0, 0);
+    }
+
+    @Override
+    public IngestionShardPointer latestPointer() {
+        // Signals that existing partitions should be skipped. seekToPointer sets all watermarks
+        // to their respective maximums so that subsequent discovery returns no existing partitions.
+        return new HivePointer(LATEST_PARTITION_SENTINEL, "", 0, Long.MAX_VALUE - 1);
+    }
+
+    @Override
+    public IngestionShardPointer pointerFromTimestampMillis(long timestampMillis) {
+        throw new UnsupportedOperationException(
+            "Hive ingestion does not support timestamp-based pointer reset. Use 'earliest' or 'latest' instead."
+        );
+    }
+
+    @Override
+    public IngestionShardPointer pointerFromOffset(String offset) {
+        return HivePointer.fromString(offset);
+    }
+
+    @Override
+    public int getShardId() {
+        return shardId;
+    }
+
+    @Override
+    public long getPointerBasedLag(IngestionShardPointer expectedStartPointer) {
+        if (pendingWork == null || lastMetastoreQueryTime == 0) {
+            // The framework treats -1 as "lag unknown"; 0 would mean fully caught up
+            // and could complete warmup prematurely before the first discovery runs.
+            return -1;
+        }
+        return pendingWork.size() - currentWorkIndex;
+    }
+
+    /**
+     * Converts Hive FieldSchema list to Parquet MessageType.
+     * Used as the projection schema so that files with fewer columns
+     * return null for missing fields.
+     */
+    static MessageType hiveSchemaToParquet(List<MetastoreCatalog.ColumnInfo> columns) {
+        Types.MessageTypeBuilder builder = Types.buildMessage();
+        for (MetastoreCatalog.ColumnInfo col : columns) {
+            builder.addField(hiveTypeToParquetType(col.getName(), col.getType()));
+        }
+        return builder.named("table");
+    }
+
+    private static Type hiveTypeToParquetType(String name, String hiveType) {
+        String normalized = hiveType.toLowerCase(Locale.ROOT).trim();
+        // Strip type parameters: "decimal(10,2)" -> "decimal", "varchar(255)" -> "varchar"
+        int paren = normalized.indexOf('(');
+        String baseType = paren > 0 ? normalized.substring(0, paren).trim() : normalized;
+        return switch (baseType) {
+            case "boolean" -> Types.optional(PrimitiveType.PrimitiveTypeName.BOOLEAN).named(name);
+            case "tinyint", "smallint", "int" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32).named(name);
+            case "bigint" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named(name);
+            case "float" -> Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT).named(name);
+            case "double" -> Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE).named(name);
+            case "string", "varchar", "char" -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named(name);
+            case "binary" -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).named(name);
+            case "timestamp" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT96).named(name);
+            case "date" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.dateType()).named(name);
+            case "decimal" -> {
+                int[] precisionScale = parseDecimalParameters(normalized);
+                yield Types.optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                    .as(LogicalTypeAnnotation.decimalType(precisionScale[1], precisionScale[0]))
+                    .named(name);
+            }
+            default -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named(name);
+        };
+    }
+
+    /**
+     * Parses precision and scale from a Hive decimal type string like "decimal(10,2)".
+     * Returns {precision, scale}; Hive's defaults are precision 10, scale 0.
+     */
+    private static int[] parseDecimalParameters(String decimalType) {
+        int precision = 10;
+        int scale = 0;
+        int open = decimalType.indexOf('(');
+        int close = decimalType.lastIndexOf(')');
+        if (open > 0 && close > open) {
+            String[] parts = decimalType.substring(open + 1, close).split(",");
+            precision = Integer.parseInt(parts[0].trim());
+            if (parts.length > 1) {
+                scale = Integer.parseInt(parts[1].trim());
+            }
+        }
+        return new int[] { precision, scale };
+    }
+
+    @Override
+    public void close() throws IOException {
+        closeCurrentReader();
+        if (catalog != null) {
+            catalog.close();
+        }
+    }
+
+    /**
+     * Tracks work for a single partition: its files and progress through them.
+     */
+    static class PartitionWork {
+        final String partitionName;
+        final String partitionTime;
+        final List<String> files;
+        final int createTime;
+        int currentFileIndex;
+
+        PartitionWork(String partitionName, String partitionTime, List<String> files, int createTime) {
+            this.partitionName = partitionName;
+            this.partitionTime = partitionTime;
+            this.files = files;
+            this.createTime = createTime;
+            this.currentFileIndex = 0;
+        }
+    }
+}

@@ -1,0 +1,36 @@
+{
+  "schema": [
+    {
+      "name": "avg_latency",
+      "type": "double"
+    },
+    {
+      "name": "endpoint",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      530.1739130434783,
+      "/SCS/Retail/v1/orders"
+    ],
+    [
+      1099.8947368421052,
+      "/api/orders"
+    ],
+    [
+      1040.5625,
+      "/api/payments"
+    ],
+    [
+      820.3,
+      "/api/products"
+    ],
+    [
+      983.125,
+      "/api/users"
+    ]
+  ],
+  "total": 5,
+  "size": 5
+}

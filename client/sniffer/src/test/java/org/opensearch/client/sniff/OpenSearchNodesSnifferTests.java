@@ -36,9 +36,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonGenerator;
-
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -68,6 +65,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.core.json.JsonFactory;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -202,13 +202,13 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
         JsonGenerator generator = jsonFactory.createGenerator(writer);
         generator.writeStartObject();
         if (getRandom().nextBoolean()) {
-            generator.writeStringField("cluster_name", "opensearch");
+            generator.writeStringProperty("cluster_name", "opensearch");
         }
         if (getRandom().nextBoolean()) {
-            generator.writeObjectFieldStart("bogus_object");
+            generator.writeObjectPropertyStart("bogus_object");
             generator.writeEndObject();
         }
-        generator.writeObjectFieldStart("nodes");
+        generator.writeObjectPropertyStart("nodes");
         for (int i = 0; i < numNodes; i++) {
             String nodeId = RandomStrings.randomAsciiOfLengthBetween(getRandom(), 5, 10);
             String host = "host" + i;
@@ -255,13 +255,13 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
                 attributes
             );
 
-            generator.writeObjectFieldStart(nodeId);
+            generator.writeObjectPropertyStart(nodeId);
             if (getRandom().nextBoolean()) {
-                generator.writeObjectFieldStart("bogus_object");
+                generator.writeObjectPropertyStart("bogus_object");
                 generator.writeEndObject();
             }
             if (getRandom().nextBoolean()) {
-                generator.writeArrayFieldStart("bogus_array");
+                generator.writeArrayPropertyStart("bogus_array");
                 generator.writeStartObject();
                 generator.writeEndObject();
                 generator.writeEndArray();
@@ -269,26 +269,26 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
             boolean isHttpEnabled = rarely() == false;
             if (isHttpEnabled) {
                 nodes.add(node);
-                generator.writeObjectFieldStart("http");
-                generator.writeArrayFieldStart("bound_address");
+                generator.writeObjectPropertyStart("http");
+                generator.writeArrayPropertyStart("bound_address");
                 for (HttpHost bound : boundHosts) {
                     generator.writeString(bound.toHostString());
                 }
                 generator.writeEndArray();
                 if (getRandom().nextBoolean()) {
-                    generator.writeObjectFieldStart("bogus_object");
+                    generator.writeObjectPropertyStart("bogus_object");
                     generator.writeEndObject();
                 }
-                generator.writeStringField("publish_address", publishHost.toHostString());
+                generator.writeStringProperty("publish_address", publishHost.toHostString());
                 if (getRandom().nextBoolean()) {
-                    generator.writeNumberField("max_content_length_in_bytes", 104857600);
+                    generator.writeNumberProperty("max_content_length_in_bytes", 104857600);
                 }
                 generator.writeEndObject();
             }
 
             List<String> roles = Arrays.asList(new String[] { "cluster_manager", "data", "ingest" });
             Collections.shuffle(roles, getRandom());
-            generator.writeArrayFieldStart("roles");
+            generator.writeArrayPropertyStart("roles");
             for (String role : roles) {
                 if ("cluster_manager".equals(role) && node.getRoles().isClusterManagerEligible()) {
                     generator.writeString("cluster_manager");
@@ -302,15 +302,15 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
             }
             generator.writeEndArray();
 
-            generator.writeFieldName("version");
+            generator.writeName("version");
             generator.writeString(node.getVersion());
-            generator.writeFieldName("name");
+            generator.writeName("name");
             generator.writeString(node.getName());
 
             if (numAttributes > 0) {
-                generator.writeObjectFieldStart("attributes");
+                generator.writeObjectPropertyStart("attributes");
                 for (Map.Entry<String, List<String>> entry : attributes.entrySet()) {
-                    generator.writeStringField(entry.getKey(), entry.getValue().toString());
+                    generator.writeStringProperty(entry.getKey(), entry.getValue().toString());
                 }
                 generator.writeEndObject();
             }

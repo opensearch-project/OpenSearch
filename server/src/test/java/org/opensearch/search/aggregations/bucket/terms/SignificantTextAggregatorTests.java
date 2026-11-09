@@ -53,6 +53,7 @@ import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.ConstantKeywordFieldMapper;
 import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.GeoPointFieldMapper;
+import org.opensearch.index.mapper.HllFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper.TextFieldType;
@@ -106,7 +107,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
             BinaryFieldMapper.CONTENT_TYPE, // binary fields are not supported because they do not have analyzers
             GeoPointFieldMapper.CONTENT_TYPE, // geopoint fields cannot use term queries
             FlatObjectFieldMapper.CONTENT_TYPE, // flat_object fields are not supported aggregations
-            ConstantKeywordFieldMapper.CONTENT_TYPE // binary fields are not supported because they do not have analyzers
+            ConstantKeywordFieldMapper.CONTENT_TYPE, // binary fields are not supported because they do not have analyzers
+            HllFieldMapper.CONTENT_TYPE // HLL fields are not supported for significant text aggregation
         );
     }
 

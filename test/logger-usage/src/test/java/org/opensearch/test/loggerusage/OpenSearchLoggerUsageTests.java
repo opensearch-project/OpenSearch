@@ -210,7 +210,8 @@ public class OpenSearchLoggerUsageTests extends OpenSearchTestCase {
         logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}", "world"), new Exception());
     }
 
-    public void checkFailOrderOfExceptionArgument1() {
+    // SLF4J / Log4j2 style: a trailing throwable is not a placeholder argument, it is logged as the exception.
+    public void checkOrderOfExceptionArgument3() {
         logger.info("Hello {}", "world", new Exception());
     }
 
@@ -218,8 +219,24 @@ public class OpenSearchLoggerUsageTests extends OpenSearchTestCase {
         logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}", "world", 42), new Exception());
     }
 
-    public void checkFailOrderOfExceptionArgument2() {
+    // SLF4J / Log4j2 style with multiple placeholders and a trailing throwable.
+    public void checkOrderOfExceptionArgument4() {
         logger.info("Hello {}, {}", "world", 42, new Exception());
+    }
+
+    // A subtype of Throwable as the trailing argument must also be recognised.
+    public void checkOrderOfExceptionArgumentSubtype() {
+        logger.info("Hello {}", "world", new IllegalArgumentException("bad"));
+    }
+
+    // Too many non-throwable arguments even after accounting for the trailing throwable is still wrong.
+    public void checkFailTrailingThrowableTooManyArguments() {
+        logger.info("Hello {}", "world", "extra", new Exception());
+    }
+
+    // A trailing throwable does not excuse a message that has too few placeholders for the remaining arguments.
+    public void checkFailTrailingThrowableTooFewPlaceholders() {
+        logger.info("Hello", "world", new Exception());
     }
 
     public void checkNonConstantMessageWithZeroArguments(boolean b) {

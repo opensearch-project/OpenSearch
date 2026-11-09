@@ -45,9 +45,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import org.opensearch.repositories.s3.utils.Protocol;
+import org.opensearch.secure_sm.AccessController;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -71,6 +73,7 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
         assertThat(defaultSettings.proxySettings, is(ProxySettings.NO_PROXY_SETTINGS));
         assertThat(defaultSettings.readTimeoutMillis, is(50 * 1000));
         assertThat(defaultSettings.requestTimeoutMillis, is(5 * 60 * 1000));
+        assertThat(defaultSettings.apiCallTimeoutMillis, is(0));
         assertThat(defaultSettings.connectionTimeoutMillis, is(10 * 1000));
         assertThat(defaultSettings.connectionTTLMillis, is(5 * 1000));
         assertThat(defaultSettings.maxConnections, is(500));
@@ -78,6 +81,7 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
         assertThat(defaultSettings.connectionAcquisitionTimeoutMillis, is(15 * 60 * 1000));
         assertThat(defaultSettings.maxRetries, is(3));
         assertThat(defaultSettings.throttleRetries, is(true));
+        assertThat(defaultSettings.legacyMd5ChecksumCalculation, is(false));
     }
 
     public void testDefaultClientSettingsCanBeSet() {
@@ -89,6 +93,17 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
 
         final S3ClientSettings defaultSettings = settings.get("default");
         assertThat(defaultSettings.maxRetries, is(10));
+    }
+
+    public void testLegacyMd5ChecksumCalculationCanBeSet() {
+        S3Service.setDefaultAwsProfilePath();
+        final var legacyMd5ChecksumCalculation = randomBoolean();
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.other.legacy_md5_checksum_calculation", legacyMd5ChecksumCalculation).build(),
+            configPath()
+        );
+        assertThat(settings.get("default").legacyMd5ChecksumCalculation, is(false));
+        assertThat(settings.get("other").legacyMd5ChecksumCalculation, is(legacyMd5ChecksumCalculation));
     }
 
     public void testNondefaultClientCreatedBySettingItsSettings() {
@@ -297,7 +312,7 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
         assertThat(settings.get("other").region, is(region));
         try (
             S3Service s3Service = new S3Service(configPath());
-            S3Client other = SocketAccess.doPrivileged(() -> s3Service.buildClient(settings.get("other")).client());
+            S3Client other = AccessController.doPrivileged(() -> s3Service.buildClient(settings.get("other")).client());
         ) {
             assertThat(other.serviceClientConfiguration().region(), is(Region.of(region)));
         }
@@ -313,13 +328,13 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").signerOverride, is(signerOverride));
 
-        ClientOverrideConfiguration defaultConfiguration = SocketAccess.doPrivileged(
+        ClientOverrideConfiguration defaultConfiguration = AccessController.doPrivileged(
             () -> S3Service.buildOverrideConfiguration(settings.get("default"), null)
         );
         Optional<Signer> defaultSigner = defaultConfiguration.advancedOption(SdkAdvancedClientOption.SIGNER);
         assertFalse(defaultSigner.isPresent());
 
-        ClientOverrideConfiguration configuration = SocketAccess.doPrivileged(
+        ClientOverrideConfiguration configuration = AccessController.doPrivileged(
             () -> S3Service.buildOverrideConfiguration(settings.get("other"), null)
         );
         Optional<Signer> otherSigner = configuration.advancedOption(SdkAdvancedClientOption.SIGNER);
@@ -397,5 +412,93 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
             .put("s3.client.default.proxy.type", "socks")
             .build();
         expectThrows(SettingsException.class, () -> S3ClientSettings.load(settings, configPath()));
+    }
+
+    public void testRequestTimeoutAppliedToSyncClientOverrideConfiguration() {
+        S3Service.setDefaultAwsProfilePath();
+        // Default timeout (5 minutes)
+        final Map<String, S3ClientSettings> defaultSettings = S3ClientSettings.load(Settings.EMPTY, configPath());
+        ClientOverrideConfiguration defaultConfig = AccessController.doPrivileged(
+            () -> S3Service.buildOverrideConfiguration(defaultSettings.get("default"), null)
+        );
+        assertTrue(defaultConfig.apiCallAttemptTimeout().isPresent());
+        assertThat(defaultConfig.apiCallAttemptTimeout().get().toMillis(), is((long) defaultSettings.get("default").requestTimeoutMillis));
+
+        // Custom timeout
+        final Map<String, S3ClientSettings> customSettings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.default.request_timeout", "2m").build(),
+            configPath()
+        );
+        ClientOverrideConfiguration customConfig = AccessController.doPrivileged(
+            () -> S3Service.buildOverrideConfiguration(customSettings.get("default"), null)
+        );
+        assertTrue(customConfig.apiCallAttemptTimeout().isPresent());
+        assertThat(customConfig.apiCallAttemptTimeout().get().toMillis(), is(120_000L));
+    }
+
+    public void testApiCallTimeoutDisabledByDefault() {
+        assertApiCallTimeout(S3ClientSettings.load(Settings.EMPTY, configPath()).get("default"), 0);
+    }
+
+    public void testApiCallTimeoutAppliedToBothClients() {
+        final S3ClientSettings settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.default.api_call_timeout", "3m").put("s3.client.default.request_timeout", "2m").build(),
+            configPath()
+        ).get("default");
+        assertApiCallTimeout(settings, 180_000L);
+    }
+
+    public void testApiCallTimeoutForNamedClient() {
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.other.api_call_timeout", "1m").build(),
+            configPath()
+        );
+        assertApiCallTimeout(settings.get("default"), 0);
+        assertApiCallTimeout(settings.get("other"), 60_000L);
+    }
+
+    public void testApiCallTimeoutRepositoryOverrides() {
+        final S3ClientSettings base = S3ClientSettings.load(
+            Settings.builder().put("s3.client.default.api_call_timeout", "3m").build(),
+            configPath()
+        ).get("default");
+        assertSame(base, base.refine(Settings.EMPTY));
+        assertApiCallTimeout(base, 180_000L);
+        final S3ClientSettings overridden = base.refine(Settings.builder().put("api_call_timeout", "30s").build());
+        assertApiCallTimeout(overridden, 30_000L);
+        assertNotEquals(base, overridden);
+        final S3ClientSettings expected = S3ClientSettings.load(
+            Settings.builder().put("s3.client.default.api_call_timeout", "30s").build(),
+            configPath()
+        ).get("default");
+        assertEquals(expected, overridden);
+        assertEquals(expected.hashCode(), overridden.hashCode());
+        assertApiCallTimeout(base.refine(Settings.builder().put("api_call_timeout", "0").build()), 0);
+    }
+
+    public void testApiCallTimeoutRejectsNegativeValues() {
+        final IllegalArgumentException failure = expectThrows(
+            IllegalArgumentException.class,
+            () -> S3ClientSettings.load(Settings.builder().put("s3.client.default.api_call_timeout", "-1").build(), configPath())
+        );
+        assertThat(failure.getMessage(), org.hamcrest.Matchers.containsString("api_call_timeout"));
+        final S3ClientSettings settings = S3ClientSettings.load(Settings.EMPTY, configPath()).get("default");
+        expectThrows(IllegalArgumentException.class, () -> settings.refine(Settings.builder().put("api_call_timeout", "-1").build()));
+    }
+
+    private void assertApiCallTimeout(S3ClientSettings settings, long expectedMillis) {
+        assertEquals(expectedMillis, settings.apiCallTimeoutMillis);
+        final List<ClientOverrideConfiguration> configurations = List.of(
+            AccessController.doPrivileged(() -> S3Service.buildOverrideConfiguration(settings, null)),
+            AccessController.doPrivileged(() -> S3AsyncService.buildOverrideConfiguration(settings, null))
+        );
+        for (ClientOverrideConfiguration configuration : configurations) {
+            if (expectedMillis == 0) {
+                assertTrue(configuration.apiCallTimeout().isEmpty());
+            } else {
+                assertEquals(expectedMillis, configuration.apiCallTimeout().orElseThrow().toMillis());
+            }
+            assertEquals(settings.requestTimeoutMillis, configuration.apiCallAttemptTimeout().orElseThrow().toMillis());
+        }
     }
 }

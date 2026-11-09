@@ -1,0 +1,1 @@
+source=app_logs | where message like '%ElapsedTime%' and message like '%ServiceName%' and message like '%ServiceStatus%' | grok message 'ElapsedTime: %{NUMBER:elapsedtime}ms ServiceName: %{NOTSPACE:servicename} ServiceStatus: %{WORD:responsecode}' | where elapsedtime is not null | stats avg(elapsedtime) as avgresponsetime, count() as requests by servicename, responsecode

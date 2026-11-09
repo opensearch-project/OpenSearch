@@ -31,9 +31,9 @@ public class AmazonAsyncS3Reference extends RefCountedReleasable<AmazonAsyncS3Wi
             client.priorityClient().close();
             client.urgentClient().close();
             AwsCredentialsProvider credentials = client.credentials();
-            if (credentials instanceof Closeable) {
+            if (credentials instanceof Closeable closeable) {
                 try {
-                    ((Closeable) credentials).close();
+                    closeable.close();
                 } catch (IOException e) {
                     logger.error("Exception while closing AwsCredentialsProvider", e);
                 }

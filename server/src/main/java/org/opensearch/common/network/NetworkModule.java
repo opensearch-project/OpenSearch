@@ -93,9 +93,13 @@ import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_TYPES_SETTING;
 public final class NetworkModule {
 
     public static final String TRANSPORT_TYPE_KEY = "transport.type";
+    public static final String STREAM_TRANSPORT_TYPE_KEY = "transport.stream.type";
+
     public static final String HTTP_TYPE_KEY = "http.type";
     public static final String HTTP_TYPE_DEFAULT_KEY = "http.type.default";
     public static final String TRANSPORT_TYPE_DEFAULT_KEY = "transport.type.default";
+    public static final String STREAM_TRANSPORT_TYPE_DEFAULT_KEY = "transport.stream.type.default";
+
     public static final String TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_KEY = "transport.ssl.enforce_hostname_verification";
     public static final String TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_RESOLVE_HOST_NAME_KEY = "transport.ssl.resolve_hostname";
     public static final String TRANSPORT_SSL_DUAL_MODE_ENABLED_KEY = "transport.ssl.dual_mode.enabled";
@@ -104,9 +108,17 @@ public final class NetworkModule {
         TRANSPORT_TYPE_DEFAULT_KEY,
         Property.NodeScope
     );
+
+    public static final Setting<String> STREAM_TRANSPORT_DEFAULT_TYPE_SETTING = Setting.simpleString(
+        STREAM_TRANSPORT_TYPE_DEFAULT_KEY,
+        "FLIGHT",
+        Property.NodeScope
+    );
+
     public static final Setting<String> HTTP_DEFAULT_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_DEFAULT_KEY, Property.NodeScope);
     public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_KEY, Property.NodeScope);
     public static final Setting<String> TRANSPORT_TYPE_SETTING = Setting.simpleString(TRANSPORT_TYPE_KEY, Property.NodeScope);
+    public static final Setting<String> STREAM_TRANSPORT_TYPE_SETTING = Setting.simpleString(STREAM_TRANSPORT_TYPE_KEY, Property.NodeScope);
 
     public static final Setting<Boolean> TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION = Setting.boolSetting(
         TRANSPORT_SSL_ENFORCE_HOSTNAME_VERIFICATION_KEY,
@@ -432,6 +444,16 @@ public final class NetworkModule {
             throw new IllegalStateException("Unsupported transport.type [" + name + "]");
         }
         return factory;
+    }
+
+    public Supplier<Transport> getStreamTransportSupplier() {
+        String name;
+        if (STREAM_TRANSPORT_TYPE_SETTING.exists(settings)) {
+            name = STREAM_TRANSPORT_TYPE_SETTING.get(settings);
+        } else {
+            name = STREAM_TRANSPORT_DEFAULT_TYPE_SETTING.get(settings);
+        }
+        return transportFactories.get(name);
     }
 
     /**

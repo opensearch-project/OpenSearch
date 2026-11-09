@@ -1,0 +1,1 @@
+source=test_data | eval sub_date = subdate(timestamp, 7) | fields timestamp, sub_date | head 3

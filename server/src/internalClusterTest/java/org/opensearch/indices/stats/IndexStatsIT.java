@@ -50,6 +50,7 @@ import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -165,7 +166,7 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         return Settings.builder().put(indexSettings());
     }
 
-    public void testFieldDataStats() throws InterruptedException {
+    public void testFieldDataStats() throws Exception {
         assertAcked(
             client().admin()
                 .indices()
@@ -274,18 +275,30 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         );
 
         client().admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
-        nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
-        assertThat(
-            nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()
-                .get(1)
-                .getIndices()
-                .getFieldData()
-                .getMemorySizeInBytes(),
-            equalTo(0L)
-        );
-        indicesStats = client().admin().indices().prepareStats("test").clear().setFieldData(true).execute().actionGet();
-        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0L));
-
+        assertBusy(() -> {
+            NodesStatsResponse postClearNodesStats = client().admin()
+                .cluster()
+                .prepareNodesStats("data:true")
+                .setIndices(true)
+                .execute()
+                .actionGet();
+            assertThat(
+                postClearNodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + postClearNodesStats.getNodes()
+                    .get(1)
+                    .getIndices()
+                    .getFieldData()
+                    .getMemorySizeInBytes(),
+                equalTo(0L)
+            );
+            IndicesStatsResponse postClearIndicesStats = client().admin()
+                .indices()
+                .prepareStats("test")
+                .clear()
+                .setFieldData(true)
+                .execute()
+                .actionGet();
+            assertThat(postClearIndicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0L));
+        });
     }
 
     public void testClearAllCaches() throws Exception {
@@ -368,25 +381,30 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         assertThat(indicesStats.getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0L));
 
         client().admin().indices().prepareClearCache().execute().actionGet();
-        Thread.sleep(100); // Make sure the filter cache entries have been removed...
-        nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
-        assertThat(
-            nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()
-                .get(1)
-                .getIndices()
-                .getFieldData()
-                .getMemorySizeInBytes(),
-            equalTo(0L)
-        );
-        assertThat(
-            nodesStats.getNodes().get(0).getIndices().getQueryCache().getMemorySizeInBytes() + nodesStats.getNodes()
-                .get(1)
-                .getIndices()
-                .getQueryCache()
-                .getMemorySizeInBytes(),
-            equalTo(0L)
-        );
-
+        assertBusy(() -> {
+            NodesStatsResponse postClearNodesStats = client().admin()
+                .cluster()
+                .prepareNodesStats("data:true")
+                .setIndices(true)
+                .execute()
+                .actionGet();
+            assertThat(
+                postClearNodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + postClearNodesStats.getNodes()
+                    .get(1)
+                    .getIndices()
+                    .getFieldData()
+                    .getMemorySizeInBytes(),
+                equalTo(0L)
+            );
+            assertThat(
+                postClearNodesStats.getNodes().get(0).getIndices().getQueryCache().getMemorySizeInBytes() + postClearNodesStats.getNodes()
+                    .get(1)
+                    .getIndices()
+                    .getQueryCache()
+                    .getMemorySizeInBytes(),
+                equalTo(0L)
+            );
+        });
         indicesStats = client().admin().indices().prepareStats("test").clear().setFieldData(true).setQueryCache(true).execute().actionGet();
         assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0L));
         assertThat(indicesStats.getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0L));
@@ -1351,6 +1369,67 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         assertThat(response.getTotal().queryCache.getMissCount(), greaterThan(0L));
         assertThat(response.getTotal().queryCache.getCacheSize(), equalTo(0L));
         assertThat(response.getTotal().queryCache.getMemorySizeInBytes(), equalTo(0L));
+    }
+
+    public void testQueryCacheDynamicEnableDisable() throws Exception {
+        assertAcked(prepareCreate("index").setSettings(settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, 0)).get());
+        indexRandom(
+            true,
+            client().prepareIndex("index").setId("1").setSource("foo", "bar"),
+            client().prepareIndex("index").setId("2").setSource("foo", "baz")
+        );
+        ensureGreen();
+        try {
+            // the query cache has an optimization that disables it automatically if there is contention,
+            // so we run it in an assertBusy block which should eventually succeed
+            assertBusy(() -> {
+                assertSearchResponse(searchWithFilter("baz"));
+                assertThat(queryCacheStats().getCacheSize(), greaterThan(0L));
+            });
+
+            // Disabling the cache clears existing entries and stops caching new queries
+            setQueryCacheEnabled(false);
+            assertBusy(() -> assertThat(queryCacheStats().getCacheSize(), equalTo(0L)));
+            final long cacheCount = queryCacheStats().getCacheCount();
+            for (int i = 0; i < 3; i++) {
+                assertSearchResponse(searchWithFilter("baz"));
+                assertSearchResponse(searchWithFilter("bar"));
+            }
+            assertThat(queryCacheStats().getCacheSize(), equalTo(0L));
+            assertThat(queryCacheStats().getCacheCount(), equalTo(cacheCount));
+
+            // Re-enabling resumes caching
+            setQueryCacheEnabled(true);
+            assertBusy(() -> {
+                assertSearchResponse(searchWithFilter("bar"));
+                assertThat(queryCacheStats().getCacheSize(), greaterThan(0L));
+            });
+        } finally {
+            // this suite shares a cluster across tests, so the setting must not leak
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().putNull(IndicesQueryCache.INDICES_QUERIES_CACHE_ENABLED_SETTING.getKey()))
+            );
+        }
+    }
+
+    private SearchResponse searchWithFilter(String value) {
+        return client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", value))).get();
+    }
+
+    private QueryCacheStats queryCacheStats() {
+        return client().admin().indices().prepareStats("index").setQueryCache(true).get().getTotal().getQueryCache();
+    }
+
+    private void setQueryCacheEnabled(boolean enabled) {
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(IndicesQueryCache.INDICES_QUERIES_CACHE_ENABLED_SETTING.getKey(), enabled))
+        );
     }
 
     /**

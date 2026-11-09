@@ -105,7 +105,9 @@ public final class ResponseCollectorService implements ClusterStateListener {
     }
 
     public AdaptiveSelectionStats getAdaptiveStats(Map<String, Long> clientSearchConnections) {
-        return new AdaptiveSelectionStats(clientSearchConnections, getAllNodeStatistics());
+        return new AdaptiveSelectionStats.Builder().clientOutgoingConnections(clientSearchConnections)
+            .nodeComputedStats(getAllNodeStatistics())
+            .build();
     }
 
     /**

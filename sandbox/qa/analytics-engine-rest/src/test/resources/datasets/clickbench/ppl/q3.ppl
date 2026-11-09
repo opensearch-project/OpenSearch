@@ -1,0 +1,1 @@
+source = clickbench | stats sum(AdvEngineID), count(), avg(ResolutionWidth)

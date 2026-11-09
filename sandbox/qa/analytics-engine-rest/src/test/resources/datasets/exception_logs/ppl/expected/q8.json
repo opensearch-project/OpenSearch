@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "count",
+      "type": "bigint"
+    },
+    {
+      "name": "service_name",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      14,
+      "api-service"
+    ],
+    [
+      10,
+      "db-service"
+    ],
+    [
+      9,
+      "web-service"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

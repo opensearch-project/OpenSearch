@@ -140,7 +140,7 @@ public class StemmerTokenFilterFactoryTests extends OpenSearchTokenStreamTestCas
             assertAnalyzesTo(analyzer, "horses", new String[] { "horse" });
             assertAnalyzesTo(analyzer, "cameras", new String[] { "camera" });
 
-            // The orginal s stemmer gives up on stemming oes words because English has no fixed rule for the stem
+            // The original s stemmer gives up on stemming oes words because English has no fixed rule for the stem
             // (see https://howtospell.co.uk/making-O-words-plural )
             // This stemmer removes the es but retains e for a small number of exceptions
             assertAnalyzesTo(analyzer, "mosquitoes", new String[] { "mosquito" });

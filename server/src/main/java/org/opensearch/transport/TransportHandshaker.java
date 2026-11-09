@@ -33,6 +33,7 @@ package org.opensearch.transport;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.unit.TimeValue;
@@ -55,7 +56,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * @opensearch.internal
  */
-final class TransportHandshaker {
+@ExperimentalApi
+public final class TransportHandshaker {
 
     static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
     private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();

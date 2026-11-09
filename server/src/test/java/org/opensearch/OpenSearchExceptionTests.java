@@ -45,6 +45,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
@@ -251,9 +252,33 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             builder.startObject();
             ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\","
-                + "\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":"
-                + "{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}}]}";
+            String expected = XContentHelper.stripWhitespace("""
+                {
+                  "type": "search_phase_execution_exception",
+                  "reason": "all shards failed",
+                  "phase": "search",
+                  "grouped": true,
+                  "failed_shards": [
+                    {
+                      "shard": 1,
+                      "index": "foo",
+                      "node": "node_1",
+                      "reason": {
+                        "type": "parsing_exception",
+                        "reason": "foobar",
+                        "line": 1,
+                        "col": 2
+                      }
+                    }
+                  ],
+                  "caused_by": {
+                    "type": "parsing_exception",
+                    "reason": "foobar",
+                    "line": 1,
+                    "col": 2
+                  }
+                }
+                """);
             assertEquals(expected, builder.toString());
         }
         {
@@ -278,11 +303,44 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             builder.startObject();
             ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\","
-                + "\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\","
-                + "\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}},{\"shard\":1,"
-                + "\"index\":\"foo1\",\"node\":\"node_1\",\"reason\":{\"type\":\"query_shard_exception\",\"reason\":\"foobar\","
-                + "\"index\":\"foo1\",\"index_uuid\":\"_na_\"}}]}";
+            String expected = XContentHelper.stripWhitespace("""
+                {
+                  "type": "search_phase_execution_exception",
+                  "reason": "all shards failed",
+                  "phase": "search",
+                  "grouped": true,
+                  "failed_shards": [
+                    {
+                      "shard": 1,
+                      "index": "foo",
+                      "node": "node_1",
+                      "reason": {
+                        "type": "parsing_exception",
+                        "reason": "foobar",
+                        "line": 1,
+                        "col": 2
+                      }
+                    },
+                    {
+                      "shard": 1,
+                      "index": "foo1",
+                      "node": "node_1",
+                      "reason": {
+                        "type": "query_shard_exception",
+                        "reason": "foobar",
+                        "index": "foo1",
+                        "index_uuid": "_na_"
+                      }
+                    }
+                  ],
+                  "caused_by": {
+                    "type": "parsing_exception",
+                    "reason": "foobar",
+                    "line": 1,
+                    "col": 2
+                  }
+                }
+                """);
             assertEquals(expected, builder.toString());
         }
         {
@@ -1066,7 +1124,8 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
                         ) }
                 );
                 expected = new OpenSearchException(
-                    "OpenSearch exception [type=search_phase_execution_exception, " + "reason=all shards failed]"
+                    "OpenSearch exception [type=search_phase_execution_exception, reason=all shards failed]",
+                    new OpenSearchException("OpenSearch exception [type=parsing_exception, reason=foobar]")
                 );
                 expected.addMetadata("opensearch.phase", "search");
                 break;

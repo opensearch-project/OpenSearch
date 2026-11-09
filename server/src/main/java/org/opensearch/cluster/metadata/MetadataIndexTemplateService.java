@@ -34,8 +34,6 @@ package org.opensearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
@@ -100,9 +98,9 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
-import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateIndexTotalPrimaryShardsPerNodeSetting;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex;
+import static org.opensearch.cluster.metadata.MetadataUpdateSettingsService.validateIndexTotalPrimaryShardsPerNodeSetting;
 import static org.opensearch.cluster.service.ClusterManagerTask.CREATE_COMPONENT_TEMPLATE;
 import static org.opensearch.cluster.service.ClusterManagerTask.CREATE_INDEX_TEMPLATE;
 import static org.opensearch.cluster.service.ClusterManagerTask.CREATE_INDEX_TEMPLATE_V2;
@@ -336,7 +334,14 @@ public class MetadataIndexTemplateService {
             return currentState;
         }
 
-        validateTemplate(finalSettings, stringMappings, indicesService, xContentRegistry);
+        validateTemplate(
+            finalSettings,
+            stringMappings,
+            indicesService,
+            xContentRegistry,
+            clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING),
+            clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)
+        );
         validate(name, finalComponentTemplate);
 
         // Validate all composable index templates that use this component template
@@ -354,7 +359,9 @@ public class MetadataIndexTemplateService {
                         composableTemplateName,
                         composableTemplate,
                         indicesService,
-                        xContentRegistry
+                        xContentRegistry,
+                        clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING),
+                        clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)
                     );
                 } catch (Exception e) {
                     if (validationFailure == null) {
@@ -713,7 +720,15 @@ public class MetadataIndexTemplateService {
         // Finally, right before adding the template, we need to ensure that the composite settings,
         // mappings, and aliases are valid after it's been composed with the component templates
         try {
-            validateCompositeTemplate(currentState, name, finalIndexTemplate, indicesService, xContentRegistry);
+            validateCompositeTemplate(
+                currentState,
+                name,
+                finalIndexTemplate,
+                indicesService,
+                xContentRegistry,
+                clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING),
+                clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)
+            );
         } catch (Exception e) {
             throw new IllegalArgumentException(
                 "composable template ["
@@ -799,13 +814,11 @@ public class MetadataIndexTemplateService {
         final String candidateName,
         final List<String> indexPatterns
     ) {
-        Automaton v2automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new HashMap<>();
         for (final Map.Entry<String, IndexTemplateMetadata> cursor : state.metadata().templates().entrySet()) {
             String name = cursor.getKey();
             IndexTemplateMetadata template = cursor.getValue();
-            Automaton v1automaton = Regex.simpleMatchToAutomaton(template.patterns().toArray(Strings.EMPTY_ARRAY));
-            if (Operations.isEmpty(Operations.intersection(v2automaton, v1automaton)) == false) {
+            if (patternsActuallyOverlap(indexPatterns, template.patterns())) {
                 logger.debug(
                     "composable template {} and legacy template {} would overlap: {} <=> {}",
                     candidateName,
@@ -848,13 +861,11 @@ public class MetadataIndexTemplateService {
         boolean checkPriority,
         long priority
     ) {
-        Automaton v1automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new HashMap<>();
         for (Map.Entry<String, ComposableIndexTemplate> entry : state.metadata().templatesV2().entrySet()) {
             String name = entry.getKey();
             ComposableIndexTemplate template = entry.getValue();
-            Automaton v2automaton = Regex.simpleMatchToAutomaton(template.indexPatterns().toArray(Strings.EMPTY_ARRAY));
-            if (Operations.isEmpty(Operations.intersection(v1automaton, v2automaton)) == false) {
+            if (patternsActuallyOverlap(indexPatterns, template.indexPatterns())) {
                 if (checkPriority == false || priority == template.priorityOrZero()) {
                     logger.debug(
                         "legacy template {} and composable template {} would overlap: {} <=> {}",
@@ -871,6 +882,36 @@ public class MetadataIndexTemplateService {
         // results
         overlappingTemplates.remove(candidateName);
         return overlappingTemplates;
+    }
+
+    /**
+     * Checks whether two sets of index patterns practically overlap, using a minimum-string heuristic.
+     * <p>
+     * For each pattern in either set, the wildcard character {@code *} is replaced with the empty string
+     * to produce its "minimum matching string". If that minimum string matches any pattern in the other
+     * set, the two pattern sets are considered to overlap.
+     * <p>
+     * This approach is intentionally more lenient than a full automaton intersection. Full automaton
+     * intersection correctly identifies theoretical overlaps that arise only from creative wildcard usage
+     * (e.g. {@code app-test-*-some-*} and {@code app-test-*-some_other-*} share the synthetic string
+     * {@code app-test--some_other--some-}), but these synthetic strings would never appear as real index
+     * names. The minimum-string heuristic restricts conflict detection to cases where "natural" index
+     * names would match both patterns simultaneously.
+     */
+    static boolean patternsActuallyOverlap(List<String> patterns1, List<String> patterns2) {
+        String[] p2Array = patterns2.toArray(Strings.EMPTY_ARRAY);
+        for (String p1 : patterns1) {
+            if (Regex.simpleMatch(p2Array, p1.replace("*", ""))) {
+                return true;
+            }
+        }
+        String[] p1Array = patterns1.toArray(Strings.EMPTY_ARRAY);
+        for (String p2 : patterns2) {
+            if (Regex.simpleMatch(p1Array, p2.replace("*", ""))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -957,12 +998,13 @@ public class MetadataIndexTemplateService {
         }
         final Set<String> dataStreams = state.metadata().dataStreams().keySet();
         Set<String> matches = new HashSet<>();
-        template.indexPatterns()
-            .forEach(
-                indexPattern -> matches.addAll(
-                    dataStreams.stream().filter(stream -> Regex.simpleMatch(indexPattern, stream)).collect(Collectors.toList())
-                )
-            );
+        template.indexPatterns().forEach(indexPattern -> {
+            dataStreams.stream().filter(stream -> Regex.simpleMatch(indexPattern, stream)).filter(stream -> {
+                // Check if this template is the highest priority template and used by this data stream
+                final String usingTemplate = findV2Template(state.metadata(), stream, false);
+                return templateName.equals(usingTemplate);
+            }).forEach(matches::add);
+        });
         return matches;
     }
 
@@ -1010,7 +1052,14 @@ public class MetadataIndexTemplateService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    validateTemplate(request.settings, request.mappings, indicesService, xContentRegistry);
+                    validateTemplate(
+                        request.settings,
+                        request.mappings,
+                        indicesService,
+                        xContentRegistry,
+                        clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING),
+                        clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)
+                    );
                     return innerPutTemplate(currentState, request, templateBuilder);
                 }
 
@@ -1156,35 +1205,37 @@ public class MetadataIndexTemplateService {
     @Nullable
     public static String findV2Template(Metadata metadata, String indexName, boolean isHidden) {
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, indexName);
-        final Map<ComposableIndexTemplate, String> matchedTemplates = new HashMap<>();
+        ComposableIndexTemplate winner = null;
+        String winnerName = null;
+        long highestPriority = -1;
+
         for (Map.Entry<String, ComposableIndexTemplate> entry : metadata.templatesV2().entrySet()) {
             final String name = entry.getKey();
             final ComposableIndexTemplate template = entry.getValue();
+            boolean matched = false;
+
             if (isHidden == false) {
-                final boolean matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
-                if (matched) {
-                    matchedTemplates.put(template, name);
-                }
+                matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
             } else {
                 final boolean isNotMatchAllTemplate = template.indexPatterns().stream().noneMatch(Regex::isMatchAllPattern);
                 if (isNotMatchAllTemplate) {
-                    if (template.indexPatterns().stream().anyMatch(patternMatchPredicate)) {
-                        matchedTemplates.put(template, name);
-                    }
+                    matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
+                }
+            }
+
+            if (matched) {
+                long priority = template.priorityOrZero();
+                if (winner == null || priority > highestPriority) {
+                    winner = template;
+                    winnerName = name;
+                    highestPriority = priority;
                 }
             }
         }
 
-        if (matchedTemplates.size() == 0) {
+        if (winner == null) {
             return null;
         }
-
-        final List<ComposableIndexTemplate> candidates = new ArrayList<>(matchedTemplates.keySet());
-        CollectionUtil.timSort(candidates, Comparator.comparing(ComposableIndexTemplate::priorityOrZero, Comparator.reverseOrder()));
-
-        assert candidates.size() > 0 : "we should have returned early with no candidates";
-        ComposableIndexTemplate winner = candidates.get(0);
-        String winnerName = matchedTemplates.get(winner);
 
         // if the winner template is a global template that specifies the `index.hidden` setting (which is not allowed, so it'd be due to
         // a restored index cluster state that modified a component template used by this global template such that it has this setting)
@@ -1395,7 +1446,9 @@ public class MetadataIndexTemplateService {
         final String templateName,
         final ComposableIndexTemplate template,
         final IndicesService indicesService,
-        final NamedXContentRegistry xContentRegistry
+        final NamedXContentRegistry xContentRegistry,
+        final boolean clusterPluggableDataFormatEnabled,
+        final String clusterPluggableDataFormatValue
     ) throws Exception {
         final ClusterState stateWithTemplate = ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata()).put(templateName, template))
@@ -1413,13 +1466,29 @@ public class MetadataIndexTemplateService {
         int shardReplicas = resolvedSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
 
         // Create the final aggregate settings, which will be used to create the temporary index metadata to validate everything
-        Settings finalResolvedSettings = Settings.builder()
+        Settings.Builder finalResolvedSettingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(resolvedSettings)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .build();
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+        // When a pluggable data format is the cluster-wide default, validate the composed mapping as a
+        // pluggable index would see it — unless the template opts out explicitly — so that a field
+        // setting index:true is rejected here rather than failing every index the template creates.
+        if (clusterPluggableDataFormatEnabled && IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(resolvedSettings) == false) {
+            finalResolvedSettingsBuilder.put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true);
+        }
+
+        // Also carry the cluster's default data format name (mirroring MetadataCreateIndexService) so the
+        // dummy index resolves a format and the capability path can reject index:true. When no name is
+        // configured there is no format to validate against; such an index cannot start its shards at
+        // creation anyway (no data format), so there is nothing to reject here.
+        if (clusterPluggableDataFormatEnabled
+            && clusterPluggableDataFormatValue.isEmpty() == false
+            && IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.exists(resolvedSettings) == false) {
+            finalResolvedSettingsBuilder.put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), clusterPluggableDataFormatValue);
+        }
+        Settings finalResolvedSettings = finalResolvedSettingsBuilder.build();
 
         // Validate index metadata (settings)
         final ClusterState stateWithIndex = ClusterState.builder(stateWithTemplate)
@@ -1469,13 +1538,17 @@ public class MetadataIndexTemplateService {
         Settings validateSettings,
         String mappings,
         IndicesService indicesService,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        boolean clusterPluggableDataFormatEnabled,
+        String clusterPluggableDataFormatValue
     ) throws Exception {
         validateTemplate(
             validateSettings,
             Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, mappings),
             indicesService,
-            xContentRegistry
+            xContentRegistry,
+            clusterPluggableDataFormatEnabled,
+            clusterPluggableDataFormatValue
         );
     }
 
@@ -1483,7 +1556,9 @@ public class MetadataIndexTemplateService {
         Settings validateSettings,
         Map<String, String> mappings,
         IndicesService indicesService,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        boolean clusterPluggableDataFormatEnabled,
+        String clusterPluggableDataFormatValue
     ) throws Exception {
         // First check to see if mappings are valid XContent
         Map<String, Map<String, Object>> mappingsForValidation = new HashMap<>();
@@ -1518,13 +1593,28 @@ public class MetadataIndexTemplateService {
             int shardReplicas = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
 
             // create index service for parsing and validating "mappings"
-            Settings dummySettings = Settings.builder()
+            Settings.Builder dummySettingsBuilder = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(settings)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
-                .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                .build();
+                .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+            // When a pluggable data format is the cluster-wide default, validate the mapping as a
+            // pluggable index would see it — unless the template opts out explicitly — so that a field
+            // setting index:true is rejected here rather than failing every index the template creates.
+            if (clusterPluggableDataFormatEnabled && IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(settings) == false) {
+                dummySettingsBuilder.put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true);
+            }
+            // Also carry the cluster's default data format name (mirroring MetadataCreateIndexService) so the
+            // dummy index resolves a format and the capability path can reject index:true. When no name is
+            // configured there is no format to validate against; such an index cannot start its shards at
+            // creation anyway (no data format), so there is nothing to reject here.
+            if (clusterPluggableDataFormatEnabled
+                && clusterPluggableDataFormatValue.isEmpty() == false
+                && IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.exists(settings) == false) {
+                dummySettingsBuilder.put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), clusterPluggableDataFormatValue);
+            }
+            Settings dummySettings = dummySettingsBuilder.build();
 
             final IndexMetadata tmpIndexMetadata = IndexMetadata.builder(temporaryIndexName).settings(dummySettings).build();
             IndexService dummyIndexService = indicesService.createIndex(tmpIndexMetadata, Collections.emptyList(), false);
@@ -1614,7 +1704,7 @@ public class MetadataIndexTemplateService {
             if (indexPattern.startsWith("_")) {
                 validationErrors.add("index_pattern [" + indexPattern + "] must not start with '_'");
             }
-            if (Strings.validFileNameExcludingAstrix(indexPattern) == false) {
+            if (Strings.validFileNameExcludingAsterisk(indexPattern) == false) {
                 validationErrors.add(
                     "index_pattern [" + indexPattern + "] must not contain the following characters " + Strings.INVALID_FILENAME_CHARS
                 );
@@ -1643,8 +1733,9 @@ public class MetadataIndexTemplateService {
             validateTranslogFlushIntervalSettingsForCompositeIndex(settings, clusterService.getClusterSettings());
             validateTranslogDurabilitySettingsInTemplate(settings, clusterService.getClusterSettings());
 
-            // validate index total primary shards per node setting
-            validateIndexTotalPrimaryShardsPerNodeSetting(settings);
+            // validate index total primary shards per node setting against the cluster (a template has no
+            // index-local remote_store flag, so use the cluster-aware overload like the _settings update path).
+            validateIndexTotalPrimaryShardsPerNodeSetting(settings, clusterService);
         }
 
         if (indexPatterns.stream().anyMatch(Regex::isMatchAllPattern)) {

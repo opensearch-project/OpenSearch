@@ -199,7 +199,8 @@ public class ResolveIndexTests extends OpenSearchTestCase {
             metadata,
             asList("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix),
             randomBoolean(),
-            randomBoolean()
+            randomBoolean(),
+            true
         );
         assertThat(resolvedIndices.size(), is(1));
         assertThat(resolvedIndices.get(0), oneOf("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix));

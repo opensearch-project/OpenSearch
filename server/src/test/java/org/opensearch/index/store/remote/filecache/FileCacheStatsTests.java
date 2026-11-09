@@ -24,6 +24,7 @@ public class FileCacheStatsTests extends OpenSearchTestCase {
         final long used = randomLongBetween(100000, BYTES_IN_GB);
         final long pinned = randomLongBetween(100000, BYTES_IN_GB);
         final long evicted = randomLongBetween(0, active);
+        final long removed = randomLongBetween(0, 10);
         final long hits = randomLongBetween(0, 10);
         final long misses = randomLongBetween(0, 10);
 
@@ -33,6 +34,7 @@ public class FileCacheStatsTests extends OpenSearchTestCase {
             used,
             pinned,
             evicted,
+            removed,
             hits,
             misses,
             AggregateFileCacheStats.FileCacheStatsType.OVER_ALL_STATS
@@ -43,7 +45,9 @@ public class FileCacheStatsTests extends OpenSearchTestCase {
         assertEquals(expected.getActive(), actual.getActive());
         assertEquals(expected.getUsed(), actual.getUsed());
         assertEquals(expected.getEvicted(), actual.getEvicted());
+        assertEquals(expected.getRemoved(), actual.getRemoved());
         assertEquals(expected.getHits(), actual.getHits());
+        assertEquals(expected.getCacheMisses(), actual.getCacheMisses());
         assertEquals(expected.getActivePercent(), actual.getActivePercent());
     }
 

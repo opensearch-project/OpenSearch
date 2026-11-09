@@ -478,8 +478,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .cluster()
             .prepareDeleteSnapshot("test-repo", "test-snap")
             .execute();
-        // Make sure that abort makes some progress
-        Thread.sleep(100);
         unblockNode("test-repo", blockedNode);
         logger.info("--> stopping node [{}]", blockedNode);
         stopNode(blockedNode);

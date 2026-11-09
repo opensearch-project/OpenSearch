@@ -1,0 +1,111 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.nativebridge.spi;
+
+import org.opensearch.test.OpenSearchTestCase;
+
+import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.Linker;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.SymbolLookup;
+import java.lang.foreign.ValueLayout;
+import java.lang.invoke.MethodHandle;
+
+/**
+ * Tests that native panics and errors are properly caught and surfaced as Java exceptions.
+ */
+public class NativePanicHandlingTests extends OpenSearchTestCase {
+
+    private static final MethodHandle TEST_PANIC;
+    private static final MethodHandle TEST_ERROR;
+    private static final MethodHandle TEST_VALIDATE_STR;
+
+    static {
+        SymbolLookup lib = NativeLibraryLoader.symbolLookup();
+        Linker linker = Linker.nativeLinker();
+        TEST_PANIC = linker.downcallHandle(
+            lib.find("native_test_panic").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+        TEST_ERROR = linker.downcallHandle(
+            lib.find("native_test_error").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+        TEST_VALIDATE_STR = linker.downcallHandle(
+            lib.find("native_test_validate_str").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+    }
+
+    public void testPanicIsCaughtAsException() {
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> {
+            try (var call = new NativeCall()) {
+                var msg = call.str("test panic message");
+                call.invoke(TEST_PANIC, msg.segment(), msg.len());
+            }
+        });
+        assertTrue("Should contain panic message, got: " + ex.getMessage(), ex.getMessage().contains("test panic message"));
+    }
+
+    public void testErrorIsCaughtAsException() {
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> {
+            try (var call = new NativeCall()) {
+                var msg = call.str("test error message");
+                call.invoke(TEST_ERROR, msg.segment(), msg.len());
+            }
+        });
+        assertTrue("Should contain error message, got: " + ex.getMessage(), ex.getMessage().contains("test error message"));
+    }
+
+    public void testPanicMessagePreservedThroughCheckResultIO() {
+        Exception ex = expectThrows(Exception.class, () -> {
+            try (var call = new NativeCall()) {
+                var msg = call.str("io panic test");
+                call.invokeIO(TEST_PANIC, msg.segment(), msg.len());
+            }
+        });
+        assertTrue("Should contain panic message, got: " + ex.getMessage(), ex.getMessage().contains("io panic test"));
+    }
+
+    public void testSuccessResultPassesThrough() throws Throwable {
+        // native_test_error with empty string still returns negative, so test with a known-good function.
+        // Use native_error_free(0) which is a no-op that doesn't crash — but it returns void.
+        // Instead, just verify that checkResult(0) returns 0 and checkResult(42) returns 42.
+        assertEquals(0L, NativeLibraryLoader.checkResult(0));
+        assertEquals(42L, NativeLibraryLoader.checkResult(42));
+        assertEquals(Long.MAX_VALUE, NativeLibraryLoader.checkResult(Long.MAX_VALUE));
+    }
+
+    public void testNullPointerReturnsError() {
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> {
+            try (var call = new NativeCall()) {
+                call.invoke(TEST_VALIDATE_STR, MemorySegment.NULL, 5L);
+            }
+        });
+        assertTrue("Should mention null, got: " + ex.getMessage(), ex.getMessage().contains("null"));
+    }
+
+    public void testNegativeLengthReturnsError() {
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> {
+            try (var call = new NativeCall()) {
+                var s = call.str("hello");
+                call.invoke(TEST_VALIDATE_STR, s.segment(), -1L);
+            }
+        });
+        assertTrue("Should mention negative, got: " + ex.getMessage(), ex.getMessage().contains("negative"));
+    }
+
+    public void testValidUtf8Succeeds() {
+        try (var call = new NativeCall()) {
+            var s = call.str("hello");
+            long result = call.invoke(TEST_VALIDATE_STR, s.segment(), s.len());
+            assertEquals(0L, result);
+        }
+    }
+}

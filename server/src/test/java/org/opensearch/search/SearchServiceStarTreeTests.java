@@ -43,6 +43,7 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.search.aggregations.AbstractAggregationBuilder;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -51,6 +52,7 @@ import org.opensearch.search.aggregations.SearchContextAggregations;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregationBuilder;
@@ -58,6 +60,7 @@ import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.startree.DateHistogramAggregatorTests;
 import org.opensearch.search.aggregations.startree.NumericTermsAggregatorTests;
 import org.opensearch.search.aggregations.startree.StarTreeFilterTests;
+import org.opensearch.search.aggregations.support.MultiTermsValuesSourceConfig;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.AliasFilter;
@@ -83,6 +86,7 @@ import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogr
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
 import static org.opensearch.search.aggregations.AggregationBuilders.medianAbsoluteDeviation;
 import static org.opensearch.search.aggregations.AggregationBuilders.min;
+import static org.opensearch.search.aggregations.AggregationBuilders.multiTerms;
 import static org.opensearch.search.aggregations.AggregationBuilders.range;
 import static org.opensearch.search.aggregations.AggregationBuilders.sum;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
@@ -1126,7 +1130,7 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
         AggregatorFactories aggregatorFactories = mock(AggregatorFactories.class);
         AggregatorFactory[] aggregatorFactoriesArray = sourceBuilder.aggregations().getAggregatorFactories().stream().map(af -> {
             try {
-                return ((ValuesSourceAggregationBuilder<?>) af).build(searchContext.getQueryShardContext(), null);
+                return ((AbstractAggregationBuilder<?>) af).build(searchContext.getQueryShardContext(), null);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -1244,5 +1248,130 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
         bulkRequest.get();
         client().admin().indices().prepareRefresh("test").get();
         client().admin().indices().prepareForceMerge("test").setMaxNumSegments(1).get();
+    }
+
+    /**
+     * Test query parsing for multi-terms aggregations, with/without numeric term query
+     */
+    public void testQueryParsingForMultiTermsAggregations() throws IOException {
+        setStarTreeIndexSetting("true");
+
+        CreateIndexRequestBuilder builder = client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(starStreeEnabledIndexSettings)
+            .setMapping(NumericTermsAggregatorTests.getExpandedMapping(1, false));
+        createIndex("test", builder);
+
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
+        IndexShard indexShard = indexService.getShard(0);
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(true),
+            indexShard.shardId(),
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1.0f,
+            -1,
+            null,
+            null
+        );
+        String KEYWORD_FIELD = "clientip";
+        String NUMERIC_FIELD = "size";
+        String NUMERIC_FIELD_NOT_ORDERED_DIMENSION = "city_name";
+
+        MaxAggregationBuilder maxAggNoSub = max("max").field(STATUS);
+        SumAggregationBuilder sumAggSub = sum("sum").field(STATUS).subAggregation(maxAggNoSub);
+        MedianAbsoluteDeviationAggregationBuilder medianAgg = medianAbsoluteDeviation("median").field(STATUS);
+
+        QueryBuilder baseQuery;
+        SearchContext searchContext = createSearchContext(indexService);
+        StarTreeFieldConfiguration starTreeFieldConfiguration = new StarTreeFieldConfiguration(
+            1,
+            Collections.emptySet(),
+            StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP
+        );
+
+        // Case 1: MatchAllQuery and a non-nested metric sub-aggregation, should use star tree
+        MultiTermsAggregationBuilder multiTermsAgg = multiTerms("multi_terms").terms(
+            List.of(
+                new MultiTermsValuesSourceConfig.Builder().setFieldName(KEYWORD_FIELD).build(),
+                new MultiTermsValuesSourceConfig.Builder().setFieldName(NUMERIC_FIELD).build()
+            )
+        ).subAggregation(maxAggNoSub);
+        baseQuery = new MatchAllQueryBuilder();
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(multiTermsAgg);
+        assertStarTreeContext(
+            request,
+            sourceBuilder,
+            getStarTreeQueryContext(
+                searchContext,
+                starTreeFieldConfiguration,
+                "startree1",
+                -1,
+                List.of(new OrdinalDimension(KEYWORD_FIELD), new NumericDimension(NUMERIC_FIELD)),
+                List.of(new Metric(STATUS, List.of(MetricStat.SUM, MetricStat.MAX, MetricStat.VALUE_COUNT))),
+                baseQuery,
+                sourceBuilder,
+                true
+            ),
+            -1
+        );
+
+        // Case 2: Numeric term query and a non-nested metric sub-aggregation, should use star tree
+        baseQuery = new TermQueryBuilder(STATUS, 1);
+        sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(multiTermsAgg);
+        assertStarTreeContext(
+            request,
+            sourceBuilder,
+            getStarTreeQueryContext(
+                searchContext,
+                starTreeFieldConfiguration,
+                "startree1",
+                -1,
+                List.of(new OrdinalDimension(KEYWORD_FIELD), new NumericDimension(NUMERIC_FIELD), new NumericDimension(STATUS)),
+                List.of(new Metric(STATUS, List.of(MetricStat.SUM, MetricStat.MAX, MetricStat.VALUE_COUNT))),
+                baseQuery,
+                sourceBuilder,
+                true
+            ),
+            -1
+        );
+
+        // Case 3: One of the terms is not an ordered dimension, should not use star tree
+        multiTermsAgg = multiTerms("multi_terms").terms(
+            List.of(
+                new MultiTermsValuesSourceConfig.Builder().setFieldName(KEYWORD_FIELD).build(),
+                new MultiTermsValuesSourceConfig.Builder().setFieldName(NUMERIC_FIELD_NOT_ORDERED_DIMENSION).build()
+            )
+        ).subAggregation(maxAggNoSub);
+        baseQuery = new MatchAllQueryBuilder();
+        sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(multiTermsAgg);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
+        // Case 4: Nested metric sub-aggregation, should not use star tree
+        multiTermsAgg = multiTerms("multi_terms").terms(
+            List.of(
+                new MultiTermsValuesSourceConfig.Builder().setFieldName(KEYWORD_FIELD).build(),
+                new MultiTermsValuesSourceConfig.Builder().setFieldName(NUMERIC_FIELD).build()
+            )
+        ).subAggregation(sumAggSub);
+        baseQuery = new MatchAllQueryBuilder();
+        sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(multiTermsAgg);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
+        // Case 5: Unsupported sub-aggregation, should not use star tree
+        multiTermsAgg = multiTerms("multi_terms").terms(
+            List.of(
+                new MultiTermsValuesSourceConfig.Builder().setFieldName(KEYWORD_FIELD).build(),
+                new MultiTermsValuesSourceConfig.Builder().setFieldName(NUMERIC_FIELD).build()
+            )
+        ).subAggregation(medianAgg);
+        baseQuery = new MatchAllQueryBuilder();
+        sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(multiTermsAgg);
+        assertStarTreeContext(request, sourceBuilder, null, -1);
+
+        setStarTreeIndexSetting(null);
     }
 }

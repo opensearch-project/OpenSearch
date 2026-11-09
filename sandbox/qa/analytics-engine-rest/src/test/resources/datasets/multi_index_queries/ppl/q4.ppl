@@ -1,0 +1,1 @@
+source=performance_metrics | rename cpu_usage as cpu_pct, memory_usage as mem_pct | where cpu_pct > 70 | stats avg(cpu_pct) as avg_cpu by host | sort - avg_cpu

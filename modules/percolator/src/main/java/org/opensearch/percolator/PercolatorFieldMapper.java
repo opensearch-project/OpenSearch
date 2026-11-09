@@ -125,7 +125,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), queryShardContext).init(this);
+        return new Builder(simpleName(), queryShardContext, mapUnmappedFieldsAsText).init(this);
     }
 
     static class Builder extends ParametrizedFieldMapper.Builder {
@@ -133,10 +133,16 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final Supplier<QueryShardContext> queryShardContext;
+        private final boolean mapUnmappedFieldsAsText;
 
         Builder(String fieldName, Supplier<QueryShardContext> queryShardContext) {
+            this(fieldName, queryShardContext, false);
+        }
+
+        Builder(String fieldName, Supplier<QueryShardContext> queryShardContext, boolean mapUnmappedFieldsAsText) {
             super(fieldName);
             this.queryShardContext = queryShardContext;
+            this.mapUnmappedFieldsAsText = mapUnmappedFieldsAsText;
         }
 
         @Override
@@ -146,6 +152,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public PercolatorFieldMapper build(BuilderContext context) {
+            boolean mapUnmapped = getMapUnmappedFieldAsText(context.indexSettings());
             PercolatorFieldType fieldType = new PercolatorFieldType(buildFullName(context), meta.getValue());
             context.path().add(name());
             KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(EXTRACTED_TERMS_FIELD_NAME, context);
@@ -160,7 +167,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
             fieldType.rangeField = rangeFieldMapper.fieldType();
             NumberFieldMapper minimumShouldMatchFieldMapper = createMinimumShouldMatchField(context);
             fieldType.minimumShouldMatchField = minimumShouldMatchFieldMapper.fieldType();
-            fieldType.mapUnmappedFieldsAsText = getMapUnmappedFieldAsText(context.indexSettings());
+            fieldType.mapUnmappedFieldsAsText = mapUnmapped;
 
             context.path().remove();
             return new PercolatorFieldMapper(
@@ -174,12 +181,15 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
                 queryBuilderField,
                 rangeFieldMapper,
                 minimumShouldMatchFieldMapper,
-                getMapUnmappedFieldAsText(context.indexSettings())
+                mapUnmapped
             );
         }
 
-        private static boolean getMapUnmappedFieldAsText(Settings indexSettings) {
-            return INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING.get(indexSettings);
+        private boolean getMapUnmappedFieldAsText(Settings indexSettings) {
+            if (INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING.exists(indexSettings)) {
+                return INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING.get(indexSettings);
+            }
+            return mapUnmappedFieldsAsText;
         }
 
         static KeywordFieldMapper createExtractQueryFieldBuilder(String name, BuilderContext context) {
@@ -514,6 +524,11 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) {
+        throw new UnsupportedOperationException("should not be invoked");
+    }
+
+    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }
@@ -532,8 +547,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
             throw new IllegalArgumentException("the [has_child] query is unsupported inside a percolator query");
         } else if (queryBuilder.getName().equals("has_parent")) {
             throw new IllegalArgumentException("the [has_parent] query is unsupported inside a percolator query");
-        } else if (queryBuilder instanceof BoolQueryBuilder) {
-            BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) queryBuilder;
+        } else if (queryBuilder instanceof BoolQueryBuilder boolQueryBuilder) {
             List<QueryBuilder> clauses = new ArrayList<>();
             clauses.addAll(boolQueryBuilder.filter());
             clauses.addAll(boolQueryBuilder.must());
@@ -542,15 +556,14 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
             for (QueryBuilder clause : clauses) {
                 verifyQuery(clause);
             }
-        } else if (queryBuilder instanceof ConstantScoreQueryBuilder) {
-            verifyQuery(((ConstantScoreQueryBuilder) queryBuilder).innerQuery());
-        } else if (queryBuilder instanceof FunctionScoreQueryBuilder) {
-            verifyQuery(((FunctionScoreQueryBuilder) queryBuilder).query());
-        } else if (queryBuilder instanceof BoostingQueryBuilder) {
-            verifyQuery(((BoostingQueryBuilder) queryBuilder).negativeQuery());
-            verifyQuery(((BoostingQueryBuilder) queryBuilder).positiveQuery());
-        } else if (queryBuilder instanceof DisMaxQueryBuilder) {
-            DisMaxQueryBuilder disMaxQueryBuilder = (DisMaxQueryBuilder) queryBuilder;
+        } else if (queryBuilder instanceof ConstantScoreQueryBuilder constantScoreQueryBuilder) {
+            verifyQuery(constantScoreQueryBuilder.innerQuery());
+        } else if (queryBuilder instanceof FunctionScoreQueryBuilder functionScoreQueryBuilder) {
+            verifyQuery(functionScoreQueryBuilder.query());
+        } else if (queryBuilder instanceof BoostingQueryBuilder boostingQueryBuilder) {
+            verifyQuery(boostingQueryBuilder.negativeQuery());
+            verifyQuery(boostingQueryBuilder.positiveQuery());
+        } else if (queryBuilder instanceof DisMaxQueryBuilder disMaxQueryBuilder) {
             for (QueryBuilder innerQueryBuilder : disMaxQueryBuilder.innerQueries()) {
                 verifyQuery(innerQueryBuilder);
             }

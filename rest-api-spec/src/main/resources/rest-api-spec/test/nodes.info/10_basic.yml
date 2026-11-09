@@ -41,10 +41,6 @@ setup:
 
 ---
 "node_info role test":
-  - skip:
-      version: " - 1.4.99"
-      reason: "node role cluster_manager is added in 2.0.0"
-
   - do:
       nodes.info: {}
 

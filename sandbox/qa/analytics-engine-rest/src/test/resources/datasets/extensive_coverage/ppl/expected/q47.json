@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "category",
+      "type": "string"
+    },
+    {
+      "name": "nullif_val",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "A",
+      null
+    ],
+    [
+      "B",
+      "B"
+    ],
+    [
+      "A",
+      null
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

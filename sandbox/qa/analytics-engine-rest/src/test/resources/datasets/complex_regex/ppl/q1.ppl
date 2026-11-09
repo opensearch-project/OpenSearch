@@ -1,0 +1,1 @@
+source=regex_logs | where raw_message like "User:%" | grok raw_message 'User: %{WORD:username} logged in from IP: %{IP:client_ip}' | where username != "" | stats count() as login_count by username, client_ip | where login_count > 3 | sort - login_count

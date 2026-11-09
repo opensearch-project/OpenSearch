@@ -53,12 +53,16 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.engine.dataformat.DataFormatPlugin;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
@@ -66,8 +70,11 @@ import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -80,7 +87,11 @@ import static org.mockito.Mockito.when;
 
 public abstract class MapperServiceTestCase extends OpenSearchTestCase {
 
-    protected static final Settings SETTINGS = Settings.builder().put("index.version.created", Version.CURRENT).build();
+    protected static final Settings SETTINGS = Settings.builder()
+        .put("index.version.created", Version.CURRENT)
+        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+        .build();
 
     protected static final ToXContent.Params INCLUDE_DEFAULTS = new ToXContent.MapParams(
         Collections.singletonMap("include_defaults", "true")
@@ -88,6 +99,24 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
 
     protected Collection<? extends Plugin> getPlugins() {
         return emptyList();
+    }
+
+    /**
+     * Builds a {@link DataFormatRegistry} from any {@link DataFormatPlugin}s returned by {@link #getPlugins()},
+     * so tests exercising a pluggable data format get capability assignment during mapping build. Returns
+     * {@code null} when no data-format plugin is registered (the default), preserving existing behavior.
+     */
+    protected DataFormatRegistry getDataFormatRegistry() {
+        List<DataFormatPlugin> dataFormatPlugins = getPlugins().stream()
+            .filter(p -> p instanceof DataFormatPlugin)
+            .map(p -> (DataFormatPlugin) p)
+            .collect(toList());
+        if (dataFormatPlugins.isEmpty()) {
+            return null;
+        }
+        PluginsService pluginsService = mock(PluginsService.class);
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(dataFormatPlugins);
+        return new DataFormatRegistry(pluginsService);
     }
 
     protected Settings getIndexSettings() {
@@ -118,6 +147,14 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         merge(type, mapperService, mappings);
         return mapperService.documentMapper();
+    }
+
+    /**
+     * Create a {@link DocumentMapper} with custom index settings.
+     * Useful for tests that need specific settings like pluggable dataformat.
+     */
+    protected final DocumentMapper createDocumentMapper(Settings settings, XContentBuilder mapping) throws IOException {
+        return createMapperService(settings, mapping).documentMapper();
     }
 
     protected MapperService createMapperService(XContentBuilder mappings) throws IOException {
@@ -159,7 +196,45 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
                 throw new UnsupportedOperationException();
             },
             () -> true,
-            scriptService
+            scriptService,
+            getDataFormatRegistry()
+        );
+        merge(mapperService, mapping);
+        return mapperService;
+    }
+
+    /**
+     * Create a {@link MapperService} with custom index settings.
+     * Useful for tests that need specific settings like pluggable dataformat.
+     */
+    protected final MapperService createMapperService(Settings settings, XContentBuilder mapping) throws IOException {
+        IndexMetadata meta = IndexMetadata.builder("index")
+            .settings(Settings.builder().put("index.version.created", Version.CURRENT).put(settings))
+            .numberOfReplicas(0)
+            .numberOfShards(1)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(meta, settings);
+        MapperRegistry mapperRegistry = new IndicesModule(
+            getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
+        ).getMapperRegistry();
+        ScriptModule scriptModule = new ScriptModule(
+            Settings.EMPTY,
+            getPlugins().stream().filter(p -> p instanceof ScriptPlugin).map(p -> (ScriptPlugin) p).collect(toList())
+        );
+        ScriptService scriptService = new ScriptService(settings, scriptModule.engines, scriptModule.contexts);
+        SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, emptyMap());
+        MapperService mapperService = new MapperService(
+            indexSettings,
+            createIndexAnalyzers(indexSettings),
+            xContentRegistry(),
+            similarityService,
+            mapperRegistry,
+            () -> {
+                throw new UnsupportedOperationException();
+            },
+            () -> true,
+            scriptService,
+            getDataFormatRegistry()
         );
         merge(mapperService, mapping);
         return mapperService;
@@ -213,9 +288,9 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         mapperService.merge("_doc", new CompressedXContent(BytesReference.bytes(mapping)), reason);
     }
 
-    protected final XContentBuilder topMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+    protected final XContentBuilder topMapping(CheckedConsumer<XContentBuilder, IOException> mapping) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc");
-        buildFields.accept(builder);
+        mapping.accept(builder);
         return builder.endObject().endObject();
     }
 
@@ -223,6 +298,23 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties");
         buildFields.accept(builder);
         return builder.endObject().endObject().endObject();
+    }
+
+    protected final CheckedConsumer<XContentBuilder, IOException> properties(CheckedConsumer<XContentBuilder, IOException> buildFields)
+        throws IOException {
+        return builder -> {
+            builder.startObject("properties");
+            buildFields.accept(builder);
+            builder.endObject();
+        };
+    }
+
+    protected final CheckedConsumer<XContentBuilder, IOException> contextAwareGrouping(String field) throws IOException {
+        return builder -> {
+            builder.startObject("context_aware_grouping");
+            builder.startArray("fields").value(field).endArray();
+            builder.endObject();
+        };
     }
 
     protected final XContentBuilder derivedMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
@@ -279,5 +371,37 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         when(queryShardContext.getFieldType(any())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
         when(queryShardContext.documentMapper(anyString())).thenReturn(mapperService.documentMapper());
         return queryShardContext;
+    }
+
+    /**
+     * A simple capturing {@link DocumentInput} that records addField calls for assertion in pluggable dataformat tests.
+     */
+    public static class CapturingDocumentInput implements DocumentInput<Object> {
+        private final List<Map.Entry<MappedFieldType, Object>> capturedFields = new ArrayList<>();
+
+        @Override
+        public Object getFinalInput() {
+            return null;
+        }
+
+        @Override
+        public void addField(MappedFieldType fieldType, Object value) {
+            capturedFields.add(Map.entry(fieldType, value));
+        }
+
+        @Override
+        public void setRowId(String rowIdFieldName, long rowId) {}
+
+        @Override
+        public long getFieldCount(String fieldName) {
+            return capturedFields.stream().filter(e -> e.getKey().name().equals(fieldName)).count();
+        }
+
+        @Override
+        public void close() {}
+
+        public List<Map.Entry<MappedFieldType, Object>> getCapturedFields() {
+            return capturedFields;
+        }
     }
 }

@@ -88,6 +88,12 @@ public class RuleTestUtils {
     public static class MockRuleFeatureType implements FeatureType {
 
         public static final MockRuleFeatureType INSTANCE = new MockRuleFeatureType();
+        private static final Map<Attribute, Integer> PRIORITIZED_ATTRIBUTES = Map.of(
+            MockRuleAttributes.MOCK_RULE_ATTRIBUTE_ONE,
+            1,
+            MockRuleAttributes.MOCK_RULE_ATTRIBUTE_TWO,
+            2
+        );
 
         private MockRuleFeatureType() {}
 
@@ -101,13 +107,8 @@ public class RuleTestUtils {
         }
 
         @Override
-        public Map<String, Attribute> getAllowedAttributesRegistry() {
-            return Map.of(
-                ATTRIBUTE_VALUE_ONE,
-                MockRuleAttributes.MOCK_RULE_ATTRIBUTE_ONE,
-                ATTRIBUTE_VALUE_TWO,
-                MockRuleAttributes.MOCK_RULE_ATTRIBUTE_TWO
-            );
+        public Map<Attribute, Integer> getOrderedAttributes() {
+            return PRIORITIZED_ATTRIBUTES;
         }
     }
 

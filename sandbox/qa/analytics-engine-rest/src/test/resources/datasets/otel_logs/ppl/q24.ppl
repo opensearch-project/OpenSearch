@@ -1,0 +1,1 @@
+source=otel_logs | eval is_5xx = case(`log.http.status_code` >= 500, 1 else 0) | stats sum(is_5xx) as server_errors by serviceName | sort - server_errors

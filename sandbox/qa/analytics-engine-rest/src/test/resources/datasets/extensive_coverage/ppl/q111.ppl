@@ -1,0 +1,1 @@
+source=test_data | eval new_date = adddate(timestamp, 7) | fields timestamp, new_date | head 3

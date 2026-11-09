@@ -48,6 +48,7 @@ import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
+import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
@@ -270,7 +271,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     private final Map<String, Custom> customs;
 
     private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
-    private final int totalOpenIndexShards;
+    private final int totalOpenLocalOnlyIndexShards;
+    private final int totalOpenRemoteCapableIndexShards;
 
     private final String[] allIndices;
     private final String[] visibleIndices;
@@ -315,15 +317,21 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         this.customs = Collections.unmodifiableMap(customs);
         this.templates = new TemplatesMetadata(templates);
         int totalNumberOfShards = 0;
-        int totalOpenIndexShards = 0;
+        int totalOpenLocalOnlyIndexShards = 0;
+        int totalOpenRemoteCapableIndexShards = 0;
         for (IndexMetadata cursor : indices.values()) {
             totalNumberOfShards += cursor.getTotalNumberOfShards();
             if (IndexMetadata.State.OPEN.equals(cursor.getState())) {
-                totalOpenIndexShards += cursor.getTotalNumberOfShards();
+                if (RoutingPool.getIndexPool(cursor) == RoutingPool.REMOTE_CAPABLE) {
+                    totalOpenRemoteCapableIndexShards += cursor.getTotalNumberOfShards();
+                } else {
+                    totalOpenLocalOnlyIndexShards += cursor.getTotalNumberOfShards();
+                }
             }
         }
         this.totalNumberOfShards = totalNumberOfShards;
-        this.totalOpenIndexShards = totalOpenIndexShards;
+        this.totalOpenLocalOnlyIndexShards = totalOpenLocalOnlyIndexShards;
+        this.totalOpenRemoteCapableIndexShards = totalOpenRemoteCapableIndexShards;
 
         this.allIndices = allIndices;
         this.visibleIndices = visibleIndices;
@@ -849,10 +857,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             .orElse(Collections.emptyMap());
     }
 
-    public Map<String, View> views() {
-        return Optional.ofNullable((ViewMetadata) this.custom(ViewMetadata.TYPE)).map(ViewMetadata::views).orElse(Collections.emptyMap());
-    }
-
     public Map<String, WorkloadGroup> workloadGroups() {
         return Optional.ofNullable((WorkloadGroupMetadata) this.custom(WorkloadGroupMetadata.TYPE))
             .map(WorkloadGroupMetadata::workloadGroups)
@@ -905,7 +909,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      * @return The total number of open shards from all indices.
      */
     public int getTotalOpenIndexShards() {
-        return this.totalOpenIndexShards;
+        return this.totalOpenLocalOnlyIndexShards;
+    }
+
+    /**
+     * Gets the total number of open remote capable shards from all indices. Includes
+     * replicas, but does not include shards that are part of closed indices.
+     * @return The total number of open shards from all indices.
+     */
+    public int getTotalOpenRemoteCapableIndexShards() {
+        return this.totalOpenRemoteCapableIndexShards;
     }
 
     /**
@@ -1409,36 +1422,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 .map(o -> (WorkloadGroupMetadata) o)
                 .map(WorkloadGroupMetadata::workloadGroups)
                 .orElse(Collections.emptyMap());
-        }
-
-        private Map<String, View> getViews() {
-            return Optional.ofNullable(customs.get(ViewMetadata.TYPE))
-                .map(o -> (ViewMetadata) o)
-                .map(vmd -> vmd.views())
-                .orElse(new HashMap<>());
-        }
-
-        public View view(final String viewName) {
-            return getViews().get(viewName);
-        }
-
-        public Builder views(final Map<String, View> views) {
-            this.customs.put(ViewMetadata.TYPE, new ViewMetadata(views));
-            return this;
-        }
-
-        public Builder put(final View view) {
-            Objects.requireNonNull(view, "view cannot be null");
-            final var replacementViews = new HashMap<>(getViews());
-            replacementViews.put(view.getName(), view);
-            return views(replacementViews);
-        }
-
-        public Builder removeView(final String viewName) {
-            Objects.requireNonNull(viewName, "viewName cannot be null");
-            final var replacementViews = new HashMap<>(getViews());
-            replacementViews.remove(viewName);
-            return views(replacementViews);
         }
 
         public Custom getCustom(String type) {

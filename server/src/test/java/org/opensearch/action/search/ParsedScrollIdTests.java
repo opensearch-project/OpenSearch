@@ -50,7 +50,12 @@ public class ParsedScrollIdTests extends OpenSearchTestCase {
                 new ShardSearchContextId(randomAlphaOfLength(8), randomLong())
             );
         }
-        final ParsedScrollId parsedScrollId = new ParsedScrollId(randomAlphaOfLength(8), randomAlphaOfLength(8), searchContextIdForNodes);
+        final ParsedScrollId parsedScrollId = new ParsedScrollId(
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            searchContextIdForNodes,
+            new String[0]
+        );
 
         assertEquals(hasLocal, parsedScrollId.hasLocalIndices());
     }

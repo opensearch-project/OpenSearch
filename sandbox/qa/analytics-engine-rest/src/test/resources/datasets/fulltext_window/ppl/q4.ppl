@@ -1,0 +1,1 @@
+source=app_logs | where match(message, "timeout") AND latency > 5000 | stats count() as cnt by service | sort cnt desc

@@ -83,6 +83,11 @@ public class RefreshStats implements Writeable, ToXContentFragment {
         out.writeVInt(listeners);
     }
 
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link Builder} instead.
+     */
+    @Deprecated
     public RefreshStats(long total, long totalTimeInMillis, long externalTotal, long externalTotalTimeInMillis, int listeners) {
         this.total = total;
         this.totalTimeInMillis = totalTimeInMillis;
@@ -165,6 +170,66 @@ public class RefreshStats implements Writeable, ToXContentFragment {
         builder.field("listeners", listeners);
         builder.endObject();
         return builder;
+    }
+
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new RefreshStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private RefreshStats(Builder builder) {
+        this.total = builder.total;
+        this.totalTimeInMillis = builder.totalTimeInMillis;
+        this.externalTotal = builder.externalTotal;
+        this.externalTotalTimeInMillis = builder.externalTotalTimeInMillis;
+        this.listeners = builder.listeners;
+    }
+
+    /**
+     * Builder for the {@link RefreshStats} class.
+     * Provides a fluent API for constructing instances.
+     */
+    public static class Builder {
+        private long total = 0;
+        private long totalTimeInMillis = 0;
+        private long externalTotal = 0;
+        private long externalTotalTimeInMillis = 0;
+        private int listeners = 0;
+
+        public Builder() {}
+
+        public Builder total(long total) {
+            this.total = total;
+            return this;
+        }
+
+        public Builder totalTimeInMillis(long time) {
+            this.totalTimeInMillis = time;
+            return this;
+        }
+
+        public Builder externalTotal(long total) {
+            this.externalTotal = total;
+            return this;
+        }
+
+        public Builder externalTotalTimeInMillis(long time) {
+            this.externalTotalTimeInMillis = time;
+            return this;
+        }
+
+        public Builder listeners(int listeners) {
+            this.listeners = listeners;
+            return this;
+        }
+
+        /**
+         * Creates a {@link RefreshStats} object from the builder's current state.
+         * @return A new RefreshStats instance.
+         */
+        public RefreshStats build() {
+            return new RefreshStats(this);
+        }
     }
 
     @Override

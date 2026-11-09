@@ -1,0 +1,1 @@
+source=%INDEX% | eval r = coalesce(opt_ts, ts) | sort id | fields id, r

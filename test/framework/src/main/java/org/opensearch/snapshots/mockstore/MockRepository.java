@@ -38,8 +38,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.OpenSearchException;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
@@ -585,6 +587,85 @@ public class MockRepository extends FsRepository {
                     // by the delegating blob container
                     maybeIOExceptionOrBlock(blobName);
                     super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
+                }
+            }
+
+            @Override
+            public void writeBlobWithMetadata(
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists,
+                @Nullable Map<String, String> metadata
+            ) throws IOException {
+                maybeIOExceptionOrBlock(blobName);
+                if (blockOnWriteShardLevelMeta
+                    && blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
+                    && path().equals(basePath()) == false) {
+                    blockExecutionAndMaybeWait(blobName);
+                }
+                super.writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata);
+                if (RandomizedContext.current().getRandom().nextBoolean()) {
+                    // for network based repositories, the blob may have been written but we may still
+                    // get an error with the client connection, so an IOException here simulates this
+                    maybeIOExceptionOrBlock(blobName);
+                }
+            }
+
+            @Override
+            public void writeBlobWithMetadata(
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists,
+                @Nullable Map<String, String> metadata,
+                @Nullable CryptoMetadata cryptoMetadata
+            ) throws IOException {
+                maybeIOExceptionOrBlock(blobName);
+                if (blockOnWriteShardLevelMeta
+                    && blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
+                    && path().equals(basePath()) == false) {
+                    blockExecutionAndMaybeWait(blobName);
+                }
+                super.writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata, cryptoMetadata);
+                if (RandomizedContext.current().getRandom().nextBoolean()) {
+                    // for network based repositories, the blob may have been written but we may still
+                    // get an error with the client connection, so an IOException here simulates this
+                    maybeIOExceptionOrBlock(blobName);
+                }
+            }
+
+            @Override
+            public void writeBlobAtomicWithMetadata(
+                final String blobName,
+                final InputStream inputStream,
+                @Nullable final Map<String, String> metadata,
+                final long blobSize,
+                final boolean failIfAlreadyExists
+            ) throws IOException {
+                final Random random = RandomizedContext.current().getRandom();
+                if (failOnIndexLatest && BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
+                    throw new IOException("Random IOException");
+                }
+                if (blobName.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX)) {
+                    if (blockAndFailOnWriteIndexFile) {
+                        blockExecutionAndFail(blobName);
+                    } else if (blockOnWriteIndexFile) {
+                        blockExecutionAndMaybeWait(blobName);
+                    }
+                }
+                if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
+                    // Simulate a failure between the write and move operation in FsBlobContainer
+                    final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
+                    super.writeBlobWithMetadata(tempBlobName, inputStream, blobSize, failIfAlreadyExists, metadata);
+                    maybeIOExceptionOrBlock(blobName);
+                    final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
+                    fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, failIfAlreadyExists);
+                } else {
+                    // Atomic write since it is potentially supported
+                    // by the delegating blob container
+                    maybeIOExceptionOrBlock(blobName);
+                    super.writeBlobAtomicWithMetadata(blobName, inputStream, metadata, blobSize, failIfAlreadyExists);
                 }
             }
         }

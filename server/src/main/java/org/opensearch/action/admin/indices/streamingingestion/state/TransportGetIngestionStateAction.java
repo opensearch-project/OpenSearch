@@ -14,10 +14,12 @@ import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.pagination.ShardPaginationStrategy;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardsIterator;
@@ -37,6 +39,7 @@ import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,7 +49,7 @@ import java.util.stream.Collectors;
 /**
  * Transport action for retrieving ingestion state.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAction<
     GetIngestionStateRequest,
@@ -91,6 +94,7 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
             clusterStateRequest.setShouldCancelOnTimeout(true);
             clusterStateRequest.setParentTask(client.getLocalNodeId(), task.getId());
             clusterStateRequest.clear().indices(request.indices()).routingTable(true).metadata(true);
+            clusterStateRequest.indicesOptions(pageIndicesOptions(request.indicesOptions()));
 
             client.admin().cluster().state(clusterStateRequest, new ActionListener<>() {
 
@@ -111,6 +115,24 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
         } else {
             super.doExecute(task, request, listener);
         }
+    }
+
+    /**
+     * Expands wildcards like the request, so the page holds the same indices the broadcast resolves. Missing and
+     * unavailable indices are left to the broadcast, which reports them.
+     */
+    private static IndicesOptions pageIndicesOptions(IndicesOptions requestOptions) {
+        return IndicesOptions.fromOptions(
+            true,
+            true,
+            requestOptions.expandWildcardsOpen(),
+            requestOptions.expandWildcardsClosed(),
+            requestOptions.expandWildcardsHidden(),
+            requestOptions.allowAliasesToMultipleIndices(),
+            requestOptions.forbidClosedIndices(),
+            requestOptions.ignoreAliases(),
+            requestOptions.ignoreThrottled()
+        );
     }
 
     private void executePaginatedGetIngestionAction(
@@ -148,10 +170,17 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
      */
     @Override
     protected ShardsIterator shards(ClusterState clusterState, GetIngestionStateRequest request, String[] concreteIndices) {
-        Set<Integer> shardSet = Arrays.stream(request.getShards()).boxed().collect(Collectors.toSet());
+        Set<String> allActiveIndexSet = new HashSet<>();
+        for (String index : concreteIndices) {
+            IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            if (indexMetadata != null && isAllActiveIngestionEnabled(indexMetadata)) {
+                allActiveIndexSet.add(index);
+            }
+        }
 
-        // add filters for index and shard from the request
-        Predicate<ShardRouting> shardFilter = ShardRouting::primary;
+        Set<Integer> shardSet = Arrays.stream(request.getShards()).boxed().collect(Collectors.toSet());
+        Predicate<ShardRouting> shardFilter = shardRouting -> shardRouting.primary()
+            || allActiveIndexSet.contains(shardRouting.getIndexName());
         if (shardSet.isEmpty() == false) {
             shardFilter = shardFilter.and(shardRouting -> shardSet.contains(shardRouting.shardId().getId()));
         }
@@ -165,7 +194,7 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
             );
         }
 
-        return clusterState.routingTable().allShardsSatisfyingPredicate(request.indices(), shardFilter);
+        return clusterState.routingTable().allShardsSatisfyingPredicate(concreteIndices, shardFilter);
     }
 
     @Override
@@ -175,7 +204,7 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, GetIngestionStateRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, request.indices());
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 
     @Override
@@ -217,9 +246,18 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
         }
 
         try {
-            return indexShard.getIngestionState();
+            ShardIngestionState shardIngestionState = indexShard.getIngestionState();
+            shardIngestionState.setNodeName(clusterService.localNode().getName());
+            shardIngestionState.setPrimary(shardRouting.primary());
+            return shardIngestionState;
         } catch (final AlreadyClosedException e) {
             throw new ShardNotFoundException(indexShard.shardId());
         }
+    }
+
+    private boolean isAllActiveIngestionEnabled(IndexMetadata indexMetadata) {
+        return indexMetadata.useIngestionSource()
+            && indexMetadata.getIngestionSource() != null
+            && indexMetadata.getIngestionSource().isAllActiveIngestionEnabled();
     }
 }

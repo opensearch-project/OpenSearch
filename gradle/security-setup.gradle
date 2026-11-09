@@ -1,0 +1,64 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+ext.securityEnabled = project.hasProperty('installedPlugins') &&
+    project.property('installedPlugins').toString().contains('opensearch-security')
+
+if (securityEnabled) {
+  // Download security certificates
+  ['esnode.pem', 'esnode-key.pem', 'kirk.pem', 'kirk-key.pem', 'root-ca.pem'].forEach { file ->
+    File local = project.layout.buildDirectory.file(file).get().asFile
+    tasks.register("download${file.replace('-', '').replace('.', '').capitalize()}") {
+      doLast {
+        if (!local.exists()) {
+          local.parentFile.mkdirs()
+          new URL("https://raw.githubusercontent.com/opensearch-project/security/refs/heads/main/bwc-test/src/test/resources/security/" + file).withInputStream { i ->
+            local.withOutputStream { it << i }
+          }
+        }
+      }
+    }
+  }
+
+  // Configure security for run task
+  afterEvaluate {
+    if (testClusters.findByName('runTask')) {
+      testClusters.runTask.nodes.each { node ->
+        // Add certificate files
+        node.extraConfigFile("kirk.pem", project.layout.buildDirectory.file("kirk.pem").get().asFile)
+        node.extraConfigFile("kirk-key.pem", project.layout.buildDirectory.file("kirk-key.pem").get().asFile)
+        node.extraConfigFile("esnode.pem", project.layout.buildDirectory.file("esnode.pem").get().asFile)
+        node.extraConfigFile("esnode-key.pem", project.layout.buildDirectory.file("esnode-key.pem").get().asFile)
+        node.extraConfigFile("root-ca.pem", project.layout.buildDirectory.file("root-ca.pem").get().asFile)
+
+        // Security settings
+        node.setting("plugins.security.ssl.transport.pemcert_filepath", "esnode.pem")
+        node.setting("plugins.security.ssl.transport.pemkey_filepath", "esnode-key.pem")
+        node.setting("plugins.security.ssl.transport.pemtrustedcas_filepath", "root-ca.pem")
+        node.setting("plugins.security.ssl.transport.enforce_hostname_verification", "false")
+        node.setting("plugins.security.ssl.http.enabled", "true")
+        node.setting("plugins.security.ssl.http.pemcert_filepath", "esnode.pem")
+        node.setting("plugins.security.ssl.http.pemkey_filepath", "esnode-key.pem")
+        node.setting("plugins.security.ssl.http.pemtrustedcas_filepath", "root-ca.pem")
+        node.setting("plugins.security.allow_unsafe_democertificates", "true")
+        node.setting("plugins.security.allow_default_init_securityindex", "true")
+        node.setting("plugins.security.authcz.admin_dn", "\n - CN=kirk,OU=client,O=client,L=test,C=de")
+        node.setting("plugins.security.audit.type", "internal_opensearch")
+        node.setting("plugins.security.enable_snapshot_restore_privilege", "true")
+        node.setting("plugins.security.check_snapshot_restore_write_privileges", "true")
+        node.setting("plugins.security.restapi.roles_enabled", "[\"all_access\", \"security_rest_api_access\"]")
+        node.setting("plugins.security.system_indices.enabled", "true")
+      }
+
+      // Make run task depend on certificate downloads
+      tasks.named('run') {
+        dependsOn tasks.matching { it.name.startsWith('download') && it.name.contains('pem') }
+      }
+    }
+  }
+}

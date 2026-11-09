@@ -23,6 +23,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -35,6 +36,7 @@ import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
+import static org.awaitility.Awaitility.await;
 
 @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/16088")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -50,13 +52,11 @@ public class RemoteStorePinnedTimestampsGarbageCollectionIT extends RemoteStoreB
             .build();
     }
 
-    private void keepPinnedTimestampSchedulerUpdated() throws InterruptedException {
+    private static void keepPinnedTimestampSchedulerUpdated() {
         long currentTime = System.currentTimeMillis();
-        int maxRetry = 10;
-        while (maxRetry > 0 && RemoteStorePinnedTimestampService.getPinnedTimestamps().v1() <= currentTime) {
-            Thread.sleep(1000);
-            maxRetry--;
-        }
+        await().atMost(Duration.ofSeconds(10))
+            .pollDelay(Duration.ofSeconds(1))
+            .until(() -> RemoteStorePinnedTimestampService.getPinnedTimestamps().v1() > currentTime);
     }
 
     ActionListener<Void> noOpActionListener = new ActionListener<>() {

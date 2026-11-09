@@ -1,0 +1,1 @@
+source=regex_logs | where raw_message like "Exception:%" | grok raw_message 'Exception: %{DATA:exception_class} at %{DATA:source_file}:%{INT:line_number} Thread: %{WORD:thread_name}' | where exception_class != "" | stats count() as exception_count by exception_class, source_file | where exception_count > 5 | sort - exception_count

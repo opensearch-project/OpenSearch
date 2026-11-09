@@ -47,6 +47,7 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
@@ -144,6 +145,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
         public boolean isSearchable() {
             // The _id field is always searchable.
             return true;
+        }
+
+        @Override
+        protected FieldTypeCapabilities.Capability searchCapability() {
+            return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
         }
 
         @Override
@@ -298,7 +304,13 @@ public class IdFieldMapper extends MetadataFieldMapper {
     @Override
     public void preParse(ParseContext context) {
         BytesRef id = Uid.encodeId(context.sourceToParse().id());
-        context.doc().add(new Field(NAME, id, Defaults.FIELD_TYPE));
+        if (context.indexSettings().isPluggableDataFormatEnabled()) {
+            byte[] idToStore = new byte[id.length];
+            System.arraycopy(id.bytes, id.offset, idToStore, 0, id.length);
+            context.documentInput().addField(fieldType(), idToStore);
+        } else {
+            context.doc().add(new Field(NAME, id, Defaults.FIELD_TYPE));
+        }
     }
 
     @Override

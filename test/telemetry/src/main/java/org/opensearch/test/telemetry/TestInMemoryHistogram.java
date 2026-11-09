@@ -11,7 +11,7 @@ package org.opensearch.test.telemetry;
 import org.opensearch.telemetry.metrics.Histogram;
 import org.opensearch.telemetry.metrics.tags.Tags;
 
-import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TestInMemoryHistogram implements Histogram {
 
     private AtomicInteger histogramValue = new AtomicInteger(0);
-    private ConcurrentHashMap<HashMap<String, ?>, Double> histogramValueForTags = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<Map<String, ?>, Double> histogramValueForTags = new ConcurrentHashMap<>();
 
     /**
      * Constructor.
@@ -43,7 +43,7 @@ public class TestInMemoryHistogram implements Histogram {
      * Returns the Histogram value for tags
      * @return
      */
-    public ConcurrentHashMap<HashMap<String, ?>, Double> getHistogramValueForTags() {
+    public ConcurrentHashMap<Map<String, ?>, Double> getHistogramValueForTags() {
         return this.histogramValueForTags;
     }
 
@@ -54,7 +54,7 @@ public class TestInMemoryHistogram implements Histogram {
 
     @Override
     public synchronized void record(double value, Tags tags) {
-        HashMap<String, ?> hashMap = (HashMap<String, ?>) tags.getTagsMap();
-        histogramValueForTags.put(hashMap, value);
+        Map<String, ?> tagsMap = tags.getTagsMap();
+        histogramValueForTags.put(tagsMap, value);
     }
 }

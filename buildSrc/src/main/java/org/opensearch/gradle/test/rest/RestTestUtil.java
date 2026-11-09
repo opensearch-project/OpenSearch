@@ -90,7 +90,8 @@ public class RestTestUtil {
      */
     static void setupDependencies(Project project, SourceSet sourceSet) {
         if (BuildParams.isInternal()) {
-            project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework"));
+            project.getDependencies()
+                .add(sourceSet.getImplementationConfigurationName(), project.getDependencies().project(":test:framework"));
         } else {
             project.getDependencies()
                 .add(sourceSet.getImplementationConfigurationName(), "org.opensearch.test:framework:" + VersionProperties.getOpenSearch());
@@ -102,6 +103,18 @@ public class RestTestUtil {
                 );
         }
 
+        if (BuildParams.isInFipsJvm()) {
+            project.getDependencies()
+                .add(
+                    sourceSet.getImplementationConfigurationName(),
+                    "org.bouncycastle:bc-fips:" + VersionProperties.getVersions().get("bouncycastle_jce")
+                );
+            project.getDependencies()
+                .add(
+                    sourceSet.getImplementationConfigurationName(),
+                    "org.bouncycastle:bctls-fips:" + VersionProperties.getVersions().get("bouncycastle_tls")
+                );
+        }
     }
 
 }

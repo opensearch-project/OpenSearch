@@ -11,6 +11,7 @@ package org.opensearch.plugin.wlm.rest;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.plugin.wlm.WlmClusterSettingValuesProvider;
 import org.opensearch.plugin.wlm.action.CreateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.action.CreateWorkloadGroupRequest;
 import org.opensearch.plugin.wlm.action.CreateWorkloadGroupResponse;
@@ -35,10 +36,15 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
  */
 public class RestCreateWorkloadGroupAction extends BaseRestHandler {
 
+    private final WlmClusterSettingValuesProvider nonPluginSettingValuesProvider;
+
     /**
      * Constructor for RestCreateWorkloadGroupAction
+     * @param nonPluginSettingValuesProvider the settings provider to access the current WLM mode
      */
-    public RestCreateWorkloadGroupAction() {}
+    public RestCreateWorkloadGroupAction(WlmClusterSettingValuesProvider nonPluginSettingValuesProvider) {
+        this.nonPluginSettingValuesProvider = nonPluginSettingValuesProvider;
+    }
 
     @Override
     public String getName() {
@@ -55,6 +61,7 @@ public class RestCreateWorkloadGroupAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        nonPluginSettingValuesProvider.ensureWlmEnabled(getName());
         try (XContentParser parser = request.contentParser()) {
             CreateWorkloadGroupRequest createWorkloadGroupRequest = CreateWorkloadGroupRequest.fromXContent(parser);
             return channel -> client.execute(

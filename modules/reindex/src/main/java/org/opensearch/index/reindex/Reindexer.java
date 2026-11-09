@@ -133,6 +133,7 @@ public class Reindexer {
     public void execute(BulkByScrollTask task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
         ActionListener<BulkByScrollResponse> remoteReindexActionListener = getRemoteReindexWrapperListener(listener, request);
         BulkByScrollParallelizationHelper.executeSlicedAction(
+            clusterService.state().metadata(),
             task,
             request,
             ReindexAction.INSTANCE,

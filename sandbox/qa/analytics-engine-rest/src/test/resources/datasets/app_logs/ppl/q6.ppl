@@ -1,0 +1,1 @@
+source=app_logs | where message like '%HEALTHCHECK_DB_CONNECTION_FAILED%' | stats count() as failure_count by host, service_name

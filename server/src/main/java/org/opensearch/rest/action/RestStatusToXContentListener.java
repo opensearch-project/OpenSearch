@@ -69,7 +69,7 @@ public class RestStatusToXContentListener<Response extends StatusToXContentObjec
     @Override
     public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
         assert response.isFragment() == false; // would be nice if we could make default methods final
-        response.toXContent(builder, channel.request());
+        response.toXContent(builder, getRequestParams());
         RestResponse restResponse = new BytesRestResponse(response.status(), builder);
         if (RestStatus.CREATED == restResponse.status()) {
             final String location = extractLocation.apply(response);

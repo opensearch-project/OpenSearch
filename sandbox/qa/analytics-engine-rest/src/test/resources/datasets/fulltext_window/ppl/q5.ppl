@@ -1,0 +1,1 @@
+source=transactions | where match(product, "laptop") OR match(product, "computer") | fields userid, product, amount | head 10

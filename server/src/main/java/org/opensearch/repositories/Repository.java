@@ -42,11 +42,15 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.LifecycleComponent;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
@@ -303,6 +307,11 @@ public interface Repository extends LifecycleComponent {
     long getRemoteDownloadThrottleTimeInNanos();
 
     /**
+     * Returns low priority remote download throttle time in nanoseconds
+     */
+    long getLowPriorityRemoteDownloadThrottleTimeInNanos();
+
+    /**
      * Returns stats on the repository usage
      */
     default RepositoryStats stats() {
@@ -356,18 +365,69 @@ public interface Repository extends LifecycleComponent {
      * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
      * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
-     * @param store                    store to be snapshotted
-     * @param mapperService            the shards mapper service
-     * @param snapshotId               snapshot id
-     * @param indexId                  id for the index being snapshotted
-     * @param snapshotIndexCommit      commit point
-     * @param shardStateIdentifier     a unique identifier of the state of the shard that is stored with the shard's snapshot and used
-     *                                 to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
-     *                                 snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
-     * @param snapshotStatus           snapshot status
-     * @param repositoryMetaVersion    version of the updated repository metadata to write
-     * @param userMetadata             user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
-     * @param listener                 listener invoked on completion
+     *
+     * @param store                 store to be snapshotted
+     * @param mapperService         the shards mapper service
+     * @param snapshotId            snapshot id
+     * @param indexId               id for the index being snapshotted
+     * @param snapshotIndexCommit   commit point
+     * @param shardStateIdentifier  a unique identifier of the state of the shard that is stored with the shard's snapshot and used
+     *                              to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
+     *                              snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
+     * @param snapshotStatus        snapshot status
+     * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param userMetadata          user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
+     * @param listener              listener invoked on completion
+     */
+    default void snapshotShard(
+        Store store,
+        MapperService mapperService,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        IndexCommit snapshotIndexCommit,
+        @Nullable String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        Version repositoryMetaVersion,
+        Map<String, Object> userMetadata,
+        ActionListener<String> listener
+    ) {
+        snapshotShard(
+            store,
+            mapperService,
+            snapshotId,
+            indexId,
+            snapshotIndexCommit,
+            shardStateIdentifier,
+            snapshotStatus,
+            repositoryMetaVersion,
+            userMetadata,
+            listener,
+            null
+        );
+    }
+
+    /**
+     * Creates a snapshot of the shard based on the index commit point.
+     * <p>
+     * The index commit point can be obtained by using {@link org.opensearch.index.engine.Engine#acquireLastIndexCommit} method.
+     * Repository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
+     * <p>
+     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
+     * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
+     *
+     * @param store                 store to be snapshotted
+     * @param mapperService         the shards mapper service
+     * @param snapshotId            snapshot id
+     * @param indexId               id for the index being snapshotted
+     * @param snapshotIndexCommit   commit point
+     * @param shardStateIdentifier  a unique identifier of the state of the shard that is stored with the shard's snapshot and used
+     *                              to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
+     *                              snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
+     * @param snapshotStatus        snapshot status
+     * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param userMetadata          user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
+     * @param listener              listener invoked on completion
+     * @param indexMetadata         index metadata for the shard being snapshotted
      */
     void snapshotShard(
         Store store,
@@ -379,8 +439,74 @@ public interface Repository extends LifecycleComponent {
         IndexShardSnapshotStatus snapshotStatus,
         Version repositoryMetaVersion,
         Map<String, Object> userMetadata,
-        ActionListener<String> listener
+        ActionListener<String> listener,
+        @Nullable IndexMetadata indexMetadata
     );
+
+    /**
+     * Creates a snapshot of the shard based on a {@link CatalogSnapshot} commit point.
+     * <p>
+     * This is the format-neutral entry point used by {@code SnapshotShardsService}. A {@link CatalogSnapshot}
+     * describes the committed files of a shard regardless of the data format that produced them, so this
+     * overload works for both Lucene-backed and multi-format (catalog-based) engines. The commit point can be
+     * obtained via {@link org.opensearch.index.shard.IndexShard#acquireLastCommittedSnapshot(boolean)}.
+     * Repository implementations shouldn't release the snapshot; it is done by the method caller.
+     * <p>
+     * The default implementation adapts Lucene-backed catalog snapshots down to
+     * {@link #snapshotShard(Store, MapperService, SnapshotId, IndexId, IndexCommit, String, IndexShardSnapshotStatus,
+     * Version, Map, ActionListener, IndexMetadata)} so that repository implementations which only understand
+     * {@link IndexCommit} keep working unchanged. Multi-format catalog snapshots have no {@link IndexCommit}
+     * representation, so implementations that want to support them must override this method.
+     *
+     * @param store                 store to be snapshotted
+     * @param mapperService         the shards mapper service
+     * @param snapshotId            snapshot id
+     * @param indexId               id for the index being snapshotted
+     * @param catalogSnapshot       commit point
+     * @param shardStateIdentifier  a unique identifier of the state of the shard that is stored with the shard's snapshot and used
+     *                              to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
+     *                              snapshotting will be done by inspecting the physical files referenced by {@code catalogSnapshot}
+     * @param snapshotStatus        snapshot status
+     * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param userMetadata          user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
+     * @param listener              listener invoked on completion
+     * @param indexMetadata         index metadata for the shard being snapshotted
+     */
+    @ExperimentalApi
+    default void snapshotShard(
+        Store store,
+        MapperService mapperService,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        CatalogSnapshot catalogSnapshot,
+        @Nullable String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        Version repositoryMetaVersion,
+        Map<String, Object> userMetadata,
+        ActionListener<String> listener,
+        @Nullable IndexMetadata indexMetadata
+    ) {
+        final IndexCommit snapshotIndexCommit;
+        try {
+            snapshotIndexCommit = asIndexCommit(catalogSnapshot, store);
+        } catch (IOException e) {
+            listener.onFailure(e);
+            return;
+        }
+        snapshotShard(
+            store,
+            mapperService,
+            snapshotId,
+            indexId,
+            snapshotIndexCommit,
+            shardStateIdentifier,
+            snapshotStatus,
+            repositoryMetaVersion,
+            userMetadata,
+            listener,
+            indexMetadata
+        );
+    }
 
     /**
      * Adds a reference of remote store data for a index commit point.
@@ -453,6 +579,87 @@ public interface Repository extends LifecycleComponent {
         ActionListener<String> listener
     ) {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Adds a reference of remote store data for a {@link CatalogSnapshot} commit point.
+     * <p>
+     * Format-neutral counterpart of
+     * {@link #snapshotRemoteStoreIndexShard(Store, SnapshotId, IndexId, IndexCommit, String, IndexShardSnapshotStatus,
+     * long, long, long, Map, ActionListener)}. The commit point can be obtained via
+     * {@link org.opensearch.index.shard.IndexShard#acquireLastCommittedSnapshot(boolean)}, or — for a closed index —
+     * by reading the last remote uploaded metadata via
+     * {@link org.opensearch.index.shard.IndexShard#fetchLastRemoteUploadedSegmentMetadata()}, in which case
+     * {@code catalogSnapshot} is {@code null} and {@code indexFilesToFileLengthMap} carries the file listing.
+     * Repository implementations shouldn't release the snapshot; it is done by the method caller.
+     * <p>
+     * The default implementation adapts Lucene-backed catalog snapshots down to the {@link IndexCommit} overload.
+     *
+     * @param store                     store to be snapshotted
+     * @param snapshotId                snapshot id
+     * @param indexId                   id for the index being snapshotted
+     * @param catalogSnapshot           commit point, or {@code null} for a closed index
+     * @param shardStateIdentifier      a unique identifier of the state of the shard that is stored with the shard's snapshot and used
+     *                                  to detect if the shard has changed between snapshots
+     * @param snapshotStatus            snapshot status
+     * @param primaryTerm               current primary term
+     * @param commitGeneration          current commit generation
+     * @param startTime                 start time of the snapshot commit, this will be used as the start time for snapshot
+     * @param indexFilesToFileLengthMap map of index files to file length
+     * @param listener                  listener invoked on completion
+     */
+    @ExperimentalApi
+    default void snapshotRemoteStoreIndexShard(
+        Store store,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        @Nullable CatalogSnapshot catalogSnapshot,
+        @Nullable String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        long primaryTerm,
+        long commitGeneration,
+        long startTime,
+        @Nullable Map<String, Long> indexFilesToFileLengthMap,
+        ActionListener<String> listener
+    ) {
+        final IndexCommit snapshotIndexCommit;
+        try {
+            snapshotIndexCommit = catalogSnapshot == null ? null : asIndexCommit(catalogSnapshot, store);
+        } catch (IOException e) {
+            listener.onFailure(e);
+            return;
+        }
+        snapshotRemoteStoreIndexShard(
+            store,
+            snapshotId,
+            indexId,
+            snapshotIndexCommit,
+            shardStateIdentifier,
+            snapshotStatus,
+            primaryTerm,
+            commitGeneration,
+            startTime,
+            indexFilesToFileLengthMap,
+            listener
+        );
+    }
+
+    /**
+     * Materializes a Lucene {@link IndexCommit} view of the given {@link CatalogSnapshot} so that repository
+     * implementations which have not been converted to the catalog-based API keep working.
+     *
+     * @throws IOException if the commit view cannot be built, or if the snapshot is not Lucene-backed
+     */
+    private static IndexCommit asIndexCommit(CatalogSnapshot catalogSnapshot, Store store) throws IOException {
+        if (catalogSnapshot instanceof SegmentInfosCatalogSnapshot == false) {
+            throw new IOException(
+                "repository does not support snapshotting multi-format shards: cannot represent ["
+                    + catalogSnapshot.getClass().getSimpleName()
+                    + "] as an IndexCommit. The repository implementation must override the CatalogSnapshot-based "
+                    + "snapshotShard overload."
+            );
+        }
+        return Lucene.getIndexCommit(((SegmentInfosCatalogSnapshot) catalogSnapshot).getSegmentInfos(), store.directory());
     }
 
     /**
@@ -615,4 +822,24 @@ public interface Repository extends LifecycleComponent {
      * Validate the repository metadata
      */
     default void validateMetadata(RepositoryMetadata repositoryMetadata) {}
+
+    /**
+     * Returns the native (Rust) object store wrapper for this repository, or
+     * {@link NativeStoreRepository#EMPTY} if native object store is not supported or not initialized.
+     *
+     * <p>The returned value is a {@link NativeStoreRepository} wrapper managed by the
+     * repository implementation. Callers must NOT cache or use the wrapper across
+     * repository lifecycle boundaries. The wrapper is invalidated when the repository
+     * is closed — accessing it after close throws {@link IllegalStateException}.
+     *
+     * <p>Only sandbox tiered storage code should call this method. The default
+     * implementation returns {@link NativeStoreRepository#EMPTY} (no native store).
+     *
+     * @return the native (Rust) object store wrapper, or {@link NativeStoreRepository#EMPTY} if not available
+     * @throws IllegalStateException if the native store has been closed
+     * @opensearch.experimental
+     */
+    default NativeStoreRepository getNativeStore() {
+        return NativeStoreRepository.EMPTY;
+    }
 }

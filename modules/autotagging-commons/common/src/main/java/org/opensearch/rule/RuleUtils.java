@@ -17,6 +17,8 @@ import org.opensearch.rule.autotagging.Rule;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,6 +31,8 @@ import java.util.UUID;
  */
 @ExperimentalApi
 public class RuleUtils {
+    private static final String PIPE_DELIMITER = "\\|";
+    private static final String DOT_DELIMITER = ".";
 
     /**
      * constructor for RuleUtils
@@ -101,15 +105,51 @@ public class RuleUtils {
      */
     public static Rule composeUpdatedRule(Rule originalRule, UpdateRuleRequest request, FeatureType featureType) {
         String requestDescription = request.getDescription();
-        Map<Attribute, Set<String>> requestMap = request.getAttributeMap();
         String requestLabel = request.getFeatureValue();
+        Map<Attribute, Set<String>> requestMap = request.getAttributeMap();
+        Map<Attribute, Set<String>> updatedAttributeMap = new HashMap<>(originalRule.getAttributeMap());
+        if (requestMap != null && !requestMap.isEmpty()) {
+            updatedAttributeMap.putAll(requestMap);
+        }
         return new Rule(
             originalRule.getId(),
             requestDescription == null ? originalRule.getDescription() : requestDescription,
-            requestMap == null || requestMap.isEmpty() ? originalRule.getAttributeMap() : requestMap,
+            updatedAttributeMap,
             featureType,
             requestLabel == null ? originalRule.getFeatureValue() : requestLabel,
             Instant.now().toString()
         );
+    }
+
+    /**
+     * Builds a flattened map of attribute filters from a {@link Rule}.
+     * This method reformats nested or prioritized subfields (e.g., values containing "|" for sub-attributes)
+     * into top-level attribute keys. For example, an attribute "principal" with value "username|admin" will
+     * become "principal.username" -> "admin" in the resulting map. Attributes without prioritized subfields
+     * remain unchanged.
+     * The resulting map is structured to make querying rules from the index easier.
+     * @param rule the rule whose attributes are to be flattened
+     */
+    public static Map<String, Set<String>> buildAttributeFilters(Rule rule) {
+        Map<String, Set<String>> attributeFilters = new HashMap<>();
+
+        for (Map.Entry<Attribute, Set<String>> entry : rule.getAttributeMap().entrySet()) {
+            Attribute attribute = entry.getKey();
+            Set<String> values = entry.getValue();
+            if (hasSubfields(attribute)) {
+                for (String value : values) {
+                    String[] parts = value.split(PIPE_DELIMITER);
+                    String topLevelAttribute = attribute.getName() + DOT_DELIMITER + parts[0];
+                    attributeFilters.computeIfAbsent(topLevelAttribute, k -> new HashSet<>()).add(parts[1]);
+                }
+            } else {
+                attributeFilters.put(attribute.getName(), values);
+            }
+        }
+        return attributeFilters;
+    }
+
+    private static boolean hasSubfields(Attribute attribute) {
+        return !attribute.getWeightedSubfields().isEmpty();
     }
 }

@@ -11,6 +11,7 @@ package org.opensearch.semver;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.semver.expr.Caret;
@@ -43,7 +44,7 @@ import static java.util.Arrays.stream;
 @PublicApi(since = "2.13.0")
 public class SemverRange implements ToXContentFragment {
 
-    private static final Pattern RANGE_PATTERN = Pattern.compile("([\\[\\(])([\\d.]+)\\s*,\\s*([\\d.]+)([\\]\\)])");
+    public static final Pattern RANGE_PATTERN = Pattern.compile("([\\[\\(])([\\d.]+)\\s*,\\s*([\\d.]+)([\\]\\)])");
 
     private final Version rangeVersion;
     private final RangeOperator rangeOperator;
@@ -80,7 +81,7 @@ public class SemverRange implements ToXContentFragment {
 
         RangeOperator rangeOperator = RangeOperator.fromRange(range);
         String version = range.replaceFirst(rangeOperator.asEscapedString(), "");
-        if (!Version.stringHasLength(version)) {
+        if (!Strings.hasLength(version)) {
             throw new IllegalArgumentException("Version cannot be empty");
         }
         return new SemverRange(Version.fromString(version), rangeOperator);

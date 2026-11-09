@@ -77,6 +77,7 @@ import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
 import org.opensearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.opensearch.search.fetch.subphase.highlight.UnifiedHighlighter;
+import org.opensearch.search.profile.Timer;
 import org.opensearch.search.query.ConcurrentQueryPhaseSearcher;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QueryPhaseSearcher;
@@ -422,6 +423,19 @@ public class SearchModuleTests extends OpenSearchTestCase {
         );
     }
 
+    public void testProfileMetricsProvider() {
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
+            @Override
+            public Optional<ProfileMetricsProvider> getQueryProfileMetricsProvider() {
+                return Optional.of((searchContext, query) -> List.of(() -> new Timer("plugin_timer")));
+            }
+        }));
+
+        List<SearchPlugin.ProfileMetricsProvider> providers = module.getPluginProfileMetricsProviders();
+        assertThat(providers, hasSize(1));
+        assertEquals(providers.getFirst().getQueryProfileMetrics(null, null).size(), 1);
+    }
+
     public void testDefaultQueryPhaseSearcher() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         TestSearchContext searchContext = new TestSearchContext(null);
@@ -564,6 +578,7 @@ public class SearchModuleTests extends OpenSearchTestCase {
         "bool",
         "boosting",
         "constant_score",
+        "combined_fields",
         "dis_max",
         "exists",
         "function_score",

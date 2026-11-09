@@ -34,9 +34,11 @@ package org.opensearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.AbstractProfiler;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -59,6 +61,10 @@ public class QueryProfiler extends AbstractProfiler<ContextualProfileBreakdown, 
      * The root Collector used in the search
      */
     private InternalProfileComponent collector;
+
+    public QueryProfiler() {
+        this(new InternalQueryProfileTree(query -> List.of()));
+    }
 
     public QueryProfiler(AbstractQueryProfileTree profileTree) {
         super(profileTree);
@@ -102,6 +108,13 @@ public class QueryProfiler extends AbstractProfiler<ContextualProfileBreakdown, 
      */
     public CollectorResult getCollector() {
         return collector.getCollectorTree();
+    }
+
+    /**
+     * Return the top level breakdown for plugins to use
+     */
+    public AbstractProfileBreakdown getProfileBreakdown(Query query) {
+        return profileTree.findProfileBreakdown(query);
     }
 
 }

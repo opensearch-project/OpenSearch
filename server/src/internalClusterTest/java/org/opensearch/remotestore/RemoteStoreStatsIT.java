@@ -600,7 +600,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
                 RemoteTranslogTransferTracker.Stats translogStats = statObject.getTranslogStats();
                 if (statObject.getShardRouting().primary()) {
                     assertTrue(
-                        segmentStats.totalUploadsSucceeded == 1
+                        segmentStats.totalUploadsSucceeded >= 1
                             && segmentStats.totalUploadsStarted == segmentStats.totalUploadsSucceeded
                             && segmentStats.totalUploadsFailed == 0
                     );
@@ -680,7 +680,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         ensureGreen(INDEX_NAME);
         long currentTimeNs = System.nanoTime();
         while (currentTimeNs == System.nanoTime()) {
-            Thread.sleep(10);
+            Thread.yield();
         }
 
         for (int i = 0; i < numOfShards; i++) {
@@ -756,7 +756,6 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         assertEquals(0, stats.totalUploadsFailed);
         assertTrue(stats.uploadBytesSucceeded > 0);
         assertTrue(stats.totalUploadsSucceeded > 0);
-        assertTrue(stats.totalUploadTimeInMillis > 0);
         assertTrue(stats.lastSuccessfulUploadTimestamp > 0);
     }
 

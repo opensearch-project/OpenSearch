@@ -56,28 +56,36 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         final boolean includeTeardown = randomBoolean();
         StringBuilder testSpecBuilder = new StringBuilder();
         if (includeSetup) {
-            testSpecBuilder.append(
-                "---\n" + "setup:\n" + "  - do:\n" + "        indices.create:\n" + "          index: test_index\n" + "\n"
-            );
+            testSpecBuilder.append("""
+                ---
+                setup:
+                  - do:
+                        indices.create:
+                          index: test_index
+
+                """);
         }
         if (includeTeardown) {
-            testSpecBuilder.append(
-                "---\n" + "teardown:\n" + "  - do:\n" + "      indices.delete:\n" + "        index: test_index\n" + "\n"
-            );
+            testSpecBuilder.append("""
+                ---
+                teardown:
+                  - do:
+                      indices.delete:
+                        index: test_index
+
+                """);
         }
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            testSpecBuilder.toString()
-                + "---\n"
-                + "\"Get index mapping\":\n"
-                + "  - do:\n"
-                + "      indices.get_mapping:\n"
-                + "        index: test_index\n"
-                + "\n"
-                + "  - match: {test_index.properties.text.type:     string}\n"
-                + "  - match: {test_index.properties.text.analyzer: whitespace}\n"
-                + "\n"
-        );
+        parser = createParser(YamlXContent.yamlXContent, testSpecBuilder.toString() + """
+            ---
+            "Get index mapping":
+              - do:
+                  indices.get_mapping:
+                    index: test_index
+
+              - match: {test_index.properties.text.type:     string}
+              - match: {test_index.properties.text.analyzer: whitespace}
+
+            """);
 
         ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
 
@@ -141,32 +149,30 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
     }
 
     public void testParseTestSingleTestSection() throws Exception {
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "---\n"
-                + "\"Index with ID\":\n"
-                + "\n"
-                + " - do:\n"
-                + "      index:\n"
-                + "          index:  test-weird-index-中文\n"
-                + "          id:     1\n"
-                + "          body:   { foo: bar }\n"
-                + "\n"
-                + " - is_true:   ok\n"
-                + " - match:   { _index:   test-weird-index-中文 }\n"
-                + " - match:   { _id:      \"1\"}\n"
-                + " - match:   { _version: 1}\n"
-                + "\n"
-                + " - do:\n"
-                + "      get:\n"
-                + "          index:  test-weird-index-中文\n"
-                + "          id:     1\n"
-                + "\n"
-                + " - match:   { _index:   test-weird-index-中文 }\n"
-                + " - match:   { _id:      \"1\"}\n"
-                + " - match:   { _version: 1}\n"
-                + " - match:   { _source: { foo: bar }}"
-        );
+        parser = createParser(YamlXContent.yamlXContent, """
+            ---
+            "Index with ID":
+
+             - do:
+                  index:
+                      index:  test-weird-index-中文
+                      id:     1
+                      body:   { foo: bar }
+
+             - is_true:   ok
+             - match:   { _index:   test-weird-index-中文 }
+             - match:   { _id:      "1"}
+             - match:   { _version: 1}
+
+             - do:
+                  get:
+                      index:  test-weird-index-中文
+                      id:     1
+
+             - match:   { _index:   test-weird-index-中文 }
+             - match:   { _id:      "1"}
+             - match:   { _version: 1}
+             - match:   { _source: { foo: bar }}""");
 
         ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
 
@@ -227,47 +233,46 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
     }
 
     public void testParseTestMultipleTestSections() throws Exception {
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "---\n"
-                + "\"Missing document (partial doc)\":\n"
-                + "\n"
-                + "  - do:\n"
-                + "      catch:      missing\n"
-                + "      update:\n"
-                + "          index:  test_1\n"
-                + "          id:     1\n"
-                + "          body:   { doc: { foo: bar } }\n"
-                + "\n"
-                + "  - do:\n"
-                + "      update:\n"
-                + "          index: test_1\n"
-                + "          id:    1\n"
-                + "          body:  { doc: { foo: bar } }\n"
-                + "          ignore: 404\n"
-                + "\n"
-                + "---\n"
-                + "\"Missing document (script)\":\n"
-                + "\n"
-                + "\n"
-                + "  - do:\n"
-                + "      catch:      missing\n"
-                + "      update:\n"
-                + "          index:  test_1\n"
-                + "          id:     1\n"
-                + "          body:\n"
-                + "            script: \"ctx._source.foo = bar\"\n"
-                + "            params: { bar: 'xxx' }\n"
-                + "\n"
-                + "  - do:\n"
-                + "      update:\n"
-                + "          index:  test_1\n"
-                + "          id:     1\n"
-                + "          ignore: 404\n"
-                + "          body:\n"
-                + "            script:       \"ctx._source.foo = bar\"\n"
-                + "            params:       { bar: 'xxx' }\n"
-        );
+        parser = createParser(YamlXContent.yamlXContent, """
+            ---
+            "Missing document (partial doc)":
+
+              - do:
+                  catch:      missing
+                  update:
+                      index:  test_1
+                      id:     1
+                      body:   { doc: { foo: bar } }
+
+              - do:
+                  update:
+                      index: test_1
+                      id:    1
+                      body:  { doc: { foo: bar } }
+                      ignore: 404
+
+            ---
+            "Missing document (script)":
+
+
+              - do:
+                  catch:      missing
+                  update:
+                      index:  test_1
+                      id:     1
+                      body:
+                        script: "ctx._source.foo = bar"
+                        params: { bar: 'xxx' }
+
+              - do:
+                  update:
+                      index:  test_1
+                      id:     1
+                      ignore: 404
+                      body:
+                        script:       "ctx._source.foo = bar"
+                        params:       { bar: 'xxx' }
+            """);
 
         ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
 
@@ -314,32 +319,31 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
     }
 
     public void testParseTestDuplicateTestSections() throws Exception {
-        parser = createParser(
-            YamlXContent.yamlXContent,
-            "---\n"
-                + "\"Missing document (script)\":\n"
-                + "\n"
-                + "  - do:\n"
-                + "      catch:      missing\n"
-                + "      update:\n"
-                + "          index:  test_1\n"
-                + "          id:     1\n"
-                + "          body:   { doc: { foo: bar } }\n"
-                + "\n"
-                + "---\n"
-                + "\"Missing document (script)\":\n"
-                + "\n"
-                + "\n"
-                + "  - do:\n"
-                + "      catch:      missing\n"
-                + "      update:\n"
-                + "          index:  test_1\n"
-                + "          id:     1\n"
-                + "          body:\n"
-                + "            script: \"ctx._source.foo = bar\"\n"
-                + "            params: { bar: 'xxx' }\n"
-                + "\n"
-        );
+        parser = createParser(YamlXContent.yamlXContent, """
+            ---
+            "Missing document (script)":
+
+              - do:
+                  catch:      missing
+                  update:
+                      index:  test_1
+                      id:     1
+                      body:   { doc: { foo: bar } }
+
+            ---
+            "Missing document (script)":
+
+
+              - do:
+                  catch:      missing
+                  update:
+                      index:  test_1
+                      id:     1
+                      body:
+                        script: "ctx._source.foo = bar"
+                        params: { bar: 'xxx' }
+
+            """);
 
         Exception e = expectThrows(
             ParsingException.class,

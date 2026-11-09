@@ -1,0 +1,1 @@
+source=function_tests | stats min(amount) as min_amount, min(temperature) as min_temp by user | sort min_amount | head 5

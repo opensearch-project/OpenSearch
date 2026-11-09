@@ -38,16 +38,15 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.BufferedInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.NoSuchFileException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.List;
 import java.util.Map;
 
@@ -136,9 +135,11 @@ public class URLBlobContainer extends AbstractBlobContainer {
     @Override
     public InputStream readBlob(String name) throws IOException {
         try {
-            return new BufferedInputStream(getInputStream(new URL(path, name)), blobStore.bufferSizeInBytes());
+            return new BufferedInputStream(getInputStream(this.path.toURI().resolve(name).toURL()), blobStore.bufferSizeInBytes());
         } catch (FileNotFoundException fnfe) {
             throw new NoSuchFileException("[" + name + "] blob not found");
+        } catch (URISyntaxException e) {
+            throw new IOException(e);
         }
     }
 
@@ -157,14 +158,9 @@ public class URLBlobContainer extends AbstractBlobContainer {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
-    @SuppressWarnings("removal")
     @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
     private static InputStream getInputStream(URL url) throws IOException {
-        try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<InputStream>) url::openStream);
-        } catch (PrivilegedActionException e) {
-            throw (IOException) e.getCause();
-        }
+        return AccessController.doPrivilegedChecked(url::openStream);
     }
 
 }

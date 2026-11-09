@@ -46,6 +46,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.AfterClass;
 
@@ -121,7 +122,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
             final Tuple<BlobServiceClient, Supplier<Context>> client = blobStore.getService().client(account);
             final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(blobStore.toString());
             try {
-                SocketAccess.doPrivilegedException(() -> blobContainer.existsWithResponse(null, client.v2().get()));
+                AccessController.doPrivilegedChecked(() -> blobContainer.existsWithResponse(null, client.v2().get()));
                 future.onFailure(
                     new RuntimeException(
                         "The SAS token used in this test allowed for checking container existence. This test only supports tokens "

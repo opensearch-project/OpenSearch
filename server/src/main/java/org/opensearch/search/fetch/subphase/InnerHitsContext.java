@@ -50,6 +50,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.SubSearchContext;
 import org.opensearch.search.lookup.SourceLookup;
+import org.opensearch.search.profile.Profilers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -165,6 +166,11 @@ public final class InnerHitsContext {
 
         public void setRootLookup(SourceLookup rootLookup) {
             this.rootLookup = rootLookup;
+        }
+
+        @Override
+        public Profilers getProfilers() {
+            return context.getProfilers();
         }
     }
 

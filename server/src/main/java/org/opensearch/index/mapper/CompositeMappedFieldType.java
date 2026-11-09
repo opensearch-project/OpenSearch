@@ -50,7 +50,8 @@ public abstract class CompositeMappedFieldType extends MappedFieldType {
      */
     @ExperimentalApi
     public enum CompositeFieldType {
-        STAR_TREE("star_tree");
+        STAR_TREE("star_tree"),
+        CONTEXT_AWARE_GROUPING("context_aware_grouping");
 
         private final String name;
 

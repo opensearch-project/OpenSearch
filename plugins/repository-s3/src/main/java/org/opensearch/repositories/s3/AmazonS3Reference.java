@@ -54,9 +54,9 @@ public class AmazonS3Reference extends RefCountedReleasable<S3Client> {
     AmazonS3Reference(S3Client client, @Nullable AwsCredentialsProvider credentials) {
         super("AWS_S3_CLIENT", client, () -> {
             client.close();
-            if (credentials instanceof AutoCloseable) {
+            if (credentials instanceof AutoCloseable autoCloseable) {
                 try {
-                    ((AutoCloseable) credentials).close();
+                    autoCloseable.close();
                 } catch (Exception e) {
                     /* Do nothing here */
                 }

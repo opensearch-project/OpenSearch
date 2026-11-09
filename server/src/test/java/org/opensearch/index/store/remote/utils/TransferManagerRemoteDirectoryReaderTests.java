@@ -37,7 +37,8 @@ public class TransferManagerRemoteDirectoryReaderTests extends TransferManagerTe
                 remoteDirectory.openBlockInput(name, position, length, data.length, IOContext.DEFAULT),
                 length
             ),
-            fileCache
+            fileCache,
+            threadPool
         );
     }
 

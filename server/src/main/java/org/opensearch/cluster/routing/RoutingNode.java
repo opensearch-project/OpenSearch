@@ -269,7 +269,6 @@ public class RoutingNode implements Iterable<ShardRouting> {
      * @param shard Shard to create on this Node
      */
     void add(ShardRouting shard) {
-        assert invariant();
         if (shards.put(shard) != null) {
             throw new IllegalStateException(
                 "Trying to add a shard "
@@ -290,11 +289,9 @@ public class RoutingNode implements Iterable<ShardRouting> {
             relocatingShardsBucket.add(shard);
         }
         shardsByIndex.computeIfAbsent(shard.index(), k -> new LinkedHashSet<>()).add(shard);
-        assert invariant();
     }
 
     void update(ShardRouting oldShard, ShardRouting newShard) {
-        assert invariant();
         if (shards.containsKey(oldShard.shardId()) == false) {
             // Shard was already removed by routing nodes iterator
             // TODO: change caller logic in RoutingNodes so that this check can go away
@@ -320,11 +317,9 @@ public class RoutingNode implements Iterable<ShardRouting> {
             relocatingShardsBucket.add(newShard);
         }
         shardsByIndex.computeIfAbsent(newShard.index(), k -> new LinkedHashSet<>()).add(newShard);
-        assert invariant();
     }
 
     void remove(ShardRouting shard) {
-        assert invariant();
         ShardRouting previousValue = shards.remove(shard.shardId());
         assert previousValue == shard : "expected shard " + previousValue + " but was " + shard;
         if (shard.initializing()) {
@@ -338,7 +333,6 @@ public class RoutingNode implements Iterable<ShardRouting> {
         if (shardsByIndex.get(shard.index()).isEmpty()) {
             shardsByIndex.remove(shard.index());
         }
-        assert invariant();
     }
 
     /**
@@ -502,7 +496,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         return shards.isEmpty();
     }
 
-    private boolean invariant() {
+    boolean invariant() {
 
         // initializingShards must consistent with that in shards
         Collection<ShardRouting> shardRoutingsInitializing = StreamSupport.stream(shards.spliterator(), false)

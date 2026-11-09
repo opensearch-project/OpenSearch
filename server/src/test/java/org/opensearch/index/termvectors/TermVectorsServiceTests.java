@@ -67,7 +67,7 @@ public class TermVectorsServiceTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject()
             .endObject();
-        createIndex("test", Settings.EMPTY, "type1", mapping);
+        createIndex("test", Settings.EMPTY, mapping);
         ensureGreen();
 
         client().prepareIndex("test").setId("0").setSource("field", "foo bar").setRefreshPolicy(IMMEDIATE).get();
@@ -96,7 +96,7 @@ public class TermVectorsServiceTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject();
         Settings settings = Settings.builder().put("number_of_shards", 1).build();
-        createIndex("test", settings, "_doc", mapping);
+        createIndex("test", settings, mapping);
         ensureGreen();
 
         int max = between(3, 10);
@@ -135,7 +135,7 @@ public class TermVectorsServiceTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject();
         Settings settings = Settings.builder().put("number_of_shards", 1).build();
-        createIndex("test", settings, "_doc", mapping);
+        createIndex("test", settings, mapping);
         ensureGreen();
 
         int max = between(3, 10);

@@ -42,7 +42,8 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.artifacts.component.ComponentIdentifier;
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.provider.Property;
@@ -220,19 +221,21 @@ public class ThirdPartyAuditTask extends DefaultTask {
         // These are SelfResolvingDependency, and some of them backed by file collections, like the Gradle API files,
         // or dependencies added as `files(...)`, we can't be sure if those are third party or not.
         // err on the side of scanning these to make sure we don't miss anything
-        Spec<Dependency> reallyThirdParty = dep -> dep.getGroup() != null && dep.getGroup().startsWith("org.opensearch") == false;
+        Spec<ComponentIdentifier> reallyThirdParty = ci -> {
+            if (ci instanceof ModuleComponentIdentifier) {
+                return ((ModuleComponentIdentifier) ci).getGroup().startsWith("org.opensearch") == false;
+            }
+            return false;
+        };
 
-        Set<File> jars = GradleUtils.getFiles(project, getRuntimeConfiguration(), reallyThirdParty).getFiles();
-        Set<File> compileOnlyConfiguration = GradleUtils.getFiles(
+        final FileCollection runtime = GradleUtils.getFirstLevelModuleDependencyFiles(project, getRuntimeConfiguration(), reallyThirdParty);
+        // don't scan provided dependencies that we already scanned, e.x. don't scan cores dependencies for every plugin
+        final FileCollection compileOnly = GradleUtils.getFirstLevelModuleDependencyFiles(
             project,
             project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME),
             reallyThirdParty
-        ).getFiles();
-        // don't scan provided dependencies that we already scanned, e.x. don't scan cores dependencies for every plugin
-        if (compileOnlyConfiguration != null) {
-            jars.removeAll(compileOnlyConfiguration);
-        }
-        return jars;
+        );
+        return runtime.minus(compileOnly).getFiles();
     }
 
     @TaskAction

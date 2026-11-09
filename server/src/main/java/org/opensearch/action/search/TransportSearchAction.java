@@ -32,20 +32,28 @@
 
 package org.opensearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.opensearch.action.search.pruning.FieldDomainEvaluationContext;
+import org.opensearch.action.search.pruning.SearchIndexPruningResult;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.GroupShardsIterator;
@@ -68,7 +76,9 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.index.fielddomain.ClusterStateFieldDomainProvider;
 import org.opensearch.index.query.Rewriteable;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.SearchShardTarget;
@@ -97,6 +107,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterAware;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.RemoteTransportException;
+import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Client;
@@ -134,7 +145,9 @@ import static org.opensearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
  *
  * @opensearch.internal
  */
-public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
+public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse>
+    implements
+        TransportIndicesResolvingAction<SearchRequest> {
 
     /** The maximum number of shards for a single search request. */
     public static final Setting<Long> SHARD_COUNT_LIMIT_SETTING = Setting.longSetting(
@@ -163,23 +176,31 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Setting.Property.NodeScope
     );
 
-    private final NodeClient client;
+    // For static methods. A static field named logger would hide the logger that this class and its subclasses inherit.
+    private static final Logger staticLogger = LogManager.getLogger(TransportSearchAction.class);
+
+    final NodeClient client;
     private final ThreadPool threadPool;
-    private final ClusterService clusterService;
-    private final SearchTransportService searchTransportService;
+    final ClusterService clusterService;
+    final SearchTransportService searchTransportService;
     private final RemoteClusterService remoteClusterService;
-    private final SearchPhaseController searchPhaseController;
+    final SearchPhaseController searchPhaseController;
     private final SearchService searchService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final CircuitBreaker circuitBreaker;
+    final CircuitBreaker circuitBreaker;
     private final SearchPipelineService searchPipelineService;
     private final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory;
-    private final Tracer tracer;
+    final Tracer tracer;
+    private final IndicesService indicesService;
 
     private final MetricsRegistry metricsRegistry;
 
     private TaskResourceTrackingService taskResourceTrackingService;
+    private final SearchExecutionGate searchExecutionGate;
+    private final SearchCancelAfterTimeIntervalResolver cancelAfterTimeIntervalResolver;
+
+    private final SearchIndexPruningService searchIndexPruningService;
 
     @Inject
     public TransportSearchAction(
@@ -198,7 +219,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         MetricsRegistry metricsRegistry,
         SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory,
         Tracer tracer,
-        TaskResourceTrackingService taskResourceTrackingService
+        TaskResourceTrackingService taskResourceTrackingService,
+        IndicesService indicesService,
+        SearchExecutionGate searchExecutionGate,
+        SearchCancelAfterTimeIntervalResolver cancelAfterTimeIntervalResolver
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.client = client;
@@ -207,7 +231,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
-        SearchTransportService.registerRequestHandler(transportService, searchService);
+        if (transportService instanceof StreamTransportService) {
+            StreamSearchTransportService.registerStreamRequestHandler((StreamTransportService) transportService, searchService);
+        } else {
+            SearchTransportService.registerRequestHandler(transportService, searchService);
+        }
         this.clusterService = clusterService;
         this.searchService = searchService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -217,17 +245,24 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchRequestOperationsCompositeListenerFactory = searchRequestOperationsCompositeListenerFactory;
         this.tracer = tracer;
         this.taskResourceTrackingService = taskResourceTrackingService;
+        this.indicesService = indicesService;
+        this.searchIndexPruningService = new SearchIndexPruningService(
+            clusterService.getClusterSettings(),
+            new ClusterStateFieldDomainProvider()
+        );
+        this.searchExecutionGate = searchExecutionGate;
+        this.cancelAfterTimeIntervalResolver = cancelAfterTimeIntervalResolver;
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(
         SearchRequest request,
         ClusterState clusterState,
-        Index[] concreteIndices,
+        ResolvedIndices.Local.Concrete concreteIndices,
         Map<String, AliasFilter> remoteAliasMap
     ) {
         final Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
         final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, request.indices());
-        for (Index index : concreteIndices) {
+        for (Index index : concreteIndices.concreteIndices()) {
             clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
             AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, index.getName(), indicesAndAliases);
             assert aliasFilter != null;
@@ -305,20 +340,79 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+        // searchStatusStatsUpdateListener will execute the logic within the original listener but
+        // also track the response status of the searchResponse.
+        ActionListener<SearchResponse> searchStatusStatsUpdateListener;
+        // Resolve cancel_after_time_interval once, before admission, and write it back so requests copied from this one
+        // (ccs_minimize_roundtrips remote legs, collapse expansion sub-searches) inherit it.
+        final TimeValue cancelAfterTimeInterval = resolveCancelAfterTimeInterval(cancelAfterTimeIntervalResolver, task, searchRequest);
+        searchRequest.setCancelAfterTimeInterval(cancelAfterTimeInterval);
         // only if task is of type CancellableTask and support cancellation on timeout, treat this request eligible for timeout based
         // cancellation. There may be other top level requests like AsyncSearch which is using SearchRequest internally and has it's own
         // cancellation mechanism. For such cases, the SearchRequest when created can override the createTask and set the
         // cancelAfterTimeInterval to NO_TIMEOUT and bypass this mechanism
-        if (task instanceof CancellableTask) {
+        if (task instanceof CancellableTask cancellableTask) {
             listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
                 client,
-                (CancellableTask) task,
+                cancellableTask,
+                cancellationTimerInterval(cancellableTask, cancelAfterTimeInterval),
                 clusterService.getClusterSettings().get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING),
                 listener,
                 e -> {}
             );
         }
-        executeRequest(task, searchRequest, this::searchAsyncAction, listener);
+        final ActionListener<SearchResponse> finalListner = listener;
+        searchStatusStatsUpdateListener = ActionListener.wrap((searchResponse) -> {
+            try {
+                indicesService.getSearchResponseStatusStats().inc(searchResponse.status());
+            } finally {
+                finalListner.onResponse(searchResponse);
+            }
+        }, (e) -> {
+            try {
+                indicesService.getSearchResponseStatusStats().inc(ExceptionsHelper.status(e));
+            } finally {
+                finalListner.onFailure(e);
+            }
+        });
+        executeRequest(task, searchRequest, this::searchAsyncAction, searchStatusStatsUpdateListener);
+    }
+
+    /**
+     * The search's {@code cancel_after_time_interval} as the node's resolver decides it from the request's own, or {@code null} to
+     * use the cluster's {@code search.cancel_after_time_interval}. A resolver that throws does not fail the search: the exception is
+     * logged and the search keeps the request's own interval, exactly as without a resolver.
+     */
+    @Nullable
+    static TimeValue resolveCancelAfterTimeInterval(
+        SearchCancelAfterTimeIntervalResolver resolver,
+        Task task,
+        SearchRequest searchRequest
+    ) {
+        final TimeValue requested = searchRequest.getCancelAfterTimeInterval();
+        try {
+            return resolver.resolve(task, searchRequest, requested);
+        } catch (Exception e) {
+            staticLogger.warn(
+                () -> new ParameterizedMessage(
+                    "Failed to resolve the cancel_after_time_interval of task [{}], falling back to the requested interval",
+                    task.getId()
+                ),
+                e
+            );
+            return requested;
+        }
+    }
+
+    /**
+     * The interval after which the coordinator cancels the search running on {@code task}, or {@code null} to use the cluster's
+     * {@code search.cancel_after_time_interval}: the {@code resolved} interval when the task took its timeout from the request
+     * ({@link CancellableTask#isCancellationTimeoutFromRequest()}); otherwise the timeout the task's {@code createTask} chose itself,
+     * such as {@link SearchService#NO_TIMEOUT} for a search with its own cancellation mechanism.
+     */
+    @Nullable
+    static TimeValue cancellationTimerInterval(CancellableTask task, @Nullable TimeValue resolved) {
+        return task.isCancellationTimeoutFromRequest() ? resolved : task.getCancellationTimeout();
     }
 
     /**
@@ -413,7 +507,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }, listener);
     }
 
-    private void executeRequest(
+    void executeRequest(
         Task task,
         SearchRequest originalSearchRequest,
         SearchAsyncActionProvider searchAsyncActionProvider,
@@ -432,7 +526,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final Span requestSpan = tracer.startSpan(SpanBuilder.from(task, actionName));
         try (final SpanScope spanScope = tracer.withSpanInScope(requestSpan)) {
             SearchRequestOperationsListener.CompositeListener requestOperationsListeners;
-            final ActionListener<SearchResponse> updatedListener = TraceableActionListener.create(originalListener, requestSpan, tracer);
+            ActionListener<SearchResponse> updatedListener = TraceableActionListener.create(originalListener, requestSpan, tracer);
             requestOperationsListeners = searchRequestOperationsCompositeListenerFactory.buildCompositeListener(
                 originalSearchRequest,
                 logger,
@@ -443,18 +537,52 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 originalSearchRequest,
                 taskResourceTrackingService::getTaskResourceUsageFromThreadContext
             );
-            searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
 
             // At this point either the QUERY_GROUP_ID header will be present in ThreadContext either via ActionFilter
             // or HTTP header (HTTP header will be deprecated once ActionFilter is implemented)
             if (task instanceof WorkloadGroupTask) {
                 ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
             }
+            // Every outcome, including a rejection or an unexpected admission exception, completes updatedListener, so the
+            // request span always ends.
+            searchExecutionGate.execute(
+                task,
+                originalSearchRequest,
+                updatedListener,
+                admittedListener -> proceedWithSearch(
+                    task,
+                    originalSearchRequest,
+                    searchAsyncActionProvider,
+                    admittedListener,
+                    searchRequestContext,
+                    timeProvider,
+                    requestSpan
+                )
+            );
+        }
+    }
+
+    /**
+     * Runs the search once the node's {@link SearchAdmission} admits it, or directly while admission is inactive, inline or
+     * from an asynchronous admission callback. Re-enters the request span, which may not be active on the callback's thread.
+     */
+    private void proceedWithSearch(
+        Task task,
+        SearchRequest originalSearchRequest,
+        SearchAsyncActionProvider searchAsyncActionProvider,
+        ActionListener<SearchResponse> updatedListener,
+        SearchRequestContext searchRequestContext,
+        SearchTimeProvider timeProvider,
+        Span requestSpan
+    ) {
+        try (final SpanScope ignore = tracer.withSpanInScope(requestSpan)) {
+            searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
 
             PipelinedRequest searchRequest;
             ActionListener<SearchResponse> listener;
             try {
-                searchRequest = searchPipelineService.resolvePipeline(originalSearchRequest, indexNameExpressionResolver);
+                final Task parentTask = extractParentTask(originalSearchRequest);
+                searchRequest = searchPipelineService.resolvePipeline(originalSearchRequest, parentTask, indexNameExpressionResolver);
                 listener = searchRequest.transformResponseListener(updatedListener);
             } catch (Exception e) {
                 updatedListener.onFailure(e);
@@ -476,13 +604,41 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 } else {
                     Rewriteable.rewriteAndFetch(
                         sr.source(),
-                        searchService.getRewriteContext(timeProvider::getAbsoluteStartMillis, searchRequest),
+                        // Parent rewrite searches on this task only when it is counted, so a nested search isn't charged twice.
+                        searchService.getRewriteContext(
+                            timeProvider::getAbsoluteStartMillis,
+                            searchRequest,
+                            isThrottleCounted(task) ? localTaskId(task) : TaskId.EMPTY_TASK_ID
+                        ),
                         rewriteListener
                     );
                 }
             }, listener::onFailure);
-            searchRequest.transformRequest(requestTransformListener);
+            try {
+                searchRequest.transformRequest(requestTransformListener);
+            } catch (Exception e) {
+                // Same listener as the async failure path; it wraps updatedListener, so the permit is still released.
+                listener.onFailure(e);
+            }
         }
+    }
+
+    /** Whether {@code task}'s work is accounted for against a throttle bucket, so a nested search can inherit it. */
+    private static boolean isThrottleCounted(final Task task) {
+        return task instanceof WorkloadGroupTask && ((WorkloadGroupTask) task).isThrottleCounted();
+    }
+
+    /** A {@link TaskId} addressing {@code task} on this node. */
+    private TaskId localTaskId(final Task task) {
+        return new TaskId(clusterService.localNode().getId(), task.getId());
+    }
+
+    private Task extractParentTask(final SearchRequest searchRequest) {
+        TaskId taskId = searchRequest.getParentTask();
+        if (taskId != null && taskId != TaskId.EMPTY_TASK_ID) {
+            return taskManager.getTask(taskId.getId());
+        }
+        return null;
     }
 
     private ActionListener<SearchSourceBuilder> buildRewriteListener(
@@ -500,20 +656,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest.source(source);
             }
             final ClusterState clusterState = clusterService.state();
-            final SearchContextId searchContext;
-            final Map<String, OriginalIndices> remoteClusterIndices;
-            if (searchRequest.pointInTimeBuilder() != null) {
-                searchContext = SearchContextId.decode(namedWriteableRegistry, searchRequest.pointInTimeBuilder().getId());
-                remoteClusterIndices = getIndicesFromSearchContexts(searchContext, searchRequest.indicesOptions());
-            } else {
-                searchContext = null;
-                remoteClusterIndices = remoteClusterService.groupIndices(
-                    searchRequest.indicesOptions(),
-                    searchRequest.indices(),
-                    idx -> indexNameExpressionResolver.hasIndexAbstraction(idx, clusterState)
-                );
-            }
-            OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            final OriginalIndicesAndSearchContextId requestedIndices = extractRequestedIndices(searchRequest, clusterState);
+            final SearchContextId searchContext = requestedIndices.searchContextId;
+            final Map<String, OriginalIndices> remoteClusterIndices = requestedIndices.remoteClusterIndices;
+            OriginalIndices localIndices = requestedIndices.localOriginalIndices;
             if (remoteClusterIndices.isEmpty()) {
                 executeLocalSearch(
                     task,
@@ -991,11 +1137,47 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return remoteShardIterators;
     }
 
-    private Index[] resolveLocalIndices(OriginalIndices localIndices, ClusterState clusterState, SearchTimeProvider timeProvider) {
-        if (localIndices == null) {
-            return Index.EMPTY_ARRAY; // don't search on any local index (happens when only remote indices were specified)
+    @Override
+    public ResolvedIndices resolveIndices(SearchRequest searchRequest) {
+        ClusterState clusterState = clusterService.state();
+        OriginalIndicesAndSearchContextId requestedIndices = extractRequestedIndices(searchRequest, clusterState);
+        ResolvedIndices.Local.Concrete localConcreteIndices = resolveLocalIndices(
+            requestedIndices.localOriginalIndices,
+            clusterState,
+            new SearchTimeProvider(searchRequest.getOrCreateAbsoluteStartMillis(), System.nanoTime(), System::nanoTime)
+        );
+
+        return ResolvedIndices.of(localConcreteIndices).withRemoteIndices(requestedIndices.remoteClusterIndices);
+    }
+
+    private OriginalIndicesAndSearchContextId extractRequestedIndices(SearchRequest searchRequest, ClusterState clusterState) {
+        final SearchContextId searchContext;
+        final Map<String, OriginalIndices> remoteClusterIndices;
+        if (searchRequest.pointInTimeBuilder() != null) {
+            searchContext = SearchContextId.decode(namedWriteableRegistry, searchRequest.pointInTimeBuilder().getId());
+            remoteClusterIndices = getIndicesFromSearchContexts(searchContext, searchRequest.indicesOptions());
+        } else {
+            searchContext = null;
+            remoteClusterIndices = remoteClusterService.groupIndices(
+                searchRequest.indicesOptions(),
+                searchRequest.indices(),
+                idx -> indexNameExpressionResolver.hasIndexAbstraction(idx, clusterState)
+            );
         }
-        return indexNameExpressionResolver.concreteIndices(clusterState, localIndices, timeProvider.getAbsoluteStartMillis());
+        OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        return new OriginalIndicesAndSearchContextId(localIndices, remoteClusterIndices, searchContext);
+    }
+
+    private ResolvedIndices.Local.Concrete resolveLocalIndices(
+        OriginalIndices localIndices,
+        ClusterState clusterState,
+        SearchTimeProvider timeProvider
+    ) {
+        if (localIndices == null) {
+            // don't search on any local index (happens when only remote indices were specified)
+            return ResolvedIndices.Local.Concrete.empty();
+        }
+        return indexNameExpressionResolver.concreteResolvedIndices(clusterState, localIndices, timeProvider.getAbsoluteStartMillis());
     }
 
     private void executeSearch(
@@ -1035,17 +1217,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest.pointInTimeBuilder().getKeepAlive()
             );
         } else {
-            final Index[] indices = resolveLocalIndices(localIndices, clusterState, timeProvider);
+            ResolvedIndices.Local.Concrete indices = resolveLocalIndices(localIndices, clusterState, timeProvider);
             Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(
                 clusterState,
                 searchRequest.routing(),
                 searchRequest.indices()
             );
             routingMap = routingMap == null ? Collections.emptyMap() : Collections.unmodifiableMap(routingMap);
-            concreteLocalIndices = new String[indices.length];
-            for (int i = 0; i < indices.length; i++) {
-                concreteLocalIndices[i] = indices[i].getName();
-            }
+            concreteLocalIndices = indices.namesOfConcreteIndicesAsArray();
             Map<String, Long> nodeSearchCounts = searchTransportService.getPendingSearchRequests();
             SliceBuilder slice = searchRequest.source() == null ? null : searchRequest.source().slice();
             GroupShardsIterator<ShardIterator> localShardRoutings = clusterService.operationRouting()
@@ -1203,7 +1382,69 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         );
     }
 
-    private AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction(
+    AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction(
+        SearchTask task,
+        SearchRequest searchRequest,
+        Executor executor,
+        GroupShardsIterator<SearchShardIterator> shardIterators,
+        SearchTimeProvider timeProvider,
+        BiFunction<String, String, Transport.Connection> connectionLookup,
+        ClusterState clusterState,
+        Map<String, AliasFilter> aliasFilter,
+        Map<String, Float> concreteIndexBoosts,
+        Map<String, Set<String>> indexRoutings,
+        ActionListener<SearchResponse> listener,
+        boolean preFilter,
+        ThreadPool threadPool,
+        SearchResponse.Clusters clusters,
+        SearchRequestContext searchRequestContext
+    ) {
+        maybeApplySearchIndexPruning(searchRequest, shardIterators, clusterState, timeProvider);
+        return createSearchAsyncAction(
+            task,
+            searchRequest,
+            executor,
+            shardIterators,
+            timeProvider,
+            connectionLookup,
+            clusterState,
+            aliasFilter,
+            concreteIndexBoosts,
+            indexRoutings,
+            listener,
+            preFilter,
+            threadPool,
+            clusters,
+            searchRequestContext
+        );
+    }
+
+    /**
+     * Applies index pruning results to the request-local shard iterators.
+     */
+    private void maybeApplySearchIndexPruning(
+        SearchRequest searchRequest,
+        GroupShardsIterator<SearchShardIterator> shardIterators,
+        ClusterState clusterState,
+        SearchTimeProvider timeProvider
+    ) {
+        final SearchIndexPruningResult pruningResult = searchIndexPruningService.prune(
+            searchRequest,
+            shardIterators,
+            clusterState,
+            new FieldDomainEvaluationContext(timeProvider::getAbsoluteStartMillis)
+        );
+        if (pruningResult.pruned() == false) {
+            return;
+        }
+        for (int i = 0; i < pruningResult.originalShardGroups(); i++) {
+            if (pruningResult.isPrunedShardGroup(i)) {
+                pruningResult.shardIterators().get(i).resetAndSkip();
+            }
+        }
+    }
+
+    private AbstractSearchAsyncAction<? extends SearchPhaseResult> createSearchAsyncAction(
         SearchTask task,
         SearchRequest searchRequest,
         Executor executor,
@@ -1236,7 +1477,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 clusterState,
                 task,
                 (iter) -> new WrappingSearchAsyncActionPhase(
-                    searchAsyncAction(
+                    createSearchAsyncAction(
                         task,
                         searchRequest,
                         executor,
@@ -1265,7 +1506,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 task.getProgressListener(),
                 searchRequest,
                 shardIterators.size(),
-                exc -> cancelTask(task, exc)
+                exc -> cancelTask(task, exc),
+                task::isCancelled
             );
             AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
             switch (searchRequest.searchType()) {
@@ -1320,7 +1562,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
-    private void cancelTask(SearchTask task, Exception exc) {
+    void cancelTask(SearchTask task, Exception exc) {
         String errorMsg = exc.getMessage() != null ? exc.getMessage() : "";
         CancelTasksRequest req = new CancelTasksRequest().setTaskId(new TaskId(client.getLocalNodeId(), task.getId()))
             .setReason("Fatal failure during search: " + errorMsg);
@@ -1466,5 +1708,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
         return iterators;
+    }
+
+    record OriginalIndicesAndSearchContextId(OriginalIndices localOriginalIndices, Map<String, OriginalIndices> remoteClusterIndices,
+        SearchContextId searchContextId) {
+
     }
 }

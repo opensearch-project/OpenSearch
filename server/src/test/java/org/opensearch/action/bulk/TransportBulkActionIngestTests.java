@@ -224,7 +224,8 @@ public class TransportBulkActionIngestTests extends OpenSearchSingleNodeTestCase
                 TransportBulkActionIngestTests.this.transportService,
                 new ActionFilters(Collections.emptySet()),
                 IndexRequest::new,
-                bulkAction
+                bulkAction,
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
             );
         }
     }

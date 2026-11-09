@@ -193,6 +193,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false,
             false,
             false,
+            false, // fileCacheDetailed
+            false,
+            false,
             false,
             false,
             false,
@@ -225,15 +228,14 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                             pollingIngestStats = null;
                         }
                         shardsStats.add(
-                            new ShardStats(
-                                indexShard.routingEntry(),
-                                indexShard.shardPath(),
-                                new CommonStats(indicesService.getIndicesQueryCache(), indexShard, commonStatsFlags),
-                                commitStats,
-                                seqNoStats,
-                                retentionLeaseStats,
-                                pollingIngestStats
-                            )
+                            new ShardStats.Builder().shardRouting(indexShard.routingEntry())
+                                .shardPath(indexShard.shardPath())
+                                .commonStats(new CommonStats(indicesService.getIndicesQueryCache(), indexShard, commonStatsFlags))
+                                .commitStats(commitStats)
+                                .seqNoStats(seqNoStats)
+                                .retentionLeaseStats(retentionLeaseStats)
+                                .pollingIngestStats(pollingIngestStats)
+                                .build()
                         );
                     }
                 }
@@ -257,6 +259,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     /**
      * A metric is required when: all cluster stats are required (OR) if the metric is requested
+     *
      * @param metric
      * @param clusterStatsRequest
      * @return

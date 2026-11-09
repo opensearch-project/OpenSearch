@@ -1,0 +1,1 @@
+source=test_data | eval reversed = reverse(text) | fields text, reversed | head 3

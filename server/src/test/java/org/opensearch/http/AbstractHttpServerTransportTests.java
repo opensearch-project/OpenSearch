@@ -41,14 +41,12 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.tasks.Task;
@@ -71,6 +69,7 @@ import java.util.List;
 
 import static java.net.InetAddress.getByName;
 import static java.util.Arrays.asList;
+import static org.opensearch.http.TestDispatcherBuilder.dispatcherBuilderWithDefaults;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
@@ -142,21 +141,15 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testDispatchDoesNotModifyThreadContext() {
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-
-            @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+        HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
+            (request, channel, threadContext) -> {
                 threadContext.putHeader("foo", "bar");
                 threadContext.putTransient("bar", "baz");
             }
-
-            @Override
-            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-                threadContext.putHeader("foo_bad", "bar");
-                threadContext.putTransient("bar_bad", "baz");
-            }
-
-        };
+        ).withDispatchBadRequest((channel, threadContext, cause) -> {
+            threadContext.putHeader("foo_bad", "bar");
+            threadContext.putTransient("bar_bad", "baz");
+        }).build();
 
         try (
             AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
@@ -221,17 +214,11 @@ public class AbstractHttpServerTransportTests extends OpenSearchTestCase {
                 bigArrays,
                 threadPool,
                 xContentRegistry(),
-                new HttpServerTransport.Dispatcher() {
-                    @Override
-                    public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-                        channel.sendResponse(emptyResponse(RestStatus.OK));
-                    }
-
-                    @Override
-                    public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
-                        channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
-                    }
-                },
+                dispatcherBuilderWithDefaults().withDispatchRequest(
+                    (request, channel, threadContext) -> channel.sendResponse(emptyResponse(RestStatus.OK))
+                )
+                    .withDispatchBadRequest((channel, threadContext, cause) -> channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST)))
+                    .build(),
                 clusterSettings,
                 NoopTracer.INSTANCE
             ) {

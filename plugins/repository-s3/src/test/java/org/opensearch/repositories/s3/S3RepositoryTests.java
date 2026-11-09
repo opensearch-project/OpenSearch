@@ -33,8 +33,10 @@
 package org.opensearch.repositories.s3;
 
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -42,6 +44,9 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
+import org.opensearch.plugins.NativeStoreHandle;
+import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
@@ -51,6 +56,7 @@ import org.hamcrest.Matchers;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -155,6 +161,93 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
             assertTrue(restrictedSettings.contains(S3Repository.BUCKET_SETTING));
             assertTrue(restrictedSettings.contains(S3Repository.BASE_PATH_SETTING));
         }
+    }
+
+    public void testValidateHttpLClientType_Valid_Values() {
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY);
+        try (S3Repository s3Repo = createS3Repo(metadata)) {
+            // Don't expect any Exception
+            s3Repo.validateHttpClientType(S3Repository.CRT_ASYNC_HTTP_CLIENT_TYPE);
+            s3Repo.validateHttpClientType(S3Repository.NETTY_ASYNC_HTTP_CLIENT_TYPE);
+        }
+    }
+
+    public void testValidateHttpLClientType_Invalid_Values() {
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY);
+        try (S3Repository s3Repo = createS3Repo(metadata)) {
+            // Don't expect any Exception
+            assertThrows(BlobStoreException.class, () -> s3Repo.validateHttpClientType(randomAlphaOfLength(4)));
+        }
+    }
+
+    public void testIsSeverSideEncryptionEnabled_When_AWSKMS_Type() {
+        Settings settings = Settings.builder()
+            .put(S3Repository.SERVER_SIDE_ENCRYPTION_TYPE_SETTING.getKey(), ServerSideEncryption.AWS_KMS.toString())
+            .build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", settings);
+        try (S3Repository s3Repo = createS3Repo(metadata)) {
+
+            // Don't expect any Exception
+            assertTrue(s3Repo.isSeverSideEncryptionEnabled());
+        }
+    }
+
+    public void testLiveNativeStoreIsAssignedDuringConstruction() {
+        AtomicBoolean destroyed = new AtomicBoolean(false);
+        NativeStoreHandle liveHandle = new NativeStoreHandle(99L, ptr -> destroyed.set(true));
+        NativeStoreRepository liveStore = new NativeStoreRepository(liveHandle);
+
+        NativeRemoteObjectStoreProvider provider = new NativeRemoteObjectStoreProvider() {
+            @Override
+            public String repositoryType() {
+                return "s3";
+            }
+
+            @Override
+            public NativeStoreRepository createNativeStore(RepositoryMetadata md, Settings nodeSettings) {
+                return liveStore;
+            }
+        };
+
+        try (S3Repository repository = createS3RepoWithNativeProvider(provider)) {
+            assertFalse("Live store should not have been destroyed", destroyed.get());
+            assertSame(liveStore, repository.getNativeStore());
+            assertTrue(repository.getNativeStore().isLive());
+        }
+        assertTrue("Native handle should be destroyed after repository close", destroyed.get());
+    }
+
+    public void testNullNativeProviderKeepsEmptyStore() {
+        try (S3Repository repository = createS3RepoWithNativeProvider(null)) {
+            assertSame(NativeStoreRepository.EMPTY, repository.getNativeStore());
+        }
+    }
+
+    private S3Repository createS3RepoWithNativeProvider(NativeRemoteObjectStoreProvider nativeProvider) {
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY);
+        return new S3Repository(
+            metadata,
+            NamedXContentRegistry.EMPTY,
+            new DummyS3Service(configPath()),
+            BlobStoreTestUtil.mockClusterService(),
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            null,
+            null,
+            null,
+            null,
+            null,
+            false,
+            null,
+            null,
+            null,
+            null,
+            nativeProvider
+        ) {
+            @Override
+            protected void assertSnapshotOrGenericThread() {
+                // eliminate thread name check as we create repo manually on test/main threads
+            }
+        };
     }
 
     private S3Repository createS3Repo(RepositoryMetadata metadata) {

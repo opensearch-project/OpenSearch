@@ -106,9 +106,9 @@ class CompletionStatsCache implements ReferenceManager.RefreshListener {
                     LeafReader atomicReader = atomicReaderContext.reader();
                     for (FieldInfo info : atomicReader.getFieldInfos()) {
                         Terms terms = atomicReader.terms(info.name);
-                        if (terms instanceof CompletionTerms) {
+                        if (terms instanceof CompletionTerms completionTerms) {
                             // TODO: currently we load up the suggester for reporting its size
-                            final long fstSize = ((CompletionTerms) terms).suggester().ramBytesUsed();
+                            final long fstSize = completionTerms.suggester().ramBytesUsed();
                             completionFields.merge(info.name, fstSize, Long::sum);
                             sizeInBytes += fstSize;
                         }
@@ -116,7 +116,7 @@ class CompletionStatsCache implements ReferenceManager.RefreshListener {
                 }
             }
 
-            return new CompletionStats(sizeInBytes, new FieldMemoryStats(completionFields));
+            return new CompletionStats.Builder().sizeInBytes(sizeInBytes).fieldMemoryStats(new FieldMemoryStats(completionFields)).build();
         });
 
         boolean success = false;
@@ -153,7 +153,7 @@ class CompletionStatsCache implements ReferenceManager.RefreshListener {
         } else {
             fieldMemoryStats = null;
         }
-        return new CompletionStats(fullCompletionStats.getSizeInBytes(), fieldMemoryStats);
+        return new CompletionStats.Builder().sizeInBytes(fullCompletionStats.getSizeInBytes()).fieldMemoryStats(fieldMemoryStats).build();
     }
 
     @Override

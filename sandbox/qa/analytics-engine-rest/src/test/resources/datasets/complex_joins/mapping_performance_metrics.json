@@ -1,0 +1,31 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "@timestamp": {
+        "type": "date"
+      },
+      "cpu_usage": {
+        "type": "long"
+      },
+      "memory_usage": {
+        "type": "long"
+      },
+      "disk_io": {
+        "type": "keyword"
+      },
+      "network_io": {
+        "type": "keyword"
+      },
+      "host": {
+        "type": "keyword"
+      },
+      "region": {
+        "type": "keyword"
+      }
+    }
+  }
+}

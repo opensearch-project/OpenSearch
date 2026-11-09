@@ -32,11 +32,11 @@
 
 package org.opensearch.core.xcontent.filtering;
 
-import com.fasterxml.jackson.core.filter.TokenFilter;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+
+import tools.jackson.core.filter.TokenFilter;
 
 /**
  * Concrete filter for a content path

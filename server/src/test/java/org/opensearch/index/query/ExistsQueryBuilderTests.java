@@ -87,12 +87,20 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
         } else {
             fieldPattern = randomAlphaOfLengthBetween(1, 10);
         }
+
+        // Avoid patterns that would match the derived field "raw.derived_keyword"
+        // which doesn't support exists queries
+        if (fieldPattern.startsWith("raw")) {
+            fieldPattern = TEXT_FIELD_NAME;
+        }
+
         // also sometimes test wildcard patterns
         if (randomBoolean()) {
-            if (randomBoolean()) {
+            if (randomBoolean() && !fieldPattern.equals("r") && !fieldPattern.equals("ra")) {
                 fieldPattern = fieldPattern + "*";
             }
         }
+
         return new ExistsQueryBuilder(fieldPattern);
     }
 
@@ -164,7 +172,13 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n" + "  \"exists\" : {\n" + "    \"field\" : \"user\",\n" + "    \"boost\" : 42.0\n" + "  }\n" + "}";
+        String json = """
+            {
+              "exists" : {
+                "field" : "user",
+                "boost" : 42.0
+              }
+            }""";
 
         ExistsQueryBuilder parsed = (ExistsQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

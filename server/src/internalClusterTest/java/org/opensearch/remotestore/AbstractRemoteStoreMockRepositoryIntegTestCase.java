@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_MODE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -55,6 +56,12 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
     }
+
+    /**
+     * Whether the nodes run in {@code segments_only} mode, which configures a segment repository and deliberately no
+     * translog repository. Set before {@link #setup} so that the node attributes are built for it.
+     */
+    protected boolean segmentsOnly = false;
 
     public Settings buildRemoteStoreNodeAttributes(Path repoLocation, double ioFailureRate, String skipExceptionBlobList, long maxFailure) {
         String segmentRepoTypeAttributeKey = String.format(
@@ -88,7 +95,7 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
             REPOSITORY_NAME
         );
 
-        return Settings.builder()
+        Settings.Builder attributes = Settings.builder()
             .put("node.attr." + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, REPOSITORY_NAME)
             .put(segmentRepoTypeAttributeKey, "mock")
             .put(segmentRepoSettingsAttributeKeyPrefix + "location", repoLocation)
@@ -96,8 +103,13 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
             .put(segmentRepoSettingsAttributeKeyPrefix + "skip_exception_on_verification_file", true)
             .put(segmentRepoSettingsAttributeKeyPrefix + "skip_exception_on_list_blobs", true)
             .put(segmentRepoSettingsAttributeKeyPrefix + "skip_exception_on_blobs", skipExceptionBlobList)
-            .put(segmentRepoSettingsAttributeKeyPrefix + "max_failure_number", maxFailure)
-            .put("node.attr." + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, TRANSLOG_REPOSITORY_NAME)
+            .put(segmentRepoSettingsAttributeKeyPrefix + "max_failure_number", maxFailure);
+
+        if (segmentsOnly) {
+            return attributes.put("node.attr." + REMOTE_STORE_MODE_KEY, "segments_only").build();
+        }
+
+        return attributes.put("node.attr." + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, TRANSLOG_REPOSITORY_NAME)
             .put(translogRepoTypeAttributeKey, "mock")
             .put(translogRepoSettingsAttributeKeyPrefix + "location", repoLocation)
             .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, REPOSITORY_NAME)
@@ -109,6 +121,9 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
     protected void cleanupRepo() {
         logger.info("--> Cleanup the repository={}", REPOSITORY_NAME);
         clusterAdmin().prepareCleanupRepository(REPOSITORY_NAME).execute().actionGet();
+        if (segmentsOnly) {
+            return;
+        }
         logger.info("--> Cleanup the repository={}", TRANSLOG_REPOSITORY_NAME);
         clusterAdmin().prepareCleanupRepository(TRANSLOG_REPOSITORY_NAME).execute().actionGet();
     }

@@ -123,8 +123,13 @@ public class CollectionUtils {
 
         do {
             T old = oldArray.next(); // get the next item and advance iter
-            if (comparator.compare(cmp, old) != 0 && (cmp = deduped.next()) != old) {
-                deduped.set(old);
+            if (comparator.compare(cmp, old) != 0) {
+                // a new unique value: advance the write cursor and only copy when it isn't already in place
+                if (deduped.next() != old) {
+                    deduped.set(old);
+                }
+                // remember the value we just retained, not the (possibly stale) value under the write cursor
+                cmp = old;
             }
         } while (oldArray.hasNext());
         // in place update
@@ -163,19 +168,12 @@ public class CollectionUtils {
      */
     @SuppressWarnings("unchecked")
     private static Iterable<?> convert(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Map) {
-            Map<?, ?> map = (Map<?, ?>) value;
-            return () -> Iterators.concat(map.keySet().iterator(), map.values().iterator());
-        } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
-            return (Iterable<?>) value;
-        } else if (value instanceof Object[]) {
-            return Arrays.asList((Object[]) value);
-        } else {
-            return null;
-        }
+        return switch (value) {
+            case Map<?, ?> map -> () -> Iterators.concat(map.keySet().iterator(), map.values().iterator());
+            case Iterable<?> iterable when value instanceof Path == false -> iterable;
+            case Object[] objects -> Arrays.asList(objects);
+            case null, default -> null;
+        };
     }
 
     private static void ensureNoSelfReferences(

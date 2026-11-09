@@ -136,7 +136,7 @@ public class IngestStatsTests extends OpenSearchTestCase {
     private void assertStats(OperationStats fromObject, OperationStats fromStream) {
         assertEquals(fromObject.getCount(), fromStream.getCount());
         assertEquals(fromObject.getFailedCount(), fromStream.getFailedCount());
-        assertEquals(fromObject.getTotalTimeInMillis(), fromStream.getTotalTimeInMillis());
+        assertEquals(fromObject.getTotalTime(), fromStream.getTotalTime());
         assertEquals(fromObject.getCurrent(), fromStream.getCurrent());
     }
 

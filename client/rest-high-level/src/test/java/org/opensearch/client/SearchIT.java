@@ -84,6 +84,9 @@ import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.opensearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.opensearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
+import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.opensearch.search.aggregations.bucket.histogram.ParsedDateHistogram;
 import org.opensearch.search.aggregations.bucket.range.Range;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationBuilder;
@@ -235,6 +238,32 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
                     + "}"
             );
             client().performRequest(createFilteredAlias);
+        }
+
+        {
+            Request create = new Request(HttpPut.METHOD_NAME, "/index5");
+            create.setJsonEntity(
+                "{"
+                    + "  \"mappings\": {"
+                    + "    \"properties\": {"
+                    + "      \"date_created\": {"
+                    + "        \"type\":  \"date\""
+                    + "      },"
+                    + "      \"distribution\": {"
+                    + "        \"properties\": {"
+                    + "          \"number_events\": {"
+                    + "            \"type\":  \"unsigned_long\""
+                    + "          }"
+                    + "        }"
+                    + "      }"
+                    + "    }"
+                    + "  }"
+                    + "}"
+            );
+            client().performRequest(create);
+            Request doc1 = new Request(HttpPut.METHOD_NAME, "/index5/_doc/1");
+            doc1.setJsonEntity("{\"date_created\":\"2024\", \"distribution\":{\"number_events\": 1000000}}");
+            client().performRequest(doc1);
         }
 
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
@@ -511,6 +540,38 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
                 assertEquals("second", bucket.getKeyAsString());
                 assertEquals(2, bucket.getDocCount());
             }
+        }
+    }
+
+    public void testSearchWithDateAndRangeAgg() throws IOException {
+        SearchRequest searchRequest = new SearchRequest("index5");
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        DateHistogramAggregationBuilder yearAgg = new DateHistogramAggregationBuilder("year").field("date_created")
+            .calendarInterval(DateHistogramInterval.YEAR)
+            .format("yyyy");
+
+        RangeAggregationBuilder rangeAgg = new RangeAggregationBuilder("number_events").field("distribution.number_events")
+            .addRange("0--999", 0.0, 1000.0)
+            .addRange("999--", 1000.0, 10_000_000_000_00L);
+        searchSourceBuilder.aggregation(yearAgg).aggregation(rangeAgg);
+        searchSourceBuilder.size(0);
+        searchRequest.source(searchSourceBuilder);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        assertSearchHeader(searchResponse);
+        ParsedDateHistogram yearHistogram = searchResponse.getAggregations().get("year");
+        assertEquals(1, yearHistogram.getBuckets().size());
+        assertEquals("2024", yearHistogram.getBuckets().get(0).getKeyAsString());
+        Range rangeAggregation = searchResponse.getAggregations().get("number_events");
+        assertEquals(2, rangeAggregation.getBuckets().size());
+        {
+            Range.Bucket bucket = rangeAggregation.getBuckets().get(0);
+            assertEquals("0--999", bucket.getKeyAsString());
+            assertEquals(0, bucket.getDocCount());
+        }
+        {
+            Range.Bucket bucket = rangeAggregation.getBuckets().get(1);
+            assertEquals("999--", bucket.getKeyAsString());
+            assertEquals(1, bucket.getDocCount());
         }
     }
 
@@ -1786,7 +1847,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         CountRequest countRequest = new CountRequest();
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
-        assertEquals(12, countResponse.getCount());
+        assertEquals(13, countResponse.getCount());
     }
 
     public void testCountOneIndexMatchQuery() throws IOException {

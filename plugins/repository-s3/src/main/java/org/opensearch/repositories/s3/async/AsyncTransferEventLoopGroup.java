@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.repositories.s3.SocketAccess;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.Closeable;
 import java.util.concurrent.TimeUnit;
@@ -40,7 +40,7 @@ public class AsyncTransferEventLoopGroup implements Closeable {
     public AsyncTransferEventLoopGroup(int eventLoopThreads) {
         // Epoll event loop incurs less GC and provides better performance than Nio loop. Therefore,
         // using epoll wherever available is preferred.
-        this.eventLoopGroup = SocketAccess.doPrivileged(
+        this.eventLoopGroup = AccessController.doPrivileged(
             () -> Epoll.isAvailable()
                 ? new EpollEventLoopGroup(eventLoopThreads, OpenSearchExecutors.daemonThreadFactory(THREAD_PREFIX))
                 : new NioEventLoopGroup(eventLoopThreads, OpenSearchExecutors.daemonThreadFactory(THREAD_PREFIX))

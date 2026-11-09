@@ -57,6 +57,7 @@ import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.get.GetStats;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergedSegmentWarmerStats;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.shard.IndexingStats;
@@ -274,6 +275,39 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("merges.total_size", "alias:mts,mergesTotalSize;default:false;text-align:right;desc:size merged");
         table.addCell("merges.total_time", "alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges");
 
+        table.addCell(
+            "merges.warmer.total_invocations",
+            "alias:mswti,mergedSegmentWarmerTotalInvocations;default:false;text-align:right;desc:total invocations of merged segment warmer"
+        );
+        table.addCell(
+            "merges.warmer.total_time",
+            "alias:mswtt,mergedSegmentWarmerTotalTime;default:false;text-align:right;desc:total wallclock time spent in the warming operation"
+        );
+        table.addCell(
+            "merges.warmer.ongoing_count",
+            "alias:mswoc,mergedSegmentWarmerOngoingCount;default:false;text-align:right;desc:point-in-time metric for number of in-progress warm operations"
+        );
+        table.addCell(
+            "merges.warmer.total_bytes_received",
+            "alias:mswtbr,mergedSegmentWarmerTotalBytesReceived;default:false;text-align:right;desc:total bytes received by a replica shard during the warm operation"
+        );
+        table.addCell(
+            "merges.warmer.total_bytes_sent",
+            "alias:mswtbs,mergedSegmentWarmerTotalBytesSent;default:false;text-align:right;desc:total bytes sent by a primary shard during the warm operation"
+        );
+        table.addCell(
+            "merges.warmer.total_receive_time",
+            "alias:mswtrt,mergedSegmentWarmerTotalReceiveTime;default:false;text-align:right;desc:total wallclock time spent receiving merged segments by a replica shard"
+        );
+        table.addCell(
+            "merges.warmer.total_failure_count",
+            "alias:mswtfc,mergedSegmentWarmerTotalFailureCount;default:false;text-align:right;desc:total failures in merged segment warmer"
+        );
+        table.addCell(
+            "merges.warmer.total_send_time",
+            "alias:mswtst,mergedSegmentWarmerTotalSendTime;default:false;text-align:right;desc:total wallclock time spent sending merged segments by a primary shard"
+        );
+
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
         table.addCell("refresh.external_total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total external refreshes");
@@ -304,6 +338,10 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("search.query_current", "alias:sqc,searchQueryCurrent;default:false;text-align:right;desc:current query phase ops");
         table.addCell("search.query_time", "alias:sqti,searchQueryTime;default:false;text-align:right;desc:time spent in query phase");
         table.addCell("search.query_total", "alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops");
+        table.addCell(
+            "search.query_failed",
+            "alias:sqf,searchQueryFailed;default:false;text-align:right;desc:total failed query phase ops"
+        );
         table.addCell(
             "search.concurrent_query_current",
             "alias:scqc,searchConcurrentQueryCurrent;default:false;text-align:right;desc:current concurrent query phase ops"
@@ -338,6 +376,24 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell(
             "search.point_in_time_total",
             "alias:scto,searchPointInTimeTotal;default:false;text-align:right;desc:completed point in time contexts"
+        );
+
+        table.addCell(
+            "search.startree_query_current",
+            "alias:stqc,startreeQueryCurrent;default:false;text-align:right;desc:current star tree query ops"
+        );
+
+        table.addCell(
+            "search.startree_query_time",
+            "alias:stqti,startreeQueryTime;default:false;text-align:right;desc:time spent in star tree queries"
+        );
+        table.addCell(
+            "search.startree_query_total",
+            "alias:stqto,startreeQueryTotal;default:false;text-align:right;desc:total star tree resolved queries"
+        );
+        table.addCell(
+            "search.startree_query_failed",
+            "alias:stqf,startreeQueryFailed;default:false;text-align:right;desc:star tree failed query ops"
         );
 
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
@@ -526,6 +582,16 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(mergeStats == null ? null : mergeStats.getTotalSize());
             table.addCell(mergeStats == null ? null : mergeStats.getTotalTime());
 
+            MergedSegmentWarmerStats mergedSegmentWarmerStats = mergeStats == null ? null : mergeStats.getWarmerStats();
+            table.addCell(mergedSegmentWarmerStats == null ? null : mergedSegmentWarmerStats.getTotalInvocationsCount());
+            table.addCell(mergedSegmentWarmerStats == null ? null : mergedSegmentWarmerStats.getTotalTime());
+            table.addCell(mergedSegmentWarmerStats == null ? null : mergedSegmentWarmerStats.getOngoingCount());
+            table.addCell(mergedSegmentWarmerStats == null ? null : mergedSegmentWarmerStats.getTotalReceivedSize());
+            table.addCell(mergedSegmentWarmerStats == null ? null : mergedSegmentWarmerStats.getTotalSentSize());
+            table.addCell(mergedSegmentWarmerStats == null ? null : mergedSegmentWarmerStats.getTotalReceiveTime());
+            table.addCell(mergedSegmentWarmerStats == null ? null : mergedSegmentWarmerStats.getTotalFailureCount());
+            table.addCell(mergedSegmentWarmerStats == null ? null : mergedSegmentWarmerStats.getTotalSendTime());
+
             RefreshStats refreshStats = indicesStats == null ? null : indicesStats.getRefresh();
             table.addCell(refreshStats == null ? null : refreshStats.getTotal());
             table.addCell(refreshStats == null ? null : refreshStats.getTotalTime());
@@ -546,6 +612,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryCount());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryFailedCount());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getConcurrentQueryCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getConcurrentQueryTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getConcurrentQueryCount());
@@ -556,6 +623,10 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(searchStats == null ? null : searchStats.getTotal().getPitCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getPitTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getPitCount());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getStarTreeQueryCurrent());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getStarTreeQueryTime());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getStarTreeQueryCount());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getStarTreeQueryFailed());
 
             SegmentsStats segmentsStats = indicesStats == null ? null : indicesStats.getSegments();
             table.addCell(segmentsStats == null ? null : segmentsStats.getCount());

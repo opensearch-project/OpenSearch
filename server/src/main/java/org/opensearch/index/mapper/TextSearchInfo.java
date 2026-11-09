@@ -144,6 +144,10 @@ public class TextSearchInfo {
         return luceneFieldType.tokenized();
     }
 
+    public FieldType getLuceneFieldType() {
+        return luceneFieldType;
+    }
+
     /**
      * What sort of term vectors are available
      *

@@ -34,8 +34,10 @@ package org.opensearch.action.admin.indices.mapping.get;
 
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
@@ -55,7 +57,9 @@ import static java.util.Collections.unmodifiableMap;
  *
  * @opensearch.internal
  */
-public class TransportGetFieldMappingsAction extends HandledTransportAction<GetFieldMappingsRequest, GetFieldMappingsResponse> {
+public class TransportGetFieldMappingsAction extends HandledTransportAction<GetFieldMappingsRequest, GetFieldMappingsResponse>
+    implements
+        TransportIndicesResolvingAction<GetFieldMappingsRequest> {
 
     private final ClusterService clusterService;
     private final TransportGetFieldMappingsIndexAction shardAction;
@@ -78,7 +82,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     @Override
     protected void doExecute(Task task, GetFieldMappingsRequest request, final ActionListener<GetFieldMappingsResponse> listener) {
         ClusterState clusterState = clusterService.state();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+        String[] concreteIndices = resolveIndices(request, clusterState).namesOfConcreteIndicesAsArray();
         final AtomicInteger indexCounter = new AtomicInteger();
         final AtomicInteger completionCounter = new AtomicInteger(concreteIndices.length);
         final AtomicReferenceArray<Object> indexResponses = new AtomicReferenceArray<>(concreteIndices.length);
@@ -108,6 +112,15 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
                 });
             }
         }
+    }
+
+    private ResolvedIndices.Local.Concrete resolveIndices(GetFieldMappingsRequest request, ClusterState clusterState) {
+        return indexNameExpressionResolver.concreteResolvedIndices(clusterState, request);
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(GetFieldMappingsRequest request) {
+        return ResolvedIndices.of(resolveIndices(request, clusterService.state()));
     }
 
     private GetFieldMappingsResponse merge(AtomicReferenceArray<Object> indexResponses) {

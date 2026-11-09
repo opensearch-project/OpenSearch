@@ -78,6 +78,40 @@ public class FullFileCachedIndexInputTests extends FileCachedIndexInputTests {
         assertFalse(isActiveAndTotalUsageSame());
     }
 
+    public void testClose() throws IOException {
+        setupIndexInputAndAddToFileCache();
+
+        // Since the file is already in cache and has refCount 1, activeUsage and totalUsage will be same
+        assertTrue(isActiveAndTotalUsageSame());
+
+        fileCache.decRef(filePath);
+
+        // 3 Clones
+        FullFileCachedIndexInput indexInputClone1 = fullFileCachedIndexInput.clone();
+        FullFileCachedIndexInput indexInputClone2 = fullFileCachedIndexInput.clone();
+        FullFileCachedIndexInput indexInputClone3 = fullFileCachedIndexInput.clone();
+
+        assertEquals((int) fileCache.getRef(filePath), 3);
+        // Close Clone1, refCount -1
+        indexInputClone1.close();
+        assertEquals((int) fileCache.getRef(filePath), 2);
+        // Mock GC resource cleaning, but the deRef function will not be called again.
+        indexInputClone1.indexInputHolderRun();
+        assertEquals((int) fileCache.getRef(filePath), 2);
+
+        // Mock GC resource cleaning, refCount -1
+        indexInputClone2.indexInputHolderRun();
+        assertEquals((int) fileCache.getRef(filePath), 1);
+        // Close Clone2, but the deRef function will not be called again.
+        indexInputClone2.close();
+        assertEquals((int) fileCache.getRef(filePath), 1);
+
+        indexInputClone3.close();
+        assertEquals((int) fileCache.getRef(filePath), 0);
+        indexInputClone3.indexInputHolderRun();
+        assertEquals((int) fileCache.getRef(filePath), 0);
+    }
+
     private void triggerGarbageCollectionAndAssertClonesClosed() {
         try {
             // Clones/Slices will be phantom reachable now, triggering gc should call close on them

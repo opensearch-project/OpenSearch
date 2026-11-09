@@ -51,6 +51,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING;
 
 /**
  * This {@link AllocationDecider} controls shard allocation based on
@@ -161,6 +162,9 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         }
 
         IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+        if (INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(indexMetadata.getSettings()).autoExpandToAll()) {
+            return allocation.decision(Decision.YES, NAME, "allocation awareness is ignored, this index is set to auto-expand to all");
+        }
         int shardCount = shardRouting.isSearchOnly()
             ? indexMetadata.getNumberOfSearchOnlyReplicas()
             : indexMetadata.getNumberOfReplicas() + 1; // 1 for primary
@@ -190,6 +194,13 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 numberOfAttributes = attributesSet.size();
             }
 
+            if (numberOfAttributes == 0) {
+                // Reachable only when every node carrying this attribute is excluded. There is nothing left to
+                // balance across, so do not veto here; FilterAllocationDecider still prevents allocation onto the
+                // excluded nodes themselves.
+                continue;
+            }
+
             // TODO should we remove ones that are not part of full list?
             final int maximumNodeCount = (shardCount + numberOfAttributes - 1) / numberOfAttributes; // ceil(shardCount/numberOfAttributes)
             if (currentNodeCount > maximumNodeCount) {
@@ -212,8 +223,9 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     }
 
     private Set<String> getAttributeValues(ShardRouting shardRouting, RoutingAllocation allocation, String awarenessAttribute) {
-        return allocation.routingNodes()
-            .nodesPerAttributesCounts(awarenessAttribute, routingNode -> routingNode.node().isSearchNode() == shardRouting.isSearchOnly());
+        // Exclusion-aware values, memoized for the lifetime of this allocation round. See
+        // AwarenessAttributeValues for why the memo is scoped to the round and needs no invalidation.
+        return allocation.awarenessAttributeValues(awarenessAttribute, shardRouting.isSearchOnly());
     }
 
     private int getCurrentNodeCountForAttribute(

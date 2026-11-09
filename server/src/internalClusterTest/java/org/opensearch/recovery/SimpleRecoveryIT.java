@@ -110,7 +110,6 @@ public class SimpleRecoveryIT extends ParameterizedStaticSettingsOpenSearchInteg
 
         // now start another one so we move some primaries
         allowNodes("test", 3);
-        Thread.sleep(200);
         logger.info("Running Cluster Health");
         ensureGreen();
 

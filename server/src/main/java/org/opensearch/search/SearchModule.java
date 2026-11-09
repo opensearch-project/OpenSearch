@@ -47,6 +47,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.BoostingQueryBuilder;
+import org.opensearch.index.query.CombinedFieldsQueryBuilder;
 import org.opensearch.index.query.CommonTermsQueryBuilder;
 import org.opensearch.index.query.ConstantScoreQueryBuilder;
 import org.opensearch.index.query.DisMaxQueryBuilder;
@@ -203,6 +204,7 @@ import org.opensearch.search.aggregations.metrics.InternalWeightedAvg;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.MultiValueDocCountAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
@@ -267,6 +269,7 @@ import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.GeoDistanceSortBuilder;
 import org.opensearch.search.sort.ScoreSortBuilder;
 import org.opensearch.search.sort.ScriptSortBuilder;
+import org.opensearch.search.sort.ShardDocSortBuilder;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortValue;
 import org.opensearch.search.suggest.Suggest;
@@ -322,6 +325,8 @@ public class SearchModule {
 
     private final Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories;
 
+    private final List<SearchPlugin.ProfileMetricsProvider> pluginProfilerProviders;
+
     /**
      * Constructs a new SearchModule object
      * <p>
@@ -352,6 +357,7 @@ public class SearchModule {
         namedWriteables.addAll(SortValue.namedWriteables());
         concurrentSearchDeciderFactories = registerConcurrentSearchDeciderFactories(plugins);
         registerQueryCollectorContextSpec(plugins);
+        pluginProfilerProviders = registerProfilerProviders(plugins);
     }
 
     private Collection<ConcurrentSearchRequestDecider.Factory> registerConcurrentSearchDeciderFactories(List<SearchPlugin> plugins) {
@@ -672,6 +678,14 @@ public class SearchModule {
             new AggregationSpec(MultiTermsAggregationBuilder.NAME, MultiTermsAggregationBuilder::new, MultiTermsAggregationBuilder.PARSER)
                 .addResultReader(InternalMultiTerms::new)
                 .setAggregatorRegistrar(MultiTermsAggregationFactory::registerAggregators),
+            builder
+        );
+        registerAggregation(
+            new AggregationSpec(
+                MultiValueDocCountAggregationBuilder.NAME,
+                MultiValueDocCountAggregationBuilder::new,
+                MultiValueDocCountAggregationBuilder.PARSER
+            ).addResultReader(InternalValueCount::new).setAggregatorRegistrar(MultiValueDocCountAggregationBuilder::registerAggregators),
             builder
         );
         registerFromPlugin(plugins, SearchPlugin::getAggregations, (agg) -> this.registerAggregation(agg, builder));
@@ -1119,6 +1133,9 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(PrefixQueryBuilder.NAME, PrefixQueryBuilder::new, PrefixQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(WildcardQueryBuilder.NAME, WildcardQueryBuilder::new, WildcardQueryBuilder::fromXContent));
         registerQuery(
+            new QuerySpec<>(CombinedFieldsQueryBuilder.NAME, CombinedFieldsQueryBuilder::new, CombinedFieldsQueryBuilder::fromXContent)
+        );
+        registerQuery(
             new QuerySpec<>(ConstantScoreQueryBuilder.NAME, ConstantScoreQueryBuilder::new, ConstantScoreQueryBuilder::fromXContent)
         );
         registerQuery(new QuerySpec<>(SpanTermQueryBuilder.NAME, SpanTermQueryBuilder::new, SpanTermQueryBuilder::fromXContent));
@@ -1195,6 +1212,7 @@ public class SearchModule {
         );
         registerSort(new SortSpec<>(ScoreSortBuilder.NAME, ScoreSortBuilder::new, ScoreSortBuilder::fromXContent));
         registerFromPlugin(plugins, SearchPlugin::getSorts, this::registerSort);
+        registerSort(new SortSpec<>(ShardDocSortBuilder.NAME, ShardDocSortBuilder::new, ShardDocSortBuilder::fromXContent));
     }
 
     private void registerIntervalsSourceProviders() {
@@ -1303,6 +1321,10 @@ public class SearchModule {
         registerFromPlugin(plugins, SearchPlugin::getCollectorContextSpecFactories, QueryCollectorContextSpecRegistry::registerFactory);
     }
 
+    private List<SearchPlugin.ProfileMetricsProvider> registerProfilerProviders(List<SearchPlugin> plugins) {
+        return plugins.stream().map(SearchPlugin::getQueryProfileMetricsProvider).filter(Optional::isPresent).map(Optional::get).toList();
+    }
+
     public FetchPhase getFetchPhase() {
         return new FetchPhase(fetchSubPhases);
     }
@@ -1313,5 +1335,9 @@ public class SearchModule {
 
     public @Nullable ExecutorService getIndexSearcherExecutor(ThreadPool pool) {
         return (indexSearcherExecutorProvider != null) ? indexSearcherExecutorProvider.getExecutor(pool) : null;
+    }
+
+    public List<SearchPlugin.ProfileMetricsProvider> getPluginProfileMetricsProviders() {
+        return pluginProfilerProviders;
     }
 }

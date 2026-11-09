@@ -38,6 +38,7 @@ import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Context;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
@@ -198,6 +199,11 @@ public class GetIndexActionTests extends OpenSearchSingleNodeTestCase {
                 out[x] = new Index(request.indices()[x], "_na_");
             }
             return out;
+        }
+
+        @Override
+        public ResolvedIndices.Local.Concrete concreteResolvedIndices(ClusterState state, IndicesRequest request) {
+            return ResolvedIndices.Local.Concrete.of(concreteIndices(state, request));
         }
     }
 }

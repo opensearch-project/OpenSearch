@@ -47,6 +47,8 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.action.support.replication.ReplicationTask;
@@ -61,10 +63,12 @@ import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
@@ -72,6 +76,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -112,7 +117,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -122,7 +127,9 @@ import java.util.function.LongSupplier;
  *
  * @opensearch.internal
  */
-public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
+public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse>
+    implements
+        TransportIndicesResolvingAction<BulkShardRequest> {
 
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
 
@@ -215,6 +222,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } catch (RuntimeException e) {
             listener.onFailure(e);
         }
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(BulkShardRequest request) {
+        return ResolvedIndices.of(request.index());
     }
 
     /**
@@ -443,6 +455,19 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     public ReplicationMode getReplicationMode(IndexShard indexShard) {
         if (indexShard.indexSettings().isAssignedOnRemoteNode()) {
+            // With remote-store fencing enabled, stale-primary fencing is enforced by a conditional write on the
+            // fence blob during every translog upload (see RemoteStoreFence), so the no-op primary term validation
+            // fanout to replicas is not required and replicas are taken off the write path entirely. With ASYNC
+            // durability the fence is only validated at the upload interval, so the per-op fanout is retained.
+            // Durability is a dynamic index setting, and this decision is not atomic with the ack-time sync: an
+            // operation that reads REQUEST here (dropping the fanout) can be acknowledged after a concurrent flip to
+            // ASYNC skips its sync, leaving that one operation checked against neither witness until the next upload.
+            // That is accepted rather than defended against - flipping to ASYNC is an explicit request for
+            // interval-bounded durability, and every acknowledgement under it carries the same exposure.
+            if (indexShard.indexSettings().isRemoteStoreFencingEnabled()
+                && indexShard.indexSettings().getTranslogDurability() == Translog.Durability.REQUEST) {
+                return ReplicationMode.NO_REPLICATION;
+            }
             return ReplicationMode.PRIMARY_TERM_VALIDATION;
         }
         return super.getReplicationMode(indexShard);
@@ -461,29 +486,89 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     ) {
         new ActionRunnable<PrimaryResult<BulkShardRequest, BulkShardResponse>>(listener) {
 
-            private final Executor executor = threadPool.executor(executorName);
+            private final ExecutorService executor = threadPool.executor(executorName);
 
             private final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
 
             @Override
             protected void doRun() throws Exception {
-                while (context.hasMoreOperationsToExecute()) {
-                    if (executeBulkItemRequest(
-                        context,
-                        updateHelper,
-                        nowInMillisSupplier,
-                        mappingUpdater,
-                        waitForMappingUpdate,
-                        ActionListener.wrap(v -> executor.execute(this), this::onRejection)
-                    ) == false) {
-                        // We are waiting for a mapping update on another thread, that will invoke this action again once its done
-                        // so we just break out here.
-                        return;
+                long startTime = System.nanoTime();
+                // Batch successful primary index operations for eligible remote-backed segment-replication engines. A
+                // realtime GET or the size cap may flush a chunk from another thread while this scope remains open;
+                // updates/deletes flush the current chunk for ordering, and finally always appends and closes it.
+                Engine.TranslogBatch beginResult = primary.beginTranslogBatch();
+                final Engine.TranslogBatch translogBatch = beginResult != null ? beginResult : Engine.NO_OP_TRANSLOG_BATCH;
+                context.setTranslogBatch(translogBatch);
+                Exception bodyFailure = null;
+                try {
+                    while (context.hasMoreOperationsToExecute()) {
+                        final DocWriteRequest<?> current = context.getCurrent();
+                        if (current != null
+                            && (current.opType() == DocWriteRequest.OpType.UPDATE || current.opType() == DocWriteRequest.OpType.DELETE)) {
+                            context.mergeLocationToSync(translogBatch.flush());
+                        }
+                        if (executeBulkItemRequest(
+                            context,
+                            updateHelper,
+                            nowInMillisSupplier,
+                            mappingUpdater,
+                            waitForMappingUpdate,
+                            ActionListener.wrap(v -> executor.execute(this), this::onRejection)
+                        ) == false) {
+                            // We are waiting for a mapping update on another thread, that will invoke this action again
+                            // once its done so we just break out here. executeBulkItemRequest finished the batch before
+                            // requesting the mapping update, so the scope is closed and its location merged before any
+                            // continuation can run; the finally below is then a no-op.
+                            return;
+                        }
+                        assert context.isInitial(); // either completed and moved to next or reset
                     }
-                    assert context.isInitial(); // either completed and moved to next or reset
+                } catch (Exception e) {
+                    bodyFailure = e;
+                    throw e;
+                } finally {
+                    finishTranslogBatch(bodyFailure);
                 }
                 // We're done, there's no more operations to execute so we resolve the wrapped listener
-                finishRequest();
+                long serviceTimeNanos = System.nanoTime() - startTime;
+                if (executor instanceof OpenSearchThreadPoolExecutor) {
+                    finishRequest(serviceTimeNanos, ((OpenSearchThreadPoolExecutor) executor).getQueue().size());
+                } else {
+                    finishRequest(serviceTimeNanos, 0);
+                }
+            }
+
+            /**
+             * Appends the final chunk and detaches the scope, folding the greatest appended location into the
+             * request's sync location. A no-op once the batch has been finished, which {@link #executeBulkItemRequest}
+             * does before requesting a mapping update so the scope never outlives this thread's execution.
+             * <p>
+             * Failure handling mirrors the per-operation path, where a {@code Translog#add} failure propagates out of
+             * {@link #executeBulkItemRequest} and fails the whole shard-bulk request: the translog has recorded its own
+             * tragic event and the sync that would acknowledge any item never runs. If the body already threw, that
+             * exception stays the one the client sees (per-operation, the first failing append is what propagates) and
+             * the finish failure is attached as suppressed; otherwise the finish failure propagates.
+             * <p>
+             * On the common failure path both are the <em>same</em> instance: a failed {@code TranslogBatchScope} stores
+             * the append exception and rethrows it from every later call, so the body's exception (thrown out of
+             * {@code batch.add} or an ordering {@code flush()}) is exactly what {@code finish()} throws again. Attaching
+             * an exception to itself is rejected by the JDK ({@code IllegalArgumentException: Self-suppression not
+             * permitted}), which would replace an {@code AlreadyClosedException} with an exception
+             * {@code TransportActions#isShardNotAvailableException} does not recognise and defeat the coordinator's
+             * retry on the re-promoted primary. The same instance is therefore never attached to itself.
+             */
+            private void finishTranslogBatch(@Nullable Exception bodyFailure) {
+                try {
+                    context.finishTranslogBatch();
+                } catch (RuntimeException finishFailure) {
+                    if (bodyFailure != null) {
+                        if (finishFailure != bodyFailure) {
+                            bodyFailure.addSuppressed(finishFailure);
+                        }
+                        return;
+                    }
+                    throw finishFailure;
+                }
             }
 
             @Override
@@ -509,7 +594,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                 null
                             );
                         }
-                        finishRequest();
+                        finishRequest(-1, -1);
                     }
 
                     @Override
@@ -519,13 +604,33 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 });
             }
 
-            private void finishRequest() {
+            private void finishRequest(long serviceTimeEWMAInNanos, int nodeQueueSize) {
+                // If no actual writes occurred (locationToSync is null), we should not trigger refresh
+                // even if the request has RefreshPolicy.IMMEDIATE
+                final Translog.Location locationToSync = context.getLocationToSync();
+                final BulkShardRequest bulkShardRequest = context.getBulkShardRequest();
+
+                // Create a modified request with NONE refresh policy if no writes occurred
+                final BulkShardRequest requestForResult;
+                if (locationToSync == null && bulkShardRequest.getRefreshPolicy() != WriteRequest.RefreshPolicy.NONE) {
+                    // No actual writes occurred, so we should not refresh
+                    requestForResult = new BulkShardRequest(
+                        bulkShardRequest.shardId(),
+                        WriteRequest.RefreshPolicy.NONE,
+                        bulkShardRequest.items()
+                    );
+                    requestForResult.index(bulkShardRequest.index());
+                    requestForResult.setParentTask(bulkShardRequest.getParentTask());
+                } else {
+                    requestForResult = bulkShardRequest;
+                }
+
                 ActionListener.completeWith(
                     listener,
                     () -> new WritePrimaryResult<>(
-                        context.getBulkShardRequest(),
-                        context.buildShardResponse(),
-                        context.getLocationToSync(),
+                        requestForResult,
+                        context.buildShardResponse(serviceTimeEWMAInNanos, nodeQueueSize),
+                        locationToSync,
                         null,
                         context.getPrimary(),
                         logger
@@ -616,6 +721,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             result = primary.applyDeleteOperationOnPrimary(
                 version,
                 request.id(),
+                request.routing(),
                 request.versionType(),
                 request.ifSeqNo(),
                 request.ifPrimaryTerm()
@@ -625,7 +731,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             result = primary.applyIndexOperationOnPrimary(
                 version,
                 request.versionType(),
-                new SourceToParse(request.index(), request.id(), request.source(), request.getContentType(), request.routing()),
+                new SourceToParse(
+                    request.index(),
+                    request.id(),
+                    request.source(),
+                    request.getContentType(),
+                    request.routing(),
+                    request.extraFieldValues()
+                ),
                 request.ifSeqNo(),
                 request.ifPrimaryTerm(),
                 request.getAutoGeneratedTimestamp(),
@@ -646,6 +759,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);
                 return true;
             }
+
+            // Close this thread's translog batch before the mapping update is requested. Its completion re-executes
+            // the caller on another thread (possibly before this one returns), so the scope must be finished, and any
+            // append failure thrown, here on the owning thread rather than in the caller's finally block.
+            context.finishTranslogBatch();
 
             mappingUpdater.updateMappings(result.getRequiredMappingUpdate(), primary.shardId(), new ActionListener<Void>() {
                 @Override
@@ -823,9 +941,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         Translog.Location location = null;
         for (int i = 0; i < request.items().length; i++) {
             final BulkItemRequest item = request.items()[i];
-            final BulkItemResponse response = item.getPrimaryResponse();
+            final BulkItemResponse response = item.primaryResponse();
             final Engine.Result operationResult;
-            if (item.getPrimaryResponse().isFailed()) {
+            assert response != null;
+            if (response.isFailed()) {
                 if (response.getFailure().getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                     continue; // ignore replication as we didn't generate a sequence number for this request.
                 }
@@ -849,7 +968,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 assert response.getResponse().getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
                 operationResult = performOpOnReplica(response.getResponse(), item.request(), replica);
             }
-            assert operationResult != null : "operation result must never be null when primary response has no failure";
+            assert operationResult != null : "operation result must never be null";
             location = syncOperationResultOrThrow(operationResult, location);
         }
         return location;
@@ -871,7 +990,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     indexRequest.id(),
                     indexRequest.source(),
                     indexRequest.getContentType(),
-                    indexRequest.routing()
+                    indexRequest.routing(),
+                    indexRequest.extraFieldValues()
                 );
                 result = replica.applyIndexOperationOnReplica(
                     primaryResponse.getId(),
@@ -889,7 +1009,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     primaryResponse.getSeqNo(),
                     primaryResponse.getPrimaryTerm(),
                     primaryResponse.getVersion(),
-                    deleteRequest.id()
+                    deleteRequest.id(),
+                    deleteRequest.routing()
                 );
                 break;
             default:
@@ -900,7 +1021,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             // Even though the primary waits on all nodes to ack the mapping changes to the cluster-manager
             // (see MappingUpdatedAction.updateMappingOnClusterManager) we still need to protect against missing mappings
             // and wait for them. The reason is concurrent requests. Request r1 which has new field f triggers a
-            // mapping update. Assume that that update is first applied on the primary, and only later on the replica
+            // mapping update. Assume that the update is first applied on the primary, and only later on the replica
             // (it’s happening concurrently). Request r2, which now arrives on the primary and which also has the new
             // field f might see the updated mapping (on the primary), and will therefore proceed to be replicated
             // to the replica. When it arrives on the replica, there’s no guarantee that the replica has already

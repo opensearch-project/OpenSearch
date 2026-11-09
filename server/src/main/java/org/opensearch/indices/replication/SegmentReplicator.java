@@ -80,6 +80,7 @@ public class SegmentReplicator {
             shard,
             shard.getLatestReplicationCheckpoint(),
             sourceFactory.get().get(shard),
+            false,
             new SegmentReplicationTargetService.SegmentReplicationListener() {
                 @Override
                 public void onReplicationDone(SegmentReplicationState state) {
@@ -105,6 +106,8 @@ public class SegmentReplicator {
      * Start a round of replication and sync to at least the given checkpoint.
      * @param indexShard - {@link IndexShard} replica shard
      * @param checkpoint - {@link ReplicationCheckpoint} checkpoint to sync to
+     * @param source - {@link SegmentReplicationSource} segment replication source
+     * @param isRetry - is it a retry after failure
      * @param listener - {@link ReplicationListener}
      * @return {@link SegmentReplicationTarget} target event orchestrating the event.
      */
@@ -112,9 +115,10 @@ public class SegmentReplicator {
         final IndexShard indexShard,
         final ReplicationCheckpoint checkpoint,
         final SegmentReplicationSource source,
+        final boolean isRetry,
         final SegmentReplicationTargetService.SegmentReplicationListener listener
     ) {
-        final SegmentReplicationTarget target = new SegmentReplicationTarget(indexShard, checkpoint, source, listener);
+        final SegmentReplicationTarget target = new SegmentReplicationTarget(indexShard, checkpoint, source, isRetry, listener);
         startReplication(target, indexShard.getRecoverySettings().activityTimeout());
         return target;
     }
@@ -160,16 +164,20 @@ public class SegmentReplicator {
      */
     public ReplicationStats getSegmentReplicationStats(final ShardId shardId) {
         final ConcurrentNavigableMap<Long, ReplicationCheckpointStats> existingCheckpointStats = replicationCheckpointStats.get(shardId);
-        if (existingCheckpointStats == null || existingCheckpointStats.isEmpty()) {
+        if (existingCheckpointStats == null) {
             return ReplicationStats.empty();
         }
 
         Map.Entry<Long, ReplicationCheckpointStats> lowestEntry = existingCheckpointStats.firstEntry();
         Map.Entry<Long, ReplicationCheckpointStats> highestEntry = existingCheckpointStats.lastEntry();
 
+        if (lowestEntry == null || highestEntry == null) {
+            return ReplicationStats.empty();
+        }
+
         long bytesBehind = highestEntry.getValue().getBytesBehind();
         long replicationLag = bytesBehind > 0L
-            ? Duration.ofNanos(DateUtils.toLong(Instant.now()) - lowestEntry.getValue().getTimestamp()).toMillis()
+            ? Math.max(0L, Duration.ofNanos(DateUtils.toLong(Instant.now()) - lowestEntry.getValue().getTimestamp()).toMillis())
             : 0;
         return new ReplicationStats(bytesBehind, bytesBehind, replicationLag);
     }
@@ -239,11 +247,23 @@ public class SegmentReplicator {
                 if (existingCheckpointStats != null) {
                     existingCheckpointStats.computeIfAbsent(
                         segmentInfosVersion,
-                        k -> new ReplicationCheckpointStats(bytesBehind, latestReceivedCheckPoint.getCreatedTimeStamp())
+                        k -> new ReplicationCheckpointStats(bytesBehind, resolveCheckpointTimestamp(latestReceivedCheckPoint))
                     );
                 }
             }
         }
+    }
+
+    /**
+     * Returns the timestamp, in epoch nanoseconds, from which replication lag is measured for the given checkpoint.
+     * <p>
+     * {@link ReplicationCheckpoint#getCreatedTimeStamp()} is {@code 0} when the checkpoint was serialized by a node older
+     * than {@link org.opensearch.Version#V_3_0_0}, which does not write the field. In that case the current time on this
+     * node is used, so lag is measured from when the checkpoint was received rather than from the Unix epoch.
+     */
+    private static long resolveCheckpointTimestamp(final ReplicationCheckpoint checkpoint) {
+        final long createdTimeStamp = checkpoint.getCreatedTimeStamp();
+        return createdTimeStamp > 0L ? createdTimeStamp : DateUtils.toLong(Instant.now());
     }
 
     private long calculateBytesBehind(final ReplicationCheckpoint latestCheckPoint, final ReplicationCheckpoint replicationCheckpoint) {
@@ -395,6 +415,7 @@ public class SegmentReplicator {
         onGoingMergedSegmentReplications.cancelForShard(shardId, reason);
         replicationCheckpointStats.remove(shardId);
         primaryCheckpoint.remove(shardId);
+        completedReplications.remove(shardId);
     }
 
     SegmentReplicationTarget get(ShardId shardId) {

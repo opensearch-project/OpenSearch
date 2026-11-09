@@ -70,7 +70,7 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
         Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
         assertTrue(reason.isPresent());
         assertEquals(6, reason.get().getCancellationScore());
-        assertEquals("heap usage exceeded [300b >= 150b]", reason.get().getMessage());
+        assertEquals("heap usage exceeded [300b >= 0b]", reason.get().getMessage());
     }
 
     public void testSearchShardTaskEligibleForCancellation() {
@@ -100,7 +100,7 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
         Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
         assertTrue(reason.isPresent());
         assertEquals(4, reason.get().getCancellationScore());
-        assertEquals("heap usage exceeded [200b >= 100b]", reason.get().getMessage());
+        assertEquals("heap usage exceeded [200b >= 0b]", reason.get().getMessage());
     }
 
     public void testNotEligibleForCancellation() {

@@ -33,8 +33,13 @@ package org.opensearch.index;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInvertState;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -43,6 +48,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -84,9 +90,12 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.InternalEngineTests;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexingOperationListener;
@@ -96,9 +105,11 @@ import org.opensearch.index.similarity.NonNegativeScoresSimilarity;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
+import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
+import org.opensearch.indices.ClusterMergeSchedulerConfig;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesQueryCache;
@@ -124,6 +135,7 @@ import org.opensearch.transport.TransportService;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
@@ -131,6 +143,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -141,6 +154,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class IndexModuleTests extends OpenSearchTestCase {
     private Index index;
@@ -168,10 +182,14 @@ public class IndexModuleTests extends OpenSearchTestCase {
     private ScriptService scriptService;
     private ClusterService clusterService;
     private RepositoriesService repositoriesService;
+    private ClusterMergeSchedulerConfig mockClusterMergeSchedulerConfig;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        mockClusterMergeSchedulerConfig = mock(ClusterMergeSchedulerConfig.class);
+        when(mockClusterMergeSchedulerConfig.getClusterMaxMergeCount()).thenReturn(9);
+        when(mockClusterMergeSchedulerConfig.getClusterMaxThreadCount()).thenReturn(4);
         settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -238,7 +256,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
                     threadPool,
                     indexSettings.getRemoteStoreTranslogRepository(),
                     new RemoteTranslogTransferTracker(shardRouting.shardId(), 10),
-                    DefaultRemoteStoreSettings.INSTANCE
+                    DefaultRemoteStoreSettings.INSTANCE,
+                    RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexSettings.getIndexMetadata())
                 );
             }
             return new InternalTranslogFactory();
@@ -256,7 +275,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             null,
             indicesQueryCache,
             mapperRegistry,
-            new IndicesFieldDataCache(settings, listener),
+            new IndicesFieldDataCache(settings, listener, clusterService, threadPool),
+            null,
             writableRegistry(),
             () -> false,
             null,
@@ -269,7 +289,9 @@ public class IndexModuleTests extends OpenSearchTestCase {
             DefaultRemoteStoreSettings.INSTANCE,
             s -> {},
             null,
-            () -> TieredMergePolicyProvider.DEFAULT_MAX_MERGE_AT_ONCE
+            () -> TieredMergePolicyProvider.DEFAULT_MAX_MERGE_AT_ONCE,
+            mockClusterMergeSchedulerConfig,
+            (DataFormatRegistry) null
         );
     }
 
@@ -289,8 +311,149 @@ public class IndexModuleTests extends OpenSearchTestCase {
 
         IndexService indexService = newIndexService(module);
         assertTrue(indexService.getReaderWrapper() instanceof Wrapper);
-        assertSame(indexService.getEngineFactory(), module.getEngineFactory());
+        assertSame(indexService.getIndexerFactory(), module.getIndexerFactory());
         indexService.close("simon says", false);
+    }
+
+    public void testSetReaderWrapperStaysOutermost() throws IOException {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        module.addReaderWrapper(s -> r -> new TaggedWrapperReader(r, "inner"));
+        module.setReaderWrapper(s -> r -> new TaggedWrapperReader(r, "outer"));
+
+        IndexService indexService = newIndexService(module);
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = indexService.getReaderWrapper();
+        assertNotNull(wrapper);
+        try (Directory dir = newDirectory(); DirectoryReader raw = openEmptyReader(dir); DirectoryReader wrapped = wrapper.apply(raw)) {
+            // setReaderWrapper stays outermost; the added wrapper is beneath it, directly over the raw reader.
+            DirectoryReader inner = TaggedWrapperReader.assertTagAndUnwrap(wrapped, "outer");
+            assertSame(raw, TaggedWrapperReader.assertTagAndUnwrap(inner, "inner"));
+        }
+        indexService.close("simon says", false);
+    }
+
+    public void testSetReaderWrapperStaysOutermostWhenRegisteredFirst() throws IOException {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        // Registration order between set and add must not affect layering: PluginsService.onIndexModule iterates
+        // plugins in load order, which is not under the plugins' control.
+        module.setReaderWrapper(s -> r -> new TaggedWrapperReader(r, "outer"));
+        module.addReaderWrapper(s -> r -> new TaggedWrapperReader(r, "inner"));
+
+        IndexService indexService = newIndexService(module);
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = indexService.getReaderWrapper();
+        assertNotNull(wrapper);
+        try (Directory dir = newDirectory(); DirectoryReader raw = openEmptyReader(dir); DirectoryReader wrapped = wrapper.apply(raw)) {
+            // setReaderWrapper stays outermost; the added wrapper is beneath it, directly over the raw reader.
+            DirectoryReader inner = TaggedWrapperReader.assertTagAndUnwrap(wrapped, "outer");
+            assertSame(raw, TaggedWrapperReader.assertTagAndUnwrap(inner, "inner"));
+        }
+        indexService.close("simon says", false);
+    }
+
+    public void testAddReaderWrappersComposeInRegistrationOrder() throws IOException {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        module.addReaderWrapper(s -> r -> new TaggedWrapperReader(r, "inner"));
+        module.addReaderWrapper(s -> r -> new TaggedWrapperReader(r, "outer"));
+
+        IndexService indexService = newIndexService(module);
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = indexService.getReaderWrapper();
+        assertNotNull(wrapper);
+        try (Directory dir = newDirectory(); DirectoryReader raw = openEmptyReader(dir); DirectoryReader wrapped = wrapper.apply(raw)) {
+            // First registered wraps the raw reader first, so it ends up innermost; the second is outermost.
+            DirectoryReader inner = TaggedWrapperReader.assertTagAndUnwrap(wrapped, "outer");
+            assertSame(raw, TaggedWrapperReader.assertTagAndUnwrap(inner, "inner"));
+        }
+        indexService.close("simon says", false);
+    }
+
+    public void testAddReaderWrapperAloneIsApplied() throws IOException {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        module.addReaderWrapper(s -> r -> new TaggedWrapperReader(r, "inner"));
+
+        IndexService indexService = newIndexService(module);
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = indexService.getReaderWrapper();
+        assertNotNull(wrapper);
+        try (Directory dir = newDirectory(); DirectoryReader raw = openEmptyReader(dir); DirectoryReader wrapped = wrapper.apply(raw)) {
+            assertSame(raw, TaggedWrapperReader.assertTagAndUnwrap(wrapped, "inner"));
+        }
+        indexService.close("simon says", false);
+    }
+
+    public void testAddReaderWrapperReturningNullIsSkipped() throws IOException {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        module.addReaderWrapper(s -> null);
+
+        IndexService indexService = newIndexService(module);
+        // A factory that declines plus no outer wrapper leaves the reader wrapper null, matching indices without added wrappers.
+        assertNull(indexService.getReaderWrapper());
+        indexService.close("simon says", false);
+    }
+
+    public void testAddReaderWrapperRejectsNull() {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        expectThrows(IllegalArgumentException.class, () -> module.addReaderWrapper(null));
+    }
+
+    public void testTwoAddedReaderWrappersComposeBeneathSetReaderWrapper() throws IOException {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        module.addReaderWrapper(s -> r -> new TaggedWrapperReader(r, "first"));
+        // set deliberately between the two adds: registration interleaving must not change layering -- the set
+        // wrapper is always outermost and the added wrappers compose beneath it in registration order.
+        module.setReaderWrapper(s -> r -> new TaggedWrapperReader(r, "outer"));
+        module.addReaderWrapper(s -> r -> new TaggedWrapperReader(r, "second"));
+
+        IndexService indexService = newIndexService(module);
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = indexService.getReaderWrapper();
+        assertNotNull(wrapper);
+        try (Directory dir = newDirectory(); DirectoryReader raw = openEmptyReader(dir); DirectoryReader wrapped = wrapper.apply(raw)) {
+            // outer (set) -> second (added last) -> first (added first) -> raw
+            DirectoryReader second = TaggedWrapperReader.assertTagAndUnwrap(wrapped, "outer");
+            DirectoryReader first = TaggedWrapperReader.assertTagAndUnwrap(second, "second");
+            assertSame(raw, TaggedWrapperReader.assertTagAndUnwrap(first, "first"));
+        }
+        indexService.close("simon says", false);
+    }
+
+    public void testSetReaderWrapperOnlyIsHandedToIndexUnchanged() throws IOException {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> securityStyle = r -> new TaggedWrapperReader(r, "outer");
+        module.setReaderWrapper(s -> securityStyle);
+
+        IndexService indexService = newIndexService(module);
+        // With no added wrappers the set wrapper instance is handed to the index unchanged. This identity
+        // preservation keeps pre-existing callers (IndexShard null check, plugin tests) unaffected.
+        assertSame(securityStyle, indexService.getReaderWrapper());
+        indexService.close("simon says", false);
+    }
+
+    public void testAddReaderWrapperFactoryThrowsFailsIndexCreation() {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        module.addReaderWrapper(s -> { throw new IllegalStateException("boom"); });
+
+        // The factory is resolved while the IndexService is being constructed, so a throwing factory fails index
+        // creation. The exception propagates unwrapped (IndexService applies the wrapper factory directly).
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> newIndexService(module));
+        assertEquals("boom", e.getMessage());
+    }
+
+    public void testAddReaderWrapperRejectsDuplicateFactory() {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> factory = s -> r -> new TaggedWrapperReader(
+            r,
+            "dup"
+        );
+        module.addReaderWrapper(factory);
+        // Adding the same factory instance twice is rejected, mirroring addSearchOperationListener/addIndexOperationListener.
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> module.addReaderWrapper(factory));
+        assertThat(e.getMessage(), containsString("already added"));
+    }
+
+    public void testComposeReaderWrappersWithNoInputsYieldsNull() throws IOException {
+        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> factory = IndexModule.composeReaderWrappers(
+            Collections.emptyList(),
+            null
+        );
+        assertNotNull(factory);
+        assertNull(factory.apply(null));
     }
 
     public void testRegisterIndexStore() throws IOException {
@@ -313,7 +476,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
         );
 
         final IndexService indexService = newIndexService(module);
-        assertThat(indexService.getDirectoryFactory(), instanceOf(FooFunction.class));
+        assertThat(indexService.getDirectoryFactory(), instanceOf(IndexStorePlugin.DirectoryFactory.class));
 
         indexService.close("simon says", false);
     }
@@ -452,6 +615,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addIndexOperationListener(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addSimilarity(null, null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setReaderWrapper(null)).getMessage());
+        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addReaderWrapper(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.forceQueryCacheProvider(null)).getMessage());
     }
 
@@ -649,6 +813,101 @@ public class IndexModuleTests extends OpenSearchTestCase {
         indexService.close("closing", false);
     }
 
+    public void testStoreFactory() throws IOException {
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexModule.INDEX_STORE_FACTORY_SETTING.getKey(), "test_store")
+            .build();
+
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        final TestStoreFactory testStoreFactory = new TestStoreFactory();
+        final Map<String, IndexStorePlugin.StoreFactory> storeFactories = singletonMap("test_store", testStoreFactory);
+
+        final IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            new EngineBackedIndexerFactory(new InternalEngineFactory()),
+            new EngineConfigFactory(indexSettings),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> true,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            Collections.emptyMap(),
+            storeFactories,
+            null,
+            null,
+            Collections.emptyMap()
+        );
+
+        // Test that IndexService can be created successfully with valid store factory
+        final IndexService indexService = newIndexService(module);
+        assertNotNull(indexService);
+        indexService.close("closing", false);
+    }
+
+    public void testStoreFactoryWithEmptySetting() throws IOException {
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexModule.INDEX_STORE_FACTORY_SETTING.getKey(), "")
+            .build();
+
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        final TestStoreFactory testStoreFactory = new TestStoreFactory();
+        final Map<String, IndexStorePlugin.StoreFactory> storeFactories = singletonMap("test_store", testStoreFactory);
+
+        final IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            new EngineBackedIndexerFactory(new InternalEngineFactory()),
+            new EngineConfigFactory(indexSettings),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> true,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            Collections.emptyMap(),
+            storeFactories,
+            null,
+            null,
+            Collections.emptyMap()
+        );
+
+        // Test that IndexService uses default store when setting is empty
+        final IndexService indexService = newIndexService(module);
+        assertNotNull(indexService);
+        indexService.close("closing", false);
+    }
+
+    public void testUnknownStoreFactory() {
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexModule.INDEX_STORE_FACTORY_SETTING.getKey(), "unknown_store")
+            .build();
+
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
+
+        final IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            new EngineBackedIndexerFactory(new InternalEngineFactory()),
+            new EngineConfigFactory(indexSettings),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> true,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            null,
+            null,
+            Collections.emptyMap()
+        );
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> newIndexService(module));
+        assertThat(exception.getMessage(), containsString("Unknown store factory [unknown_store]"));
+    }
+
     private ShardRouting createInitializedShardRouting() {
         ShardRouting shard = ShardRouting.newUnassigned(
             new ShardId("test", "_na_", 0),
@@ -728,6 +987,11 @@ public class IndexModuleTests extends OpenSearchTestCase {
         public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
             return new FsDirectoryFactory().newDirectory(indexSettings, shardPath);
         }
+
+        @Override
+        public Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+            return null;
+        }
     }
 
     public static final class Wrapper implements CheckedFunction<DirectoryReader, DirectoryReader, IOException> {
@@ -735,5 +999,118 @@ public class IndexModuleTests extends OpenSearchTestCase {
         public DirectoryReader apply(DirectoryReader reader) {
             return null;
         }
+    }
+
+    /** Opens a reader over a tiny in-memory index so reader wrappers have a real reader to wrap. */
+    private static DirectoryReader openEmptyReader(Directory dir) throws IOException {
+        try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            writer.addDocument(new Document());
+            writer.commit();
+        }
+        return DirectoryReader.open(dir);
+    }
+
+    /**
+     * A no-op {@link FilterDirectoryReader} that carries a {@code tag} so composition order can be asserted:
+     * {@link #assertTagAndUnwrap} verifies the outermost reader's tag and peels one layer via {@link #getDelegate()}.
+     */
+    private static final class TaggedWrapperReader extends FilterDirectoryReader {
+        private final String tag;
+
+        TaggedWrapperReader(DirectoryReader in, String tag) throws IOException {
+            super(in, new SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader reader) {
+                    return reader;
+                }
+            });
+            this.tag = tag;
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new TaggedWrapperReader(in, tag);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
+        }
+
+        /** Asserts {@code reader} is a {@link TaggedWrapperReader} with {@code expectedTag} and returns its delegate. */
+        static DirectoryReader assertTagAndUnwrap(DirectoryReader reader, String expectedTag) {
+            assertTrue(reader instanceof TaggedWrapperReader);
+            assertEquals(expectedTag, ((TaggedWrapperReader) reader).tag);
+            return ((TaggedWrapperReader) reader).getDelegate();
+        }
+    }
+
+    public static final class TestStoreFactory implements IndexStorePlugin.StoreFactory {
+        @Override
+        public Store newStore(
+            ShardId shardId,
+            IndexSettings indexSettings,
+            Directory directory,
+            ShardLock shardLock,
+            Store.OnClose onClose,
+            ShardPath shardPath,
+            IndexStorePlugin.DirectoryFactory directoryFactory
+        ) throws IOException {
+            return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath, directoryFactory);
+        }
+
+        @Override
+        public Store newStore(
+            ShardId shardId,
+            IndexSettings indexSettings,
+            Directory directory,
+            ShardLock shardLock,
+            Store.OnClose onClose,
+            ShardPath shardPath
+        ) throws IOException {
+            return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath);
+        }
+    }
+
+    @SuppressWarnings("removal")
+    public void testLegacyConstructors() throws IOException {
+        final MockEngineFactory engineFactory = new MockEngineFactory(AssertingDirectoryReader.class);
+        IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            engineFactory,
+            new EngineConfigFactory(indexSettings),
+            Collections.emptyMap(),
+            () -> true,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            Collections.emptyMap()
+        );
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier = (a, b) -> new InternalTranslogFactory();
+        module.newIndexService(
+            CREATE_INDEX,
+            nodeEnvironment,
+            xContentRegistry(),
+            deleter,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            null,
+            indicesQueryCache,
+            mapperRegistry,
+            new IndicesFieldDataCache(settings, listener, clusterService, threadPool),
+            writableRegistry(),
+            () -> false,
+            null,
+            new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool, ""),
+            translogFactorySupplier,
+            () -> IndexSettings.DEFAULT_REFRESH_INTERVAL,
+            () -> Boolean.FALSE,
+            () -> Boolean.FALSE,
+            DefaultRecoverySettings.INSTANCE,
+            DefaultRemoteStoreSettings.INSTANCE,
+            () -> TieredMergePolicyProvider.DEFAULT_MAX_MERGE_AT_ONCE
+        );
     }
 }

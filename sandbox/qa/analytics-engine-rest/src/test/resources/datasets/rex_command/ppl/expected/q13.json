@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "avg(metricvalue)",
+      "type": "double"
+    },
+    {
+      "name": "metricname",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      92.3,
+      "cpu_usage"
+    ],
+    [
+      88.9,
+      "disk_usage"
+    ],
+    [
+      95.7,
+      "memory_usage"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

@@ -103,7 +103,7 @@ public abstract class SmoothingModelTestCase extends OpenSearchTestCase {
         SmoothingModel testModel = createTestModel();
         XContentBuilder contentBuilder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         if (randomBoolean()) {
-            contentBuilder.prettyPrint();
+            contentBuilder = contentBuilder.prettyPrint();
         }
         contentBuilder.startObject();
         testModel.innerToXContent(contentBuilder, ToXContent.EMPTY_PARAMS);

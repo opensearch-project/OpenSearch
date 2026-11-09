@@ -69,6 +69,14 @@ public class FieldsVisitor extends StoredFieldVisitor {
     private final Set<String> requiredFields;
     private final String[] sourceIncludes;
     private final String[] sourceExcludes;
+    /**
+     * Decouples the request-level {@link #sourceExcludes} (what the client wants filtered from the returned
+     * {@code _source}) from what a source-aware codec may actually prune while reading. A field can be
+     * excluded from the response yet still be needed by inner hits, which read the same root {@code _source};
+     * such fields are dropped from {@link #sourceExcludes} here so the codec keeps them available. Only the
+     * remaining fields are safe to prune at read time; see {@code FetchPhase#codecSourceExcludes}.
+     */
+    private final String[] codecSourceExcludes;
     protected BytesReference source;
     protected String id;
     protected Map<String, List<Object>> fieldsValues;
@@ -77,8 +85,8 @@ public class FieldsVisitor extends StoredFieldVisitor {
         this(loadSource, SourceFieldMapper.NAME, null, null);
     }
 
-    public FieldsVisitor(boolean loadSource, String[] includes, String[] excludes) {
-        this(loadSource, SourceFieldMapper.NAME, includes, excludes);
+    public FieldsVisitor(boolean loadSource, String[] includes, String[] excludes, String[] codecSourceExcludes) {
+        this(loadSource, SourceFieldMapper.NAME, includes, excludes, codecSourceExcludes);
     }
 
     public FieldsVisitor(boolean loadSource, String sourceFieldName) {
@@ -86,10 +94,15 @@ public class FieldsVisitor extends StoredFieldVisitor {
     }
 
     public FieldsVisitor(boolean loadSource, String sourceFieldName, String[] includes, String[] excludes) {
+        this(loadSource, sourceFieldName, includes, excludes, null);
+    }
+
+    public FieldsVisitor(boolean loadSource, String sourceFieldName, String[] includes, String[] excludes, String[] codecSourceExcludes) {
         this.loadSource = loadSource;
         this.sourceFieldName = sourceFieldName;
         this.sourceIncludes = includes != null ? includes : Strings.EMPTY_ARRAY;
         this.sourceExcludes = excludes != null ? excludes : Strings.EMPTY_ARRAY;
+        this.codecSourceExcludes = codecSourceExcludes != null ? codecSourceExcludes : Strings.EMPTY_ARRAY;
         requiredFields = new HashSet<>();
         reset();
     }
@@ -189,6 +202,15 @@ public class FieldsVisitor extends StoredFieldVisitor {
      */
     public String[] excludes() {
         return sourceExcludes;
+    }
+
+    /**
+     * Returns the source excludes a source-aware codec may prune while reading, as opposed to
+     * {@link #excludes()}, which is filtered from the response after {@code _source} is loaded.
+     * @return String[] codecSourceExcludes
+     */
+    public String[] codecExcludes() {
+        return codecSourceExcludes;
     }
 
     public String id() {

@@ -1,0 +1,21 @@
+{
+  "schema": [
+    {
+      "name": "text",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "test validation"
+    ],
+    [
+      "comprehensive test"
+    ],
+    [
+      "hello world test"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

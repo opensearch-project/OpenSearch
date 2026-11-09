@@ -47,6 +47,7 @@ import org.opensearch.cluster.metadata.IndexAbstraction;
 import org.opensearch.cluster.metadata.IndexAbstractionResolver;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
@@ -412,16 +413,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
 
         @Override
         protected ShardsIterator shards(ClusterState clusterState, Request request, String[] concreteIndices) {
-            String[] requestIndices = request.indices();
-            if (requestIndices == null || requestIndices.length == 0) {
-                requestIndices = new String[] { "*" };
-            }
-            List<String> abstractionNames = indexAbstractionResolver.resolveIndexAbstractions(
-                requestIndices,
-                request.indicesOptions(),
-                clusterState.getMetadata(),
-                true
-            ); // Always include data streams for data streams stats api
+            Set<String> abstractionNames = resolvedIndices(request, clusterState, true).local().names();
             SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
 
             String[] concreteDatastreamIndices = abstractionNames.stream().flatMap(abstractionName -> {
@@ -521,6 +513,27 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                 allBackingIndices.size(),
                 new ByteSizeValue(totalStoreSizeBytes),
                 dataStreamStats
+            );
+        }
+
+        @Override
+        public ResolvedIndices resolveIndices(Request request) {
+            return resolvedIndices(request, clusterService.state(), false);
+        }
+
+        private ResolvedIndices resolvedIndices(Request request, ClusterState clusterState, boolean throwExceptions) {
+            String[] requestIndices = request.indices();
+            if (requestIndices == null || requestIndices.length == 0) {
+                requestIndices = new String[] { "*" };
+            }
+            return ResolvedIndices.of(
+                indexAbstractionResolver.resolveIndexAbstractions(
+                    requestIndices,
+                    request.indicesOptions(),
+                    clusterState.getMetadata(),
+                    true,
+                    throwExceptions
+                )
             );
         }
     }

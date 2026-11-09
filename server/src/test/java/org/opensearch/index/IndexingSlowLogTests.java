@@ -32,8 +32,6 @@
 
 package org.opensearch.index;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -60,6 +58,7 @@ import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.tools.jackson.core.JsonParseException;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 

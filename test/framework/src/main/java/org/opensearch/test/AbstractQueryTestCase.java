@@ -32,8 +32,6 @@
 
 package org.opensearch.test;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -84,6 +82,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+
+import tools.jackson.core.io.JsonStringEncoder;
 
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -448,7 +448,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
              * We do it this way in SearchService where
              * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
             QueryBuilder rewritten = rewriteQuery(firstQuery, new QueryShardContext(context));
-            Query firstLuceneQuery = rewritten.toQuery(context);
+            Query firstLuceneQuery;
+            try {
+                firstLuceneQuery = rewritten.toQuery(context);
+            } catch (IllegalArgumentException e) {
+                assertEquals("Too many disjunctions to expand", e.getMessage());
+                continue;
+            }
             assertNotNull("toQuery should not return null", firstLuceneQuery);
             assertLuceneQuery(firstQuery, firstLuceneQuery, context);
             // remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
@@ -678,7 +684,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 if (rarely()) {
                     // unicode in 10% cases
                     JsonStringEncoder encoder = JsonStringEncoder.getInstance();
-                    value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
+                    StringBuilder output = new StringBuilder();
+                    encoder.quoteAsString(randomUnicodeOfLength(10), output);
+                    value = output.toString();
                 } else {
                     value = randomAlphaOfLengthBetween(1, 10);
                 }

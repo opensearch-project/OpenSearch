@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.Version;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.NamedDiff;
@@ -50,8 +49,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.opensearch.cluster.metadata.ComposableIndexTemplateMetadata.MINIMMAL_SUPPORTED_VERSION;
 
 /**
  * Custom {@link Metadata} implementation for storing a map of {@link DataStream}s and their names.
@@ -111,11 +108,6 @@ public class DataStreamMetadata implements Metadata.Custom {
     @Override
     public String getWriteableName() {
         return TYPE;
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return MINIMMAL_SUPPORTED_VERSION;
     }
 
     @Override

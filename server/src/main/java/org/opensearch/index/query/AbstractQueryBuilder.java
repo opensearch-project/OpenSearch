@@ -236,12 +236,12 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @return the same input object or a {@link BytesRef} representation if input was of type string
      */
     public static Object maybeConvertToBytesRef(Object obj) {
-        if (obj instanceof String) {
-            return BytesRefs.toBytesRef(obj);
-        } else if (obj instanceof CharBuffer) {
-            return new BytesRef((CharBuffer) obj);
-        } else if (obj instanceof BigInteger) {
-            return BytesRefs.toBytesRef(obj);
+        if (obj instanceof String stringValue) {
+            return BytesRefs.toBytesRef(stringValue);
+        } else if (obj instanceof CharBuffer charBuffer) {
+            return new BytesRef(charBuffer);
+        } else if (obj instanceof BigInteger bigInteger) {
+            return BytesRefs.toBytesRef(bigInteger);
         }
         return obj;
     }
@@ -253,10 +253,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @return the same input object or a utf8 string if input was of type {@link BytesRef} or {@link CharBuffer}
      */
     static Object maybeConvertToString(Object obj) {
-        if (obj instanceof BytesRef) {
-            return ((BytesRef) obj).utf8ToString();
-        } else if (obj instanceof CharBuffer) {
-            return new BytesRef((CharBuffer) obj).utf8ToString();
+        if (obj instanceof BytesRef bytesRef) {
+            return bytesRef.utf8ToString();
+        } else if (obj instanceof CharBuffer charBuffer) {
+            return new BytesRef(charBuffer).utf8ToString();
         }
         return obj;
     }

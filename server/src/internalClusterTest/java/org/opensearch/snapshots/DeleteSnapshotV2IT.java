@@ -33,6 +33,7 @@ import org.junit.After;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -45,6 +46,7 @@ import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_KEEP_EXTR
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.awaitility.Awaitility.await;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -85,13 +87,11 @@ public class DeleteSnapshotV2IT extends AbstractSnapshotIntegTestCase {
 
     private static final String REMOTE_REPO_NAME = "remote-store-repo-name";
 
-    private void keepPinnedTimestampSchedulerUpdated() throws InterruptedException {
+    private void keepPinnedTimestampSchedulerUpdated() {
         long currentTime = System.currentTimeMillis();
-        int maxRetry = 10;
-        while (maxRetry > 0 && RemoteStorePinnedTimestampService.getPinnedTimestamps().v1() <= currentTime) {
-            Thread.sleep(1000);
-            maxRetry--;
-        }
+        await().atMost(Duration.ofSeconds(10))
+            .pollDelay(Duration.ofSeconds(1))
+            .until(() -> RemoteStorePinnedTimestampService.getPinnedTimestamps().v1() > currentTime);
     }
 
     public void testDeleteShallowCopyV2() throws Exception {

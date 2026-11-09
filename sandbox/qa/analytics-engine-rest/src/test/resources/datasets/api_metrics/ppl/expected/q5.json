@@ -1,0 +1,40 @@
+{
+  "schema": [
+    {
+      "name": "avg_response_time",
+      "type": "double"
+    },
+    {
+      "name": "max_latency",
+      "type": "int"
+    },
+    {
+      "name": "endpoint",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      1.0876666666666666,
+      1697,
+      "/SCS/Retail/v1/orders"
+    ],
+    [
+      1.991,
+      1991,
+      "/api/payments"
+    ],
+    [
+      1.3519999999999999,
+      1583,
+      "/api/products"
+    ],
+    [
+      0.8360000000000001,
+      1435,
+      "/api/users"
+    ]
+  ],
+  "total": 4,
+  "size": 4
+}

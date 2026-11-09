@@ -196,4 +196,13 @@ public class CreatePitRequest extends ActionRequest implements IndicesRequest.Re
         }
         return builder;
     }
+
+    SearchRequest toSearchRequest() {
+        SearchRequest searchRequest = new SearchRequest(this.getIndices());
+        searchRequest.preference(this.getPreference());
+        searchRequest.routing(this.getRouting());
+        searchRequest.indicesOptions(this.getIndicesOptions());
+        searchRequest.allowPartialSearchResults(this.shouldAllowPartialPitCreation());
+        return searchRequest;
+    }
 }

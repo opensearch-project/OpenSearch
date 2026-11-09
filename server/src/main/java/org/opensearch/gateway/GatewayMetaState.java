@@ -423,8 +423,8 @@ public class GatewayMetaState implements Closeable {
         // This method is invoked for persisted state implementations which write asynchronously.
         // RemotePersistedState is invoked in synchronous path. So this logic is not required for remote state.
         final PersistedState ps = persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL);
-        if (ps instanceof AsyncLucenePersistedState) {
-            return ((AsyncLucenePersistedState) ps).allPendingAsyncStatesWritten();
+        if (ps instanceof AsyncLucenePersistedState asyncLucenePersistedState) {
+            return asyncLucenePersistedState.allPendingAsyncStatesWritten();
         } else {
             return true;
         }

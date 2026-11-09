@@ -1,0 +1,1 @@
+source=transactions | where amount > 1000 | sort amount desc | streamstats count() as rnk | fields userid, product, amount, rnk | head 5

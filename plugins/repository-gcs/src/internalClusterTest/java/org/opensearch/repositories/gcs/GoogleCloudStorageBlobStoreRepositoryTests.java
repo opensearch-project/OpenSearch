@@ -59,6 +59,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -121,12 +122,32 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends OpenSearchMockAP
         settings.put(super.nodeSettings(nodeOrdinal));
         settings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl());
         settings.put(TOKEN_URI_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl() + "/token");
+        configureClientSettings(settings);
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final byte[] serviceAccount = TestUtils.createServiceAccount(random());
         secureSettings.setFile(CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace("test").getKey(), serviceAccount);
+        configureSecureSettings(secureSettings);
         settings.setSecureSettings(secureSettings);
         return settings.build();
+    }
+
+    /**
+     * Hook method for subclasses to add additional client settings.
+     *
+     * @param settings the settings builder to add settings to
+     */
+    protected void configureClientSettings(Settings.Builder settings) {
+        // Default implementation: no additional settings
+    }
+
+    /**
+     * Hook method for subclasses to add additional secure settings.
+     *
+     * @param secureSettings the secure settings to add settings to
+     */
+    protected void configureSecureSettings(MockSecureSettings secureSettings) {
+        // Default implementation: no additional secure settings
     }
 
     public void testDeleteSingleItem() {
@@ -226,6 +247,11 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends OpenSearchMockAP
 
         public TestGoogleCloudStoragePlugin(Settings settings) {
             super(settings);
+        }
+
+        @Override
+        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
+            // No-op in tests — avoids interference with GCS client initialization
         }
 
         @Override

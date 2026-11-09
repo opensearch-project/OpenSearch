@@ -191,13 +191,12 @@ public class ClusterFormationFailureHelper {
 
             final String discoveryWillContinueDescription = String.format(
                 Locale.ROOT,
-                "discovery will continue using %s from hosts providers and %s from last-known cluster state; "
-                    + "node term %d, last-accepted version %d in term %d",
-                resolvedAddresses,
-                clusterStateNodes,
+                "node term %d, last-accepted version %d in term %d; discovery will continue using %s from hosts providers and %s from last-known cluster state",
                 currentTerm,
                 clusterState.getVersionOrMetadataVersion(),
-                clusterState.term()
+                clusterState.term(),
+                resolvedAddresses,
+                clusterStateNodes
             );
 
             final String discoveryStateIgnoringQuorum = String.format(

@@ -30,6 +30,7 @@ import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.metrics.OperationMetrics;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -46,6 +47,7 @@ import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.script.ScriptService;
+import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
@@ -53,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -65,6 +68,8 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.service.ClusterManagerTask.DELETE_SEARCH_PIPELINE;
 import static org.opensearch.cluster.service.ClusterManagerTask.PUT_SEARCH_PIPELINE;
+import static org.opensearch.plugins.SearchPipelinePlugin.SystemGeneratedSearchPipelineConfigKeys.PARENT_ACTION;
+import static org.opensearch.plugins.SearchPipelinePlugin.SystemGeneratedSearchPipelineConfigKeys.SEARCH_REQUEST;
 
 /**
  * The main entry point for search pipelines. Handles CRUD operations and exposes the API to execute search pipelines
@@ -77,6 +82,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     public static final String SEARCH_PIPELINE_ORIGIN = "search_pipeline";
     public static final String AD_HOC_PIPELINE_ID = "_ad_hoc_pipeline";
     public static final String NOOP_PIPELINE_ID = "_none";
+    public static final String ALL = "*";
     private static final int MAX_PIPELINE_ID_BYTES = 512;
     private static final Logger logger = LogManager.getLogger(SearchPipelineService.class);
     private final ClusterService clusterService;
@@ -84,6 +90,15 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     private final Map<String, Processor.Factory<SearchRequestProcessor>> requestProcessorFactories;
     private final Map<String, Processor.Factory<SearchResponseProcessor>> responseProcessorFactories;
     private final Map<String, Processor.Factory<SearchPhaseResultsProcessor>> phaseInjectorProcessorFactories;
+    private final Map<
+        String,
+        SystemGeneratedProcessor.SystemGeneratedFactory<SearchRequestProcessor>> systemGeneratedRequestProcessorFactories;
+    private final Map<
+        String,
+        SystemGeneratedProcessor.SystemGeneratedFactory<SearchResponseProcessor>> systemGeneratedResponseProcessorFactories;
+    private final Map<
+        String,
+        SystemGeneratedProcessor.SystemGeneratedFactory<SearchPhaseResultsProcessor>> systemGeneratedPhaseResultsProcessorFactories;
     private volatile Map<String, PipelineHolder> pipelines = Collections.emptyMap();
     private final ThreadPool threadPool;
     private final List<Consumer<ClusterState>> searchPipelineClusterStateListeners = new CopyOnWriteArrayList<>();
@@ -94,6 +109,20 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
 
     private final OperationMetrics totalRequestProcessingMetrics = new OperationMetrics();
     private final OperationMetrics totalResponseProcessingMetrics = new OperationMetrics();
+    private final SystemGeneratedProcessorMetrics systemGeneratedProcessorMetrics = new SystemGeneratedProcessorMetrics();
+
+    /**
+     * Specify the system generated factory type to enable them so that we will try to evaluate if we should use
+     * them to generate search processors for the search request. Or can use a wildcard * to enable all.
+     */
+    public static final Setting<List<String>> ENABLED_SYSTEM_GENERATED_FACTORIES_SETTING = Setting.listSetting(
+        "cluster.search.enabled_system_generated_factories",
+        List.of(),
+        s -> s,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    private volatile List<String> enabledSystemGeneratedFactories;
 
     public SearchPipelineService(
         ClusterService clusterService,
@@ -128,20 +157,65 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             searchPipelinePlugins,
             p -> p.getSearchPhaseResultsProcessors(parameters)
         );
+        this.systemGeneratedRequestProcessorFactories = processorSystemGeneratedFactories(
+            searchPipelinePlugins,
+            p -> p.getSystemGeneratedRequestProcessors(parameters)
+        );
+        this.systemGeneratedResponseProcessorFactories = processorSystemGeneratedFactories(
+            searchPipelinePlugins,
+            p -> p.getSystemGeneratedResponseProcessors(parameters)
+        );
+        this.systemGeneratedPhaseResultsProcessorFactories = processorSystemGeneratedFactories(
+            searchPipelinePlugins,
+            p -> p.getSystemGeneratedSearchPhaseResultsProcessors(parameters)
+        );
         putPipelineTaskKey = clusterService.registerClusterManagerTask(PUT_SEARCH_PIPELINE, true);
         deletePipelineTaskKey = clusterService.registerClusterManagerTask(DELETE_SEARCH_PIPELINE, true);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(ENABLED_SYSTEM_GENERATED_FACTORIES_SETTING, this::setEnabledSystemGeneratedFactories);
+        setEnabledSystemGeneratedFactories(clusterService.getClusterSettings().get(ENABLED_SYSTEM_GENERATED_FACTORIES_SETTING));
+    }
+
+    private void setEnabledSystemGeneratedFactories(List<String> enabledSystemGeneratedFactories) {
+        this.enabledSystemGeneratedFactories = enabledSystemGeneratedFactories;
+    }
+
+    private static <T extends Processor> Map<String, SystemGeneratedProcessor.SystemGeneratedFactory<T>> processorSystemGeneratedFactories(
+        List<SearchPipelinePlugin> searchPipelinePlugins,
+        Function<SearchPipelinePlugin, Map<String, SystemGeneratedProcessor.SystemGeneratedFactory<T>>> processorLoader
+    ) {
+        return collectProcessorFactories(searchPipelinePlugins, processorLoader, "System generated search processor");
     }
 
     private static <T extends Processor> Map<String, Processor.Factory<T>> processorFactories(
         List<SearchPipelinePlugin> searchPipelinePlugins,
         Function<SearchPipelinePlugin, Map<String, Processor.Factory<T>>> processorLoader
     ) {
-        Map<String, Processor.Factory<T>> processorFactories = new HashMap<>();
-        for (SearchPipelinePlugin searchPipelinePlugin : searchPipelinePlugins) {
-            Map<String, Processor.Factory<T>> newProcessors = processorLoader.apply(searchPipelinePlugin);
-            for (Map.Entry<String, Processor.Factory<T>> entry : newProcessors.entrySet()) {
+        Map<String, Processor.Factory<T>> factories = collectProcessorFactories(searchPipelinePlugins, processorLoader, "Search processor");
+        // Sanity check: none of them should be system-generated
+        for (Map.Entry<String, Processor.Factory<T>> entry : factories.entrySet()) {
+            if (entry.getValue() instanceof SystemGeneratedProcessor.SystemGeneratedFactory) {
+                throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, "System generated factory [%s] should not be exposed to users.", entry.getKey())
+                );
+            }
+        }
+        return factories;
+    }
+
+    private static <F> Map<String, F> collectProcessorFactories(
+        List<SearchPipelinePlugin> searchPipelinePlugins,
+        Function<SearchPipelinePlugin, Map<String, F>> processorLoader,
+        String errorPrefix
+    ) {
+        Map<String, F> processorFactories = new HashMap<>();
+        for (SearchPipelinePlugin plugin : searchPipelinePlugins) {
+            Map<String, F> newFactories = processorLoader.apply(plugin);
+            for (Map.Entry<String, F> entry : newFactories.entrySet()) {
                 if (processorFactories.put(entry.getKey(), entry.getValue()) != null) {
-                    throw new IllegalArgumentException("Search processor [" + entry.getKey() + "] is already registered");
+                    throw new IllegalArgumentException(
+                        String.format(Locale.ROOT, "%s [%s] is already registered", errorPrefix, entry.getKey())
+                    );
                 }
             }
         }
@@ -387,7 +461,11 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         return newState.build();
     }
 
-    public PipelinedRequest resolvePipeline(SearchRequest searchRequest, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public PipelinedRequest resolvePipeline(
+        SearchRequest searchRequest,
+        Task parentTask,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) throws Exception {
         Pipeline pipeline = Pipeline.NO_OP_PIPELINE;
         if (searchRequest.source() != null && searchRequest.source().searchPipelineSource() != null) {
             // Pipeline defined in search request (ad hoc pipeline).
@@ -397,9 +475,15 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                 );
             }
             try {
+                // Build the ad-hoc pipeline from a DEEP COPY of the inline source map. PipelineWithMetrics.create ->
+                // ConfigurationUtils.readXxx consume the config by removing keys as they are read, which would
+                // otherwise drain the request's live searchPipelineSource map. Downstream consumers that read the
+                // inline pipeline definition later in the request lifecycle (e.g. during coordinator query rewrite)
+                // must still see the original config. Stored/named pipelines are unaffected because their config is
+                // reconstructed fresh from bytes on each PipelineConfiguration.getConfigAsMap() call.
                 pipeline = PipelineWithMetrics.create(
                     AD_HOC_PIPELINE_ID,
-                    searchRequest.source().searchPipelineSource(),
+                    deepCopyConfig(searchRequest.source().searchPipelineSource()),
                     requestProcessorFactories,
                     responseProcessorFactories,
                     phaseInjectorProcessorFactories,
@@ -447,21 +531,78 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                 pipeline = pipelineHolder.pipeline;
             }
         }
-        if (searchRequest.source() != null && searchRequest.source().verbosePipeline() && pipeline.equals(Pipeline.NO_OP_PIPELINE)) {
+        // Resolve system generated search pipeline
+        final String parentAction = parentTask != null ? parentTask.getAction() : null;
+        final Map<String, Object> config = new HashMap<>();
+        config.put(SEARCH_REQUEST, searchRequest);
+        config.put(PARENT_ACTION, parentAction);
+        final SystemGeneratedPipelineHolder systemGeneratedPipelineHolder = SystemGeneratedPipelineWithMetrics.create(
+            config,
+            systemGeneratedRequestProcessorFactories,
+            systemGeneratedResponseProcessorFactories,
+            systemGeneratedPhaseResultsProcessorFactories,
+            namedWriteableRegistry,
+            systemGeneratedProcessorMetrics,
+            enabledSystemGeneratedFactories
+        );
+        systemGeneratedPipelineHolder.evaluateConflict(pipeline);
+
+        if (searchRequest.source() != null
+            && searchRequest.source().verbosePipeline()
+            && pipeline.equals(Pipeline.NO_OP_PIPELINE)
+            && systemGeneratedPipelineHolder.isNoOp()) {
             throw new IllegalArgumentException("The 'verbose pipeline' option requires a search pipeline to be defined.");
         }
         PipelineProcessingContext requestContext = new PipelineProcessingContext();
-        return new PipelinedRequest(pipeline, searchRequest, requestContext);
+        return new PipelinedRequest(pipeline, searchRequest, requestContext, systemGeneratedPipelineHolder);
     }
 
+    /**
+     * Recursively deep-copies an inline search-pipeline config map (the nested {@code Map}/{@code List} structure
+     * produced by the XContent parser). Needed because pipeline construction consumes the config by removing keys as
+     * it reads them; copying leaves the request's original {@code searchPipelineSource} intact for later readers.
+     */
+    static Map<String, Object> deepCopyConfig(Map<String, Object> config) {
+        if (Objects.isNull(config)) {
+            return null;
+        }
+        Map<String, Object> copy = new LinkedHashMap<>(config.size());
+        for (Map.Entry<String, Object> entry : config.entrySet()) {
+            copy.put(entry.getKey(), deepCopyConfigValue(entry.getValue()));
+        }
+        return copy;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object deepCopyConfigValue(Object value) {
+        if (value instanceof Map) {
+            // Preserve insertion order (the parser produces an ordered map) so processor ordering is unchanged.
+            return deepCopyConfig((Map<String, Object>) value);
+        } else if (value instanceof List) {
+            List<Object> source = (List<Object>) value;
+            List<Object> copy = new ArrayList<>(source.size());
+            for (Object item : source) {
+                copy.add(deepCopyConfigValue(item));
+            }
+            return copy;
+        }
+        // Scalars (String/Number/Boolean/null) are immutable — safe to share. The inline pipeline config is produced
+        // by the XContent parser, which only yields Map/List/scalar values (never Set), so no other container types
+        // need deep-copying here.
+        return value;
+    }
+
+    // VisibleForTesting
     Map<String, Processor.Factory<SearchRequestProcessor>> getRequestProcessorFactories() {
         return requestProcessorFactories;
     }
 
+    // VisibleForTesting
     Map<String, Processor.Factory<SearchResponseProcessor>> getResponseProcessorFactories() {
         return responseProcessorFactories;
     }
 
+    // VisibleForTesting
     Map<String, Processor.Factory<SearchPhaseResultsProcessor>> getSearchPhaseResultsProcessorFactories() {
         return phaseInjectorProcessorFactories;
     }
@@ -499,6 +640,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             PipelineWithMetrics pipeline = pipelineHolder.pipeline;
             pipeline.populateStats(builder);
         }
+        builder.withSystemGeneratedProcessorMetrics(systemGeneratedProcessorMetrics);
         return builder.build();
     }
 
@@ -551,5 +693,10 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             this.configuration = Objects.requireNonNull(configuration);
             this.pipeline = Objects.requireNonNull(pipeline);
         }
+    }
+
+    public boolean isSystemGeneratedFactoryEnabled(String factoryName) {
+        return enabledSystemGeneratedFactories != null
+            && (enabledSystemGeneratedFactories.contains(ALL) || enabledSystemGeneratedFactories.contains(factoryName));
     }
 }

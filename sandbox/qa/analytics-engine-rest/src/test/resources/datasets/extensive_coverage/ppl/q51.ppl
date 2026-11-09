@@ -1,0 +1,1 @@
+source=test_data | stats stddev_samp(value) as std_s, stddev_pop(value) as std_p by category

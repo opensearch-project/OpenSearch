@@ -48,13 +48,27 @@ public final class ClusterManagerNodeChangePredicate {
     }
 
     /**
-     * builds a predicate that will accept a cluster state only if it was generated after the current has
-     * (re-)joined the master
+     * Builds a predicate that accepts a cluster state only if it was generated after the current node
+     * (re-)joined the cluster manager. Extracts version and cluster-manager ID from the given state
+     * and delegates to {@link #build(long, String)}.
      */
     public static Predicate<ClusterState> build(ClusterState currentState) {
         final long currentVersion = currentState.version();
         final DiscoveryNode clusterManagerNode = currentState.nodes().getClusterManagerNode();
         final String currentMasterId = clusterManagerNode == null ? null : clusterManagerNode.getEphemeralId();
+        return build(currentVersion, currentMasterId);
+    }
+
+    /**
+     * Builds a predicate that accepts a cluster state only if the cluster manager has changed
+     * or the state version has increased beyond the provided version. Accepts pre-extracted
+     * values to avoid retaining the full {@link ClusterState} in lambda closures.
+     *
+     * @param currentVersion  the cluster state version to compare against
+     * @param currentMasterId the ephemeral ID of the current cluster manager node, or null if none
+     * @return predicate that returns true when cluster manager changes or version increases
+     */
+    public static Predicate<ClusterState> build(long currentVersion, String currentMasterId) {
         return newState -> {
             final DiscoveryNode newClusterManager = newState.nodes().getClusterManagerNode();
             final boolean accept;

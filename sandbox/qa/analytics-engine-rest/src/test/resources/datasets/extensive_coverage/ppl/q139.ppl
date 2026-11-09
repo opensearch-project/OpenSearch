@@ -1,0 +1,1 @@
+source=test_data | eval time_val = sec_to_time(3661) | fields id, time_val | head 1

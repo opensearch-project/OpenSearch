@@ -11,11 +11,12 @@ package org.opensearch.plugin.wlm.rule.sync;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.plugin.wlm.AutoTaggingActionFilterTests;
+import org.opensearch.plugin.wlm.WlmClusterSettingValuesProvider;
 import org.opensearch.plugin.wlm.WorkloadManagementPlugin;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifier;
 import org.opensearch.rule.InMemoryRuleProcessingService;
-import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RulePersistenceService;
 import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.action.GetRuleResponse;
@@ -24,12 +25,10 @@ import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.storage.AttributeValueStoreFactory;
 import org.opensearch.rule.storage.DefaultAttributeValueStore;
-import org.opensearch.rule.storage.XContentRuleParser;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
-import org.opensearch.wlm.WlmMode;
 import org.opensearch.wlm.WorkloadManagementSettings;
 
 import java.io.IOException;
@@ -59,6 +58,8 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
     Scheduler.Cancellable scheduledFuture;
     RuleEventClassifier ruleEventClassifier;
     FeatureType featureType;
+    WlmClusterSettingValuesProvider nonPluginSettingValuesProvider;
+    ClusterSettings clusterSettings;
 
     @Override
     public void setUp() throws Exception {
@@ -68,7 +69,7 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
                 .put(RefreshBasedSyncMechanism.RULE_SYNC_REFRESH_INTERVAL_SETTING_NAME, 1000)
                 .put(WorkloadManagementSettings.WLM_MODE_SETTING_NAME, "enabled")
                 .build();
-            ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(plugin.getSettings()));
+            clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(plugin.getSettings()));
             clusterSettings.registerSetting(WorkloadManagementSettings.WLM_MODE_SETTING);
             featureType = mock(FeatureType.class);
             mockThreadPool = mock(ThreadPool.class);
@@ -76,7 +77,7 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
             rulePersistenceService = mock(RulePersistenceService.class);
             ruleEventClassifier = new RuleEventClassifier(Collections.emptySet(), ruleProcessingService);
             attributeValueStoreFactory = new AttributeValueStoreFactory(featureType, DefaultAttributeValueStore::new);
-            RuleEntityParser parser = new XContentRuleParser(featureType);
+            nonPluginSettingValuesProvider = new WlmClusterSettingValuesProvider(settings, clusterSettings);
             mockClient = mock(Client.class);
             scheduledFuture = mock(Scheduler.Cancellable.class);
             when(mockThreadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(scheduledFuture);
@@ -84,12 +85,10 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
             sut = new RefreshBasedSyncMechanism(
                 mockThreadPool,
                 settings,
-                clusterSettings,
-                parser,
-                ruleProcessingService,
                 featureType,
                 rulePersistenceService,
-                ruleEventClassifier
+                ruleEventClassifier,
+                nonPluginSettingValuesProvider
             );
         }
     }
@@ -123,7 +122,19 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testDoRunWhenWLM_isDisabled() {
-        sut.setWlmMode(WlmMode.DISABLED);
+        Settings disabledSettings = Settings.builder()
+            .put(RefreshBasedSyncMechanism.RULE_SYNC_REFRESH_INTERVAL_SETTING_NAME, 1000)
+            .put(WorkloadManagementSettings.WLM_MODE_SETTING_NAME, "disabled")
+            .build();
+        WlmClusterSettingValuesProvider disabledWlmModeProvider = new WlmClusterSettingValuesProvider(disabledSettings, clusterSettings);
+        sut = new RefreshBasedSyncMechanism(
+            mockThreadPool,
+            disabledSettings,
+            featureType,
+            rulePersistenceService,
+            ruleEventClassifier,
+            disabledWlmModeProvider
+        );
         sut.doRun();
         verify(rulePersistenceService, times(0)).getRule(any(GetRuleRequest.class), any(ActionListener.class));
     }
@@ -236,5 +247,18 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
         verify(ruleProcessingService, times(deletionEventCount + updateEventCount)).remove(any(Rule.class));
         // Here 1 is due to add in the second run and 10 for adding 10 rules as part of first run
         verify(ruleProcessingService, times(updateEventCount + 1 + 10)).add(any(Rule.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDoRunIgnoresIndexNotFoundException() {
+        doAnswer(invocation -> {
+            ActionListener<GetRuleResponse> listener = invocation.getArgument(1);
+            listener.onFailure(new IndexNotFoundException("rules index not found"));
+            return null;
+        }).when(rulePersistenceService).getRule(any(GetRuleRequest.class), any(ActionListener.class));
+        sut.doRun();
+        verify(rulePersistenceService, times(1)).getRule(any(GetRuleRequest.class), any(ActionListener.class));
+        verify(ruleProcessingService, times(0)).add(any(Rule.class));
+        verify(ruleProcessingService, times(0)).remove(any(Rule.class));
     }
 }

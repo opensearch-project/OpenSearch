@@ -55,8 +55,8 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BootstrapTests extends OpenSearchTestCase {
-    Environment env;
-    List<FileSystem> fileSystems = new ArrayList<>();
+    protected Environment env;
+    protected List<FileSystem> fileSystems = new ArrayList<>();
 
     private static final int MAX_PASSPHRASE_LENGTH = 10;
 

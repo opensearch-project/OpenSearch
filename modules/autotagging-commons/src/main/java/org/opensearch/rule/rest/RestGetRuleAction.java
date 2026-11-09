@@ -21,7 +21,6 @@ import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.rule.action.GetRuleAction;
 import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.action.GetRuleResponse;
-import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.transport.client.node.NodeClient;
 
@@ -67,22 +66,20 @@ public class RestGetRuleAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        final Map<Attribute, Set<String>> attributeFilters = new HashMap<>();
+        final Map<String, Set<String>> attributeFilters = new HashMap<>();
 
         if (!request.hasParam(FEATURE_TYPE)) {
             throw new IllegalArgumentException("Invalid route.");
         }
 
         final FeatureType featureType = FeatureType.from(request.param(FEATURE_TYPE));
-        final Set<String> excludedKeys = Set.of(FEATURE_TYPE, ID_STRING, SEARCH_AFTER_STRING, "pretty");
-        final List<String> requestParams = request.params().keySet().stream().filter(key -> !excludedKeys.contains(key)).toList();
-
-        for (String attributeName : requestParams) {
-            Attribute attribute = featureType.getAttributeFromName(attributeName);
-            if (attribute == null) {
-                throw new IllegalArgumentException(attributeName + " is not a valid attribute under feature type " + featureType.getName());
-            }
-            attributeFilters.put(attribute, parseAttributeValues(request.param(attributeName), attributeName, featureType));
+        final List<String> attributeParams = request.params()
+            .keySet()
+            .stream()
+            .filter(key -> featureType.getAllowedAttributesRegistry().containsKey(key.split("\\.", 2)[0]))
+            .toList();
+        for (String attributeName : attributeParams) {
+            attributeFilters.put(attributeName, parseAttributeValues(request.param(attributeName), attributeName, featureType));
         }
         final GetRuleRequest getRuleRequest = new GetRuleRequest(
             request.param(ID_STRING),

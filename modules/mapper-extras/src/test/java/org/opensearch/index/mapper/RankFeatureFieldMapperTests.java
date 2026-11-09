@@ -157,4 +157,11 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
             e.getCause().getMessage()
         );
     }
+
+    public void testParseCreateFieldForPluggableFormat() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        RankFeatureFieldMapper fieldMapper = (RankFeatureFieldMapper) mapper.mappers().getMapper("field");
+        assertNotNull(fieldMapper);
+        assertEquals("rank_feature", fieldMapper.typeName());
+    }
 }

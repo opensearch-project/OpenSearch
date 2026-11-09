@@ -11,6 +11,8 @@ package org.opensearch.plugin.wlm.rest;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.plugin.wlm.WlmClusterSettingValuesProvider;
+import org.opensearch.plugin.wlm.WorkloadManagementTestUtils;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupAction;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupRequest;
 import org.opensearch.rest.RestChannel;
@@ -40,7 +42,7 @@ public class RestDeleteWorkloadGroupActionTests extends OpenSearchTestCase {
      * Test case to validate the construction for RestDeleteWorkloadGroupAction
      */
     public void testConstruction() {
-        RestDeleteWorkloadGroupAction action = new RestDeleteWorkloadGroupAction();
+        RestDeleteWorkloadGroupAction action = new RestDeleteWorkloadGroupAction(mock(WlmClusterSettingValuesProvider.class));
         assertNotNull(action);
         assertEquals("delete_workload_group", action.getName());
         List<RestHandler.Route> routes = action.routes();
@@ -55,7 +57,9 @@ public class RestDeleteWorkloadGroupActionTests extends OpenSearchTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testPrepareRequest() throws Exception {
-        RestDeleteWorkloadGroupAction restDeleteWorkloadGroupAction = new RestDeleteWorkloadGroupAction();
+        RestDeleteWorkloadGroupAction restDeleteWorkloadGroupAction = new RestDeleteWorkloadGroupAction(
+            mock(WlmClusterSettingValuesProvider.class)
+        );
         NodeClient nodeClient = mock(NodeClient.class);
         RestRequest realRequest = new FakeRestRequest();
         realRequest.params().put("name", NAME_ONE);
@@ -81,5 +85,17 @@ public class RestDeleteWorkloadGroupActionTests extends OpenSearchTestCase {
             any(DeleteWorkloadGroupRequest.class),
             any(RestToXContentListener.class)
         );
+    }
+
+    public void testPrepareRequestThrowsWhenWlmModeDisabled() throws Exception {
+        try {
+            WlmClusterSettingValuesProvider nonPluginSettingValuesProvider = WorkloadManagementTestUtils
+                .setUpNonPluginSettingValuesProvider("disabled");
+            RestDeleteWorkloadGroupAction restDeleteWorkloadGroupAction = new RestDeleteWorkloadGroupAction(nonPluginSettingValuesProvider);
+            restDeleteWorkloadGroupAction.prepareRequest(mock(RestRequest.class), mock(NodeClient.class));
+            fail("Expected exception when WLM mode is DISABLED");
+        } catch (Exception e) {
+            assertTrue(e.getMessage().contains("delete"));
+        }
     }
 }

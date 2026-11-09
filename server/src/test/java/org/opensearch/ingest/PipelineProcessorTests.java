@@ -208,9 +208,9 @@ public class PipelineProcessorTests extends OpenSearchTestCase {
         assertThat(pipeline3Stats.getCount(), equalTo(1L));
 
         // time
-        assertThat(pipeline1Stats.getTotalTimeInMillis(), equalTo(0L));
-        assertThat(pipeline2Stats.getTotalTimeInMillis(), equalTo(3L));
-        assertThat(pipeline3Stats.getTotalTimeInMillis(), equalTo(2L));
+        assertThat(pipeline1Stats.getTotalTime(), equalTo(0L));
+        assertThat(pipeline2Stats.getTotalTime(), equalTo(3L));
+        assertThat(pipeline3Stats.getTotalTime(), equalTo(2L));
 
         // failure
         assertThat(pipeline1Stats.getFailedCount(), equalTo(0L));

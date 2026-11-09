@@ -19,8 +19,8 @@ public class GetIngestionStateResponseTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
         ShardIngestionState[] shardStates = new ShardIngestionState[] {
-            new ShardIngestionState("index1", 0, "POLLING", "DROP", false, false, ""),
-            new ShardIngestionState("index1", 1, "PAUSED", "BLOCK", true, false, "") };
+            new ShardIngestionState("index1", 0, "POLLING", "DROP", false, false, "", true, "node"),
+            new ShardIngestionState("index1", 1, "PAUSED", "BLOCK", true, false, "", true, "node") };
         GetIngestionStateResponse response = new GetIngestionStateResponse(shardStates, 2, 2, 0, null, Collections.emptyList());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -28,8 +28,8 @@ public class GetIngestionStateResponseTests extends OpenSearchTestCase {
 
             try (StreamInput in = out.bytes().streamInput()) {
                 GetIngestionStateResponse deserializedResponse = new GetIngestionStateResponse(in);
-                assertEquals(response.getShardStates()[0].shardId(), deserializedResponse.getShardStates()[0].shardId());
-                assertEquals(response.getShardStates()[1].shardId(), deserializedResponse.getShardStates()[1].shardId());
+                assertEquals(response.getShardStates()[0].getShardId(), deserializedResponse.getShardStates()[0].getShardId());
+                assertEquals(response.getShardStates()[1].getShardId(), deserializedResponse.getShardStates()[1].getShardId());
                 assertEquals(response.getTotalShards(), deserializedResponse.getTotalShards());
                 assertEquals(response.getSuccessfulShards(), deserializedResponse.getSuccessfulShards());
                 assertEquals(response.getFailedShards(), deserializedResponse.getFailedShards());

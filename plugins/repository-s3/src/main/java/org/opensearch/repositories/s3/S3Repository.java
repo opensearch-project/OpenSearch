@@ -60,6 +60,8 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
+import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.ShardGenerations;
@@ -124,9 +126,13 @@ class S3Repository extends MeteredBlobStoreRepository {
     static final Setting<String> BUCKET_SETTING = Setting.simpleString("bucket");
 
     static final String BUCKET_DEFAULT_ENCRYPTION_TYPE = "bucket_default";
+
+    public static final String NETTY_ASYNC_HTTP_CLIENT_TYPE = "netty";
+    public static final String CRT_ASYNC_HTTP_CLIENT_TYPE = "crt";
+
     /**
      * The type of S3 Server Side Encryption to use.
-     * Defaults to AES256.
+     * Defaults to bucket_default (no SSE header sent, lets bucket decide).
      * Supports: AES256, aws:kms
      */
     static final Setting<String> SERVER_SIDE_ENCRYPTION_TYPE_SETTING = Setting.simpleString(
@@ -170,6 +176,15 @@ class S3Repository extends MeteredBlobStoreRepository {
             throw new IllegalArgumentException("expected_bucket_owner must be a 12 digit AWS account id");
         }
     });
+
+    /**
+     * Type of Async client to be used for S3 Uploads. Defaults to crt.
+     */
+    static final Setting<String> S3_ASYNC_HTTP_CLIENT_TYPE = Setting.simpleString(
+        "s3_async_client_type",
+        CRT_ASYNC_HTTP_CLIENT_TYPE,
+        Setting.Property.NodeScope
+    );
 
     /**
      * Maximum size of files that can be uploaded using a single upload request.
@@ -316,6 +331,9 @@ class S3Repository extends MeteredBlobStoreRepository {
      */
     static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
 
+    /** An override for the s3 region to use for signing requests. */
+    static final Setting<Boolean> LEGACY_MD5_CHECKSUM_CALCULATION = Setting.boolSetting("legacy_md5_checksum_calculation", false);
+
     private final S3Service service;
 
     private volatile String bucket;
@@ -347,6 +365,9 @@ class S3Repository extends MeteredBlobStoreRepository {
     private final GenericStatsMetricPublisher genericStatsMetricPublisher;
 
     private volatile int bulkDeletesSize;
+
+    /** Native (Rust) object store — created during construction if native provider is available. */
+    private volatile NativeStoreRepository nativeStore = NativeStoreRepository.EMPTY;
 
     // Used by test classes
     S3Repository(
@@ -404,6 +425,47 @@ class S3Repository extends MeteredBlobStoreRepository {
         final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ,
         final GenericStatsMetricPublisher genericStatsMetricPublisher
     ) {
+        this(
+            metadata,
+            namedXContentRegistry,
+            service,
+            clusterService,
+            recoverySettings,
+            asyncUploadUtils,
+            urgentExecutorBuilder,
+            priorityExecutorBuilder,
+            normalExecutorBuilder,
+            s3AsyncService,
+            multipartUploadEnabled,
+            pluginConfigPath,
+            normalPrioritySizeBasedBlockingQ,
+            lowPrioritySizeBasedBlockingQ,
+            genericStatsMetricPublisher,
+            null
+        );
+    }
+
+    /**
+     * Constructs an s3 backed repository with optional native store provider.
+     */
+    S3Repository(
+        final RepositoryMetadata metadata,
+        final NamedXContentRegistry namedXContentRegistry,
+        final S3Service service,
+        final ClusterService clusterService,
+        final RecoverySettings recoverySettings,
+        final AsyncTransferManager asyncUploadUtils,
+        final AsyncExecutorContainer urgentExecutorBuilder,
+        final AsyncExecutorContainer priorityExecutorBuilder,
+        final AsyncExecutorContainer normalExecutorBuilder,
+        final S3AsyncService s3AsyncService,
+        final boolean multipartUploadEnabled,
+        Path pluginConfigPath,
+        final SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ,
+        final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ,
+        final GenericStatsMetricPublisher genericStatsMetricPublisher,
+        final NativeRemoteObjectStoreProvider nativeStoreProvider
+    ) {
         super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
         this.service = service;
         this.s3AsyncService = s3AsyncService;
@@ -419,6 +481,16 @@ class S3Repository extends MeteredBlobStoreRepository {
 
         validateRepositoryMetadata(metadata);
         readRepositoryMetadata();
+
+        // Initialize native store if provider is available (sandbox warm nodes only)
+        if (nativeStoreProvider != null) {
+            final NativeStoreRepository store = nativeStoreProvider.createNativeStore(metadata, clusterService.getSettings());
+            if (store != null && store.isLive()) {
+                this.nativeStore = store;
+            } else if (store != null && store != NativeStoreRepository.EMPTY) {
+                store.close();
+            }
+        }
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
@@ -524,8 +596,9 @@ class S3Repository extends MeteredBlobStoreRepository {
         s3AsyncService.releaseCachedClients();
 
         // Reload configs for S3BlobStore
-        BlobStore blobStore = getBlobStore();
-        blobStore.reload(metadata);
+        if (blobStoreProvider.get() != null) {
+            blobStoreProvider.get().reloadBlobStore(newRepositoryMetadata);
+        }
     }
 
     /**
@@ -604,6 +677,15 @@ class S3Repository extends MeteredBlobStoreRepository {
 
         validateStorageClass(STORAGE_CLASS_SETTING.get(settings));
         validateCannedACL(CANNED_ACL_SETTING.get(settings));
+        validateHttpClientType(S3_ASYNC_HTTP_CLIENT_TYPE.get(settings));
+    }
+
+    // package access for tests
+    void validateHttpClientType(String httpClientType) {
+        if (!(httpClientType.equalsIgnoreCase(NETTY_ASYNC_HTTP_CLIENT_TYPE)
+            || httpClientType.equalsIgnoreCase(CRT_ASYNC_HTTP_CLIENT_TYPE))) {
+            throw new BlobStoreException("Invalid http client type. `" + httpClientType + "`");
+        }
     }
 
     private static void validateStorageClass(String storageClassStringValue) {
@@ -651,11 +733,23 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     @Override
     protected void doClose() {
+        nativeStore.close();
         final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
         if (cancellable != null) {
             logger.debug("Repository [{}] closed during cool-down period", metadata.name());
             cancellable.cancel();
         }
         super.doClose();
+    }
+
+    @Override
+    public NativeStoreRepository getNativeStore() {
+        return nativeStore;
+    }
+
+    @Override
+    public boolean isSeverSideEncryptionEnabled() {
+        // s3 is always server side encrypted.
+        return true;
     }
 }

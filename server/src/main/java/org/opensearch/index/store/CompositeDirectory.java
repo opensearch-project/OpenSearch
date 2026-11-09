@@ -28,6 +28,8 @@ import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCache.RestoredCachedIndexInput;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
 import org.opensearch.index.store.remote.utils.TransferManager;
+import org.opensearch.storage.utils.DirectoryUtils;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -53,12 +55,13 @@ import static org.apache.lucene.index.IndexFileNames.SEGMENTS;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CompositeDirectory extends FilterDirectory {
+public class CompositeDirectory extends FilterDirectory implements RemoteSyncListener {
     private static final Logger logger = LogManager.getLogger(CompositeDirectory.class);
-    protected final FSDirectory localDirectory;
+    protected final Directory localDirectory;
     protected final RemoteSegmentStoreDirectory remoteDirectory;
     protected final FileCache fileCache;
     protected final TransferManager transferManager;
+    protected final ThreadPool threadPool;
 
     /**
      * Constructor to initialise the composite directory
@@ -66,18 +69,20 @@ public class CompositeDirectory extends FilterDirectory {
      * @param remoteDirectory corresponding to the remote directory
      * @param fileCache used to cache the remote files locally
      */
-    public CompositeDirectory(Directory localDirectory, Directory remoteDirectory, FileCache fileCache) {
+    public CompositeDirectory(Directory localDirectory, Directory remoteDirectory, FileCache fileCache, ThreadPool threadPool) {
         super(localDirectory);
         validate(localDirectory, remoteDirectory, fileCache);
-        this.localDirectory = (FSDirectory) localDirectory;
+        this.localDirectory = localDirectory;
         this.remoteDirectory = (RemoteSegmentStoreDirectory) remoteDirectory;
         this.fileCache = fileCache;
+        this.threadPool = threadPool;
         transferManager = new TransferManager(
             (name, position, length) -> new InputStreamIndexInput(
                 CompositeDirectory.this.remoteDirectory.openBlockInput(name, position, length, IOContext.DEFAULT),
                 length
             ),
-            fileCache
+            fileCache,
+            threadPool
         );
     }
 
@@ -249,10 +254,16 @@ public class CompositeDirectory extends FilterDirectory {
     public void sync(Collection<String> names) throws IOException {
         ensureOpen();
         logger.trace("Composite Directory[{}]: sync() called {}", this::toString, () -> names);
-        Collection<String> remoteFiles = Arrays.asList(getRemoteFiles());
-        Collection<String> filesToSync = names.stream().filter(name -> remoteFiles.contains(name) == false).collect(Collectors.toList());
-        logger.trace("Composite Directory[{}]: Synced files : {}", this::toString, () -> filesToSync);
-        localDirectory.sync(filesToSync);
+        Set<String> remoteFiles = Set.of(getRemoteFiles());
+        Set<String> localFilesHavingBlocks = Arrays.stream(listLocalFiles())
+            .filter(FileTypeUtils::isBlockFile)
+            .map(file -> file.substring(0, file.indexOf(BLOCK_FILE_IDENTIFIER)))
+            .collect(Collectors.toSet());
+        Collection<String> fullFilesToSync = names.stream()
+            .filter(name -> (remoteFiles.contains(name) == false) && (localFilesHavingBlocks.contains(name) == false))
+            .collect(Collectors.toList());
+        logger.trace("Composite Directory[{}]: Synced files : {}", this::toString, () -> fullFilesToSync);
+        localDirectory.sync(fullFilesToSync);
     }
 
     /**
@@ -335,7 +346,7 @@ public class CompositeDirectory extends FilterDirectory {
                 new StoreFileMetadata(name, uploadedSegmentMetadata.getLength(), uploadedSegmentMetadata.getChecksum(), Version.LATEST),
                 null
             );
-            return new OnDemandBlockSnapshotIndexInput(fileInfo, localDirectory, transferManager);
+            return new OnDemandBlockSnapshotIndexInput(fileInfo, getLocalFSDirectory(), transferManager);
         }
     }
 
@@ -383,7 +394,11 @@ public class CompositeDirectory extends FilterDirectory {
 
     // Visibility public since we need it in IT tests
     public Path getFilePath(String name) {
-        return localDirectory.getDirectory().resolve(name);
+        return getLocalFSDirectory().getDirectory().resolve(name);
+    }
+
+    private FSDirectory getLocalFSDirectory() {
+        return DirectoryUtils.unwrapFSDirectory(localDirectory);
     }
 
     /**
@@ -401,9 +416,11 @@ public class CompositeDirectory extends FilterDirectory {
         if (fileCache == null) throw new IllegalStateException(
             "File Cache not initialized on this Node, cannot create Composite Directory without FileCache"
         );
-        if (localDirectory instanceof FSDirectory == false) throw new IllegalStateException(
-            "For Composite Directory, local directory must be of type FSDirectory"
-        );
+        try {
+            DirectoryUtils.unwrapFSDirectory(localDirectory);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("For Composite Directory, local directory must be of type FSDirectory");
+        }
         if (remoteDirectory instanceof RemoteSegmentStoreDirectory == false) throw new IllegalStateException(
             "For Composite Directory, remote directory must be of type RemoteSegmentStoreDirectory"
         );

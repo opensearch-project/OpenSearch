@@ -1,0 +1,1 @@
+source=sales_data | fillnull value='Unknown' department | stats count() as transaction_count, sum(sales_amount) as total_sales by department | sort - total_sales

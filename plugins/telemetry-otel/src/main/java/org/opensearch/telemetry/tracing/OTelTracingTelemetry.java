@@ -72,10 +72,10 @@ public class OTelTracingTelemetry<T extends TracerProvider & Closeable> implemen
         io.opentelemetry.api.common.Attributes attributes,
         io.opentelemetry.api.trace.SpanKind spanKind
     ) {
-        return parentOTelSpan == null || !(parentOTelSpan instanceof OTelSpan)
+        return !(parentOTelSpan instanceof OTelSpan oTelSpan)
             ? otelTracer.spanBuilder(spanName).setAllAttributes(attributes).startSpan()
             : otelTracer.spanBuilder(spanName)
-                .setParent(Context.current().with(((OTelSpan) parentOTelSpan).getDelegateSpan()))
+                .setParent(Context.current().with(oTelSpan.getDelegateSpan()))
                 .setAllAttributes(attributes)
                 .setSpanKind(spanKind)
                 .startSpan();

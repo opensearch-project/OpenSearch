@@ -1,0 +1,1 @@
+source=otel_logs | where `log.http.status_code` >= 500 | stats count() as c by `log.http.status_code` | sort - c

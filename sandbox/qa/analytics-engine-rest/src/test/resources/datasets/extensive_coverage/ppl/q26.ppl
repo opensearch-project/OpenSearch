@@ -1,0 +1,1 @@
+source=test_data | eval unix_ts = unix_timestamp(timestamp) | fields timestamp, unix_ts | head 3

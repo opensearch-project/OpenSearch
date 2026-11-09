@@ -81,7 +81,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.opensearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE;
 
 /**
@@ -177,7 +176,8 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime()
+            currentNanoTime(),
+            settings
         );
         // as starting a primary relocation target can reinitialize replica shards, start replicas first
         startedShards = new ArrayList<>(startedShards);
@@ -266,7 +266,8 @@ public class AllocationService {
             tmpState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime
+            currentNanoTime,
+            settings
         );
 
         for (FailedShard failedShardEntry : failedShards) {
@@ -284,26 +285,12 @@ public class AllocationService {
                         failedShard
                     );
                 }
-                int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().getNumFailedAllocations() : 0;
-                final Set<String> failedNodeIds;
-                if (failedShard.unassignedInfo() != null) {
-                    failedNodeIds = new HashSet<>(failedShard.unassignedInfo().getFailedNodeIds().size() + 1);
-                    failedNodeIds.addAll(failedShard.unassignedInfo().getFailedNodeIds());
-                    failedNodeIds.add(failedShard.currentNodeId());
-                } else {
-                    failedNodeIds = Collections.emptySet();
-                }
-                String message = "failed shard on node [" + shardToFail.currentNodeId() + "]: " + failedShardEntry.getMessage();
-                UnassignedInfo unassignedInfo = new UnassignedInfo(
-                    UnassignedInfo.Reason.ALLOCATION_FAILED,
-                    message,
+                UnassignedInfo unassignedInfo = UnassignedInfo.failedShard(
+                    failedShard,
+                    failedShardEntry.getMessage(),
                     failedShardEntry.getFailure(),
-                    failedAllocations + 1,
                     currentNanoTime,
-                    System.currentTimeMillis(),
-                    false,
-                    UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-                    failedNodeIds
+                    System.currentTimeMillis()
                 );
                 if (failedShardEntry.markAsStale()) {
                     allocation.removeAllocationId(failedShard);
@@ -341,7 +328,8 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime()
+            currentNanoTime(),
+            settings
         );
 
         // first, clear from the shards any node id they used to belong to that is now dead
@@ -368,7 +356,8 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime()
+            currentNanoTime(),
+            settings
         );
         final Map<Integer, List<String>> autoExpandReplicaChanges = AutoExpandReplicas.getAutoExpandReplicaChanges(
             clusterState.metadata(),
@@ -440,7 +429,8 @@ public class AllocationService {
             if (unassignedInfo.isDelayed()) {
                 final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(
                     allocation.getCurrentNanoTime(),
-                    metadata.getIndexSafe(shardRouting.index()).getSettings()
+                    metadata.getIndexSafe(shardRouting.index()).getSettings(),
+                    allocation.clusterSettings()
                 );
                 if (newComputedLeftDelayNanos == 0) {
                     unassignedIterator.updateUnassigned(
@@ -524,7 +514,8 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime()
+            currentNanoTime(),
+            settings
         );
         // don't short circuit deciders, we want a full explanation
         allocation.debugDecision(true);
@@ -561,7 +552,8 @@ public class AllocationService {
             fixedClusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime()
+            currentNanoTime(),
+            settings
         );
         reroute(allocation);
         if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
@@ -666,7 +658,8 @@ public class AllocationService {
             // now, go over all the shards routing on the node, and fail them
             for (ShardRouting shardRouting : node.copyShards()) {
                 final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-                boolean delayed = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).nanos() > 0;
+                boolean delayed = UnassignedInfo.getNodeLeftDelayedTimeout(indexMetadata.getSettings(), allocation.clusterSettings())
+                    .nanos() > 0;
                 UnassignedInfo unassignedInfo = new UnassignedInfo(
                     UnassignedInfo.Reason.NODE_LEFT,
                     "node_left [" + node.nodeId() + "]",

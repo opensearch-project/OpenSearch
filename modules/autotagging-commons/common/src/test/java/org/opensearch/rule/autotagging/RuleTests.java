@@ -77,12 +77,6 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         private static final String NAME = TEST_FEATURE_TYPE;
         private static final int MAX_ATTRIBUTE_VALUES = 10;
         private static final int MAX_ATTRIBUTE_VALUE_LENGTH = 100;
-        private static final Map<String, Attribute> ALLOWED_ATTRIBUTES = Map.of(
-            TEST_ATTR1_NAME,
-            TEST_ATTRIBUTE_1,
-            TEST_ATTR2_NAME,
-            TEST_ATTRIBUTE_2
-        );
 
         public TestFeatureType() {}
 
@@ -96,6 +90,11 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         }
 
         @Override
+        public Map<Attribute, Integer> getOrderedAttributes() {
+            return Map.of(TEST_ATTRIBUTE_1, 1, TEST_ATTRIBUTE_2, 2);
+        }
+
+        @Override
         public int getMaxNumberOfValuesPerAttribute() {
             return MAX_ATTRIBUTE_VALUES;
         }
@@ -103,11 +102,6 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         @Override
         public int getMaxCharLengthPerAttributeValue() {
             return MAX_ATTRIBUTE_VALUE_LENGTH;
-        }
-
-        @Override
-        public Map<String, Attribute> getAllowedAttributesRegistry() {
-            return ALLOWED_ATTRIBUTES;
         }
     }
 

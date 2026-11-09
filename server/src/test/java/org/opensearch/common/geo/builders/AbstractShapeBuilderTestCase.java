@@ -88,7 +88,7 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder<?, ?,
             SB testShape = createTestShapeBuilder();
             XContentBuilder contentBuilder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
-                contentBuilder.prettyPrint();
+                contentBuilder = contentBuilder.prettyPrint();
             }
             XContentBuilder builder = testShape.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
             XContentBuilder shuffled = shuffleXContent(builder);

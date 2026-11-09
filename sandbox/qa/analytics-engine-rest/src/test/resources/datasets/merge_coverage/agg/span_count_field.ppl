@@ -1,0 +1,1 @@
+source=%INDEX% | stats count(opt) by span(amount, 5)

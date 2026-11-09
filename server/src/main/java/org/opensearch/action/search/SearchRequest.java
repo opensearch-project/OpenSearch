@@ -39,6 +39,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.unit.TimeValue;
@@ -51,6 +52,9 @@ import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.ShardDocSortBuilder;
+import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.Requests;
 
@@ -349,7 +353,43 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 validationException = addValidationError("using [point in time] is not allowed in a scroll context", validationException);
             }
         }
+
+        // _shard_doc validation
+        if (source != null && source.sorts() != null && !source.sorts().isEmpty()) {
+            int shardDocCount = 0;
+            for (SortBuilder<?> sb : source.sorts()) {
+                if (isShardDocSort(sb)) shardDocCount++;
+            }
+            final boolean hasPit = pointInTimeBuilder() != null;
+
+            if (shardDocCount > 0 && scroll) {
+                validationException = addValidationError(
+                    "_shard_doc cannot be used with scroll. Use PIT + search_after instead.",
+                    validationException
+                );
+            }
+            if (shardDocCount > 0 && !hasPit) {
+                validationException = addValidationError(
+                    "_shard_doc is only supported with point-in-time (PIT). Add a PIT or remove _shard_doc.",
+                    validationException
+                );
+            }
+            if (shardDocCount > 1) {
+                validationException = addValidationError(
+                    "duplicate _shard_doc sort detected. Specify it at most once.",
+                    validationException
+                );
+            }
+        }
         return validationException;
+    }
+
+    private static boolean isShardDocSort(SortBuilder<?> sb) {
+        if (sb instanceof ShardDocSortBuilder) return true;
+        if (sb instanceof FieldSortBuilder) {
+            return ShardDocSortBuilder.NAME.equals(((FieldSortBuilder) sb).getFieldName());
+        }
+        return false;
     }
 
     /**
@@ -611,6 +651,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /**
+     * Returns the raw value of maxConcurrentShardRequests without applying the default.
+     * A value of {@code 0} means the user has not explicitly set this parameter.
+     */
+    @ExperimentalApi
+    public int getMaxConcurrentShardRequestsRaw() {
+        return maxConcurrentShardRequests;
+    }
+
+    /**
      * Sets the number of shard requests that should be executed concurrently on a single node. This value should be used as a
      * protection mechanism to reduce the number of shard requests fired per high level search request. Searches that hit the entire
      * cluster can be throttled with this number to reduce the cluster load. The default is {@code 5}
@@ -715,7 +764,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     @Override
     public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers, cancelAfterTimeInterval);
+        return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers, cancelAfterTimeInterval, true);
     }
 
     public final String buildDescription() {

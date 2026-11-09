@@ -98,6 +98,7 @@ public class AggregateFileCacheStatsTests extends OpenSearchTestCase {
                 stats.usage(),
                 stats.pinnedUsage(),
                 stats.evictionWeight(),
+                stats.removeWeight(),
                 stats.hitCount(),
                 stats.missCount(),
                 FileCacheStatsType.OVER_ALL_STATS
@@ -108,6 +109,7 @@ public class AggregateFileCacheStatsTests extends OpenSearchTestCase {
                 stats.usage(),
                 stats.pinnedUsage(),
                 stats.evictionWeight(),
+                stats.removeWeight(),
                 stats.hitCount(),
                 stats.missCount(),
                 FileCacheStatsType.FULL_FILE_STATS
@@ -118,6 +120,7 @@ public class AggregateFileCacheStatsTests extends OpenSearchTestCase {
                 stats.usage(),
                 stats.pinnedUsage(),
                 stats.evictionWeight(),
+                stats.removeWeight(),
                 stats.hitCount(),
                 stats.missCount(),
                 FileCacheStatsType.BLOCK_FILE_STATS
@@ -128,6 +131,7 @@ public class AggregateFileCacheStatsTests extends OpenSearchTestCase {
                 stats.usage(),
                 stats.pinnedUsage(),
                 stats.evictionWeight(),
+                stats.removeWeight(),
                 stats.hitCount(),
                 stats.missCount(),
                 FileCacheStatsType.PINNED_FILE_STATS
@@ -141,9 +145,10 @@ public class AggregateFileCacheStatsTests extends OpenSearchTestCase {
         final long used = randomLongBetween(100000, BYTES_IN_GB);
         final long pinned = randomLongBetween(100000, BYTES_IN_GB);
         final long evicted = randomLongBetween(0, getMockCacheStats().getFullFileCacheStats().evictionWeight());
+        final long removed = randomLongBetween(0, 10);
         final long hit = randomLongBetween(0, 10);
         final long misses = randomLongBetween(0, 10);
-        return new FileCacheStats(active, total, used, pinned, evicted, hit, misses, FileCacheStatsType.OVER_ALL_STATS);
+        return new FileCacheStats(active, total, used, pinned, evicted, removed, hit, misses, FileCacheStatsType.OVER_ALL_STATS);
     }
 
     public static AggregateFileCacheStats getMockFileCacheStats() throws IOException {
@@ -165,6 +170,7 @@ public class AggregateFileCacheStatsTests extends OpenSearchTestCase {
         assertEquals(original.getUsedPercent(), deserialized.getUsedPercent());
         assertEquals(original.getActive(), deserialized.getActive());
         assertEquals(original.getActivePercent(), deserialized.getActivePercent());
+        assertEquals(original.getOverallActivePercent(), deserialized.getOverallActivePercent(), 0.0);
         assertEquals(original.getEvicted(), deserialized.getEvicted());
         assertEquals(original.getCacheHits(), deserialized.getCacheHits());
         assertEquals(original.getCacheMisses(), deserialized.getCacheMisses());

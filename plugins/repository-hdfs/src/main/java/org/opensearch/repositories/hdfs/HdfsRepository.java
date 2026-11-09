@@ -54,13 +54,13 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
-import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Locale;
 
@@ -254,14 +254,11 @@ public final class HdfsRepository extends BlobStoreRepository {
         }
     }
 
-    @SuppressWarnings("removal")
     @Override
     protected HdfsBlobStore createBlobStore() {
         // initialize our blobstore using elevated privileges.
         SpecialPermission.check();
-        final HdfsBlobStore blobStore = AccessController.doPrivileged(
-            (PrivilegedAction<HdfsBlobStore>) () -> createBlobstore(uri, pathSetting, getMetadata().settings())
-        );
+        final HdfsBlobStore blobStore = AccessController.doPrivileged(() -> createBlobstore(uri, pathSetting, getMetadata().settings()));
         return blobStore;
     }
 

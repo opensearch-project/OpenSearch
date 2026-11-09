@@ -8,6 +8,7 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import org.opensearch.Version;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -41,6 +42,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
     private final long used;
     private final long pinned;
     private final long evicted;
+    private final long removed;
     private final long hits;
     private final long misses;
     private final FileCacheStatsType statsType;
@@ -52,6 +54,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         final long used,
         final long pinned,
         final long evicted,
+        final long removed,
         final long hits,
         long misses,
         FileCacheStatsType statsType
@@ -61,6 +64,7 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         this.used = used;
         this.pinned = pinned;
         this.evicted = evicted;
+        this.removed = removed;
         this.hits = hits;
         this.misses = misses;
         this.statsType = statsType;
@@ -75,7 +79,14 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         this.pinned = in.readLong();
         this.evicted = in.readLong();
         this.hits = in.readLong();
-        this.misses = in.readLong();
+
+        if (in.getVersion().onOrAfter(Version.V_3_4_0)) {
+            this.removed = in.readLong();
+            this.misses = in.readLong();
+        } else {
+            this.removed = 0L;
+            this.misses = 0L;
+        }
     }
 
     @Override
@@ -87,7 +98,11 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         out.writeLong(pinned);
         out.writeLong(evicted);
         out.writeLong(hits);
-        out.writeLong(misses);
+
+        if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
+            out.writeLong(removed);
+            out.writeLong(misses);
+        }
     }
 
     public long getActive() {
@@ -100,6 +115,10 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
 
     public long getEvicted() {
         return evicted;
+    }
+
+    public long getRemoved() {
+        return removed;
     }
 
     public long getHits() {
@@ -136,10 +155,14 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         static final String USED = "used";
         static final String PINNED = "pinned";
         static final String USED_IN_BYTES = "used_in_bytes";
+        static final String PINNED_IN_BYTES = "pinned_in_bytes";
         static final String EVICTIONS = "evictions";
         static final String EVICTIONS_IN_BYTES = "evictions_in_bytes";
+        static final String REMOVED = "removed";
+        static final String REMOVED_IN_BYTES = "removed_in_bytes";
         static final String ACTIVE_PERCENT = "active_percent";
         static final String HIT_COUNT = "hit_count";
+        static final String MISS_COUNT = "miss_count";
     }
 
     @Override
@@ -147,14 +170,16 @@ public class FileCacheStats implements Writeable, ToXContentFragment {
         builder.startObject(statsType.toString());
         builder.humanReadableField(FileCacheStats.Fields.ACTIVE_IN_BYTES, FileCacheStats.Fields.ACTIVE, new ByteSizeValue(getActive()));
         builder.humanReadableField(FileCacheStats.Fields.USED_IN_BYTES, FileCacheStats.Fields.USED, new ByteSizeValue(getUsed()));
-        builder.humanReadableField(FileCacheStats.Fields.USED_IN_BYTES, Fields.PINNED, new ByteSizeValue(getPinnedUsage()));
+        builder.humanReadableField(FileCacheStats.Fields.PINNED_IN_BYTES, Fields.PINNED, new ByteSizeValue(getPinnedUsage()));
         builder.humanReadableField(
             FileCacheStats.Fields.EVICTIONS_IN_BYTES,
             FileCacheStats.Fields.EVICTIONS,
             new ByteSizeValue(getEvicted())
         );
+        builder.humanReadableField(FileCacheStats.Fields.REMOVED_IN_BYTES, FileCacheStats.Fields.REMOVED, new ByteSizeValue(getRemoved()));
         builder.field(FileCacheStats.Fields.ACTIVE_PERCENT, getActivePercent());
         builder.field(FileCacheStats.Fields.HIT_COUNT, getHits());
+        builder.field(FileCacheStats.Fields.MISS_COUNT, getCacheMisses());
         builder.endObject();
         return builder;
     }

@@ -1,0 +1,1 @@
+source=%INDEX% | where amount > 5 | stats sum(amount) by category

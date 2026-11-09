@@ -1,0 +1,1 @@
+source=test_data | eval quotient = divide(value, 10) | fields value, quotient | head 3
