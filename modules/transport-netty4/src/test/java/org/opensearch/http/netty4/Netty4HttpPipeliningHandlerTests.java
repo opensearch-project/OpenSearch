@@ -63,7 +63,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -301,47 +300,71 @@ public class Netty4HttpPipeliningHandlerTests extends OpenSearchTestCase {
         assertFalse(embeddedChannel.isOpen());
     }
 
-    public void testPipeliningRequestsAreReleased() throws InterruptedException {
-        final int numberOfRequests = 10;
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests + 1));
+    private enum ClosePath {
+        OUTBOUND,
+        TRANSPORT,
+        UPSTREAM,
+        HANDLER_REMOVAL,
+        CONSUMED_INACTIVE
+    }
 
-        for (int i = 0; i < numberOfRequests; i++) {
-            embeddedChannel.writeInbound(createHttpRequest("/" + i));
-        }
-
-        HttpPipelinedRequest inbound;
-        ArrayList<HttpPipelinedRequest> requests = new ArrayList<>();
-        while ((inbound = embeddedChannel.readInbound()) != null) {
-            requests.add(inbound);
-        }
-
-        ArrayList<ChannelPromise> promises = new ArrayList<>();
-        for (int i = 1; i < requests.size(); ++i) {
-            ChannelPromise promise = embeddedChannel.newPromise();
-            promises.add(promise);
-            HttpPipelinedRequest pipelinedRequest = requests.get(i);
-            HttpPipelinedResponse resp = pipelinedRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);
-            embeddedChannel.writeAndFlush(resp, promise);
-        }
-
-        for (ChannelPromise promise : promises) {
-            assertFalse(promise.isDone());
-        }
-        embeddedChannel.close().syncUninterruptibly();
-        for (ChannelPromise promise : promises) {
-            assertTrue(promise.isDone());
-            assertTrue(promise.cause() instanceof ClosedChannelException);
+    public void testQueuedResponsesAreReleasedAtEveryClosePath() {
+        for (ClosePath path : ClosePath.values()) {
+            assertQueuedResponsesAreReleased(path);
         }
     }
 
-    public void testPipeliningResponsesAreReleasedOnTransportClose() {
-        // A peer disconnect closes the transport without traversing outbound close handlers.
-        assertPipeliningResponsesAreReleased(channel -> channel.unsafe().close(channel.newPromise()));
-    }
-
-    public void testPipeliningResponsesAreReleasedOnUpstreamClose() {
-        // A decoder or timeout handler can close from a context before the pipelining handler.
-        assertPipeliningResponsesAreReleased(channel -> channel.pipeline().context(Netty4HttpPipeliningHandler.class).close());
+    private void assertQueuedResponsesAreReleased(ClosePath path) {
+        final Netty4HttpPipeliningHandler handler = new Netty4HttpPipeliningHandler(logger, 3);
+        final EmbeddedChannel channel = new EmbeddedChannel(new ChannelInboundHandlerAdapter() {
+            @Override
+            public void channelInactive(ChannelHandlerContext ctx) {
+                if (path != ClosePath.CONSUMED_INACTIVE) {
+                    ctx.fireChannelInactive();
+                }
+            }
+        }, handler);
+        final Netty4HttpResponse[] responses = { newResponse(), newResponse() };
+        final List<ChannelPromise> promises = new ArrayList<>();
+        final AtomicInteger releasedAtCompletion = new AtomicInteger();
+        try {
+            for (int i = 0; i < responses.length; i++) {
+                final Netty4HttpResponse response = responses[i];
+                final ChannelPromise promise = channel.newPromise();
+                promise.addListener(future -> {
+                    if (response.refCnt() == 0) {
+                        releasedAtCompletion.incrementAndGet();
+                    }
+                });
+                promises.add(promise);
+                // Both generic and transport-specific wrappers must release their delegates. Sequence zero stays outstanding.
+                final HttpPipelinedResponse pending = i == 0
+                    ? new HttpPipelinedResponse(i + 1, response)
+                    : new Netty4HttpPipelinedResponse(i + 1, response);
+                channel.writeAndFlush(pending, promise);
+                assertFalse(path.toString(), promise.isDone());
+            }
+            switch (path) {
+                case OUTBOUND -> channel.close();
+                case TRANSPORT, CONSUMED_INACTIVE -> channel.unsafe().close(channel.newPromise());
+                case UPSTREAM -> channel.pipeline().context(handler).close();
+                case HANDLER_REMOVAL -> channel.pipeline().remove(handler);
+            }
+            channel.runPendingTasks();
+            assertNull(path.toString(), channel.pipeline().context(handler));
+            assertEquals(path.toString(), path == ClosePath.HANDLER_REMOVAL, channel.isOpen());
+            for (int i = 0; i < responses.length; i++) {
+                assertTrue(path.toString(), promises.get(i).cause() instanceof ClosedChannelException);
+                assertEquals(path.toString(), 0, responses[i].refCnt());
+            }
+            assertEquals(path + " must release buffers before completing promises", responses.length, releasedAtCompletion.get());
+            channel.close();
+            channel.runPendingTasks();
+            assertEquals(path + " must complete each response once", responses.length, releasedAtCompletion.get());
+        } finally {
+            channel.finishAndReleaseAll();
+            releaseIfNeeded(responses);
+        }
     }
 
     public void testPipeliningResponseAfterTransportCloseIsRejected() {
@@ -406,47 +429,6 @@ public class Netty4HttpPipeliningHandlerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testPendingResponseIsReleasedOnHandlerRemoval() {
-        final Netty4HttpPipeliningHandler handler = new Netty4HttpPipeliningHandler(logger, 3);
-        final EmbeddedChannel channel = new EmbeddedChannel(handler);
-        final Netty4HttpResponse response = newResponse();
-        final ChannelPromise promise = channel.newPromise();
-        try {
-            channel.writeAndFlush(new Netty4HttpPipelinedResponse(1, response), promise);
-            assertFalse(promise.isDone());
-            channel.pipeline().remove(handler);
-            assertTrue("Removing the owner must complete pending responses", promise.isDone());
-            assertTrue(promise.cause() instanceof ClosedChannelException);
-            assertEquals(0, response.refCnt());
-        } finally {
-            channel.finishAndReleaseAll();
-            releaseIfNeeded(response);
-        }
-    }
-
-    public void testPipelineTeardownReleasesResponsesWhenInactiveIsSwallowed() {
-        final EmbeddedChannel channel = new EmbeddedChannel(new ChannelInboundHandlerAdapter() {
-            @Override
-            public void channelInactive(ChannelHandlerContext ctx) {
-                // A preceding handler does not propagate this event.
-            }
-        }, new Netty4HttpPipeliningHandler(logger, 3));
-        final Netty4HttpResponse response = newResponse();
-        final ChannelPromise promise = channel.newPromise();
-        try {
-            channel.writeAndFlush(new Netty4HttpPipelinedResponse(1, response), promise);
-            channel.unsafe().close(channel.newPromise());
-            channel.runPendingTasks();
-            assertNull(channel.pipeline().context(Netty4HttpPipeliningHandler.class));
-            assertTrue("Pipeline teardown must complete responses even when channelInactive is consumed", promise.isDone());
-            assertTrue(promise.cause() instanceof ClosedChannelException);
-            assertEquals(0, response.refCnt());
-        } finally {
-            channel.finishAndReleaseAll();
-            releaseIfNeeded(response);
-        }
-    }
-
     public void testReentrantResponseDuringCloseIsRejected() {
         final EmbeddedChannel channel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, 3));
         final Netty4HttpResponse first = newResponse();
@@ -487,45 +469,37 @@ public class Netty4HttpPipeliningHandlerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testReentrantWritesPreserveResponseOrder() {
-        final Netty4HttpResponse first = newResponse();
-        final Netty4HttpResponse second = newResponse();
+    public void testReadyResponsesDrainInOrder() {
+        assertReadyResponsesDrainInOrder(false, true); // ready response drains a full queue
+        assertReadyResponsesDrainInOrder(true, false); // reentrant write cannot overtake the active handoff
+        assertReadyResponsesDrainInOrder(true, true);  // reentrant ready response drains a full queue
+    }
+
+    private void assertReadyResponsesDrainInOrder(boolean reentrant, boolean fullQueue) {
+        final Netty4HttpResponse[] responses = { newResponse(), newResponse(), newResponse() };
+        final int count = reentrant && fullQueue ? 3 : 2;
         final EmbeddedChannel channel = new EmbeddedChannel(new ChannelOutboundHandlerAdapter() {
             @Override
             public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
-                if (msg == first) {
-                    ctx.channel().write(new Netty4HttpPipelinedResponse(1, second));
+                if (reentrant && msg == responses[0]) {
+                    ctx.channel().write(new Netty4HttpPipelinedResponse(1, responses[1]));
                 }
                 ctx.write(msg, promise);
             }
-        }, new Netty4HttpPipeliningHandler(logger, 3));
+        }, new Netty4HttpPipeliningHandler(logger, fullQueue ? 1 : 3));
         try {
-            channel.writeAndFlush(new Netty4HttpPipelinedResponse(0, first));
-            assertSame(first, channel.outboundMessages().poll());
-            assertSame(second, channel.outboundMessages().poll());
+            if (fullQueue) {
+                channel.writeAndFlush(new Netty4HttpPipelinedResponse(count - 1, responses[count - 1]));
+            }
+            channel.writeAndFlush(new Netty4HttpPipelinedResponse(0, responses[0]));
+            assertTrue("A ready response must be allowed to drain the queue", channel.isActive());
+            for (int i = 0; i < count; i++) {
+                assertSame("Response " + i + " must remain in sequence", responses[i], channel.readOutbound());
+            }
             assertNull(channel.readOutbound());
         } finally {
-            channel.outboundMessages().clear();
             channel.finishAndReleaseAll();
-            releaseIfNeeded(first, second);
-        }
-    }
-
-    public void testReadyResponseCanDrainAFullQueue() {
-        final EmbeddedChannel channel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, 1));
-        final Netty4HttpResponse first = newResponse();
-        final Netty4HttpResponse second = newResponse();
-        try {
-            channel.writeAndFlush(new Netty4HttpPipelinedResponse(1, second));
-            channel.writeAndFlush(new Netty4HttpPipelinedResponse(0, first));
-            assertTrue("A ready response does not consume a holding slot", channel.isActive());
-            assertSame(first, channel.outboundMessages().poll());
-            assertSame(second, channel.outboundMessages().poll());
-        } finally {
-            channel.outboundMessages().clear();
-            channel.finishAndReleaseAll();
-            releaseIfNeeded(first);
-            releaseIfNeeded(second);
+            releaseIfNeeded(responses);
         }
     }
 
@@ -612,15 +586,9 @@ public class Netty4HttpPipeliningHandlerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testCancelledResponseClosesConnection() {
+    public void testCancellationClosesConnectionAndRejectsLaterResponses() {
         assertCancelledResponseClosesConnection(false, false);
-    }
-
-    public void testCancelledOutOfOrderResponseClosesConnection() {
         assertCancelledResponseClosesConnection(true, false);
-    }
-
-    public void testCancelledResponseRejectsWritesWhileCloseIsDeferred() {
         assertCancelledResponseClosesConnection(false, true);
     }
 
@@ -682,33 +650,6 @@ public class Netty4HttpPipeliningHandlerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testReentrantReadyResponseCanDrainAFullQueue() {
-        final Netty4HttpResponse first = newResponse();
-        final Netty4HttpResponse second = newResponse();
-        final Netty4HttpResponse third = newResponse();
-        final EmbeddedChannel channel = new EmbeddedChannel(new ChannelOutboundHandlerAdapter() {
-            @Override
-            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
-                if (msg == first) {
-                    ctx.channel().write(new Netty4HttpPipelinedResponse(1, second));
-                }
-                ctx.write(msg, promise);
-            }
-        }, new Netty4HttpPipeliningHandler(logger, 1));
-        try {
-            channel.writeAndFlush(new Netty4HttpPipelinedResponse(2, third));
-            channel.writeAndFlush(new Netty4HttpPipelinedResponse(0, first));
-            assertTrue("The ready reentrant response must be allowed to drain the full queue", channel.isActive());
-            assertSame(first, channel.readOutbound());
-            assertSame(second, channel.readOutbound());
-            assertSame(third, channel.readOutbound());
-            assertNull(channel.readOutbound());
-        } finally {
-            channel.finishAndReleaseAll();
-            releaseIfNeeded(first, second, third);
-        }
-    }
-
     public void testResponsesAreRejectedWhileTransportCloseIsDeferred() {
         final AtomicReference<Runnable> finishClose = new AtomicReference<>();
         final EmbeddedChannel channel = new EmbeddedChannel(new ChannelOutboundHandlerAdapter() {
@@ -750,43 +691,6 @@ public class Netty4HttpPipeliningHandlerTests extends OpenSearchTestCase {
 
     private static Netty4HttpResponse newResponse() {
         return new Netty4HttpResponse(EmptyHttpHeaders.INSTANCE, HTTP_1_1, RestStatus.OK, new BytesArray("response"));
-    }
-
-    private void assertPipeliningResponsesAreReleased(Consumer<EmbeddedChannel> closeChannel) {
-        final EmbeddedChannel channel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, 3));
-        final List<HttpPipelinedRequest> requests = new ArrayList<>();
-        final List<ChannelPromise> promises = new ArrayList<>();
-        final AtomicInteger completions = new AtomicInteger();
-        try {
-            for (int i = 0; i < 3; i++) {
-                channel.writeInbound(createHttpRequest("/" + i));
-                requests.add(channel.readInbound());
-            }
-
-            // Keep the first response outstanding so later responses remain in the holding queue.
-            for (int i = 1; i < requests.size(); i++) {
-                ChannelPromise promise = channel.newPromise();
-                promise.addListener(future -> completions.incrementAndGet());
-                promises.add(promise);
-                channel.writeAndFlush(requests.get(i).createResponse(RestStatus.OK, BytesArray.EMPTY), promise);
-                assertFalse(promise.isDone());
-            }
-
-            closeChannel.accept(channel);
-            channel.runPendingTasks();
-            assertFalse(channel.isOpen());
-            assertEquals("Queued response completion listeners must run on disconnect", promises.size(), completions.get());
-            for (ChannelPromise promise : promises) {
-                assertTrue(promise.isDone());
-                assertTrue(promise.cause() instanceof ClosedChannelException);
-            }
-            channel.close();
-            channel.runPendingTasks();
-            assertEquals("Each response must complete exactly once", promises.size(), completions.get());
-        } finally {
-            requests.forEach(HttpPipelinedRequest::release);
-            channel.finishAndReleaseAll();
-        }
     }
 
     private void assertReadHttpMessageHasContent(EmbeddedChannel embeddedChannel, String expectedContent) {

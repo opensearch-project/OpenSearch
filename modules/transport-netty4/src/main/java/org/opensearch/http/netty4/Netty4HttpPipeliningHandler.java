@@ -159,7 +159,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     private static void reject(HttpPipelinedResponse response, ChannelPromise promise, ClosedChannelException failure) {
-        ReferenceCountUtil.safeRelease(response);
+        ReferenceCountUtil.safeRelease(response.getDelegateRequest());
         promise.tryFailure(failure);
     }
 }
