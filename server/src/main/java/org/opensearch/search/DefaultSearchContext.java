@@ -497,7 +497,7 @@ final class DefaultSearchContext extends SearchContext {
             final AliasFilter.ScoringMode scoringMode = aliasScoringMode();
             if (scoringMode == AliasFilter.ScoringMode.NO_STATS || scoringMode == AliasFilter.ScoringMode.FILTERED_STATS) {
                 if (useFilteredStatistics()) {
-                    // Pre-filter scoringMode, filtered_stats scoring: keep real BM25 scoring but restrict the
+                    // filtered_stats: keep real BM25 scoring but restrict the
                     // query to the visible subset by adding the alias filter as a normal (non-scoring) FILTER
                     // clause. The visibility-aware statistics are supplied by ContextIndexSearcher, which computes
                     // collection/term stats over only the alias-filter bitset (see useFilteredStatistics()). This
@@ -924,7 +924,7 @@ final class DefaultSearchContext extends SearchContext {
             && withinFilteredStatisticsBudget();
     }
 
-    /** The scoringMode of the alias filter on this request, or {@code null} when no alias filter applies. */
+    /** The scoring mode of the alias filter on this request, or {@code null} when no alias filter applies. */
     private AliasFilter.ScoringMode aliasScoringMode() {
         return aliasFilter == null ? null : request.getAliasFilter().getScoringMode();
     }

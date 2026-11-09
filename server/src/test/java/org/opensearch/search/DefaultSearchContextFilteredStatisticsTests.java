@@ -215,7 +215,7 @@ public class DefaultSearchContextFilteredStatisticsTests extends OpenSearchTestC
     }
 
     /**
-     * A context over the test index, with an alias of the given scoringMode (none when null) and the given
+     * A context over the test index, with an alias of the given scoring mode (none when null) and the given
      * visible-document ceiling (unlimited when negative).
      */
     private DefaultSearchContext context(AliasFilter.ScoringMode scoringMode, long maxVisibleDocs) throws IOException {
