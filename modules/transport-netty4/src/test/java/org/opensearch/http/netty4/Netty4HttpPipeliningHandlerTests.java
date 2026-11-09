@@ -540,6 +540,8 @@ public class Netty4HttpPipeliningHandlerTests extends OpenSearchTestCase {
             assertFalse("A duplicate already in the queue must not block every later response", channel.isOpen());
             assertTrue(secondWrite.isDone());
             assertTrue(duplicateWrite.isDone());
+            assertTrue(duplicateWrite.cause() instanceof ClosedChannelException);
+            assertEquals(0, duplicate.refCnt());
             assertTrue(laterWrite.cause() instanceof ClosedChannelException);
             assertEquals(0, later.refCnt());
         } finally {

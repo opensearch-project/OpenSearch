@@ -157,16 +157,23 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             }
             draining = true;
             try {
-                Tuple<HttpPipelinedResponse, ChannelPromise> next;
-                while (closed == false && (next = aggregator.poll()) != null) {
+                while (closed == false) {
+                    final Tuple<HttpPipelinedResponse, ChannelPromise> next;
+                    try {
+                        next = aggregator.poll();
+                    } catch (IllegalStateException e) {
+                        logger.debug("closing HTTP connection: {}", e.getMessage());
+                        // A duplicate queued response became stale. All remaining responses are still owned by the queue.
+                        close();
+                        ctx.close();
+                        return;
+                    }
+                    if (next == null) {
+                        return;
+                    }
                     // Poll one at a time so a reentrant close can still release all responses not yet handed to Netty.
                     ctx.write(next.v1().getDelegateRequest(), next.v2());
                 }
-            } catch (IllegalStateException e) {
-                logger.debug("closing HTTP connection: {}", e.getMessage());
-                // A duplicate queued response became stale. All remaining responses are still owned by the queue.
-                close();
-                ctx.close();
             } finally {
                 draining = false;
             }

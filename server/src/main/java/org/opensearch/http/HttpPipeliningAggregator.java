@@ -97,7 +97,6 @@ public class HttpPipeliningAggregator<Listener> {
     }
 
     private void ensureNotStale(HttpPipelinedResponse response) {
-        // Compare the sequence distance so counter wraparound does not make the next response appear stale.
         if (response.getSequence() - writeSequence < 0) {
             throw new IllegalStateException(
                 "Stale pipelined response [" + response.getSequence() + "]. Next expected sequence [" + writeSequence + "]."
