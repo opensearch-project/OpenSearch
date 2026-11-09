@@ -33,6 +33,7 @@
 package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.minhash.MinHashFilter;
 import org.apache.lucene.analysis.minhash.MinHashFilterFactory;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
@@ -50,8 +51,25 @@ public class MinHashTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final MinHashFilterFactory minHashFilterFactory;
 
+    // Lucene eagerly allocates hash_count * bucket_count sets per filter instance and emits up to
+    // hash_count * bucket_count * hash_set_size tokens, so the product must be bounded.
+    static final long MAX_HASH_PRODUCT = 16_384;
+
     MinHashTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
+        long hashCount = settings.getAsInt("hash_count", MinHashFilter.DEFAULT_HASH_COUNT);
+        long bucketCount = settings.getAsInt("bucket_count", MinHashFilter.DEFAULT_BUCKET_COUNT);
+        long hashSetSize = settings.getAsInt("hash_set_size", MinHashFilter.DEFAULT_HASH_SET_SIZE);
+        long product = hashCount * bucketCount * hashSetSize;
+        if (product > MAX_HASH_PRODUCT) {
+            throw new IllegalArgumentException(
+                "[min_hash] hash_count * bucket_count * hash_set_size must be less than or equal to: ["
+                    + MAX_HASH_PRODUCT
+                    + "] but was ["
+                    + product
+                    + "]"
+            );
+        }
         minHashFilterFactory = new MinHashFilterFactory(convertSettings(settings));
     }
 

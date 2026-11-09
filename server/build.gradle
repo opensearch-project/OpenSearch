@@ -231,7 +231,7 @@ if (sandboxEnabled) {
       // No VersionProperties entry; pinned only to satisfy the sandbox test classpath.
       force "org.checkerframework:checker-qual:3.43.0"
       // No VersionProperties entry; pinned only to satisfy the sandbox test classpath.
-      force "com.google.guava:failureaccess:1.0.2"
+      force "com.google.guava:failureaccess:1.0.3"
     }
   }
 }
