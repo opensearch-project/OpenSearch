@@ -140,6 +140,7 @@ public class WlmAutoTaggingWithPrincipalIT extends WlmAutoTaggingIT {
             // Wait for the node to sync all three rules
             assertBusy(() -> assertTrue("Expected sentinel rule to tag", searchCompletions(node, sentinelIndex, sentinelGroupId) > 0));
             assertBusy(() -> assertTrue("Expected test_user rule to tag", searchCompletions(node, testUserIndex, workloadGroupId) > 0));
+            // The sentinel was created last, so this node has also synced the other_user rule
             assertEquals("Expected no tagging from mixing rules", 0, searchCompletions(node, otherUserIndex, workloadGroupId));
         }
     }

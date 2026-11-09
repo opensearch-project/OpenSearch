@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
  * The workflow is as follows:
  *   Each AttributeExtractor is used to fetch candidate feature values for its attribute.
  *   A list of feature values matches are collected for each attribute.
- *   An intersection of all candidate feature values is computed.
+ *   An intersection of all candidate feature values (or rule ids) is computed.
  *   The intersection is then reduced to a final feature value using tie-breaking logic.
  * When the stores hold rule ids, the matches are rule ids, mapped to feature values via featureValueOf.
  */
