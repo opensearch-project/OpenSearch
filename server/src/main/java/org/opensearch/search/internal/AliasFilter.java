@@ -189,10 +189,8 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
     }
 
     /**
-     * Returns where the alias filter should be applied in the query pipeline. Always
-     * non-null; defaults to {@link ScoringMode#UNFILTERED_STATS} for backward compatibility.
-     * {@link ScoringMode#NO_STATS} causes {@code DefaultSearchContext} to apply the filter
-     * before scoring so BM25 statistics reflect only the documents the alias admits.
+     * Returns the scoring mode for searches through the alias. Never null; defaults to
+     * {@link ScoringMode#UNFILTERED_STATS}.
      */
     public ScoringMode getScoringMode() {
         return scoringMode;

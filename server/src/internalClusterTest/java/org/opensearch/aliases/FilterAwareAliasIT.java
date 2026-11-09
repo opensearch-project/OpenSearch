@@ -25,8 +25,8 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
  * End-to-end verification of the filter-aware alias feature.
  * <p>
  * A term that appears only in documents outside an alias's filter still contributes to that term's
- * corpus-wide document frequency, which affects its BM25 IDF. With today's post-filtering
- * ({@code scoring_mode: unfiltered_stats}, the default) the query is scored over every document in the
+ * corpus-wide document frequency, which affects its BM25 IDF. With the default mode
+ * ({@code scoring_mode: unfiltered_stats}) the query is scored over every document in the
  * shard before the alias filter is applied, so a term's score reflects documents the alias excludes.
  * <p>
  * With {@code scoring_mode: no_stats} the alias filter is applied before scoring, so collection
@@ -110,8 +110,8 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
         // filtered-out docs raise its df and lower its IDF. Scores depend on excluded docs.
         float postRestricted = sampleScore("view_post", RESTRICTED_TERM);
         float postAbsent = sampleScore("view_post", ABSENT_TERM);
-        assertTrue("sample must be found for the restricted term via post-filter alias", postRestricted > 0f);
-        assertTrue("sample must be found for the absent term via post-filter alias", postAbsent > 0f);
+        assertTrue("sample must be found for the restricted term via the unfiltered_stats alias", postRestricted > 0f);
+        assertTrue("sample must be found for the absent term via the unfiltered_stats alias", postAbsent > 0f);
         assertTrue(
             "unfiltered_stats: restricted-term score (" + postRestricted + ") sits below absent-term score (" + postAbsent + ")",
             postRestricted < postAbsent
@@ -121,8 +121,8 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
         // only ever saw the visible subset. Scores are independent of the excluded docs.
         float preRestricted = sampleScore("view_pre", RESTRICTED_TERM);
         float preAbsent = sampleScore("view_pre", ABSENT_TERM);
-        assertTrue("sample must be found for the restricted term via pre-filter alias", preRestricted > 0f);
-        assertTrue("sample must be found for the absent term via pre-filter alias", preAbsent > 0f);
+        assertTrue("sample must be found for the restricted term via the no_stats alias", preRestricted > 0f);
+        assertTrue("sample must be found for the absent term via the no_stats alias", preAbsent > 0f);
         assertEquals(
             "no_stats: restricted and absent terms must score the same over the visible subset",
             preAbsent,
@@ -150,7 +150,7 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
 
     /**
      * Prefix scoring over the visible subset. A {@code match_phrase_prefix} query expands a prefix
-     * against the term dictionary and scores the result; under post-filtering that score reflects the
+     * against the term dictionary and scores the result; under unfiltered_stats that score reflects the
      * expanded term's whole-shard {@code df}, so a prefix that resolves to a term common in the
      * restricted subset (here "infarc" -&gt; "infarction", in 200 restricted docs) scores measurably
      * lower than a prefix that resolves only within the visible sample ("zzqxk" -&gt; the absent term).
