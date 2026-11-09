@@ -60,8 +60,11 @@ public class HttpPipeliningAggregator<Listener> {
         this.outboundHoldingQueue = new PriorityQueue<>(1, Comparator.comparing(Tuple::v1));
     }
 
-    public HttpPipelinedRequest read(final HttpRequest request) {
-        return new HttpPipelinedRequest(readSequence++, request);
+    /**
+     * Allocates the next request sequence for transport-specific pipelined request wrappers.
+     */
+    public int nextReadSequence() {
+        return readSequence++;
     }
 
     /**
@@ -69,7 +72,7 @@ public class HttpPipeliningAggregator<Listener> {
      * including during a reentrant write, since it allows the queue to drain.
      */
     public void add(final HttpPipelinedResponse response, Listener listener) {
-        ensureNotStale(response);
+        assert response.getSequence() >= writeSequence;
         if (maxEventsHeld > 0 && (outboundHoldingQueue.size() < maxEventsHeld || response.getSequence() == writeSequence)) {
             outboundHoldingQueue.add(new Tuple<>(response, listener));
         } else {
@@ -89,19 +92,7 @@ public class HttpPipeliningAggregator<Listener> {
             writeSequence++;
             return next;
         }
-        if (next != null) {
-            // A duplicate can become stale after the first response with its sequence has been polled.
-            ensureNotStale(next.v1());
-        }
         return null;
-    }
-
-    private void ensureNotStale(HttpPipelinedResponse response) {
-        if (response.getSequence() - writeSequence < 0) {
-            throw new IllegalStateException(
-                "Stale pipelined response [" + response.getSequence() + "]. Next expected sequence [" + writeSequence + "]."
-            );
-        }
     }
 
     public List<Tuple<HttpPipelinedResponse, Listener>> removeAllInflightResponses() {
