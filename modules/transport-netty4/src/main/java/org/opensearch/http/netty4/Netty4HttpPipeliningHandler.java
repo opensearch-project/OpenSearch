@@ -53,7 +53,7 @@ import io.netty.util.ReferenceCountUtil;
 public final class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     private final Logger logger;
-    private final int maxEventsHeld;
+    private final HttpPipeliningAggregator<ChannelPromise> aggregator;
     private PendingResponses pendingResponses;
 
     /**
@@ -65,18 +65,18 @@ public final class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
      */
     public Netty4HttpPipeliningHandler(Logger logger, final int maxEventsHeld) {
         this.logger = logger;
-        this.maxEventsHeld = maxEventsHeld;
+        this.aggregator = new HttpPipeliningAggregator<>(maxEventsHeld);
     }
 
     @Override
     public void handlerAdded(ChannelHandlerContext ctx) {
-        pendingResponses = new PendingResponses(ctx, logger, maxEventsHeld);
+        pendingResponses = new PendingResponses(ctx, logger, aggregator);
     }
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
         assert msg instanceof Netty4HttpRequest : "Invalid message type: " + msg.getClass();
-        HttpPipelinedRequest pipelinedRequest = pendingResponses.aggregator.read((Netty4HttpRequest) msg);
+        HttpPipelinedRequest pipelinedRequest = aggregator.read(((Netty4HttpRequest) msg));
         ctx.fireChannelRead(pipelinedRequest);
     }
 
@@ -94,7 +94,10 @@ public final class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void handlerRemoved(ChannelHandlerContext ctx) {
-        pendingResponses.close();
+        // Netty also calls this when handlerAdded fails before assigning pendingResponses.
+        if (pendingResponses != null) {
+            pendingResponses.close();
+        }
     }
 
     /**
@@ -110,10 +113,10 @@ public final class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         private boolean draining;
         private boolean closed;
 
-        private PendingResponses(ChannelHandlerContext ctx, Logger logger, int maxEventsHeld) {
+        private PendingResponses(ChannelHandlerContext ctx, Logger logger, HttpPipeliningAggregator<ChannelPromise> aggregator) {
             this.ctx = ctx;
             this.logger = logger;
-            this.aggregator = new HttpPipeliningAggregator<>(maxEventsHeld);
+            this.aggregator = aggregator;
             closeListener = future -> {
                 if (ctx.executor().inEventLoop()) {
                     close();

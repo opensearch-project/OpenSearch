@@ -68,9 +68,11 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import io.netty.buffer.ByteBufUtil;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
+import io.netty.channel.ChannelPipelineException;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -326,6 +328,41 @@ public class Netty4HttpPipeliningHandlerTests extends OpenSearchTestCase {
         } finally {
             channel.finishAndReleaseAll();
             releaseIfNeeded(response);
+        }
+    }
+
+    public void testHandlerRemovalAfterInitializationFailure() {
+        final IllegalStateException initializationFailure = new IllegalStateException("close future unavailable");
+        final AtomicBoolean failInitialization = new AtomicBoolean();
+        final List<Throwable> failures = new ArrayList<>();
+        final EmbeddedChannel channel = new EmbeddedChannel(new ChannelInboundHandlerAdapter() {
+            @Override
+            public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+                failures.add(cause);
+            }
+        }) {
+            @Override
+            public ChannelFuture closeFuture() {
+                if (failInitialization.getAndSet(false)) {
+                    throw initializationFailure;
+                }
+                return super.closeFuture();
+            }
+        };
+        final Netty4HttpPipeliningHandler handler = new Netty4HttpPipeliningHandler(logger, 3);
+        try {
+            failInitialization.set(true);
+            channel.pipeline().addLast(handler);
+            assertNull(channel.pipeline().context(handler));
+            assertEquals(1, failures.size());
+            assertTrue(failures.get(0) instanceof ChannelPipelineException);
+            assertSame(initializationFailure, failures.get(0).getCause());
+            assertTrue(
+                "Netty must be able to remove the partially initialized handler",
+                failures.get(0).getMessage().endsWith("; removed.")
+            );
+        } finally {
+            channel.finishAndReleaseAll();
         }
     }
 
