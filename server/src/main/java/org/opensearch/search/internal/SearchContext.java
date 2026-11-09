@@ -396,7 +396,7 @@ public abstract class SearchContext implements Releasable {
 
     /**
      * The query that defines the visible subset for statistics purposes, which is the alias filter for a
-     * {@code no_stats} alias and otherwise whatever a plugin has supplied through
+     * {@code filtered_stats} alias and otherwise whatever a plugin has supplied through
      * {@link #visibleSubsetFilter(Query)}.
      * <p>
      * {@link ContextIndexSearcher} reads this rather than {@link #aliasFilter()} directly, so it does not need to know
