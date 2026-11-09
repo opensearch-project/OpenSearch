@@ -343,7 +343,8 @@ public class PolicyFile extends java.security.Policy {
         }
 
         if ("file".equals(url.getProtocol())) {
-            String path = url.getPath();
+            String path = url.getFile().replace('/', File.separatorChar);
+            path = URLDecoder.decode(path, StandardCharsets.UTF_8);
             path = canonicalizePath(path);
             return new File(path).toURI().toURL();
         }
