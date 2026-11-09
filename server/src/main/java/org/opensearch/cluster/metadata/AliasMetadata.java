@@ -86,7 +86,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     private final Boolean isHidden;
 
     @Nullable
-    private final String enforcement;
+    private final String scoringMode;
 
     private AliasMetadata(
         String alias,
@@ -95,7 +95,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         String searchRouting,
         Boolean writeIndex,
         @Nullable Boolean isHidden,
-        @Nullable String enforcement
+        @Nullable String scoringMode
     ) {
         this.alias = alias;
         this.filter = filter;
@@ -109,7 +109,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         this.writeIndex = writeIndex;
         this.isHidden = isHidden;
         // The mode is part of the filter: an alias without a filter carries none, so its metadata is unchanged.
-        this.enforcement = filter == null ? null : enforcement;
+        this.scoringMode = filter == null ? null : scoringMode;
     }
 
     private AliasMetadata(AliasMetadata aliasMetadata, String alias) {
@@ -120,7 +120,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
             aliasMetadata.searchRouting(),
             aliasMetadata.writeIndex(),
             aliasMetadata.isHidden,
-            aliasMetadata.enforcement
+            aliasMetadata.scoringMode
         );
     }
 
@@ -174,8 +174,8 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     }
 
     @Nullable
-    public String enforcement() {
-        return enforcement;
+    public String scoringMode() {
+        return scoringMode;
     }
 
     public static Builder builder(String alias) {
@@ -206,7 +206,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         if (Objects.equals(searchRouting, that.searchRouting) == false) return false;
         if (Objects.equals(writeIndex, that.writeIndex) == false) return false;
         if (Objects.equals(isHidden, that.isHidden) == false) return false;
-        if (Objects.equals(enforcement, that.enforcement) == false) return false;
+        if (Objects.equals(scoringMode, that.scoringMode) == false) return false;
 
         return true;
     }
@@ -218,7 +218,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         result = 31 * result + (indexRouting != null ? indexRouting.hashCode() : 0);
         result = 31 * result + (searchRouting != null ? searchRouting.hashCode() : 0);
         result = 31 * result + (writeIndex != null ? writeIndex.hashCode() : 0);
-        result = 31 * result + (enforcement != null ? enforcement.hashCode() : 0);
+        result = 31 * result + (scoringMode != null ? scoringMode.hashCode() : 0);
         return result;
     }
 
@@ -247,7 +247,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         out.writeOptionalBoolean(writeIndex());
         out.writeOptionalBoolean(isHidden());
         if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
-            out.writeOptionalString(enforcement);
+            out.writeOptionalString(scoringMode);
         }
     }
 
@@ -273,9 +273,9 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         writeIndex = in.readOptionalBoolean();
         isHidden = in.readOptionalBoolean();
         if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
-            enforcement = in.readOptionalString();
+            scoringMode = in.readOptionalString();
         } else {
-            enforcement = null;
+            scoringMode = null;
         }
     }
 
@@ -317,7 +317,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         private Boolean isHidden;
 
         @Nullable
-        private String enforcement;
+        private String scoringMode;
 
         public Builder(String alias) {
             this.alias = alias;
@@ -380,20 +380,20 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
             return this;
         }
 
-        public Builder enforcement(@Nullable String enforcement) {
-            this.enforcement = enforcement;
+        public Builder scoringMode(@Nullable String scoringMode) {
+            this.scoringMode = scoringMode;
             return this;
         }
 
         public AliasMetadata build() {
-            if (enforcement != null) {
+            if (scoringMode != null) {
                 // Every path that defines an alias builds it here, templates included, so the mode is checked once.
-                AliasFilter.Enforcement.fromString(enforcement);
+                AliasFilter.ScoringMode.fromString(scoringMode);
                 if (filter == null) {
-                    throw new IllegalArgumentException("[enforcement] requires a [filter] on alias [" + alias + "]");
+                    throw new IllegalArgumentException("[scoring_mode] requires a [filter] on alias [" + alias + "]");
                 }
             }
-            return new AliasMetadata(alias, filter, indexRouting, searchRouting, writeIndex, isHidden, enforcement);
+            return new AliasMetadata(alias, filter, indexRouting, searchRouting, writeIndex, isHidden, scoringMode);
         }
 
         public static void toXContent(AliasMetadata aliasMetadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -423,8 +423,8 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                 builder.field("is_hidden", aliasMetadata.isHidden());
             }
 
-            if (aliasMetadata.enforcement() != null) {
-                builder.field("enforcement", aliasMetadata.enforcement());
+            if (aliasMetadata.scoringMode() != null) {
+                builder.field("scoring_mode", aliasMetadata.scoringMode());
             }
 
             builder.endObject();
@@ -462,8 +462,8 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                         builder.searchRouting(parser.text());
                     } else if ("filter".equals(currentFieldName)) {
                         builder.filter(new CompressedXContent(parser.binaryValue()));
-                    } else if ("enforcement".equals(currentFieldName)) {
-                        builder.enforcement(parser.text());
+                    } else if ("scoring_mode".equals(currentFieldName)) {
+                        builder.scoringMode(parser.text());
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     parser.skipChildren();

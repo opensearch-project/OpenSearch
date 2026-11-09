@@ -36,8 +36,8 @@ public final class FilteredStatsWarmer implements IndexWarmer.Listener {
 
     /**
      * Whether to pre-compute visible-subset statistics for newly visible segments. Off by default: it costs warmer-pool
-     * work on every refresh, which is only worth paying for indices actually served through {@code pre_filter} aliases
-     * with {@code filtered_stats} scoring.
+     * work on every refresh, which is only worth paying for indices actually served through aliases
+     * with the {@code filtered_stats} scoring mode.
      */
     public static final Setting<Boolean> INDEX_WARM_FILTERED_STATS_SETTING = Setting.boolSetting(
         "index.filter_aware_alias.warm_filtered_stats",

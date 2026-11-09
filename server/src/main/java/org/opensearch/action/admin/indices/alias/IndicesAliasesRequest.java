@@ -116,7 +116,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private static final ParseField IS_WRITE_INDEX = new ParseField("is_write_index");
         private static final ParseField IS_HIDDEN = new ParseField("is_hidden");
         private static final ParseField MUST_EXIST = new ParseField("must_exist");
-        private static final ParseField ENFORCEMENT = new ParseField("enforcement");
+        private static final ParseField SCORING_MODE = new ParseField("scoring_mode");
 
         private static final ParseField ADD = new ParseField("add");
         private static final ParseField REMOVE = new ParseField("remove");
@@ -224,7 +224,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             ADD_PARSER.declareField(AliasActions::searchRouting, XContentParser::text, SEARCH_ROUTING, ValueType.INT);
             ADD_PARSER.declareField(AliasActions::writeIndex, XContentParser::booleanValue, IS_WRITE_INDEX, ValueType.BOOLEAN);
             ADD_PARSER.declareField(AliasActions::isHidden, XContentParser::booleanValue, IS_HIDDEN, ValueType.BOOLEAN);
-            ADD_PARSER.declareField(AliasActions::enforcement, XContentParser::text, ENFORCEMENT, ValueType.STRING);
+            ADD_PARSER.declareField(AliasActions::scoringMode, XContentParser::text, SCORING_MODE, ValueType.STRING);
         }
         private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser(REMOVE.getPreferredName(), AliasActions::remove);
         static {
@@ -269,7 +269,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private Boolean writeIndex;
         private Boolean isHidden;
         private Boolean mustExist;
-        private String enforcement;
+        private String scoringMode;
 
         public AliasActions(AliasActions.Type type) {
             this.type = type;
@@ -291,7 +291,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             originalAliases = in.readStringArray();
             mustExist = in.readOptionalBoolean();
             if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
-                enforcement = in.readOptionalString();
+                scoringMode = in.readOptionalString();
             }
         }
 
@@ -309,7 +309,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             out.writeStringArray(originalAliases);
             out.writeOptionalBoolean(mustExist);
             if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
-                out.writeOptionalString(enforcement);
+                out.writeOptionalString(scoringMode);
             }
         }
 
@@ -507,17 +507,17 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return mustExist;
         }
 
-        public AliasActions enforcement(String enforcement) {
-            if (enforcement != null) {
-                // Rejected here, because a misspelled mode would otherwise be stored and silently treated as post_filter.
-                AliasFilter.Enforcement.fromString(enforcement);
+        public AliasActions scoringMode(String scoringMode) {
+            if (scoringMode != null) {
+                // Rejected here, because a misspelled mode would otherwise be stored and silently treated as unfiltered_stats.
+                AliasFilter.ScoringMode.fromString(scoringMode);
             }
-            this.enforcement = enforcement;
+            this.scoringMode = scoringMode;
             return this;
         }
 
-        public String enforcement() {
-            return enforcement;
+        public String scoringMode() {
+            return scoringMode;
         }
 
         @Override
@@ -584,8 +584,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (null != mustExist) {
                 builder.field(MUST_EXIST.getPreferredName(), mustExist);
             }
-            if (null != enforcement) {
-                builder.field(ENFORCEMENT.getPreferredName(), enforcement);
+            if (null != scoringMode) {
+                builder.field(SCORING_MODE.getPreferredName(), scoringMode);
             }
             builder.endObject();
             builder.endObject();
@@ -617,8 +617,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 + writeIndex
                 + ",mustExist="
                 + mustExist
-                + ",enforcement="
-                + enforcement
+                + ",scoringMode="
+                + scoringMode
                 + "]";
         }
 
@@ -639,7 +639,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 && Objects.equals(writeIndex, other.writeIndex)
                 && Objects.equals(isHidden, other.isHidden)
                 && Objects.equals(mustExist, other.mustExist)
-                && Objects.equals(enforcement, other.enforcement);
+                && Objects.equals(scoringMode, other.scoringMode);
         }
 
         @Override
@@ -655,7 +655,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 writeIndex,
                 isHidden,
                 mustExist,
-                enforcement
+                scoringMode
             );
         }
     }
@@ -693,10 +693,10 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return addValidationError("Must specify at least one alias action", validationException);
         }
         for (AliasActions action : allAliasActions) {
-            if (action.enforcement() != null && action.filter() == null) {
+            if (action.scoringMode() != null && action.filter() == null) {
                 // The mode says how the alias filter is applied, so it means nothing without one.
                 validationException = addValidationError(
-                    "[enforcement] requires a [filter] on alias action " + action,
+                    "[scoring_mode] requires a [filter] on alias action " + action,
                     validationException
                 );
             }

@@ -1167,25 +1167,25 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertThat(alias.writeIndex(), is(true));
     }
 
-    public void testCreateIndexAliasKeepsTheEnforcementMode() {
+    public void testCreateIndexAliasKeepsTheScoringModeMode() {
         List<AliasMetadata> resolved = resolveAndValidateAliases(
             "test",
-            Collections.singleton(new Alias("scoped").filter("{\"match_all\":{}}").enforcement("pre_filter")),
+            Collections.singleton(new Alias("scoped").filter("{\"match_all\":{}}").scoringMode("no_stats")),
             Collections.emptyList(),
             Metadata.builder().build(),
             aliasValidator,
             new NamedXContentRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents()),
             queryShardContext
         );
-        assertEquals("pre_filter", resolved.get(0).enforcement());
+        assertEquals("no_stats", resolved.get(0).scoringMode());
     }
 
-    public void testCreateIndexAliasRejectsEnforcementWithoutAFilter() {
+    public void testCreateIndexAliasRejectsScoringModeWithoutAFilter() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> resolveAndValidateAliases(
                 "test",
-                Collections.singleton(new Alias("scoped").enforcement("pre_filter")),
+                Collections.singleton(new Alias("scoped").scoringMode("no_stats")),
                 Collections.emptyList(),
                 Metadata.builder().build(),
                 aliasValidator,
@@ -1193,7 +1193,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 queryShardContext
             )
         );
-        assertThat(e.getMessage(), containsString("[enforcement] requires a [filter]"));
+        assertThat(e.getMessage(), containsString("[scoring_mode] requires a [filter]"));
     }
 
     public void testAggregateIndexSettingsIgnoresTemplatesOnCreateFromSourceIndex() throws Exception {

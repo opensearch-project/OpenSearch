@@ -42,7 +42,7 @@ public final class VisibleSubsetStatistics {
 
     /**
      * Optional ceiling on how many admitted documents {@code filtered_stats} will compute statistics over, above which
-     * a request falls back to the {@code pre_filter} constant-score behaviour.
+     * a request falls back to the {@code no_stats} constant-score behaviour.
      * <p>
      * Unlimited by default, and a negative value is also unlimited. The first query on a segment costs one pass over
      * the documents the view admits, which is proportional to the view rather than to the index, so a ceiling is a

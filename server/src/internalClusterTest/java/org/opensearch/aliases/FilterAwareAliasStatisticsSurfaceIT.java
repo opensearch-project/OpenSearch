@@ -95,7 +95,7 @@ public class FilterAwareAliasStatisticsSurfaceIT extends OpenSearchIntegTestCase
                         .index(INDEX)
                         .alias(ALIAS)
                         .filter(QueryBuilders.termQuery("dept", VISIBLE))
-                        .enforcement("filtered_stats")
+                        .scoringMode("filtered_stats")
                 )
         );
     }

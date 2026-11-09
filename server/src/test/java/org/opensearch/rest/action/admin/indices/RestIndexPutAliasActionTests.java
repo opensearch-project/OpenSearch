@@ -19,7 +19,7 @@ import org.junit.Before;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-/** The single-alias endpoint carries the enforcement mode into the alias action. */
+/** The single-alias endpoint carries the scoring mode into the alias action. */
 public class RestIndexPutAliasActionTests extends RestActionTestCase {
 
     @Before
@@ -27,7 +27,7 @@ public class RestIndexPutAliasActionTests extends RestActionTestCase {
         controller().registerHandler(new RestIndexPutAliasAction());
     }
 
-    public void testCarriesTheEnforcementMode() {
+    public void testCarriesTheScoringModeMode() {
         AtomicReference<IndicesAliasesRequest> sent = new AtomicReference<>();
         verifyingClient.setExecuteVerifier((action, request) -> {
             sent.set((IndicesAliasesRequest) request);
@@ -35,10 +35,10 @@ public class RestIndexPutAliasActionTests extends RestActionTestCase {
         });
         RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.PUT)
             .withPath("/idx/_alias/scoped")
-            .withContent(new BytesArray("{\"filter\":{\"term\":{\"f\":\"v\"}},\"enforcement\":\"pre_filter\"}"), MediaTypeRegistry.JSON)
+            .withContent(new BytesArray("{\"filter\":{\"term\":{\"f\":\"v\"}},\"scoring_mode\":\"no_stats\"}"), MediaTypeRegistry.JSON)
             .build();
         dispatchRequest(request);
         assertNotNull("the handler sends an alias request", sent.get());
-        assertEquals("pre_filter", sent.get().getAliasActions().get(0).enforcement());
+        assertEquals("no_stats", sent.get().getAliasActions().get(0).scoringMode());
     }
 }

@@ -343,31 +343,31 @@ public class AliasActionsTests extends OpenSearchTestCase {
         }
     }
 
-    public void testParseEnforcement() throws IOException {
-        String enforcement = randomFrom("post_filter", "pre_filter", "filtered_stats");
+    public void testParseScoringMode() throws IOException {
+        String scoringMode = randomFrom("unfiltered_stats", "no_stats", "filtered_stats");
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
         b.startObject()
             .startObject("add")
             .field("index", "i")
             .field("alias", "a")
-            .field("enforcement", enforcement)
+            .field("scoring_mode", scoringMode)
             .endObject()
             .endObject();
         try (XContentParser parser = createParser(b)) {
             AliasActions action = AliasActions.PARSER.apply(parser, null);
-            assertEquals(enforcement, action.enforcement());
+            assertEquals(scoringMode, action.scoringMode());
             // It is written back out, so the request round-trips through the REST layer.
-            assertThat(Strings.toString(MediaTypeRegistry.JSON, action), containsString("\"enforcement\":\"" + enforcement + "\""));
+            assertThat(Strings.toString(MediaTypeRegistry.JSON, action), containsString("\"scoring_mode\":\"" + scoringMode + "\""));
         }
     }
 
-    public void testUnknownEnforcementIsRejected() throws IOException {
+    public void testUnknownScoringModeIsRejected() throws IOException {
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
         b.startObject()
             .startObject("add")
             .field("index", "i")
             .field("alias", "a")
-            .field("enforcement", "filter_stats")
+            .field("scoring_mode", "filter_stats")
             .endObject()
             .endObject();
         try (XContentParser parser = createParser(b)) {
@@ -376,33 +376,33 @@ public class AliasActionsTests extends OpenSearchTestCase {
             while (root.getCause() != null) {
                 root = root.getCause();
             }
-            assertThat(root.getMessage(), containsString("unknown alias enforcement [filter_stats]"));
+            assertThat(root.getMessage(), containsString("unknown alias scoring mode [filter_stats]"));
         }
-        expectThrows(IllegalArgumentException.class, () -> AliasActions.add().enforcement("filter_stats"));
+        expectThrows(IllegalArgumentException.class, () -> AliasActions.add().scoringMode("filter_stats"));
     }
 
-    public void testEnforcementRequiresAFilter() {
+    public void testScoringModeRequiresAFilter() {
         IndicesAliasesRequest request = new IndicesAliasesRequest().addAliasAction(
-            AliasActions.add().index("i").alias("a").enforcement("pre_filter")
+            AliasActions.add().index("i").alias("a").scoringMode("no_stats")
         );
         ActionRequestValidationException e = request.validate();
         assertNotNull(e);
-        assertThat(e.getMessage(), containsString("[enforcement] requires a [filter]"));
+        assertThat(e.getMessage(), containsString("[scoring_mode] requires a [filter]"));
 
         IndicesAliasesRequest filtered = new IndicesAliasesRequest().addAliasAction(
-            AliasActions.add().index("i").alias("a").filter("{\"term\":{\"f\":\"v\"}}").enforcement("pre_filter")
+            AliasActions.add().index("i").alias("a").filter("{\"term\":{\"f\":\"v\"}}").scoringMode("no_stats")
         );
         assertNull(filtered.validate());
     }
 
-    public void testEnforcementRoundTripsAndIsDroppedForAnOlderNode() throws IOException {
-        AliasActions action = AliasActions.add().index("i").alias("a").enforcement("filtered_stats");
+    public void testScoringModeRoundTripsAndIsDroppedForAnOlderNode() throws IOException {
+        AliasActions action = AliasActions.add().index("i").alias("a").scoringMode("filtered_stats");
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             action.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 AliasActions read = new AliasActions(in);
                 assertEquals(action, read);
-                assertEquals("filtered_stats", read.enforcement());
+                assertEquals("filtered_stats", read.scoringMode());
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -411,12 +411,12 @@ public class AliasActionsTests extends OpenSearchTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 in.setVersion(Version.V_3_9_0);
                 AliasActions read = new AliasActions(in);
-                assertNull(read.enforcement());
+                assertNull(read.scoringMode());
                 assertEquals(0, in.available());
             }
         }
         assertNotEquals(action, AliasActions.add().index("i").alias("a"));
-        assertThat(action.toString(), containsString("enforcement=filtered_stats"));
+        assertThat(action.toString(), containsString("scoringMode=filtered_stats"));
     }
 
     public void testRoundTrip() throws IOException {

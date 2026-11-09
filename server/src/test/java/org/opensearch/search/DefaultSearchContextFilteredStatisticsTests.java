@@ -125,7 +125,7 @@ public class DefaultSearchContextFilteredStatisticsTests extends OpenSearchTestC
     }
 
     public void testFilteredStatsAliasAloneScopesToTheAlias() throws IOException {
-        try (DefaultSearchContext context = context(AliasFilter.Enforcement.FILTERED_STATS, -1)) {
+        try (DefaultSearchContext context = context(AliasFilter.ScoringMode.FILTERED_STATS, -1)) {
             // The alias filter is built here, before any hook can declare a restriction, as in a real request.
             context.preProcess(false);
             assertEquals(ALIAS, context.filteredStatisticsFilter());
@@ -134,7 +134,7 @@ public class DefaultSearchContextFilteredStatisticsTests extends OpenSearchTestC
     }
 
     public void testFilteredStatsAliasAndRestrictionScopeToBoth() throws IOException {
-        try (DefaultSearchContext context = context(AliasFilter.Enforcement.FILTERED_STATS, -1)) {
+        try (DefaultSearchContext context = context(AliasFilter.ScoringMode.FILTERED_STATS, -1)) {
             // The alias filter is built here, before any hook can declare a restriction, as in a real request.
             context.preProcess(false);
             context.visibleSubsetFilter(RESTRICTION);
@@ -143,11 +143,11 @@ public class DefaultSearchContextFilteredStatisticsTests extends OpenSearchTestC
         }
     }
 
-    public void testPostFilterAliasLeavesTheRestrictionInCharge() throws IOException {
-        try (DefaultSearchContext context = context(AliasFilter.Enforcement.POST_FILTER, -1)) {
+    public void testUnfilteredStatsAliasLeavesTheRestrictionInCharge() throws IOException {
+        try (DefaultSearchContext context = context(AliasFilter.ScoringMode.UNFILTERED_STATS, -1)) {
             // The alias filter is built here, before any hook can declare a restriction, as in a real request.
             context.preProcess(false);
-            assertNull("a post_filter alias alone does not scope statistics", context.filteredStatisticsFilter());
+            assertNull("a unfiltered_stats alias alone does not scope statistics", context.filteredStatisticsFilter());
             assertFalse(context.useFilteredStatistics());
 
             context.visibleSubsetFilter(RESTRICTION);
@@ -156,8 +156,8 @@ public class DefaultSearchContextFilteredStatisticsTests extends OpenSearchTestC
         }
     }
 
-    public void testPreFilterAliasSuppressesScoringSoNothingIsScoped() throws IOException {
-        try (DefaultSearchContext context = context(AliasFilter.Enforcement.PRE_FILTER, -1)) {
+    public void testNoStatsAliasSuppressesScoringSoNothingIsScoped() throws IOException {
+        try (DefaultSearchContext context = context(AliasFilter.ScoringMode.NO_STATS, -1)) {
             // The alias filter is built here, before any hook can declare a restriction, as in a real request.
             context.preProcess(false);
             context.visibleSubsetFilter(RESTRICTION);
@@ -202,7 +202,7 @@ public class DefaultSearchContextFilteredStatisticsTests extends OpenSearchTestC
     }
 
     public void testFilteredStatsAliasOverBudgetScoresWithConstantScore() throws IOException {
-        try (DefaultSearchContext context = context(AliasFilter.Enforcement.FILTERED_STATS, 0)) {
+        try (DefaultSearchContext context = context(AliasFilter.ScoringMode.FILTERED_STATS, 0)) {
             context.preProcess(false);
             assertFalse(context.useFilteredStatistics());
             assertThat(context.query(), instanceOf(ConstantScoreQuery.class));
@@ -227,20 +227,20 @@ public class DefaultSearchContextFilteredStatisticsTests extends OpenSearchTestC
     }
 
     /**
-     * A context over the test index, with an alias of the given enforcement (none when null) and the given
+     * A context over the test index, with an alias of the given scoringMode (none when null) and the given
      * visible-document ceiling (unlimited when negative).
      */
-    private DefaultSearchContext context(AliasFilter.Enforcement enforcement, long maxVisibleDocs) throws IOException {
+    private DefaultSearchContext context(AliasFilter.ScoringMode scoringMode, long maxVisibleDocs) throws IOException {
         ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 0);
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         when(request.searchType()).thenReturn(SearchType.DEFAULT);
         when(request.shardId()).thenReturn(shardId);
-        if (enforcement == null) {
+        if (scoringMode == null) {
             when(request.getAliasFilter()).thenReturn(AliasFilter.EMPTY);
         } else {
             QueryBuilder aliasBuilder = mock(QueryBuilder.class);
             when(aliasBuilder.toQuery(any())).thenReturn(ALIAS);
-            when(request.getAliasFilter()).thenReturn(new AliasFilter(aliasBuilder, enforcement, "alias"));
+            when(request.getAliasFilter()).thenReturn(new AliasFilter(aliasBuilder, scoringMode, "alias"));
         }
 
         Settings settings = Settings.builder()

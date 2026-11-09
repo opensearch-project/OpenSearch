@@ -90,12 +90,12 @@ public class MetadataIndexAliasesServiceTests extends OpenSearchTestCase {
         });
     }
 
-    public void testAddRejectsEnforcementWithoutAFilter() {
+    public void testAddRejectsScoringModeWithoutAFilter() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> new AliasAction.Add(randomAlphaOfLength(5), "scoped", null, null, null, null, null, "filtered_stats")
         );
-        assertThat(e.getMessage(), containsString("[enforcement] requires a [filter] on alias [scoped]"));
+        assertThat(e.getMessage(), containsString("[scoring_mode] requires a [filter] on alias [scoped]"));
     }
 
     public void testAddAndRemove() {

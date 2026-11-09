@@ -22,37 +22,37 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
-/** The enforcement mode on {@link Alias}, the model used by create-index requests and legacy templates. */
-public class AliasEnforcementTests extends OpenSearchTestCase {
+/** The scoring mode on {@link Alias}, the model used by create-index requests and legacy templates. */
+public class AliasScoringModeTests extends OpenSearchTestCase {
 
     public void testParsesTheMode() throws IOException {
         // Alias ignores string fields it does not know, so before it knew this one a create-index request silently dropped it.
-        String json = "{\"scoped\":{\"filter\":{\"term\":{\"f\":\"v\"}},\"enforcement\":\"pre_filter\"}}";
+        String json = "{\"scoped\":{\"filter\":{\"term\":{\"f\":\"v\"}},\"scoring_mode\":\"no_stats\"}}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             parser.nextToken(); // the enclosing object
             parser.nextToken(); // the alias name, where fromXContent starts
-            assertEquals("pre_filter", Alias.fromXContent(parser).enforcement());
+            assertEquals("no_stats", Alias.fromXContent(parser).scoringMode());
         }
     }
 
     public void testRejectsAnUnknownMode() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new Alias("scoped").enforcement("pre_filer"));
-        assertThat(e.getMessage(), containsString("unknown alias enforcement [pre_filer]"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new Alias("scoped").scoringMode("no_stat"));
+        assertThat(e.getMessage(), containsString("unknown alias scoring mode [no_stat]"));
     }
 
     public void testWritesTheMode() throws IOException {
-        Alias alias = new Alias("scoped").filter("{\"term\":{\"f\":\"v\"}}").enforcement("pre_filter");
+        Alias alias = new Alias("scoped").filter("{\"term\":{\"f\":\"v\"}}").scoringMode("no_stats");
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         alias.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertThat(builder.toString(), containsString("\"enforcement\":\"pre_filter\""));
+        assertThat(builder.toString(), containsString("\"scoring_mode\":\"no_stats\""));
     }
 
     public void testRoundTripsAndIsDroppedForAnOlderNode() throws IOException {
-        Alias alias = new Alias("scoped").filter("{\"term\":{\"f\":\"v\"}}").enforcement("pre_filter");
+        Alias alias = new Alias("scoped").filter("{\"term\":{\"f\":\"v\"}}").scoringMode("no_stats");
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             alias.writeTo(out);
-            assertEquals("pre_filter", new Alias(out.bytes().streamInput()).enforcement());
+            assertEquals("no_stats", new Alias(out.bytes().streamInput()).scoringMode());
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(Version.V_3_9_0);
@@ -60,7 +60,7 @@ public class AliasEnforcementTests extends OpenSearchTestCase {
             StreamInput in = out.bytes().streamInput();
             in.setVersion(Version.V_3_9_0);
             Alias read = new Alias(in);
-            assertNull(read.enforcement());
+            assertNull(read.scoringMode());
             assertEquals("the stream must be fully consumed", 0, in.available());
         }
     }
