@@ -50,6 +50,7 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.opensearch.OpenSearchException;
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -94,6 +95,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -176,6 +178,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.nio.charset.Charset;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -4093,6 +4097,37 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(requestedMappingUpdates.get("_doc").source().string(), equalTo("{\"properties\":{\"foo\":{\"type\":\"text\"}}}"));
 
         closeShards(sourceShard, targetShard);
+    }
+
+    /** A shard whose indexer has no searcher capability rejects {@code _search} with a 400 instead of a 500. */
+    public void testSearchOnIndexerWithoutSearcherIsBadRequest() throws IOException {
+        final IndexerFactory engineBacked = new EngineBackedIndexerFactory(new InternalEngineFactory());
+        // Forwards every Indexer call to an engine-backed indexer but does not implement SearcherSupplierProvider.
+        final IndexerFactory searchless = config -> {
+            final Indexer delegate = engineBacked.createIndexer(config);
+            return (Indexer) Proxy.newProxyInstance(
+                Indexer.class.getClassLoader(),
+                new Class<?>[] { Indexer.class },
+                (proxy, method, args) -> {
+                    try {
+                        return method.invoke(delegate, args);
+                    } catch (InvocationTargetException e) {
+                        throw e.getCause();
+                    }
+                }
+            );
+        };
+        final IndexShard shard = newStartedShard(true, Settings.EMPTY, searchless);
+        try {
+            OpenSearchStatusException e = expectThrows(OpenSearchStatusException.class, () -> shard.acquireSearcher("test"));
+            assertEquals(RestStatus.BAD_REQUEST, e.status());
+            assertThat(e.getMessage(), containsString("does not support _search"));
+
+            e = expectThrows(OpenSearchStatusException.class, () -> shard.acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL));
+            assertEquals(RestStatus.BAD_REQUEST, e.status());
+        } finally {
+            closeShards(shard);
+        }
     }
 
     public void testCompletionStatsMarksSearcherAccessed() throws Exception {

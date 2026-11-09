@@ -22,6 +22,7 @@ import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -32,8 +33,10 @@ import org.opensearch.common.settings.Settings;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -84,6 +87,7 @@ public class LocalShardsBalancerTests extends OpenSearchAllocationTestCase {
             false,
             false,
             false,
+            false,
             null
         );
 
@@ -131,6 +135,7 @@ public class LocalShardsBalancerTests extends OpenSearchAllocationTestCase {
             false,
             false,
             false,
+            false,
             null
         );
 
@@ -175,6 +180,7 @@ public class LocalShardsBalancerTests extends OpenSearchAllocationTestCase {
             null,
             weightFunction,
             0,
+            false,
             false,
             false,
             false,
@@ -258,4 +264,117 @@ public class LocalShardsBalancerTests extends OpenSearchAllocationTestCase {
             return decider.apply(shardRouting);
         }
     }
+
+    public void testAvgShardsPerNodeRefreshesWhenFilterChanges() {
+        int numberOfShards = 6;
+        Metadata metadata = buildMetadata(Metadata.builder(), 1, numberOfShards, 1, 0);
+        RoutingTable routingTable = buildRoutingTable(metadata);
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3).add(node4).add(node5).add(node6))
+            .build();
+
+        // Drive all shards to STARTED so totalShardCount reflects the assigned shard count (12).
+        AllocationService allocationService = createAllocationService(Settings.EMPTY);
+        state = allocationService.reroute(state, "initial-allocation");
+        state = applyStartedShardsUntilNoChange(state, allocationService);
+        assertEquals(12, state.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size());
+
+        // ---- Round 1: exclude {node4,node5,node6} -> 3 eligible -> 6 / 3 = 2.0, total 12 / 3 = 4.0
+        RoutingAllocation allocation1 = new RoutingAllocation(
+            new AllocationDeciders(
+                Collections.singletonList(new StaticClusterFilterDecider(new HashSet<>(Arrays.asList("node4", "node5", "node6"))))
+            ),
+            new RoutingNodes(state, false),
+            state,
+            ClusterInfo.EMPTY,
+            null,
+            System.nanoTime()
+        );
+        LocalShardsBalancer balancer1 = new LocalShardsBalancer(
+            logger,
+            allocation1,
+            null,
+            mock(BalancedShardsAllocator.WeightFunction.class),
+            0,
+            false,
+            false,
+            true,
+            false,
+            null
+        );
+        assertEquals("round1 primary per-index", 2.0f, balancer1.avgPrimaryShardsPerNode("test_0"), 0.0001f);
+        assertEquals("round1 primary cluster-level", 2.0f, balancer1.avgPrimaryShardsPerNode(), 0.0001f);
+        assertEquals("round1 shards per-index", 12.0f / 3.0f, balancer1.avgShardsPerNode("test_0"), 0.0001f);
+        assertEquals("round1 shards cluster-level", 12.0f / 3.0f, balancer1.avgShardsPerNode(), 0.0001f);
+
+        // ---- Round 2: filter shrinks to {node6} -> 5 eligible -> 6 / 5 = 1.2
+        RoutingAllocation allocation2 = new RoutingAllocation(
+            new AllocationDeciders(
+                Collections.singletonList(new StaticClusterFilterDecider(new HashSet<>(Collections.singletonList("node6"))))
+            ),
+            new RoutingNodes(state, false),
+            state,
+            ClusterInfo.EMPTY,
+            null,
+            System.nanoTime()
+        );
+        LocalShardsBalancer balancer2 = new LocalShardsBalancer(
+            logger,
+            allocation2,
+            null,
+            mock(BalancedShardsAllocator.WeightFunction.class),
+            0,
+            false,
+            false,
+            true,
+            false,
+            null
+        );
+        assertEquals("round2 primary per-index", 6.0f / 5.0f, balancer2.avgPrimaryShardsPerNode("test_0"), 0.0001f);
+        assertEquals("round2 primary cluster-level", 6.0f / 5.0f, balancer2.avgPrimaryShardsPerNode(), 0.0001f);
+        assertEquals("round2 shards per-index", 12.0f / 5.0f, balancer2.avgShardsPerNode("test_0"), 0.0001f);
+        assertEquals("round2 shards cluster-level", 12.0f / 5.0f, balancer2.avgShardsPerNode(), 0.0001f);
+
+        // ---- Round 3: filter cleared -> 6 eligible -> 6 / 6 = 1.0
+        RoutingAllocation allocation3 = new RoutingAllocation(
+            new AllocationDeciders(Collections.singletonList(new StaticClusterFilterDecider(Collections.emptySet()))),
+            new RoutingNodes(state, false),
+            state,
+            ClusterInfo.EMPTY,
+            null,
+            System.nanoTime()
+        );
+        LocalShardsBalancer balancer3 = new LocalShardsBalancer(
+            logger,
+            allocation3,
+            null,
+            mock(BalancedShardsAllocator.WeightFunction.class),
+            0,
+            false,
+            false,
+            true,
+            false,
+            null
+        );
+        assertEquals("round3 primary per-index", 1.0f, balancer3.avgPrimaryShardsPerNode("test_0"), 0.0001f);
+        assertEquals("round3 primary cluster-level", 1.0f, balancer3.avgPrimaryShardsPerNode(), 0.0001f);
+        assertEquals("round3 shards per-index", 2.0f, balancer3.avgShardsPerNode("test_0"), 0.0001f);
+        assertEquals("round3 shards cluster-level", 2.0f, balancer3.avgShardsPerNode(), 0.0001f);
+    }
+
+    public static class StaticClusterFilterDecider extends AllocationDecider {
+        private final Set<String> excluded;
+
+        public StaticClusterFilterDecider(Set<String> excluded) {
+            this.excluded = excluded;
+        }
+
+        @Override
+        public Decision canAllocateAnyShardToNode(RoutingNode node, RoutingAllocation allocation) {
+            return excluded.contains(node.nodeId()) ? Decision.NO : Decision.ALWAYS;
+        }
+    }
+
 }
