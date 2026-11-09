@@ -152,7 +152,21 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
             assertThat(response.status(), equalTo(413)); // and no 100 Continue before it
             assertFalse(response.connectionClose());
             assertConnectionUsable(client);
-            assertRejectionHandlerRemoved(transport.hold);
+            assertNoRejectionHandler(transport.hold);
+        }
+    }
+
+    public void testExpectContinueRejectionPreservesNettysConnectionHandling() throws Exception {
+        final RequestBuilder request = post().header("Expect", "100-continue")
+            .header("Connection", "close")
+            .body(Encoding.IDENTITY, incompressible(2 * LIMIT));
+        try (TestTransport transport = startTransport(settings()); Netty4HttpRawClient client = connect(transport)) {
+            client.write(request.head());
+            final Response response = client.readResponse();
+            assertThat(response.status(), equalTo(413));
+            assertFalse(response.connectionClose());
+            assertConnectionUsable(client);
+            assertNoRejectionHandler(transport.hold);
         }
     }
 
@@ -164,7 +178,7 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
             assertThat(response.status(), equalTo(413));
             assertFalse(response.connectionClose());
             assertConnectionUsable(client);
-            assertRejectionHandlerRemoved(transport.hold);
+            assertNoRejectionHandler(transport.hold);
         }
     }
 
@@ -172,7 +186,8 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
         try (TestTransport transport = startTransport(settings())) {
             for (Encoding encoding : Encoding.values()) {
                 for (boolean chunked : new boolean[] { false, true }) {
-                    final byte[] body = randomBoolean() ? compressible(LIMIT) : incompressible(LIMIT);
+                    // A compressed Content-Length must also fit; incompressible input can grow during encoding.
+                    final byte[] body = encoding == Encoding.IDENTITY || chunked ? incompressible(LIMIT) : compressible(LIMIT);
                     try (Netty4HttpRawClient client = connect(transport)) {
                         client.writeInPieces(post().body(encoding, body).chunked(chunked).bytes(), between(1, 16 * 1024));
                         final Response response = client.readResponse();
@@ -285,7 +300,7 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
         assertThat(new String(response.body(), StandardCharsets.UTF_8), equalTo("5"));
     }
 
-    private static void assertRejectionHandlerRemoved(ResponseHold hold) throws Exception {
+    private static void assertNoRejectionHandler(ResponseHold hold) throws Exception {
         assertBusy(() -> {
             assertThat(hold.channel.pipeline().get(Netty4HttpRejectionHandler.class), nullValue());
             assertFalse(((SocketChannelConfig) hold.channel.config()).isAllowHalfClosure());

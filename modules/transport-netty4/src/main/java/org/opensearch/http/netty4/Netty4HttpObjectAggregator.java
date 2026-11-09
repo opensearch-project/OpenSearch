@@ -17,7 +17,6 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.ChannelPipeline;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.socket.DuplexChannel;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
@@ -28,7 +27,6 @@ import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
@@ -44,10 +42,10 @@ import io.netty.util.ReferenceCountUtil;
  * captures it ahead of the decompressor. This lets an oversized compressed request be rejected before its body is sent,
  * including when the client asked for {@code Expect: 100-continue}.
  * <p>
- * Rejections are handed to a {@link Netty4HttpRejectionHandler} so the {@code 413} reaches the client. The connection is
- * kept open when Netty would keep it open: the request was rejected before any body was read and it is keep-alive, with
- * the exception of a compressed body rejected on its declared size without {@code 100-continue}, whose upload is
- * imminent and would otherwise have to be decompressed only to be discarded.
+ * Rejections that close the connection use a {@link Netty4HttpRejectionHandler} so the {@code 413} reaches the client.
+ * Netty handles recoverable rejections, including {@code Expect: 100-continue}. A compressed body rejected on its
+ * declared size without {@code 100-continue} closes the connection so its imminent upload can be discarded before
+ * decompression.
  */
 final class Netty4HttpObjectAggregator extends HttpObjectAggregator {
 
@@ -57,9 +55,7 @@ final class Netty4HttpObjectAggregator extends HttpObjectAggregator {
     private final Netty4HttpRejectionHandler.Timeouts timeouts;
     /** {@code Content-Length} of the current request as sent, recorded ahead of the decompressor; -1 when unknown */
     private long encodedContentLength = -1;
-    /** the current request asked for {@code 100-continue} and was rejected on its declared size */
-    private boolean expectationRejected;
-    private Netty4HttpRejectionHandler rejection;
+    private boolean rejecting;
 
     Netty4HttpObjectAggregator(
         int maxContentLength,
@@ -94,21 +90,14 @@ final class Netty4HttpObjectAggregator extends HttpObjectAggregator {
         }
     }
 
-    private boolean isTerminal() {
-        return rejection != null && rejection.isTerminal();
-    }
-
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        if (isTerminal()) {
+        if (rejecting) {
             // decoded from input that was read before the rejection, e.g. pipelined requests in the same buffer
             ReferenceCountUtil.release(msg);
             return;
         }
         final boolean start = msg instanceof HttpMessage;
-        if (start) {
-            expectationRejected = false;
-        }
         try {
             super.channelRead(ctx, msg);
         } finally {
@@ -120,7 +109,7 @@ final class Netty4HttpObjectAggregator extends HttpObjectAggregator {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        if (isTerminal()) {
+        if (rejecting) {
             // e.g. a decompression failure on the remainder of the rejected body: expected, and closing is under way
             logger.debug("ignoring exception on a connection that is closing after a 413", cause);
             return;
@@ -134,19 +123,6 @@ final class Netty4HttpObjectAggregator extends HttpObjectAggregator {
     }
 
     @Override
-    protected Object newContinueResponse(HttpMessage start, int maxContentLength, ChannelPipeline pipeline) {
-        final Object response = super.newContinueResponse(start, maxContentLength, pipeline);
-        if (response instanceof HttpResponse httpResponse && httpResponse.status().equals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE)) {
-            // Netty would write its 413 here, unprotected. Returning null makes the aggregator check the content length
-            // next, which routes the rejection through handleOversizedMessage below. The decoder was already reset.
-            ReferenceCountUtil.release(response);
-            expectationRejected = true;
-            return null;
-        }
-        return response;
-    }
-
-    @Override
     protected void handleOversizedMessage(ChannelHandlerContext ctx, HttpMessage oversized) throws Exception {
         if (oversized instanceof HttpRequest == false || ctx.channel() instanceof DuplexChannel == false) {
             super.handleOversizedMessage(ctx, oversized);
@@ -157,20 +133,23 @@ final class Netty4HttpObjectAggregator extends HttpObjectAggregator {
         final boolean close = oversized instanceof FullHttpMessage // part of the body was read already
             || ctx.channel().config().isAutoRead() == false
             || HttpUtil.isKeepAlive(oversized) == false
-            || (rejectedOnEncodedLengthOnly && expectationRejected == false);
+            || rejectedOnEncodedLengthOnly;
+        if (close == false) {
+            super.handleOversizedMessage(ctx, oversized);
+            return;
+        }
 
-        rejection = Netty4HttpRejectionHandler.install(ctx.pipeline(), transportRunning, timeouts);
+        rejecting = true;
+        final Netty4HttpRejectionHandler rejection = Netty4HttpRejectionHandler.install(ctx.pipeline(), transportRunning, timeouts);
         final ChannelPromise promise = ctx.newPromise();
-        rejection.responsePending(close, promise);
+        rejection.responsePending(promise);
         final FullHttpResponse response = new DefaultFullHttpResponse(
             HttpVersion.HTTP_1_1,
             HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE,
             Unpooled.EMPTY_BUFFER
         );
         response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, 0);
-        if (close) {
-            response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
-        }
+        response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
         ctx.writeAndFlush(response, promise);
     }
 }

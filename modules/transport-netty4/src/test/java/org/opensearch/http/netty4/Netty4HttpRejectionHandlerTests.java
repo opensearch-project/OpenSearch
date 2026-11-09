@@ -14,13 +14,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.DefaultChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -36,65 +33,44 @@ import static org.mockito.Mockito.when;
 
 public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
 
-    public void testLaterRejectionDoesNotExtendPendingWriteTimeout() {
+    public void testWriteClosesAtDeadline() {
         final EmbeddedChannel channel = new EmbeddedChannel();
         channel.freezeTime();
         final Netty4HttpRejectionHandler handler = install(channel);
-        final ChannelPromise first = pendingResponse(channel, handler);
-        channel.advanceTimeBy(20, TimeUnit.SECONDS);
-        final ChannelPromise second = pendingResponse(channel, handler);
+        final ChannelPromise response = pendingResponse(channel, handler);
         try {
-            channel.advanceTimeBy(10, TimeUnit.SECONDS);
+            channel.advanceTimeBy(TimeUnit.SECONDS.toNanos(30) - 1, TimeUnit.NANOSECONDS);
             channel.runScheduledPendingTasks();
-            assertFalse("A later rejection must not postpone the first write's deadline", channel.isOpen());
+            assertTrue("The response has the entire write interval to complete", channel.isOpen());
+            channel.advanceTimeBy(1, TimeUnit.NANOSECONDS);
+            channel.runScheduledPendingTasks();
+            assertFalse("An unfinished response must not retain the connection past its deadline", channel.isOpen());
         } finally {
             channel.finishAndReleaseAll();
-            first.tryFailure(new IOException("test complete"));
-            second.tryFailure(new IOException("test complete"));
-        }
-    }
-
-    public void testEachPendingWriteKeepsItsOwnTimeout() {
-        final EmbeddedChannel channel = new EmbeddedChannel();
-        channel.freezeTime();
-        final Netty4HttpRejectionHandler handler = install(channel);
-        final ChannelPromise first = pendingResponse(channel, handler);
-        channel.advanceTimeBy(20, TimeUnit.SECONDS);
-        final ChannelPromise second = pendingResponse(channel, handler);
-        try {
-            channel.advanceTimeBy(5, TimeUnit.SECONDS);
-            first.setSuccess();
-            channel.advanceTimeBy(5, TimeUnit.SECONDS);
-            channel.runScheduledPendingTasks();
-            assertTrue("Completing the first write must cancel only its timeout", channel.isOpen());
-            channel.advanceTimeBy(20, TimeUnit.SECONDS);
-            channel.runScheduledPendingTasks();
-            assertFalse("The second write must still time out relative to its submission", channel.isOpen());
-        } finally {
-            channel.finishAndReleaseAll();
-            first.tryFailure(new IOException("test complete"));
-            second.tryFailure(new IOException("test complete"));
+            response.tryFailure(new IOException("test complete"));
         }
     }
 
     public void testCompletedWriteDoesNotTimeOutBeforeListenerRuns() {
-        final EmbeddedChannel channel = new EmbeddedChannel();
+        final EmbeddedDuplexChannel channel = new EmbeddedDuplexChannel(null);
         channel.freezeTime();
         final List<Runnable> notifications = new ArrayList<>();
         final EventExecutor listenerExecutor = deferListeners(notifications);
         final Netty4HttpRejectionHandler handler = install(channel);
         final ChannelPromise response = new DefaultChannelPromise(channel, listenerExecutor);
-        handler.responsePending(false, response);
+        handler.responsePending(response);
         try {
             response.setSuccess();
             assertEquals("The write is complete but its listener has not run", 1, notifications.size());
             channel.advanceTimeBy(30, TimeUnit.SECONDS);
             channel.runScheduledPendingTasks();
-            assertTrue("A completed recoverable response must not time out", channel.isOpen());
-            assertNull(channel.pipeline().context(handler));
+            assertTrue("A completed response must proceed to FIN and draining", channel.isOpen());
+            assertEquals(1, channel.outputShutdowns);
             notifications.forEach(Runnable::run);
+            assertEquals("A delayed write listener must not shut down output twice", 1, channel.outputShutdowns);
             assertTrue(channel.isOpen());
         } finally {
+            channel.unsafe().close(channel.newPromise());
             channel.finishAndReleaseAll();
         }
     }
@@ -108,7 +84,7 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
         channel.pipeline().addLast(ssl);
         final Netty4HttpRejectionHandler handler = install(channel);
         final ChannelPromise response = channel.newPromise();
-        handler.responsePending(true, response);
+        handler.responsePending(response);
         try {
             channel.advanceTimeBy(20, TimeUnit.SECONDS);
             response.setSuccess();
@@ -134,7 +110,7 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
         channel.pipeline().addLast(ssl);
         final Netty4HttpRejectionHandler handler = install(channel);
         final ChannelPromise response = channel.newPromise();
-        handler.responsePending(true, response);
+        handler.responsePending(response);
         try {
             response.setSuccess();
             shutdown.setSuccess();
@@ -158,7 +134,7 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
         channel.freezeTime();
         final Netty4HttpRejectionHandler handler = install(channel);
         final ChannelPromise response = channel.newPromise();
-        handler.responsePending(true, response);
+        handler.responsePending(response);
         try {
             response.setSuccess();
             assertEquals(1, notifications.size());
@@ -179,7 +155,7 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
         channel.freezeTime();
         final Netty4HttpRejectionHandler handler = install(channel);
         final ChannelPromise response = channel.newPromise();
-        handler.responsePending(true, response);
+        handler.responsePending(response);
         try {
             response.setSuccess();
             assertTrue(channel.isOutputShutdown());
@@ -200,7 +176,7 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
         channel.freezeTime();
         final Netty4HttpRejectionHandler handler = install(channel);
         final ChannelPromise response = channel.newPromise();
-        handler.responsePending(true, response);
+        handler.responsePending(response);
         try {
             response.setSuccess();
             channel.advanceTimeBy(4, TimeUnit.SECONDS);
@@ -227,7 +203,7 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
         channel.freezeTime();
         final Netty4HttpRejectionHandler handler = install(channel);
         final ChannelPromise response = channel.newPromise();
-        handler.responsePending(true, response);
+        handler.responsePending(response);
         try {
             response.setSuccess();
             for (int elapsedSeconds = 4; elapsedSeconds < 30; elapsedSeconds += 4) {
@@ -250,43 +226,16 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testFailedWritesRequestCloseOnlyOnce() {
-        final EmbeddedChannel channel = new EmbeddedChannel();
-        channel.freezeTime();
-        final Netty4HttpRejectionHandler handler = install(channel);
-        final AtomicInteger closeRequests = new AtomicInteger();
-        channel.pipeline().addFirst(new ChannelOutboundHandlerAdapter() {
-            @Override
-            public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
-                closeRequests.incrementAndGet();
-                ctx.channel().closeFuture().addListener(f -> promise.trySuccess());
-            }
-        });
-        final ChannelPromise first = pendingResponse(channel, handler);
-        final ChannelPromise second = pendingResponse(channel, handler);
-        try {
-            first.setFailure(new IOException("first write failed"));
-            second.setFailure(new IOException("second write failed"));
-            channel.advanceTimeBy(30, TimeUnit.SECONDS);
-            channel.runScheduledPendingTasks();
-            assertEquals("Failed writes and cancelled timers must not restart closure", 1, closeRequests.get());
-        } finally {
-            channel.unsafe().close(channel.newPromise());
-            channel.finishAndReleaseAll();
-        }
-    }
-
-    public void testRemovedHandlerIgnoresLateWriteCompletion() {
+    public void testFailedWriteClosesConnection() {
         final EmbeddedChannel channel = new EmbeddedChannel();
         channel.freezeTime();
         final Netty4HttpRejectionHandler handler = install(channel);
         final ChannelPromise response = pendingResponse(channel, handler);
         try {
-            channel.pipeline().remove(handler);
-            response.setFailure(new IOException("write completed after removal"));
+            response.setFailure(new IOException("write failed"));
+            assertFalse("A failed response must close without waiting for its deadline", channel.isOpen());
             channel.advanceTimeBy(30, TimeUnit.SECONDS);
             channel.runScheduledPendingTasks();
-            assertTrue("A removed handler must not close the channel from a stale listener or timer", channel.isOpen());
         } finally {
             channel.finishAndReleaseAll();
         }
@@ -307,7 +256,7 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
 
     private static ChannelPromise pendingResponse(EmbeddedChannel channel, Netty4HttpRejectionHandler handler) {
         final ChannelPromise promise = channel.newPromise();
-        handler.responsePending(false, promise);
+        handler.responsePending(promise);
         return promise;
     }
 
