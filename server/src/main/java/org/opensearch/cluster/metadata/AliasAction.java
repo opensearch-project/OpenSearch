@@ -109,10 +109,10 @@ public abstract class AliasAction {
         final Boolean isHidden;
 
         @Nullable
-        private final String enforcement;
+        private final String scoringMode;
 
         /**
-         * Build the operation without an explicit enforcement mode (defaults to {@code null}).
+         * Build the operation without an explicit scoring mode (defaults to {@code null}).
          */
         public Add(
             String index,
@@ -137,14 +137,14 @@ public abstract class AliasAction {
             @Nullable String searchRouting,
             @Nullable Boolean writeIndex,
             @Nullable Boolean isHidden,
-            @Nullable String enforcement
+            @Nullable String scoringMode
         ) {
             super(index);
             if (false == Strings.hasText(alias)) {
                 throw new IllegalArgumentException("[alias] is required");
             }
-            if (enforcement != null && Strings.hasText(filter) == false) {
-                throw new IllegalArgumentException("[enforcement] requires a [filter] on alias [" + alias + "]");
+            if (scoringMode != null && Strings.hasText(filter) == false) {
+                throw new IllegalArgumentException("[scoring_mode] requires a [filter] on alias [" + alias + "]");
             }
             this.alias = alias;
             this.filter = filter;
@@ -152,7 +152,7 @@ public abstract class AliasAction {
             this.searchRouting = searchRouting;
             this.writeIndex = writeIndex;
             this.isHidden = isHidden;
-            this.enforcement = enforcement;
+            this.scoringMode = scoringMode;
         }
 
         /**
@@ -184,8 +184,8 @@ public abstract class AliasAction {
         }
 
         @Nullable
-        public String getEnforcement() {
-            return enforcement;
+        public String getScoringMode() {
+            return scoringMode;
         }
 
         @Override
@@ -203,7 +203,7 @@ public abstract class AliasAction {
                 .searchRouting(searchRouting)
                 .writeIndex(writeIndex)
                 .isHidden(isHidden)
-                .enforcement(enforcement)
+                .scoringMode(scoringMode)
                 .build();
 
             // Check if this alias already exists

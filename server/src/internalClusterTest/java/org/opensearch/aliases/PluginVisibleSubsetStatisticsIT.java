@@ -96,9 +96,9 @@ public class PluginVisibleSubsetStatisticsIT extends OpenSearchIntegTestCase {
         assertScoped("fs_view", SearchType.QUERY_THEN_FETCH);
     }
 
-    public void testRestrictionAppliesThroughPostFilterAlias() throws Exception {
+    public void testRestrictionAppliesThroughUnfilteredStatsAlias() throws Exception {
         buildCorpus("restricted_post_alias", 1);
-        addAlias("restricted_post_alias", "post_view", "post_filter");
+        addAlias("restricted_post_alias", "post_view", "unfiltered_stats");
         assertScoped("post_view", SearchType.QUERY_THEN_FETCH);
     }
 
@@ -158,13 +158,13 @@ public class PluginVisibleSubsetStatisticsIT extends OpenSearchIntegTestCase {
         );
     }
 
-    private void addAlias(String index, String alias, String enforcement) {
+    private void addAlias(String index, String alias, String scoringMode) {
         assertAcked(
             client().admin()
                 .indices()
                 .prepareAliases()
                 .addAliasAction(
-                    AliasActions.add().index(index).alias(alias).filter(QueryBuilders.termQuery("region", "x")).enforcement(enforcement)
+                    AliasActions.add().index(index).alias(alias).filter(QueryBuilders.termQuery("region", "x")).scoringMode(scoringMode)
                 )
         );
     }

@@ -89,7 +89,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
         String alias = request.param("name");
         Map<String, Object> filter = null;
         String routing = null;
-        String enforcement = null;
+        String scoringMode = null;
         String indexRouting = null;
         String searchRouting = null;
         Boolean writeIndex = null;
@@ -124,8 +124,8 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
                                     writeIndex = parser.booleanValue();
                                 } else if ("is_hidden".equals(currentFieldName)) {
                                     isHidden = parser.booleanValue();
-                                } else if ("enforcement".equals(currentFieldName)) {
-                                    enforcement = parser.textOrNull();
+                                } else if ("scoring_mode".equals(currentFieldName)) {
+                                    scoringMode = parser.textOrNull();
                                 } else {
                                     throw new IllegalArgumentException("unknown field [" + currentFieldName + "]");
                                 }
@@ -166,8 +166,8 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
         if (isHidden != null) {
             aliasAction.isHidden(isHidden);
         }
-        if (enforcement != null) {
-            aliasAction.enforcement(enforcement);
+        if (scoringMode != null) {
+            aliasAction.scoringMode(scoringMode);
         }
         indicesAliasesRequest.addAliasAction(aliasAction);
         return channel -> client.admin().indices().aliases(indicesAliasesRequest, new RestToXContentListener<>(channel));

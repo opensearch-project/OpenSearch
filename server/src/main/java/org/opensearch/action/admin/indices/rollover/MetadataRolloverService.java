@@ -325,7 +325,7 @@ public class MetadataRolloverService {
                         aliasMetadata.getSearchRouting(),
                         true,
                         aliasMetadata.isHidden(),
-                        aliasMetadata.enforcement()
+                        aliasMetadata.scoringMode()
                     ),
                     new AliasAction.Add(
                         oldIndex,
@@ -335,7 +335,7 @@ public class MetadataRolloverService {
                         aliasMetadata.getSearchRouting(),
                         false,
                         aliasMetadata.isHidden(),
-                        aliasMetadata.enforcement()
+                        aliasMetadata.scoringMode()
                     )
                 )
             );
@@ -350,7 +350,7 @@ public class MetadataRolloverService {
                         aliasMetadata.getSearchRouting(),
                         null,
                         aliasMetadata.isHidden(),
-                        aliasMetadata.enforcement()
+                        aliasMetadata.scoringMode()
                     ),
                     new AliasAction.Remove(oldIndex, alias, null)
                 )

@@ -369,11 +369,11 @@ public abstract class SearchContext implements Releasable {
      * Whether BM25 collection/term statistics should be computed over only the documents that match the
      * {@link #aliasFilter()} (the "visible" subset) instead of the whole shard.
      * <p>
-     * This backs the {@code filtered_stats} scoring behavior of a {@code pre_filter} alias: relevance ranking
+     * This backs the {@code filtered_stats} scoring mode of an alias: relevance ranking
      * runs as if the shard contained only the visible documents, so a term that appears exclusively in
      * filtered-out documents does not contribute its document frequency to the BM25 IDF of visible documents.
      * It is distinct from
-     * the {@code constant_score} pre-filter behavior (which suppresses scoring entirely by wrapping the query in a
+     * the {@code no_stats} mode (which suppresses scoring entirely by wrapping the query in a
      * {@link org.apache.lucene.search.ConstantScoreQuery}).
      * <p>
      * Defaults to {@code false} (whole-shard statistics, today's behavior). When {@code true},
@@ -386,7 +386,7 @@ public abstract class SearchContext implements Releasable {
 
     /**
      * The query that defines the visible subset for statistics purposes, which is the alias filter for a
-     * {@code pre_filter} alias and otherwise whatever a plugin has supplied through
+     * {@code no_stats} alias and otherwise whatever a plugin has supplied through
      * {@link #visibleSubsetFilter(Query)}.
      * <p>
      * {@link ContextIndexSearcher} reads this rather than {@link #aliasFilter()} directly, so it does not need to know

@@ -494,10 +494,10 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (aliasFilter != null) {
-            final AliasFilter.Enforcement enforcement = aliasEnforcement();
-            if (enforcement == AliasFilter.Enforcement.PRE_FILTER || enforcement == AliasFilter.Enforcement.FILTERED_STATS) {
+            final AliasFilter.ScoringMode scoringMode = aliasScoringMode();
+            if (scoringMode == AliasFilter.ScoringMode.NO_STATS || scoringMode == AliasFilter.ScoringMode.FILTERED_STATS) {
                 if (useFilteredStatistics()) {
-                    // Pre-filter enforcement, filtered_stats scoring: keep real BM25 scoring but restrict the
+                    // Pre-filter scoringMode, filtered_stats scoring: keep real BM25 scoring but restrict the
                     // query to the visible subset by adding the alias filter as a normal (non-scoring) FILTER
                     // clause. The visibility-aware statistics are supplied by ContextIndexSearcher, which computes
                     // collection/term stats over only the alias-filter bitset (see useFilteredStatistics()). This
@@ -505,7 +505,7 @@ final class DefaultSearchContext extends SearchContext {
                     // without collapsing scoring to a constant like the constant_score behavior below does.
                     filters.add(aliasFilter);
                 } else {
-                    // pre_filter, or filtered_stats over its ceiling: filter before scoring and score every hit the
+                    // no_stats, or filtered_stats over its ceiling: filter before scoring and score every hit the
                     // same, so no corpus statistics are read and documents outside the alias cannot affect a score.
                     query = new ConstantScoreQuery(
                         new BooleanQuery.Builder().add(query, Occur.MUST).add(aliasFilter, Occur.FILTER).build()
@@ -888,7 +888,7 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public Query filteredStatisticsFilter() {
         if (filteredStatisticsFilterMemo == null) {
-            final Query alias = aliasEnforcement() == AliasFilter.Enforcement.FILTERED_STATS ? aliasFilter : null;
+            final Query alias = aliasScoringMode() == AliasFilter.ScoringMode.FILTERED_STATS ? aliasFilter : null;
             // Each restriction removes documents this caller must not be scored against, so honour both.
             filteredStatisticsFilterMemo = intersect(alias, pluginVisibleSubsetFilter);
         }
@@ -917,16 +917,16 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public boolean useFilteredStatistics() {
-        final AliasFilter.Enforcement enforcement = aliasEnforcement();
-        // pre_filter suppresses scoring, so there are no statistics to scope.
-        return enforcement != AliasFilter.Enforcement.PRE_FILTER
-            && (enforcement == AliasFilter.Enforcement.FILTERED_STATS || pluginVisibleSubsetFilter != null)
+        final AliasFilter.ScoringMode scoringMode = aliasScoringMode();
+        // no_stats suppresses scoring, so there are no statistics to scope.
+        return scoringMode != AliasFilter.ScoringMode.NO_STATS
+            && (scoringMode == AliasFilter.ScoringMode.FILTERED_STATS || pluginVisibleSubsetFilter != null)
             && withinFilteredStatisticsBudget();
     }
 
-    /** The enforcement of the alias filter on this request, or {@code null} when no alias filter applies. */
-    private AliasFilter.Enforcement aliasEnforcement() {
-        return aliasFilter == null ? null : request.getAliasFilter().getEnforcement();
+    /** The scoringMode of the alias filter on this request, or {@code null} when no alias filter applies. */
+    private AliasFilter.ScoringMode aliasScoringMode() {
+        return aliasFilter == null ? null : request.getAliasFilter().getScoringMode();
     }
 
     /**
@@ -942,7 +942,7 @@ final class DefaultSearchContext extends SearchContext {
      * The result is memoized for the life of this context because it is consulted twice per request -- once when
      * choosing the query shape in {@link #buildFilteredQuery(Query)} and again when the searcher computes statistics.
      * Those two decisions must agree: a filtered-stats query shape scored with whole-shard statistics would reintroduce
-     * the very whole-corpus IDF the pre-filter is meant to exclude.
+     * the very whole-corpus IDF that filtered_stats is meant to exclude.
      */
     private boolean withinFilteredStatisticsBudget() {
         if (filteredStatisticsWithinBudget != null) {

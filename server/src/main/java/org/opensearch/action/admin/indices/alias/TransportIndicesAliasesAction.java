@@ -250,7 +250,7 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
                                     action.searchRouting(),
                                     action.writeIndex(),
                                     action.isHidden(),
-                                    action.enforcement()
+                                    action.scoringMode()
                                 )
                             );
                         }
