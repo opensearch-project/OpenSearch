@@ -1523,7 +1523,7 @@ public class MetadataCreateIndexService {
                 .searchRouting(alias.searchRouting())
                 .writeIndex(alias.writeIndex())
                 .isHidden(alias.isHidden())
-                .enforcement(alias.enforcement())
+                .scoringMode(alias.scoringMode())
                 .build();
             resolvedAliases.add(aliasMetadata);
         }

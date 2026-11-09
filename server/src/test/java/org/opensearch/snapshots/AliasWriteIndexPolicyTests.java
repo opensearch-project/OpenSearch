@@ -92,10 +92,10 @@ public class AliasWriteIndexPolicyTests extends OpenSearchTestCase {
         assertThat(transformed.writeIndex(), equalTo(false));
     }
 
-    public void testStripWriteIndexKeepsTheEnforcementMode() {
+    public void testStripWriteIndexKeepsTheScoringModeMode() {
         AliasMetadata alias = AliasMetadata.builder("scoped")
             .filter("{\"term\":{\"f\":\"v\"}}")
-            .enforcement("pre_filter")
+            .scoringMode("no_stats")
             .writeIndex(true)
             .build();
         AliasMetadata restored = RestoreService.applyAliasWriteIndexPolicy(
@@ -103,7 +103,7 @@ public class AliasWriteIndexPolicyTests extends OpenSearchTestCase {
             RestoreSnapshotRequest.AliasWriteIndexPolicy.STRIP_WRITE_INDEX
         );
         assertFalse(restored.writeIndex());
-        assertEquals("restoring must not downgrade how the filter is applied", "pre_filter", restored.enforcement());
+        assertEquals("restoring must not downgrade how the filter is applied", "no_stats", restored.scoringMode());
     }
 
     public void testApplyAliasPolicyPreserve() {

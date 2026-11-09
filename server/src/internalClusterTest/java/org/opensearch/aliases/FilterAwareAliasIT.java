@@ -25,10 +25,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
  * <p>
  * A term that appears only in documents outside an alias's filter still contributes to that term's
  * corpus-wide document frequency, which affects its BM25 IDF. With today's post-filtering
- * ({@code enforcement: post_filter}, the default) the query is scored over every document in the
+ * ({@code scoring_mode: unfiltered_stats}, the default) the query is scored over every document in the
  * shard before the alias filter is applied, so a term's score reflects documents the alias excludes.
  * <p>
- * With {@code enforcement: pre_filter} the alias filter is applied before scoring and every hit
+ * With {@code scoring_mode: no_stats} the alias filter is applied before scoring and every hit
  * scores the same, so no corpus statistics are read. A term confined to excluded documents then
  * scores the same as any other term. This test asserts exactly that difference, live.
  */
@@ -78,10 +78,10 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
         refresh(INDEX);
     }
 
-    private void addAlias(String alias, String enforcement) {
+    private void addAlias(String alias, String scoringMode) {
         AliasActions add = AliasActions.add().index(INDEX).alias(alias).filter(QueryBuilders.termQuery("dept", VISIBLE_DEPT));
-        if (enforcement != null) {
-            add.enforcement(enforcement);
+        if (scoringMode != null) {
+            add.scoringMode(scoringMode);
         }
         assertAcked(client().admin().indices().prepareAliases().addAliasAction(add));
     }
@@ -95,43 +95,43 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
         return resp.getHits().getHits()[0].getScore();
     }
 
-    public void testPreFilterScoresOverVisibleSubsetOnly() throws Exception {
+    public void testNoStatsScoresOverVisibleSubsetOnly() throws Exception {
         buildCorpus();
-        addAlias("view_post", "post_filter"); // today's behavior (default)
-        addAlias("view_pre", "pre_filter");   // filter-aware
+        addAlias("view_post", "unfiltered_stats"); // today's behavior (default)
+        addAlias("view_pre", "no_stats");   // filter-aware
 
         // Both views expose exactly the visible cardiology subset (21 docs).
         assertHitCount(client().prepareSearch("view_post").setSize(0).get(), 21);
         assertHitCount(client().prepareSearch("view_pre").setSize(0).get(), 21);
 
-        // --- POST_FILTER: the restricted term scores LOWER than the absent term, because the
+        // --- UNFILTERED_STATS: the restricted term scores LOWER than the absent term, because the
         // filtered-out docs raise its df and lower its IDF. Scores depend on excluded docs.
         float postRestricted = sampleScore("view_post", RESTRICTED_TERM);
         float postAbsent = sampleScore("view_post", ABSENT_TERM);
         assertTrue("sample must be found for the restricted term via post-filter alias", postRestricted > 0f);
         assertTrue("sample must be found for the absent term via post-filter alias", postAbsent > 0f);
         assertTrue(
-            "post_filter: restricted-term score (" + postRestricted + ") sits below absent-term score (" + postAbsent + ")",
+            "unfiltered_stats: restricted-term score (" + postRestricted + ") sits below absent-term score (" + postAbsent + ")",
             postRestricted < postAbsent
         );
 
-        // --- PRE_FILTER: the restricted term now scores the SAME as the absent term, because scoring
+        // --- NO_STATS: the restricted term now scores the SAME as the absent term, because scoring
         // only ever saw the visible subset. Scores are independent of the excluded docs.
         float preRestricted = sampleScore("view_pre", RESTRICTED_TERM);
         float preAbsent = sampleScore("view_pre", ABSENT_TERM);
         assertTrue("sample must be found for the restricted term via pre-filter alias", preRestricted > 0f);
         assertTrue("sample must be found for the absent term via pre-filter alias", preAbsent > 0f);
         assertEquals(
-            "pre_filter: restricted and absent terms must score the same over the visible subset",
+            "no_stats: restricted and absent terms must score the same over the visible subset",
             preAbsent,
             preRestricted,
             0.0001f
         );
 
-        // And concretely: the score difference present under post_filter is gone under pre_filter.
+        // And concretely: the score difference present under unfiltered_stats is gone under no_stats.
         float postGap = postAbsent - postRestricted;
         float preGap = Math.abs(preAbsent - preRestricted);
-        assertTrue("pre_filter score gap (" + preGap + ") must be far smaller than post_filter gap (" + postGap + ")", preGap < postGap);
+        assertTrue("no_stats score gap (" + preGap + ") must be far smaller than unfiltered_stats gap (" + postGap + ")", preGap < postGap);
     }
 
     /** Score of the visible sample doc for a match_phrase_prefix query on {@code prefix}. */
@@ -153,45 +153,45 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
      * restricted subset (here "infarc" -&gt; "infarction", in 200 restricted docs) scores measurably
      * lower than a prefix that resolves only within the visible sample ("zzqxk" -&gt; the absent term).
      * <p>
-     * Under pre_filter (constant_score) the prefix expansion is scored without whole-shard IDF, so the
+     * Under no_stats (constant_score) the prefix expansion is scored without whole-shard IDF, so the
      * two prefixes score identically -- prefix scoring is a function of the visible subset alone.
      * (Term-dictionary <em>enumeration</em> APIs that surface raw terms -- terms/suggest/_termvectors --
      * are a separate surface and are not covered here.)
      */
-    public void testPreFilterPrefixScoresOverVisibleSubsetOnly() throws Exception {
+    public void testNoStatsPrefixScoresOverVisibleSubsetOnly() throws Exception {
         buildCorpus();
-        addAlias("pv_post", "post_filter");
-        addAlias("pv_pre", "pre_filter");
+        addAlias("pv_post", "unfiltered_stats");
+        addAlias("pv_pre", "no_stats");
 
         // The visible sample doc contains both "infarction" (common in the restricted subset) and the absent term.
         String restrictedPrefix = "infarc";  // -> infarction (df raised by 200 restricted docs)
         String absentPrefix = "zzqxk";        // -> absent term, present only in the visible sample
 
-        // post_filter: the restricted-subset prefix scores below the absent prefix.
+        // unfiltered_stats: the restricted-subset prefix scores below the absent prefix.
         float postRestricted = prefixSampleScore("pv_post", restrictedPrefix);
         float postAbsent = prefixSampleScore("pv_post", absentPrefix);
-        assertTrue("sample found for restricted prefix via post_filter", postRestricted > 0f);
-        assertTrue("sample found for absent prefix via post_filter", postAbsent > 0f);
+        assertTrue("sample found for restricted prefix via unfiltered_stats", postRestricted > 0f);
+        assertTrue("sample found for absent prefix via unfiltered_stats", postAbsent > 0f);
         assertTrue(
-            "post_filter prefix scoring: restricted-prefix (" + postRestricted + ") < absent-prefix (" + postAbsent + ")",
+            "unfiltered_stats prefix scoring: restricted-prefix (" + postRestricted + ") < absent-prefix (" + postAbsent + ")",
             postRestricted < postAbsent
         );
 
-        // pre_filter: the two prefixes score identically -- whole-shard df does not enter the score.
+        // no_stats: the two prefixes score identically -- whole-shard df does not enter the score.
         float preRestricted = prefixSampleScore("pv_pre", restrictedPrefix);
         float preAbsent = prefixSampleScore("pv_pre", absentPrefix);
-        assertTrue("sample found for restricted prefix via pre_filter", preRestricted > 0f);
-        assertTrue("sample found for absent prefix via pre_filter", preAbsent > 0f);
-        assertEquals("pre_filter prefix scoring: restricted and absent prefixes must score the same", preAbsent, preRestricted, 0.0001f);
+        assertTrue("sample found for restricted prefix via no_stats", preRestricted > 0f);
+        assertTrue("sample found for absent prefix via no_stats", preAbsent > 0f);
+        assertEquals("no_stats prefix scoring: restricted and absent prefixes must score the same", preAbsent, preRestricted, 0.0001f);
     }
 
     /**
      * A rescore query scores separately from the main query, so it must read no corpus statistics either: the visible
      * sample rescored on a term confined to excluded documents scores the same as on a term found only in the sample.
      */
-    public void testPreFilterRescoreReadsNoCorpusStatistics() throws Exception {
+    public void testNoStatsRescoreReadsNoCorpusStatistics() throws Exception {
         buildCorpus();
-        addAlias("rescored", "pre_filter");
+        addAlias("rescored", "no_stats");
         assertEquals(rescoredSampleScore("rescored", RESTRICTED_TERM), rescoredSampleScore("rescored", ABSENT_TERM), 0.0001f);
     }
 

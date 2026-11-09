@@ -1015,26 +1015,26 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
-    public void testAliasFilterTakesTheStrongestEnforcementOfItsAliases() {
-        createIndex("enforcement_idx");
+    public void testAliasFilterTakesTheStrongestScoringModeOfItsAliases() {
+        createIndex("scoring_mode_idx");
         client().admin()
             .indices()
             .prepareAliases()
-            .addAliasAction(AliasActions.add().index("enforcement_idx").alias("post").filter(QueryBuilders.termQuery("f", "a")))
+            .addAliasAction(AliasActions.add().index("scoring_mode_idx").alias("post").filter(QueryBuilders.termQuery("f", "a")))
             .addAliasAction(
-                AliasActions.add().index("enforcement_idx").alias("pre").filter(QueryBuilders.termQuery("f", "b")).enforcement("pre_filter")
+                AliasActions.add().index("scoring_mode_idx").alias("pre").filter(QueryBuilders.termQuery("f", "b")).scoringMode("no_stats")
             )
             .get();
         IndicesService indicesService = getIndicesService();
         ClusterState state = client().admin().cluster().prepareState().get().getState();
 
         assertSame(
-            AliasFilter.Enforcement.POST_FILTER,
-            indicesService.buildAliasFilter(state, "enforcement_idx", Set.of("post")).getEnforcement()
+            AliasFilter.ScoringMode.UNFILTERED_STATS,
+            indicesService.buildAliasFilter(state, "scoring_mode_idx", Set.of("post")).getScoringMode()
         );
         assertSame(
-            AliasFilter.Enforcement.PRE_FILTER,
-            indicesService.buildAliasFilter(state, "enforcement_idx", Set.of("post", "pre")).getEnforcement()
+            AliasFilter.ScoringMode.NO_STATS,
+            indicesService.buildAliasFilter(state, "scoring_mode_idx", Set.of("post", "pre")).getScoringMode()
         );
     }
 

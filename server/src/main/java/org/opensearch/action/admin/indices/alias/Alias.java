@@ -68,7 +68,7 @@ public class Alias implements Writeable, ToXContentFragment {
     private static final ParseField SEARCH_ROUTING = new ParseField("search_routing", "searchRouting", "search-routing");
     private static final ParseField IS_WRITE_INDEX = new ParseField("is_write_index");
     private static final ParseField IS_HIDDEN = new ParseField("is_hidden");
-    private static final ParseField ENFORCEMENT = new ParseField("enforcement");
+    private static final ParseField SCORING_MODE = new ParseField("scoring_mode");
 
     private String name;
 
@@ -88,7 +88,7 @@ public class Alias implements Writeable, ToXContentFragment {
     private Boolean isHidden;
 
     @Nullable
-    private String enforcement;
+    private String scoringMode;
 
     public Alias(StreamInput in) throws IOException {
         name = in.readString();
@@ -98,7 +98,7 @@ public class Alias implements Writeable, ToXContentFragment {
         writeIndex = in.readOptionalBoolean();
         isHidden = in.readOptionalBoolean();
         if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
-            enforcement = in.readOptionalString();
+            scoringMode = in.readOptionalString();
         }
     }
 
@@ -238,20 +238,20 @@ public class Alias implements Writeable, ToXContentFragment {
      * Returns how this alias's filter is applied when searching, or {@code null} for the default.
      */
     @Nullable
-    public String enforcement() {
-        return enforcement;
+    public String scoringMode() {
+        return scoringMode;
     }
 
     /**
      * Sets how this alias's filter is applied when searching; it requires a filter.
      *
-     * @param enforcement the mode, such as {@code pre_filter}, or {@code null} for the default
+     * @param scoringMode the mode, such as {@code no_stats}, or {@code null} for the default
      */
-    public Alias enforcement(@Nullable String enforcement) {
-        if (enforcement != null) {
-            AliasFilter.Enforcement.fromString(enforcement);
+    public Alias scoringMode(@Nullable String scoringMode) {
+        if (scoringMode != null) {
+            AliasFilter.ScoringMode.fromString(scoringMode);
         }
-        this.enforcement = enforcement;
+        this.scoringMode = scoringMode;
         return this;
     }
 
@@ -264,7 +264,7 @@ public class Alias implements Writeable, ToXContentFragment {
         out.writeOptionalBoolean(writeIndex);
         out.writeOptionalBoolean(isHidden);
         if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
-            out.writeOptionalString(enforcement);
+            out.writeOptionalString(scoringMode);
         }
     }
 
@@ -294,8 +294,8 @@ public class Alias implements Writeable, ToXContentFragment {
                     alias.indexRouting(parser.text());
                 } else if (SEARCH_ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.searchRouting(parser.text());
-                } else if (ENFORCEMENT.match(currentFieldName, parser.getDeprecationHandler())) {
-                    alias.enforcement(parser.text());
+                } else if (SCORING_MODE.match(currentFieldName, parser.getDeprecationHandler())) {
+                    alias.scoringMode(parser.text());
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if (IS_WRITE_INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -335,8 +335,8 @@ public class Alias implements Writeable, ToXContentFragment {
             builder.field(IS_HIDDEN.getPreferredName(), isHidden);
         }
 
-        if (enforcement != null) {
-            builder.field(ENFORCEMENT.getPreferredName(), enforcement);
+        if (scoringMode != null) {
+            builder.field(SCORING_MODE.getPreferredName(), scoringMode);
         }
 
         builder.endObject();

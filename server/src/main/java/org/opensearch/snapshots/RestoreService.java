@@ -1546,7 +1546,7 @@ public class RestoreService implements ClusterStateApplier {
                 .indexRouting(aliasMd.indexRouting())
                 .searchRouting(aliasMd.searchRouting())
                 .isHidden(aliasMd.isHidden())
-                .enforcement(aliasMd.enforcement())
+                .scoringMode(aliasMd.scoringMode())
                 .writeIndex(false)
                 .build();
         }

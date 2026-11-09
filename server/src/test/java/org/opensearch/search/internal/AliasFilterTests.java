@@ -85,21 +85,21 @@ public class AliasFilterTests extends OpenSearchTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(aliasFilter, aliasFilterCopyFunction, aliasFilterMutationFunction);
     }
 
-    /** Enforcement is a new optional field &mdash; the historical two-arg
+    /** The scoring mode is a new optional field &mdash; the historical two-arg
      *  constructor (and {@link AliasFilter#EMPTY}) must default it to
-     *  {@link AliasFilter.Enforcement#POST_FILTER} so no existing caller
+     *  {@link AliasFilter.ScoringMode#UNFILTERED_STATS} so no existing caller
      *  changes behavior. */
-    public void testDefaultEnforcementIsPostFilter() {
+    public void testDefaultScoringModeIsUnfilteredStats() {
         final AliasFilter defaulted = new AliasFilter(QueryBuilders.termQuery("f", "v"), "a0");
-        assertThat(defaulted.getEnforcement(), equalTo(AliasFilter.Enforcement.POST_FILTER));
-        assertThat(AliasFilter.EMPTY.getEnforcement(), equalTo(AliasFilter.Enforcement.POST_FILTER));
+        assertThat(defaulted.getScoringMode(), equalTo(AliasFilter.ScoringMode.UNFILTERED_STATS));
+        assertThat(AliasFilter.EMPTY.getScoringMode(), equalTo(AliasFilter.ScoringMode.UNFILTERED_STATS));
     }
 
-    /** A round trip at the current wire version preserves every field, including the enforcement mode. */
+    /** A round trip at the current wire version preserves every field, including the scoring mode. */
     public void testSerializationRoundTrip() throws Exception {
         final AliasFilter original = new AliasFilter(
             QueryBuilders.termQuery("field", "value"),
-            AliasFilter.Enforcement.PRE_FILTER,
+            AliasFilter.ScoringMode.NO_STATS,
             "alias_0",
             "alias_1"
         );
@@ -108,21 +108,21 @@ public class AliasFilterTests extends OpenSearchTestCase {
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), NAMED_WRITEABLES)) {
                 final AliasFilter roundTripped = new AliasFilter(in);
                 assertEquals(original, roundTripped);
-                assertThat(roundTripped.getEnforcement(), equalTo(AliasFilter.Enforcement.PRE_FILTER));
+                assertThat(roundTripped.getScoringMode(), equalTo(AliasFilter.ScoringMode.NO_STATS));
                 assertArrayEquals(original.getAliases(), roundTripped.getAliases());
             }
         }
     }
 
-    /** Against a node that predates the field, it is not on the wire and the receiver defaults to POST_FILTER. */
-    public void testBackwardCompatibilityBeforeEnforcementVersion() throws Exception {
+    /** Against a node that predates the field, it is not on the wire and the receiver defaults to UNFILTERED_STATS. */
+    public void testBackwardCompatibilityBeforeScoringModeVersion() throws Exception {
         // The newest release without the field, which is what a mixed-version cluster during upgrade contains.
         final Version legacy = Version.V_3_9_0;
-        assertTrue("test premise: legacy predates the gate", legacy.before(AliasFilter.ENFORCEMENT_VERSION));
+        assertTrue("test premise: legacy predates the gate", legacy.before(AliasFilter.SCORING_MODE_VERSION));
 
         final AliasFilter original = new AliasFilter(
             QueryBuilders.termQuery("field", "value"),
-            AliasFilter.Enforcement.PRE_FILTER,   // sender records PRE_FILTER
+            AliasFilter.ScoringMode.NO_STATS,   // sender records NO_STATS
             "alias_0"
         );
         final BytesStreamOutput out = new BytesStreamOutput();
@@ -132,74 +132,74 @@ public class AliasFilterTests extends OpenSearchTestCase {
         try (StreamInput raw = out.bytes().streamInput(); StreamInput in = new NamedWriteableAwareStreamInput(raw, NAMED_WRITEABLES)) {
             in.setVersion(legacy);
             final AliasFilter roundTripped = new AliasFilter(in);
-            // Old wire format carries no enforcement -> receiver defaults to POST_FILTER.
-            assertThat(roundTripped.getEnforcement(), equalTo(AliasFilter.Enforcement.POST_FILTER));
+            // Old wire format carries no scoring mode -> receiver defaults to UNFILTERED_STATS.
+            assertThat(roundTripped.getScoringMode(), equalTo(AliasFilter.ScoringMode.UNFILTERED_STATS));
             assertArrayEquals(original.getAliases(), roundTripped.getAliases());
         }
     }
 
-    /** Enforcement participates in equality &mdash; two otherwise-identical
-     *  filters that differ only in enforcement are not equal. */
-    public void testEnforcementParticipatesInEquality() {
+    /** The scoring mode participates in equality &mdash; two otherwise-identical
+     *  filters that differ only in scoring mode are not equal. */
+    public void testScoringModeParticipatesInEquality() {
         final QueryBuilder filter = QueryBuilders.termQuery("f", "v");
-        final AliasFilter post = new AliasFilter(filter, AliasFilter.Enforcement.POST_FILTER, "a");
-        final AliasFilter pre = new AliasFilter(filter, AliasFilter.Enforcement.PRE_FILTER, "a");
+        final AliasFilter post = new AliasFilter(filter, AliasFilter.ScoringMode.UNFILTERED_STATS, "a");
+        final AliasFilter pre = new AliasFilter(filter, AliasFilter.ScoringMode.NO_STATS, "a");
         assertNotEquals(post, pre);
         assertNotEquals(post.hashCode(), pre.hashCode());
     }
 
-    public void testEnforcementFromString() {
-        for (AliasFilter.Enforcement e : AliasFilter.Enforcement.values()) {
-            assertSame(e, AliasFilter.Enforcement.fromString(e.value()));
+    public void testScoringModeFromString() {
+        for (AliasFilter.ScoringMode e : AliasFilter.ScoringMode.values()) {
+            assertSame(e, AliasFilter.ScoringMode.fromString(e.value()));
         }
         assertSame(
             "an alias without a mode keeps the historical behaviour",
-            AliasFilter.Enforcement.POST_FILTER,
-            AliasFilter.Enforcement.fromString(null)
+            AliasFilter.ScoringMode.UNFILTERED_STATS,
+            AliasFilter.ScoringMode.fromString(null)
         );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> AliasFilter.Enforcement.fromString("filter_stats"));
-        assertThat(e.getMessage(), containsString("unknown alias enforcement [filter_stats]"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> AliasFilter.ScoringMode.fromString("filter_stats"));
+        assertThat(e.getMessage(), containsString("unknown alias scoring mode [filter_stats]"));
     }
 
-    public void testEnforcementRoundTrip() throws Exception {
-        for (AliasFilter.Enforcement e : AliasFilter.Enforcement.values()) {
+    public void testScoringModeRoundTrip() throws Exception {
+        for (AliasFilter.ScoringMode e : AliasFilter.ScoringMode.values()) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 e.writeTo(out);
-                assertSame(e, AliasFilter.Enforcement.readFrom(out.bytes().streamInput()));
+                assertSame(e, AliasFilter.ScoringMode.readFrom(out.bytes().streamInput()));
             }
         }
     }
 
-    public void testEnforcementIsWrittenByName() throws Exception {
+    public void testScoringModeIsWrittenByName() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            AliasFilter.Enforcement.PRE_FILTER.writeTo(out);
+            AliasFilter.ScoringMode.NO_STATS.writeTo(out);
             assertEquals(
                 "a mode is sent by name, so adding one later needs no wire version",
-                "pre_filter",
+                "no_stats",
                 out.bytes().streamInput().readString()
             );
         }
     }
 
-    public void testEnforcementIsPartOfIdentityAndSurvivesRewrite() throws Exception {
-        AliasFilter post = new AliasFilter(QueryBuilders.termQuery("f", "v"), AliasFilter.Enforcement.POST_FILTER, "a");
-        AliasFilter pre = new AliasFilter(QueryBuilders.termQuery("f", "v"), AliasFilter.Enforcement.PRE_FILTER, "a");
+    public void testScoringModeIsPartOfIdentityAndSurvivesRewrite() throws Exception {
+        AliasFilter post = new AliasFilter(QueryBuilders.termQuery("f", "v"), AliasFilter.ScoringMode.UNFILTERED_STATS, "a");
+        AliasFilter pre = new AliasFilter(QueryBuilders.termQuery("f", "v"), AliasFilter.ScoringMode.NO_STATS, "a");
         assertNotEquals(post, pre);
         assertNotEquals(post.hashCode(), pre.hashCode());
-        assertThat(pre.toString(), containsString("enforcement=PRE_FILTER"));
+        assertThat(pre.toString(), containsString("scoringMode=NO_STATS"));
         assertSame(
-            AliasFilter.Enforcement.POST_FILTER,
-            new AliasFilter(QueryBuilders.termQuery("f", "v"), (AliasFilter.Enforcement) null, "a").getEnforcement()
+            AliasFilter.ScoringMode.UNFILTERED_STATS,
+            new AliasFilter(QueryBuilders.termQuery("f", "v"), (AliasFilter.ScoringMode) null, "a").getScoringMode()
         );
 
         // A rewrite that changes the query must keep the mode, or a rewritten alias would score over the whole shard.
         AliasFilter rewritable = new AliasFilter(
             QueryBuilders.boolQuery().must(QueryBuilders.termQuery("f", "v")),
-            AliasFilter.Enforcement.PRE_FILTER,
+            AliasFilter.ScoringMode.NO_STATS,
             "a"
         );
         AliasFilter rewritten = rewritable.rewrite(new BaseQueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> 0L));
-        assertSame(AliasFilter.Enforcement.PRE_FILTER, rewritten.getEnforcement());
+        assertSame(AliasFilter.ScoringMode.NO_STATS, rewritten.getScoringMode());
     }
 
 }

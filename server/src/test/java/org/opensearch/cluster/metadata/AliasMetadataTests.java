@@ -70,49 +70,49 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
         assertThat(after, equalTo(before));
     }
 
-    public void testEnforcementIsPartOfIdentity() {
-        AliasMetadata with = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").enforcement("pre_filter").build();
+    public void testScoringModeIsPartOfIdentity() {
+        AliasMetadata with = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").scoringMode("no_stats").build();
         AliasMetadata without = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").build();
         assertNotEquals(with, without);
         assertNotEquals(with.hashCode(), without.hashCode());
         assertEquals(with, AliasMetadata.newAliasMetadata(with, "alias"));
     }
 
-    public void testEnforcementWithoutAFilterIsRejected() {
+    public void testScoringModeWithoutAFilterIsRejected() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> AliasMetadata.builder("alias").enforcement("pre_filter").build()
+            () -> AliasMetadata.builder("alias").scoringMode("no_stats").build()
         );
-        assertThat(e.getMessage(), containsString("[enforcement] requires a [filter] on alias [alias]"));
+        assertThat(e.getMessage(), containsString("[scoring_mode] requires a [filter] on alias [alias]"));
     }
 
     public void testTemplateAliasesValidateTheMode() throws IOException {
         // Composable and component templates parse their aliases through fromXContent rather than the alias API.
-        String misspelled = "{\"alias\":{\"filter\":{\"term\":{\"f\":\"v\"}},\"enforcement\":\"pre_filer\"}}";
+        String misspelled = "{\"alias\":{\"filter\":{\"term\":{\"f\":\"v\"}},\"scoring_mode\":\"no_stat\"}}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, misspelled)) {
             parser.nextToken(); // the enclosing object
             parser.nextToken(); // the alias name, where fromXContent starts
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> AliasMetadata.Builder.fromXContent(parser));
-            assertThat(e.getMessage(), containsString("unknown alias enforcement [pre_filer]"));
+            assertThat(e.getMessage(), containsString("unknown alias scoring mode [no_stat]"));
         }
-        String unfiltered = "{\"alias\":{\"enforcement\":\"pre_filter\"}}";
+        String unfiltered = "{\"alias\":{\"scoring_mode\":\"no_stats\"}}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, unfiltered)) {
             parser.nextToken(); // the enclosing object
             parser.nextToken(); // the alias name, where fromXContent starts
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> AliasMetadata.Builder.fromXContent(parser));
-            assertThat(e.getMessage(), containsString("[enforcement] requires a [filter]"));
+            assertThat(e.getMessage(), containsString("[scoring_mode] requires a [filter]"));
         }
     }
 
-    public void testEnforcementRoundTripsOnCurrentVersion() throws IOException {
-        final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").enforcement("pre_filter").build();
+    public void testScoringModeRoundTripsOnCurrentVersion() throws IOException {
+        final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").scoringMode("no_stats").build();
         final BytesStreamOutput out = new BytesStreamOutput();
         before.writeTo(out);
-        assertThat(new AliasMetadata(out.bytes().streamInput()).enforcement(), equalTo("pre_filter"));
+        assertThat(new AliasMetadata(out.bytes().streamInput()).scoringMode(), equalTo("no_stats"));
     }
 
-    public void testEnforcementIsNotSentToANodeThatPredatesIt() throws IOException {
-        final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").enforcement("pre_filter").build();
+    public void testScoringModeIsNotSentToANodeThatPredatesIt() throws IOException {
+        final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").scoringMode("no_stats").build();
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(Version.V_3_9_0);
         before.writeTo(out);
@@ -121,7 +121,7 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
         final AliasMetadata after = new AliasMetadata(in);
         // The stream must be fully consumed, or the next field in cluster state would be read from the wrong offset.
         assertThat(in.available(), equalTo(0));
-        assertNull(after.enforcement());
+        assertNull(after.scoringMode());
         assertThat(after.alias(), equalTo("alias"));
     }
 
@@ -135,7 +135,7 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
                 .searchRouting(expectedInstance.searchRouting())
                 .writeIndex(randomBoolean() ? null : randomBoolean())
                 .isHidden(randomBoolean() ? null : randomBoolean())
-                .enforcement(expectedInstance.enforcement())
+                .scoringMode(expectedInstance.scoringMode())
                 .build();
         }
         assertEquals(expectedInstance, newInstance);
@@ -190,7 +190,7 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
             builder.isHidden(randomBoolean());
         }
         if (filtered && randomBoolean()) {
-            builder.enforcement(randomFrom("post_filter", "pre_filter"));
+            builder.scoringMode(randomFrom("unfiltered_stats", "no_stats"));
         }
         return builder.build();
     }

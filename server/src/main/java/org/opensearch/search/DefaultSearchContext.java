@@ -475,7 +475,7 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (aliasFilter != null) {
-            if (request.getAliasFilter().getEnforcement() == AliasFilter.Enforcement.PRE_FILTER) {
+            if (request.getAliasFilter().getScoringMode() == AliasFilter.ScoringMode.NO_STATS) {
                 // Filter before scoring and score every hit the same, so no corpus statistics are read and documents
                 // outside the alias cannot affect a score.
                 query = new ConstantScoreQuery(new BooleanQuery.Builder().add(query, Occur.MUST).add(aliasFilter, Occur.FILTER).build());

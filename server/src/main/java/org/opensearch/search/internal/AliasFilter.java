@@ -56,55 +56,51 @@ import java.util.Objects;
 public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
 
     /**
-     * Where the alias filter is applied in the query pipeline.
+     * Which corpus statistics a search through the alias scores with. The alias filter applies in every mode.
      * <p>
-     * {@link #POST_FILTER} is the historical behavior: the filter is added as a
-     * post-collection filter, so statistics and scoring still run over every
-     * document in the shard. This is the mode any pre-3.8 node speaks over the
-     * wire, and it is the default for every code path today.
+     * {@link #UNFILTERED_STATS} is the default: ordinary scoring, with statistics over every document in the shard,
+     * including documents the alias excludes. A node that predates the field behaves this way.
      * <p>
-     * {@link #PRE_FILTER} applies the alias filter before scoring, and suppresses
-     * scoring: every hit takes a constant score, no corpus statistics are read, and
-     * nothing about documents outside the alias can reach a score.
+     * {@link #NO_STATS} scores without corpus statistics: every hit takes a constant score.
      *
      * @opensearch.experimental
      */
     @ExperimentalApi
-    public enum Enforcement implements Writeable {
-        POST_FILTER("post_filter"),
-        PRE_FILTER("pre_filter");
+    public enum ScoringMode implements Writeable {
+        UNFILTERED_STATS("unfiltered_stats"),
+        NO_STATS("no_stats");
 
         private final String value;
 
-        Enforcement(String value) {
+        ScoringMode(String value) {
             this.value = value;
         }
 
-        /** The canonical REST/XContent string for this enforcement mode (e.g. {@code "pre_filter"}). */
+        /** The canonical REST/XContent string for this scoring mode (e.g. {@code "no_stats"}). */
         public String value() {
             return value;
         }
 
         /**
-         * Parse an enforcement mode from its REST/XContent string. Returns {@link #POST_FILTER} for a
-         * {@code null} value so an unspecified enforcement keeps today's behavior.
+         * Parse a scoring mode from its REST/XContent string. Returns {@link #UNFILTERED_STATS} for a
+         * {@code null} value so an unspecified mode keeps today's behavior.
          *
          * @throws IllegalArgumentException if {@code value} is non-null but not a known mode
          */
-        public static Enforcement fromString(String value) {
+        public static ScoringMode fromString(String value) {
             if (value == null) {
-                return POST_FILTER;
+                return UNFILTERED_STATS;
             }
-            for (Enforcement e : values()) {
+            for (ScoringMode e : values()) {
                 if (e.value.equals(value)) {
                     return e;
                 }
             }
-            throw new IllegalArgumentException("unknown alias enforcement [" + value + "], expected one of [post_filter, pre_filter]");
+            throw new IllegalArgumentException("unknown alias scoring mode [" + value + "], expected one of [unfiltered_stats, no_stats]");
         }
 
         // By name rather than ordinal, so a mode added later does not need a wire version of its own.
-        public static Enforcement readFrom(StreamInput in) throws IOException {
+        public static ScoringMode readFrom(StreamInput in) throws IOException {
             return fromString(in.readString());
         }
 
@@ -115,36 +111,36 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
     }
 
     /**
-     * First version that carries {@link Enforcement} on the wire. The alias request and alias metadata gate their copy
+     * First version that carries {@link ScoringMode} on the wire. The alias request and alias metadata gate their copy
      * of the field on the same version.
      */
-    static final Version ENFORCEMENT_VERSION = Version.V_3_10_0;
+    static final Version SCORING_MODE_VERSION = Version.V_3_10_0;
 
     private final String[] aliases;
     private final QueryBuilder filter;
-    private final Enforcement enforcement;
+    private final ScoringMode scoringMode;
 
     public static final AliasFilter EMPTY = new AliasFilter(null, Strings.EMPTY_ARRAY);
 
     public AliasFilter(QueryBuilder filter, String... aliases) {
-        this(filter, Enforcement.POST_FILTER, aliases);
+        this(filter, ScoringMode.UNFILTERED_STATS, aliases);
     }
 
-    public AliasFilter(QueryBuilder filter, Enforcement enforcement, String... aliases) {
+    public AliasFilter(QueryBuilder filter, ScoringMode scoringMode, String... aliases) {
         this.aliases = aliases == null ? Strings.EMPTY_ARRAY : aliases;
         this.filter = filter;
-        this.enforcement = enforcement == null ? Enforcement.POST_FILTER : enforcement;
+        this.scoringMode = scoringMode == null ? ScoringMode.UNFILTERED_STATS : scoringMode;
     }
 
     public AliasFilter(StreamInput input) throws IOException {
         aliases = input.readStringArray();
         filter = input.readOptionalNamedWriteable(QueryBuilder.class);
-        // BWC: older nodes never write the enforcement field. Default to
-        // POST_FILTER (today's behavior) so mixed-version clusters keep working.
-        if (input.getVersion().onOrAfter(ENFORCEMENT_VERSION)) {
-            enforcement = Enforcement.readFrom(input);
+        // BWC: older nodes never write the scoring mode. Default to
+        // UNFILTERED_STATS (today's behavior) so mixed-version clusters keep working.
+        if (input.getVersion().onOrAfter(SCORING_MODE_VERSION)) {
+            scoringMode = ScoringMode.readFrom(input);
         } else {
-            enforcement = Enforcement.POST_FILTER;
+            scoringMode = ScoringMode.UNFILTERED_STATS;
         }
     }
 
@@ -154,7 +150,7 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
         if (queryBuilder != null) {
             QueryBuilder rewrite = Rewriteable.rewrite(queryBuilder, context);
             if (rewrite != queryBuilder) {
-                return new AliasFilter(rewrite, enforcement, aliases);
+                return new AliasFilter(rewrite, scoringMode, aliases);
             }
         }
         return this;
@@ -164,10 +160,10 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(aliases);
         out.writeOptionalNamedWriteable(filter);
-        if (out.getVersion().onOrAfter(ENFORCEMENT_VERSION)) {
-            enforcement.writeTo(out);
+        if (out.getVersion().onOrAfter(SCORING_MODE_VERSION)) {
+            scoringMode.writeTo(out);
         }
-        // Pre-3.8 receivers implicitly treat the field as POST_FILTER.
+        // Pre-3.8 receivers implicitly treat the field as UNFILTERED_STATS.
     }
 
     /**
@@ -187,12 +183,12 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
 
     /**
      * Returns where the alias filter should be applied in the query pipeline. Always
-     * non-null; defaults to {@link Enforcement#POST_FILTER} for backward compatibility.
-     * {@link Enforcement#PRE_FILTER} causes {@code DefaultSearchContext} to apply the filter
+     * non-null; defaults to {@link ScoringMode#UNFILTERED_STATS} for backward compatibility.
+     * {@link ScoringMode#NO_STATS} causes {@code DefaultSearchContext} to apply the filter
      * before scoring so BM25 statistics reflect only the documents the alias admits.
      */
-    public Enforcement getEnforcement() {
-        return enforcement;
+    public ScoringMode getScoringMode() {
+        return scoringMode;
     }
 
     @Override
@@ -200,16 +196,16 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AliasFilter that = (AliasFilter) o;
-        return Arrays.equals(aliases, that.aliases) && Objects.equals(filter, that.filter) && enforcement == that.enforcement;
+        return Arrays.equals(aliases, that.aliases) && Objects.equals(filter, that.filter) && scoringMode == that.scoringMode;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(aliases), filter, enforcement);
+        return Objects.hash(Arrays.hashCode(aliases), filter, scoringMode);
     }
 
     @Override
     public String toString() {
-        return "AliasFilter{aliases=" + Arrays.toString(aliases) + ", filter=" + filter + ", enforcement=" + enforcement + '}';
+        return "AliasFilter{aliases=" + Arrays.toString(aliases) + ", filter=" + filter + ", scoringMode=" + scoringMode + '}';
     }
 }

@@ -2347,21 +2347,21 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexMetadata indexMetadata = state.metadata().index(index);
         String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions);
         // The strongest mode any alias in the set asks for wins, because a request reaching several aliases must not
-        // score over documents that any one of them excludes: pre_filter outranks the historical post_filter.
-        AliasFilter.Enforcement enforcement = AliasFilter.Enforcement.POST_FILTER;
+        // score over documents that any one of them excludes: no_stats outranks the historical unfiltered_stats.
+        AliasFilter.ScoringMode scoringMode = AliasFilter.ScoringMode.UNFILTERED_STATS;
         if (aliases != null && indexMetadata != null) {
             for (String alias : aliases) {
                 AliasMetadata aliasMetadata = indexMetadata.getAliases().get(alias);
                 if (aliasMetadata == null) {
                     continue;
                 }
-                if (AliasFilter.Enforcement.PRE_FILTER.value().equals(aliasMetadata.enforcement())) {
-                    enforcement = AliasFilter.Enforcement.PRE_FILTER;
+                if (AliasFilter.ScoringMode.NO_STATS.value().equals(aliasMetadata.scoringMode())) {
+                    scoringMode = AliasFilter.ScoringMode.NO_STATS;
                     break;
                 }
             }
         }
-        return new AliasFilter(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), enforcement, aliases);
+        return new AliasFilter(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), scoringMode, aliases);
     }
 
     /**
