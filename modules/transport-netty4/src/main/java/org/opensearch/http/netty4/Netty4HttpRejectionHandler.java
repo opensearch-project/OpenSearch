@@ -10,10 +10,14 @@ package org.opensearch.http.netty4;
 
 import org.opensearch.common.util.concurrent.FutureUtils;
 
+import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 
 import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.ChannelPromise;
@@ -66,11 +70,15 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
 
     private final BooleanSupplier transportRunning;
     private final Timeouts timeouts;
+    private final Map<Future<?>, ScheduledFuture<?>> pendingResponses = new IdentityHashMap<>();
+    private final ChannelFutureListener responseListener = this::responseWritten;
     private ChannelHandlerContext context;
     private boolean previousAllowHalfClosure;
-    private int pendingResponses;
     private boolean terminal;
     private boolean draining;
+    private boolean closed;
+    private boolean outputShutdownInitiated;
+    private ChannelFuture shutdownFuture;
     private long lastReadNanos;
     private long drainDeadlineNanos;
     private ScheduledFuture<?> timer;
@@ -82,6 +90,7 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
 
     /** Returns the handler installed on the pipeline, installing it first if needed. Must be called on the event loop. */
     static Netty4HttpRejectionHandler install(ChannelPipeline pipeline, BooleanSupplier transportRunning, Timeouts timeouts) {
+        assert pipeline.channel().eventLoop().inEventLoop();
         final Netty4HttpRejectionHandler existing = pipeline.get(Netty4HttpRejectionHandler.class);
         if (existing != null) {
             return existing;
@@ -93,6 +102,7 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
 
     @Override
     public void handlerAdded(ChannelHandlerContext ctx) {
+        assert ctx.executor().inEventLoop();
         context = ctx;
         if (ctx.channel().config() instanceof SocketChannelConfig config) {
             previousAllowHalfClosure = config.isAllowHalfClosure();
@@ -102,17 +112,44 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
 
     @Override
     public void handlerRemoved(ChannelHandlerContext ctx) {
-        cancelTimer();
+        assert ctx.executor().inEventLoop();
+        closed = true;
+        cancelTimeouts();
+        if (terminal == false && ctx.channel().config() instanceof SocketChannelConfig config) {
+            config.setAllowHalfClosure(previousAllowHalfClosure);
+        }
     }
 
-    /** Registers a rejection response that is about to be written. */
-    void responsePending(boolean closeConnection) {
-        pendingResponses++;
-        // each response gets the full write bound, also when it follows an earlier one on the same connection
-        cancelTimer();
-        timer = context.executor().schedule(this::closeNow, timeouts.writeNanos(), TimeUnit.NANOSECONDS);
+    /** Registers a rejection response and its promise before the response is written. */
+    void responsePending(boolean closeConnection, ChannelPromise promise) {
+        assert context.executor().inEventLoop();
+        assert closed == false && draining == false;
+        // As in Netty's WriteTimeoutHandler, each pending write keeps its own deadline. New rejections
+        // must not postpone an older blocked write, and completing one write must not cancel another's timeout.
+        pendingResponses.put(
+            promise,
+            context.executor().schedule(() -> writeTimedOut(promise), timeouts.writeNanos(), TimeUnit.NANOSECONDS)
+        );
         if (closeConnection) {
             becomeTerminal();
+        }
+        promise.addListener(responseListener);
+    }
+
+    private void writeTimedOut(ChannelPromise promise) {
+        assert context.executor().inEventLoop();
+        if (promise.isDone()) {
+            // Netty may defer promise listeners to avoid excessive listener recursion. Process a completed
+            // write before deciding whether to close, including starting terminal shutdown when necessary.
+            responseWritten(promise);
+            while (shutdownFuture != null && shutdownFuture.isDone()) {
+                shutdownCompleted(shutdownFuture);
+            }
+            if (terminal && draining == false && pendingResponses.isEmpty()) {
+                closeNow();
+            }
+        } else {
+            closeNow();
         }
     }
 
@@ -122,6 +159,7 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
     }
 
     private void becomeTerminal() {
+        assert context.executor().inEventLoop();
         if (terminal == false) {
             terminal = true;
             // keep reading: data left unread in the receive buffer would turn the final close into a reset
@@ -130,39 +168,43 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
     }
 
     /** Listener for the write of a rejection response registered with {@link #responsePending}. */
-    void responseWritten(Future<?> future) {
+    private void responseWritten(Future<?> future) {
+        assert context.executor().inEventLoop();
+        final ScheduledFuture<?> writeTimeout = pendingResponses.remove(future);
+        if (writeTimeout == null) {
+            // Closing or removing the handler already cancelled this write's timeout.
+            return;
+        }
         if (future.isSuccess() == false) {
+            FutureUtils.cancel(writeTimeout);
             closeNow();
             return;
         }
-        if (--pendingResponses > 0 || context.channel().isActive() == false) {
+        if (pendingResponses.isEmpty() == false || context.channel().isActive() == false) {
+            FutureUtils.cancel(writeTimeout);
             return;
         }
         if (terminal == false) {
             // recoverable: the connection goes back to normal, including Netty closing it on input EOF
-            if (context.channel().config() instanceof SocketChannelConfig config) {
-                config.setAllowHalfClosure(previousAllowHalfClosure);
-            }
+            FutureUtils.cancel(writeTimeout);
             context.pipeline().remove(this);
             return;
         }
+        // TLS shutdown and the FIN must finish within the final pending response's write deadline.
+        timer = writeTimeout;
         final SslHandler sslHandler = context.pipeline().get(SslHandler.class);
         if (sslHandler == null) {
             shutdownOutput();
         } else {
             // close_notify after the response, so a TLS client sees a complete stream before the FIN
-            sslHandler.closeOutbound().addListener(f -> {
-                if (f.isSuccess()) {
-                    shutdownOutput();
-                } else {
-                    closeNow();
-                }
-            });
+            shutdownFuture = sslHandler.closeOutbound();
+            shutdownFuture.addListener(this::shutdownCompleted);
         }
     }
 
     private void shutdownOutput() {
-        if (context.channel().isActive() == false) {
+        assert context.executor().inEventLoop();
+        if (closed || context.channel().isActive() == false) {
             return;
         }
         final DuplexChannel channel = (DuplexChannel) context.channel();
@@ -171,16 +213,28 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
             closeNow();
             return;
         }
-        channel.shutdownOutput().addListener(f -> {
-            if (f.isSuccess() && channel.isActive()) {
-                startDraining();
-            } else {
-                closeNow();
-            }
-        });
+        outputShutdownInitiated = true;
+        shutdownFuture = channel.shutdownOutput();
+        shutdownFuture.addListener(this::shutdownCompleted);
+    }
+
+    private void shutdownCompleted(Future<?> future) {
+        assert context.executor().inEventLoop();
+        if (closed || future != shutdownFuture) {
+            return;
+        }
+        shutdownFuture = null;
+        if (future.isSuccess() == false || context.channel().isActive() == false) {
+            closeNow();
+        } else if (outputShutdownInitiated) {
+            startDraining();
+        } else {
+            shutdownOutput();
+        }
     }
 
     private void startDraining() {
+        assert context.executor().inEventLoop();
         draining = true;
         lastReadNanos = System.nanoTime();
         drainDeadlineNanos = lastReadNanos + timeouts.drainMaxNanos();
@@ -190,6 +244,7 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
 
     /** One timer covers both drain bounds; reads only record a timestamp so discarding a buffer stays cheap. */
     private void checkDrain() {
+        assert context.executor().inEventLoop();
         final long now = System.nanoTime();
         final long remaining = Math.min(drainDeadlineNanos - now, lastReadNanos + timeouts.drainIdleNanos() - now);
         if (remaining <= 0) {
@@ -200,10 +255,24 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
     }
 
     private void closeNow() {
-        cancelTimer();
+        assert context.executor().inEventLoop();
+        if (closed) {
+            return;
+        }
+        closed = true;
         terminal = true;
+        cancelTimeouts();
         // starts in front of this handler: bypasses both the deferral below and SslHandler's own close handling
         context.close();
+    }
+
+    private void cancelTimeouts() {
+        cancelTimer();
+        shutdownFuture = null;
+        for (ScheduledFuture<?> timeout : pendingResponses.values()) {
+            FutureUtils.cancel(timeout);
+        }
+        pendingResponses.clear();
     }
 
     private void cancelTimer() {
@@ -261,7 +330,8 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
-        cancelTimer();
+        closed = true;
+        cancelTimeouts();
         ctx.fireChannelInactive();
     }
 }

@@ -18,6 +18,7 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPipeline;
+import io.netty.channel.ChannelPromise;
 import io.netty.channel.socket.DuplexChannel;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpMessage;
@@ -159,7 +160,8 @@ final class Netty4HttpObjectAggregator extends HttpObjectAggregator {
             || (rejectedOnEncodedLengthOnly && expectationRejected == false);
 
         rejection = Netty4HttpRejectionHandler.install(ctx.pipeline(), transportRunning, timeouts);
-        rejection.responsePending(close);
+        final ChannelPromise promise = ctx.newPromise();
+        rejection.responsePending(close, promise);
         final FullHttpResponse response = new DefaultFullHttpResponse(
             HttpVersion.HTTP_1_1,
             HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE,
@@ -169,6 +171,6 @@ final class Netty4HttpObjectAggregator extends HttpObjectAggregator {
         if (close) {
             response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
         }
-        ctx.writeAndFlush(response).addListener(rejection::responseWritten);
+        ctx.writeAndFlush(response, promise);
     }
 }

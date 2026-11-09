@@ -11,6 +11,7 @@ package org.opensearch.http.netty4;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -24,6 +25,7 @@ import org.opensearch.http.netty4.Netty4HttpRawClient.Response;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.SharedGroupFactory;
@@ -284,25 +286,28 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
             for (int i = 0; i <= LIMIT / 256; i++) {
                 client.write(chunk);
             }
-            final CompletableFuture<Void> trickle = CompletableFuture.runAsync(() -> {
-                try {
-                    while (true) {
+            final CompletableFuture<Void> trickle = new CompletableFuture<>();
+            final Scheduler.Cancellable sender = threadPool.scheduleWithFixedDelay(() -> {
+                if (trickle.isDone() == false) {
+                    try {
                         client.write(chunk);
-                        Thread.sleep(50); // never idle for the 500ms idle timeout
+                    } catch (IOException e) {
+                        // the server eventually closes while the client is still sending
+                        trickle.complete(null);
                     }
-                } catch (IOException e) {
-                    // the server eventually closes while the client is still sending
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
                 }
-            });
-            assertTerminalRejection(client);
-            final long drainStart = System.nanoTime();
-            assertBusy(() -> assertFalse(transport.hold.channel.isOpen()), 10, TimeUnit.SECONDS);
-            final long drainedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - drainStart);
-            assertThat(drainedMillis, greaterThanOrEqualTo(drainMaxMillis / 2));
-            client.close();
-            trickle.get(10, TimeUnit.SECONDS);
+            }, TimeValue.timeValueMillis(50), ThreadPool.Names.GENERIC);
+            try {
+                assertTerminalRejection(client);
+                final long drainStart = System.nanoTime();
+                assertBusy(() -> assertFalse(transport.hold.channel.isOpen()), 10, TimeUnit.SECONDS);
+                final long drainedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - drainStart);
+                assertThat(drainedMillis, greaterThanOrEqualTo(drainMaxMillis / 2));
+                client.close();
+                trickle.get(10, TimeUnit.SECONDS);
+            } finally {
+                sender.cancel();
+            }
         }
     }
 
