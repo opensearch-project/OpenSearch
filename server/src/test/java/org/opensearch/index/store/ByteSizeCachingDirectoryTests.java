@@ -33,15 +33,26 @@
 package org.opensearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class ByteSizeCachingDirectoryTests extends OpenSearchTestCase {
@@ -118,6 +129,58 @@ public class ByteSizeCachingDirectoryTests extends OpenSearchTestCase {
             assertEquals(18, countingDir.numFileLengthCalls);
             assertEquals(15, cachingDir.estimateSizeInBytes());
             assertEquals(18, countingDir.numFileLengthCalls);
+        }
+    }
+
+    public void testSnapshotStatsDoNotLoadOrWaitForMetadata() throws Exception {
+        CountDownLatch loading = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger reads = new AtomicInteger();
+        BlobStoreIndexShardSnapshot snapshot = mock(BlobStoreIndexShardSnapshot.class);
+        BlobStoreIndexShardSnapshot.FileInfo file = new BlobStoreIndexShardSnapshot.FileInfo(
+            "__0",
+            new StoreFileMetadata("_0.cfs", 123, "", org.apache.lucene.util.Version.LATEST),
+            null
+        );
+        when(snapshot.indexFiles()).thenAnswer(invocation -> {
+            reads.incrementAndGet();
+            loading.countDown();
+            assertTrue(release.await(30, TimeUnit.SECONDS));
+            return Collections.singletonList(file);
+        });
+        try (RemoteSnapshotDirectory remote = new RemoteSnapshotDirectory(snapshot, FSDirectory.open(createTempDir()), null)) {
+            // Store can wrap the remote directory in other FilterDirectories.
+            ByteSizeCachingDirectory directory = new ByteSizeCachingDirectory(
+                new LengthCountingDirectory(remote),
+                TimeValue.timeValueHours(1)
+            );
+            FutureTask<String[]> load = new FutureTask<>(remote::listAll);
+            Thread loader = new Thread(load);
+            FutureTask<Long> before = new FutureTask<>(directory::estimateSizeInBytes);
+            Thread statsBefore = new Thread(before);
+            FutureTask<Long> during = new FutureTask<>(directory::estimateSizeInBytes);
+            Thread statsDuring = new Thread(during);
+            try {
+                statsBefore.start();
+                assertEquals(0L, before.get(10, TimeUnit.SECONDS).longValue());
+                assertEquals(0, reads.get());
+                loader.start();
+                assertTrue(loading.await(10, TimeUnit.SECONDS));
+                statsDuring.start();
+                assertEquals(0L, during.get(10, TimeUnit.SECONDS).longValue());
+                assertEquals(1, reads.get());
+                release.countDown();
+                assertArrayEquals(new String[] { "_0.cfs" }, load.get(10, TimeUnit.SECONDS));
+                // The temporary zero must not survive in the size cache after loading.
+                assertEquals(123L, directory.estimateSizeInBytes());
+                assertEquals(123L, directory.estimateSizeInBytes());
+                assertEquals(1, reads.get());
+            } finally {
+                release.countDown();
+                loader.join();
+                statsBefore.join();
+                statsDuring.join();
+            }
         }
     }
 

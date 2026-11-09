@@ -58,6 +58,7 @@ public final class RemoteSnapshotDirectory extends Directory {
 
     private final LazyInitializable<RemoteState, RuntimeException> remoteState;
     private final FSDirectory localStoreDir;
+    private volatile long estimatedSizeInBytes;
 
     public RemoteSnapshotDirectory(BlobStoreIndexShardSnapshot snapshot, FSDirectory localStoreDir, TransferManager transferManager) {
         this(() -> new RemoteState(snapshot, transferManager), localStoreDir);
@@ -65,12 +66,21 @@ public final class RemoteSnapshotDirectory extends Directory {
 
     /**
      * Creates a directory that reads the repository on first use, not here. The cluster applier thread creates the directory and
-     * starts the shards of a node one after the other, so it must not wait for the repository. The first use is at the start of the
-     * shard recovery, on a generic thread.
+     * starts the shards of a node one after the other, so it must not wait for the repository. Recovery loads the metadata
+     * when it first accesses the files; store statistics do not initiate or wait for that read.
      */
     RemoteSnapshotDirectory(Supplier<RemoteState> remoteState, FSDirectory localStoreDir) {
-        this.remoteState = new LazyInitializable<>(remoteState::get);
+        this.remoteState = new LazyInitializable<>(() -> {
+            RemoteState state = remoteState.get();
+            estimatedSizeInBytes = state.fileInfoMap.values().stream().mapToLong(BlobStoreIndexShardSnapshot.FileInfo::length).sum();
+            return state;
+        });
         this.localStoreDir = localStoreDir;
+    }
+
+    /** Returns zero until the snapshot metadata is loaded, then its total file size, without waiting for a repository read. */
+    public long estimateSizeInBytes() {
+        return estimatedSizeInBytes;
     }
 
     @Override

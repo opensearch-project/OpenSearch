@@ -39,6 +39,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.lucene.store.FilterIndexOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.SingleObjectCache;
+import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -140,6 +141,11 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
 
     /** Return the cumulative size of all files in this directory. */
     long estimateSizeInBytes() throws IOException {
+        Directory unwrapped = FilterDirectory.unwrap(in);
+        if (unwrapped instanceof RemoteSnapshotDirectory) {
+            // Do not load snapshot metadata for stats, or cache the temporary zero before recovery loads it.
+            return ((RemoteSnapshotDirectory) unwrapped).estimateSizeInBytes();
+        }
         try {
             return size.getOrRefresh().size;
         } catch (UncheckedIOException e) {

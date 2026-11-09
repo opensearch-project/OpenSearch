@@ -88,8 +88,8 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
         FSDirectory localStoreDir = FSDirectory.open(Files.createDirectories(localStorePath));
         // make sure directory is flushed to persistent storage
         localStoreDir.syncMetaData();
-        // The repository is read on first use of the directory, not here, because this method runs on the cluster applier thread. The
-        // first use is Store#failIfCorrupted (it calls listAll) at the start of the shard recovery, on a generic thread.
+        // The repository is read on first file access, not here, because this method runs on the cluster applier thread.
+        // Recovery normally makes that first access through Store#failIfCorrupted; store stats use a non-blocking size estimate.
         return new RemoteSnapshotDirectory(() -> {
             // shardContainer(IndexId, shardId) method uses the id and pathType information to generate the blobPath and
             // hence the blobContainer. We have used a dummy name as it plays no relevance in the blobPath generation.
