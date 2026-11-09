@@ -409,4 +409,102 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         recoveryTarget.decRef();
         closeShards(shard);
     }
+
+    /**
+     * Reproduces the mechanism behind the "stuck recovery in INIT" incident: a peer recovery whose target allocation id
+     * never shows up in the source primary's routing table (e.g. because of a ghost in-sync allocation id) keeps throwing
+     * {@link DelayRecoveryException} on every attempt. Before the fix, {@code PeerRecoveryTargetService.onException} retried
+     * such exceptions without any upper bound, pinning a recovery slot indefinitely.
+     *
+     * This test simulates the retry loop end-to-end at the target level: each iteration emulates
+     * {@code PeerRecoveryTargetService.onException} receiving a {@link DelayRecoveryException} (increment the counter on
+     * the *current* target), then {@code retryRecovery()} → {@code ReplicationCollection.reset()} swapping in a fresh
+     * target via {@link RecoveryTarget#retryCopy()}. The loop terminates only once the bound
+     * ({@link RecoveryTarget#MAX_DELAY_RETRIES}) is exceeded — i.e. the recovery would be failed, not retried forever.
+     *
+     * If {@code retryCopy()} reset the counter to zero (the original behaviour), the loop would never terminate and the
+     * {@code fail()} guard at the bottom would trip — reproducing the bug.
+     */
+    public void testDelayRetryLoopTerminatesAfterBoundAcrossRetryCopies() throws Exception {
+        IndexShard shard = newStartedShard(false);
+        DiscoveryNode sourceNode = new DiscoveryNode(
+            "source",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Collections.emptySet(),
+            Version.CURRENT
+        );
+        RecoveryTarget target = new RecoveryTarget(shard, sourceNode, null, threadPool);
+        try {
+            assertThat(target.getDelayRetryCount(), equalTo(0));
+
+            RecoveryTarget current = target;
+            int safetyGuard = RecoveryTarget.MAX_DELAY_RETRIES + 10;
+            boolean boundFired = false;
+            while (safetyGuard-- > 0) {
+                // PeerRecoveryTargetService.onException increments the *current* target before deciding to retry/fail.
+                int count = current.incrementDelayRetryCount();
+                if (count > RecoveryTarget.MAX_DELAY_RETRIES) {
+                    boundFired = true;
+                    break;
+                }
+                // emulate retryRecovery() → ReplicationCollection.reset(): install a fresh target via retryCopy().
+                // The counter MUST carry over, otherwise the bound can never be reached.
+                RecoveryTarget next = current.retryCopy();
+                if (current != target) {
+                    current.decRef();
+                }
+                current = next;
+            }
+            assertTrue("delay retry loop did not terminate within the bound — counter carry-over is broken", boundFired);
+            // current holds the target on which the bound fired; its count is one past the limit
+            assertThat(current.getDelayRetryCount(), equalTo(RecoveryTarget.MAX_DELAY_RETRIES + 1));
+            if (current != target) {
+                current.decRef();
+            }
+        } finally {
+            target.decRef();
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * Pins the carry-over contract directly: a target's delay-retry count must survive {@link RecoveryTarget#retryCopy()},
+     * because {@code ReplicationCollection.reset} replaces the target on every retry. If the count reset to zero each time,
+     * the bound introduced to fix the stuck-INIT incident would never trigger.
+     */
+    public void testRetryCopyCarriesDelayRetryCount() throws Exception {
+        IndexShard shard = newStartedShard(false);
+        DiscoveryNode sourceNode = new DiscoveryNode(
+            "source",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Collections.emptySet(),
+            Version.CURRENT
+        );
+        RecoveryTarget target = new RecoveryTarget(shard, sourceNode, null, threadPool);
+        try {
+            // accumulate a non-zero count that would be lost if retryCopy reset it
+            for (int i = 0; i < RecoveryTarget.MAX_DELAY_RETRIES; i++) {
+                target.incrementDelayRetryCount();
+            }
+            assertThat(target.getDelayRetryCount(), equalTo(RecoveryTarget.MAX_DELAY_RETRIES));
+
+            RecoveryTarget retried = target.retryCopy();
+            try {
+                assertThat(
+                    "retryCopy must carry the delay-retry count so the bound can fire across target replacements",
+                    retried.getDelayRetryCount(),
+                    equalTo(RecoveryTarget.MAX_DELAY_RETRIES)
+                );
+                // one more increment on the retried target should now exceed the bound (this is the fail condition)
+                assertThat(retried.incrementDelayRetryCount(), equalTo(RecoveryTarget.MAX_DELAY_RETRIES + 1));
+            } finally {
+                retried.decRef();
+            }
+        } finally {
+            target.decRef();
+            closeShards(shard);
+        }
+    }
 }

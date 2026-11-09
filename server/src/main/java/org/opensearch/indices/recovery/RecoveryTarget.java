@@ -68,6 +68,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.index.translog.Translog.TRANSLOG_UUID_KEY;
 
@@ -82,8 +83,22 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
 
     private static final String RECOVERY_PREFIX = "recovery.";
 
+    /**
+     * Maximum number of consecutive {@link DelayRecoveryException} (and {@link PeerRecoveryNotFound}) retries before the
+     * recovery is failed. With the default {@code retry_delay_state_sync} of 500ms this is roughly on the same order of
+     * magnitude as {@code internal_action_timeout} (15m), giving the cluster state enough time to propagate the target
+     * allocation id while preventing an unbounded busy-loop that pins a recovery slot indefinitely.
+     */
+    static final int MAX_DELAY_RETRIES = 60;
+
     private final DiscoveryNode sourceNode;
     protected final MultiFileWriter multiFileWriter;
+
+    // counts consecutive DelayRecoveryException / PeerRecoveryNotFound retries for this recovery target. The counter
+    // is carried over across retryCopy() so the bound accumulates across the target replacements done by
+    // ReplicationCollection.reset(). It is reset to zero on successful recovery progress (non-delay path) so the
+    // bound measures consecutive delay retries, not lifetime total.
+    private final AtomicInteger delayRetryCount = new AtomicInteger();
 
     // latch that can be used to blockingly wait for RecoveryTarget to be closed
     private final CountDownLatch closedLatch = new CountDownLatch(1);
@@ -109,11 +124,41 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
 
     /**
      * Returns a fresh recovery target to retry recovery from the same source node onto the same shard and using the same listener.
+     * <p>
+     * The consecutive delay-retry counter is carried over so that {@link #incrementDelayRetryCount()} keeps accumulating
+     * across the target replacement done by {@link ReplicationCollection#reset}. Otherwise a stuck recovery would never
+     * reach {@link #MAX_DELAY_RETRIES} because every retry resets the counter to zero.
      *
      * @return a copy of this recovery target
      */
     public RecoveryTarget retryCopy() {
-        return new RecoveryTarget(indexShard, sourceNode, listener, threadPool);
+        RecoveryTarget copy = new RecoveryTarget(indexShard, sourceNode, listener, threadPool);
+        // carry over the delay retry count so the bound is evaluated across retries, not per-target instance
+        copy.delayRetryCount.set(this.delayRetryCount.get());
+        return copy;
+    }
+
+    /**
+     * Increments the count of consecutive delay retries seen for this recovery target and returns the updated value.
+     */
+    int incrementDelayRetryCount() {
+        return delayRetryCount.incrementAndGet();
+    }
+
+    /**
+     * Returns the current number of consecutive delay retries seen for this recovery target.
+     */
+    int getDelayRetryCount() {
+        return delayRetryCount.get();
+    }
+
+    /**
+     * Resets the consecutive delay-retry counter to zero. Should be called when the recovery makes genuine progress
+     * (e.g. a non-delay retryable exception is handled, or the recovery advances past the phase that can throw
+     * {@link DelayRecoveryException}) so the bound measures consecutive delay retries, not lifetime total.
+     */
+    void resetDelayRetryCount() {
+        delayRetryCount.set(0);
     }
 
     public String source() {

@@ -208,6 +208,19 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         retryRecovery(recoveryId, retryAfter, activityTimeout);
     }
 
+    /**
+     * Resets the consecutive delay-retry counter for the given recovery to zero. Called when a non-delay retryable
+     * exception is handled (e.g. network disconnect, remote shard not ready) so the bound measures consecutive
+     * {@link DelayRecoveryException}/{@link PeerRecoveryNotFound} retries, not lifetime total.
+     */
+    private void resetDelayRetryCount(final long recoveryId) {
+        try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.get(recoveryId)) {
+            if (recoveryRef != null) {
+                recoveryRef.get().resetDelayRetryCount();
+            }
+        }
+    }
+
     private void retryRecovery(final long recoveryId, final TimeValue retryAfter, final TimeValue activityTimeout) {
         RecoveryTarget newTarget = onGoingRecoveries.reset(recoveryId, activityTimeout);
         if (newTarget != null) {
@@ -724,6 +737,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 || cause instanceof IndexNotFoundException
                 || cause instanceof ShardNotFoundException) {
                 // if the target is not ready yet, retry
+                resetDelayRetryCount(recoveryId);
                 retryRecovery(
                     recoveryId,
                     "remote shard not ready",
@@ -736,6 +750,37 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             // PeerRecoveryNotFound is returned when the source node cannot find the recovery requested by
             // the REESTABLISH_RECOVERY request. In this case, we delay and then attempt to restart.
             if (cause instanceof DelayRecoveryException || cause instanceof PeerRecoveryNotFound) {
+                // Bound the number of consecutive delay retries so that a permanently stuck target allocation id
+                // (e.g. a ghost in-sync allocation id that never propagates to the source primary's routing table)
+                // does not pin a recovery slot indefinitely. The counter lives on RecoveryTarget and is carried
+                // across the target replacement done by retryRecovery()/retryCopy(), so it accumulates per shard
+                // recovery rather than per target instance.
+                int delayRetries;
+                try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.get(recoveryId)) {
+                    if (recoveryRef == null) {
+                        return;
+                    }
+                    delayRetries = recoveryRef.get().incrementDelayRetryCount();
+                }
+                if (delayRetries > RecoveryTarget.MAX_DELAY_RETRIES) {
+                    onGoingRecoveries.fail(
+                        recoveryId,
+                        new RecoveryFailedException(
+                            request,
+                            "recovery timed out after ["
+                                + delayRetries
+                                + "] consecutive delay retries "
+                                + "(see recovery_activity_timeout / internal_action_timeout); last cause: "
+                                + cause.getMessage(),
+                            cause
+                        ),
+                        // sendShardFailure=true so the master records ALLOCATION_FAILED and applies the failed-shard
+                        // backoff, matching the generic failure path below. With false the master never learns the
+                        // recovery failed and re-adds the replica as a fresh allocation on the next reroute.
+                        true
+                    );
+                    return;
+                }
                 retryRecovery(recoveryId, cause, recoverySettings.retryDelayStateSync(), recoverySettings.activityTimeout());
                 return;
             }
@@ -748,6 +793,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     recoverySettings.retryDelayNetwork(),
                     cause.getMessage()
                 );
+                resetDelayRetryCount(recoveryId);
                 if (request.sourceNode().getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
                     reestablishRecovery(request, cause.getMessage(), recoverySettings.retryDelayNetwork());
                 } else {
