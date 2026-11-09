@@ -161,6 +161,103 @@ public class AutoForceMergeManagerIT extends RemoteStoreBaseIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME_1).get());
     }
 
+    public void testAutoForceMergeStopsAfterAllWarmNodesAreRemoved() throws Exception {
+        Settings clusterSettings = Settings.builder()
+            .put(super.nodeSettings(0))
+            .put(ForceMergeManagerSettings.AUTO_FORCE_MERGE_SETTING.getKey(), true)
+            .put(ForceMergeManagerSettings.CPU_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
+            .put(ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
+            .put(ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE.getKey(), 100)
+            .build();
+        InternalTestCluster internalTestCluster = internalCluster();
+        internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
+        String dataNode = internalTestCluster.startDataOnlyNodes(1, clusterSettings).getFirst();
+        String warmNode = internalTestCluster.startWarmOnlyNodes(1, clusterSettings).getFirst();
+        ensureStableCluster(3, dataNode);
+        AutoForceMergeManager autoForceMergeManager = internalTestCluster.getInstance(AutoForceMergeManager.class, dataNode);
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.INDEX_AUTO_FORCE_MERGES_ENABLED.getKey(), false)
+            .build();
+        assertAcked(client().admin().indices().prepareCreate(INDEX_NAME_1).setSettings(settings).get());
+        for (int i = 0; i < INGESTION_COUNT; i++) {
+            indexBulk(INDEX_NAME_1, NUM_DOCS_IN_BULK);
+            refresh(INDEX_NAME_1);
+        }
+
+        IndexShard shardWithWarmNode = getIndexShard(dataNode, INDEX_NAME_1);
+        assertNotNull(shardWithWarmNode);
+        assertTrue(shardWithWarmNode.segmentStats(false, false).getCount() > SEGMENT_COUNT);
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME_1)
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_AUTO_FORCE_MERGES_ENABLED.getKey(), true))
+                .get()
+        );
+        assertBusy(() -> assertTrue(shardWithWarmNode.indexSettings().isAutoForcemergeEnabled()));
+        assertTrue(autoForceMergeManager.getConfigurationValidator().validate().isAllowed());
+        assertBusy(() -> assertTrue(autoForceMergeManager.getNodeValidator().validate().isAllowed()), 1, TimeUnit.MINUTES);
+        assertBusy(
+            () -> assertTrue(autoForceMergeManager.getShardValidator().validate(shardWithWarmNode).isAllowed()),
+            1,
+            TimeUnit.MINUTES
+        );
+        autoForceMergeManager.getTask().runInternal();
+        assertTrue(
+            "Auto force merge did not run while a warm node was present",
+            waitUntil(() -> shardWithWarmNode.segmentStats(false, false).getCount() == SEGMENT_COUNT, 30, TimeUnit.SECONDS)
+        );
+        assertAcked(client().admin().indices().prepareDelete(INDEX_NAME_1).get());
+
+        internalTestCluster.stopRandomNode(InternalTestCluster.nameFilter(warmNode));
+        ensureStableCluster(2, dataNode);
+        assertBusy(
+            () -> assertTrue(
+                client(dataNode).admin().cluster().prepareState().setLocal(true).get().getState().getNodes().getWarmNodes().isEmpty()
+            )
+        );
+
+        Settings initiallyDisabledSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.INDEX_AUTO_FORCE_MERGES_ENABLED.getKey(), false)
+            .build();
+        assertAcked(client().admin().indices().prepareCreate(INDEX_NAME_2).setSettings(initiallyDisabledSettings).get());
+        for (int i = 0; i < INGESTION_COUNT; i++) {
+            indexBulk(INDEX_NAME_2, NUM_DOCS_IN_BULK);
+            refresh(INDEX_NAME_2);
+        }
+
+        IndexShard shardWithoutWarmNode = getIndexShard(dataNode, INDEX_NAME_2);
+        assertNotNull(shardWithoutWarmNode);
+        assertTrue(shardWithoutWarmNode.segmentStats(false, false).getCount() > SEGMENT_COUNT);
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME_2)
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_AUTO_FORCE_MERGES_ENABLED.getKey(), true))
+                .get()
+        );
+        assertBusy(() -> assertTrue(shardWithoutWarmNode.indexSettings().isAutoForcemergeEnabled()));
+        assertBusy(() -> assertTrue(autoForceMergeManager.getNodeValidator().validate().isAllowed()), 1, TimeUnit.MINUTES);
+        assertBusy(
+            () -> assertTrue(autoForceMergeManager.getShardValidator().validate(shardWithoutWarmNode).isAllowed()),
+            1,
+            TimeUnit.MINUTES
+        );
+        autoForceMergeManager.getTask().runInternal();
+
+        assertFalse(
+            "Auto force merge continued after all warm nodes were removed",
+            waitUntil(() -> shardWithoutWarmNode.segmentStats(false, false).getCount() == SEGMENT_COUNT, 10, TimeUnit.SECONDS)
+        );
+        assertTrue(shardWithoutWarmNode.segmentStats(false, false).getCount() > SEGMENT_COUNT);
+        assertAcked(client().admin().indices().prepareDelete(INDEX_NAME_2).get());
+    }
+
     public void testAutoForceMergeTriggeringBasicWithFiveShardsOfTwoIndex() throws Exception {
 
         Settings clusterSettings = Settings.builder()

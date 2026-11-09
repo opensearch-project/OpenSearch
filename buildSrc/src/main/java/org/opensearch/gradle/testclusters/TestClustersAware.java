@@ -31,13 +31,16 @@
 
 package org.opensearch.gradle.testclusters;
 
+import org.opensearch.gradle.OpenSearchDistribution;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.tasks.Nested;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 
 public interface TestClustersAware extends Task {
 
@@ -54,10 +57,22 @@ public interface TestClustersAware extends Task {
             throw new TestClustersException("Task " + getPath() + " can't use test cluster from" + " another project " + cluster);
         }
 
-        // Add configured distributions as task dependencies so they are built before starting the cluster
-        cluster.getNodes().stream().flatMap(node -> node.getDistributions().stream()).forEach(distro -> dependsOn(distro.getExtracted()));
-
-        cluster.getNodes().forEach(node -> dependsOn((Callable<Collection<Configuration>>) node::getPluginAndModuleConfigurations));
+        // Add configured distributions, plugins and modules as task dependencies so they are built before starting the
+        // cluster. Resolved when the task graph is built rather than now, so that using a cluster does not create its
+        // nodes while the build script may still be configuring how many there are and how they are numbered.
+        dependsOn(
+            (Callable<List<Configuration>>) () -> cluster.getNodes()
+                .stream()
+                .flatMap(node -> node.getDistributions().stream())
+                .map(OpenSearchDistribution::getExtracted)
+                .collect(Collectors.toList())
+        );
+        dependsOn(
+            (Callable<List<Configuration>>) () -> cluster.getNodes()
+                .stream()
+                .flatMap(node -> node.getPluginAndModuleConfigurations().stream())
+                .collect(Collectors.toList())
+        );
         getClusters().add(cluster);
     }
 

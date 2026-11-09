@@ -274,9 +274,8 @@ mod tests {
     use object_store::path::Path as ObjPath;
     use object_store::{ObjectStore, ObjectStoreExt, PutPayload};
 
-    // Shared crate-wide guard so all users of the one process-global scoped cache
-    // mutually exclude.
-    use crate::cache::page_index::SCOPED_CACHE_TEST_GUARD as SCOPED_TEST_GUARD;
+    // Crate-wide lock so all users of the one process-global scoped cache mutually exclude.
+    use crate::test_process_globals::lock as lock_process_globals;
 
     /// Two int columns (`price`, `qty`), one row group, four 8-row data pages.
     fn two_col_parquet() -> (Bytes, SchemaRef) {
@@ -334,7 +333,7 @@ mod tests {
     /// BOTH columns. Also fills the shared scoped cache.
     #[tokio::test]
     async fn get_metadata_returns_scoped_page_index() {
-        let _g = SCOPED_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         crate::cache::page_index::clear_scoped_cache_for_test();
 
         let (bytes, schema) = two_col_parquet();
@@ -390,7 +389,7 @@ mod tests {
     /// cache stays empty — which holds before and after 1e.
     #[tokio::test]
     async fn get_metadata_no_predicate_does_not_scope() {
-        let _g = SCOPED_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         crate::cache::page_index::clear_scoped_cache_for_test();
 
         let (bytes, schema) = two_col_parquet();

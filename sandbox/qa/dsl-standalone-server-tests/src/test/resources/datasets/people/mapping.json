@@ -1,0 +1,15 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "properties": {
+      "name": { "type": "keyword" },
+      "age": { "type": "integer" },
+      "score": { "type": "double" },
+      "city": { "type": "keyword" },
+      "description": { "type": "text" }
+    }
+  }
+}

@@ -837,6 +837,17 @@ public enum MultiValueMode implements Writeable {
             }
 
             @Override
+            public int advance(int target) throws IOException {
+                // advanceExact always returns true (missing value emitted when no children match), so
+                // every parent doc has a value and advance() positions directly on target.
+                if (target >= maxDoc) {
+                    return lastSeenParentDoc = DocIdSetIterator.NO_MORE_DOCS;
+                }
+                advanceExact(target);
+                return target;
+            }
+
+            @Override
             public int docID() {
                 return lastSeenParentDoc;
             }
@@ -956,7 +967,13 @@ public enum MultiValueMode implements Writeable {
 
             @Override
             public int advance(int target) throws IOException {
-                return values.advance(target);
+                // advanceExact always returns true (missing value emitted when no children match), so
+                // every parent doc has a value and advance() positions directly on target.
+                if (target >= maxDoc) {
+                    return DocIdSetIterator.NO_MORE_DOCS;
+                }
+                advanceExact(target);
+                return target;
             }
         };
     }
@@ -1081,6 +1098,22 @@ public enum MultiValueMode implements Writeable {
                     lastEmittedValue = missingValue;
                 }
                 return true;
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                // advanceExact always returns true (missing value emitted when no children match), so
+                // every parent doc has a value and advance() positions directly on target.
+                if (target >= maxDoc) {
+                    return lastSeenParentDoc = DocIdSetIterator.NO_MORE_DOCS;
+                }
+                advanceExact(target);
+                return target;
+            }
+
+            @Override
+            public int docID() {
+                return lastSeenParentDoc;
             }
 
             @Override
@@ -1220,6 +1253,26 @@ public enum MultiValueMode implements Writeable {
             }
 
             @Override
+            public int advance(int target) throws IOException {
+                // advanceExact can return false here (no missing-value fallback for ords), so values are
+                // sparse: find the next parent doc at or after target that actually has an ord.
+                if (target >= parentDocs.length()) {
+                    return docID = DocIdSetIterator.NO_MORE_DOCS;
+                }
+                int parentDoc = parentDocs.nextSetBit(target);
+                while (parentDoc != DocIdSetIterator.NO_MORE_DOCS) {
+                    if (advanceExact(parentDoc)) {
+                        return docID = parentDoc;
+                    }
+                    if (parentDoc + 1 >= parentDocs.length()) {
+                        break;
+                    }
+                    parentDoc = parentDocs.nextSetBit(parentDoc + 1);
+                }
+                return docID = DocIdSetIterator.NO_MORE_DOCS;
+            }
+
+            @Override
             public int docID() {
                 return docID;
             }
@@ -1330,6 +1383,17 @@ public enum MultiValueMode implements Writeable {
                 lastSeenParentDoc = parentDoc;
                 lastEmittedValue = pick(values, missingValue, childDocs, firstChildDoc, parentDoc, maxChildren);
                 return true;
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                // advanceExact always returns true (missing value emitted when no children match), so
+                // every parent doc has a value and advance() positions directly on target.
+                if (target >= maxDoc) {
+                    return lastSeenParentDoc = DocIdSetIterator.NO_MORE_DOCS;
+                }
+                advanceExact(target);
+                return target;
             }
 
             @Override

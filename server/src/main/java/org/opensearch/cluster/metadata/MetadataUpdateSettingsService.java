@@ -574,12 +574,13 @@ public class MetadataUpdateSettingsService {
             return;
         }
 
-        // Remote store is enabled only when there is at least one node and every node is a
-        // remote-store node (allMatch is vacuously true on an empty node set, which must not
-        // count as remote-store enabled).
+        // Remote store is enabled only when there is at least one node and every node has a remote segment store
+        // (allMatch is vacuously true on an empty node set, which must not count as remote-store enabled). Balancing
+        // primaries is a placement concern, so it only requires the segments to be remote backed; isRemoteStoreNode()
+        // would additionally demand a cluster state repository, which segments_only nodes never configure.
         Collection<DiscoveryNode> nodes = clusterService.state().nodes().getNodes().values();
-        boolean isRemoteStoreEnabled = !nodes.isEmpty() && nodes.stream().allMatch(DiscoveryNode::isRemoteStoreNode);
-        if (!isRemoteStoreEnabled) {
+        boolean isRemoteSegmentStoreEnabled = !nodes.isEmpty() && nodes.stream().allMatch(DiscoveryNode::isRemoteSegmentStoreNode);
+        if (!isRemoteSegmentStoreEnabled) {
             throw new IllegalArgumentException(
                 "Setting ["
                     + INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey()

@@ -41,6 +41,13 @@ public class CompositeMergeExecutor {
     }
 
     /**
+     * Returns the merger registered for the given data format, or {@code null} if absent.
+     */
+    public Merger getMerger(DataFormat format) {
+        return mergers.get(format);
+    }
+
+    /**
      * Executes the merge described by the plan.
      *
      * @param plan the pre-validated merge plan
@@ -105,7 +112,14 @@ public class CompositeMergeExecutor {
         for (WriterFileSet wfs : files) {
             segments.add(Segment.builder(wfs.writerGeneration()).addSearchableFiles(format, wfs).build());
         }
-        MergeResult result = merger.merge(new MergeInput(segments, mapping, plan.mergedWriterGeneration()));
+        MergeResult result = merger.merge(
+            MergeInput.builder()
+                .segments(segments)
+                .rowIdMapping(mapping)
+                .newWriterGeneration(plan.mergedWriterGeneration())
+                .liveDocs(plan.liveDocs())
+                .build()
+        );
         return new FormatMergeResult(format, result.getMergedWriterFileSetForDataformat(format), result.rowIdMapping().orElse(null));
     }
 

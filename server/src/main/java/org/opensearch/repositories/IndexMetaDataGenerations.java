@@ -42,6 +42,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -152,8 +153,14 @@ public final class IndexMetaDataGenerations {
         final Map<SnapshotId, Map<IndexId, String>> updatedIndexMetaLookup = new HashMap<>(lookup);
         updatedIndexMetaLookup.keySet().removeAll(snapshotIds);
         final Map<String, String> updatedIndexMetaIdentifiers = new HashMap<>(identifiers);
-        updatedIndexMetaIdentifiers.keySet()
-            .removeIf(k -> updatedIndexMetaLookup.values().stream().noneMatch(identifiers -> identifiers.containsValue(k)));
+        // Collect the identifiers referenced by the remaining snapshots once, instead of re-scanning every remaining
+        // snapshot's lookup map for each identifier, which is quadratic in the number of tracked index metadata entries
+        // and dominates snapshot deletion time on repositories with a large number of snapshots and indices.
+        final Set<String> referencedIdentifiers = updatedIndexMetaLookup.values()
+            .stream()
+            .flatMap(m -> m.values().stream())
+            .collect(Collectors.toSet());
+        updatedIndexMetaIdentifiers.keySet().retainAll(referencedIdentifiers);
         return new IndexMetaDataGenerations(updatedIndexMetaLookup, updatedIndexMetaIdentifiers);
     }
 

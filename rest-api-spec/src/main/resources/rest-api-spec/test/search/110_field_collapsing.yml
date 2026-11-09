@@ -769,6 +769,30 @@ setup:
           size: 1
 
 ---
+"field collapsing with search_after - _score and _doc sorts":
+  - skip:
+      version: " - 3.8.99"
+      reason: Fixed NPE for collapse+search_after with _score/_doc sorts in 3.9.0
+  - do:
+      catch: /collapse field and sort field must be the same when use `collapse` in conjunction with `search_after`/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ _doc: asc }]
+          search_after: [0]
+  - do:
+      catch: /collapse field and sort field must be the same when use `collapse` in conjunction with `search_after`/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ _score: asc }]
+          search_after: [1.0]
+
+---
 "field collapsing with search_after - concurrent segment search enabled":
   - skip:
       version: " - 3.2.99"

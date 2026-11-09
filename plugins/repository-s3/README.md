@@ -2,6 +2,9 @@
 
 The repository-s3 plugin enables the use of S3 as a place to store snapshots.
 
+See [S3 API call timeout](API_TIMEOUTS.md) for configuring a timeout that covers
+an SDK call and its retries for both synchronous and asynchronous clients.
+
 ## Testing
 
 ### Unit Tests

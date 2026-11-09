@@ -12,15 +12,21 @@ import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
+import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.ICache;
+import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.cache.request.RequestCacheStats;
@@ -47,6 +53,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_NAME;
+import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
 import static org.opensearch.common.cache.settings.CacheSettings.INVALID_SEGMENT_COUNT_EXCEPTION_MESSAGE;
 import static org.opensearch.indices.IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
@@ -539,6 +547,116 @@ public class TieredSpilloverCacheIT extends TieredSpilloverCacheBaseIT {
             // All entries should get cleared up.
             assertTrue(getRequestCacheStats(client, "index").getMemorySizeInBytes() == 0);
         }, 1, TimeUnit.SECONDS);
+    }
+
+    public void testWithDynamicRequestCacheDisable() throws Exception {
+        int numberOfSegments = getNumberOfSegments();
+        // Keep the heap tier tiny so most entries spill over to the disk tier
+        int onHeapCacheSizeInBytes = 2000;
+        internalCluster().startNode(Settings.builder().put(defaultSettings(onHeapCacheSizeInBytes + "b", numberOfSegments)).build());
+        Client client = client();
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate("index")
+                .setMapping("k", "type=keyword")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.refresh_interval", -1)
+                )
+                .get()
+        );
+        // Update disk took time policy to zero so that all entries are eligible to be cached on disk.
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
+            Settings.builder()
+                .put(
+                    TieredSpilloverCacheSettings.TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE)
+                        .getKey(),
+                    new TimeValue(0, TimeUnit.MILLISECONDS)
+                )
+                .build()
+        );
+        assertAcked(internalCluster().client().admin().cluster().updateSettings(updateSettingsRequest).get());
+        int numberOfIndexedItems = randomIntBetween(10, 20);
+        for (int iterator = 0; iterator < numberOfIndexedItems; iterator++) {
+            indexRandom(true, client.prepareIndex("index").setSource("k" + iterator, "hello" + iterator));
+        }
+        ensureSearchable("index");
+        refreshAndWaitForReplication();
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
+        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
+        OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
+
+        for (int iterator = 0; iterator < numberOfIndexedItems; iterator++) {
+            assertSearchResponse(searchWithTermQuery(client, iterator).get());
+        }
+        RequestCacheStats requestCacheStats = getRequestCacheStats(client, "index");
+        assertEquals(numberOfIndexedItems, requestCacheStats.getMissCount());
+        assertThat(requestCacheStats.getMemorySizeInBytes(), greaterThan(0L));
+        assertThat(getDiskTierEntries(client), greaterThan(0L));
+
+        // Disabling the request cache must clear entries from both tiers and release their memory accounting
+        setRequestCacheEnabled(client, false);
+        assertBusy(() -> {
+            assertEquals(0, getRequestCacheStats(client, "index").getMemorySizeInBytes());
+            assertEquals(0L, getDiskTierEntries(client));
+        });
+        for (int iterator = 0; iterator < numberOfIndexedItems; iterator++) {
+            assertSearchResponse(searchWithTermQuery(client, iterator).get());
+        }
+        requestCacheStats = getRequestCacheStats(client, "index");
+        assertEquals(numberOfIndexedItems, requestCacheStats.getMissCount());
+        assertEquals(0, requestCacheStats.getHitCount());
+        assertEquals(0, requestCacheStats.getMemorySizeInBytes());
+
+        // Re-enabling resumes caching, with memory accounting starting again from zero
+        setRequestCacheEnabled(client, true);
+        assertSearchResponse(searchWithTermQuery(client, 0).get());
+        requestCacheStats = getRequestCacheStats(client, "index");
+        assertEquals(numberOfIndexedItems + 1, requestCacheStats.getMissCount());
+        long singleEntrySize = requestCacheStats.getMemorySizeInBytes();
+        assertThat(singleEntrySize, greaterThan(0L));
+        assertSearchResponse(searchWithTermQuery(client, 0).get());
+        requestCacheStats = getRequestCacheStats(client, "index");
+        assertEquals(1, requestCacheStats.getHitCount());
+        assertEquals(singleEntrySize, requestCacheStats.getMemorySizeInBytes());
+    }
+
+    private SearchRequestBuilder searchWithTermQuery(Client client, int iterator) {
+        return client.prepareSearch("index")
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setRequestCache(true)
+            .setQuery(QueryBuilders.termQuery("k" + iterator, "hello" + iterator));
+    }
+
+    private void setRequestCacheEnabled(Client client, boolean enabled) {
+        assertAcked(
+            client.admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(IndicesRequestCache.INDICES_REQUEST_CACHE_ENABLED_SETTING.getKey(), enabled))
+        );
+    }
+
+    private long getDiskTierEntries(Client client) {
+        CommonStatsFlags statsFlags = new CommonStatsFlags();
+        statsFlags.includeAllCacheTypes();
+        statsFlags.setLevels(new String[] { TIER_DIMENSION_NAME });
+        NodesStatsResponse nodesStatsResponse = client.admin()
+            .cluster()
+            .prepareNodesStats("data:true")
+            .addMetric(NodesStatsRequest.Metric.CACHE_STATS.metricName())
+            .setIndices(statsFlags)
+            .get();
+        long entries = 0;
+        for (NodeStats nodeStats : nodesStatsResponse.getNodes()) {
+            ImmutableCacheStatsHolder statsHolder = nodeStats.getNodeCacheStats().getStatsByCache(CacheType.INDICES_REQUEST_CACHE);
+            entries += statsHolder.getStatsForDimensionValues(List.of(TIER_DIMENSION_VALUE_DISK)).getItems();
+        }
+        return entries;
     }
 
     public void testWithDynamicDiskCacheSetting() throws Exception {

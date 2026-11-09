@@ -31,7 +31,12 @@ apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.standalone-rest-test'
 apply plugin: 'opensearch.rest-test'
 apply plugin: 'opensearch.test-with-dependencies'
+apply from: "$rootDir/gradle/sandbox-testclusters.gradle"
 
 dependencies {
   testImplementation project(":client:rest-high-level")
+}
+
+testClusters.integTest {
+  installSandboxStack(delegate)
 }

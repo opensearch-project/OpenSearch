@@ -1,0 +1,117 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*
+ * Shared helper that installs the 8-plugin "mustang" sandbox stack (arrow-base,
+ * arrow-flight-rpc + 6 sandbox analytics/DSL plugins) into a CURRENT-version Gradle
+ * test cluster. Applied by qa/ modules whose testclusters run the current release.
+ *
+ * This script is a NO-OP unless the build is invoked with -Dsandbox.enabled=true.
+ * settings.gradle (L157-161) only includes the sandbox/ projects under that flag, while
+ * qa/ is always included, so every project(':sandbox:...') reference MUST sit behind the
+ * guard -- otherwise a plain (non-sandbox) build fails at configuration time because the
+ * sandbox projects do not exist in the project graph.
+ *
+ * NOT applicable to BWC (mixed old/new version) clusters: an old-version node runs on its
+ * bundled older JDK and rejects these plugins -- PluginsService.verifyCompatibility (semver
+ * range vs Version.CURRENT) and JarHell.checkJavaVersion (X-Compile-Target-JDK=25 exceeds
+ * the bundled JRE). Only wire this into current-version clusters.
+ */
+
+// Feature guard. Kept as a project ext so consuming modules can bump their
+// expected.plugins.count assertions only when the stack is actually installed.
+ext.sandboxStackEnabled = System.getProperty('sandbox.enabled', 'false') == 'true'
+
+if (sandboxStackEnabled) {
+    // ext.nativeLibPath is set during dataformat-native's own configuration (build.gradle
+    // ~L256). Force that project to be evaluated before we read the ext below, since qa/
+    // module evaluation order relative to sandbox/ is not otherwise guaranteed.
+    evaluationDependsOn(':sandbox:libs:dataformat-native')
+
+    // The native opensearch_native .so/.dylib must exist before any node boots, or the node
+    // dies with "Failed to load native library". Every REST integ test task depends on it.
+    tasks.withType(org.opensearch.gradle.test.RestIntegTestTask).configureEach {
+        dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+    }
+}
+
+/*
+ * installSandboxStack(cluster, alreadyInstalled = [])
+ *
+ * No-op when sandboxStackEnabled is false. Otherwise installs the stack onto the given
+ * test cluster. Plugins whose last path segment is listed in alreadyInstalled are skipped
+ * (e.g. smoke-test-arrow-plugins already installs arrow-base + arrow-flight-rpc, so it
+ * passes ['arrow-base', 'arrow-flight-rpc'] to avoid a double-install).
+ */
+ext.installSandboxStack = { cluster, List<String> alreadyInstalled = [] ->
+    if (sandboxStackEnabled == false) {
+        return
+    }
+
+    // Install order matters: opensearch-plugin install --batch runs the zips in list order
+    // (OpenSearchNode.java:549-556) and a plugin that declares another in extendedPlugins
+    // must be listed AFTER its dependency, or the install-time jarHell check fails. Hence
+    // arrow-base precedes arrow-flight-rpc, and the analytics/DSL plugins follow.
+    def pluginPaths = [
+        ':plugins:arrow-base',
+        ':plugins:arrow-flight-rpc',
+        ':sandbox:plugins:analytics-engine',
+        ':sandbox:plugins:analytics-backend-datafusion',
+        ':sandbox:plugins:composite-engine',
+        ':sandbox:plugins:analytics-backend-lucene',
+        ':sandbox:plugins:dsl-query-executor',
+        ':sandbox:plugins:parquet-data-format'
+    ]
+    pluginPaths.each { path ->
+        if (alreadyInstalled.contains(path.tokenize(':').last()) == false) {
+            cluster.plugin path
+        }
+    }
+
+    // Arrow/Flight + DataFusion native access flags on JDK 25. -D... is rejected here
+    // (must be systemProperty), so only --add-opens / --enable-native-access / -da go via jvmArgs.
+    cluster.jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+    cluster.jvmArgs '--enable-native-access=ALL-UNNAMED'
+    // Calcite assertion namespace disabled; -ea remains on elsewhere.
+    cluster.jvmArgs '-da:org.apache.calcite...'
+
+    // Arrow's Netty allocation manager needs Unsafe access on JDK 25.
+    cluster.systemProperty 'io.netty.allocator.numDirectArenas', '1'
+    cluster.systemProperty 'io.netty.noUnsafe', 'false'
+    cluster.systemProperty 'io.netty.tryUnsafe', 'true'
+    cluster.systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+
+    // Directory holding the DataFusion native library (opensearch_native), passed to the node.
+    cluster.systemProperty 'java.library.path', "${project(':sandbox:libs:dataformat-native').ext.nativeLibPath.parent}"
+
+    // Feature flags required by the pluggable dataformat / streaming transport stack.
+    cluster.systemProperty 'opensearch.experimental.feature.pluggable.dataformat.enabled', 'true'
+    cluster.systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
+}

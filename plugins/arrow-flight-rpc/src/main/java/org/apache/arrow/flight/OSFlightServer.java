@@ -25,8 +25,6 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.InvocationTargetException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -47,13 +45,13 @@ import org.apache.arrow.flight.grpc.ServerInterceptorAdapter;
 import org.apache.arrow.flight.grpc.ServerInterceptorAdapter.KeyFactory;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.util.Preconditions;
+import org.opensearch.secure_sm.AccessController;
 
 /**
  * Clone of {@link org.apache.arrow.flight.FlightServer} to support setting SslContext. It can be discarded once FlightServer.Builder supports setting SslContext directly.
  * <p>
  * It changes {@link org.apache.arrow.flight.FlightServer.Builder} to allow hook to configure the NettyServerBuilder.
  */
-@SuppressWarnings("removal")
 public class OSFlightServer {
     /** The maximum size of an individual gRPC message. This effectively disables the limit. */
     static final int MAX_GRPC_MESSAGE_SIZE = Integer.MAX_VALUE;
@@ -65,7 +63,7 @@ public class OSFlightServer {
     private static final MethodHandle FLIGHT_SERVER_CTOR_MH;
 
     static {
-            FLIGHT_SERVER_CTOR_MH = AccessController.doPrivileged((PrivilegedAction<MethodHandle>) () -> {
+            FLIGHT_SERVER_CTOR_MH = AccessController.doPrivileged(() -> {
                     try {
                 return MethodHandles
                 .privateLookupIn(FlightServer.class, MethodHandles.lookup())
