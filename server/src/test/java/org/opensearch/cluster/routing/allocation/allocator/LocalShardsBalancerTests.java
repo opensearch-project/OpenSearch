@@ -84,6 +84,7 @@ public class LocalShardsBalancerTests extends OpenSearchAllocationTestCase {
             false,
             false,
             false,
+            false,
             null
         );
 
@@ -131,6 +132,7 @@ public class LocalShardsBalancerTests extends OpenSearchAllocationTestCase {
             false,
             false,
             false,
+            false,
             null
         );
 
@@ -175,6 +177,7 @@ public class LocalShardsBalancerTests extends OpenSearchAllocationTestCase {
             null,
             weightFunction,
             0,
+            false,
             false,
             false,
             false,

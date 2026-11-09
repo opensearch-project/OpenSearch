@@ -273,6 +273,16 @@ public class RoutingAllocation {
         ignoredShardToNodes.computeIfAbsent(shardId, k -> new HashSet<>()).add(nodeId);
     }
 
+    public void copyIgnoreNodesFrom(RoutingAllocation source) {
+        if (source.ignoredShardToNodes == null) {
+            ignoredShardToNodes = null;
+            return;
+        }
+        Map<ShardId, Set<String>> copy = new HashMap<>();
+        source.ignoredShardToNodes.forEach((shardId, nodeIds) -> copy.put(shardId, new HashSet<>(nodeIds)));
+        ignoredShardToNodes = copy;
+    }
+
     /**
      * Returns whether the given node id should be ignored from consideration when {@link AllocationDeciders}
      * is deciding whether to allocate the specified shard id to that node.  The node will be ignored if
