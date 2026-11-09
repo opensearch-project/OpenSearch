@@ -43,7 +43,6 @@ thirdPartyAudit {
     'android.os.Build$VERSION',
     'android.security.NetworkSecurityPolicy',
     'android.util.Log',
-    'com.google.common.io.ByteStreams',
     'com.fasterxml.jackson.databind.ObjectMapper',
     'io.grpc.Drainable',
     'io.grpc.KnownLength',
