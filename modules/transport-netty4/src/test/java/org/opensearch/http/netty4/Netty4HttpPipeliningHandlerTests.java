@@ -47,6 +47,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -147,6 +148,51 @@ public class Netty4HttpPipeliningHandlerTests extends OpenSearchTestCase {
             }
         } finally {
             embeddedChannel.finishAndReleaseAll();
+        }
+    }
+
+    public void testPipelinedResponseIsReleasedAfterPipelineTeardown() {
+        assertRejectedPipelinedResponseIsReleased(true);
+    }
+
+    public void testCancelledPipelinedResponseIsReleasedBeforeHandler() {
+        assertRejectedPipelinedResponseIsReleased(false);
+    }
+
+    private void assertRejectedPipelinedResponseIsReleased(boolean closeBeforeWrite) {
+        final Netty4HttpPipeliningHandler handler = new Netty4HttpPipeliningHandler(logger, 2);
+        final EmbeddedChannel channel = new EmbeddedChannel(handler);
+        final Netty4HttpRequest request = createHttpRequest("/");
+        FullHttpResponse delegate = null;
+        try {
+            channel.writeInbound(request);
+            final HttpPipelinedRequest pipelinedRequest = channel.readInbound();
+            final HttpPipelinedResponse response = pipelinedRequest.createResponse(RestStatus.OK, new BytesArray("response"));
+            delegate = (FullHttpResponse) response.getDelegateRequest();
+            final ChannelPromise promise = channel.newPromise();
+            if (closeBeforeWrite) {
+                channel.close();
+                channel.runPendingTasks();
+                assertNull(channel.pipeline().context(handler));
+            } else {
+                promise.cancel(false);
+            }
+
+            channel.writeAndFlush(response, promise);
+            assertTrue(promise.isDone());
+            if (closeBeforeWrite) {
+                assertThat(promise.cause(), instanceOf(ClosedChannelException.class));
+            } else {
+                assertThat(promise.cause(), instanceOf(CancellationException.class));
+            }
+            assertEquals("Netty must be able to release the wrapper without invoking the pipelining handler", 0, delegate.refCnt());
+            assertNull(channel.readOutbound());
+        } finally {
+            request.release();
+            channel.finishAndReleaseAll();
+            if (delegate != null && delegate.refCnt() > 0) {
+                delegate.release();
+            }
         }
     }
 

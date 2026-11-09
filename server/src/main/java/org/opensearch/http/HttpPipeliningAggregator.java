@@ -60,10 +60,6 @@ public class HttpPipeliningAggregator<Listener> {
         this.outboundHoldingQueue = new PriorityQueue<>(1, Comparator.comparing(Tuple::v1));
     }
 
-    public HttpPipelinedRequest read(final HttpRequest request) {
-        return new HttpPipelinedRequest(nextReadSequence(), request);
-    }
-
     /**
      * Allocates the next request sequence for transport-specific pipelined request wrappers.
      */
