@@ -14,10 +14,14 @@ import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.admin.indices.streamingingestion.pause.PauseIngestionResponse;
 import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionRequest;
 import org.opensearch.action.admin.indices.streamingingestion.resume.ResumeIngestionResponse;
+import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateRequest;
 import org.opensearch.action.admin.indices.streamingingestion.state.GetIngestionStateResponse;
+import org.opensearch.action.pagination.PageParams;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.plugins.Plugin;
@@ -392,6 +396,46 @@ public class FileBasedIngestionSingleNodeTests extends OpenSearchSingleNodeTestC
         });
 
         // cleanup
+        client().admin().indices().delete(new DeleteIndexRequest(index)).actionGet();
+    }
+
+    public void testPaginatedIngestionStateUsesRequestIndicesOptions() throws Exception {
+        createIndex(
+            index,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+                .put("ingestion_source.type", "FILE")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.stream", stream)
+                .put("ingestion_source.param.base_directory", ingestionDir.toString())
+                .put("index.replication.type", "SEGMENT")
+                .build()
+        );
+        ensureGreen(index);
+
+        // the wildcard only matches the hidden index with expand_wildcards=all, so each page must hold one shard
+        GetIngestionStateRequest request = Requests.getIngestionStateRequest("test_*");
+        request.indicesOptions(IndicesOptions.strictExpandHidden());
+        request.setPageParams(new PageParams(null, PageParams.PARAM_ASC_SORT_VALUE, 1));
+        GetIngestionStateResponse firstPage = client().admin().indices().getIngestionState(request).get();
+        assertEquals(1, firstPage.getShardStates().length);
+        assertNotNull(firstPage.getNextPageToken());
+
+        request = Requests.getIngestionStateRequest("test_*");
+        request.indicesOptions(IndicesOptions.strictExpandHidden());
+        request.setPageParams(new PageParams(firstPage.getNextPageToken(), PageParams.PARAM_ASC_SORT_VALUE, 1));
+        GetIngestionStateResponse secondPage = client().admin().indices().getIngestionState(request).get();
+        assertEquals(1, secondPage.getShardStates().length);
+        assertNotEquals(firstPage.getShardStates()[0].getShardId(), secondPage.getShardStates()[0].getShardId());
+        assertNull(secondPage.getNextPageToken());
+
+        // a missing index is still reported by the broadcast
+        GetIngestionStateRequest missingIndexRequest = Requests.getIngestionStateRequest("missing_index");
+        missingIndexRequest.setPageParams(new PageParams(null, PageParams.PARAM_ASC_SORT_VALUE, 1));
+        expectThrows(IndexNotFoundException.class, () -> client().admin().indices().getIngestionState(missingIndexRequest).actionGet());
+
         client().admin().indices().delete(new DeleteIndexRequest(index)).actionGet();
     }
 
