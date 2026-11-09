@@ -8,6 +8,7 @@
 
 package org.opensearch.http.netty4;
 
+import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -54,7 +55,6 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.socket.DuplexChannel;
-import io.netty.channel.socket.SocketChannelConfig;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.util.ReferenceCountUtil;
 
@@ -62,7 +62,6 @@ import static org.opensearch.http.TestDispatcherBuilder.dispatcherBuilderWithDef
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Checks that a request larger than {@code http.max_content_length} is answered with a {@code 413} the client can read,
@@ -142,43 +141,26 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
         }
     }
 
-    public void testExpectContinueWithTooLargeContentLengthIsRejectedAndConnectionReused() throws Exception {
-        final Encoding encoding = randomFrom(Encoding.values());
-        final RequestBuilder request = post().header("Expect", "100-continue").body(encoding, incompressible(2 * LIMIT));
-        assertThat(request.encodedBodyLength(), greaterThan(LIMIT));
-        try (TestTransport transport = startTransport(settings()); Netty4HttpRawClient client = connect(transport)) {
-            client.write(request.head());
-            final Response response = client.readResponse();
-            assertThat(response.status(), equalTo(413)); // and no 100 Continue before it
-            assertFalse(response.connectionClose());
-            assertConnectionUsable(client);
-            assertNoRejectionHandler(transport.hold);
+    public void testRecoverableRejectionsReuseConnection() throws Exception {
+        try (TestTransport transport = startTransport(settings())) {
+            for (Encoding encoding : Encoding.values()) {
+                final RequestBuilder request = post().header("Expect", "100-continue").body(encoding, incompressible(2 * LIMIT));
+                assertRecoverableRejection(transport, request.head());
+                // Preserve Netty's expectation handling even when the client asks to close.
+                assertRecoverableRejection(transport, request.header("Connection", "close").head());
+            }
+            assertRecoverableRejection(transport, post().body(Encoding.IDENTITY, incompressible(LIMIT + 1)).bytes());
         }
     }
 
-    public void testExpectContinueRejectionPreservesNettysConnectionHandling() throws Exception {
-        final RequestBuilder request = post().header("Expect", "100-continue")
-            .header("Connection", "close")
-            .body(Encoding.IDENTITY, incompressible(2 * LIMIT));
-        try (TestTransport transport = startTransport(settings()); Netty4HttpRawClient client = connect(transport)) {
-            client.write(request.head());
+    private void assertRecoverableRejection(TestTransport transport, byte[] request) throws Exception {
+        try (Netty4HttpRawClient client = connect(transport)) {
+            client.write(request);
             final Response response = client.readResponse();
-            assertThat(response.status(), equalTo(413));
+            assertThat(response.status(), equalTo(413)); // no preceding 100 Continue
             assertFalse(response.connectionClose());
             assertConnectionUsable(client);
-            assertNoRejectionHandler(transport.hold);
-        }
-    }
-
-    public void testKeepAliveRejectionReusesConnection() throws Exception {
-        final RequestBuilder request = post().body(Encoding.IDENTITY, incompressible(LIMIT + 1));
-        try (TestTransport transport = startTransport(settings()); Netty4HttpRawClient client = connect(transport)) {
-            client.write(request.bytes());
-            final Response response = client.readResponse();
-            assertThat(response.status(), equalTo(413));
-            assertFalse(response.connectionClose());
-            assertConnectionUsable(client);
-            assertNoRejectionHandler(transport.hold);
+            assertNull(transport.hold.channel.pipeline().get(Netty4HttpRejectionHandler.class));
         }
     }
 
@@ -212,13 +194,11 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
 
     public void testClientFinWhileResponseIsPending() throws Exception {
         try (TestTransport transport = startTransport(settings()); Netty4HttpRawClient client = connect(transport)) {
-            transport.hold.enable();
-            client.write(post().body(Encoding.IDENTITY, incompressible(2 * LIMIT)).chunked(true).bytes());
-            client.shutdownOutput();
-            transport.hold.awaitHeld();
-            assertBusy(() -> assertTrue(((DuplexChannel) transport.hold.channel).isInputShutdown()));
-            transport.hold.release();
-            assertTerminalRejection(client);
+            final byte[] wire = post().body(Encoding.IDENTITY, incompressible(2 * LIMIT)).chunked(true).bytes();
+            assertDeliveredDespite(transport, client, wire, () -> {
+                client.shutdownOutput();
+                assertBusy(() -> assertTrue(((DuplexChannel) transport.hold.channel).isInputShutdown()));
+            });
         }
     }
 
@@ -228,48 +208,61 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
             .put(HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT.getKey(), "200ms")
             .build();
         try (TestTransport transport = startTransport(settings); Netty4HttpRawClient client = connect(transport)) {
-            transport.hold.enable();
             final byte[] wire = post().body(Encoding.IDENTITY, incompressible(2 * LIMIT)).chunked(true).bytes();
-            client.write(wire, 0, wire.length - 1024); // the client stalls in the middle of its body
-            transport.hold.awaitHeld();
-            assertTrue(transport.hold.closeRequested.await(10, TimeUnit.SECONDS)); // by the read timeout
-            transport.hold.release();
-            assertTerminalRejection(client);
+            // Stall in the middle of the upload and wait for the real read timeout to request closure.
+            assertDeliveredDespite(
+                transport,
+                client,
+                Arrays.copyOf(wire, wire.length - 1024),
+                () -> assertTrue(transport.hold.closeRequested.await(10, TimeUnit.SECONDS))
+            );
         }
     }
 
     public void testDecoderFailureWhileResponseIsPending() throws Exception {
         // the first chunk alone exceeds the limit once decoded, the second is not valid gzip
         final ByteArrayOutputStream encoded = new ByteArrayOutputStream();
-        final GZIPOutputStream gzip = new GZIPOutputStream(encoded, true);
-        gzip.write(compressible(2 * LIMIT));
-        gzip.flush();
-        final byte[] valid = encoded.toByteArray();
+        final byte[] valid;
+        try (GZIPOutputStream gzip = new GZIPOutputStream(encoded, true)) {
+            gzip.write(compressible(2 * LIMIT));
+            gzip.flush();
+            valid = encoded.toByteArray();
+        }
         final byte[] invalid = new byte[64];
         Arrays.fill(invalid, (byte) 0xff);
         final ByteArrayOutputStream wire = new ByteArrayOutputStream();
         wire.writeBytes(post().header("Content-Encoding", "gzip").chunked(true).head());
         for (byte[] chunk : new byte[][] { valid, invalid }) {
-            wire.writeBytes((Integer.toHexString(chunk.length) + "\r\n").getBytes(StandardCharsets.ISO_8859_1));
-            wire.writeBytes(chunk);
-            wire.writeBytes("\r\n".getBytes(StandardCharsets.ISO_8859_1));
+            RequestBuilder.writeChunk(wire, chunk, 0, chunk.length);
         }
         try (TestTransport transport = startTransport(settings()); Netty4HttpRawClient client = connect(transport)) {
-            transport.hold.enable();
-            client.write(wire.toByteArray()); // one write, so the failure is decoded right after the rejection
-            transport.hold.awaitHeld();
-            assertTrue(transport.decoderFailure.await(10, TimeUnit.SECONDS));
-            transport.hold.release();
-            assertTerminalRejection(client);
+            // One write makes the decoder encounter the invalid chunk immediately after rejecting the valid one.
+            assertDeliveredDespite(
+                transport,
+                client,
+                wire.toByteArray(),
+                () -> assertTrue(transport.decoderFailure.await(10, TimeUnit.SECONDS))
+            );
         }
+    }
+
+    private static void assertDeliveredDespite(
+        TestTransport transport,
+        Netty4HttpRawClient client,
+        byte[] upload,
+        CheckedRunnable<Exception> trigger
+    ) throws Exception {
+        transport.hold.enable();
+        client.write(upload);
+        transport.hold.awaitHeld();
+        trigger.run();
+        transport.hold.release();
+        assertTerminalRejection(client);
     }
 
     public void testDrainEndsWhenClientCloses() throws Exception {
         try (TestTransport transport = startTransport(settings()); Netty4HttpRawClient client = connect(transport)) {
-            final byte[] wire = post().body(Encoding.IDENTITY, incompressible(2 * LIMIT)).chunked(true).bytes();
-            client.write(wire, 0, wire.length * 3 / 4); // well past the limit, but not the whole body
-            assertTerminalRejection(client);
-            assertTrue(transport.hold.channel.isOpen()); // draining, with the default 5s idle timeout
+            startDraining(transport, client);
             client.shutdownOutput();
             assertBusy(() -> assertFalse(transport.hold.channel.isOpen()), 2, TimeUnit.SECONDS);
         }
@@ -277,13 +270,17 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
 
     public void testStoppingTheTransportClosesDrainingConnections() throws Exception {
         try (TestTransport transport = startTransport(settings()); Netty4HttpRawClient client = connect(transport)) {
-            final byte[] wire = post().body(Encoding.IDENTITY, incompressible(2 * LIMIT)).chunked(true).bytes();
-            client.write(wire, 0, wire.length * 3 / 4); // well past the limit, but not the whole body
-            assertTerminalRejection(client);
-            assertTrue(transport.hold.channel.isOpen());
+            startDraining(transport, client);
             transport.stop();
             assertBusy(() -> assertFalse(transport.hold.channel.isOpen()), 5, TimeUnit.SECONDS);
         }
+    }
+
+    private static void startDraining(TestTransport transport, Netty4HttpRawClient client) throws IOException {
+        final byte[] wire = post().body(Encoding.IDENTITY, incompressible(2 * LIMIT)).chunked(true).bytes();
+        client.write(wire, 0, wire.length * 3 / 4); // exceed the limit without finishing the upload
+        assertTerminalRejection(client);
+        assertTrue(transport.hold.channel.isOpen());
     }
 
     private static void assertTerminalRejection(Netty4HttpRawClient client) throws IOException {
@@ -298,13 +295,6 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
         final Response response = client.readResponse();
         assertThat(response.status(), equalTo(200));
         assertThat(new String(response.body(), StandardCharsets.UTF_8), equalTo("5"));
-    }
-
-    private static void assertNoRejectionHandler(ResponseHold hold) throws Exception {
-        assertBusy(() -> {
-            assertThat(hold.channel.pipeline().get(Netty4HttpRejectionHandler.class), nullValue());
-            assertFalse(((SocketChannelConfig) hold.channel.config()).isAllowHalfClosure());
-        });
     }
 
     private static RequestBuilder post() {
@@ -337,16 +327,12 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
     }
 
     private TestTransport startTransport(Settings settings) {
-        return startTransport(settings, Netty4HttpRejectionHandler.Timeouts.DEFAULT);
-    }
-
-    private TestTransport startTransport(Settings settings, Netty4HttpRejectionHandler.Timeouts timeouts) {
         final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest((request, channel, ctx) -> {
             dispatched.incrementAndGet();
             final String length = Integer.toString(request.content().length());
             channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray(length)));
         }).build();
-        final TestTransport transport = new TestTransport(settings, dispatcher, timeouts);
+        final TestTransport transport = new TestTransport(settings, dispatcher);
         transport.start();
         return transport;
     }
@@ -359,7 +345,7 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
         final ResponseHold hold = new ResponseHold();
         final CountDownLatch decoderFailure = new CountDownLatch(1);
 
-        TestTransport(Settings settings, Dispatcher dispatcher, Netty4HttpRejectionHandler.Timeouts timeouts) {
+        TestTransport(Settings settings, Dispatcher dispatcher) {
             super(
                 settings,
                 Netty4HttpOversizedRequestTests.this.networkService,
@@ -369,8 +355,7 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 new SharedGroupFactory(settings),
-                NoopTracer.INSTANCE,
-                timeouts
+                NoopTracer.INSTANCE
             );
         }
 

@@ -98,10 +98,6 @@ public final class Netty4HttpRawClient implements Closeable {
             .orElseThrow(() -> new AssertionError("no IPv4 address in " + Arrays.toString(boundAddresses)));
     }
 
-    public Socket socket() {
-        return socket;
-    }
-
     public void write(byte[] bytes) throws IOException {
         write(bytes, 0, bytes.length);
     }
@@ -173,12 +169,13 @@ public final class Netty4HttpRawClient implements Closeable {
 
     /** Builds request head and body bytes. */
     public static final class RequestBuilder {
+        private static final int CHUNK_SIZE = 8 * 1024;
+
         private final String method;
         private final String path;
         private final Map<String, String> headers = new LinkedHashMap<>();
         private byte[] body = new byte[0];
         private boolean chunked;
-        private int chunkSize = 8 * 1024;
 
         public RequestBuilder(String method, String path) {
             this.method = method;
@@ -231,14 +228,19 @@ public final class Netty4HttpRawClient implements Closeable {
                 return body;
             }
             final ByteArrayOutputStream wire = new ByteArrayOutputStream();
-            for (int offset = 0; offset < body.length; offset += chunkSize) {
-                final int length = Math.min(chunkSize, body.length - offset);
-                wire.writeBytes((Integer.toHexString(length) + "\r\n").getBytes(StandardCharsets.ISO_8859_1));
-                wire.write(body, offset, length);
-                wire.writeBytes("\r\n".getBytes(StandardCharsets.ISO_8859_1));
+            for (int offset = 0; offset < body.length; offset += CHUNK_SIZE) {
+                final int length = Math.min(CHUNK_SIZE, body.length - offset);
+                writeChunk(wire, body, offset, length);
             }
             wire.writeBytes("0\r\n\r\n".getBytes(StandardCharsets.ISO_8859_1));
             return wire.toByteArray();
+        }
+
+        /** Writes one HTTP chunk, allowing tests to choose boundaries or leave an upload unfinished. */
+        public static void writeChunk(ByteArrayOutputStream wire, byte[] bytes, int offset, int length) {
+            wire.writeBytes((Integer.toHexString(length) + "\r\n").getBytes(StandardCharsets.ISO_8859_1));
+            wire.write(bytes, offset, length);
+            wire.writeBytes("\r\n".getBytes(StandardCharsets.ISO_8859_1));
         }
 
         public byte[] bytes() {

@@ -13,6 +13,7 @@ import org.opensearch.common.util.concurrent.FutureUtils;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
@@ -21,6 +22,12 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.socket.ChannelInputShutdownEvent;
 import io.netty.channel.socket.DuplexChannel;
 import io.netty.channel.socket.SocketChannelConfig;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.Future;
@@ -39,31 +46,23 @@ import io.netty.util.concurrent.ScheduledFuture;
  * The connection closes the way RFC 9112 section 9.6 describes: everything the client still sends is discarded before
  * it is decrypted or decoded; once the response is written the handler sends TLS
  * {@code close_notify} (if any) and a TCP FIN, then keeps reading until the client closes its side, the client stops
- * sending for {@link Timeouts#drainIdleNanos}, or {@link Timeouts#drainMaxNanos} have elapsed. Closing a socket that
+ * sending for {@link #DRAIN_IDLE_NANOS}, or {@link #DRAIN_MAX_NANOS} have elapsed. Closing a socket that
  * still has unread input makes the kernel send a TCP RST, and a RST makes the client's kernel drop a response it has not
  * read yet, which is why the connection is drained rather than closed.
  * <p>
- * The write of the response itself, TLS shutdown and FIN share a deadline of {@link Timeouts#writeNanos}, so a client that
+ * The write of the response itself, TLS shutdown and FIN share a deadline of {@link #WRITE_TIMEOUT_NANOS}, so a client that
  * never reads cannot pin the connection.
  */
 final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
 
     static final String NAME = "http_rejection";
 
-    /**
-     * Bounds of a rejection. The drain defaults match the defaults of NGINX's {@code lingering_timeout} and
-     * {@code lingering_time}.
-     */
-    record Timeouts(long writeNanos, long drainIdleNanos, long drainMaxNanos) {
-        static final Timeouts DEFAULT = new Timeouts(
-            TimeUnit.SECONDS.toNanos(30),
-            TimeUnit.SECONDS.toNanos(5),
-            TimeUnit.SECONDS.toNanos(30)
-        );
-    }
+    private static final long WRITE_TIMEOUT_NANOS = TimeUnit.SECONDS.toNanos(30);
+    // Match the defaults of NGINX's lingering_timeout and lingering_time.
+    private static final long DRAIN_IDLE_NANOS = TimeUnit.SECONDS.toNanos(5);
+    private static final long DRAIN_MAX_NANOS = TimeUnit.SECONDS.toNanos(30);
 
     private final BooleanSupplier transportRunning;
-    private final Timeouts timeouts;
     private ChannelHandlerContext context;
     private boolean draining;
     private boolean closed;
@@ -74,17 +73,28 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
     private long drainDeadlineNanos;
     private ScheduledFuture<?> timer;
 
-    private Netty4HttpRejectionHandler(BooleanSupplier transportRunning, Timeouts timeouts) {
+    private Netty4HttpRejectionHandler(BooleanSupplier transportRunning) {
         this.transportRunning = transportRunning;
-        this.timeouts = timeouts;
     }
 
-    /** Installs the handler for the connection's terminal rejection. Must be called on the event loop. */
-    static Netty4HttpRejectionHandler install(ChannelPipeline pipeline, BooleanSupplier transportRunning, Timeouts timeouts) {
+    /** Installs close protection and a deadline before writing the connection's terminal rejection. */
+    static void reject(ChannelHandlerContext aggregatorContext, BooleanSupplier transportRunning) {
+        final ChannelPipeline pipeline = aggregatorContext.pipeline();
         assert pipeline.channel().eventLoop().inEventLoop();
-        final Netty4HttpRejectionHandler handler = new Netty4HttpRejectionHandler(transportRunning, timeouts);
+        final Netty4HttpRejectionHandler handler = new Netty4HttpRejectionHandler(transportRunning);
         pipeline.addFirst(NAME, handler);
-        return handler;
+        final ChannelPromise promise = aggregatorContext.newPromise();
+        handler.responseFuture = promise;
+        handler.timer = handler.context.executor().schedule(handler::writeTimedOut, WRITE_TIMEOUT_NANOS, TimeUnit.NANOSECONDS);
+        promise.addListener(handler::responseWritten);
+        final FullHttpResponse response = new DefaultFullHttpResponse(
+            HttpVersion.HTTP_1_1,
+            HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE,
+            Unpooled.EMPTY_BUFFER
+        );
+        response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, 0);
+        response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
+        aggregatorContext.writeAndFlush(response, promise);
     }
 
     @Override
@@ -105,15 +115,6 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
         cancelTimeouts();
     }
 
-    /** Registers a rejection response and its promise before the response is written. */
-    void responsePending(ChannelPromise promise) {
-        assert context.executor().inEventLoop();
-        assert closed == false && responseFuture == null && timer == null;
-        responseFuture = promise;
-        timer = context.executor().schedule(this::writeTimedOut, timeouts.writeNanos(), TimeUnit.NANOSECONDS);
-        promise.addListener(this::responseWritten);
-    }
-
     private void writeTimedOut() {
         assert context.executor().inEventLoop();
         // Netty may defer promise listeners to avoid excessive listener recursion. Process completed
@@ -129,7 +130,7 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
         }
     }
 
-    /** Listener for the write of a rejection response registered with {@link #responsePending}. */
+    /** Starts shutdown once the rejection response has been written. */
     private void responseWritten(Future<?> future) {
         assert context.executor().inEventLoop();
         if (closed || future != responseFuture) {
@@ -185,7 +186,7 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
         assert context.executor().inEventLoop();
         draining = true;
         lastReadNanos = context.executor().ticker().nanoTime();
-        drainDeadlineNanos = lastReadNanos + timeouts.drainMaxNanos();
+        drainDeadlineNanos = lastReadNanos + DRAIN_MAX_NANOS;
         cancelTimer();
         checkDrain();
     }
@@ -194,7 +195,7 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
     private void checkDrain() {
         assert context.executor().inEventLoop();
         final long now = context.executor().ticker().nanoTime();
-        final long remaining = Math.min(drainDeadlineNanos - now, lastReadNanos + timeouts.drainIdleNanos() - now);
+        final long remaining = Math.min(drainDeadlineNanos - now, lastReadNanos + DRAIN_IDLE_NANOS - now);
         if (remaining <= 0) {
             closeNow();
         } else {

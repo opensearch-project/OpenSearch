@@ -209,7 +209,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private final int readTimeoutMillis;
 
     private final int maxCompositeBufferComponents;
-    private final Netty4HttpRejectionHandler.Timeouts rejectionTimeouts;
 
     private volatile ServerBootstrap serverBootstrap;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
@@ -236,37 +235,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         SharedGroupFactory sharedGroupFactory,
         Tracer tracer
     ) {
-        this(
-            settings,
-            networkService,
-            bigArrays,
-            threadPool,
-            xContentRegistry,
-            dispatcher,
-            clusterSettings,
-            sharedGroupFactory,
-            tracer,
-            Netty4HttpRejectionHandler.Timeouts.DEFAULT
-        );
-    }
-
-    Netty4HttpServerTransport(
-        Settings settings,
-        NetworkService networkService,
-        BigArrays bigArrays,
-        ThreadPool threadPool,
-        NamedXContentRegistry xContentRegistry,
-        Dispatcher dispatcher,
-        ClusterSettings clusterSettings,
-        SharedGroupFactory sharedGroupFactory,
-        Tracer tracer,
-        Netty4HttpRejectionHandler.Timeouts rejectionTimeouts
-    ) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings, tracer);
         Netty4Utils.setAvailableProcessors(OpenSearchExecutors.NODE_PROCESSORS_SETTING.get(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
-        this.rejectionTimeouts = rejectionTimeouts;
 
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
@@ -641,8 +613,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         return new Netty4HttpObjectAggregator(
             handlingSettings.getMaxContentLength(),
             maxCompositeBufferComponents,
-            () -> lifecycleState() == Lifecycle.State.STARTED,
-            rejectionTimeouts
+            () -> lifecycleState() == Lifecycle.State.STARTED
         );
     }
 

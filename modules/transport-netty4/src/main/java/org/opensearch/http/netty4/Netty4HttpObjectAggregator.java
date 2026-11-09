@@ -13,23 +13,15 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.function.BooleanSupplier;
 
-import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.ChannelPromise;
 import io.netty.channel.socket.DuplexChannel;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpMessage;
-import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
-import io.netty.handler.codec.http.HttpVersion;
 import io.netty.util.ReferenceCountUtil;
 
 /**
@@ -52,21 +44,14 @@ final class Netty4HttpObjectAggregator extends HttpObjectAggregator {
     private static final Logger logger = LogManager.getLogger(Netty4HttpObjectAggregator.class);
 
     private final BooleanSupplier transportRunning;
-    private final Netty4HttpRejectionHandler.Timeouts timeouts;
     /** {@code Content-Length} of the current request as sent, recorded ahead of the decompressor; -1 when unknown */
     private long encodedContentLength = -1;
     private boolean rejecting;
 
-    Netty4HttpObjectAggregator(
-        int maxContentLength,
-        int maxCumulationBufferComponents,
-        BooleanSupplier transportRunning,
-        Netty4HttpRejectionHandler.Timeouts timeouts
-    ) {
+    Netty4HttpObjectAggregator(int maxContentLength, int maxCumulationBufferComponents, BooleanSupplier transportRunning) {
         super(maxContentLength);
         setMaxCumulationBufferComponents(maxCumulationBufferComponents);
         this.transportRunning = transportRunning;
-        this.timeouts = timeouts;
     }
 
     /** A handler to install ahead of the content decompressor; it records the {@code Content-Length} of each request. */
@@ -140,16 +125,6 @@ final class Netty4HttpObjectAggregator extends HttpObjectAggregator {
         }
 
         rejecting = true;
-        final Netty4HttpRejectionHandler rejection = Netty4HttpRejectionHandler.install(ctx.pipeline(), transportRunning, timeouts);
-        final ChannelPromise promise = ctx.newPromise();
-        rejection.responsePending(promise);
-        final FullHttpResponse response = new DefaultFullHttpResponse(
-            HttpVersion.HTTP_1_1,
-            HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE,
-            Unpooled.EMPTY_BUFFER
-        );
-        response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, 0);
-        response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
-        ctx.writeAndFlush(response, promise);
+        Netty4HttpRejectionHandler.reject(ctx, transportRunning);
     }
 }

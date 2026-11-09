@@ -9,23 +9,29 @@
 package org.opensearch.http.netty4;
 
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.DefaultChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.channel.socket.ChannelInputShutdownEvent;
 import io.netty.channel.socket.DuplexChannel;
 import io.netty.handler.ssl.SslHandler;
+import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.EventExecutor;
 
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -33,236 +39,180 @@ import static org.mockito.Mockito.when;
 
 public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
 
+    private enum Stage {
+        WRITE,
+        TLS,
+        FIN
+    }
+
+    private EmbeddedDuplexChannel channel;
+    private ChannelPromise response;
+    private ChannelPromise tlsShutdown;
+    private List<Runnable> notifications;
+    private boolean transportRunning;
+
     public void testWriteClosesAtDeadline() {
-        final EmbeddedChannel channel = new EmbeddedChannel();
-        channel.freezeTime();
-        final Netty4HttpRejectionHandler handler = install(channel);
-        final ChannelPromise response = pendingResponse(channel, handler);
-        try {
-            channel.advanceTimeBy(TimeUnit.SECONDS.toNanos(30) - 1, TimeUnit.NANOSECONDS);
-            channel.runScheduledPendingTasks();
-            assertTrue("The response has the entire write interval to complete", channel.isOpen());
-            channel.advanceTimeBy(1, TimeUnit.NANOSECONDS);
-            channel.runScheduledPendingTasks();
-            assertFalse("An unfinished response must not retain the connection past its deadline", channel.isOpen());
-        } finally {
-            channel.finishAndReleaseAll();
-            response.tryFailure(new IOException("test complete"));
-        }
+        reject(null);
+        assertClosesAfter(SECONDS.toNanos(30), "An unfinished response must be bounded by its write deadline");
     }
 
-    public void testCompletedWriteDoesNotTimeOutBeforeListenerRuns() {
-        final EmbeddedDuplexChannel channel = new EmbeddedDuplexChannel(null);
-        channel.freezeTime();
-        final List<Runnable> notifications = new ArrayList<>();
-        final EventExecutor listenerExecutor = deferListeners(notifications);
-        final Netty4HttpRejectionHandler handler = install(channel);
-        final ChannelPromise response = new DefaultChannelPromise(channel, listenerExecutor);
-        handler.responsePending(response);
-        try {
+    public void testTlsShutdownKeepsTheResponsesDeadline() {
+        reject(Stage.TLS);
+        advanceTime(SECONDS.toNanos(20));
+        response.setSuccess();
+        verify(channel.pipeline().get(SslHandler.class)).closeOutbound();
+        assertFalse(tlsShutdown.isDone());
+        assertClosesAfter(SECONDS.toNanos(10), "Completing the response must not extend the TLS shutdown deadline");
+    }
+
+    public void testCompletedOperationsDoNotTimeOutBeforeListenersRun() {
+        for (Stage stage : Stage.values()) {
+            reject(stage);
             response.setSuccess();
-            assertEquals("The write is complete but its listener has not run", 1, notifications.size());
-            channel.advanceTimeBy(30, TimeUnit.SECONDS);
-            channel.runScheduledPendingTasks();
-            assertTrue("A completed response must proceed to FIN and draining", channel.isOpen());
-            assertEquals(1, channel.outputShutdowns);
+            if (stage == Stage.TLS) {
+                tlsShutdown.setSuccess();
+            }
+            assertEquals(stage.toString(), 1, notifications.size());
+            advanceTime(SECONDS.toNanos(30));
+            assertTrue(stage + " completion must proceed to draining", channel.isOpen());
+            assertEquals(stage.toString(), 1, channel.outputShutdowns);
+            advanceTime(SECONDS.toNanos(1));
             notifications.forEach(Runnable::run);
-            assertEquals("A delayed write listener must not shut down output twice", 1, channel.outputShutdowns);
-            assertTrue(channel.isOpen());
-        } finally {
-            channel.unsafe().close(channel.newPromise());
-            channel.finishAndReleaseAll();
+            assertEquals(stage + " must not shut down output twice", 1, channel.outputShutdowns);
+            assertClosesAfter(SECONDS.toNanos(4), stage + " late notification must not restart draining");
         }
     }
 
-    public void testTlsShutdownKeepsTheCompletedWritesDeadline() {
-        final EmbeddedChannel channel = new EmbeddedChannel();
-        channel.freezeTime();
-        final SslHandler ssl = mock(SslHandler.class);
-        final ChannelPromise shutdown = channel.newPromise();
-        when(ssl.closeOutbound()).thenReturn(shutdown);
-        channel.pipeline().addLast(ssl);
-        final Netty4HttpRejectionHandler handler = install(channel);
-        final ChannelPromise response = channel.newPromise();
-        handler.responsePending(response);
-        try {
-            channel.advanceTimeBy(20, TimeUnit.SECONDS);
-            response.setSuccess();
-            verify(ssl).closeOutbound();
-            assertFalse(shutdown.isDone());
-            assertTrue(channel.isOpen());
-            channel.advanceTimeBy(10, TimeUnit.SECONDS);
-            channel.runScheduledPendingTasks();
-            assertFalse("A completed response must not leave TLS shutdown without a timeout", channel.isOpen());
-        } finally {
-            channel.finishAndReleaseAll();
-            shutdown.tryFailure(new IOException("test complete"));
-        }
+    public void testDrainDeadlines() {
+        assertDrainDeadline(5, 0);  // idle from the start
+        assertDrainDeadline(9, 1);  // one read at 4s renews the idle interval
+        assertDrainDeadline(30, 7); // reads every 4s cannot extend the maximum interval
     }
 
-    public void testCompletedTlsShutdownDoesNotTimeOutBeforeListenerRuns() {
-        final EmbeddedDuplexChannel channel = new EmbeddedDuplexChannel(null);
-        channel.freezeTime();
-        final List<Runnable> notifications = new ArrayList<>();
-        final SslHandler ssl = mock(SslHandler.class);
-        final ChannelPromise shutdown = new DefaultChannelPromise(channel, deferListeners(notifications));
-        when(ssl.closeOutbound()).thenReturn(shutdown);
-        channel.pipeline().addLast(ssl);
-        final Netty4HttpRejectionHandler handler = install(channel);
-        final ChannelPromise response = channel.newPromise();
-        handler.responsePending(response);
-        try {
-            response.setSuccess();
-            shutdown.setSuccess();
-            assertEquals(1, notifications.size());
-            channel.advanceTimeBy(30, TimeUnit.SECONDS);
-            channel.runScheduledPendingTasks();
-            assertTrue("Completed TLS shutdown must proceed to FIN and draining", channel.isOpen());
-            assertEquals(1, channel.outputShutdowns);
-            notifications.forEach(Runnable::run);
-            assertEquals("A delayed TLS listener must not shut down output twice", 1, channel.outputShutdowns);
-            assertTrue(channel.isOpen());
-        } finally {
-            channel.unsafe().close(channel.newPromise());
-            channel.finishAndReleaseAll();
-        }
-    }
-
-    public void testCompletedFinDoesNotTimeOutBeforeListenerRuns() {
-        final List<Runnable> notifications = new ArrayList<>();
-        final EmbeddedDuplexChannel channel = new EmbeddedDuplexChannel(deferListeners(notifications));
-        channel.freezeTime();
-        final Netty4HttpRejectionHandler handler = install(channel);
-        final ChannelPromise response = channel.newPromise();
-        handler.responsePending(response);
-        try {
-            response.setSuccess();
-            assertEquals(1, notifications.size());
-            channel.advanceTimeBy(30, TimeUnit.SECONDS);
-            channel.runScheduledPendingTasks();
-            assertTrue("A completed FIN must proceed to draining", channel.isOpen());
-            notifications.forEach(Runnable::run);
-            assertTrue(channel.isOpen());
-            assertEquals(1, channel.outputShutdowns);
-        } finally {
-            channel.unsafe().close(channel.newPromise());
-            channel.finishAndReleaseAll();
-        }
-    }
-
-    public void testDrainClosesAtIdleDeadline() {
-        final EmbeddedDuplexChannel channel = new EmbeddedDuplexChannel(null);
-        channel.freezeTime();
-        final Netty4HttpRejectionHandler handler = install(channel);
-        final ChannelPromise response = channel.newPromise();
-        handler.responsePending(response);
-        try {
-            response.setSuccess();
-            assertTrue(channel.isOutputShutdown());
-            channel.advanceTimeBy(TimeUnit.SECONDS.toNanos(5) - 1, TimeUnit.NANOSECONDS);
-            channel.runScheduledPendingTasks();
-            assertTrue("The entire idle interval must be available for draining", channel.isOpen());
-            channel.advanceTimeBy(1, TimeUnit.NANOSECONDS);
-            channel.runScheduledPendingTasks();
-            assertFalse("An idle peer must not retain the connection after the drain deadline", channel.isOpen());
-        } finally {
-            channel.unsafe().close(channel.newPromise());
-            channel.finishAndReleaseAll();
-        }
-    }
-
-    public void testDrainReadRestartsIdleInterval() {
-        final EmbeddedDuplexChannel channel = new EmbeddedDuplexChannel(null);
-        channel.freezeTime();
-        final Netty4HttpRejectionHandler handler = install(channel);
-        final ChannelPromise response = channel.newPromise();
-        handler.responsePending(response);
-        try {
-            response.setSuccess();
-            channel.advanceTimeBy(4, TimeUnit.SECONDS);
+    private void assertDrainDeadline(int deadlineSeconds, int reads) {
+        reject(null);
+        response.setSuccess();
+        assertTrue(channel.isOutputShutdown());
+        for (int i = 0; i < reads; i++) {
+            advanceTime(SECONDS.toNanos(4));
+            assertTrue("Regular input must keep the drain alive", channel.isOpen());
             final ByteBuf discarded = Unpooled.wrappedBuffer(new byte[] { 1 });
             assertFalse(channel.writeInbound(discarded));
             assertEquals(0, discarded.refCnt());
-            channel.advanceTimeBy(1, TimeUnit.SECONDS);
-            channel.runScheduledPendingTasks();
-            assertTrue("The original idle deadline must observe the more recent read", channel.isOpen());
-            channel.advanceTimeBy(TimeUnit.SECONDS.toNanos(4) - 1, TimeUnit.NANOSECONDS);
-            channel.runScheduledPendingTasks();
-            assertTrue(channel.isOpen());
-            channel.advanceTimeBy(1, TimeUnit.NANOSECONDS);
-            channel.runScheduledPendingTasks();
-            assertFalse("The idle interval must be measured from the last read", channel.isOpen());
-        } finally {
-            channel.unsafe().close(channel.newPromise());
-            channel.finishAndReleaseAll();
         }
+        int elapsed = reads * 4;
+        if (reads > 0) {
+            advanceTime(SECONDS.toNanos(1));
+            elapsed++;
+            assertTrue("The earlier idle deadline must observe the last read", channel.isOpen());
+        }
+        assertClosesAfter(SECONDS.toNanos(deadlineSeconds - elapsed), "Drain deadline with " + reads + " reads");
     }
 
-    public void testDrainMaximumDeadlineIsNotExtendedByReads() {
-        final EmbeddedDuplexChannel channel = new EmbeddedDuplexChannel(null);
-        channel.freezeTime();
-        final Netty4HttpRejectionHandler handler = install(channel);
-        final ChannelPromise response = channel.newPromise();
-        handler.responsePending(response);
-        try {
-            response.setSuccess();
-            for (int elapsedSeconds = 4; elapsedSeconds < 30; elapsedSeconds += 4) {
-                channel.advanceTimeBy(4, TimeUnit.SECONDS);
-                channel.runScheduledPendingTasks();
-                assertTrue("Regular reads must keep the connection alive until the maximum deadline", channel.isOpen());
-                final ByteBuf discarded = Unpooled.wrappedBuffer(new byte[] { 1 });
-                assertFalse(channel.writeInbound(discarded));
-                assertEquals(0, discarded.refCnt());
+    public void testCloseWaitsForResponseAndDrain() {
+        reject(null);
+        // EmbeddedChannel.close() cancels scheduled tasks itself; exercise the pipeline's close operation directly.
+        final ChannelFuture close = channel.pipeline().close();
+        assertFalse(close.isDone());
+        response.setSuccess();
+        assertFalse(close.isDone());
+        assertClosesAfter(SECONDS.toNanos(5), "A deferred close must wait for the response and bounded drain");
+        assertTrue(close.isSuccess());
+    }
+
+    public void testInputShutdownWaitsOnlyForResponse() {
+        for (boolean responseWritten : new boolean[] { false, true }) {
+            reject(null);
+            if (responseWritten) {
+                response.setSuccess();
             }
-            channel.advanceTimeBy(TimeUnit.SECONDS.toNanos(2) - 1, TimeUnit.NANOSECONDS);
-            channel.runScheduledPendingTasks();
-            assertTrue(channel.isOpen());
-            channel.advanceTimeBy(1, TimeUnit.NANOSECONDS);
-            channel.runScheduledPendingTasks();
-            assertFalse("A continuously sending peer must still be bounded by the maximum drain interval", channel.isOpen());
-        } finally {
-            channel.unsafe().close(channel.newPromise());
-            channel.finishAndReleaseAll();
+            channel.inputShutdown = true;
+            channel.pipeline().fireUserEventTriggered(ChannelInputShutdownEvent.INSTANCE);
+            assertEquals("Input EOF must not overtake the response", responseWritten == false, channel.isOpen());
+            response.trySuccess();
+            assertFalse(channel.isOpen());
         }
     }
 
-    public void testFailedWriteClosesConnection() {
-        final EmbeddedChannel channel = new EmbeddedChannel();
-        channel.freezeTime();
-        final Netty4HttpRejectionHandler handler = install(channel);
-        final ChannelPromise response = pendingResponse(channel, handler);
-        try {
-            response.setFailure(new IOException("write failed"));
-            assertFalse("A failed response must close without waiting for its deadline", channel.isOpen());
-            channel.advanceTimeBy(30, TimeUnit.SECONDS);
-            channel.runScheduledPendingTasks();
-        } finally {
-            channel.finishAndReleaseAll();
-        }
+    public void testTransportStopBypassesCloseDeferral() {
+        reject(null);
+        transportRunning = false;
+        assertTrue(channel.pipeline().close().isSuccess());
+        assertFalse(channel.isOpen());
     }
 
-    private static Netty4HttpRejectionHandler install(EmbeddedChannel channel) {
-        return Netty4HttpRejectionHandler.install(channel.pipeline(), () -> true, Netty4HttpRejectionHandler.Timeouts.DEFAULT);
+    public void testSocketFailureClosesImmediately() {
+        reject(null);
+        channel.pipeline().fireExceptionCaught(new IOException("socket failure"));
+        assertFalse(channel.isOpen());
     }
 
-    private static EventExecutor deferListeners(List<Runnable> notifications) {
-        final EventExecutor executor = mock(EventExecutor.class);
+    public void testFailedWriteClosesImmediately() {
+        reject(null);
+        response.setFailure(new IOException("write failed"));
+        assertFalse(channel.isOpen());
+    }
+
+    private void advanceTime(long nanos) {
+        channel.advanceTimeBy(nanos, NANOSECONDS);
+        channel.runScheduledPendingTasks();
+    }
+
+    private void assertClosesAfter(long nanos, String message) {
+        advanceTime(nanos - 1);
+        assertTrue(message + " (before deadline)", channel.isOpen());
+        advanceTime(1);
+        assertFalse(message + " (at deadline)", channel.isOpen());
+    }
+
+    /** Starts a fresh rejection, optionally withholding one operation's completion notification. */
+    private void reject(Stage deferredStage) {
+        closeChannel();
+        notifications = new ArrayList<>();
+        final EventExecutor listenerExecutor = mock(EventExecutor.class);
         doAnswer(invocation -> {
             notifications.add(invocation.getArgument(0));
             return null;
-        }).when(executor).execute(any(Runnable.class));
-        return executor;
+        }).when(listenerExecutor).execute(any(Runnable.class));
+        channel = new EmbeddedDuplexChannel(deferredStage == Stage.FIN ? listenerExecutor : null);
+        channel.freezeTime();
+        transportRunning = true;
+        response = deferredStage == Stage.WRITE ? new DefaultChannelPromise(channel, listenerExecutor) : channel.newPromise();
+        tlsShutdown = null;
+        if (deferredStage == Stage.TLS) {
+            final SslHandler ssl = mock(SslHandler.class);
+            tlsShutdown = new DefaultChannelPromise(channel, listenerExecutor);
+            when(ssl.closeOutbound()).thenReturn(tlsShutdown);
+            channel.pipeline().addLast(ssl);
+        }
+        // Capture the aggregator's write so completion and notification can be controlled independently.
+        final ChannelHandlerContext aggregator = mock(ChannelHandlerContext.class);
+        when(aggregator.pipeline()).thenReturn(channel.pipeline());
+        when(aggregator.newPromise()).thenReturn(response);
+        doAnswer(invocation -> {
+            ReferenceCountUtil.release(invocation.getArgument(0));
+            return response;
+        }).when(aggregator).writeAndFlush(any(), same(response));
+        Netty4HttpRejectionHandler.reject(aggregator, () -> transportRunning);
     }
 
-    private static ChannelPromise pendingResponse(EmbeddedChannel channel, Netty4HttpRejectionHandler handler) {
-        final ChannelPromise promise = channel.newPromise();
-        handler.responsePending(promise);
-        return promise;
+    @After
+    public void closeChannel() {
+        if (channel != null) {
+            channel.unsafe().close(channel.newPromise());
+            channel.finishAndReleaseAll();
+            response.tryFailure(new IOException("test complete"));
+            if (tlsShutdown != null) {
+                tlsShutdown.tryFailure(new IOException("test complete"));
+            }
+            channel = null;
+        }
     }
 
     private static final class EmbeddedDuplexChannel extends EmbeddedChannel implements DuplexChannel {
         private final EventExecutor outputListenerExecutor;
         private int outputShutdowns;
+        private boolean inputShutdown;
 
         private EmbeddedDuplexChannel(EventExecutor outputListenerExecutor) {
             this.outputListenerExecutor = outputListenerExecutor;
@@ -270,7 +220,7 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
 
         @Override
         public boolean isInputShutdown() {
-            return false;
+            return inputShutdown;
         }
 
         @Override
