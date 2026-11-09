@@ -64,7 +64,9 @@ import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.QueryStringDecoder;
+import io.netty.util.ReferenceCounted;
 
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
@@ -96,6 +98,55 @@ public class Netty4HttpPipeliningHandlerTests extends OpenSearchTestCase {
         if (!eventLoopService.isShutdown()) {
             eventLoopService.shutdown();
             eventLoopService.awaitTermination(10, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testPipelinedRequestsCreateReferenceCountedResponses() {
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, 2));
+        try {
+            for (int sequence = 0; sequence < 2; sequence++) {
+                final Netty4HttpRequest request = createHttpRequest("/" + sequence);
+                try {
+                    assertTrue(embeddedChannel.writeInbound(request));
+                    final HttpPipelinedRequest pipelinedRequest = embeddedChannel.readInbound();
+                    assertNotNull(pipelinedRequest);
+                    assertEquals(sequence, pipelinedRequest.getSequence());
+
+                    final String content = "response-" + sequence;
+                    final HttpPipelinedResponse response = pipelinedRequest.createResponse(RestStatus.OK, new BytesArray(content));
+                    final FullHttpResponse delegate = (FullHttpResponse) response.getDelegateRequest();
+                    try {
+                        assertThat(response, instanceOf(ReferenceCounted.class));
+                        assertEquals(sequence, response.getSequence());
+                        assertEquals(RestStatus.OK.getStatus(), delegate.status().code());
+                        assertEquals(content, delegate.content().toString(StandardCharsets.UTF_8));
+                        response.addHeader("x-response-sequence", Integer.toString(sequence));
+                        assertTrue(response.containsHeader("x-response-sequence"));
+                        assertEquals(Integer.toString(sequence), delegate.headers().get("x-response-sequence"));
+                        assertEquals("Pipelining must not retain the response", 1, delegate.refCnt());
+                        final ReferenceCounted referenceCounted = (ReferenceCounted) response;
+                        assertEquals(1, referenceCounted.refCnt());
+                        assertSame(response, referenceCounted.retain());
+                        assertEquals(2, delegate.refCnt());
+                        assertSame(response, referenceCounted.retain(2));
+                        assertEquals(4, delegate.refCnt());
+                        assertSame(response, referenceCounted.touch());
+                        assertSame(response, referenceCounted.touch("pipelined response"));
+                        assertFalse(referenceCounted.release(3));
+                        assertEquals(1, delegate.refCnt());
+                        assertTrue(referenceCounted.release());
+                        assertEquals(0, delegate.refCnt());
+                    } finally {
+                        if (delegate.refCnt() > 0) {
+                            delegate.release();
+                        }
+                    }
+                } finally {
+                    request.release();
+                }
+            }
+        } finally {
+            embeddedChannel.finishAndReleaseAll();
         }
     }
 

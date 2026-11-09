@@ -61,7 +61,14 @@ public class HttpPipeliningAggregator<Listener> {
     }
 
     public HttpPipelinedRequest read(final HttpRequest request) {
-        return new HttpPipelinedRequest(readSequence++, request);
+        return new HttpPipelinedRequest(nextReadSequence(), request);
+    }
+
+    /**
+     * Allocates the next request sequence for transport-specific pipelined request wrappers.
+     */
+    public int nextReadSequence() {
+        return readSequence++;
     }
 
     public List<Tuple<HttpPipelinedResponse, Listener>> write(final HttpPipelinedResponse response, Listener listener) {

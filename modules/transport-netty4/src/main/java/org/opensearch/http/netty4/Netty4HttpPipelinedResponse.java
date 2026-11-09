@@ -18,11 +18,11 @@ import io.netty.util.ReferenceCounted;
  */
 final class Netty4HttpPipelinedResponse extends HttpPipelinedResponse implements ReferenceCounted {
 
-    private final ReferenceCounted delegate;
+    private final Netty4HttpResponse delegate;
 
-    Netty4HttpPipelinedResponse(HttpPipelinedResponse response) {
-        super(response.getSequence(), response.getDelegateRequest());
-        delegate = (ReferenceCounted) response.getDelegateRequest();
+    Netty4HttpPipelinedResponse(int sequence, Netty4HttpResponse delegate) {
+        super(sequence, delegate);
+        this.delegate = delegate;
     }
 
     @Override

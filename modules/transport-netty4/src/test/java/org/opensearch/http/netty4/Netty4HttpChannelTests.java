@@ -11,6 +11,7 @@ package org.opensearch.http.netty4;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.http.HttpPipelinedRequest;
 import org.opensearch.http.HttpPipelinedResponse;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.test.OpenSearchTestCase;
@@ -30,7 +31,9 @@ import io.netty.channel.ChannelOutboundInvoker;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.ServerChannel;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.EmptyHttpHeaders;
+import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -93,7 +96,8 @@ public class Netty4HttpChannelTests extends OpenSearchTestCase {
                 ctx.write(msg, promise);
             }
         });
-        final Netty4HttpResponse response = newResponse();
+        final HttpPipelinedResponse pipelinedResponse = newPipelinedResponse(embedded);
+        final Netty4HttpResponse response = (Netty4HttpResponse) pipelinedResponse.getDelegateRequest();
         final AtomicReference<Exception> failure = new AtomicReference<>();
         final AtomicInteger completions = new AtomicInteger();
         final AtomicInteger referencesAtFailure = new AtomicInteger(-1);
@@ -104,7 +108,7 @@ public class Netty4HttpChannelTests extends OpenSearchTestCase {
                 embedded.runPendingTasks();
                 assertNull(embedded.pipeline().context(pipelining));
             }
-            httpChannel.sendResponse(new HttpPipelinedResponse(0, response), ActionListener.wrap(r -> completions.incrementAndGet(), e -> {
+            httpChannel.sendResponse(pipelinedResponse, ActionListener.wrap(r -> completions.incrementAndGet(), e -> {
                 failure.set(e);
                 referencesAtFailure.set(response.refCnt());
                 completions.incrementAndGet();
@@ -129,12 +133,13 @@ public class Netty4HttpChannelTests extends OpenSearchTestCase {
 
     public void testSuccessfulWriteTransfersResponseToNetty() {
         final EmbeddedChannel embedded = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, 3));
-        final Netty4HttpResponse response = newResponse();
+        final HttpPipelinedResponse pipelinedResponse = newPipelinedResponse(embedded);
+        final Netty4HttpResponse response = (Netty4HttpResponse) pipelinedResponse.getDelegateRequest();
         final AtomicInteger completions = new AtomicInteger();
         final AtomicReference<Exception> failure = new AtomicReference<>();
         try {
             new Netty4HttpChannel(embedded).sendResponse(
-                new HttpPipelinedResponse(0, response),
+                pipelinedResponse,
                 ActionListener.wrap(r -> completions.incrementAndGet(), failure::set)
             );
             assertNull(failure.get());
@@ -152,9 +157,9 @@ public class Netty4HttpChannelTests extends OpenSearchTestCase {
         }
     }
 
-    public void testAlreadyReferenceCountedResponseIsNotWrappedAgain() {
+    public void testReferenceCountedPipelinedResponsePassesThrough() {
         final Netty4HttpResponse delegate = newResponse();
-        assertResponsePassesThrough(new Netty4HttpPipelinedResponse(new HttpPipelinedResponse(0, delegate)));
+        assertResponsePassesThrough(new Netty4HttpPipelinedResponse(0, delegate));
         assertEquals(0, delegate.refCnt());
     }
 
@@ -179,6 +184,21 @@ public class Netty4HttpChannelTests extends OpenSearchTestCase {
             assertSame(response, embedded.outboundMessages().peek());
         } finally {
             embedded.finishAndReleaseAll();
+        }
+    }
+
+    private HttpPipelinedResponse newPipelinedResponse(EmbeddedChannel embedded) {
+        final Netty4HttpRequest request = new Netty4HttpRequest(
+            new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/"),
+            HttpResponseHeadersFactories.newDefault()
+        );
+        try {
+            embedded.writeInbound(request);
+            final HttpPipelinedRequest pipelinedRequest = embedded.readInbound();
+            assertNotNull(pipelinedRequest);
+            return pipelinedRequest.createResponse(RestStatus.OK, new BytesArray("response"));
+        } finally {
+            request.release();
         }
     }
 
