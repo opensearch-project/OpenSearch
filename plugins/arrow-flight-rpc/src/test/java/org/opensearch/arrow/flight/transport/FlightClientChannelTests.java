@@ -44,6 +44,8 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -426,6 +428,47 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
             assertThat("the channels must share one deadline", elapsedMillis, lessThan(2 * timeoutMillis));
         } finally {
             releaseGetStream.countDown();
+            for (FlightClientChannel c : channels) {
+                c.close();
+            }
+        }
+    }
+
+    /**
+     * Correlation ids must be unique across channels, not only within one. Response headers are matched to
+     * their stream by correlation id, so this must hold even when channels share one header context.
+     */
+    public void testCorrelationIdsAreUniqueAcrossChannels() throws Exception {
+        final int numChannels = 3;
+        final int streamsPerChannel = 4;
+        Header header = mock(Header.class);
+        when(header.getHeaders()).thenReturn(new Tuple<>(Map.of(), Map.of()));
+        when(header.getVersion()).thenReturn(Version.CURRENT);
+        List<Long> correlationIds = Collections.synchronizedList(new ArrayList<>());
+        HeaderContext sharedContext = new HeaderContext() {
+            @Override
+            Header getHeader(long correlationId) {
+                correlationIds.add(correlationId);
+                return header;
+            }
+        };
+        List<FlightClientChannel> channels = new ArrayList<>();
+        try {
+            for (int i = 0; i < numChannels; i++) {
+                FlightClient client = mock(FlightClient.class);
+                FlightStream stream = mock(FlightStream.class);
+                when(stream.next()).thenReturn(true);
+                when(client.getStream(any(Ticket.class), any())).thenReturn(stream);
+                channels.add(createChannel(client, sharedContext, new FlightTransportConfig()));
+            }
+            for (int s = 0; s < streamsPerChannel; s++) {
+                for (FlightClientChannel c : channels) {
+                    sendStreamRequest(c, streamingHandler(ThreadPool.Names.GENERIC, streamResponse -> streamResponse.close()));
+                }
+            }
+            assertBusy(() -> assertEquals(numChannels * streamsPerChannel, correlationIds.size()));
+            assertEquals("correlation ids must not repeat: " + correlationIds, correlationIds.size(), new HashSet<>(correlationIds).size());
+        } finally {
             for (FlightClientChannel c : channels) {
                 c.close();
             }
