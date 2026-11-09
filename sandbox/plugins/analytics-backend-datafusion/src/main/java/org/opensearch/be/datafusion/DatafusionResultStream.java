@@ -30,6 +30,7 @@ import org.opensearch.core.action.ActionListener;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 import static org.apache.arrow.c.Data.importField;
@@ -47,20 +48,29 @@ public class DatafusionResultStream implements EngineResultStream, FragmentResou
 
     private final StreamHandle streamHandle;
     private final BufferAllocator allocator;
+    private final BufferAllocator stagingAllocator;
     private final CDataDictionaryProvider dictionaryProvider;
     private volatile BatchIterator iteratorInstance;
 
-    // Allocator is caller-owned; this stream imports into it but never closes it.
-    public DatafusionResultStream(StreamHandle streamHandle, BufferAllocator allocator) {
+    /**
+     * Both allocators are caller-owned; this stream imports onto them but never closes either.
+     *
+     * @param stagingAllocator node-scoped, unbounded allocator every batch of every stream is imported onto
+     *        (see {@link BatchIterator#importBatch}). MUST outlive this stream: the Flight transport builds
+     *        its reused stream root on the first batch's vector allocator and frees it asynchronously with
+     *        its own channel.
+     */
+    public DatafusionResultStream(StreamHandle streamHandle, BufferAllocator allocator, BufferAllocator stagingAllocator) {
         this.streamHandle = streamHandle;
         this.allocator = allocator;
+        this.stagingAllocator = Objects.requireNonNull(stagingAllocator, "stagingAllocator");
         this.dictionaryProvider = new CDataDictionaryProvider();
     }
 
     @Override
     public Iterator<EngineResultBatch> iterator() {
         if (iteratorInstance == null) {
-            iteratorInstance = new BatchIterator(streamHandle, allocator, dictionaryProvider);
+            iteratorInstance = new BatchIterator(streamHandle, allocator, stagingAllocator, dictionaryProvider);
         }
         return iteratorInstance;
     }
@@ -91,6 +101,18 @@ public class DatafusionResultStream implements EngineResultStream, FragmentResou
 
         private final StreamHandle streamHandle;
         private final BufferAllocator allocator;
+        /**
+         * Caller-owned, node-scoped, unbounded staging allocator every batch is imported onto (see
+         * {@link #importBatch}). Owned by {@code AnalyticsSearchService}, never by this stream: the Flight
+         * transport builds its reused stream root on {@code fieldVectors.getFirst().getAllocator()}, i.e. the
+         * FIRST batch's staging allocator ({@code FlightServerChannel#transferIntoStreamRoot}, whose comment
+         * states "The producer's allocator must be long-lived (not closed per-request)"), then charges that
+         * same allocator for every later batch via {@code BaseFixedWidthVector#transferTo} and frees the
+         * stream root asynchronously in its own {@code close()}. So this stream can neither close it at batch
+         * boundaries (the transport is still using it) nor at stream close (the transport's free may run
+         * after ours) — it does not own it at all.
+         */
+        private final BufferAllocator stagingAllocator;
         private final CDataDictionaryProvider dictionaryProvider;
         private Schema schema;
         private VectorSchemaRoot nextBatch;
@@ -98,9 +120,15 @@ public class DatafusionResultStream implements EngineResultStream, FragmentResou
         private boolean batchEmitted;
         private boolean nativeStreamExhausted;
 
-        BatchIterator(StreamHandle streamHandle, BufferAllocator allocator, CDataDictionaryProvider dictionaryProvider) {
+        BatchIterator(
+            StreamHandle streamHandle,
+            BufferAllocator allocator,
+            BufferAllocator stagingAllocator,
+            CDataDictionaryProvider dictionaryProvider
+        ) {
             this.streamHandle = streamHandle;
             this.allocator = allocator;
+            this.stagingAllocator = stagingAllocator;
             this.dictionaryProvider = dictionaryProvider;
         }
 
@@ -134,13 +162,77 @@ public class DatafusionResultStream implements EngineResultStream, FragmentResou
                 }
                 return false;
             }
-            VectorSchemaRoot freshRoot = VectorSchemaRoot.create(schema, allocator);
             try (ArrowArray arrowArray = ArrowArray.wrap(arrayAddr)) {
-                Data.importIntoVectorSchemaRoot(allocator, arrowArray, freshRoot, dictionaryProvider);
+                nextBatch = importBatch(arrowArray);
             }
-            nextBatch = freshRoot;
             batchEmitted = true;
             return true;
+        }
+
+        /**
+         * Imports one native batch across the Arrow C Data Interface onto the caller-supplied
+         * {@link #stagingAllocator} rather than directly into {@code allocator}.
+         *
+         * <p>{@link Data#importIntoVectorSchemaRoot} charges each buffer against the target allocator as it
+         * walks the array. Against a bounded target that fills part-way through a wide batch the import
+         * throws, and arrow-java's {@code ReferenceCountedArrowArray#unsafeAssociateAllocation} retains the
+         * imported array <em>before</em> the throwing {@code wrapForeignAllocation} without rolling back, so
+         * the C Data release callback never fires and the whole native batch leaks in the producer's native
+         * allocator — invisible to the JVM heap and the Java Arrow allocator (arrow-java &le; 18.1.0). The
+         * staging allocator is unbounded and parented at the root, so it can't OOM mid-array before the pool
+         * itself is exhausted and the release callback always fires.
+         *
+         * <p>The batch is returned as-is (zero-copy); its buffers are released by the existing consumer close
+         * paths, which drives the C Data reference count to zero. On import failure the partially-imported
+         * root is closed by {@link #importOntoStaging}; the allocator is untouched either way.
+         */
+        private VectorSchemaRoot importBatch(ArrowArray arrowArray) {
+            return importOntoStaging(stagingAllocator, schema, arrowArray, dictionaryProvider);
+        }
+
+        /** The caller-supplied staging allocator batches are imported onto. For tests. */
+        BufferAllocator stagingAllocator() {
+            return stagingAllocator;
+        }
+
+        /**
+         * Drives the exact production {@link #importBatch} path with an explicitly supplied schema, so the
+         * staging-allocator lifetime regression test can import several batches without a native stream.
+         * {@code schema} is normally set by {@link #ensureSchema()} from the native handle.
+         */
+        VectorSchemaRoot importBatchForTest(Schema batchSchema, ArrowArray arrowArray) {
+            this.schema = batchSchema;
+            return importBatch(arrowArray);
+        }
+
+        /**
+         * Imports {@code arrowArray} into a fresh {@link VectorSchemaRoot} on {@code staging}, which MUST be
+         * an unbounded child of the root so the import cannot OOM part-way through the array. On failure the
+         * returned root is closed (firing the native release for the whole batch) and the exception rethrown;
+         * the caller owns {@code staging}. Package-private so the leak regression test can drive the exact
+         * production import path.
+         */
+        static VectorSchemaRoot importOntoStaging(
+            BufferAllocator staging,
+            Schema schema,
+            ArrowArray arrowArray,
+            CDataDictionaryProvider dictionaryProvider
+        ) {
+            VectorSchemaRoot root = VectorSchemaRoot.create(schema, staging);
+            try {
+                Data.importIntoVectorSchemaRoot(staging, arrowArray, root, dictionaryProvider);
+            } catch (RuntimeException e) {
+                // Releasing a partially-imported root can itself throw (VectorSchemaRoot#close rethrows any
+                // RuntimeException from the vectors' release). Attach it rather than let it mask the import
+                // failure that is the real diagnosis.
+                try {
+                    root.close();
+                } catch (RuntimeException releaseFailure) {
+                    e.addSuppressed(releaseFailure);
+                }
+                throw e;
+            }
+            return root;
         }
 
         @Override

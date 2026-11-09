@@ -77,6 +77,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -231,9 +232,8 @@ public class MetadataCreateIndexService {
         createIndexTaskKey = clusterService.registerClusterManagerTask(CREATE_INDEX, true);
         Supplier<Version> minNodeVersionSupplier = () -> clusterService.state().nodes().getMinNodeVersion();
         remoteStoreCustomMetadataResolver = RemoteStoreNodeAttribute.isSegmentRepoConfigured(settings)
-            && RemoteStoreNodeAttribute.isTranslogRepoConfigured(settings)
-                ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
-                : null;
+            ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
+            : null;
     }
 
     public IndexScopedSettings getIndexScopedSettings() {
@@ -693,7 +693,7 @@ public class MetadataCreateIndexService {
             .getNodes()
             .values()
             .stream()
-            .filter(DiscoveryNode::isRemoteStoreNode)
+            .filter(DiscoveryNode::isRemoteSegmentStoreNode)
             .findFirst();
 
         String sseEnabledIndex = existingCustomData == null
@@ -953,112 +953,27 @@ public class MetadataCreateIndexService {
         List<CompressedXContent> templateMappings,
         NamedXContentRegistry xContentRegistry
     ) throws Exception {
-        // Step 1: Collect all mappings into a list
-        List<Map<String, Object>> allMappings = new ArrayList<>();
-
-        // Add template mappings first (lower priority)
+        Map<String, Object> mappings = MapperService.parseMapping(xContentRegistry, requestMappings);
+        // apply templates, merging the mappings into the request mapping if exists
         for (CompressedXContent mapping : templateMappings) {
             if (mapping != null) {
                 Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mapping.string());
-                if (!templateMapping.isEmpty()) {
-                    assert templateMapping.size() == 1 : "expected exactly one mapping value, got: " + templateMapping;
-                    // pre-8x templates may have a wrapper type other than _doc, so we re-wrap things here
-                    templateMapping = new HashMap<>(Map.of(MapperService.SINGLE_MAPPING_NAME, templateMapping.values().iterator().next()));
-                    allMappings.add(templateMapping);
+                if (templateMapping.isEmpty()) {
+                    // Someone provided an empty '{}' for mappings, which is okay, but to avoid
+                    // tripping the below assertion, we can safely ignore it
+                    continue;
                 }
-            }
-        }
-
-        // Add request mapping last (highest priority)
-        Map<String, Object> requestMapping = MapperService.parseMapping(xContentRegistry, requestMappings);
-        if (!requestMapping.isEmpty()) {
-            allMappings.add(requestMapping);
-        }
-
-        // Step 2: Apply shared disable_objects override logic (same as V2 templates)
-        applyDisableObjectsOverrides(allMappings);
-
-        // Step 3: Merge all mappings using field-aware replacement logic
-        // Process mappings in forward order, with special handling for request mappings
-        Map<String, Object> result = new HashMap<>();
-        boolean hasRequestMapping = !MapperService.parseMapping(xContentRegistry, requestMappings).isEmpty();
-
-        for (int i = 0; i < allMappings.size(); i++) {
-            Map<String, Object> mapping = allMappings.get(i);
-            boolean isRequestMapping = hasRequestMapping && (i == allMappings.size() - 1);
-
-            if (result.isEmpty()) {
-                result = new HashMap<>(mapping);
-            } else {
-                if (isRequestMapping) {
-                    // For request mappings: request wins over templates
-                    Map<String, Object> newMapping = new HashMap<>(mapping);
-                    mergeTemplateFieldMappings(newMapping, result);
-                    result = newMapping;
+                assert templateMapping.size() == 1 : "expected exactly one mapping value, got: " + templateMapping;
+                // pre-8x templates may have a wrapper type other than _doc, so we re-wrap things here
+                templateMapping = Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, templateMapping.values().iterator().next());
+                if (mappings.isEmpty()) {
+                    mappings = templateMapping;
                 } else {
-                    // For template mappings: accumulated result (higher priority) wins over current (lower priority)
-                    mergeTemplateFieldMappings(result, mapping);
+                    XContentHelper.mergeDefaults(mappings, templateMapping);
                 }
             }
         }
-
-        return result;
-    }
-
-    /**
-     * Merges template mappings with complete field definition replacement.
-     * Higher priority mappings completely override field definitions from lower priority mappings.
-     *
-     * @param target the target mapping to merge into (higher priority)
-     * @param source the source mapping to merge from (lower priority)
-     */
-    private static void mergeTemplateFieldMappings(Map<String, Object> target, Map<String, Object> source) {
-        for (Map.Entry<String, Object> sourceEntry : source.entrySet()) {
-            String key = sourceEntry.getKey();
-            Object sourceValue = sourceEntry.getValue();
-
-            if (!target.containsKey(key)) {
-                // Key doesn't exist in target, add it
-                target.put(key, sourceValue);
-            } else if (key.equals("properties") && sourceValue instanceof Map && target.get(key) instanceof Map) {
-                // Special handling for "properties" section - merge field definitions with replacement
-                @SuppressWarnings("unchecked")
-                Map<String, Object> targetProperties = (Map<String, Object>) target.get(key);
-                @SuppressWarnings("unchecked")
-                Map<String, Object> sourceProperties = (Map<String, Object>) sourceValue;
-                mergeFieldProperties(targetProperties, sourceProperties);
-            } else if (sourceValue instanceof Map && target.get(key) instanceof Map) {
-                // Recursively merge other Map objects (but not field definitions)
-                @SuppressWarnings("unchecked")
-                Map<String, Object> targetMap = (Map<String, Object>) target.get(key);
-                @SuppressWarnings("unchecked")
-                Map<String, Object> sourceMap = (Map<String, Object>) sourceValue;
-                mergeTemplateFieldMappings(targetMap, sourceMap);
-            }
-            // For non-Map values or when target already has the key, target value takes precedence (no override)
-        }
-    }
-
-    /**
-     * Merges field properties with complete field definition replacement.
-     * If a field exists in both maps, the target field definition completely replaces the source.
-     *
-     * @param targetProperties the target properties map (higher priority)
-     * @param sourceProperties the source properties map (lower priority)
-     */
-    private static void mergeFieldProperties(Map<String, Object> targetProperties, Map<String, Object> sourceProperties) {
-        for (Map.Entry<String, Object> sourceField : sourceProperties.entrySet()) {
-            String fieldName = sourceField.getKey();
-            Object sourceFieldDef = sourceField.getValue();
-
-            if (!targetProperties.containsKey(fieldName)) {
-                // Field doesn't exist in target, add it
-                targetProperties.put(fieldName, sourceFieldDef);
-            } else {
-                // If field exists in target, target takes precedence (higher priority template wins)
-                // This ensures complete field definition replacement rather than property merging
-            }
-        }
+        return mappings;
     }
 
     /**
@@ -1313,6 +1228,24 @@ public class MetadataCreateIndexService {
             // (multi-partition consumer factory). The check will be wired here once available.
         }
 
+        // Decoder settings validation. Both decoder_type and decoder_settings.* were introduced in V_3_8_0.
+        // Reject any explicit value (including the default "xcontent") on mixed clusters where some nodes
+        // do not recognise the setting key at all — they would fail to load the index metadata.
+        if (IndexMetadata.INGESTION_SOURCE_DECODER_TYPE_SETTING.exists(settings)
+            || IndexMetadata.INGESTION_SOURCE_DECODER_SETTINGS.exists(settings)) {
+            Version minNodeVersion = state.nodes().getMinNodeVersion();
+            if (minNodeVersion.before(Version.V_3_8_0)) {
+                throw new IllegalArgumentException(
+                    "index.ingestion_source.decoder_type and index.ingestion_source.decoder_settings require all nodes "
+                        + "in the cluster to be on version ["
+                        + Version.V_3_8_0
+                        + "] or later, but the minimum node version is ["
+                        + minNodeVersion
+                        + "]"
+                );
+            }
+        }
+
         if (IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING.exists(settings) == false) {
             return;
         }
@@ -1402,7 +1335,7 @@ public class MetadataCreateIndexService {
                 .getNodes()
                 .values()
                 .stream()
-                .filter(DiscoveryNode::isRemoteStoreNode)
+                .filter(DiscoveryNode::isRemoteSegmentStoreNode)
                 .findFirst();
 
             if (remoteNode.isPresent()) {
@@ -1430,6 +1363,62 @@ public class MetadataCreateIndexService {
                 }
             }
         }
+        updateRemoteStoreFencingSetting(settingsBuilder, clusterSettings, indexName);
+    }
+
+    /**
+     * Stamps the dynamic cluster-level fencing default ({@code cluster.remote_store.fencing.enabled}) into the final
+     * per-index setting at creation time, for remote-store-backed indices that do not set it explicitly. The index
+     * setting is final because the fence is the primary's write witness: toggling it on a live index would leave a
+     * window in which a stale primary is checked against neither the fence nor the replicas. Baking the cluster value
+     * in here means flipping the cluster setting only affects indices created afterwards.
+     */
+    private static void updateRemoteStoreFencingSetting(
+        Settings.Builder settingsBuilder,
+        ClusterSettings clusterSettings,
+        String indexName
+    ) {
+        final Settings current = settingsBuilder.build();
+        // Read raw: this helper also runs from snapshot restore's override-settings step, where the typed setting's
+        // validator would pre-empt the restore path's own SnapshotRestoreException.
+        final boolean remoteStoreEnabled = current.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
+        final String translogRepository = current.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
+        final boolean hasRemoteTranslogRepository = translogRepository != null && translogRepository.isEmpty() == false;
+
+        if (remoteStoreEnabled
+            && hasRemoteTranslogRepository == false
+            && current.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, false)) {
+            throw fencingRequiresRemoteTranslog(indexName);
+        }
+
+        // Stamping an explicit false would add metadata without changing semantics, since the index setting is final
+        // and an absent key already resolves to false forever.
+        if (remoteStoreEnabled
+            && hasRemoteTranslogRepository
+            && IndexMetadata.INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING.exists(current) == false
+            && clusterSettings.get(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED)) {
+            settingsBuilder.put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true);
+        }
+    }
+
+    /**
+     * The fence is a blob written by the translog upload, so an index that keeps its translog locally - which is how
+     * a {@code segments_only} index is configured - could never have one. Refused rather than ignored, because the
+     * flag is all {@code INDEX_REMOTE_STORE_AUTO_RESTORE_ENABLED_SETTING} checks before allowing a restore whose
+     * safety rests on the fence existing.
+     */
+    private static IndexCreationException fencingRequiresRemoteTranslog(String indexName) {
+        ValidationException validationException = new ValidationException();
+        validationException.addValidationErrors(
+            Collections.singletonList(
+                IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED
+                    + " requires a remote translog repository, because the fence is a blob in that"
+                    + " repository written by the translog upload, and this index keeps its translog"
+                    + " locally. When restoring a snapshot of a fencing-enabled index into such a cluster,"
+                    + " drop the setting with ignore_index_settings on the restore request"
+            )
+        );
+        return new IndexCreationException(indexName, validationException);
     }
 
     /**

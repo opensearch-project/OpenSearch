@@ -10,7 +10,6 @@ package org.opensearch.be.datafusion;
 
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.core.tasks.TaskId;
-import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
@@ -24,7 +23,7 @@ public class DatafusionContextCancellationTests extends OpenSearchTestCase {
         return new AnalyticsShardTask(1L, "type", "action", "desc", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
     }
 
-    private DatafusionContext createContext(Task task) {
+    private DatafusionContext createContext(AnalyticsShardTask task) {
         DatafusionReader reader = mock(DatafusionReader.class);
         when(reader.getReaderHandle()).thenReturn(null);
         return new DatafusionContext(task, reader, null);
@@ -45,12 +44,6 @@ public class DatafusionContextCancellationTests extends OpenSearchTestCase {
 
     public void testIsCancelledReturnsFalseWhenTaskIsNull() {
         DatafusionContext ctx = createContext(null);
-        assertFalse(ctx.isCancelled());
-    }
-
-    public void testIsCancelledReturnsFalseWhenTaskIsNotCancellable() {
-        Task plainTask = new Task(1L, "type", "action", "desc", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
-        DatafusionContext ctx = createContext(plainTask);
         assertFalse(ctx.isCancelled());
     }
 

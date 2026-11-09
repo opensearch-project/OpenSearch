@@ -40,6 +40,7 @@ import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Indexer;
+import org.opensearch.index.engine.exec.LiveDocsSource;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.Committer.CommitInput;
 import org.opensearch.index.engine.exec.commit.Committer.CommitResult;
@@ -206,7 +207,9 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             this.catalogSnapshotManager = catalogSnapshotManagerRef;
             this.internalRefreshListeners = new ArrayList<>(engineConfig.getInternalRefreshListener());
 
-            // Create and register stats cache as refresh listener
+            // Create and register stats cache as refresh listener. The reader managers are captured
+            // through a local because the field they are assigned to further down is still blank here.
+            final Map<DataFormat, EngineReaderManager<?>> statsReaderManagers = readerManagersRef;
             this.statsCache = new CatalogSnapshotStatsCache(catalogSnapshotManager, store, engineConfig, () -> {
                 try {
                     return committer.getLastCommittedData();
@@ -214,7 +217,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                     logger.warn("Failed to get last committed data for stats cache", e);
                     return Collections.emptyMap();
                 }
-            }, logger);
+            }, LiveDocsSource.docCountsResolver(statsReaderManagers.values()), logger);
             this.internalRefreshListeners.add(statsCache);
 
             final SequenceNumbers.CommitInfo seqNoInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
@@ -783,6 +786,23 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         long startTime = System.nanoTime();
         Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
         return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
+    }
+
+    @Override
+    public Engine.Delete prepareDelete(
+        String id,
+        String routing,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
+        long startTime = System.nanoTime();
+        Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm, routing);
     }
 
     @Override

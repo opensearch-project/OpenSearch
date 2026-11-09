@@ -34,6 +34,7 @@ package org.opensearch;
 
 import org.apache.commons.codec.DecoderException;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -113,6 +114,10 @@ public class ExceptionsHelperTests extends OpenSearchTestCase {
         assertThat(ExceptionsHelper.status(new InputCoercionException("illegal")), equalTo(RestStatus.BAD_REQUEST));
         assertThat(ExceptionsHelper.status(new JsonParseException("illegal")), equalTo(RestStatus.BAD_REQUEST));
         assertThat(ExceptionsHelper.status(new OpenSearchRejectedExecutionException("rejected")), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(ExceptionsHelper.status(new IndexSearcher.TooManyClauses()), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ExceptionsHelper.status(new IndexSearcher.TooManyNestedClauses()), equalTo(RestStatus.BAD_REQUEST));
+        // Sanity check: arbitrary RuntimeException still falls through to 500.
+        assertThat(ExceptionsHelper.status(new RuntimeException("boom")), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
     }
 
     public void testSummaryMessage() {

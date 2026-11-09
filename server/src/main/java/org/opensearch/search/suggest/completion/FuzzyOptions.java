@@ -43,6 +43,7 @@ import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.query.RegexpQueryBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -120,7 +121,32 @@ public class FuzzyOptions implements ToXContentFragment, Writeable {
         editDistance = in.readVInt();
         fuzzyMinLength = in.readVInt();
         fuzzyPrefixLength = in.readVInt();
-        maxDeterminizedStates = in.readVInt();
+        // Route through validation so the CVE-2026-63136 upper bound is enforced on the transport
+        // deserialization path too, not just REST/XContent. Protects a patched data node from an
+        // unbounded value sent by an unpatched coordinating node in a mixed-version cluster.
+        maxDeterminizedStates = validateMaxDeterminizedStates(in.readVInt());
+    }
+
+    /**
+     * Validates {@code max_determinized_states} against the shared ceiling and returns it. An
+     * unbounded value disables Lucene's determinize safeguard and lets a crafted expansion exhaust
+     * the heap before Lucene throws its own complexity exception. See CVE-2026-63136 and
+     * {@link RegexpQueryBuilder#MAX_DETERMINIZE_WORK_LIMIT}.
+     */
+    private static int validateMaxDeterminizedStates(int maxDeterminizedStates) {
+        if (maxDeterminizedStates < 0) {
+            throw new IllegalArgumentException("maxDeterminizedStates must not be negative");
+        }
+        if (maxDeterminizedStates > RegexpQueryBuilder.MAX_DETERMINIZE_WORK_LIMIT) {
+            throw new IllegalArgumentException(
+                "maxDeterminizedStates cannot exceed ["
+                    + RegexpQueryBuilder.MAX_DETERMINIZE_WORK_LIMIT
+                    + "] but was ["
+                    + maxDeterminizedStates
+                    + "]"
+            );
+        }
+        return maxDeterminizedStates;
     }
 
     @Override
@@ -293,10 +319,7 @@ public class FuzzyOptions implements ToXContentFragment, Writeable {
          * Sets the maximum automaton states allowed for the fuzzy expansion
          */
         public Builder setMaxDeterminizedStates(int maxDeterminizedStates) {
-            if (maxDeterminizedStates < 0) {
-                throw new IllegalArgumentException("maxDeterminizedStates must not be negative");
-            }
-            this.maxDeterminizedStates = maxDeterminizedStates;
+            this.maxDeterminizedStates = validateMaxDeterminizedStates(maxDeterminizedStates);
             return this;
         }
 

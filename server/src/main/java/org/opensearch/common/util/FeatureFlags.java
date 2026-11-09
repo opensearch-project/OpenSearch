@@ -140,6 +140,13 @@ public class FeatureFlags {
     );
 
     /**
+     * Gates the snapshot resilience optimizations (timeout budgets, circuit breaker, retry foundation).
+     * Default off for the first minor, flipped on in the next, removed one minor later.
+     */
+    public static final String SNAPSHOT_RESILIENCE = FEATURE_FLAG_PREFIX + "snapshot_resilience.enabled";
+    public static final Setting<Boolean> SNAPSHOT_RESILIENCE_SETTING = Setting.boolSetting(SNAPSHOT_RESILIENCE, false, Property.NodeScope);
+
+    /**
      * Underlying implementation for feature flags.
      * All settable feature flags are tracked here in FeatureFlagsImpl.featureFlags.
      * Contains all functionality across test and server use cases.
@@ -166,6 +173,7 @@ public class FeatureFlags {
                 put(CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING, CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
                 put(PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTING, PLUGGABLE_DATAFORMAT_EXPERIMENTAL_SETTING.getDefault(Settings.EMPTY));
                 put(SNAPSHOT_STRICT_VERSION_PARSING_SETTING, SNAPSHOT_STRICT_VERSION_PARSING_SETTING.getDefault(Settings.EMPTY));
+                put(SNAPSHOT_RESILIENCE_SETTING, SNAPSHOT_RESILIENCE_SETTING.getDefault(Settings.EMPTY));
             }
         };
 

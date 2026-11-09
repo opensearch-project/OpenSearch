@@ -13,6 +13,7 @@ import org.opensearch.gradle.util.GradleUtils
 
 apply plugin: 'opensearch.java-rest-test'
 apply plugin: 'opensearch.opensearchplugin'
+apply from: "$rootDir/gradle/sandbox-testclusters.gradle"
 
 configurations {
   bcFips
@@ -45,6 +46,7 @@ afterEvaluate {
       configurations.bcFips.resolve().each { jarFile ->
         extraJarFile jarFile
       }
+      installSandboxStack(delegate)
     }
   }
 }

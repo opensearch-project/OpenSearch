@@ -15,6 +15,8 @@ import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.InternalAggregation;
 
+import java.util.Map;
+
 /**
  * Translates a metric aggregation (AVG, SUM, MIN, MAX, etc.) to a Calcite AggregateCall,
  * and converts raw result values back to OpenSearch InternalAggregation for response building.
@@ -47,7 +49,9 @@ public interface MetricTranslator<T extends AggregationBuilder> extends Aggregat
      *
      * @param name the aggregation name
      * @param value the raw value (may be null)
+     * @param metadata the user-supplied {@code meta} map from the aggregation request, echoed
+     *        back verbatim in the response like classic search (may be null)
      * @return the corresponding InternalAggregation
      */
-    InternalAggregation toInternalAggregation(String name, Object value);
+    InternalAggregation toInternalAggregation(String name, Object value, Map<String, Object> metadata);
 }

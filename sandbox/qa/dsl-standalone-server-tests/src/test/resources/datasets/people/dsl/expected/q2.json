@@ -1,0 +1,8 @@
+{
+  "hits": {
+    "total": 1,
+    "sources": [
+      { "name": "alice", "age": 30, "score": 95.5, "city": "seattle", "description": "This is seattle city" }
+    ]
+  }
+}

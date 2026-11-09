@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -317,6 +318,44 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
             + reason;
         assert !(message == null && failure != null) : "provide a message if a failure exception is provided";
         assert !(delayed && reason != Reason.NODE_LEFT) : "shard can only be delayed if it is unassigned due to a node leaving";
+    }
+
+    /**
+     * The unassigned info for a copy that failed: {@link Reason#ALLOCATION_FAILED}, one more failed allocation than the
+     * copy had before, and the copy's node added to the nodes it has failed on.
+     *
+     * @param failedShard the copy as it is in the routing table being updated
+     * @param message     why it failed, which is recorded after the node it failed on
+     * @param failure     what it failed with, if anything
+     */
+    public static UnassignedInfo failedShard(
+        ShardRouting failedShard,
+        String message,
+        @Nullable Exception failure,
+        long unassignedTimeNanos,
+        long unassignedTimeMillis
+    ) {
+        UnassignedInfo previous = failedShard.unassignedInfo();
+        int failedAllocations = previous != null ? previous.getNumFailedAllocations() : 0;
+        final Set<String> failedNodeIds;
+        if (previous != null) {
+            failedNodeIds = new HashSet<>(previous.getFailedNodeIds().size() + 1);
+            failedNodeIds.addAll(previous.getFailedNodeIds());
+            failedNodeIds.add(failedShard.currentNodeId());
+        } else {
+            failedNodeIds = Collections.emptySet();
+        }
+        return new UnassignedInfo(
+            Reason.ALLOCATION_FAILED,
+            "failed shard on node [" + failedShard.currentNodeId() + "]: " + message,
+            failure,
+            failedAllocations + 1,
+            unassignedTimeNanos,
+            unassignedTimeMillis,
+            false,
+            AllocationStatus.NO_ATTEMPT,
+            failedNodeIds
+        );
     }
 
     public UnassignedInfo(StreamInput in) throws IOException {

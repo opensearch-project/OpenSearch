@@ -30,7 +30,7 @@ import java.util.List;
 public class PlanAlternativeSerializationTests extends OpenSearchTestCase {
 
     public void testRoundTripWithShardScanOnly() throws IOException {
-        List<InstructionNode> instructions = List.of(new ShardScanInstructionNode());
+        List<InstructionNode> instructions = List.of(new ShardScanInstructionNode(false, "logs-*"));
         FragmentExecutionRequest.PlanAlternative original = new FragmentExecutionRequest.PlanAlternative(
             "datafusion",
             new byte[] { 1, 2, 3 },
@@ -43,7 +43,21 @@ public class PlanAlternativeSerializationTests extends OpenSearchTestCase {
         assertArrayEquals(new byte[] { 1, 2, 3 }, deserialized.getFragmentBytes());
         assertEquals(1, deserialized.getInstructions().size());
         assertEquals(InstructionType.SETUP_SHARD_SCAN, deserialized.getInstructions().get(0).type());
+        // Logical table name survives the wire round-trip.
+        ShardScanInstructionNode scanNode = (ShardScanInstructionNode) deserialized.getInstructions().get(0);
+        assertEquals("logs-*", scanNode.getLogicalTableName());
         assertNull(deserialized.getDelegationDescriptor());
+    }
+
+    public void testRoundTripShardScanNullLogicalName() throws IOException {
+        List<InstructionNode> instructions = List.of(new ShardScanInstructionNode());
+        FragmentExecutionRequest.PlanAlternative deserialized = roundTrip(
+            new FragmentExecutionRequest.PlanAlternative("datafusion", new byte[] { 1 }, instructions)
+        );
+
+        ShardScanInstructionNode scanNode = (ShardScanInstructionNode) deserialized.getInstructions().get(0);
+        // Null logical name round-trips as null (data node falls back to the concrete shard name).
+        assertNull(scanNode.getLogicalTableName());
     }
 
     public void testRoundTripWithDelegation() throws IOException {
@@ -52,7 +66,12 @@ public class PlanAlternativeSerializationTests extends OpenSearchTestCase {
             new DelegatedExpression(2, "lucene", new byte[] { 30, 40 })
         );
         DelegationDescriptor descriptor = new DelegationDescriptor(FilterTreeShape.CONJUNCTIVE, 2, expressions);
-        ShardScanWithDelegationInstructionNode delegationNode = new ShardScanWithDelegationInstructionNode(FilterTreeShape.CONJUNCTIVE, 2);
+        ShardScanWithDelegationInstructionNode delegationNode = new ShardScanWithDelegationInstructionNode(
+            FilterTreeShape.CONJUNCTIVE,
+            2,
+            false,
+            "events"
+        );
         List<InstructionNode> instructions = List.of(delegationNode);
         FragmentExecutionRequest.PlanAlternative original = new FragmentExecutionRequest.PlanAlternative(
             "datafusion",
@@ -70,6 +89,7 @@ public class PlanAlternativeSerializationTests extends OpenSearchTestCase {
             .get(0);
         assertEquals(FilterTreeShape.CONJUNCTIVE, deserializedNode.getTreeShape());
         assertEquals(2, deserializedNode.getDelegatedPredicateCount());
+        assertEquals("events", deserializedNode.getLogicalTableName());
 
         DelegationDescriptor deserializedDescriptor = deserialized.getDelegationDescriptor();
         assertNotNull(deserializedDescriptor);
@@ -116,9 +136,9 @@ public class PlanAlternativeSerializationTests extends OpenSearchTestCase {
     }
 
     /**
-     * Whole-request round-trip. The registration table name is no longer carried on the request —
-     * the data node derives it from the Substrait fragment's NamedTable — so the wire form is just
-     * {queryId, stageId, shardId, planAlternatives}.
+     * Whole-request round-trip. The request itself carries no top-level table name —
+     * {queryId, stageId, shardId, planAlternatives} — because the logical registration name now
+     * travels on the shard-scan instruction node inside each plan alternative.
      */
     public void testRequestRoundTrip() throws IOException {
         org.opensearch.core.index.shard.ShardId shardId = new org.opensearch.core.index.shard.ShardId("bank_a", "uuid", 0);

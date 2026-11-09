@@ -32,9 +32,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit tests for {@link ShardTaskRunner}'s per-node admission queue behavior — verifies
- * tasks on the same node share a {@link PendingExecutions} queue while tasks on different
- * nodes get separate queues.
+ * Tests {@link ShardTaskRunner}'s per-node admission queues: tasks on the same node share one
+ * {@link PendingExecutions}, tasks on different nodes get separate ones, and the shared queue enforces
+ * the configured per-node concurrency limit.
  */
 public class ShardTaskRunnerTests extends OpenSearchTestCase {
 
@@ -65,10 +65,8 @@ public class ShardTaskRunnerTests extends OpenSearchTestCase {
     }
 
     /**
-     * The per-node admission queue is built from {@code maxConcurrentShardRequestsPerNode}, and that
-     * queue enforces the limit: with a value of 2, a third same-node task is held until a permit
-     * frees. Proves the configured setting value actually gates per-node concurrency (the behavioral
-     * permit enforcement of {@link PendingExecutions} is covered directly in PendingExecutionsTests).
+     * The queue is built from {@code maxConcurrentShardRequestsPerNode}: at a limit of 2, a third
+     * same-node task is held until a permit frees.
      */
     public void testRespectsConfiguredPerNodeConcurrencyLimit() {
         List<PendingExecutions> captured = new ArrayList<>();
@@ -77,15 +75,14 @@ public class ShardTaskRunnerTests extends OpenSearchTestCase {
         when(config.maxConcurrentShardRequestsPerNode()).thenReturn(2);
         when(config.parentTask()).thenReturn(mock(AnalyticsQueryTask.class));
 
-        // Real gating lives in the transport (it calls pending.tryRun). Emulate that here so the
-        // captured queue's permit count is actually exercised: run the work through pending.tryRun
-        // and hold the permit (never finish) so we can observe the limit.
+        // Gating lives in the transport's pending.tryRun call; emulate it here and hold the permit
+        // (never finish) so the limit is observable.
         AnalyticsSearchTransportService transport = mock(AnalyticsSearchTransportService.class);
         doAnswer(inv -> {
             PendingExecutions pending = inv.getArgument(4);
             pending.tryRun(() -> captured.add(pending)); // holds a permit; never finished
             return null;
-        }).when(transport).dispatchFragmentStreaming(any(), any(), any(), any(), any());
+        }).when(transport).dispatchFragmentStreaming(any(), any(), any(), any(), any(), any());
 
         Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder = t -> mock(FragmentExecutionRequest.class);
         ShardTaskRunner runner = new ShardTaskRunner(stage, config, transport, requestBuilder);
@@ -130,7 +127,7 @@ public class ShardTaskRunnerTests extends OpenSearchTestCase {
         doAnswer(inv -> {
             capturedQueues.add(inv.getArgument(4));  // 5th arg is PendingExecutions
             return null;
-        }).when(transport).dispatchFragmentStreaming(any(), any(), any(), any(), any());
+        }).when(transport).dispatchFragmentStreaming(any(), any(), any(), any(), any(), any());
 
         Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder = t -> mock(FragmentExecutionRequest.class);
         return new ShardTaskRunner(stage, config, transport, requestBuilder);

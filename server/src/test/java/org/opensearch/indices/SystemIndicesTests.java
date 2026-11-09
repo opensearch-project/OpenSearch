@@ -133,6 +133,11 @@ public class SystemIndicesTests extends OpenSearchTestCase {
         assertTrue(systemIndices.isSystemIndex(".tasks"));
         assertTrue(systemIndices.isSystemIndex(".tasks1"));
         assertTrue(systemIndices.isSystemIndex(".tasks-old"));
+        assertTrue(
+            SystemIndexRegistry.matchesSystemIndexDescriptor(Set.of(".tasks"))
+                .stream()
+                .anyMatch(UnrestrictedSystemIndexDescriptor.class::isInstance)
+        );
     }
 
     public void testPluginCannotOverrideBuiltInSystemIndex() {

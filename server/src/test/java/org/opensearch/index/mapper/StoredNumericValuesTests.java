@@ -225,7 +225,7 @@ public class StoredNumericValuesTests extends OpenSearchSingleNodeTestCase {
         assertArrayEquals(fieldsVisitor.includes(), includes);
         assertArrayEquals(fieldsVisitor.excludes(), excludes);
 
-        FieldsVisitor fieldsVisitor1 = new FieldsVisitor(false, includes, excludes);
+        FieldsVisitor fieldsVisitor1 = new FieldsVisitor(false, includes, excludes, null);
         assertArrayEquals(fieldsVisitor1.includes(), includes);
         assertArrayEquals(fieldsVisitor1.excludes(), excludes);
 

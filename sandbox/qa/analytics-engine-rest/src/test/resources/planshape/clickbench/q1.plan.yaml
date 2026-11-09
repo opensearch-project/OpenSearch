@@ -8,7 +8,7 @@ plans:
     post_cbo: |
       OpenSearchProject(count()=[CAST($0):BIGINT NOT NULL], viableBackends=[[lucene, datafusion]])
         OpenSearchAggregate(group=[{}], count()=[SUM($0)], mode=[FINAL], viableBackends=[[lucene, datafusion]])
-          OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+          OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
             OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[lucene, datafusion]])
               OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
     fragment: |
@@ -18,7 +18,7 @@ plans:
       [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
       OpenSearchProject(count()=[CAST($0):BIGINT NOT NULL], viableBackends=[[lucene, datafusion]])
         OpenSearchAggregate(group=[{}], count()=[SUM($0)], mode=[FINAL], viableBackends=[[lucene, datafusion]])
-          OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+          OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
             OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
     coord_physical: |
       ProjectionExec: expr=[sum(input-0.count())@0 as count()]

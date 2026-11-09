@@ -11,6 +11,7 @@ package org.opensearch.index.engine.dataformat;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.Optional;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -105,9 +106,15 @@ public class RowIdAwareWriterTests extends OpenSearchTestCase {
     @SuppressWarnings("unchecked")
     public void testGetWriterForFormatDelegates() {
         Writer<DocumentInput<?>> delegate = mock(Writer.class);
+        Writer<DocumentInput<?>> formatWriter = mock(Writer.class);
+        when(delegate.getWriterForFormat("test")).thenReturn(Optional.<Writer<?>>of(formatWriter));
         RowIdAwareWriter<DocumentInput<?>> writer = new RowIdAwareWriter<>(delegate);
-        // Default implementation returns empty
-        assertFalse(writer.getWriterForFormat("test").isPresent());
+
+        // The decorator must hand out the wrapped writer's per-format delegate, not answer empty:
+        // every pooled writer is wrapped in one, so answering empty would silently disable the
+        // delete engine's Lucene lookup.
+        assertSame(formatWriter, writer.getWriterForFormat("test").orElse(null));
+        assertFalse(writer.getWriterForFormat("other").isPresent());
     }
 
     @SuppressWarnings("unchecked")

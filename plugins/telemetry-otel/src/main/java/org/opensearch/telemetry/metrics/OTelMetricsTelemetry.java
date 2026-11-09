@@ -9,14 +9,13 @@
 package org.opensearch.telemetry.metrics;
 
 import org.opensearch.common.concurrent.RefCountedReleasable;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.telemetry.OTelAttributesConverter;
 import org.opensearch.telemetry.OTelTelemetryPlugin;
 import org.opensearch.telemetry.metrics.tags.Tags;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.function.Supplier;
 
 import io.opentelemetry.api.metrics.DoubleCounter;
@@ -47,55 +46,43 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
         this.otelMeter = meterProvider.get(OTelTelemetryPlugin.INSTRUMENTATION_SCOPE_NAME);
     }
 
-    @SuppressWarnings("removal")
     @Override
     public Counter createCounter(String name, String description, String unit) {
         DoubleCounter doubleCounter = AccessController.doPrivileged(
-            (PrivilegedAction<DoubleCounter>) () -> otelMeter.counterBuilder(name)
-                .setUnit(unit)
-                .setDescription(description)
-                .ofDoubles()
-                .build()
+            () -> otelMeter.counterBuilder(name).setUnit(unit).setDescription(description).ofDoubles().build()
         );
         return new OTelCounter(doubleCounter);
     }
 
-    @SuppressWarnings("removal")
     @Override
     public Counter createUpDownCounter(String name, String description, String unit) {
         DoubleUpDownCounter doubleUpDownCounter = AccessController.doPrivileged(
-            (PrivilegedAction<DoubleUpDownCounter>) () -> otelMeter.upDownCounterBuilder(name)
-                .setUnit(unit)
-                .setDescription(description)
-                .ofDoubles()
-                .build()
+            () -> otelMeter.upDownCounterBuilder(name).setUnit(unit).setDescription(description).ofDoubles().build()
         );
         return new OTelUpDownCounter(doubleUpDownCounter);
     }
 
     /**
-     * Creates the Otel Histogram. In {@link org.opensearch.telemetry.tracing.OTelResourceProvider}
-     * we can configure the bucketing/aggregation strategy through view. Default startegy configured
-     * is the {@link io.opentelemetry.sdk.metrics.internal.view.Base2ExponentialHistogramAggregation}.
+     * Creates the Otel Histogram. The bucketing/aggregation strategy is selected by the
+     * {@code telemetry.otel.metrics.histogram.aggregation.default} setting and defaults to
+     * {@code base2_exponential_bucket_histogram}.
      * @param name        name of the histogram.
      * @param description any description about the metric.
      * @param unit        unit of the metric.
      * @return histogram
      */
-    @SuppressWarnings("removal")
     @Override
     public Histogram createHistogram(String name, String description, String unit) {
         DoubleHistogram doubleHistogram = AccessController.doPrivileged(
-            (PrivilegedAction<DoubleHistogram>) () -> otelMeter.histogramBuilder(name).setUnit(unit).setDescription(description).build()
+            () -> otelMeter.histogramBuilder(name).setUnit(unit).setDescription(description).build()
         );
         return new OTelHistogram(doubleHistogram);
     }
 
-    @SuppressWarnings("removal")
     @Override
     public Closeable createGauge(String name, String description, String unit, Supplier<Double> valueProvider, Tags tags) {
         ObservableDoubleGauge doubleObservableGauge = AccessController.doPrivileged(
-            (PrivilegedAction<ObservableDoubleGauge>) () -> otelMeter.gaugeBuilder(name)
+            () -> otelMeter.gaugeBuilder(name)
                 .setUnit(unit)
                 .setDescription(description)
                 .buildWithCallback(record -> record.record(valueProvider.get(), OTelAttributesConverter.convert(tags)))
@@ -103,11 +90,10 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
         return () -> doubleObservableGauge.close();
     }
 
-    @SuppressWarnings("removal")
     @Override
     public Closeable createGauge(String name, String description, String unit, Supplier<TaggedMeasurement> value) {
         ObservableDoubleGauge doubleObservableGauge = AccessController.doPrivileged(
-            (PrivilegedAction<ObservableDoubleGauge>) () -> otelMeter.gaugeBuilder(name)
+            () -> otelMeter.gaugeBuilder(name)
                 .setUnit(unit)
                 .setDescription(description)
                 .buildWithCallback(record -> record.record(value.get().getValue(), OTelAttributesConverter.convert(value.get().getTags())))

@@ -17,6 +17,12 @@ pluginManagement {
         excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
       }
     }
+    maven {
+      url = uri("https://ci.opensearch.org/m2/")
+      content {
+        excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
+      }
+    }
     gradlePluginPortal {
       content {
         excludeGroupByRegex "adoptium.*|adoptopenjdk.*|openjdk.*"
@@ -48,21 +54,18 @@ List projects = [
   'build-tools:reaper',
   'rest-api-spec',
   'docs',
+  'formal-models',
   'client:rest',
   'client:rest-http-client',
   'client:rest-high-level',
   'client:sniffer',
   'client:test',
-  'client:client-benchmark-noop-api-plugin',
-  'client:benchmark',
   'benchmarks',
   'distribution:archives:integ-test-zip',
   'distribution:archives:windows-zip',
   'distribution:archives:no-jdk-windows-zip',
-  'distribution:archives:darwin-tar',
   'distribution:archives:darwin-arm64-tar',
   'distribution:archives:no-jdk-darwin-arm64-tar',
-  'distribution:archives:no-jdk-darwin-tar',
   'distribution:archives:freebsd-tar',
   'distribution:archives:no-jdk-freebsd-tar',
   'distribution:archives:linux-arm64-tar',

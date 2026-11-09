@@ -197,5 +197,6 @@ public interface SearchPipelinePlugin {
          * The parsed search request sent by users
          */
         public static final String SEARCH_REQUEST = "search_request";
+        public static final String PARENT_ACTION = "parent_action";
     }
 }

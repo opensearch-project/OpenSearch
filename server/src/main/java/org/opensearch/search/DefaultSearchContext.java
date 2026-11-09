@@ -39,6 +39,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -492,7 +493,18 @@ final class DefaultSearchContext extends SearchContext {
             for (Query filter : filters) {
                 builder.add(filter, Occur.FILTER);
             }
-            return builder.build();
+            BooleanQuery filtered = builder.build();
+            // If the main query is already a ConstantScoreQuery, the caller has explicitly opted out of
+            // scoring. Adding the filters above nests that ConstantScoreQuery inside a scoring BooleanQuery,
+            // which defeats Lucene's COMPLETE_NO_SCORES fast path (the MUST clause's scorer is still set up
+            // over the whole postings list). Wrapping the filtered result back in a ConstantScoreQuery keeps
+            // the outermost query non-scoring, so the fast path is preserved end-to-end. This matters for
+            // access-control filters (e.g. document-level security composed with a filtered alias), where the
+            // combined query would otherwise be scored despite the caller having requested constant scoring.
+            if (query instanceof ConstantScoreQuery) {
+                return new ConstantScoreQuery(filtered);
+            }
+            return filtered;
         }
     }
 

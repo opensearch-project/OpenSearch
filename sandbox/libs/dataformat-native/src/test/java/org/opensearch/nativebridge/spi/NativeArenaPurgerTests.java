@@ -21,11 +21,12 @@ import org.opensearch.test.OpenSearchTestCase;
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class NativeArenaPurgerTests extends OpenSearchTestCase {
 
+    private static final long INTERVAL_MS = 50;
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        // Start with threshold=0 (always purge) and short interval for fast test feedback
-        NativeArenaPurger.init(0, 200);
+        NativeArenaPurger.init(0, INTERVAL_MS);
     }
 
     @Override
@@ -36,25 +37,24 @@ public class NativeArenaPurgerTests extends OpenSearchTestCase {
 
     public void testPurgeDisabledWhenIntervalIsZero() throws Exception {
         NativeArenaPurger.setCheckIntervalMs(0);
-        // Wait for the current sleep cycle to complete + 1s buffer for the thread to see interval=0
-        Thread.sleep(500);
-
-        long before = NativeArenaPurger.getPurgeCount();
-        Thread.sleep(500);
-        assertEquals("No purges should fire when interval=0", before, NativeArenaPurger.getPurgeCount());
+        assertBusy(() -> {
+            long countBefore = NativeArenaPurger.getPurgeCount();
+            Thread.sleep(INTERVAL_MS * 3);
+            assertEquals("No purges should fire when interval=0", countBefore, NativeArenaPurger.getPurgeCount());
+        });
     }
 
     public void testPurgeFiresPeriodically() throws Exception {
-        long before = NativeArenaPurger.getPurgeCount();
-        Thread.sleep(500);
-        assertTrue("Purge should have fired at least once", NativeArenaPurger.getPurgeCount() > before);
+        long countBefore = NativeArenaPurger.getPurgeCount();
+        assertBusy(() -> assertTrue("Purge should have fired at least once", NativeArenaPurger.getPurgeCount() > countBefore));
     }
 
     public void testPurgeOnlyFiresAboveThreshold() throws Exception {
-        // Set threshold very high — purge should never fire
         NativeArenaPurger.setThresholdBytes(Long.MAX_VALUE);
-        long before = NativeArenaPurger.getPurgeCount();
-        Thread.sleep(500);
-        assertEquals("Purge should not fire when below threshold", before, NativeArenaPurger.getPurgeCount());
+        assertBusy(() -> {
+            long countBefore = NativeArenaPurger.getPurgeCount();
+            Thread.sleep(INTERVAL_MS * 3);
+            assertEquals("Purge should not fire when below threshold", countBefore, NativeArenaPurger.getPurgeCount());
+        });
     }
 }

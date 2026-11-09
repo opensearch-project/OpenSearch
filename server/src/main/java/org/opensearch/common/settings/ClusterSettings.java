@@ -128,6 +128,7 @@ import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 import org.opensearch.indices.ClusterMergeSchedulerConfig;
 import org.opensearch.indices.IndexingMemoryController;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.IndicesService;
@@ -143,6 +144,7 @@ import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.fs.FsHealthService;
 import org.opensearch.monitor.fs.FsService;
+import org.opensearch.monitor.jvm.HotThreads;
 import org.opensearch.monitor.jvm.JvmGcMonitorService;
 import org.opensearch.monitor.jvm.JvmService;
 import org.opensearch.monitor.memory.NativeMemoryService;
@@ -286,6 +288,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 BalancedShardsAllocator.PRIMARY_SHARD_REBALANCE_BUFFER,
                 BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE,
                 BalancedShardsAllocator.PREFER_PRIMARY_SHARD_REBALANCE,
+                BalancedShardsAllocator.CLUSTER_ALLOCATION_FILTER_AWARE_BALANCE,
                 BalancedShardsAllocator.SHARD_MOVE_PRIMARY_FIRST_SETTING,
                 BalancedShardsAllocator.SHARD_MOVEMENT_STRATEGY_SETTING,
                 BalancedShardsAllocator.THRESHOLD_SETTING,
@@ -310,12 +313,14 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 FsRepository.REPOSITORIES_CHUNK_SIZE_SETTING,
                 FsRepository.REPOSITORIES_COMPRESS_SETTING,
                 FsRepository.REPOSITORIES_LOCATION_SETTING,
+                IndicesBitsetFilterCache.INDICES_BITSET_FILTER_CACHE_SIZE_SETTING,
                 IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
                 IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
                 IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,
                 IndicesQueryCache.INDICES_QUERIES_CACHE_SKIP_CACHE_FACTOR,
                 IndicesQueryCache.INDICES_QUERY_CACHE_MIN_FREQUENCY,
                 IndicesQueryCache.INDICES_QUERY_CACHE_COSTLY_MIN_FREQUENCY,
+                IndicesQueryCache.INDICES_QUERIES_CACHE_ENABLED_SETTING,
                 ClusterMergeSchedulerConfig.CLUSTER_MAX_THREAD_COUNT_SETTING,
                 ClusterMergeSchedulerConfig.CLUSTER_MAX_MERGE_COUNT_SETTING,
                 ClusterMergeSchedulerConfig.CLUSTER_AUTO_THROTTLE_SETTING,
@@ -342,6 +347,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING,
                 RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING,
                 RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING,
+                RecoverySettings.INDICES_PRIMARY_RESYNC_TIMEOUT_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,
                 RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
@@ -351,6 +357,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING,
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING,
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING,
+                RecoverySettings.INDICES_RECOVERY_REMOTE_STORE_PARALLEL_DOWNLOAD_PART_SIZE_SETTING,
+                RecoverySettings.INDICES_RECOVERY_REMOTE_STORE_PARALLEL_DOWNLOAD_MAX_CONCURRENT_PARTS_SETTING,
                 RecoverySettings.INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT,
                 RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING,
                 RecoverySettings.INDICES_TRANSLOG_CONCURRENT_RECOVERY_ENABLE,
@@ -367,6 +375,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_WARM_DISK_THRESHOLD_ENABLED_SETTING,
                 DiskThresholdSettings.CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE,
+                DiskThresholdSettings.INDEX_READ_BLOCK_AUTO_RELEASE,
+                DiskThresholdSettings.INDEX_READ_BLOCK_AUTO_RELEASE_EXCLUDE_PATTERNS,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
                 FileCacheThresholdSettings.CLUSTER_FILECACHE_ACTIVEUSAGE_THRESHOLD_ENABLED_SETTING,
@@ -564,6 +574,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING,
                 IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING,
                 IndicesRequestCache.INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING,
+                IndicesRequestCache.INDICES_REQUEST_CACHE_ENABLED_SETTING,
                 HunspellService.HUNSPELL_LAZY_LOAD,
                 HunspellService.HUNSPELL_IGNORE_CASE,
                 HunspellService.HUNSPELL_DICTIONARY_OPTIONS,
@@ -602,6 +613,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING,
                 SearchService.SEARCH_MAX_QUERY_STRING_LENGTH,
                 SearchService.SEARCH_MAX_QUERY_STRING_LENGTH_MONITOR_ONLY,
+                SearchService.SEARCH_MAX_QUERY_NESTING_DEPTH,
                 SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD,
                 SearchService.TERMS_AGGREGATION_MAX_PRECOMPUTE_CARDINALITY,
                 CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_ENABLED,
@@ -636,6 +648,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 JvmGcMonitorService.GC_OVERHEAD_WARN_SETTING,
                 JvmGcMonitorService.GC_OVERHEAD_INFO_SETTING,
                 JvmGcMonitorService.GC_OVERHEAD_DEBUG_SETTING,
+                HotThreads.MAX_HOT_THREADS_SNAPSHOTS_SETTING,
                 PageCacheRecycler.LIMIT_HEAP_SETTING,
                 PageCacheRecycler.WEIGHT_BYTES_SETTING,
                 PageCacheRecycler.WEIGHT_INT_SETTING,
@@ -701,6 +714,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
                 SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING,
                 SnapshotsService.MAX_SHARDS_ALLOWED_IN_STATUS_API,
+                SnapshotsService.SNAPSHOT_REPOSITORY_IO_TIMEOUT_SETTING,
+                SnapshotsService.SNAPSHOT_REPOSITORY_MAX_OUTSTANDING_OPS_SETTING,
+                SnapshotsService.SNAPSHOT_DELETE_CLEANUP_STALE_BLOBS_SETTING,
+                SnapshotsService.SNAPSHOT_CLEANUP_RETRIES_SETTING,
+                SnapshotsService.SNAPSHOT_CLEANUP_RETRY_BACKOFF_SETTING,
                 FsHealthService.ENABLED_SETTING,
                 FsHealthService.REFRESH_INTERVAL_SETTING,
                 FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
@@ -736,7 +754,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 NodeDuressSettings.SETTING_NUM_SUCCESSIVE_BREACHES,
                 NodeDuressSettings.SETTING_CPU_THRESHOLD,
                 NodeDuressSettings.SETTING_HEAP_THRESHOLD,
-                NodeDuressSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING,
+                NodeDuressSettings.SETTING_NATIVE_MEMORY_LIMIT_LEGACY,
                 NodeDuressSettings.SETTING_NATIVE_MEMORY_THRESHOLD,
                 SearchTaskSettings.SETTING_CANCELLATION_RATIO,
                 SearchTaskSettings.SETTING_CANCELLATION_RATE,
@@ -867,6 +885,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX,
+                RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED,
+                RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_ENABLED,
+                RemoteStoreSettings.CLUSTER_REMOTE_STORE_FLUSH_ON_UNCOMMITTED_SEGMENTS_THRESHOLD_SIZE,
                 // Server Side encryption enabled
                 RemoteStoreSettings.CLUSTER_SERVER_SIDE_ENCRYPTION_ENABLED,
 
@@ -944,7 +965,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         )
     );
 
-    public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
+    public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(
+        Collections.singletonList(NodeDuressSettings.NATIVE_MEMORY_LIMIT_UPGRADER)
+    );
 
     /**
      * Map of feature flag name to feature-flagged cluster settings. Once each feature

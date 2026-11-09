@@ -58,9 +58,9 @@ public class JoinPlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchTableScan(table=[[left_idx]], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchTableScan(table=[[right_idx]], viableBackends=[[mock-parquet]])
                 """,
             result
@@ -74,9 +74,9 @@ public class JoinPlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchTableScan(table=[[left_idx]], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchTableScan(table=[[right_idx]], viableBackends=[[mock-parquet]])
                 """,
             result
@@ -92,9 +92,9 @@ public class JoinPlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchTableScan(table=[[left_idx]], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchTableScan(table=[[right_idx]], viableBackends=[[mock-parquet]])
                 """,
             result
@@ -109,9 +109,9 @@ public class JoinPlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchTableScan(table=[[left_idx]], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchTableScan(table=[[right_idx]], viableBackends=[[mock-parquet]])
                 """,
             result
@@ -148,9 +148,9 @@ public class JoinPlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchJoin(condition=[true], joinType=[inner], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchTableScan(table=[[left_idx]], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchTableScan(table=[[right_idx]], viableBackends=[[mock-parquet]])
                 """,
             result
@@ -164,9 +164,9 @@ public class JoinPlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchJoin(condition=[=($0, $2)], joinType=[__JOIN_TYPE__], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchTableScan(table=[[left_idx]], viableBackends=[[mock-parquet]])
-                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                     OpenSearchTableScan(table=[[right_idx]], viableBackends=[[mock-parquet]])
                 """
                 .replace("__JOIN_TYPE__", label),

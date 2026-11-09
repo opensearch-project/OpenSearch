@@ -76,14 +76,105 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
         // This request doesn't specify a pipeline, it doesn't get transformed.
         SearchRequest request = new SearchRequest("my-index").source(sourceBuilder);
         PipelinedRequest pipelinedRequest = syncTransformRequest(
-            searchPipelineService.resolvePipeline(request, indexNameExpressionResolver)
+            searchPipelineService.resolvePipeline(request, null, indexNameExpressionResolver)
         );
         assertEquals(size, pipelinedRequest.source().size());
 
         // Specify the pipeline and use it to transform the request
         request = new SearchRequest("my-index").source(sourceBuilder).pipeline("p1");
-        pipelinedRequest = syncTransformRequest(searchPipelineService.resolvePipeline(request, indexNameExpressionResolver));
+        pipelinedRequest = syncTransformRequest(searchPipelineService.resolvePipeline(request, null, indexNameExpressionResolver));
         assertEquals(2 * size, pipelinedRequest.source().size());
+    }
+
+    /**
+     * The resolved {@link PipelinedRequest} must carry the named pipeline id forward: it wraps the request through the
+     * {@link SearchRequest} copy constructor, which does not copy the pipeline id, so the id is set explicitly in the
+     * PipelinedRequest constructor. Otherwise {@code pipeline()} would read null on the resolved request even though it
+     * is the request the pipeline was resolved for, and consumers reading the id later in the request lifecycle (e.g.
+     * during coordinator query rewrite) would not see it.
+     *
+     * <p>Also covers the {@code _none} and unset (null) cases: an explicit {@code _none} id is carried forward
+     * verbatim, and when no pipeline is requested {@code pipeline()} stays null while the resolved pipeline is the
+     * no-op pipeline.
+     */
+    public void testResolvedRequestRetainsNamedPipelineId() throws Exception {
+        SearchPipelineService searchPipelineService = createWithProcessors();
+        SearchPipelineMetadata metadata = new SearchPipelineMetadata(
+            Map.of(
+                "p1",
+                new PipelineConfiguration(
+                    "p1",
+                    new BytesArray("{\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : 2 } } ] }"),
+                    MediaTypeRegistry.JSON
+                )
+            )
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousState = clusterState;
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .putCustom(SearchPipelineMetadata.TYPE, metadata)
+            .put(indexBuilder("my-index").putAlias(AliasMetadata.builder("barbaz")));
+        clusterState = ClusterState.builder(clusterState).metadata(mdBuilder).build();
+        searchPipelineService.applyClusterState(new ClusterChangedEvent("", clusterState, previousState));
+
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(new TermQueryBuilder("foo", "bar")).size(10);
+
+        // Named pipeline: id is carried forward onto the resolved request.
+        SearchRequest request = new SearchRequest("my-index").source(sourceBuilder).pipeline("p1");
+        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(request, null, indexNameExpressionResolver);
+        assertEquals("p1", pipelinedRequest.pipeline());
+
+        // Explicit _none: the sentinel id is carried forward verbatim, and resolves to the no-op pipeline.
+        SearchRequest noneRequest = new SearchRequest("my-index").source(sourceBuilder).pipeline(SearchPipelineService.NOOP_PIPELINE_ID);
+        PipelinedRequest resolvedNone = searchPipelineService.resolvePipeline(noneRequest, null, indexNameExpressionResolver);
+        assertEquals(SearchPipelineService.NOOP_PIPELINE_ID, resolvedNone.pipeline());
+        assertEquals(SearchPipelineService.NOOP_PIPELINE_ID, resolvedNone.getPipeline().getId());
+
+        // No pipeline requested: pipeline() stays null (nothing to carry forward), but the request still resolves to
+        // the no-op pipeline.
+        SearchRequest noPipelineRequest = new SearchRequest("my-index").source(sourceBuilder);
+        PipelinedRequest resolvedDefault = searchPipelineService.resolvePipeline(noPipelineRequest, null, indexNameExpressionResolver);
+        assertNull(resolvedDefault.pipeline());
+        assertEquals(SearchPipelineService.NOOP_PIPELINE_ID, resolvedDefault.getPipeline().getId());
+    }
+
+    /**
+     * The re-wrapping constructor {@code PipelinedRequest(SearchRequest, PipelinedRequest)} reuses the original
+     * request's resolved pipeline, context, and system-generated holder. It must likewise carry the original's pipeline
+     * id forward (the {@link SearchRequest} copy constructor invoked by {@code super(...)} does not), so the re-wrapped
+     * request reports the pipeline it is actually using rather than the transformed request's id.
+     */
+    public void testReWrappedRequestRetainsOriginalPipelineId() throws Exception {
+        SearchPipelineService searchPipelineService = createWithProcessors();
+        SearchPipelineMetadata metadata = new SearchPipelineMetadata(
+            Map.of(
+                "p1",
+                new PipelineConfiguration(
+                    "p1",
+                    new BytesArray("{\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : 2 } } ] }"),
+                    MediaTypeRegistry.JSON
+                )
+            )
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousState = clusterState;
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .putCustom(SearchPipelineMetadata.TYPE, metadata)
+            .put(indexBuilder("my-index").putAlias(AliasMetadata.builder("barbaz")));
+        clusterState = ClusterState.builder(clusterState).metadata(mdBuilder).build();
+        searchPipelineService.applyClusterState(new ClusterChangedEvent("", clusterState, previousState));
+
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(new TermQueryBuilder("foo", "bar")).size(10);
+        SearchRequest request = new SearchRequest("my-index").source(sourceBuilder).pipeline("p1");
+        PipelinedRequest original = searchPipelineService.resolvePipeline(request, null, indexNameExpressionResolver);
+
+        // The transformed request deliberately carries a different id; the re-wrapped request must report the
+        // original's pipeline (the one it actually reuses), not the transformed request's id.
+        SearchRequest transformed = new SearchRequest("my-index").source(sourceBuilder).pipeline("some-other-id");
+        PipelinedRequest reWrapped = new PipelinedRequest(transformed, original);
+
+        assertEquals("p1", reWrapped.pipeline());
+        assertSame(original.getPipeline(), reWrapped.getPipeline());
     }
 
     public void testTransformRequestWithSystemGeneratedPipeline() throws Exception {
@@ -92,7 +183,7 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
         enabledAllSystemGeneratedFactories(service);
 
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));
-        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
         pipelinedRequest.transformRequest(new ActionListener<SearchRequest>() {
             @Override
             public void onResponse(SearchRequest searchRequest) {
@@ -137,14 +228,14 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
         // First try without specifying a pipeline, which should be a no-op.
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(createDefaultSearchSourceBuilder());
-        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
         SearchResponse notTransformedResponse = syncTransformResponse(pipelinedRequest, searchResponse);
         assertSame(searchResponse, notTransformedResponse);
 
         // Now apply a pipeline
         searchRequest = new SearchRequest().pipeline("p1");
         searchRequest.source(createDefaultSearchSourceBuilder());
-        pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
         SearchResponse transformedResponse = syncTransformResponse(pipelinedRequest, searchResponse);
         assertEquals(size, transformedResponse.getHits().getHits().length);
         for (int i = 0; i < size; i++) {
@@ -158,7 +249,7 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
         enabledAllSystemGeneratedFactories(service);
         int size = 10;
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(size));
-        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
 
         ActionListener<SearchResponse> listener = pipelinedRequest.transformResponseListener(new ActionListener<SearchResponse>() {
 
@@ -224,7 +315,7 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
         // First try without specifying a pipeline, which should be a no-op.
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(createDefaultSearchSourceBuilder());
-        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        PipelinedRequest pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
         AtomicArray<SearchPhaseResult> notTransformedSearchPhaseResults = searchPhaseResults.getAtomicArray();
         pipelinedRequest.transformSearchPhaseResults(
             searchPhaseResults,
@@ -237,7 +328,7 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
         // Now set the pipeline as p1
         searchRequest = new SearchRequest().pipeline("p1");
         searchRequest.source(createDefaultSearchSourceBuilder());
-        pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
 
         pipelinedRequest.transformSearchPhaseResults(
             searchPhaseResults,
@@ -256,7 +347,7 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
         // Check Processor doesn't run for between other phases
         searchRequest = new SearchRequest().pipeline("p1");
         searchRequest.source(createDefaultSearchSourceBuilder());
-        pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        pipelinedRequest = searchPipelineService.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
         AtomicArray<SearchPhaseResult> notTransformedSearchPhaseResult = searchPhaseResults.getAtomicArray();
         pipelinedRequest.transformSearchPhaseResults(
             searchPhaseResults,
@@ -295,7 +386,7 @@ public class PipelinedRequestTests extends SearchPipelineTestCase {
         searchPhaseResults.consumeResult(querySearchResult, () -> {});
 
         SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(10));
-        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, indexNameExpressionResolver);
+        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest, null, indexNameExpressionResolver);
 
         pipelinedRequest.transformSearchPhaseResults(
             searchPhaseResults,

@@ -978,7 +978,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         LogicalFilter filter = LogicalFilter.create(stubScan(table), predicate);
         PlannerContext context = buildContext("parquet", Map.of("name", Map.of("type", "keyword", "index", true)));
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> runPlanner(filter, context));
         assertTrue(
             "Message must name the unrecognized scalar function",
             exception.getMessage().contains("Unrecognized scalar function [FAKE_UDF]")

@@ -27,7 +27,11 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.stream.StreamErrorCode;
 import org.opensearch.transport.stream.StreamException;
 
+import javax.net.ssl.SSLSession;
+
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -110,6 +114,24 @@ public class FlightServerChannelTests extends OpenSearchTestCase {
      */
     private void drainExecutor() throws Exception {
         executor.submit(() -> {}).get(5, TimeUnit.SECONDS);
+    }
+
+    public void testExposesPeerSslSessionAndRemoteAddress() {
+        SSLSession sslSession = mock(SSLSession.class);
+        InetSocketAddress peer = new InetSocketAddress(InetAddress.getLoopbackAddress(), 41234);
+        FlightServerChannel ch = new FlightServerChannel(listener, allocator, middleware, callTracker, executor, 5_000, sslSession, peer);
+
+        assertSame(sslSession, ch.get(FlightServerChannel.SSL_SESSION, SSLSession.class).orElseThrow());
+        assertTrue(ch.get("ssl_server", SSLSession.class).isEmpty());
+        assertTrue(ch.get(FlightServerChannel.SSL_SESSION, String.class).isEmpty());
+        assertEquals(peer, ch.getRemoteAddress());
+    }
+
+    public void testNoSslSessionWhenTlsDisabled() {
+        FlightServerChannel ch = new FlightServerChannel(listener, allocator, middleware, callTracker, executor, 5_000, null, null);
+
+        assertTrue(ch.get(FlightServerChannel.SSL_SESSION, SSLSession.class).isEmpty());
+        assertEquals(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), ch.getRemoteAddress());
     }
 
     public void testAwaitReadyFastPath() {
@@ -551,6 +573,30 @@ public class FlightServerChannelTests extends OpenSearchTestCase {
         ch.close();
         AtomicBoolean fired = new AtomicBoolean(false);
         ch.addCloseListener(org.opensearch.core.action.ActionListener.wrap(r -> fired.set(true), e -> {}));
+        assertTrue("listener added after close must fire immediately", fired.get());
+    }
+
+    /** A removable close listener fires on close, and is no longer fired once it has been removed. */
+    public void testRemovableCloseListenerCanBeGivenBack() {
+        FlightServerChannel ch = newChannel(5_000);
+        AtomicInteger fires = new AtomicInteger(0);
+        java.util.function.BiConsumer<Void, ? super Exception> kept = (v, e) -> fires.incrementAndGet();
+        java.util.function.BiConsumer<Void, ? super Exception> removed = (v, e) -> fail("a removed listener must not fire");
+
+        ch.addCloseListener(kept);
+        ch.addCloseListener(removed);
+        ch.removeCloseListener(removed);
+
+        ch.close();
+        assertEquals("the listener that was kept must fire exactly once", 1, fires.get());
+    }
+
+    /** A removable close listener registered after close() fires immediately. */
+    public void testAddRemovableCloseListenerAfterCloseFiresImmediately() {
+        FlightServerChannel ch = newChannel(5_000);
+        ch.close();
+        AtomicBoolean fired = new AtomicBoolean(false);
+        ch.addCloseListener((java.util.function.BiConsumer<Void, ? super Exception>) (v, e) -> fired.set(true));
         assertTrue("listener added after close must fire immediately", fired.get());
     }
 

@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.search.SearchService;
 import org.opensearch.test.OpenSearchTestCase;
@@ -54,17 +55,56 @@ public class DatafusionSettingsTests extends OpenSearchTestCase {
         assertTrue(DatafusionSettings.INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD.hasNodeScope());
     }
 
-    public void testAllSettingsContainsAllExpectedSettings() {
-        assertEquals(31, DatafusionSettings.ALL_SETTINGS.size());
-        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DataFusionPlugin.DATAFUSION_REDUCE_TARGET_PARTITIONS));
-        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DataFusionPlugin.DATAFUSION_MEMORY_GUARD_SPILL_EXEMPT_CAP));
-        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY));
-        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.BATCH_SIZE));
-        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.LISTING_TABLE_PUSHDOWN_FILTERS));
-        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_PUSHDOWN_FILTERS));
-        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_MIN_SKIP_RUN_DEFAULT));
-        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD));
-        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_FORCE_STRATEGY));
+    public void testNodeScopedSettingsContainsAllExpectedSettings() {
+        assertEquals(31, DatafusionSettings.NODE_SCOPED_SETTINGS.size());
+        assertTrue(DatafusionSettings.NODE_SCOPED_SETTINGS.contains(DataFusionPlugin.DATAFUSION_REDUCE_TARGET_PARTITIONS));
+        assertTrue(DatafusionSettings.NODE_SCOPED_SETTINGS.contains(DataFusionPlugin.DATAFUSION_MEMORY_GUARD_SPILL_EXEMPT_CAP));
+        assertTrue(DatafusionSettings.NODE_SCOPED_SETTINGS.contains(DataFusionPlugin.DATAFUSION_SPILL_DIRECTORY));
+        assertTrue(DatafusionSettings.NODE_SCOPED_SETTINGS.contains(DatafusionSettings.BATCH_SIZE));
+        assertTrue(DatafusionSettings.NODE_SCOPED_SETTINGS.contains(DatafusionSettings.LISTING_TABLE_PUSHDOWN_FILTERS));
+        assertTrue(DatafusionSettings.NODE_SCOPED_SETTINGS.contains(DatafusionSettings.INDEXED_PUSHDOWN_FILTERS));
+        assertTrue(DatafusionSettings.NODE_SCOPED_SETTINGS.contains(DatafusionSettings.INDEXED_MIN_SKIP_RUN_DEFAULT));
+        assertTrue(DatafusionSettings.NODE_SCOPED_SETTINGS.contains(DatafusionSettings.INDEXED_MIN_SKIP_RUN_SELECTIVITY_THRESHOLD));
+        assertTrue(DatafusionSettings.NODE_SCOPED_SETTINGS.contains(DatafusionSettings.INDEXED_FORCE_STRATEGY));
+    }
+
+    /**
+     * {@code NODE_SCOPED_SETTINGS} is handed to a {@code ClusterSettings}, which rejects anything that is
+     * not {@code NodeScope}, so index-scoped settings must stay in {@code INDEX_SCOPED_SETTINGS}.
+     */
+    public void testNodeScopedSettingsHoldOnlyNodeScope() {
+        for (Setting<?> setting : DatafusionSettings.NODE_SCOPED_SETTINGS) {
+            assertTrue("NODE_SCOPED_SETTINGS must be NodeScope only, found: " + setting.getKey(), setting.hasNodeScope());
+        }
+    }
+
+    public void testIndexScopedSettingsHoldsTheDocValuesBatchSizes() {
+        assertEquals(2, DatafusionSettings.INDEX_SCOPED_SETTINGS.size());
+        assertTrue(DatafusionSettings.INDEX_SCOPED_SETTINGS.contains(DatafusionSettings.DOCVALUES_INITIAL_BATCH_SIZE));
+        assertTrue(DatafusionSettings.INDEX_SCOPED_SETTINGS.contains(DatafusionSettings.DOCVALUES_MAX_BATCH_SIZE));
+    }
+
+    public void testDocValuesBatchSizeSettingsAreIndexScopedAndDynamic() {
+        assertTrue(DatafusionSettings.DOCVALUES_INITIAL_BATCH_SIZE.hasIndexScope());
+        assertTrue(DatafusionSettings.DOCVALUES_INITIAL_BATCH_SIZE.isDynamic());
+        assertTrue(DatafusionSettings.DOCVALUES_MAX_BATCH_SIZE.hasIndexScope());
+        assertTrue(DatafusionSettings.DOCVALUES_MAX_BATCH_SIZE.isDynamic());
+    }
+
+    public void testDocValuesInitialBatchSizeIsResolvedDownToTheCeiling() {
+        // The two settings are independent, so a configuration that asks to start above the ceiling
+        // is resolved down rather than rejected.
+        Settings settings = Settings.builder()
+            .put(DatafusionSettings.DOCVALUES_INITIAL_BATCH_SIZE.getKey(), 4096)
+            .put(DatafusionSettings.DOCVALUES_MAX_BATCH_SIZE.getKey(), 64)
+            .build();
+        assertEquals(64, DatafusionSettings.docValuesInitialBatchSize(settings));
+        assertEquals(64, DatafusionSettings.docValuesMaxBatchSize(settings));
+    }
+
+    public void testDocValuesBatchSizeDefaults() {
+        assertEquals(DatafusionSettings.DEFAULT_DOCVALUES_INITIAL_BATCH_SIZE, DatafusionSettings.docValuesInitialBatchSize(Settings.EMPTY));
+        assertEquals(DatafusionSettings.DEFAULT_DOCVALUES_MAX_BATCH_SIZE, DatafusionSettings.docValuesMaxBatchSize(Settings.EMPTY));
     }
 
     public void testForceStrategySettingDefaultsAndMapping() {

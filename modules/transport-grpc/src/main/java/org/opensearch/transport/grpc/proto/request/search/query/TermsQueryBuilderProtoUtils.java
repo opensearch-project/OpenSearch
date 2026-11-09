@@ -13,6 +13,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.indices.TermsLookup;
 import org.opensearch.transport.grpc.proto.response.common.FieldValueProtoUtils;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 import java.util.ArrayList;
 import java.util.Base64;
@@ -41,6 +42,23 @@ class TermsQueryBuilderProtoUtils {
      * @throws IllegalArgumentException if the terms query is invalid or missing required fields
      */
     static TermsQueryBuilder fromProto(org.opensearch.protobufs.TermsQuery termsQueryProto) {
+        return fromProto(termsQueryProto, null);
+    }
+
+    /**
+     * Converts a Protocol Buffer TermsQuery to an OpenSearch TermQueryBuilder.
+     * Similar to {@link TermsQueryBuilder#fromXContent(XContentParser)}, this method
+     * parses the Protocol Buffer representation and creates a properly configured
+     * TermQueryBuilder with the appropriate field name, values, boost, query name,
+     * and value type settings.
+     *
+     * @param termsQueryProto The Protocol Buffer TermsQuery object
+     * @param registry The registry used to convert a nested query lookup; may be null when the lookup
+     *                 cannot contain a query
+     * @return A configured TermQueryBuilder instance
+     * @throws IllegalArgumentException if the terms query is invalid or missing required fields
+     */
+    static TermsQueryBuilder fromProto(org.opensearch.protobufs.TermsQuery termsQueryProto, QueryBuilderProtoConverterRegistry registry) {
         if (termsQueryProto == null) {
             throw new IllegalArgumentException("TermsQuery must not be null");
         }
@@ -59,7 +77,7 @@ class TermsQueryBuilderProtoUtils {
             : org.opensearch.protobufs.TermsQueryValueType.TERMS_QUERY_VALUE_TYPE_DEFAULT;
 
         // Build the base TermsQueryBuilder
-        TermsQueryBuilder builder = fromProto(fieldName, termsQueryField, vt);
+        TermsQueryBuilder builder = fromProto(fieldName, termsQueryField, vt, registry);
 
         // Apply boost and queryName if provided
         if (termsQueryProto.hasBoost()) {
@@ -85,6 +103,25 @@ class TermsQueryBuilderProtoUtils {
         org.opensearch.protobufs.TermsQueryField termsQueryField,
         org.opensearch.protobufs.TermsQueryValueType valueTypeProto
     ) {
+        return fromProto(fieldName, termsQueryField, valueTypeProto, null);
+    }
+
+    /**
+     * Builds a TermsQueryBuilder from a field name, TermsQueryField oneof, and value_type.
+     * @param fieldName the field name (from the terms map key)
+     * @param termsQueryField the protobuf oneof (field_value_array or lookup)
+     * @param valueTypeProto the container-level value_type
+     * @param registry the registry used to convert a nested query lookup; may be null when the lookup
+     *                 cannot contain a query
+     * @return configured TermsQueryBuilder
+     * @throws IllegalArgumentException if neither values nor lookup is set, or if bitmap validation fails
+     */
+    static TermsQueryBuilder fromProto(
+        String fieldName,
+        org.opensearch.protobufs.TermsQueryField termsQueryField,
+        org.opensearch.protobufs.TermsQueryValueType valueTypeProto,
+        QueryBuilderProtoConverterRegistry registry
+    ) {
         if (fieldName == null || fieldName.isEmpty()) {
             throw new IllegalArgumentException("fieldName must be provided");
         }
@@ -97,7 +134,7 @@ class TermsQueryBuilderProtoUtils {
                 values = parseFieldValueArray(termsQueryField.getValue());
                 break;
             case LOOKUP:
-                termsLookup = parseTermsLookup(termsQueryField.getLookup());
+                termsLookup = TermsLookupProtoUtils.parseTermsLookup(termsQueryField.getLookup(), registry);
                 break;
             case TERMSQUERYFIELD_NOT_SET:
             default:
@@ -169,24 +206,5 @@ class TermsQueryBuilderProtoUtils {
             values.add(convertedValue);
         }
         return values;
-    }
-
-    /**
-     * Parses a protobuf TermsLookup to OpenSearch TermsLookup
-     * @param lookup the Protocol Buffer TermsLookup to convert
-     * @return OpenSearch TermsLookup
-     */
-    private static TermsLookup parseTermsLookup(org.opensearch.protobufs.TermsLookup lookup) {
-        if (lookup == null) {
-            return null;
-        }
-        TermsLookup tl = new TermsLookup(lookup.getIndex(), lookup.getId(), lookup.getPath());
-        if (lookup.hasRouting()) {
-            tl.routing(lookup.getRouting());
-        }
-        if (lookup.hasStore()) {
-            tl.store(lookup.getStore());
-        }
-        return tl;
     }
 }

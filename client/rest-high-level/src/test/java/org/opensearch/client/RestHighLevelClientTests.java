@@ -853,6 +853,8 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         // These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {
             "cluster.allocation_explain",
+            // New settings discovery API is available through the low-level client, not the deprecated high-level client.
+            "cluster.describe_settings",
             "cluster.pending_tasks",
             "cluster.reroute",
             "cluster.state",
@@ -882,7 +884,8 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             "cluster.put_decommission_awareness",
             "cluster.get_decommission_awareness",
             "cluster.delete_decommission_awareness",
-            "wlm_stats_list" };
+            "wlm_stats_list",
+            "indices.modify_data_stream" };
         List<String> booleanReturnMethods = Arrays.asList("security.enable_user", "security.disable_user", "security.change_password");
         Set<String> deprecatedMethods = new HashSet<>();
         deprecatedMethods.add("indices.force_merge");

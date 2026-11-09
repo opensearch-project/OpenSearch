@@ -38,6 +38,7 @@ use crate::indexed_executor::reverse_segment_iteration_order;
 use crate::indexed_table::bool_tree::BoolNode;
 use crate::indexed_table::eval::bitmap_tree::BitmapTreeEvaluator;
 use crate::indexed_table::eval::{RowGroupBitsetSource, TreeBitsetSource};
+use crate::indexed_table::index::CollectDocsResult;
 use crate::indexed_table::index::RowGroupDocsCollector;
 use crate::indexed_table::page_pruner::PagePruner;
 use crate::indexed_table::stream::{FilterStrategy, RowGroupInfo};
@@ -102,7 +103,11 @@ struct LocalOffsetCollector {
 }
 
 impl RowGroupDocsCollector for LocalOffsetCollector {
-    fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
+    fn collect_packed_u64_bitset(
+        &self,
+        min_doc: i32,
+        max_doc: i32,
+    ) -> Result<CollectDocsResult, String> {
         let span = (max_doc - min_doc) as usize;
         let mut out = vec![0u64; span.div_ceil(64)];
         for &doc in &self.matching {
@@ -111,7 +116,7 @@ impl RowGroupDocsCollector for LocalOffsetCollector {
                 out[rel / 64] |= 1u64 << (rel % 64);
             }
         }
-        Ok(out)
+        Ok(out.into())
     }
 }
 
@@ -202,9 +207,9 @@ async fn collect_row_ids(
                 tree: Arc::new(resolved),
                 evaluator: Arc::new(BitmapTreeEvaluator),
                 leaves: Arc::new(
-                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps {
-                        ffm_collector_calls: _stream_metrics.ffm_collector_calls.clone(),
-                    },
+                    crate::indexed_table::eval::bitmap_tree::CollectorLeafBitmaps::new(
+                        _stream_metrics.ffm_collector_calls.clone(),
+                    ),
                 ),
                 page_pruner: pruner,
                 cost_predicate: 1,

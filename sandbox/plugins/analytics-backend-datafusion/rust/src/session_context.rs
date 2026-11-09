@@ -54,6 +54,11 @@ pub struct SessionContextHandle {
     pub sort_orders: Vec<String>,
     pub query_context: QueryTrackingContext,
     pub table_name: String,
+    /// When true, the shard has deleted docs: the indexed executor ANDs a synthetic match-all
+    /// Collector leaf (reserved annotation id) into the decoded filter tree so deleted rows are
+    /// excluded via the ordinary Lucene collector machinery. Sourced from the Java per-shard
+    /// hasDeletions probe; false on shards without deletions (zero overhead).
+    pub deleted_doc_filtering_required: bool,
     /// When set, indicates this session uses the indexed execution path with filter delegation.
     pub indexed_config: Option<IndexedExecutionConfig>,
     /// Per-query tuning knobs (batch size, partitions, filter strategies, etc.)
@@ -142,13 +147,31 @@ pub(crate) fn widen_schema_from_plan(
         .parquet
         .schema_force_view_types;
     let expected = if force_view {
-        datafusion::datasource::file_format::parquet::transform_schema_to_view(&expected)
+        crate::schema_coerce::transform_schema_to_view_recursive(&expected)
     } else {
         expected
     };
     let expected = crate::schema_coerce::coerce_inferred_schema(Arc::new(expected));
     crate::schema_coerce::append_missing_nullable(inferred, &expected)
         .unwrap_or_else(|| Arc::clone(inferred))
+}
+
+/// Resolves the name to register the shard's table under so the Substrait plan's `NamedTable`
+/// binds against it.
+///
+/// ALWAYS the planner's logical table name (alias / index pattern / index), which the coordinator
+/// captured from the plan's table-scan leaf and ships explicitly as `logicalTableName` on the
+/// shard-scan instruction node (see `ShardScanWithDelegationHandler`).
+///
+/// `plan_bytes` is intentionally IGNORED. Reverse-engineering the name from the plan (the removed
+/// `crate::api::first_named_table_name` approach upstream's #21822 originally used) is unreliable:
+/// a fragment's first `NamedTable` read can be a stage placeholder (`input-7`, `broadcast-N`)
+/// rather than the real index, so it would register the shard table under the wrong name. The
+/// parameter is kept so this stays the single decision point — a future upstream merge that tries
+/// to reintroduce plan-bytes extraction must change THIS function, tripping
+/// `register_name_uses_logical_table_not_plan_placeholder`.
+fn resolve_register_name(table_name: &str, _plan_bytes: &[u8]) -> String {
+    table_name.to_string()
 }
 
 /// Creates a SessionContext with per-query RuntimeEnv and registers the default
@@ -158,6 +181,7 @@ pub async unsafe fn create_session_context(
     shard_view_ptr: i64,
     table_name: &str,
     context_id: i64,
+    deleted_doc_filtering_required: bool,
     has_partial_aggregate: bool,
     query_config: DatafusionQueryConfig,
     plan_bytes: &[u8],
@@ -294,18 +318,11 @@ pub async unsafe fn create_session_context(
         listing_options = listing_options.with_file_sort_order(vec![sort_exprs]);
     }
 
-    // For multi-index queries, the plan's NamedTable carries the logical name (alias/pattern)
-    // which differs from table_name (the concrete shard index). Extract it from the plan and
-    // register under that name so the Substrait consumer binds correctly. For single-index
-    // queries (empty plan_bytes), table_name is already the correct concrete name.
-    let register_name = if !plan_bytes.is_empty() {
-        crate::api::first_named_table_name(plan_bytes).unwrap_or_else(|| {
-            error!("create_session_context: failed to extract table name from plan, falling back to concrete name: {}", table_name);
-            table_name.to_string()
-        })
-    } else {
-        table_name.to_string()
-    };
+    // Register under the planner's logical table name (alias / index pattern / index), shipped
+    // explicitly as logicalTableName on the shard-scan instruction node. See
+    // resolve_register_name for why we do NOT reverse-engineer this from the plan bytes. The
+    // empty-shard-aware schema inference + plan widening happens just below; no infer_schema here.
+    let register_name = resolve_register_name(table_name, plan_bytes);
 
     // Pre-warm the metadata cache footer-only before infer_schema fires.
     // infer_schema calls DFParquetMetadata::fetch_metadata with PageIndexPolicy::Optional
@@ -339,9 +356,10 @@ pub async unsafe fn create_session_context(
                 error!("create_session_context: failed to infer schema: {}", e);
                 e
             })?;
-        // Substrait's type system is narrower than Arrow's; normalize the inferred
-        // schema to forms the Substrait consumer can bind against. See crate::schema_coerce.
-        crate::schema_coerce::coerce_inferred_schema(inferred)
+        // DataFusion rewrites top-level strings to view types but not LIST children. Apply the
+        // recursive form so predefined ARRAY<VARCHAR> fields bind as List<Utf8View>.
+        let inferred = crate::schema_coerce::transform_schema_to_view_recursive(inferred.as_ref());
+        crate::schema_coerce::coerce_inferred_schema(Arc::new(inferred))
     };
     // Pre-widening field count — compared below to detect whether widening added columns.
     let inferred_field_count = inferred.fields().len();
@@ -409,6 +427,7 @@ pub async unsafe fn create_session_context(
         sort_orders: shard_view.sort_orders.clone(),
         query_context,
         table_name: table_name.to_string(),
+        deleted_doc_filtering_required,
         indexed_config: None,
         query_config,
         io_handle: tokio::runtime::Handle::current(),
@@ -416,6 +435,96 @@ pub async unsafe fn create_session_context(
         has_topk,
         prepared_plan: None,
         phantom_reservation: phantom,
+    };
+    Ok(Box::into_raw(Box::new(handle)) as i64)
+}
+
+/// Creates a worker-mode SessionContext: no shard view, no listing table, no parquet
+/// metadata. The worker's substrait plan reads only from named-input streams that are
+/// later registered onto this session via `register_partition_stream_on_session_context`.
+/// All shard-specific fields on the handle are populated with empty defaults so the
+/// SessionContextHandle struct stays uniform with the shard-mode variant.
+pub async unsafe fn create_worker_session_context(
+    runtime_ptr: i64,
+    context_id: i64,
+    query_config: DatafusionQueryConfig,
+) -> Result<i64, DataFusionError> {
+    let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+
+    let global_pool = runtime.runtime_env.memory_pool.clone();
+    let query_context = QueryTrackingContext::new(
+        context_id,
+        global_pool.clone(),
+        crate::query_tracker::QueryType::Shard,
+    );
+    let query_memory_pool = query_context
+        .memory_pool()
+        .map(|p| p as Arc<dyn MemoryPool>);
+
+    let mut runtime_env_builder = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env);
+    if let Some(pool) = query_memory_pool {
+        runtime_env_builder = runtime_env_builder.with_memory_pool(pool);
+    }
+    let runtime_env = runtime_env_builder.build().map_err(|e| {
+        error!(
+            "create_worker_session_context: failed to build runtime env: {}",
+            e
+        );
+        e
+    })?;
+
+    let mut config = SessionConfig::new();
+    config.options_mut().execution.target_partitions = query_config.target_partitions;
+    config.options_mut().execution.batch_size = query_config.batch_size;
+    // When the coordinator estimates this worker join's build side is too large for an in-memory
+    // hash table, it sets prefer_hash_join=false so DataFusion's physical planner emits a spillable
+    // SortMergeJoinExec instead of the non-spillable HashJoinExec build.
+    // The physical planner reads this at create_physical_plan time; EnforceSorting inserts the
+    // (spillable) SortExecs the SMJ needs.
+    config.options_mut().optimizer.prefer_hash_join = query_config.prefer_hash_join;
+
+    let state = SessionStateBuilder::new()
+        .with_config(config)
+        .with_runtime_env(Arc::from(runtime_env))
+        .with_default_features()
+        .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine())
+        .build();
+
+    let ctx = SessionContext::new_with_state(state);
+    crate::udf::register_all(&ctx);
+    crate::udaf::register_all(&ctx);
+
+    // Sentinel placeholder for table_path — workers never reference a listing table; the
+    // handle still requires a value here. Use the project root as a benign stable URL.
+    let placeholder_path = ListingTableUrl::parse("file:///").map_err(|e| {
+        error!(
+            "create_worker_session_context: failed to parse placeholder path: {}",
+            e
+        );
+        e
+    })?;
+
+    let handle = SessionContextHandle {
+        ctx,
+        table_path: placeholder_path,
+        object_metas: Arc::new(Vec::new()),
+        writer_generations: Arc::new(Vec::new()),
+        query_context,
+        // Workers scan registered StreamingTables, not a sorted parquet index, so there is no
+        // index sort to plumb (upstream added these fields for the shard-scan path; empty here).
+        sort_fields: Vec::new(),
+        sort_orders: Vec::new(),
+        table_name: String::new(),
+        deleted_doc_filtering_required: false,
+        indexed_config: None,
+        query_config,
+        aggregate_mode: crate::agg_mode::Mode::Default,
+        // Workers execute a shuffle-fed join/agg fragment, never a shard TopK Substrait plan, so
+        // there is no FetchRel to detect — the upstream TopK-CSS PartialReduce path does not apply here.
+        has_topk: false,
+        prepared_plan: None,
+        phantom_reservation: None,
+        io_handle: tokio::runtime::Handle::current(),
     };
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
@@ -441,6 +550,7 @@ pub async unsafe fn create_session_context_indexed(
     tree_shape: i32,
     delegated_predicate_count: i32,
     requests_row_ids: bool,
+    deleted_doc_filtering_required: bool,
     has_partial_aggregate: bool,
     query_config: DatafusionQueryConfig,
     plan_bytes: &[u8],
@@ -450,6 +560,7 @@ pub async unsafe fn create_session_context_indexed(
         shard_view_ptr,
         table_name,
         context_id,
+        deleted_doc_filtering_required,
         has_partial_aggregate,
         query_config,
         plan_bytes,
@@ -478,7 +589,6 @@ pub async fn prepare_partial_plan(
     handle: &mut SessionContextHandle,
     substrait_bytes: &[u8],
 ) -> Result<(), datafusion::common::DataFusionError> {
-    use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
     use prost::Message;
     use substrait::proto::Plan;
 
@@ -490,7 +600,8 @@ pub async fn prepare_partial_plan(
             e
         ))
     })?;
-    let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
+    let logical_plan =
+        crate::substrait_consumer::from_substrait_plan(&handle.ctx.state(), &plan).await?;
     let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
 
@@ -804,6 +915,7 @@ mod tests {
             sort_orders: vec![],
             query_context,
             table_name: "t".to_string(),
+            deleted_doc_filtering_required: false,
             indexed_config: None,
             query_config: crate::datafusion_query_config::DatafusionQueryConfig::test_default(),
             io_handle: tokio::runtime::Handle::current(),
@@ -828,6 +940,40 @@ mod tests {
 
         assert_eq!(handle.aggregate_mode, Mode::Partial);
         assert!(handle.prepared_plan.is_some());
+    }
+
+    /// Regression guard for the merge-resolution of #21822's multi-index `register_name` logic:
+    /// the shard's table MUST register under the planner's logical name, never under whatever the
+    /// plan's first `NamedTable` happens to be. Builds a plan whose only `NamedTable` is a stage
+    /// placeholder (`input-7`) — the exact case where reverse-engineering the name from plan bytes
+    /// (the removed `first_named_table_name` approach) would pick the wrong name — and asserts
+    /// `resolve_register_name` still returns the logical table name. A future upstream merge that
+    /// reintroduces plan-bytes extraction must change `resolve_register_name` and trip this.
+    #[tokio::test]
+    async fn register_name_uses_logical_table_not_plan_placeholder() {
+        let ctx = SessionContext::new();
+        let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::Int64, true)]));
+        let batch = RecordBatch::try_new(
+            Arc::clone(&schema),
+            vec![Arc::new(Int64Array::from(vec![1i64]))],
+        )
+        .expect("batch");
+        // The plan names a STAGE PLACEHOLDER, not the shard's real index.
+        ctx.register_table(
+            "input-7",
+            Arc::new(MemTable::try_new(Arc::clone(&schema), vec![vec![batch]]).expect("memtable")),
+        )
+        .expect("register");
+        let df = ctx.sql("SELECT x FROM \"input-7\"").await.expect("sql");
+        let substrait =
+            to_substrait_plan(&df.logical_plan().clone(), &ctx.state()).expect("to_substrait");
+        let mut plan_bytes = Vec::new();
+        substrait.encode(&mut plan_bytes).expect("encode");
+
+        // Even though the plan's NamedTable is "input-7", the logical table name must win.
+        assert_eq!(resolve_register_name("my_index", &plan_bytes), "my_index");
+        // And for single-index queries with empty plan bytes, the logical name is used directly.
+        assert_eq!(resolve_register_name("my_index", &[]), "my_index");
     }
 
     /// Regression: a shard whose parquet files have FEWER columns than the widened (alias/pattern

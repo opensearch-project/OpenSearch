@@ -10,7 +10,7 @@ plans:
         OpenSearchSort(sort0=[$1], sort1=[$2], dir0=[ASC-nulls-first], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(count()=[$2], UserID=[$0], SearchPhrase=[$1], viableBackends=[[lucene, datafusion]])
             OpenSearchAggregate(group=[{0, 1}], count()=[SUM($2)], mode=[FINAL], viableBackends=[[lucene, datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchSort(sort0=[$0], sort1=[$1], dir0=[ASC-nulls-first], dir1=[ASC-nulls-first], fetch=[30], viableBackends=[[lucene, datafusion]])
                   OpenSearchAggregate(group=[{0, 1}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[lucene, datafusion]])
                     OpenSearchProject(UserID=[$97], SearchPhrase=[$74], viableBackends=[[lucene, datafusion]])
@@ -26,7 +26,7 @@ plans:
         OpenSearchSort(sort0=[$1], sort1=[$2], dir0=[ASC-nulls-first], dir1=[ASC-nulls-first], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(count()=[$2], UserID=[$0], SearchPhrase=[$1], viableBackends=[[lucene, datafusion]])
             OpenSearchAggregate(group=[{0, 1}], count()=[SUM($2)], mode=[FINAL], viableBackends=[[lucene, datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
     shard_physical_1seg: |
       ProjectionExec: expr=[UserID@0 as UserID, SearchPhrase@1 as SearchPhrase, count(Int64(1))[count]@2 as count()]

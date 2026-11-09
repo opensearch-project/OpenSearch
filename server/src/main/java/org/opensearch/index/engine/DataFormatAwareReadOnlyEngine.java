@@ -37,6 +37,7 @@ import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.Indexer;
+import org.opensearch.index.engine.exec.LiveDocsSource;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
@@ -74,6 +75,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -90,7 +92,7 @@ import java.util.function.Supplier;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class DataFormatAwareReadOnlyEngine implements Indexer {
+public class DataFormatAwareReadOnlyEngine implements Indexer, SearcherSupplierProvider {
 
     private final Logger logger;
     private final EngineConfig engineConfig;
@@ -100,6 +102,7 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     // Core state
     private final CatalogSnapshotManager catalogSnapshotManager;
     private final Map<DataFormat, EngineReaderManager<?>> readerManagers;
+    private final DataFormatAwareSearcherSupport searcherSupport;
     private final LocalCheckpointTracker localCheckpointTracker;
     private final NoOpTranslogManager translogManager;
     private final Committer committer;
@@ -185,6 +188,7 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
             }
             readerManagersRef = Map.copyOf(aggregated);
             this.readerManagers = readerManagersRef;
+            this.searcherSupport = new DataFormatAwareSearcherSupport(shardId, engineConfig, readerManagers.keySet());
 
             // Register reader managers as BOTH files listeners and snapshot lifecycle listeners.
             // Files listeners make IndexFileDeleter fire onFilesAdded for the committed snapshot
@@ -250,7 +254,7 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
                     logger.warn("Failed to get last committed data for stats cache", e);
                     return Collections.emptyMap();
                 }
-            }, logger);
+            }, LiveDocsSource.docCountsResolver(this.readerManagers.values()), logger);
             this.statsCache.forceRefresh();
 
             success = true;
@@ -313,6 +317,28 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
         return new GatedCloseable<>(reader, () -> {});
     }
 
+    /**
+     * Builds a point-in-time searcher supplier so {@code _search} reaches a shard tiered to warm. Identical
+     * to {@link DataFormatAwareEngine#acquireSearcherSupplier}, so a warm shard serves searches the same way
+     * a hot one does.
+     *
+     * <p>{@link #acquireReader()} returns a no-op reference here, so the supplier pins the store and the
+     * Lucene reader itself; an open scroll or PIT keeps working after this engine closes.
+     */
+    @Override
+    public Engine.SearcherSupplier acquireSearcherSupplier(Function<Engine.Searcher, Engine.Searcher> wrapper, Engine.SearcherScope scope) {
+        // One point-in-time view per catalog snapshot, so there is no separate INTERNAL reader; IndexShard only asks for EXTERNAL.
+        assert scope == Engine.SearcherScope.EXTERNAL : "unexpected searcher scope " + scope;
+        ensureOpen();
+        final GatedCloseable<Reader> readerRef;
+        try {
+            readerRef = acquireReader();
+        } catch (IOException e) {
+            throw new EngineException(shardId, "failed to acquire reader for searcher", e);
+        }
+        return searcherSupport.acquireSearcherSupplier(readerRef, wrapper);
+    }
+
     // ---- IndexerEngineOperations (Task 3 — write rejection) ----
 
     @Override
@@ -357,6 +383,21 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     @Override
     public Engine.Delete prepareDelete(
         String id,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
+        throw new UnsupportedOperationException("DataFormatAwareReadOnlyEngine does not support deletes");
+    }
+
+    @Override
+    public Engine.Delete prepareDelete(
+        String id,
+        String routing,
         long seqNo,
         long primaryTerm,
         long version,

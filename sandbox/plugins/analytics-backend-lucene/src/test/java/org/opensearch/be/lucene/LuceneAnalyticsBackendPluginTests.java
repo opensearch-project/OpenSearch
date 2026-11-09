@@ -25,6 +25,7 @@ import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.planner.PlannerContext;
@@ -37,7 +38,6 @@ import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
-import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegatedExpression;
@@ -232,7 +232,7 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.operationRouting()).thenReturn(routing);
         when(routing.searchShards(any(), any(), any(), any())).thenReturn(new GroupShardsIterator<ShardIterator>(List.of()));
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY));
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return clusterService;
     }
@@ -317,8 +317,8 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
         public FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
             return new FragmentInstructionHandlerFactory() {
                 @Override
-                public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds) {
-                    return Optional.of(new ShardScanInstructionNode(requestsRowIds));
+                public Optional<InstructionNode> createShardScanNode(boolean requestsRowIds, String logicalTableName) {
+                    return Optional.of(new ShardScanInstructionNode(requestsRowIds, logicalTableName));
                 }
 
                 @Override
@@ -334,9 +334,12 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
                 public Optional<InstructionNode> createShardScanWithDelegationNode(
                     FilterTreeShape treeShape,
                     int delegatedPredicateCount,
-                    boolean requestsRowIds
+                    boolean requestsRowIds,
+                    String logicalTableName
                 ) {
-                    return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount, requestsRowIds));
+                    return Optional.of(
+                        new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount, requestsRowIds, logicalTableName)
+                    );
                 }
 
                 @Override

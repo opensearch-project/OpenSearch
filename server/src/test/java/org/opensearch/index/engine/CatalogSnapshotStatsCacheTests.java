@@ -10,6 +10,7 @@ package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.index.engine.exec.DocCounts;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
@@ -31,18 +32,40 @@ import static org.mockito.Mockito.when;
  */
 public class CatalogSnapshotStatsCacheTests extends OpenSearchTestCase {
 
+    /**
+     * Builds a cache whose liveness resolver reports nothing, which is what a shard made only of
+     * formats that never hide a row (Parquet alone, for instance) does.
+     */
+    private static CatalogSnapshotStatsCache newCache(CatalogSnapshotManager snapshotManager, Store store, Logger logger) {
+        return newCache(snapshotManager, store, logger, Map.of());
+    }
+
+    private static CatalogSnapshotStatsCache newCache(
+        CatalogSnapshotManager snapshotManager,
+        Store store,
+        Logger logger,
+        Map<Long, DocCounts> docCounts
+    ) {
+        return new CatalogSnapshotStatsCache(
+            snapshotManager,
+            store,
+            null, // EngineConfig is only used for the index sort, which these tests do not exercise
+            Collections::emptyMap,
+            snapshot -> docCounts,
+            logger
+        );
+    }
+
+    private static void useRealDocCountAggregation(CatalogSnapshot snapshot) {
+        when(snapshot.aggregateDocCounts(any())).thenCallRealMethod();
+    }
+
     public void testCacheInitialization() {
         CatalogSnapshotManager snapshotManager = mock(CatalogSnapshotManager.class);
         Store store = mock(Store.class);
         Logger logger = mock(Logger.class);
 
-        CatalogSnapshotStatsCache cache = new CatalogSnapshotStatsCache(
-            snapshotManager,
-            store,
-            null, // EngineConfig not needed for basic initialization test
-            () -> Collections.emptyMap(),
-            logger
-        );
+        CatalogSnapshotStatsCache cache = newCache(snapshotManager, store, logger);
 
         // Cache should start with empty stats before any refresh
         DocsStats docsStats = cache.getDocsStats();
@@ -63,13 +86,7 @@ public class CatalogSnapshotStatsCacheTests extends OpenSearchTestCase {
         Store store = mock(Store.class);
         Logger logger = mock(Logger.class);
 
-        CatalogSnapshotStatsCache cache = new CatalogSnapshotStatsCache(
-            snapshotManager,
-            store,
-            null, // EngineConfig not needed for this test
-            () -> Collections.emptyMap(),
-            logger
-        );
+        CatalogSnapshotStatsCache cache = newCache(snapshotManager, store, logger);
 
         // Get initial stats values
         DocsStats initialDocsStats = cache.getDocsStats();
@@ -94,13 +111,7 @@ public class CatalogSnapshotStatsCacheTests extends OpenSearchTestCase {
         Store store = mock(Store.class);
         Logger logger = mock(Logger.class);
 
-        CatalogSnapshotStatsCache cache = new CatalogSnapshotStatsCache(
-            snapshotManager,
-            store,
-            null, // EngineConfig not needed for this test
-            () -> Collections.emptyMap(),
-            logger
-        );
+        CatalogSnapshotStatsCache cache = newCache(snapshotManager, store, logger);
 
         // beforeRefresh should not throw
         cache.beforeRefresh(); // Should complete without exception
@@ -114,13 +125,7 @@ public class CatalogSnapshotStatsCacheTests extends OpenSearchTestCase {
         // Mock snapshot manager to throw exception
         when(snapshotManager.acquireSnapshot()).thenThrow(new RuntimeException("Test exception"));
 
-        CatalogSnapshotStatsCache cache = new CatalogSnapshotStatsCache(
-            snapshotManager,
-            store,
-            null, // EngineConfig not needed for this test
-            () -> Collections.emptyMap(),
-            logger
-        );
+        CatalogSnapshotStatsCache cache = newCache(snapshotManager, store, logger);
 
         // Should still return valid (empty) stats despite constructor refresh failure
         assertNotNull(cache.getDocsStats());
@@ -141,14 +146,14 @@ public class CatalogSnapshotStatsCacheTests extends OpenSearchTestCase {
 
         // Mock snapshot to return test data with multiple files of same extension
         when(snapshot.getSegments()).thenReturn(List.of(segment1, segment2, segment3));
-        when(snapshot.getNumDocs()).thenReturn(0L);
+        useRealDocCountAggregation(snapshot);
         when(snapshot.collectFileSizesGroupedByExtension(store)).thenReturn(Map.of("parquet", 300L, "fnm", 50L, "nvm", 75L));
-        when(snapshot.buildEngineSegments(any(), any())).thenReturn(Collections.emptyList());
+        when(snapshot.buildEngineSegments(any(), any(), any())).thenReturn(Collections.emptyList());
 
         // Mock acquireSnapshot for the constructor's refreshCachedStats() call
         when(snapshotManager.acquireSnapshot()).thenReturn(new GatedCloseable<>(snapshot, () -> {}));
 
-        CatalogSnapshotStatsCache cache = new CatalogSnapshotStatsCache(snapshotManager, store, null, () -> Collections.emptyMap(), logger);
+        CatalogSnapshotStatsCache cache = newCache(snapshotManager, store, logger);
 
         // Test buildSegmentsStats with external memory and timestamp
         SegmentsStats stats = cache.buildSegmentsStats(1024L, 100L, snapshot);
@@ -173,7 +178,7 @@ public class CatalogSnapshotStatsCacheTests extends OpenSearchTestCase {
         Store store = mock(Store.class);
         Logger logger = mock(Logger.class);
 
-        CatalogSnapshotStatsCache cache = new CatalogSnapshotStatsCache(snapshotManager, store, null, () -> Collections.emptyMap(), logger);
+        CatalogSnapshotStatsCache cache = newCache(snapshotManager, store, logger);
 
         // Verify cache starts with empty stats
         SegmentsStats stats = cache.getSegmentsStats();
@@ -215,16 +220,18 @@ public class CatalogSnapshotStatsCacheTests extends OpenSearchTestCase {
 
         CatalogSnapshot snapshot = mock(CatalogSnapshot.class);
         when(snapshot.getSegments()).thenReturn(List.of(segment1, segment2));
-        when(snapshot.getNumDocs()).thenReturn(8L);
+        useRealDocCountAggregation(snapshot);
         when(snapshot.collectFileSizesGroupedByExtension(store)).thenReturn(Collections.emptyMap());
-        when(snapshot.buildEngineSegments(any(), any())).thenReturn(Collections.emptyList());
+        when(snapshot.buildEngineSegments(any(), any(), any())).thenReturn(Collections.emptyList());
         when(snapshotManager.acquireSnapshot()).thenReturn(new GatedCloseable<>(snapshot, () -> {}));
 
-        CatalogSnapshotStatsCache cache = new CatalogSnapshotStatsCache(snapshotManager, store, null, () -> Collections.emptyMap(), logger);
+        CatalogSnapshotStatsCache cache = newCache(snapshotManager, store, logger);
         cache.afterRefresh(true);
 
         DocsStats docsStats = cache.getDocsStats();
+        // No format reported liveness, so all 5 + 3 rows count as live
         assertEquals(8L, docsStats.getCount());
+        assertEquals(0L, docsStats.getDeleted());
         // totalSizeInBytes = 1000 + 2500 + 500 = 4000
         assertEquals(4000L, docsStats.getTotalSizeInBytes());
     }
@@ -239,12 +246,12 @@ public class CatalogSnapshotStatsCacheTests extends OpenSearchTestCase {
 
         CatalogSnapshot snapshot = mock(CatalogSnapshot.class);
         when(snapshot.getSegments()).thenReturn(List.of(emptySegment));
-        when(snapshot.getNumDocs()).thenReturn(0L);
+        useRealDocCountAggregation(snapshot);
         when(snapshot.collectFileSizesGroupedByExtension(store)).thenReturn(Collections.emptyMap());
-        when(snapshot.buildEngineSegments(any(), any())).thenReturn(Collections.emptyList());
+        when(snapshot.buildEngineSegments(any(), any(), any())).thenReturn(Collections.emptyList());
         when(snapshotManager.acquireSnapshot()).thenReturn(new GatedCloseable<>(snapshot, () -> {}));
 
-        CatalogSnapshotStatsCache cache = new CatalogSnapshotStatsCache(snapshotManager, store, null, () -> Collections.emptyMap(), logger);
+        CatalogSnapshotStatsCache cache = newCache(snapshotManager, store, logger);
         cache.afterRefresh(true);
 
         DocsStats docsStats = cache.getDocsStats();
@@ -269,12 +276,12 @@ public class CatalogSnapshotStatsCacheTests extends OpenSearchTestCase {
 
         CatalogSnapshot snapshot = mock(CatalogSnapshot.class);
         when(snapshot.getSegments()).thenReturn(List.of(segment));
-        when(snapshot.getNumDocs()).thenReturn(10L);
+        useRealDocCountAggregation(snapshot);
         when(snapshot.collectFileSizesGroupedByExtension(store)).thenReturn(Collections.emptyMap());
-        when(snapshot.buildEngineSegments(any(), any())).thenReturn(Collections.emptyList());
+        when(snapshot.buildEngineSegments(any(), any(), any())).thenReturn(Collections.emptyList());
         when(snapshotManager.acquireSnapshot()).thenReturn(new GatedCloseable<>(snapshot, () -> {}));
 
-        CatalogSnapshotStatsCache cache = new CatalogSnapshotStatsCache(snapshotManager, store, null, () -> Collections.emptyMap(), logger);
+        CatalogSnapshotStatsCache cache = newCache(snapshotManager, store, logger);
 
         cache.afterRefresh(true);
         DocsStats docsStats = cache.getDocsStats();
@@ -290,16 +297,93 @@ public class CatalogSnapshotStatsCacheTests extends OpenSearchTestCase {
 
         CatalogSnapshot snapshot = mock(CatalogSnapshot.class);
         when(snapshot.getSegments()).thenReturn(Collections.emptyList());
-        when(snapshot.getNumDocs()).thenReturn(0L);
+        useRealDocCountAggregation(snapshot);
         when(snapshot.collectFileSizesGroupedByExtension(store)).thenReturn(Collections.emptyMap());
-        when(snapshot.buildEngineSegments(any(), any())).thenReturn(Collections.emptyList());
+        when(snapshot.buildEngineSegments(any(), any(), any())).thenReturn(Collections.emptyList());
         when(snapshotManager.acquireSnapshot()).thenReturn(new GatedCloseable<>(snapshot, () -> {}));
 
-        CatalogSnapshotStatsCache cache = new CatalogSnapshotStatsCache(snapshotManager, store, null, () -> Collections.emptyMap(), logger);
+        CatalogSnapshotStatsCache cache = newCache(snapshotManager, store, logger);
 
         cache.afterRefresh(true);
         DocsStats docsStats = cache.getDocsStats();
         assertEquals(0L, docsStats.getCount());
         assertEquals(0L, docsStats.getTotalSizeInBytes());
+    }
+
+    public void testDocsStatsReportsLiveAndDeletedCountsWhenReported() throws IOException {
+        CatalogSnapshotManager snapshotManager = mock(CatalogSnapshotManager.class);
+        Store store = mock(Store.class);
+        Logger logger = mock(Logger.class);
+
+        java.nio.file.Path tempDir = createTempDir();
+        java.nio.file.Files.write(tempDir.resolve("gen1.parquet"), new byte[100]);
+        java.nio.file.Files.write(tempDir.resolve("gen2.parquet"), new byte[100]);
+
+        // Generation 1 wrote 10 rows, generation 2 wrote 4 rows: 14 rows on disk in total.
+        WriterFileSet gen1Files = new WriterFileSet(tempDir.toString(), 1L, java.util.Set.of("gen1.parquet"), 10, 1L);
+        WriterFileSet gen2Files = new WriterFileSet(tempDir.toString(), 2L, java.util.Set.of("gen2.parquet"), 4, 1L);
+
+        org.opensearch.index.engine.exec.Segment gen1 = org.opensearch.index.engine.exec.Segment.builder(1L)
+            .addSearchableFiles("parquet", gen1Files)
+            .build();
+        org.opensearch.index.engine.exec.Segment gen2 = org.opensearch.index.engine.exec.Segment.builder(2L)
+            .addSearchableFiles("parquet", gen2Files)
+            .build();
+
+        CatalogSnapshot snapshot = mock(CatalogSnapshot.class);
+        when(snapshot.getSegments()).thenReturn(List.of(gen1, gen2));
+        useRealDocCountAggregation(snapshot);
+        when(snapshot.collectFileSizesGroupedByExtension(store)).thenReturn(Collections.emptyMap());
+        when(snapshot.buildEngineSegments(any(), any(), any())).thenReturn(Collections.emptyList());
+        when(snapshotManager.acquireSnapshot()).thenReturn(new GatedCloseable<>(snapshot, () -> {}));
+
+        // 6 of generation 1's rows were superseded or deleted, and 1 of generation 2's.
+        Map<Long, DocCounts> reported = Map.of(1L, new DocCounts(4, 6), 2L, new DocCounts(3, 1));
+
+        CatalogSnapshotStatsCache cache = newCache(snapshotManager, store, logger, reported);
+        cache.afterRefresh(true);
+
+        DocsStats docsStats = cache.getDocsStats();
+        assertEquals(7L, docsStats.getCount());
+        assertEquals(7L, docsStats.getDeleted());
+        // The hidden rows still occupy their files, so the reported size covers all 14 rows.
+        assertEquals(200L, docsStats.getTotalSizeInBytes());
+    }
+
+    public void testDocsStatsFallsBackToPhysicalRowsForUnreportedGenerations() throws IOException {
+        CatalogSnapshotManager snapshotManager = mock(CatalogSnapshotManager.class);
+        Store store = mock(Store.class);
+        Logger logger = mock(Logger.class);
+
+        java.nio.file.Path tempDir = createTempDir();
+        java.nio.file.Files.write(tempDir.resolve("gen1.parquet"), new byte[100]);
+        java.nio.file.Files.write(tempDir.resolve("gen2.parquet"), new byte[100]);
+
+        WriterFileSet gen1Files = new WriterFileSet(tempDir.toString(), 1L, java.util.Set.of("gen1.parquet"), 10, 1L);
+        WriterFileSet gen2Files = new WriterFileSet(tempDir.toString(), 2L, java.util.Set.of("gen2.parquet"), 5, 1L);
+
+        org.opensearch.index.engine.exec.Segment gen1 = org.opensearch.index.engine.exec.Segment.builder(1L)
+            .addSearchableFiles("parquet", gen1Files)
+            .build();
+        org.opensearch.index.engine.exec.Segment gen2 = org.opensearch.index.engine.exec.Segment.builder(2L)
+            .addSearchableFiles("parquet", gen2Files)
+            .build();
+
+        CatalogSnapshot snapshot = mock(CatalogSnapshot.class);
+        when(snapshot.getSegments()).thenReturn(List.of(gen1, gen2));
+        useRealDocCountAggregation(snapshot);
+        when(snapshot.collectFileSizesGroupedByExtension(store)).thenReturn(Collections.emptyMap());
+        when(snapshot.buildEngineSegments(any(), any(), any())).thenReturn(Collections.emptyList());
+        when(snapshotManager.acquireSnapshot()).thenReturn(new GatedCloseable<>(snapshot, () -> {}));
+
+        // Only generation 1 is reported; generation 2's 5 rows must all count as live.
+        Map<Long, DocCounts> reported = Map.of(1L, new DocCounts(8, 2));
+
+        CatalogSnapshotStatsCache cache = newCache(snapshotManager, store, logger, reported);
+        cache.afterRefresh(true);
+
+        DocsStats docsStats = cache.getDocsStats();
+        assertEquals(13L, docsStats.getCount());
+        assertEquals(2L, docsStats.getDeleted());
     }
 }

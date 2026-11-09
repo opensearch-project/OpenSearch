@@ -219,6 +219,12 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      * @param listener - ActionListener for GetRuleResponse
      */
     private void getRuleFromIndex(String id, QueryBuilder queryBuilder, String searchAfter, ActionListener<GetRuleResponse> listener) {
+        // The rules index does not exist (no rule was created yet, or it was deleted), so skip the search and return no rules.
+        // The IndexNotFoundException handling below covers an index deleted after this check.
+        if (clusterService.state().metadata().hasIndex(indexName) == false) {
+            handleGetRuleResponse(new ArrayList<>(), listener);
+            return;
+        }
         try {
             SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setQuery(queryBuilder).setSize(maxRulesPerPage);
             if (searchAfter != null) {

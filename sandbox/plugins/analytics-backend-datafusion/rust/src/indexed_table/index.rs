@@ -45,8 +45,31 @@ use std::sync::Arc;
 /// (zero-length bitset). This is a no-op case and must not error. Callers
 /// rely on this — e.g. `IndexedStream` skips filter-bitset fetch on empty
 /// row groups by calling with `max_doc == min_doc`.
+/// Result of a `collect_packed_u64_bitset` call.
+#[derive(Debug, Clone)]
+pub struct CollectDocsResult {
+    /// The packed u64 bitset of matching docs within the requested range.
+    pub words: Vec<u64>,
+    /// The next matching doc ID beyond `max_doc`, or `i32::MAX` if exhausted.
+    /// Callers can use this to skip subsequent RGs where `next_doc >= rg_max`.
+    pub next_doc: i32,
+}
+
+impl From<Vec<u64>> for CollectDocsResult {
+    fn from(words: Vec<u64>) -> Self {
+        CollectDocsResult {
+            words,
+            next_doc: i32::MIN,
+        }
+    }
+}
+
 pub trait RowGroupDocsCollector: Send + Sync + Debug {
-    fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String>;
+    fn collect_packed_u64_bitset(
+        &self,
+        min_doc: i32,
+        max_doc: i32,
+    ) -> Result<CollectDocsResult, String>;
 }
 
 /// A searcher scoped to a single shard (index), created once per query.

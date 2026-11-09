@@ -32,6 +32,8 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.index.mapper.DynamicFieldTypeInferencer;
+import org.opensearch.index.mapper.DynamicTemplateTypeHandler;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MappingTransformer;
 import org.opensearch.index.mapper.MetadataFieldMapper;
@@ -73,9 +75,19 @@ public interface MapperPlugin {
     }
 
     /**
-     * Returns a function that given an index name returns a predicate which fields must match in order to be returned by get mappings,
-     * get index, get field mappings and field capabilities API. Useful to filter the fields that such API return. The predicate receives
-     * the field name as input argument and should return true to show the field and false to hide it.
+     * Returns a function that, given a concrete index name, returns a predicate that determines field visibility. Consumers include
+     * metadata APIs such as get mappings, get index, get field mappings, and field capabilities, as well as APIs that access field values
+     * or otherwise operate on payload data. The predicate receives the field name as its input and should return {@code true} to show the
+     * field and {@code false} to hide it.
+     *
+     * <p>The filter also applies to query schemas and query planning. Query engines must apply it before field-name resolution, wildcard
+     * expansion, validation, and logical or physical plan construction so a hidden field cannot be projected, filtered, aggregated,
+     * sorted, joined, or passed to a function. The function is evaluated with concrete index names, including when the request used an
+     * alias, wildcard, data stream, or other index expression.
+     *
+     * <p>Implementations may use this filter to enforce authorization access controls such as field-level security. Consumers must
+     * therefore treat it as an access-control boundary rather than a presentation-only filter: they must not bypass the predicate or
+     * reintroduce rejected fields through another metadata or planning path.
      */
     default Function<String, Predicate<String>> getFieldFilter() {
         return NOOP_FIELD_FILTER;
@@ -99,5 +111,25 @@ public interface MapperPlugin {
      */
     default List<MappingTransformer> getMappingTransformers() {
         return Collections.emptyList();
+    }
+
+    /**
+     * Returns dynamic field type inferencers provided by this plugin.
+     * These are consulted when an unmapped array field is encountered during document indexing
+     * and no template matches. The first inferencer to claim a field wins.
+     */
+    default List<DynamicFieldTypeInferencer> getDynamicFieldTypeInferencers() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Returns dynamic template types registered by this plugin.
+     * These allow plugins to register custom match_mapping_type strings
+     * (e.g. "knn_vector") that users can reference in dynamic templates.
+     * The key is the type string, and the value is the handler that adjusts
+     * the mapper builder when a template matches.
+     */
+    default Map<String, DynamicTemplateTypeHandler> getDynamicTemplateTypes() {
+        return Collections.emptyMap();
     }
 }

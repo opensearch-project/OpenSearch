@@ -75,7 +75,7 @@ public class AggLiteralArgProjectSplitPlanShapeTests extends PlanShapeTestBase {
             """
                 OpenSearchAggregate(group=[{}], PERCENTILE_APPROX=[PERCENTILE_APPROX($0, $1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
                   OpenSearchProject(status=[$0], $f1=[50], viableBackends=[[mock-parquet]])
-                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                       OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
@@ -102,7 +102,7 @@ public class AggLiteralArgProjectSplitPlanShapeTests extends PlanShapeTestBase {
             """
                 OpenSearchAggregate(group=[{}], TAKE=[TAKE($0, $1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
                   OpenSearchProject(status=[$0], $f1=[50], viableBackends=[[mock-parquet]])
-                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                       OpenSearchProject(status=[$0], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,

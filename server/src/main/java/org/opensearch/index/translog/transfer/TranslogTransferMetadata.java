@@ -42,6 +42,13 @@ public class TranslogTransferMetadata {
 
     private final SetOnce<Map<String, String>> generationToPrimaryTermMapper = new SetOnce<>();
 
+    /**
+     * Content checksum (as stored in the {@link org.opensearch.index.translog.TranslogFooter}) of every uploaded
+     * translog generation that carries a footer, keyed by generation. Absent for generations uploaded without a
+     * footer; empty when the metadata was written by a node that predates this field.
+     */
+    private final SetOnce<Map<String, String>> generationToChecksumMapper = new SetOnce<>();
+
     public static final String METADATA_SEPARATOR = "__";
 
     public static final String METADATA_PREFIX = "metadata";
@@ -94,6 +101,20 @@ public class TranslogTransferMetadata {
 
     public Map<String, String> getGenerationToPrimaryTermMapper() {
         return generationToPrimaryTermMapper.get();
+    }
+
+    /**
+     * Sets the generation to content-checksum mapping. May only be called once.
+     */
+    public void setGenerationToChecksumMapper(Map<String, String> generationToChecksumMap) {
+        generationToChecksumMapper.set(generationToChecksumMap);
+    }
+
+    /**
+     * Returns the generation to content-checksum mapping, or {@code null} if it has not been set.
+     */
+    public Map<String, String> getGenerationToChecksumMapper() {
+        return generationToChecksumMapper.get();
     }
 
     /*

@@ -194,6 +194,13 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 numberOfAttributes = attributesSet.size();
             }
 
+            if (numberOfAttributes == 0) {
+                // Reachable only when every node carrying this attribute is excluded. There is nothing left to
+                // balance across, so do not veto here; FilterAllocationDecider still prevents allocation onto the
+                // excluded nodes themselves.
+                continue;
+            }
+
             // TODO should we remove ones that are not part of full list?
             final int maximumNodeCount = (shardCount + numberOfAttributes - 1) / numberOfAttributes; // ceil(shardCount/numberOfAttributes)
             if (currentNodeCount > maximumNodeCount) {
@@ -216,8 +223,9 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     }
 
     private Set<String> getAttributeValues(ShardRouting shardRouting, RoutingAllocation allocation, String awarenessAttribute) {
-        return allocation.routingNodes()
-            .nodesPerAttributesCounts(awarenessAttribute, routingNode -> routingNode.node().isSearchNode() == shardRouting.isSearchOnly());
+        // Exclusion-aware values, memoized for the lifetime of this allocation round. See
+        // AwarenessAttributeValues for why the memo is scoped to the round and needs no invalidation.
+        return allocation.awarenessAttributeValues(awarenessAttribute, shardRouting.isSearchOnly());
     }
 
     private int getCurrentNodeCountForAttribute(

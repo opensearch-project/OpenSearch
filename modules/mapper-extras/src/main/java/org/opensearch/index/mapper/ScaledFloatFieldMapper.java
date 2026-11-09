@@ -47,6 +47,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.FieldData;
@@ -90,7 +91,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, () -> pluggableDataFormat == false);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
@@ -129,6 +130,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         public Builder(String name, Settings settings) {
             this(name, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings));
+            this.pluggableDataFormat = Mapper.isPluggableDataFormatEnabled(settings);
         }
 
         public Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
@@ -256,6 +258,12 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         @Override
         protected FieldTypeCapabilities.Capability searchCapability() {
             return FieldTypeCapabilities.Capability.POINT_RANGE;
+        }
+
+        /** Still searchable from doc values when the index uses a pluggable data format. */
+        @Override
+        public boolean isSearchableViaDocValues(IndexSettings indexSettings) {
+            return isSearchable() || (indexSettings != null && indexSettings.isPluggableDataFormatEnabled() && hasDocValues());
         }
 
         @Override
@@ -413,7 +421,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, builder.isPluggableDataFormat());
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
         this.stored = builder.stored.getValue();

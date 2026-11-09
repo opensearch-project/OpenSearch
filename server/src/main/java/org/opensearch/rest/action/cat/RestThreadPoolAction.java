@@ -236,6 +236,9 @@ public class RestThreadPoolAction extends AbstractCatAction {
                     core = poolInfo.getMin();
                     assert poolInfo.getMax() > 0;
                     max = poolInfo.getMax();
+                } else if (poolInfo.getThreadPoolType() == ThreadPool.ThreadPoolType.VIRTUAL) {
+                    // a virtual thread-per-task pool is unbounded, so core, max, and size are all left unset
+                    assert poolInfo.getMin() == -1 && poolInfo.getMax() == -1;
                 } else {
                     assert poolInfo.getMin() == poolInfo.getMax() && poolInfo.getMax() > 0;
                     size = poolInfo.getMax();

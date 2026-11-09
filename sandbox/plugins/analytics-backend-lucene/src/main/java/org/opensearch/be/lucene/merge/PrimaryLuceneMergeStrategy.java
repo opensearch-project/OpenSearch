@@ -9,6 +9,7 @@
 package org.opensearch.be.lucene.merge;
 
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.PreparableOneMerge;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.MergeInput;
@@ -32,7 +33,7 @@ import java.util.List;
 public class PrimaryLuceneMergeStrategy implements LuceneMergeStrategy {
 
     @Override
-    public MergePolicy.OneMerge createOneMerge(List<SegmentCommitInfo> segments, RowIdMapping rowIdMapping, long outputWriterGeneration) {
+    public PreparableOneMerge createOneMerge(List<SegmentCommitInfo> segments, RowIdMapping rowIdMapping, long outputWriterGeneration) {
         throw new UnsupportedOperationException("Primary Lucene merge strategy is not yet implemented");
     }
 

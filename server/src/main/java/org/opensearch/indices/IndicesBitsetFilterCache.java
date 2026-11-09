@@ -8,8 +8,6 @@
 
 package org.opensearch.indices;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
@@ -30,7 +28,6 @@ import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.settings.Setting;
@@ -55,16 +52,16 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.ToLongBiFunction;
 
 /**
  * Node-level cache for {@link BitSet} based filters. Manages a single flat cache shared across
- * all indices on the node, with a configurable size limit and async stale entry cleanup.
- * Stale entries from closed readers are purged periodically by a background cleanup task.
+ * all indices on the node, with a configurable size limit. Entries for a reader are invalidated
+ * by exact key as soon as the reader closes.
  *
  * @opensearch.api
  */
@@ -74,8 +71,6 @@ public class IndicesBitsetFilterCache
         IndexReader.ClosedListener,
         RemovalListener<IndicesBitsetFilterCache.BitsetCacheKey, IndicesBitsetFilterCache.Value>,
         Closeable {
-
-    private static final Logger logger = LogManager.getLogger(IndicesBitsetFilterCache.class);
 
     public static final Setting<Boolean> INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING = Setting.boolSetting(
         "index.load_fixed_bitset_filters_eagerly",
@@ -89,28 +84,24 @@ public class IndicesBitsetFilterCache
         Property.NodeScope
     );
 
-    public static final Setting<TimeValue> INDICES_BITSET_FILTER_CACHE_CLEAN_INTERVAL_SETTING = Setting.positiveTimeSetting(
-        "indices.cache.bitset.cleanup_interval",
-        TimeValue.timeValueSeconds(60),
-        Property.NodeScope
-    );
-
     private final Cache<BitsetCacheKey, Value> cache;
-    private final Set<IndexReader.CacheKey> staleCacheKeys = ConcurrentCollections.newConcurrentSet();
-    private final Set<IndexReader.CacheKey> registeredKeys = ConcurrentCollections.newConcurrentSet();
-    private final BitsetCacheCleaner cacheCleaner;
+    /**
+     * Every key cached for a reader, so {@link #onClose(IndexReader.CacheKey)} can invalidate the
+     * exact keys when the reader closes. Keys are only removed on reader close: trimming on
+     * eviction would race with a concurrent reload of the same key re-registering it, and a lost
+     * registration would leave the entry with no cleanup path. A registered key whose entry was
+     * evicted costs two references, is bounded by the reader's lifetime, and invalidating it on
+     * close is a no-op.
+     */
+    private final ConcurrentMap<IndexReader.CacheKey, Set<BitsetCacheKey>> keysByReader = ConcurrentCollections.newConcurrentMap();
 
-    public IndicesBitsetFilterCache(Settings settings, ThreadPool threadPool) {
+    public IndicesBitsetFilterCache(Settings settings) {
         long sizeInBytes = INDICES_BITSET_FILTER_CACHE_SIZE_SETTING.get(settings).getBytes();
         CacheBuilder<BitsetCacheKey, Value> cacheBuilder = CacheBuilder.<BitsetCacheKey, Value>builder().removalListener(this);
         if (sizeInBytes > 0) {
             cacheBuilder.setMaximumWeight(sizeInBytes).weigher(new BitsetWeigher());
         }
         this.cache = cacheBuilder.build();
-
-        TimeValue cleanInterval = INDICES_BITSET_FILTER_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
-        this.cacheCleaner = new BitsetCacheCleaner(this, threadPool, cleanInterval);
-        threadPool.schedule(cacheCleaner, cleanInterval, ThreadPool.Names.SAME);
     }
 
     public BitSetProducer getBitSetProducer(Query query, BitsetFilterCache.Listener listener) {
@@ -143,11 +134,14 @@ public class IndicesBitsetFilterCache
         final IndexReader.CacheKey coreCacheReader = cacheHelper.getKey();
         final ShardId shardId = ShardUtils.extractShardId(context.reader());
 
-        if (registeredKeys.add(coreCacheReader)) {
-            cacheHelper.addClosedListener(this);
-        }
-
         final BitsetCacheKey cacheKey = new BitsetCacheKey(coreCacheReader, query);
+        // Register the closed listener at most once per reader (the mapping function runs
+        // atomically) and record the key so onClose can invalidate it exactly. The caller holds
+        // the reader open, so onClose cannot fire before the key is recorded.
+        keysByReader.computeIfAbsent(coreCacheReader, k -> {
+            cacheHelper.addClosedListener(this);
+            return ConcurrentCollections.newConcurrentSet();
+        }).add(cacheKey);
         return cache.computeIfAbsent(cacheKey, key -> {
             final BitSet bitSet = bitsetFromQuery(query, context);
             Value value = new Value(bitSet, shardId, listener);
@@ -158,19 +152,26 @@ public class IndicesBitsetFilterCache
 
     @Override
     public void onClose(IndexReader.CacheKey ownerCoreCacheKey) {
-        staleCacheKeys.add(ownerCoreCacheKey);
+        // Invalidate the exact keys synchronously rather than deferring to a periodic cache
+        // sweep: a reader closes only once, and exact-key invalidation is O(#queries cached for
+        // the reader), so there is no need to batch it. A key whose entry was already evicted is
+        // a no-op to invalidate.
+        Set<BitsetCacheKey> keys = keysByReader.remove(ownerCoreCacheKey);
+        if (keys != null) {
+            for (BitsetCacheKey key : keys) {
+                cache.invalidate(key);
+            }
+        }
     }
 
     @Override
     public void close() {
-        cacheCleaner.close();
         clear();
     }
 
     public void clear() {
         cache.invalidateAll();
-        staleCacheKeys.clear();
-        registeredKeys.clear();
+        keysByReader.clear();
     }
 
     @Override
@@ -180,22 +181,6 @@ public class IndicesBitsetFilterCache
             return;
         }
         value.listener.onRemoval(value.shardId, value.bitset);
-    }
-
-    public void purgeStaleEntries() {
-        if (staleCacheKeys.isEmpty()) {
-            return;
-        }
-        Set<IndexReader.CacheKey> staleSnapshot = new HashSet<>(staleCacheKeys);
-
-        for (BitsetCacheKey key : cache.keys()) {
-            if (staleSnapshot.contains(key.readerCacheKey)) {
-                cache.invalidate(key);
-            }
-        }
-
-        staleCacheKeys.removeAll(staleSnapshot);
-        registeredKeys.removeAll(staleSnapshot);
     }
 
     public Cache<BitsetCacheKey, Value> getCache() {
@@ -373,33 +358,4 @@ public class IndicesBitsetFilterCache
         }
     }
 
-    private static final class BitsetCacheCleaner implements Runnable, Releasable {
-        private final IndicesBitsetFilterCache cache;
-        private final ThreadPool threadPool;
-        private final TimeValue interval;
-        private final AtomicBoolean closed = new AtomicBoolean(false);
-
-        BitsetCacheCleaner(IndicesBitsetFilterCache cache, ThreadPool threadPool, TimeValue interval) {
-            this.cache = cache;
-            this.threadPool = threadPool;
-            this.interval = interval;
-        }
-
-        @Override
-        public void run() {
-            try {
-                cache.purgeStaleEntries();
-            } catch (Exception e) {
-                logger.warn("Exception during periodic bitset filter cache cleanup:", e);
-            }
-            if (closed.get() == false) {
-                threadPool.scheduleUnlessShuttingDown(interval, ThreadPool.Names.SAME, this);
-            }
-        }
-
-        @Override
-        public void close() {
-            closed.compareAndSet(false, true);
-        }
-    }
 }

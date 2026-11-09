@@ -26,7 +26,7 @@ import java.lang.foreign.ValueLayout;
 public final class WireConfigSnapshot {
 
     /** Total byte size of the wire struct ({@code WireDatafusionQueryConfig}). */
-    public static final long BYTE_SIZE = 52;
+    public static final long BYTE_SIZE = 56;
 
     private final int batchSize;
     private final int targetPartitions;
@@ -35,6 +35,7 @@ public final class WireConfigSnapshot {
     private final double minSkipRunSelectivityThreshold;
     private final boolean indexedPushdownFilters;
     private final int forceStrategy;
+    private final boolean preferHashJoin;
 
     private WireConfigSnapshot(Builder builder) {
         this.batchSize = builder.batchSize;
@@ -44,6 +45,7 @@ public final class WireConfigSnapshot {
         this.minSkipRunSelectivityThreshold = builder.minSkipRunSelectivityThreshold;
         this.indexedPushdownFilters = builder.indexedPushdownFilters;
         this.forceStrategy = builder.forceStrategy;
+        this.preferHashJoin = builder.preferHashJoin;
     }
 
     public static Builder builder() {
@@ -61,7 +63,8 @@ public final class WireConfigSnapshot {
             .minSkipRunDefault(current.minSkipRunDefault)
             .minSkipRunSelectivityThreshold(current.minSkipRunSelectivityThreshold)
             .indexedPushdownFilters(current.indexedPushdownFilters)
-            .forceStrategy(current.forceStrategy);
+            .forceStrategy(current.forceStrategy)
+            .preferHashJoin(current.preferHashJoin);
     }
 
     public int batchSize() {
@@ -94,6 +97,16 @@ public final class WireConfigSnapshot {
     }
 
     /**
+     * Whether the physical planner prefers a hash join over a sort-merge join (DataFusion's
+     * {@code optimizer.prefer_hash_join}). Only consulted on hash-shuffle worker sessions; the
+     * coordinator sets it {@code false} per worker stage for a large-build join so DataFusion emits a
+     * spillable {@code SortMergeJoinExec}. Defaults {@code true} (hash-join default) everywhere else.
+     */
+    public boolean preferHashJoin() {
+        return preferHashJoin;
+    }
+
+    /**
      * Writes this snapshot into a {@code MemorySegment} matching the
      * {@code WireDatafusionQueryConfig} {@code #[repr(C)]} layout.
      * <p>
@@ -114,8 +127,9 @@ public final class WireConfigSnapshot {
      * 40      4     force_strategy                       i32      from snapshot (-1/0/1)
      * 44      4     cost_predicate                       i32      hardcoded 1
      * 48      4     cost_collector                       i32      hardcoded 10
+     * 52      4     prefer_hash_join                     i32      from snapshot (0/1)
      * ──────  ────
-     * Total: 52 bytes
+     * Total: 56 bytes
      * </pre>
      *
      * @param segment the target memory segment (at least {@link #BYTE_SIZE} bytes)
@@ -139,6 +153,8 @@ public final class WireConfigSnapshot {
         segment.set(ValueLayout.JAVA_INT, 44, 1);
         // Offset 48: cost_collector (i32) — hardcoded 10
         segment.set(ValueLayout.JAVA_INT, 48, 10);
+        // Offset 52: prefer_hash_join (i32) — 0 = false (sort-merge join), 1 = true (hash join)
+        segment.set(ValueLayout.JAVA_INT, 52, preferHashJoin ? 1 : 0);
     }
 
     /**
@@ -153,6 +169,7 @@ public final class WireConfigSnapshot {
         private double minSkipRunSelectivityThreshold = 0.03;
         private boolean indexedPushdownFilters = true;
         private int forceStrategy = -1;
+        private boolean preferHashJoin = true;
 
         private Builder() {}
 
@@ -189,6 +206,12 @@ public final class WireConfigSnapshot {
         /** @param forceStrategy -1 = None (heuristic), 0 = RowSelection, 1 = BooleanMask. */
         public Builder forceStrategy(int forceStrategy) {
             this.forceStrategy = forceStrategy;
+            return this;
+        }
+
+        /** @param preferHashJoin false → DataFusion emits a spillable sort-merge join for equi-joins. */
+        public Builder preferHashJoin(boolean preferHashJoin) {
+            this.preferHashJoin = preferHashJoin;
             return this;
         }
 

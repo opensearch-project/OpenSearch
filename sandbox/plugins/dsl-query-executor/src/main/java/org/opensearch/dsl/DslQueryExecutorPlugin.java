@@ -15,9 +15,11 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.dsl.action.DslExecuteAction;
+import org.opensearch.dsl.action.ExecuteAction;
 import org.opensearch.dsl.action.SearchActionFilter;
-import org.opensearch.dsl.action.TransportDslExecuteAction;
+import org.opensearch.dsl.action.TransportExecuteAction;
+import org.opensearch.dsl.action.TransportValidateAction;
+import org.opensearch.dsl.action.ValidateAction;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugins.ActionPlugin;
@@ -36,7 +38,7 @@ import java.util.function.Supplier;
 
 /**
  * Plugin entry point. Registers {@link SearchActionFilter} to intercept _search requests
- * and {@link TransportDslExecuteAction} to handle DSL-to-Calcite conversion and execution.
+ * and {@link TransportExecuteAction} to handle DSL-to-Calcite conversion and execution.
  */
 public class DslQueryExecutorPlugin extends Plugin implements ActionPlugin {
 
@@ -65,7 +67,10 @@ public class DslQueryExecutorPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(DslExecuteAction.INSTANCE, TransportDslExecuteAction.class));
+        return List.of(
+            new ActionHandler<>(ExecuteAction.INSTANCE, TransportExecuteAction.class),
+            new ActionHandler<>(ValidateAction.INSTANCE, TransportValidateAction.class)
+        );
     }
 
     @Override

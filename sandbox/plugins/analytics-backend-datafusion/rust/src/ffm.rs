@@ -86,7 +86,28 @@ pub extern "C" fn df_init_runtime_manager(
     datanode_multiplier: f64,
     coordinator_multiplier: f64,
 ) {
+    #[cfg(test)]
+    crate::test_process_globals::assert_held("the process-global runtime manager");
     let mut guard = TOKIO_RUNTIME_MANAGER.write();
+    // Retire the outgoing manager before building its replacement, not after. `RuntimeManager::new`
+    // publishes the IO runtime handle and `RuntimeManager::drop` clears it, so dropping the old one
+    // once the new one has published leaves a live manager with no handle registered — and the
+    // native-repository-{s3,gcs,azure} stores read that handle to put their HTTP IO on this runtime.
+    //
+    // Neither order is airtight; this one picks the cheaper failure. Handle readers take the IO-slot
+    // lock only, not this guard, so a store built inside this window sees `None` and keeps its
+    // default connector — remote IO then runs on the wrong pool, but it works. The old order instead
+    // left `None` installed for good, and a store that captured a dead handle fails every request
+    // with `HttpErrorKind::Interrupted`, because a spawn onto a shut-down runtime is cancelled
+    // before it runs and `SpawnService` sees only a dropped oneshot.
+    //
+    // Still not fixed: a manager the caller holds another `Arc` to (in-flight queries, on a re-init
+    // with no intervening shutdown) outlives this drop and clears the handle whenever its last clone
+    // goes. The airtight form has `set_io_handle` hand back a registration token that `Drop`
+    // presents, so a manager can only clear a slot it still owns. `Handle::id()` cannot serve as
+    // that token — tokio reuses a runtime's id once that runtime has completed, which is exactly
+    // when the stale `Drop` runs.
+    drop(guard.take());
     *guard = Some(Arc::new(RuntimeManager::new(
         cpu_threads as usize,
         datanode_multiplier,
@@ -120,19 +141,35 @@ pub unsafe extern "C" fn df_update_concurrency_gate(
     let gate_name = str_from_raw(gate_name_ptr, gate_name_len)
         .map_err(|e| format!("df_update_concurrency_gate: {}", e))?;
 
-    let mgr = match get_rt_manager() {
-        Ok(m) => m,
-        Err(_) => {
-            warn!("df_update_concurrency_gate called before runtime init");
-            return Ok(0);
-        }
+    Ok(update_concurrency_gate(
+        try_get_rt_manager(),
+        gate_name,
+        new_max_permits,
+    ))
+}
+
+/// Resize logic behind [`df_update_concurrency_gate`], with the runtime manager passed in rather
+/// than read from `TOKIO_RUNTIME_MANAGER`. Taking it as an argument is what lets a test reach the
+/// "called before runtime init" branch by passing `None`, instead of clearing the global and
+/// racing every other test in the binary that needs it.
+///
+/// Returns the status the FFI entry point reports to Java: always 0, since a gate the node has not
+/// built yet and a name it does not know are both "nothing to resize", not caller errors.
+fn update_concurrency_gate(
+    manager: Option<Arc<RuntimeManager>>,
+    gate_name: &str,
+    new_max_permits: u32,
+) -> i64 {
+    let Some(mgr) = manager else {
+        warn!("df_update_concurrency_gate called before runtime init");
+        return 0;
     };
 
     let gate = match gate_name {
         "fragment_executor" => mgr.cpu_executor().concurrency_gate().clone(),
         other => {
             warn!("df_update_concurrency_gate: unknown gate '{}'", other);
-            return Ok(0);
+            return 0;
         }
     };
 
@@ -145,7 +182,7 @@ pub unsafe extern "C" fn df_update_concurrency_gate(
         gate.resize(new_max_permits, &gate_name_owned).await;
     });
 
-    Ok(0)
+    0
 }
 
 #[ffm_safe]
@@ -769,8 +806,31 @@ fn send_outcome_to_code(outcome: crate::partition_stream::SendOutcome) -> i64 {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn df_sender_terminate_early(sender_ptr: i64) {
+    api::sender_terminate_early(sender_ptr);
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn df_sender_close(sender_ptr: i64) {
     api::sender_close(sender_ptr);
+}
+
+/// Fails a partition stream: pushes an error into the channel (so the consumer's stream yields an
+/// ERROR rather than a clean EOF), then drops the sender. Used by the Java shuffle drain thread when a
+/// mid-stream failure (e.g. a spill-read error) truncates the partition — turning a silent
+/// wrong-result into a loud query failure. The reason string is included in the surfaced error.
+/// Returns 0 on success, a non-empty error string (via `ffm_wrap`) only on argument-decode failure.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_sender_fail(
+    sender_ptr: i64,
+    reason_ptr: *const u8,
+    reason_len: i64,
+) -> i64 {
+    let reason = str_from_raw(reason_ptr, reason_len)
+        .map_err(|e| format!("df_sender_fail: reason: {}", e))?;
+    api::sender_fail(sender_ptr, reason);
+    Ok(0)
 }
 
 /// Memtable variant of `df_register_partition_stream`: instead of returning a
@@ -825,6 +885,162 @@ pub unsafe extern "C" fn df_register_memtable(
         out_cap,
         out_len,
         "register_memtable schema IPC",
+    )?;
+    Ok(0)
+}
+
+/// Variant of `df_register_memtable` for the shard-scan side. Takes a
+/// `SessionContextHandle` pointer (returned by `df_create_session_context`) instead of a
+/// `LocalSession` pointer (returned by `df_create_local_session`) — the M1 broadcast
+/// injection runs on the same shard-scan session that has the listing-table-backed
+/// probe scan registered, so the memtable lives alongside that table.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_register_memtable_on_session_context(
+    session_ctx_handle_ptr: i64,
+    input_id_ptr: *const u8,
+    input_id_len: i64,
+    schema_ipc_ptr: *const u8,
+    schema_ipc_len: i64,
+    array_ptrs: *const i64,
+    schema_ptrs: *const i64,
+    n_batches: i64,
+) -> i64 {
+    let input_id = str_from_raw(input_id_ptr, input_id_len)
+        .map_err(|e| format!("df_register_memtable_on_session_context: input_id: {}", e))?;
+    let schema_ipc = slice::from_raw_parts(schema_ipc_ptr, schema_ipc_len as usize);
+    let n = n_batches as usize;
+    let array_slice: &[i64] = if n == 0 {
+        &[]
+    } else {
+        slice::from_raw_parts(array_ptrs, n)
+    };
+    let schema_slice: &[i64] = if n == 0 {
+        &[]
+    } else {
+        slice::from_raw_parts(schema_ptrs, n)
+    };
+    api::register_memtable_on_session_context(
+        session_ctx_handle_ptr,
+        input_id,
+        schema_ipc,
+        array_slice,
+        schema_slice,
+    )
+    .map(|_| 0)
+    .map_err(|e| e.to_string())
+}
+
+/// Streaming sibling of `df_register_memtable_on_session_context`. Registers a partitioned
+/// streaming input on the shard-scan session under `input_id` and returns the producer-side
+/// channel sender pointer. M2 hash-shuffle workers register left/right partition inputs via
+/// this entry; the per-batch feed reuses the existing `df_sender_send` / `df_sender_close`
+/// FFM exports because `PartitionStreamSender` is the same type whether the session was
+/// created via `df_create_local_session` or `df_create_session_context`.
+///
+/// On success the function returns the sender pointer cast to `i64`. On error it returns
+/// the FFM error sentinel; the bridge layer converts that to a Java exception.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_register_partition_stream_on_session_context(
+    session_ctx_handle_ptr: i64,
+    input_id_ptr: *const u8,
+    input_id_len: i64,
+    schema_ipc_ptr: *const u8,
+    schema_ipc_len: i64,
+) -> i64 {
+    let input_id = str_from_raw(input_id_ptr, input_id_len).map_err(|e| {
+        format!(
+            "df_register_partition_stream_on_session_context: input_id: {}",
+            e
+        )
+    })?;
+    let schema_ipc = slice::from_raw_parts(schema_ipc_ptr, schema_ipc_len as usize);
+    api::register_partition_stream_on_session_context(session_ctx_handle_ptr, input_id, schema_ipc)
+        .map_err(|e| e.to_string())
+}
+
+/// M3 hash-shuffle AGGREGATE worker variant of `df_register_partition_stream_on_session_context`.
+///
+/// Identical wiring (channel + `SingleReceiverPartition` + `StreamingTable` registered on the
+/// `SessionContextHandle`, returning the `PartitionStreamSender` pointer), but the table schema
+/// is derived from the producer's PARTIAL substrait plan (the SAME derivation the
+/// coordinator-reduce `df_register_partition_stream` uses) instead of the raw producer IPC
+/// header. This registers the streaming table under the FINAL fragment's logical column names
+/// (e.g. `sum_qty`) rather than the producer's physical state names (e.g. `sum_qty[sum]`), so
+/// the worker FINAL's by-name `base_schema` binding resolves. See
+/// `api::register_partition_stream_on_session_context_from_partial_plan` for the full rationale.
+///
+/// On success returns the sender pointer cast to `i64`; on error returns the FFM error sentinel.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_register_partition_stream_on_session_context_from_partial_plan(
+    session_ctx_handle_ptr: i64,
+    input_id_ptr: *const u8,
+    input_id_len: i64,
+    partial_plan_ptr: *const u8,
+    partial_plan_len: i64,
+) -> i64 {
+    let input_id = str_from_raw(input_id_ptr, input_id_len).map_err(|e| {
+        format!(
+            "df_register_partition_stream_on_session_context_from_partial_plan: input_id: {}",
+            e
+        )
+    })?;
+    let partial_plan = slice::from_raw_parts(partial_plan_ptr, partial_plan_len as usize);
+    api::register_partition_stream_on_session_context_from_partial_plan(
+        session_ctx_handle_ptr,
+        input_id,
+        partial_plan,
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// Hash-partitions one Arrow C Data batch into N output batches using DataFusion's
+/// `BatchPartitioner` (matches `RepartitionExec` and `HashJoinExec` row-to-partition
+/// mapping). Writes the resulting N (array_ptr, schema_ptr) pairs as 16N bytes into the
+/// caller-provided output buffer (8 bytes for array_ptr, 8 bytes for schema_ptr, repeated).
+/// The output FFI structs are heap-allocated by Rust; ownership transfers to Java which
+/// must close them via Arrow C Data Interface.
+///
+/// On success returns 0 and writes 16N to `out_len`. On error returns the FFM sentinel.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_partition_batch_by_hash(
+    input_array_ptr: i64,
+    input_schema_ptr: i64,
+    hash_key_indices_ptr: *const i32,
+    hash_key_indices_len: i64,
+    partition_count: i32,
+    out_ptr: *mut u8,
+    out_cap: i64,
+    out_len: *mut i64,
+) -> i64 {
+    let n = hash_key_indices_len as usize;
+    let key_slice: &[i32] = if n == 0 {
+        &[]
+    } else {
+        slice::from_raw_parts(hash_key_indices_ptr, n)
+    };
+    let pairs = api::partition_batch_by_hash(
+        input_array_ptr,
+        input_schema_ptr,
+        key_slice,
+        partition_count,
+    )
+    .map_err(|e| e.to_string())?;
+    // Pack as parallel little-endian i64 pairs: [array_ptr_0, schema_ptr_0, array_ptr_1, ...]
+    let mut bytes = Vec::with_capacity(pairs.len() * 16);
+    for (a, s) in &pairs {
+        bytes.extend_from_slice(&a.to_le_bytes());
+        bytes.extend_from_slice(&s.to_le_bytes());
+    }
+    write_out_buffer(
+        &bytes,
+        out_ptr,
+        out_cap,
+        out_len,
+        "partition_batch_by_hash output ptrs",
     )?;
     Ok(0)
 }
@@ -1032,6 +1248,7 @@ pub unsafe extern "C" fn df_create_session_context(
     table_name_len: i64,
     context_id: i64,
     query_config_ptr: i64,
+    deleted_doc_filtering_required: u8,
     has_partial_aggregate: u8,
     plan_ptr: *const u8,
     plan_len: i64,
@@ -1054,9 +1271,31 @@ pub unsafe extern "C" fn df_create_session_context(
                 shard_view_ptr,
                 table_name,
                 context_id,
+                deleted_doc_filtering_required != 0,
                 has_partial_aggregate != 0,
                 query_config,
                 plan_bytes,
+            ),
+        ))
+        .map_err(|e| e.to_string())
+}
+
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_create_worker_session_context(
+    runtime_ptr: i64,
+    context_id: i64,
+    query_config_ptr: i64,
+) -> i64 {
+    let query_config =
+        crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
+    let mgr = get_rt_manager()?;
+    mgr.io_runtime
+        .block_on(crate::task_monitors::plan_setup_monitor().instrument(
+            crate::session_context::create_worker_session_context(
+                runtime_ptr,
+                context_id,
+                query_config,
             ),
         ))
         .map_err(|e| e.to_string())
@@ -1073,6 +1312,7 @@ pub unsafe extern "C" fn df_create_session_context_indexed(
     tree_shape: i32,
     delegated_predicate_count: i32,
     requests_row_ids: u8,
+    deleted_doc_filtering_required: u8,
     has_partial_aggregate: u8,
     query_config_ptr: i64,
     plan_ptr: *const u8,
@@ -1103,6 +1343,7 @@ pub unsafe extern "C" fn df_create_session_context_indexed(
                 tree_shape,
                 delegated_predicate_count,
                 requests_row_ids != 0,
+                deleted_doc_filtering_required != 0,
                 has_partial_aggregate != 0,
                 query_config,
                 plan_bytes,
@@ -1603,9 +1844,263 @@ pub extern "C" fn df_set_scoped_page_index_enabled(enabled: i64) -> i64 {
     Ok(0)
 }
 
+/// Shard provably holds no matching row — the only status that prunes.
+pub const CAN_MATCH_NO: i64 = 0;
+/// Shard may hold a matching row.
+pub const CAN_MATCH_YES: i64 = 1;
+/// Could not tell (no statistics, unreadable footer, unsupported stats type) — keep the shard.
+///
+/// Deliberately 2, not -1: `#[ffm_safe]` returns `Err` as a *negated error pointer*, so Java's
+/// `NativeLibraryLoader.checkResult` treats every negative return as an address to read a message
+/// from. A negative status here is dereferenced as that address and segfaults the node. Every
+/// status crossing this boundary must be non-negative.
+pub const CAN_MATCH_UNKNOWN: i64 = 2;
+
+/// Can-match evaluation via FFM. Iterates ALL parquet files in the shard view
+/// and checks row-group statistics against the range [filter_min, filter_max]
+/// on the named column.
+///
+/// For each file: tries the metadata cache first (zero I/O), falls back to
+/// reading the footer via the shard's ObjectStore (local disk or S3).
+///
+/// Returns one of the `CAN_MATCH_*` statuses below.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_can_match(
+    runtime_ptr: i64,
+    shard_view_ptr: i64,
+    column_name_ptr: *const u8,
+    column_name_len: i64,
+    filter_min: i64,
+    filter_max: i64,
+) -> i64 {
+    let column_name = str_from_raw(column_name_ptr, column_name_len)?;
+
+    if shard_view_ptr == 0 {
+        return Ok(CAN_MATCH_UNKNOWN);
+    }
+    let shard_view = &*(shard_view_ptr as *const api::ShardView);
+    let files = &shard_view.object_metas;
+    if files.is_empty() {
+        return Ok(CAN_MATCH_UNKNOWN);
+    }
+
+    for file_meta in files.iter() {
+        let file_path = file_meta.location.as_ref();
+        let file_size = file_meta.size as usize;
+
+        // Try cache first, then ObjectStore fallback
+        let result =
+            try_cached_can_match(runtime_ptr, file_path, column_name, filter_min, filter_max)
+                .unwrap_or_else(|| {
+                    try_store_can_match(
+                        shard_view_ptr,
+                        file_path,
+                        column_name,
+                        filter_min,
+                        filter_max,
+                        file_size,
+                    )
+                    .unwrap_or(crate::can_match::CanMatchResult::Unknown)
+                });
+
+        match result {
+            crate::can_match::CanMatchResult::Yes => return Ok(CAN_MATCH_YES),
+            crate::can_match::CanMatchResult::Unknown => return Ok(CAN_MATCH_UNKNOWN),
+            crate::can_match::CanMatchResult::No => continue,
+        }
+    }
+    Ok(CAN_MATCH_NO)
+}
+
+/// Number of i64 slots `df_shard_sort_bounds` writes into `out_ptr`.
+/// Layout: [min, max, has_nulls, value_kind]. Mirrored by `NativeBridge.SORT_BOUNDS_SLOTS`.
+const SORT_BOUNDS_SLOTS: usize = 4;
+
+/// Shard-wide min/max of one column, for coordinator-side shard ordering.
+///
+/// Separate from `df_can_match` on purpose: that function short-circuits at both the
+/// file and row-group level, which is right for a boolean "could anything match" but
+/// would give a min/max covering only the part it visited. A too-narrow range lets the
+/// coordinator skip a shard that really holds a top-N row, so this walks everything.
+///
+/// Writes `[min, max, has_nulls, value_kind]` into `out_ptr` (4 caller-allocated i64 slots)
+/// and returns 1. Returns 0 with `out_ptr` untouched when no shard-wide bound exists —
+/// column absent, unsupported type, statistics missing, or files disagreeing on type.
+///
+/// # Safety
+/// `shard_view_ptr` must be 0 or a valid `api::ShardView` pointer; `out_ptr` must point
+/// to at least `SORT_BOUNDS_SLOTS` writable i64 slots.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_shard_sort_bounds(
+    runtime_ptr: i64,
+    shard_view_ptr: i64,
+    column_name_ptr: *const u8,
+    column_name_len: i64,
+    out_ptr: *mut i64,
+) -> i64 {
+    let column_name = str_from_raw(column_name_ptr, column_name_len)?;
+
+    if shard_view_ptr == 0 || out_ptr.is_null() {
+        return Ok(0);
+    }
+    let shard_view = &*(shard_view_ptr as *const api::ShardView);
+    let files = &shard_view.object_metas;
+    if files.is_empty() {
+        return Ok(0);
+    }
+
+    let mut folded: Option<crate::can_match::Bounds> = None;
+    for file_meta in files.iter() {
+        let file_path = file_meta.location.as_ref();
+        let file_size = file_meta.size as usize;
+
+        // Same cache-then-ObjectStore fallback as df_can_match.
+        let file_bounds = try_cached_sort_bounds(runtime_ptr, file_path, column_name)
+            .or_else(|| try_store_sort_bounds(shard_view_ptr, file_path, column_name, file_size));
+
+        // One unreadable file means the shard-wide range is unknown — the other files'
+        // range would understate it.
+        let Some(file_bounds) = file_bounds else {
+            return Ok(0);
+        };
+
+        // merge widens the range and ORs has_nulls. None means the files disagree on value
+        // domain, so there is no shard-wide range.
+        folded = Some(match folded {
+            None => file_bounds,
+            Some(acc) => match acc.merge(file_bounds) {
+                Some(merged) => merged,
+                None => return Ok(0),
+            },
+        });
+    }
+
+    match folded {
+        Some(b) => {
+            let out = std::slice::from_raw_parts_mut(out_ptr, SORT_BOUNDS_SLOTS);
+            out[0] = b.min;
+            out[1] = b.max;
+            out[2] = if b.has_nulls { 1 } else { 0 };
+            out[3] = b.value_kind as i64;
+            Ok(1)
+        }
+        None => Ok(0),
+    }
+}
+
+/// Cache-miss fallback: read the footer via the shard's ObjectStore.
+unsafe fn try_store_sort_bounds(
+    shard_view_ptr: i64,
+    file_path: &str,
+    column_name: &str,
+    file_size: usize,
+) -> Option<crate::can_match::Bounds> {
+    if shard_view_ptr == 0 {
+        return None;
+    }
+    let rt_manager = try_get_rt_manager()?;
+    let shard_view = &*(shard_view_ptr as *const api::ShardView);
+    let store = Arc::clone(&shard_view.store);
+    let path = object_store::path::Path::from(file_path);
+    rt_manager.io_runtime.block_on(async {
+        crate::can_match::sort_bounds_via_store(store, &path, file_size, column_name).await
+    })
+}
+
+/// Fold bounds from the metadata cache if the file is present there.
+unsafe fn try_cached_sort_bounds(
+    runtime_ptr: i64,
+    file_path: &str,
+    column_name: &str,
+) -> Option<crate::can_match::Bounds> {
+    use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
+    use object_store::path::Path as ObjectPath;
+
+    if runtime_ptr == 0 {
+        return None;
+    }
+    let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+    let cache = runtime
+        .custom_cache_manager
+        .as_ref()?
+        .get_file_metadata_cache_for_datafusion()?;
+    let entry = cache.get(&ObjectPath::from(file_path))?;
+    let cached_parquet = entry
+        .file_metadata
+        .as_any()
+        .downcast_ref::<CachedParquetMetaData>()?;
+    let metadata = cached_parquet.parquet_metadata();
+    crate::can_match::sort_bounds_with_metadata(&metadata, column_name)
+}
+
+/// Cache-miss fallback: read footer via the shard's ObjectStore.
+unsafe fn try_store_can_match(
+    shard_view_ptr: i64,
+    file_path: &str,
+    column_name: &str,
+    filter_min: i64,
+    filter_max: i64,
+    file_size: usize,
+) -> Option<crate::can_match::CanMatchResult> {
+    if shard_view_ptr == 0 {
+        return None;
+    }
+    let rt_manager = try_get_rt_manager()?;
+    let shard_view = &*(shard_view_ptr as *const api::ShardView);
+    let store = Arc::clone(&shard_view.store);
+    let path = object_store::path::Path::from(file_path);
+    Some(rt_manager.io_runtime.block_on(async {
+        crate::can_match::can_match_range_via_store(
+            store,
+            &path,
+            file_size,
+            column_name,
+            filter_min,
+            filter_max,
+        )
+        .await
+    }))
+}
+
+/// Probe the metadata cache for the file. If present, evaluate can-match in memory.
+unsafe fn try_cached_can_match(
+    runtime_ptr: i64,
+    file_path: &str,
+    column_name: &str,
+    filter_min: i64,
+    filter_max: i64,
+) -> Option<crate::can_match::CanMatchResult> {
+    use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
+    use object_store::path::Path as ObjectPath;
+
+    if runtime_ptr == 0 {
+        return None;
+    }
+    let runtime = &*(runtime_ptr as *const DataFusionRuntime);
+    let cache = runtime
+        .custom_cache_manager
+        .as_ref()?
+        .get_file_metadata_cache_for_datafusion()?;
+    let entry = cache.get(&ObjectPath::from(file_path))?;
+    let cached_parquet = entry
+        .file_metadata
+        .as_any()
+        .downcast_ref::<CachedParquetMetaData>()?;
+    let metadata = cached_parquet.parquet_metadata();
+    Some(crate::can_match::can_match_range_with_metadata(
+        &metadata,
+        column_name,
+        filter_min,
+        filter_max,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::executor::ConcurrencyGate;
     use crate::partition_stream::SendOutcome;
 
     #[test]
@@ -1624,46 +2119,51 @@ mod tests {
         assert_eq!(SENDER_SEND_RECEIVER_DROPPED, 1);
     }
 
-    /// Initialize the global runtime manager for tests.
-    /// Uses 2 CPU threads and 1.5 multiplier (default) for both gates.
-    fn init_test_runtime() {
-        df_init_runtime_manager(2, 1.5, 1.5);
-    }
-
-    /// Shutdown and clear the global runtime manager after tests.
-    /// Must be called from a blocking context (not inside an async runtime).
-    fn shutdown_test_runtime() {
-        df_shutdown_runtime_manager();
-    }
-
     /// Helper: call df_update_concurrency_gate with a Rust string.
     /// Returns the i64 result (0 = success for the outer call).
     unsafe fn call_update_gate(gate_name: &str, new_max: u32) -> i64 {
         df_update_concurrency_gate(gate_name.as_ptr(), gate_name.len() as i64, new_max)
     }
 
+    /// Polls until the gate reports `expected` permits, up to one second. The resize runs as a
+    /// task on the IO runtime, so it is not observable the instant the call returns; polling
+    /// rather than sleeping a fixed interval keeps the test from depending on how loaded the
+    /// machine is.
+    fn wait_for_max_permits(gate: &ConcurrencyGate, expected: u32) -> bool {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
+        while std::time::Instant::now() < deadline {
+            if gate.max_permits() == expected {
+                return true;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        gate.max_permits() == expected
+    }
+
     /// Validates: Requirements 2.2, 2.4, 2.6
     ///
-    /// Combined test for FFI gate routing to avoid global state conflicts
-    /// between parallel test threads. Tests are run sequentially within this
-    /// function since they all share the TOKIO_RUNTIME_MANAGER global.
+    /// Combined test for gate routing, driving [`update_concurrency_gate`] with the manager passed
+    /// in. The "before runtime init" case (Req 2.6) is reached by passing `None`, not by clearing
+    /// `TOKIO_RUNTIME_MANAGER`: clearing it would strand every other test in this binary that is
+    /// mid-read on the global, which surfaces as "no runtime manager registered" somewhere else.
     ///
     /// Covers:
+    /// - Calling update before runtime init returns success (Req 2.6)
     /// - "fragment_executor" routes to the DedicatedExecutor's gate (Req 2.2)
     /// - Unknown gate name logs warning and returns success (Req 2.4)
-    /// - Calling update before runtime init returns success (Req 2.6)
     #[test]
     fn test_ffi_gate_routing() {
         // ── Test 1: update before runtime init returns success (Req 2.6) ──
-        shutdown_test_runtime(); // ensure clean state
-        let result = unsafe { call_update_gate("fragment_executor", 10) };
         assert_eq!(
-            result, 0,
-            "FFI call should return success even before runtime init"
+            update_concurrency_gate(None, "fragment_executor", 10),
+            0,
+            "call should return success even before runtime init"
         );
 
-        // ── Initialize runtime for remaining tests ──
-        init_test_runtime();
+        // The cases below resize the gate on the manager the whole test binary shares, so they
+        // hold the process-globals lock.
+        let _globals = crate::test_process_globals::lock();
+        crate::test_process_globals::install_runtime_manager();
         let mgr = get_rt_manager().expect("runtime should be initialized");
 
         // ── Test 2: "fragment_executor" routes to CPU executor gate (Req 2.2) ──
@@ -1672,21 +2172,18 @@ mod tests {
             let initial_max = gate.max_permits();
             let new_max = initial_max + 4;
 
+            // Through the real FFI entry point, so its pointer/length shell stays covered.
             let result = unsafe { call_update_gate("fragment_executor", new_max) };
             assert_eq!(
                 result, 0,
                 "FFI call should return success for 'fragment_executor'"
             );
 
-            // The resize is spawned on the IO runtime asynchronously.
-            // Wait briefly for it to complete.
-            std::thread::sleep(std::time::Duration::from_millis(200));
-
-            assert_eq!(
-                gate.max_permits(),
+            assert!(
+                wait_for_max_permits(&gate, new_max),
+                "fragment_executor gate max_permits should be updated to {}, is {}",
                 new_max,
-                "fragment_executor gate max_permits should be updated to {}",
-                new_max
+                gate.max_permits()
             );
         }
 
@@ -1702,7 +2199,8 @@ mod tests {
                 "FFI call should return success even for unknown gate"
             );
 
-            // Wait briefly to ensure no async resize was spawned
+            // A negative assertion: give a resize that must not have been spawned time to land
+            // before concluding that it did not.
             std::thread::sleep(std::time::Duration::from_millis(100));
 
             // Gate should not have been modified
@@ -1712,8 +2210,74 @@ mod tests {
                 "fragment_executor gate should not be modified for unknown gate name"
             );
         }
+    }
 
-        // ── Cleanup ──
-        shutdown_test_runtime();
+    /// Re-initialising on top of an existing manager must leave the NEW manager's IO handle
+    /// published. `RuntimeManager::new` publishes the handle and `RuntimeManager::drop` clears it,
+    /// so building the replacement before retiring the old one ends with a live manager and an
+    /// empty handle slot — and the native-repository-{s3,gcs,azure} stores read that slot to decide
+    /// whether to put their HTTP IO on this runtime, so they would silently fall back.
+    ///
+    /// Replaces the manager the rest of the binary shares, hence the process-globals lock. What it
+    /// leaves installed is a working manager, which is all any other test needs.
+    #[test]
+    fn reinitialising_the_runtime_manager_leaves_its_io_handle_published() {
+        let _globals = crate::test_process_globals::lock();
+
+        df_init_runtime_manager(1, 1.5, 1.5);
+        df_init_runtime_manager(1, 1.5, 1.5);
+
+        let published = native_bridge_common::io_runtime::io_handle()
+            .expect("a live runtime manager must leave its IO handle published");
+        let installed = get_rt_manager().expect("the manager just installed must be readable");
+        assert_eq!(
+            published.id(),
+            installed.io_runtime.handle().id(),
+            "the published handle must be the live manager's, not one from a torn-down runtime"
+        );
+    }
+
+    /// A manager that outlives its own replacement must clear nothing. In-flight queries hold
+    /// `Arc<RuntimeManager>` clones, so on a re-init with no intervening shutdown the outgoing
+    /// manager's `Drop` runs only once the last query lets go — after the replacement published its
+    /// handle. Ordering the drop earlier cannot help here; the teardown has to check ownership.
+    #[test]
+    fn a_manager_outliving_its_replacement_does_not_clear_the_newer_io_handle() {
+        let _globals = crate::test_process_globals::lock();
+
+        df_init_runtime_manager(1, 1.5, 1.5);
+        // Stands in for a query that is still running when the re-init happens.
+        let outgoing = get_rt_manager().expect("the manager just installed must be readable");
+
+        df_init_runtime_manager(1, 1.5, 1.5);
+        let replacement = get_rt_manager().expect("the replacement must be readable");
+        let replacement_handle = replacement.io_runtime.handle().clone();
+
+        // The query finishes and releases the old manager, running its Drop last.
+        drop(outgoing);
+
+        let published = native_bridge_common::io_runtime::io_handle()
+            .expect("the replacement's handle must survive the outgoing manager's teardown");
+        assert_eq!(
+            published.id(),
+            replacement_handle.id(),
+            "a superseded manager must not clear the live manager's handle"
+        );
+    }
+
+    /// `#[ffm_safe]` reserves negative returns for negated error pointers, so every status
+    /// `df_can_match` reports has to be non-negative. A negative one is read by Java as an
+    /// error address and dereferenced, which segfaults the whole node rather than failing
+    /// the query. A null shard view is the cheapest way to reach a non-match status without
+    /// a runtime or any parquet on disk.
+    #[test]
+    fn can_match_status_codes_are_non_negative() {
+        let column = "@timestamp";
+        let rc = unsafe { df_can_match(0, 0, column.as_ptr(), column.len() as i64, 0, 100) };
+        assert!(
+            rc >= 0,
+            "df_can_match returned {rc}; negative values are error pointers to Java, not statuses"
+        );
+        assert_eq!(rc, CAN_MATCH_UNKNOWN);
     }
 }

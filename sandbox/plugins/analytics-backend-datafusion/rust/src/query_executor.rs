@@ -17,7 +17,6 @@ use datafusion::{
     execution::runtime_env::RuntimeEnvBuilder, physical_plan::displayable,
     physical_plan::execute_stream,
 };
-use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use log::error;
 use native_bridge_common::log_debug;
 use object_store::ObjectMeta;
@@ -148,7 +147,8 @@ async fn build_dataframe(
     // Standard user-search flow: Substrait → logical plan → DataFrame.
     let substrait_plan = Plan::decode(plan_bytes)
         .map_err(|e| DataFusionError::Execution(format!("Failed to decode Substrait: {}", e)))?;
-    let logical_plan = from_substrait_plan(&ctx.state(), &substrait_plan).await?;
+    let logical_plan =
+        crate::substrait_consumer::from_substrait_plan(&ctx.state(), &substrait_plan).await?;
     ctx.execute_logical_plan(logical_plan).await
 }
 
@@ -250,7 +250,9 @@ pub async fn execute_with_context(
         })?;
 
         // Union schema widening was applied at table registration (session_context::widen_to_union_schema).
-        let logical_plan = from_substrait_plan(&handle.ctx.state(), &substrait_plan).await?;
+        let logical_plan =
+            crate::substrait_consumer::from_substrait_plan(&handle.ctx.state(), &substrait_plan)
+                .await?;
         log_debug!(
             "DataFusion logical plan:\n{}",
             logical_plan.display_indent()
@@ -258,7 +260,13 @@ pub async fn execute_with_context(
 
         // Empty shard: skip physical planning (ParquetExec errors on zero files)
         // and emit an EmptyExec stream with the logical plan's output schema.
-        if handle.object_metas.is_empty() {
+        //
+        // Gate on a non-empty table_name so this fires ONLY for real shard scans. Hash-shuffle
+        // WORKER sessions (create_worker_session_context) also carry empty object_metas — they
+        // scan registered StreamingTables, not parquet files — but use an empty table_name. Without
+        // this guard a worker's join/aggregate plan would short-circuit to EmptyExec and silently
+        // return zero rows (regression caught by HashShuffleJoinIT after the #21754 empty-index merge).
+        if handle.object_metas.is_empty() && !handle.table_name.is_empty() {
             use datafusion::physical_plan::empty::EmptyExec;
             use datafusion::physical_plan::ExecutionPlan;
             let plan_schema: arrow::datatypes::SchemaRef =
@@ -484,6 +492,18 @@ pub fn wrap_stream_as_handle(
     runtime: &DataFusionRuntime,
     context_id: i64,
 ) -> i64 {
+    wrap_stream_as_handle_with_plan(df_stream, cpu_executor, runtime, context_id, None)
+}
+
+/// Like [`wrap_stream_as_handle`] but attaches a physical plan so that execution metrics
+/// can be extracted from the plan tree after the stream is exhausted.
+pub fn wrap_stream_as_handle_with_plan(
+    df_stream: datafusion::execution::SendableRecordBatchStream,
+    cpu_executor: DedicatedExecutor,
+    runtime: &DataFusionRuntime,
+    context_id: i64,
+    physical_plan: Option<Arc<dyn datafusion::physical_plan::ExecutionPlan>>,
+) -> i64 {
     // Create the tracking context first so its cancellation token is registered before the task starts.
     let query_context = crate::query_tracker::QueryTrackingContext::new(
         context_id,
@@ -504,6 +524,11 @@ pub fn wrap_stream_as_handle(
         cross_rt_stream.schema(),
         cross_rt_stream,
     );
-    let handle = crate::api::QueryStreamHandle::new(wrapped, query_context, None);
+    let handle = match physical_plan {
+        Some(plan) => {
+            crate::api::QueryStreamHandle::new_with_plan(wrapped, query_context, None, plan)
+        }
+        None => crate::api::QueryStreamHandle::new(wrapped, query_context, None),
+    };
     Box::into_raw(Box::new(handle)) as i64
 }

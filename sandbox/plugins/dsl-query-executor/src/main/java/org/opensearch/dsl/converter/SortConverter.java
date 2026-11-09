@@ -38,9 +38,15 @@ public class SortConverter extends AbstractDslConverter {
     // Core defaults to _score DESC when no sort is specified. The analytics engine
     // has no relevance scoring, so unsorted queries return rows in unspecified order.
     // TODO: handle ScoreSortBuilder (_score sort)
+
+    /**
+     * Always applicable on the hits path: even with default pagination the plan must carry
+     * {@code fetch=size} (default 10), otherwise no LIMIT reaches the engine and it
+     * materializes up to its row cap only for the response builder to discard the excess.
+     */
     @Override
     protected boolean isApplicable(ConversionContext ctx) {
-        return hasSort(ctx) || hasNonDefaultPagination(ctx);
+        return true;
     }
 
     @Override
@@ -94,10 +100,8 @@ public class SortConverter extends AbstractDslConverter {
         return ctx.getRexBuilder().makeLiteral(from, ctx.getCluster().getTypeFactory().createSqlType(SqlTypeName.INTEGER), false);
     }
 
+    /** Always emits fetch so the size limit (explicit or the default 10) pushes down to the engine. */
     private RexNode buildFetch(ConversionContext ctx) {
-        if (!hasNonDefaultPagination(ctx)) {
-            return null;
-        }
         SearchSourceBuilder ss = ctx.getSearchSource();
         int size = ss.size() != -1 ? ss.size() : SearchService.DEFAULT_SIZE;
         return ctx.getRexBuilder().makeLiteral(size, ctx.getCluster().getTypeFactory().createSqlType(SqlTypeName.INTEGER), false);
@@ -105,12 +109,5 @@ public class SortConverter extends AbstractDslConverter {
 
     private static boolean hasSort(ConversionContext ctx) {
         return ctx.getSearchSource().sorts() != null && !ctx.getSearchSource().sorts().isEmpty();
-    }
-
-    private static boolean hasNonDefaultPagination(ConversionContext ctx) {
-        SearchSourceBuilder ss = ctx.getSearchSource();
-        int from = ss.from() != -1 ? ss.from() : SearchService.DEFAULT_FROM;
-        int size = ss.size() != -1 ? ss.size() : SearchService.DEFAULT_SIZE;
-        return !(from == SearchService.DEFAULT_FROM && size == SearchService.DEFAULT_SIZE);
     }
 }

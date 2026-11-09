@@ -43,6 +43,7 @@ use arrow_array::ffi::FFI_ArrowArray;
 use arrow_array::RecordBatch;
 use arrow_array::{Array, StructArray};
 use arrow_schema::ffi::FFI_ArrowSchema;
+use arrow_schema::SchemaRef;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::datasource::physical_plan::parquet::{ParquetAccessPlan, RowGroupAccess};
@@ -310,7 +311,10 @@ pub async fn create_object_metas(
 /// Contains the DataFusion RuntimeEnv (memory pool, disk spill, cache)
 /// and a handle to change the memory pool limit at runtime.
 pub struct DataFusionRuntime {
-    pub runtime_env: datafusion::execution::runtime_env::RuntimeEnv,
+    /// Behind an `Arc` only so it can be published to the global registry, which stores a `Weak`
+    /// (and a `Weak` can only be made from an `Arc`). This is the sole strong reference, so the
+    /// environment is dropped when Java closes this runtime, exactly as it was when held by value.
+    pub runtime_env: Arc<datafusion::execution::runtime_env::RuntimeEnv>,
     pub custom_cache_manager: Option<CustomCacheManager>,
     pub dynamic_limit_handle: DynamicLimitHandle,
 }
@@ -411,7 +415,7 @@ pub fn build_shard_files(
 }
 
 impl DataFusionRuntime {
-    pub fn new_for_bench(runtime_env: datafusion::execution::runtime_env::RuntimeEnv) -> Self {
+    pub fn new_for_bench(runtime_env: Arc<datafusion::execution::runtime_env::RuntimeEnv>) -> Self {
         let (_pool, handle) = DynamicLimitPool::new(0);
         Self {
             runtime_env,
@@ -706,17 +710,22 @@ pub fn create_global_runtime(
         (CacheManagerConfig::default(), None)
     };
 
-    let runtime_env = RuntimeEnvBuilder::new()
-        .with_memory_pool(memory_pool)
-        .with_disk_manager_builder(disk_manager)
-        .with_cache_manager(cache_manager_config)
-        .build()?;
+    let runtime_env = Arc::new(
+        RuntimeEnvBuilder::new()
+            .with_memory_pool(memory_pool)
+            .with_disk_manager_builder(disk_manager)
+            .with_cache_manager(cache_manager_config)
+            .build()?,
+    );
 
     let runtime = DataFusionRuntime {
         runtime_env,
         custom_cache_manager,
         dynamic_limit_handle,
     };
+    // The doc-values cursor is opened from Lucene with only a file path, so it reads the environment
+    // from here.
+    crate::cache::register_global_runtime_env(&runtime.runtime_env);
     Ok(Box::into_raw(Box::new(runtime)) as i64)
 }
 
@@ -1022,7 +1031,7 @@ pub async unsafe fn fetch_by_row_ids(
 ) -> Result<i64, DataFusionError> {
     use crate::indexed_table::row_selection::build_row_selection_with_min_skip_run;
     use crate::indexed_table::segment_info::build_segments;
-    use crate::query_executor::{store_url_from_table_path, wrap_stream_as_handle};
+    use crate::query_executor::{store_url_from_table_path, wrap_stream_as_handle_with_plan};
 
     // ── 1. Build RuntimeEnv + SessionContext ──
 
@@ -1056,7 +1065,7 @@ pub async unsafe fn fetch_by_row_ids(
         .runtime_env()
         .cache_manager
         .get_file_metadata_cache();
-    let (segments, _schema) = build_segments(
+    let (segments, resolved_schema) = build_segments(
         &ctx.state(),
         Arc::clone(&store),
         shard_view.object_metas.as_ref(),
@@ -1129,15 +1138,6 @@ pub async unsafe fn fetch_by_row_ids(
     // ── 3. Register ShardTableProvider ──
 
     let store_url = store_url_from_table_path(&shard_view.table_path)?;
-    let listing_options = datafusion::datasource::listing::ListingOptions::new(Arc::new(
-        datafusion::datasource::file_format::parquet::ParquetFormat::new(),
-    ))
-    .with_file_extension(".parquet")
-    .with_collect_stat(true);
-    let resolved_schema = listing_options
-        .infer_schema(&ctx.state(), &shard_view.table_path)
-        .await?;
-
     let provider = Arc::new(ShardTableProvider::new(ShardTableConfig {
         file_schema: resolved_schema,
         files,
@@ -1169,7 +1169,7 @@ pub async unsafe fn fetch_by_row_ids(
     let sql = format!("SELECT {} FROM t", projection);
     let df = ctx.sql(&sql).await?;
     let physical_plan = df.create_physical_plan().await?;
-    let df_stream = execute_stream(physical_plan, ctx.task_ctx())?;
+    let df_stream = execute_stream(Arc::clone(&physical_plan), ctx.task_ctx())?;
 
     // Post-condition: returned stream schema must contain __row_id__ plus every requested column.
     // Catches drift if SQL synthesis or the optimizer ever drops a projection silently.
@@ -1184,11 +1184,12 @@ pub async unsafe fn fetch_by_row_ids(
     // monotonically nondecreasing across the entire stream. target_partitions=1
     // means a single ordered execution, so the check is global, not per-batch only.
     let df_stream = ascending_row_id_check_stream(df_stream);
-    Ok(wrap_stream_as_handle(
+    Ok(wrap_stream_as_handle_with_plan(
         df_stream,
         manager.cpu_executor(),
         runtime,
         context_id,
+        Some(physical_plan),
     ))
 }
 
@@ -1361,18 +1362,30 @@ pub unsafe fn stream_get_schema(stream_ptr: i64) -> Result<i64, DataFusionError>
 /// on the same stream.
 pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError> {
     let handle = &mut *(stream_ptr as *mut QueryStreamHandle);
-    let token = query_tracker::get_cancellation_token(handle._query_tracking_context.context_id());
+    let expected_schema = handle.stream.schema();
+    // Use the handle's OWN token, not a registry lookup by context_id. The
+    // registry entry can be removed by a sibling stream's Drop (same id) while
+    // this stream is mid-flight; a `None` token here silently degrades
+    // `cancellable_or` to a bare uncancellable await — the reduce sink's
+    // cancel then can't interrupt an in-flight drain (the ~5s LM stall).
+    let token = handle._query_tracking_context.cancellation_token();
 
-    // Fetch the next batch (cancellation-aware)
-    let result = cancellation::cancellable_or(token.as_ref(), None, async {
-        handle
-            .stream
-            .try_next()
-            .await
-            .map_err(|e: DataFusionError| e)
-    })
+    // Fetch the next batch (cancellation-aware). Query cancellation is an abort,
+    // not normal end-of-stream: callers must receive an error rather than the
+    // same zero sentinel used for EOF.
+    let result = cancellation::cancellable(
+        token.as_ref(),
+        handle._query_tracking_context.context_id(),
+        async {
+            handle
+                .stream
+                .try_next()
+                .await
+                .map_err(|e: DataFusionError| e)
+        },
+    )
     .await
-    .map_err(|e| DataFusionError::Execution(e))?;
+    .map_err(DataFusionError::Execution)?;
 
     match result {
         Some(batch) => {
@@ -1381,6 +1394,7 @@ pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError>
                 ._query_tracking_context
                 .apply_pending_phantom_correction();
 
+            ensure_batch_matches_stream_schema(&batch, &expected_schema)?;
             let batch = if handle.has_views {
                 compact_string_view_columns(batch)
             } else {
@@ -1393,6 +1407,49 @@ pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError>
         }
         None => Ok(0),
     }
+}
+
+/// Tripwire at the FFI export boundary — checks, never casts.
+///
+/// Java imports every batch against the schema returned once by `stream_get_schema`,
+/// and an Arrow C Data array carries no type information of its own. A batch whose
+/// buffer layout differs from that schema is therefore read as garbage (the
+/// `List<Utf8>` vs `List<Utf8View>` JVM SIGSEGV). DataFusion guarantees that a
+/// stream's batches match its `schema()`; this turns any violation into a query
+/// error instead of native memory corruption.
+///
+/// Field names and metadata are ignored: they are not part of the buffer layout, and
+/// DataFusion is lax about them. A mismatch here is a planning-time bug (see
+/// `derive_schema_from_partial_plan`) and must be fixed there, not papered over per
+/// batch.
+fn ensure_batch_matches_stream_schema(
+    batch: &RecordBatch,
+    expected: &SchemaRef,
+) -> Result<(), DataFusionError> {
+    let actual = batch.schema();
+    if Arc::ptr_eq(&actual, expected) {
+        return Ok(());
+    }
+    if actual.fields().len() != expected.fields().len() {
+        return Err(DataFusionError::Execution(format!(
+            "stream_next: batch column count {} does not match declared schema width {}",
+            actual.fields().len(),
+            expected.fields().len()
+        )));
+    }
+    for (i, (a, e)) in actual.fields().iter().zip(expected.fields()).enumerate() {
+        if !a.data_type().equals_datatype(e.data_type()) {
+            return Err(DataFusionError::Execution(format!(
+                "stream_next: column {} ('{}') has type {:?} but the stream schema declares {:?}; \
+                 exporting it would misread buffers across FFI",
+                i,
+                e.name(),
+                a.data_type(),
+                e.data_type()
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Prevents sliced StringView batches from carrying full backing buffers across FFI.
@@ -1601,7 +1658,7 @@ fn derive_schema_from_partial_plan(
     use datafusion::prelude::SessionContext;
     use datafusion_substrait::extensions::Extensions;
     use datafusion_substrait::logical_plan::consumer::{
-        from_substrait_named_struct, from_substrait_plan, DefaultSubstraitConsumer,
+        from_substrait_named_struct, DefaultSubstraitConsumer,
     };
     use prost::Message;
     use substrait::proto::{read_rel::ReadType, Plan};
@@ -1663,7 +1720,15 @@ fn derive_schema_from_partial_plan(
             .parquet
             .schema_force_view_types;
         let arrow_schema = if view_types {
-            datafusion::datasource::file_format::parquet::transform_schema_to_view(&arrow_schema)
+            // Use the recursive variant so nested types (e.g. List<Utf8> child fields)
+            // are also rewritten to view types. DataFusion's non-recursive
+            // `transform_schema_to_view` only touches top-level fields, which left
+            // `List<Utf8>` here while the data node (which uses
+            // `transform_schema_to_view_recursive`) produced `List<Utf8View>`. The
+            // reduce stage's Arrow C Data import then read the view child's buffers as
+            // Utf8 offsets: "Offset buffer for type Utf8 is malformed", surfacing as
+            // "RefCnt has gone negative".
+            crate::schema_coerce::transform_schema_to_view_recursive(&arrow_schema)
         } else {
             arrow_schema
         };
@@ -1689,7 +1754,9 @@ fn derive_schema_from_partial_plan(
         })
         .unwrap_or_default();
 
-    let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
+    let logical_plan = futures::executor::block_on(
+        crate::substrait_consumer::from_substrait_plan(&session_state, &plan),
+    )?;
     let physical_plan =
         futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
 
@@ -1727,6 +1794,17 @@ fn derive_schema_from_partial_plan(
     Ok(crate::schema_coerce::coerce_inferred_schema(
         physical_plan.schema(),
     ))
+}
+
+/// Decodes an Arrow IPC stream-format header into a [`SchemaRef`]. The Java side
+/// (specifically `BroadcastInjectionHandler`) ships the build-side memtable
+/// schema as a standalone IPC blob produced by `ArrowSchemaIpc.toBytes(...)`.
+fn schema_from_ipc_bytes(bytes: &[u8]) -> Result<SchemaRef, DataFusionError> {
+    use arrow::ipc::reader::StreamReader;
+    use std::io::Cursor;
+    let reader = StreamReader::try_new(Cursor::new(bytes), None)
+        .map_err(|e| DataFusionError::Execution(format!("schema_from_ipc_bytes: {}", e)))?;
+    Ok(reader.schema())
 }
 
 /// Encodes a Schema as Arrow IPC stream-format bytes (a schema-only message
@@ -1817,6 +1895,23 @@ fn collect_reads(rel: &substrait::proto::Rel, out: &mut Vec<substrait::proto::Re
         }
         Some(RelType::Set(s)) => {
             for input in &s.inputs {
+                collect_reads(input, out);
+            }
+        }
+        // Extension rels wrap a normal input. The multi-value expand
+        // (MULTI_VALUE_EXPAND_TYPE_URL) places its parquet ReadRel beneath an
+        // ExtensionSingleRel. Without these arms the ReadRel is invisible here,
+        // no synthetic MemTable is registered for it, and planning the producer
+        // plan on the coordinator fails with "No table named '<index>'" — only
+        // reachable with more than one shard since a single shard has no reduce
+        // stage to derive a producer schema for.
+        Some(RelType::ExtensionSingle(e)) => {
+            if let Some(input) = e.input.as_ref() {
+                collect_reads(input, out);
+            }
+        }
+        Some(RelType::ExtensionMulti(e)) => {
+            for input in &e.inputs {
                 collect_reads(input, out);
             }
         }
@@ -2122,7 +2217,111 @@ pub unsafe fn sender_send(
     // Zero-copy: from_ffi BORROWS the Java buffers, keeping them alive until DataFusion drops the
     // batch. stream_close's teardown barrier releases that borrow before the allocator closes.
     let borrowed_batch = RecordBatch::from(struct_array);
-    Ok(sender.send_blocking(Ok(borrowed_batch), io_handle))
+
+    // The producer may emit a string column as plain Utf8 where the declared
+    // (sender/StreamingTable) schema is Utf8View, or vice versa — e.g. an outer
+    // join's null-fill side yields Utf8 while the live side yields Utf8View. The
+    // StreamingTable advertises the declared schema, and downstream operators
+    // rebuild RecordBatches against it, so an unconformed string-view mismatch
+    // fails later with a schema/batch type mismatch. Cast ONLY those columns to
+    // the declared type here. RelabelExec on the producer side only retags
+    // bit-compatible Int/UInt pairs; Utf8 and Utf8View have distinct buffer
+    // layouts, so this must be a real cast rather than a relabel. Other tolerated
+    // divergences (e.g. Timestamp precision) are left untouched — see
+    // conform_batch_to_schema. (A cast copies only the mismatched columns, ending
+    // the zero-copy borrow for those; conformant columns keep borrowing as above.)
+    let batch = conform_batch_to_schema(borrowed_batch, sender.schema())?;
+
+    Ok(sender.send_blocking(Ok(batch), io_handle))
+}
+
+/// Conforms a producer batch to the consumer-side `StreamingTable` schema.
+///
+/// Three tiers, checked per column against the declared field:
+/// 1. Exact type match: reuse the column, adopt the declared field (metadata agrees).
+/// 2. Layout-identical nested types ([`DataType::equals_datatype`]: same buffers and
+///    nullability, child names/metadata may differ): zero-copy relabel. This is the
+///    `List<element>` (parquet) vs `List<item>` (Substrait) case.
+/// 3. Utf8/Utf8View: a real value-preserving cast, because their buffer layouts differ.
+/// Anything else (e.g. timestamp precision) keeps its actual field and column so this
+/// boundary never silently truncates values.
+fn conform_batch_to_schema(
+    batch: RecordBatch,
+    declared: &SchemaRef,
+) -> Result<RecordBatch, DataFusionError> {
+    let actual_schema = batch.schema();
+    if actual_schema.fields().len() != declared.fields().len() {
+        return Err(DataFusionError::Execution(format!(
+            "sender_send: batch column count {} does not match declared schema {}",
+            actual_schema.fields().len(),
+            declared.fields().len()
+        )));
+    }
+    if actual_schema.as_ref() == declared.as_ref() {
+        return Ok(batch);
+    }
+
+    let mut fields = Vec::with_capacity(batch.num_columns());
+    let mut columns = Vec::with_capacity(batch.num_columns());
+    for (i, want) in declared.fields().iter().enumerate() {
+        let col = batch.column(i);
+        if col.data_type() == want.data_type() {
+            columns.push(Arc::clone(col));
+            fields.push(Arc::clone(want));
+        } else if col.data_type().equals_datatype(want.data_type()) {
+            // Same buffer layout and nullability, differing only in child field
+            // names/metadata (parquet emits `List<element>`, Substrait declares
+            // `List<item>`). Relabel the ArrayData in place.
+            //
+            // SAFETY: `data` was taken from a valid array and only its data_type
+            // is replaced with one `equals_datatype` has proven layout-identical,
+            // so every buffer/offset/null invariant validate_data() would check
+            // still holds. Skipping validation keeps this O(1) instead of a full
+            // per-value UTF-8 and offset scan on every batch.
+            let data = unsafe {
+                col.to_data()
+                    .into_builder()
+                    .data_type(want.data_type().clone())
+                    .build_unchecked()
+            };
+            columns.push(arrow_array::make_array(data));
+            fields.push(Arc::clone(want));
+        } else if is_utf8_family(col.data_type()) && is_utf8_family(want.data_type()) {
+            let cast = arrow::compute::cast(col, want.data_type()).map_err(|e| {
+                DataFusionError::Execution(format!(
+                    "sender_send: failed to cast column {} ('{}') from {:?} to declared {:?}: {}",
+                    i,
+                    want.name(),
+                    col.data_type(),
+                    want.data_type(),
+                    e
+                ))
+            })?;
+            columns.push(cast);
+            fields.push(Arc::clone(want));
+        } else {
+            columns.push(Arc::clone(col));
+            fields.push(Arc::clone(&actual_schema.fields()[i]));
+        }
+    }
+
+    let target_schema = Arc::new(arrow_schema::Schema::new_with_metadata(
+        fields,
+        declared.metadata().clone(),
+    ));
+    RecordBatch::try_new(target_schema, columns).map_err(|e| {
+        DataFusionError::Execution(format!(
+            "sender_send: failed to assemble conformed batch: {}",
+            e
+        ))
+    })
+}
+
+/// Utf8 / Utf8View — the string-view family whose two variants share byte-identical
+/// UTF-8 content but use distinct buffer layouts. Mirrors the Java sink's
+/// `isUtf8Family` so both sides agree on which divergence is safe to cast.
+fn is_utf8_family(t: &DataType) -> bool {
+    matches!(t, DataType::Utf8 | DataType::Utf8View)
 }
 
 /// Closes a partition stream sender. Dropping the sender closes the mpsc,
@@ -2134,23 +2333,61 @@ pub unsafe fn sender_send(
 /// # Safety
 /// `sender_ptr` must be 0 or a valid pointer returned by
 /// `register_partition_stream`.
+pub unsafe fn sender_terminate_early(sender_ptr: i64) {
+    if sender_ptr != 0 {
+        let sender = &*(sender_ptr as *const PartitionStreamSender);
+        sender.terminate_early();
+    }
+}
+
 pub unsafe fn sender_close(sender_ptr: i64) {
     if sender_ptr != 0 {
         let _ = Box::from_raw(sender_ptr as *mut PartitionStreamSender);
     }
 }
 
+/// Fails a partition stream so the consumer's `RecordBatchStream` yields a terminal ERROR (failing
+/// the join/agg) instead of a clean EOF, then takes ownership of the sender and drops it (the same
+/// teardown as [`sender_close`]). This is the truncation-safe terminal: a plain [`sender_close`]
+/// closes the channel as a clean EOF, so a producer that died mid-stream (e.g. a spill-read failure
+/// on the Java drain thread) would otherwise make the consumer silently compute a result from PARTIAL
+/// input.
+///
+/// Delivery is OUT-OF-BAND (`PartitionStreamSender::fail` sets a flag the receiver reads on close), so
+/// this never touches the bounded channel — it cannot block/deadlock against a full channel + a
+/// non-polling consumer, and it surfaces the error even when the channel is full. If the receiver was
+/// already dropped (consumer finished / cancelled) the flag is simply never read, which is correct.
+/// The sender is always dropped. (codex round-5 BLOCKER #1.)
+pub unsafe fn sender_fail(sender_ptr: i64, reason: &str) {
+    if sender_ptr == 0 {
+        return;
+    }
+    // Reclaim ownership so the sender (and its channel) is dropped at end of scope — mirrors
+    // sender_close. fail() records the reason out-of-band BEFORE that drop; the receiver yields it on
+    // channel-close.
+    let sender = Box::from_raw(sender_ptr as *mut PartitionStreamSender);
+    sender.fail(DataFusionError::Execution(format!(
+        "shuffle partition stream failed on the producer/drain side: {reason}"
+    )));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow_array::{BinaryViewArray, Int64Array, StringViewArray};
+    use arrow::buffer::OffsetBuffer;
+    use arrow_array::{BinaryViewArray, Int64Array, ListArray, StringViewArray};
     use arrow_schema::{Field, Schema};
 
-    /// Shared lock for tests that mutate `memory_guard`'s global SPILL_ENABLED / SPILL_DIR
-    /// or that observe the global runtime state from `create_global_runtime`. cargo test
-    /// runs tests in parallel by default; without serialization, two runtime-construction
-    /// tests would race on these globals and produce flaky assertions.
-    static SPILL_GLOBALS_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    /// Lock for tests that mutate `memory_guard`'s global SPILL_ENABLED / SPILL_DIR or that
+    /// observe the global runtime state from `create_global_runtime`. cargo test runs tests in
+    /// parallel by default; without serialization, two runtime-construction tests would race on
+    /// these globals and produce flaky assertions.
+    ///
+    /// `crate::test_process_globals::lock` rather than a lock of its own, because
+    /// `create_global_runtime` also replaces the global `RuntimeEnv` registration and
+    /// `close_global_runtime` then leaves it dangling — which fails any doc-values test reading it
+    /// at that moment with "no global DataFusion runtime environment".
+    use crate::test_process_globals::lock as lock_process_globals;
 
     /// Test helper: poll until `predicate` returns true or `timeout_ms` elapses.
     /// Used to wait on the background spill-cleanup thread without an arbitrary sleep.
@@ -2166,6 +2403,119 @@ mod tests {
     }
 
     #[test]
+    fn conforms_list_child_name_to_declared_coordinator_schema() {
+        let actual_child = Arc::new(Field::new("element", DataType::Utf8View, true));
+        let expected_child = Arc::new(Field::new("item", DataType::Utf8View, true));
+        let values: Arc<dyn Array> = Arc::new(StringViewArray::from_iter_values(["prod", "error"]));
+        let list = ListArray::new(
+            Arc::clone(&actual_child),
+            OffsetBuffer::new(vec![0_i32, 2].into()),
+            values,
+            None,
+        );
+        let original_offsets = list.value_offsets().as_ptr();
+        let actual_schema = Arc::new(Schema::new(vec![Field::new(
+            "tags",
+            DataType::List(actual_child),
+            true,
+        )]));
+        let expected_schema = Arc::new(Schema::new(vec![Field::new(
+            "tags",
+            DataType::List(expected_child),
+            true,
+        )]));
+        let batch = RecordBatch::try_new(actual_schema, vec![Arc::new(list)])
+            .expect("runtime LIST batch builds");
+
+        let aligned = conform_batch_to_schema(batch, &expected_schema)
+            .expect("equivalent LIST child names align");
+        assert_eq!(aligned.schema(), expected_schema);
+        let aligned_list = aligned
+            .column(0)
+            .as_any()
+            .downcast_ref::<ListArray>()
+            .expect("aligned column remains LIST");
+        assert_eq!(aligned_list.value_offsets().as_ptr(), original_offsets);
+        let aligned_values = aligned_list
+            .values()
+            .as_any()
+            .downcast_ref::<StringViewArray>()
+            .expect("aligned child remains Utf8View");
+        assert_eq!(aligned_values.value(0), "prod");
+        assert_eq!(aligned_values.value(1), "error");
+    }
+
+    /// A child-nullability mismatch is NOT layout-equivalent: relabeling a nullable
+    /// child as non-nullable would hand the consumer nulls it does not expect. The
+    /// column must fall through to the pass-through tier and keep its actual field.
+    #[test]
+    fn conform_keeps_actual_field_when_list_child_nullability_differs() {
+        let actual_child = Arc::new(Field::new("element", DataType::Utf8View, true));
+        let declared_child = Arc::new(Field::new("item", DataType::Utf8View, false));
+        let values: Arc<dyn Array> = Arc::new(StringViewArray::from_iter_values(["a"]));
+        let list = ListArray::new(
+            Arc::clone(&actual_child),
+            OffsetBuffer::new(vec![0_i32, 1].into()),
+            values,
+            None,
+        );
+        let actual_field = Field::new("tags", DataType::List(actual_child), true);
+        let actual_schema = Arc::new(Schema::new(vec![actual_field.clone()]));
+        let declared = Arc::new(Schema::new(vec![Field::new(
+            "tags",
+            DataType::List(declared_child),
+            true,
+        )]));
+        let batch = RecordBatch::try_new(actual_schema, vec![Arc::new(list)]).unwrap();
+
+        let out = conform_batch_to_schema(batch, &declared).unwrap();
+        assert_eq!(out.schema().field(0), &actual_field);
+    }
+
+    #[test]
+    fn stream_schema_tripwire_ignores_child_names_but_rejects_layout_mismatch() {
+        let mk = |child_name: &str, child_ty: DataType| {
+            Arc::new(Schema::new(vec![Field::new(
+                "tags",
+                DataType::List(Arc::new(Field::new(child_name, child_ty, true))),
+                true,
+            )]))
+        };
+        let values: Arc<dyn Array> = Arc::new(StringViewArray::from_iter_values(["x"]));
+        let list = ListArray::new(
+            Arc::new(Field::new("element", DataType::Utf8View, true)),
+            OffsetBuffer::new(vec![0_i32, 1].into()),
+            values,
+            None,
+        );
+        let batch =
+            RecordBatch::try_new(mk("element", DataType::Utf8View), vec![Arc::new(list)]).unwrap();
+
+        // Same layout, different child name: fine.
+        ensure_batch_matches_stream_schema(&batch, &mk("item", DataType::Utf8View))
+            .expect("child field name is not part of the buffer layout");
+        // Utf8 vs Utf8View child: the SIGSEGV class, must be rejected.
+        let err = ensure_batch_matches_stream_schema(&batch, &mk("item", DataType::Utf8))
+            .expect_err("view vs offset buffers must not be exported");
+        assert!(err.to_string().contains("misread buffers"), "{err}");
+    }
+
+    #[test]
+    fn stream_schema_tripwire_rejects_column_count_mismatch() {
+        let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int64, false)]));
+        let batch = RecordBatch::try_new(
+            Arc::clone(&schema),
+            vec![Arc::new(Int64Array::from(vec![1]))],
+        )
+        .unwrap();
+        let wider = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Int64, false),
+            Field::new("b", DataType::Int64, false),
+        ]));
+        assert!(ensure_batch_matches_stream_schema(&batch, &wider).is_err());
+    }
+
+    #[test]
     fn create_global_runtime_with_empty_spill_dir_disables_disk_manager() {
         // Empty spill_dir is the "disabled" sentinel from Java. The runtime must build
         // successfully and the DiskManager must report tmp_files_enabled() == false so
@@ -2173,7 +2523,7 @@ mod tests {
         // instead of writing to an unintended path. Construction must also flip the
         // memory_guard SPILL_ENABLED flag off so per_query_spill_budget returns
         // Disabled (not Critical) — preventing the 1-partition clamp.
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let ptr = create_global_runtime(64 * 1024 * 1024, 0, "", 0).expect("runtime build");
         assert!(ptr > 0);
         let runtime = unsafe { &*(ptr as *const DataFusionRuntime) };
@@ -2199,7 +2549,7 @@ mod tests {
         //
         // Also doubles as a startup-cleanup regression check: drop a "leaked" sentinel
         // file in the directory before the call and assert it's gone after.
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().to_str().expect("utf-8 path");
 
@@ -2259,7 +2609,7 @@ mod tests {
         // them in a background thread (remove_file for files/symlinks, remove_dir_all
         // for dirs). The original names are gone immediately after phase 1; wait
         // briefly for phase 2 to clear the *.stale entries.
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().to_str().expect("utf-8 path");
 
@@ -2319,7 +2669,7 @@ mod tests {
         // spill disabled (empty path), no filesystem operation should run — an
         // accidental fs::remove_dir_all("") would error and break boot. This test
         // guards against future refactors that hoist the cleanup out of the else-branch.
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let ptr = create_global_runtime(64 * 1024 * 1024, 0, "", 0).expect("runtime build");
         assert!(ptr > 0);
         unsafe { close_global_runtime(ptr) };
@@ -2332,7 +2682,7 @@ mod tests {
         // at boot with full context. Trigger the failure path by pointing spill_dir
         // at a regular file: spill_path.exists() returns true, but read_dir refuses
         // to enumerate a non-directory and returns ErrorKind::NotADirectory.
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let tmp = tempfile::tempdir().expect("tempdir");
         let bad_path = tmp.path().join("regular_file");
         fs::write(&bad_path, b"not a directory").expect("seed regular file");
@@ -2387,7 +2737,7 @@ mod tests {
             return;
         }
 
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let parent = tempfile::tempdir().expect("parent tempdir");
         let spill_path = parent.path().join("spill");
         fs::create_dir(&spill_path).expect("create spill mount-point dir");
@@ -2477,7 +2827,7 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn create_global_runtime_unlinks_top_level_symlink_without_following() {
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().join("spill");
         fs::create_dir(&spill_path).expect("create spill dir");
@@ -2530,7 +2880,7 @@ mod tests {
     /// inline recursive removal would be flagged.
     #[test]
     fn create_global_runtime_renames_orphan_subdirs_to_stale_then_async_removes() {
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().to_str().expect("utf-8 path");
 
@@ -2565,7 +2915,7 @@ mod tests {
     /// double-suffix them (no datafusion-old.stale.stale).
     #[test]
     fn create_global_runtime_cleans_prior_boot_stale_entries() {
-        let _guard = SPILL_GLOBALS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_process_globals();
         let tmp = tempfile::tempdir().expect("tempdir");
         let spill_path = tmp.path().to_str().expect("utf-8 path");
 
@@ -2738,13 +3088,130 @@ mod tests {
     }
 
     #[test]
-    fn test_first_named_table_name_returns_none_on_empty() {
-        assert_eq!(super::first_named_table_name(&[]), None);
+    fn conform_batch_casts_utf8_to_declared_utf8view() {
+        use arrow_array::StringArray;
+        use arrow_schema::{Field, Schema};
+
+        let declared: SchemaRef = Arc::new(Schema::new(vec![
+            Field::new("s", DataType::Utf8View, true),
+            Field::new("n", DataType::Int64, false),
+        ]));
+        // Producer emitted plain Utf8 for the string column.
+        let batch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![
+                Field::new("s", DataType::Utf8, true),
+                Field::new("n", DataType::Int64, false),
+            ])),
+            vec![
+                Arc::new(StringArray::from(vec![Some("a"), None, Some("c")])),
+                Arc::new(arrow_array::Int64Array::from(vec![1, 2, 3])),
+            ],
+        )
+        .unwrap();
+
+        let out = super::conform_batch_to_schema(batch, &declared).unwrap();
+        assert_eq!(out.schema().as_ref(), declared.as_ref());
+        assert_eq!(out.column(0).data_type(), &DataType::Utf8View);
+        let view = out
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringViewArray>()
+            .unwrap();
+        assert_eq!(view.value(0), "a");
+        assert!(view.is_null(1));
+        assert_eq!(view.value(2), "c");
+        // Non-divergent column is untwiddled.
+        assert_eq!(out.column(1).data_type(), &DataType::Int64);
     }
 
     #[test]
-    fn test_first_named_table_name_returns_none_on_garbage() {
-        assert_eq!(super::first_named_table_name(&[0xFF, 0x00, 0x01]), None);
+    fn conform_batch_is_noop_when_schemas_match() {
+        use arrow_schema::{Field, Schema};
+
+        let declared: SchemaRef =
+            Arc::new(Schema::new(vec![Field::new("n", DataType::Int64, false)]));
+        let col: arrow_array::ArrayRef = Arc::new(arrow_array::Int64Array::from(vec![10, 20]));
+        let batch = RecordBatch::try_new(Arc::clone(&declared), vec![Arc::clone(&col)]).unwrap();
+
+        let out = super::conform_batch_to_schema(batch, &declared).unwrap();
+        // Matching column keeps its original Arc (no copy).
+        assert!(Arc::ptr_eq(out.column(0), &col));
+    }
+
+    #[test]
+    fn conform_batch_passes_through_timestamp_precision_divergence() {
+        use arrow_array::{TimestampMillisecondArray, TimestampNanosecondArray};
+        use arrow_schema::{Field, Schema, TimeUnit};
+
+        // Declared stream schema says Millisecond; producer emitted Nanosecond. A real cast
+        // would truncate sub-ms precision — the Java tripwire tolerates this as advisory, so
+        // the conform step must leave the column (and its actual type) untouched.
+        let declared: SchemaRef = Arc::new(Schema::new(vec![Field::new(
+            "ts",
+            DataType::Timestamp(TimeUnit::Millisecond, None),
+            true,
+        )]));
+        let col: arrow_array::ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![
+            1_000_000_001i64,
+            2_000_000_999,
+        ]));
+        let batch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![Field::new(
+                "ts",
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                true,
+            )])),
+            vec![Arc::clone(&col)],
+        )
+        .unwrap();
+
+        let out = super::conform_batch_to_schema(batch, &declared).unwrap();
+        // Column passes through unchanged — same Arc, original nanosecond type, no truncation.
+        assert!(Arc::ptr_eq(out.column(0), &col));
+        assert_eq!(
+            out.column(0).data_type(),
+            &DataType::Timestamp(TimeUnit::Nanosecond, None)
+        );
+        let ts = out
+            .column(0)
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            .unwrap();
+        assert_eq!(ts.value(0), 1_000_000_001);
+        assert_eq!(ts.value(1), 2_000_000_999);
+    }
+
+    #[test]
+    fn conform_batch_casts_only_string_view_leaving_timestamp_alone() {
+        use arrow_array::{StringArray, TimestampNanosecondArray};
+        use arrow_schema::{Field, Schema, TimeUnit};
+
+        // Mixed batch: a Utf8→Utf8View mismatch (must cast) alongside a tolerated
+        // Timestamp precision mismatch (must pass through).
+        let declared: SchemaRef = Arc::new(Schema::new(vec![
+            Field::new("s", DataType::Utf8View, true),
+            Field::new("ts", DataType::Timestamp(TimeUnit::Millisecond, None), true),
+        ]));
+        let batch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![
+                Field::new("s", DataType::Utf8, true),
+                Field::new("ts", DataType::Timestamp(TimeUnit::Nanosecond, None), true),
+            ])),
+            vec![
+                Arc::new(StringArray::from(vec![Some("x"), Some("y")])),
+                Arc::new(TimestampNanosecondArray::from(vec![10i64, 20])),
+            ],
+        )
+        .unwrap();
+
+        let out = super::conform_batch_to_schema(batch, &declared).unwrap();
+        // String column conformed to the declared view type.
+        assert_eq!(out.column(0).data_type(), &DataType::Utf8View);
+        // Timestamp column kept its actual (nanosecond) type — not truncated to the declared ms.
+        assert_eq!(
+            out.column(1).data_type(),
+            &DataType::Timestamp(TimeUnit::Nanosecond, None)
+        );
     }
 
     #[test]
@@ -2845,7 +3312,6 @@ pub unsafe fn register_memtable(
             schema_ptrs.len()
         )));
     }
-    let session = &mut *(session_ptr as *mut LocalSession);
 
     let table_schema = derive_schema_from_partial_plan(partial_plan_bytes)?;
     let schema_ipc = schema_to_ipc_bytes(table_schema.as_ref())?;
@@ -2858,9 +3324,15 @@ pub unsafe fn register_memtable(
     for (&array_ptr, &schema_ptr) in array_ptrs.iter().zip(schema_ptrs.iter()) {
         let ffi_array = FFI_ArrowArray::from_raw(array_ptr as *mut FFI_ArrowArray);
         let ffi_schema = FFI_ArrowSchema::from_raw(schema_ptr as *mut FFI_ArrowSchema);
-        let array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
+        let mut array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
             DataFusionError::Execution(format!("Failed to import Arrow C Data array: {}", e))
         })?;
+        // The build-side IPC payload arrives via Java's ArrowStreamReader, which produces
+        // batches whose buffers are 8-byte-aligned slices into the IPC body (per spec) but
+        // not the 64-byte alignment DataFusion's SIMD kernels require. align_buffers() is
+        // a no-op for already-aligned buffers and reallocates only the misaligned ones —
+        // mirrors the streaming sink path in attach_input_batch() above.
+        array_data.align_buffers();
         let struct_array = StructArray::from(array_data);
         let raw = RecordBatch::from(struct_array);
         let aligned = RecordBatch::try_new(Arc::clone(&table_schema), raw.columns().to_vec())
@@ -2873,8 +3345,327 @@ pub unsafe fn register_memtable(
         batches.push(aligned);
     }
 
+    let session = &mut *(session_ptr as *mut LocalSession);
     session.register_memtable(input_id, table_schema, batches)?;
     Ok(schema_ipc)
+}
+
+/// Registers a streaming partition input on a `SessionContextHandle` under `input_id`,
+/// returning a [`PartitionStreamSender`] pointer the caller drives to push batches in.
+/// Sibling of [`register_partition_stream`] but for the shard-scan path's
+/// [`crate::session_context::SessionContextHandle`] — the M2 hash-shuffle worker registers
+/// each partition's left/right input on the same session that already has the local shard
+/// scan registered, so the join's two `NamedScan`s resolve against streaming tables alongside
+/// the shard's parquet listing.
+///
+/// Unlike [`register_partition_stream`] this entry point takes an Arrow IPC schema blob
+/// directly. The hash-shuffle path has no producer-side substrait plan to derive the schema
+/// from — the shipped record batches arrive over the wire pre-typed, and the caller computes
+/// the schema once on the dispatch side and threads it through the
+/// [`org.opensearch.analytics.spi.ShuffleScanInstructionNode`] equivalent. Mirrors how
+/// [`register_memtable_on_session_context`] also takes a schema blob.
+///
+/// Returns the sender pointer; the caller frees it via [`crate::ffm::df_sender_close`] once
+/// all batches for this partition have been pushed (or on cancellation).
+///
+/// # Safety
+/// - `session_ctx_handle_ptr` must be a valid, non-zero pointer returned by
+///   `create_session_context` (or `create_session_context_indexed`).
+/// - `schema_ipc` must be a complete Arrow IPC schema-message blob.
+pub unsafe fn register_partition_stream_on_session_context(
+    session_ctx_handle_ptr: i64,
+    input_id: &str,
+    schema_ipc: &[u8],
+) -> Result<i64, DataFusionError> {
+    let table_schema = schema_from_ipc_bytes(schema_ipc)?;
+    let (sender, receiver) = crate::partition_stream::channel(Arc::clone(&table_schema));
+    let partition: Arc<dyn datafusion::physical_plan::streaming::PartitionStream> = Arc::new(
+        crate::partition_stream::SingleReceiverPartition::new(receiver),
+    );
+    let table = datafusion::catalog::streaming::StreamingTable::try_new(
+        Arc::clone(&table_schema),
+        vec![partition],
+    )?;
+    let handle = &*(session_ctx_handle_ptr as *const crate::session_context::SessionContextHandle);
+    handle
+        .ctx
+        .register_table(input_id, Arc::new(table))
+        .map_err(|e| {
+            DataFusionError::Execution(format!(
+                "Failed to register streaming table '{}' on session context: {}",
+                input_id, e
+            ))
+        })?;
+    Ok(Box::into_raw(Box::new(sender)) as i64)
+}
+
+/// Streaming-input registration for the M3 hash-shuffle AGGREGATE worker.
+///
+/// Identical to [`register_partition_stream_on_session_context`] (channel +
+/// `SingleReceiverPartition` + `StreamingTable` + `register_table` on the
+/// `SessionContextHandle`) EXCEPT the table schema is derived from the producer's PARTIAL
+/// substrait via [`derive_schema_from_partial_plan`] — the SAME derivation the
+/// coordinator-reduce path uses in [`register_partition_stream`] — instead of trusting the raw
+/// producer IPC header.
+///
+/// Why this matters (the q1/q15 fix): DataFusion's Substrait consumer binds a `NamedTable`
+/// `ReadRel.base_schema` to the registered provider BY NAME. The producer ships the PARTIAL
+/// aggregate's *physical* output batches, whose state columns are named `<alias>[<state>]`
+/// (e.g. `sum_qty[sum]`). The worker FINAL fragment's `base_schema`, however, declares the
+/// Calcite *logical* names (`sum_qty`). Registering the streaming table with the raw IPC names
+/// (`sum_qty[sum]`) therefore fails the FINAL's by-name lookup with `No field named sum_qty`.
+/// `derive_schema_from_partial_plan` re-lowers the producer plan and returns its top
+/// (logical-named) output schema — matching what the FINAL binds — so registration carries the
+/// logical names. The producer's physically-named batches still feed in fine: the streaming
+/// channel binds the FINAL plan to the registered (logical) names and accepts the batches
+/// positionally (verified — names differ, types/order identical).
+///
+/// Returns the sender pointer; the caller frees it via [`crate::ffm::df_sender_close`].
+///
+/// # Safety
+/// - `session_ctx_handle_ptr` must be a valid, non-zero pointer returned by
+///   `create_session_context` / `create_session_context_indexed` / `create_worker_session_context`.
+/// - `partial_plan_bytes` must be a complete producer-side Substrait plan blob.
+pub unsafe fn register_partition_stream_on_session_context_from_partial_plan(
+    session_ctx_handle_ptr: i64,
+    input_id: &str,
+    partial_plan_bytes: &[u8],
+) -> Result<i64, DataFusionError> {
+    let table_schema = derive_schema_from_partial_plan(partial_plan_bytes)?;
+    let (sender, receiver) = crate::partition_stream::channel(Arc::clone(&table_schema));
+    let partition: Arc<dyn datafusion::physical_plan::streaming::PartitionStream> = Arc::new(
+        crate::partition_stream::SingleReceiverPartition::new(receiver),
+    );
+    let table = datafusion::catalog::streaming::StreamingTable::try_new(
+        Arc::clone(&table_schema),
+        vec![partition],
+    )?;
+    let handle = &*(session_ctx_handle_ptr as *const crate::session_context::SessionContextHandle);
+    handle
+        .ctx
+        .register_table(input_id, Arc::new(table))
+        .map_err(|e| {
+            DataFusionError::Execution(format!(
+                "Failed to register streaming table '{}' on session context (from partial plan): {}",
+                input_id, e
+            ))
+        })?;
+    Ok(Box::into_raw(Box::new(sender)) as i64)
+}
+
+/// Variant of [`register_memtable`] for the shard-scan path's `SessionContextHandle`. The
+/// probe-side `BroadcastInjectionHandler` runs against the same `SessionContextHandle` that
+/// `ShardScanInstructionHandler` produced; the M1 broadcast memtable lives alongside the
+/// listing-table-backed shard scan on the same session.
+///
+/// Unlike [`register_memtable`], this entry point takes an Arrow IPC schema blob directly
+/// (the broadcast probe path has no producer-side substrait plan to derive the schema from —
+/// the build-side capture sink emits a header-only IPC stream that already carries the
+/// authoritative schema).
+///
+/// # Safety
+/// - `session_ctx_handle_ptr` must be a valid, non-zero pointer returned by
+///   `create_session_context` (or `create_session_context_indexed`).
+/// - `array_ptrs` and `schema_ptrs` must point to populated FFI structs owned
+///   by the caller; ownership transfers to Rust on success.
+pub unsafe fn register_memtable_on_session_context(
+    session_ctx_handle_ptr: i64,
+    input_id: &str,
+    schema_ipc: &[u8],
+    array_ptrs: &[i64],
+    schema_ptrs: &[i64],
+) -> Result<(), DataFusionError> {
+    if array_ptrs.len() != schema_ptrs.len() {
+        return Err(DataFusionError::Execution(format!(
+            "register_memtable_on_session_context: array_ptrs.len()={} != schema_ptrs.len()={}",
+            array_ptrs.len(),
+            schema_ptrs.len()
+        )));
+    }
+
+    let table_schema = schema_from_ipc_bytes(schema_ipc)?;
+
+    // Same import-and-align pattern as register_memtable above. Java's ArrowStreamReader
+    // produces 8-byte-aligned slices into the IPC body (per spec) but DataFusion's SIMD
+    // kernels require 64-byte alignment; align_buffers() reallocates only the misaligned
+    // ones (no-op for already-aligned).
+    let mut batches = Vec::with_capacity(array_ptrs.len());
+    for (&array_ptr, &schema_ptr) in array_ptrs.iter().zip(schema_ptrs.iter()) {
+        let ffi_array = FFI_ArrowArray::from_raw(array_ptr as *mut FFI_ArrowArray);
+        let ffi_schema = FFI_ArrowSchema::from_raw(schema_ptr as *mut FFI_ArrowSchema);
+        let mut array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
+            DataFusionError::Execution(format!("Failed to import Arrow C Data array: {}", e))
+        })?;
+        array_data.align_buffers();
+        let struct_array = StructArray::from(array_data);
+        let raw = RecordBatch::from(struct_array);
+        let aligned = RecordBatch::try_new(Arc::clone(&table_schema), raw.columns().to_vec())
+            .map_err(|e| {
+                DataFusionError::Execution(format!(
+                    "Failed to align imported batch to registered schema for '{}': {}",
+                    input_id, e
+                ))
+            })?;
+        batches.push(aligned);
+    }
+
+    let handle = &*(session_ctx_handle_ptr as *const crate::session_context::SessionContextHandle);
+    let table = datafusion::datasource::MemTable::try_new(table_schema, vec![batches])?;
+    handle
+        .ctx
+        .register_table(input_id, Arc::new(table))
+        .map_err(|e| {
+            DataFusionError::Execution(format!(
+                "Failed to register memtable '{}' on session context: {}",
+                input_id, e
+            ))
+        })?;
+    Ok(())
+}
+
+/// Hash-partitions one [`RecordBatch`] by the columns at `hash_key_indices` into
+/// `partition_count` buckets, using DataFusion's repartition seed
+/// (`REPARTITION_RANDOM_STATE`) so the assignment matches what `RepartitionExec` and
+/// `HashJoinExec` would produce on the receiver side. Returns `partition_count` output
+/// batches (some may be zero-row) as parallel `(array_ptr, schema_ptr)` pairs the JVM
+/// consumes via Arrow C Data Interface and ships over the analytics shuffle transport.
+///
+/// The input batch is borrowed (not consumed) — the Java caller retains ownership and is
+/// responsible for closing the input FFI structs after this call returns. Output structs
+/// are heap-allocated by Rust here; ownership transfers to Java on success.
+///
+/// # Safety
+/// - `input_array_ptr` and `input_schema_ptr` must point to populated FFI structs from a
+///   successful Arrow C export of the input record batch. They are read but not consumed
+///   by this function; the caller releases them.
+pub unsafe fn partition_batch_by_hash(
+    input_array_ptr: i64,
+    input_schema_ptr: i64,
+    hash_key_indices: &[i32],
+    partition_count: i32,
+) -> Result<Vec<(i64, i64)>, DataFusionError> {
+    if partition_count <= 0 {
+        return Err(DataFusionError::Execution(format!(
+            "partition_batch_by_hash: partition_count must be > 0, got {}",
+            partition_count
+        )));
+    }
+    if hash_key_indices.is_empty() {
+        return Err(DataFusionError::Execution(
+            "partition_batch_by_hash: hash_key_indices must be non-empty".to_string(),
+        ));
+    }
+
+    // Import the input batch via Arrow C. Because Java retains ownership we re-construct
+    // the FFI wrappers from raw pointers without consuming them — clone them by reading
+    // the underlying memory. The simplest path is to import normally (consuming the FFI
+    // structs from Rust's perspective) but mark them not-released by overwriting the
+    // release fn pointers... however that's brittle. Instead we copy the batch's columns
+    // into a fresh ArrayData per column via a clone after import. The clone is cheap (Arc
+    // bumps) and isolates the owned-by-Rust working batch from the input wrappers.
+    //
+    // arrow_array::ffi::from_ffi takes ownership of the FFI structs (via FFI_ArrowArray
+    // by value). Java's expectation is that ownership of the input does NOT transfer. We
+    // honor that by reconstructing the FFI structs only momentarily here, calling from_ffi,
+    // and then leaking the FFI handles back to the heap via Box::into_raw — leaving the
+    // Java-side FFI structs untouched. The actual *underlying* array buffers live in
+    // shared Arc'd memory; from_ffi's ArrayData copy is a refcount-clone, not a deep copy.
+    let ffi_array = FFI_ArrowArray::from_raw(input_array_ptr as *mut FFI_ArrowArray);
+    let ffi_schema = FFI_ArrowSchema::from_raw(input_schema_ptr as *mut FFI_ArrowSchema);
+    let array_data_result = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema);
+    // Recreate the FFI handles back in place so the caller's release closure on the
+    // Java side sees an intact, releasable struct. from_ffi consumed the FFI_ArrowArray
+    // by value (zeroing its release fn pointer to take ownership); we have to undo that
+    // for the input not to leak / double-free. The simplest way: convert the ArrayData
+    // we just got back to FFI again and write the result back into the input pointers.
+    let mut array_data = array_data_result.map_err(|e| {
+        DataFusionError::Execution(format!("Failed to import input Arrow C Data: {}", e))
+    })?;
+    // Re-export so the caller's Java-side close on the input wrappers still has a release
+    // fn to call. Otherwise the caller's close() segfaults on a null release pointer.
+    let (re_array, re_schema) = arrow_array::ffi::to_ffi(&array_data).map_err(|e| {
+        DataFusionError::Execution(format!("Failed to re-export input Arrow C Data: {}", e))
+    })?;
+    // Overwrite the input FFI structs with the re-exported ones. This is OK because the
+    // memory layouts match exactly (FFI_ArrowArray is a stable C struct).
+    std::ptr::write(input_array_ptr as *mut FFI_ArrowArray, re_array);
+    std::ptr::write(input_schema_ptr as *mut FFI_ArrowSchema, re_schema);
+
+    // Align buffers — Java IPC produces 8-byte alignment but DataFusion's SIMD paths want
+    // 64-byte. Mirror the same align_buffers dance the broadcast injection uses.
+    array_data.align_buffers();
+    let struct_array = StructArray::from(array_data);
+    let batch = RecordBatch::from(struct_array);
+
+    // Build PhysicalExprs from the column indices. Need the input schema for column types.
+    let schema = batch.schema();
+    let mut exprs: Vec<Arc<dyn datafusion::physical_expr::PhysicalExpr>> =
+        Vec::with_capacity(hash_key_indices.len());
+    for &idx in hash_key_indices {
+        let col_idx = idx as usize;
+        if col_idx >= schema.fields().len() {
+            return Err(DataFusionError::Execution(format!(
+                "partition_batch_by_hash: hash key index {} out of range for {}-column schema",
+                col_idx,
+                schema.fields().len()
+            )));
+        }
+        let field_name = schema.field(col_idx).name().clone();
+        exprs.push(Arc::new(
+            datafusion::physical_expr::expressions::Column::new(&field_name, col_idx),
+        ));
+    }
+
+    // Construct DataFusion's BatchPartitioner — exactly the type RepartitionExec uses
+    // internally — so the row-to-partition mapping matches what a downstream RepartitionExec
+    // / HashJoinExec would compute on the receiver side.
+    let timer = datafusion::physical_plan::metrics::Time::default();
+    let partitioning =
+        datafusion::physical_plan::Partitioning::Hash(exprs, partition_count as usize);
+    // input_partition=0 / num_input_partitions=1 — we partition each batch independently here,
+    // not as part of a stream of partitioned batches, so the input "partition index" is 0 of 1.
+    let mut partitioner = datafusion::physical_plan::repartition::BatchPartitioner::try_new(
+        partitioning,
+        timer,
+        /* input_partition */ 0,
+        /* num_input_partitions */ 1,
+    )?;
+
+    // Pre-allocate the per-partition collectors. The partitioner's callback emits zero or
+    // more (partition_index, sub_batch) calls — we accumulate, then export each as one
+    // batch per partition. (For our use case the partitioner emits at most one sub-batch
+    // per partition per input batch, but using a Vec<RecordBatch> per partition keeps the
+    // logic robust to upstream changes.)
+    let mut per_partition: Vec<Vec<RecordBatch>> = (0..partition_count as usize)
+        .map(|_| Vec::with_capacity(1))
+        .collect();
+    partitioner.partition(batch, |partition_idx, sub_batch| {
+        per_partition[partition_idx].push(sub_batch);
+        Ok(())
+    })?;
+
+    // Concatenate per partition (or produce an empty batch with the input schema for
+    // partitions that received zero rows so the receiver side still sees a valid IPC chunk).
+    let mut output: Vec<(i64, i64)> = Vec::with_capacity(partition_count as usize);
+    for part in per_partition {
+        let combined = if part.is_empty() {
+            RecordBatch::new_empty(Arc::clone(&schema))
+        } else if part.len() == 1 {
+            part.into_iter().next().unwrap()
+        } else {
+            arrow::compute::concat_batches(&schema, &part).map_err(|e| {
+                DataFusionError::Execution(format!("partition_batch_by_hash: concat failed: {}", e))
+            })?
+        };
+        let combined_data: arrow::array::ArrayData = StructArray::from(combined).into();
+        let (out_array, out_schema) = arrow_array::ffi::to_ffi(&combined_data).map_err(|e| {
+            DataFusionError::Execution(format!("partition_batch_by_hash: export failed: {}", e))
+        })?;
+        let array_ptr = Box::into_raw(Box::new(out_array)) as i64;
+        let schema_ptr = Box::into_raw(Box::new(out_schema)) as i64;
+        output.push((array_ptr, schema_ptr));
+    }
+    Ok(output)
 }
 
 // ── QTF fetch-phase assertion helpers (kept at the bottom of the file) ────────

@@ -229,7 +229,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         /** @deprecated Use {@link #NATIVE_MEMORY} instead. */
         @Deprecated
         NATIVE_ALLOCATOR("native_allocator"),
-        NATIVE_MEMORY("native_memory");
+        NATIVE_MEMORY("native_memory"),
+        CONCURRENCY_LIMITER("concurrency_limiter");
 
         private String metricName;
 

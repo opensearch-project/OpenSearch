@@ -226,6 +226,12 @@ public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
         .put("japanesehiraganauppercase", Void.class)
         .put("japanesekatakanauppercase", Void.class)
         .put("romaniannormalization", Void.class)
+        // https://github.com/apache/lucene/pull/16371
+        .put("casefolding", Void.class)
+        // https://github.com/apache/lucene/pull/16717
+        .put("thainormalization", Void.class)
+        // https://github.com/apache/lucene/pull/16720
+        .put("thairepeat", Void.class)
         .immutableMap();
 
     static final Map<String, Class<?>> KNOWN_CHARFILTERS = new MapBuilder<String, Class<?>>()
@@ -238,6 +244,8 @@ public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
         // handling of zwnj for persian
         .put("persian", Void.class)
         .put("cjkwidth", Void.class)
+        // https://github.com/apache/lucene/pull/16717
+        .put("thai", Void.class)
         .immutableMap();
 
     /**

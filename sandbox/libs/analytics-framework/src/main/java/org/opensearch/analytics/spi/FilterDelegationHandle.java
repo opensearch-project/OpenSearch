@@ -62,13 +62,17 @@ public interface FilterDelegationHandle extends Closeable {
      * <p>Bit layout: word {@code i} contains matches for docs
      * {@code [minDoc + i*64, minDoc + (i+1)*64)}, LSB-first within each word.
      *
+     * <p>Return value packs two fields: upper 32 bits = next matching docId beyond
+     * maxDoc (or {@code Integer.MAX_VALUE} if exhausted), lower 32 bits = words written.
+     * Callers can use the nextDoc to skip subsequent RGs where {@code nextDoc >= rgMax}.
+     *
      * @param collectorKey key returned by {@link #createCollector(int, long, int, int)}
      * @param minDoc inclusive lower bound
      * @param maxDoc exclusive upper bound
      * @param out destination buffer; implementation writes up to {@code out.byteSize() / 8} words
-     * @return number of words written, or {@code -1} on error
+     * @return packed long: upper 32 = nextDoc, lower 32 = wordsWritten; or {@code -1} on error
      */
-    int collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out);
+    long collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment out);
 
     /**
      * Release resources for a collector.
@@ -88,4 +92,17 @@ public interface FilterDelegationHandle extends Closeable {
     default boolean isCancelled() {
         return false;
     }
+
+    /**
+     * Reserved annotation id for the deleted-doc filtering path: the accepting backend resolves it
+     * to a match-all query whose per-RG collector emits the segment's live docs (set bit == live).
+     * The driving backend ANDs this synthetic Collector leaf into its decoded filter tree when the
+     * shard has deletions, so deleted rows are excluded through the ordinary
+     * createProvider/createCollector/collectDocs machinery — no dedicated liveDocs FFI.
+     *
+     * <p>Coordinator-assigned annotation ids are non-negative ({@code PlannerContext.nextAnnotationId}
+     * counter), so a negative reserved id can never collide. Must match
+     * {@code LIVE_DOCS_MATCH_ALL_ANNOTATION_ID} in the native indexed executor.
+     */
+    int LIVE_DOCS_MATCH_ALL_ANNOTATION_ID = -2;
 }

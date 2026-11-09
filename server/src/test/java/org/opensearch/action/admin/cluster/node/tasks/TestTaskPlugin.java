@@ -509,6 +509,14 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                     }
                     String expectedOrigin = shouldHaveOrigin(action, request) ? TASKS_ORIGIN : null;
                     String actualOrigin = threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME);
+                    if (isSearchOrRefresh(action) && actualOrigin == null) {
+                        /*
+                         * Tests search and refresh the task index directly without an origin. The delete task API also performs
+                         * these actions, in which case shouldHaveOrigin verifies that the tasks origin is used.
+                         */
+                        sender.sendRequest(connection, action, request, options, handler);
+                        return;
+                    }
                     if (Objects.equals(expectedOrigin, actualOrigin)) {
                         sender.sendRequest(connection, action, request, options, handler);
                         return;
@@ -537,13 +545,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                  */
                 return false;
             }
-            if (action.startsWith("indices:admin/refresh") || action.startsWith("indices:data/read/search")) {
-                /*
-                 * The test refreshes and searches to count the number of tasks
-                 * in the index and the Tasks API never does either.
-                 */
-                return false;
-            }
             if (false == (request instanceof IndicesRequest)) {
                 return false;
             }
@@ -553,6 +554,10 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
              * targets the .tasks index. Other requests come from the tests.
              */
             return Arrays.equals(new String[] { ".tasks" }, ir.indices());
+        }
+
+        private boolean isSearchOrRefresh(String action) {
+            return action.startsWith("indices:admin/refresh") || action.startsWith("indices:data/read/search");
         }
     }
 }
