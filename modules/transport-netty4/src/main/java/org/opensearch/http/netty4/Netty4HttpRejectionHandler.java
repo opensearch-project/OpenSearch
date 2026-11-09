@@ -236,7 +236,7 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
     private void startDraining() {
         assert context.executor().inEventLoop();
         draining = true;
-        lastReadNanos = System.nanoTime();
+        lastReadNanos = context.executor().ticker().nanoTime();
         drainDeadlineNanos = lastReadNanos + timeouts.drainMaxNanos();
         cancelTimer();
         checkDrain();
@@ -245,7 +245,7 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
     /** One timer covers both drain bounds; reads only record a timestamp so discarding a buffer stays cheap. */
     private void checkDrain() {
         assert context.executor().inEventLoop();
-        final long now = System.nanoTime();
+        final long now = context.executor().ticker().nanoTime();
         final long remaining = Math.min(drainDeadlineNanos - now, lastReadNanos + timeouts.drainIdleNanos() - now);
         if (remaining <= 0) {
             closeNow();
@@ -287,7 +287,7 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
         if (terminal) {
             ReferenceCountUtil.release(msg);
             if (draining) {
-                lastReadNanos = System.nanoTime();
+                lastReadNanos = ctx.executor().ticker().nanoTime();
             }
         } else {
             ctx.fireChannelRead(msg);

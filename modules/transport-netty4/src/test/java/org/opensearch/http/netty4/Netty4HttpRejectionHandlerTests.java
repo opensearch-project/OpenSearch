@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
@@ -166,6 +168,82 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
             notifications.forEach(Runnable::run);
             assertTrue(channel.isOpen());
             assertEquals(1, channel.outputShutdowns);
+        } finally {
+            channel.unsafe().close(channel.newPromise());
+            channel.finishAndReleaseAll();
+        }
+    }
+
+    public void testDrainClosesAtIdleDeadline() {
+        final EmbeddedDuplexChannel channel = new EmbeddedDuplexChannel(null);
+        channel.freezeTime();
+        final Netty4HttpRejectionHandler handler = install(channel);
+        final ChannelPromise response = channel.newPromise();
+        handler.responsePending(true, response);
+        try {
+            response.setSuccess();
+            assertTrue(channel.isOutputShutdown());
+            channel.advanceTimeBy(TimeUnit.SECONDS.toNanos(5) - 1, TimeUnit.NANOSECONDS);
+            channel.runScheduledPendingTasks();
+            assertTrue("The entire idle interval must be available for draining", channel.isOpen());
+            channel.advanceTimeBy(1, TimeUnit.NANOSECONDS);
+            channel.runScheduledPendingTasks();
+            assertFalse("An idle peer must not retain the connection after the drain deadline", channel.isOpen());
+        } finally {
+            channel.unsafe().close(channel.newPromise());
+            channel.finishAndReleaseAll();
+        }
+    }
+
+    public void testDrainReadRestartsIdleInterval() {
+        final EmbeddedDuplexChannel channel = new EmbeddedDuplexChannel(null);
+        channel.freezeTime();
+        final Netty4HttpRejectionHandler handler = install(channel);
+        final ChannelPromise response = channel.newPromise();
+        handler.responsePending(true, response);
+        try {
+            response.setSuccess();
+            channel.advanceTimeBy(4, TimeUnit.SECONDS);
+            final ByteBuf discarded = Unpooled.wrappedBuffer(new byte[] { 1 });
+            assertFalse(channel.writeInbound(discarded));
+            assertEquals(0, discarded.refCnt());
+            channel.advanceTimeBy(1, TimeUnit.SECONDS);
+            channel.runScheduledPendingTasks();
+            assertTrue("The original idle deadline must observe the more recent read", channel.isOpen());
+            channel.advanceTimeBy(TimeUnit.SECONDS.toNanos(4) - 1, TimeUnit.NANOSECONDS);
+            channel.runScheduledPendingTasks();
+            assertTrue(channel.isOpen());
+            channel.advanceTimeBy(1, TimeUnit.NANOSECONDS);
+            channel.runScheduledPendingTasks();
+            assertFalse("The idle interval must be measured from the last read", channel.isOpen());
+        } finally {
+            channel.unsafe().close(channel.newPromise());
+            channel.finishAndReleaseAll();
+        }
+    }
+
+    public void testDrainMaximumDeadlineIsNotExtendedByReads() {
+        final EmbeddedDuplexChannel channel = new EmbeddedDuplexChannel(null);
+        channel.freezeTime();
+        final Netty4HttpRejectionHandler handler = install(channel);
+        final ChannelPromise response = channel.newPromise();
+        handler.responsePending(true, response);
+        try {
+            response.setSuccess();
+            for (int elapsedSeconds = 4; elapsedSeconds < 30; elapsedSeconds += 4) {
+                channel.advanceTimeBy(4, TimeUnit.SECONDS);
+                channel.runScheduledPendingTasks();
+                assertTrue("Regular reads must keep the connection alive until the maximum deadline", channel.isOpen());
+                final ByteBuf discarded = Unpooled.wrappedBuffer(new byte[] { 1 });
+                assertFalse(channel.writeInbound(discarded));
+                assertEquals(0, discarded.refCnt());
+            }
+            channel.advanceTimeBy(TimeUnit.SECONDS.toNanos(2) - 1, TimeUnit.NANOSECONDS);
+            channel.runScheduledPendingTasks();
+            assertTrue(channel.isOpen());
+            channel.advanceTimeBy(1, TimeUnit.NANOSECONDS);
+            channel.runScheduledPendingTasks();
+            assertFalse("A continuously sending peer must still be bounded by the maximum drain interval", channel.isOpen());
         } finally {
             channel.unsafe().close(channel.newPromise());
             channel.finishAndReleaseAll();

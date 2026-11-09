@@ -11,7 +11,6 @@ package org.opensearch.http.netty4;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -25,7 +24,6 @@ import org.opensearch.http.netty4.Netty4HttpRawClient.Response;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.SharedGroupFactory;
@@ -63,7 +61,6 @@ import io.netty.util.ReferenceCountUtil;
 import static org.opensearch.http.TestDispatcherBuilder.dispatcherBuilderWithDefaults;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -263,54 +260,6 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
         }
     }
 
-    public void testDrainEndsWhenClientIsIdle() throws Exception {
-        try (
-            TestTransport transport = startTransport(settings(), timeouts(10_000, 300, 30_000));
-            Netty4HttpRawClient client = connect(transport)
-        ) {
-            final byte[] wire = post().body(Encoding.IDENTITY, incompressible(2 * LIMIT)).chunked(true).bytes();
-            client.write(wire, 0, wire.length * 3 / 4); // well past the limit, but not the whole body
-            assertTerminalRejection(client);
-            assertBusy(() -> assertFalse(transport.hold.channel.isOpen()), 5, TimeUnit.SECONDS);
-        }
-    }
-
-    public void testDrainIsBoundedForAContinuousSender() throws Exception {
-        final long drainMaxMillis = 1_000;
-        try (
-            TestTransport transport = startTransport(settings(), timeouts(10_000, 500, drainMaxMillis));
-            Netty4HttpRawClient client = connect(transport)
-        ) {
-            client.write(post().chunked(true).head());
-            final byte[] chunk = ("100\r\n" + "x".repeat(256) + "\r\n").getBytes(StandardCharsets.ISO_8859_1);
-            for (int i = 0; i <= LIMIT / 256; i++) {
-                client.write(chunk);
-            }
-            final CompletableFuture<Void> trickle = new CompletableFuture<>();
-            final Scheduler.Cancellable sender = threadPool.scheduleWithFixedDelay(() -> {
-                if (trickle.isDone() == false) {
-                    try {
-                        client.write(chunk);
-                    } catch (IOException e) {
-                        // the server eventually closes while the client is still sending
-                        trickle.complete(null);
-                    }
-                }
-            }, TimeValue.timeValueMillis(50), ThreadPool.Names.GENERIC);
-            try {
-                assertTerminalRejection(client);
-                final long drainStart = System.nanoTime();
-                assertBusy(() -> assertFalse(transport.hold.channel.isOpen()), 10, TimeUnit.SECONDS);
-                final long drainedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - drainStart);
-                assertThat(drainedMillis, greaterThanOrEqualTo(drainMaxMillis / 2));
-                client.close();
-                trickle.get(10, TimeUnit.SECONDS);
-            } finally {
-                sender.cancel();
-            }
-        }
-    }
-
     public void testStoppingTheTransportClosesDrainingConnections() throws Exception {
         try (TestTransport transport = startTransport(settings()); Netty4HttpRawClient client = connect(transport)) {
             final byte[] wire = post().body(Encoding.IDENTITY, incompressible(2 * LIMIT)).chunked(true).bytes();
@@ -370,14 +319,6 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
             .put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange())
             .put(HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(), LIMIT + "b")
             .build();
-    }
-
-    private static Netty4HttpRejectionHandler.Timeouts timeouts(long writeMillis, long drainIdleMillis, long drainMaxMillis) {
-        return new Netty4HttpRejectionHandler.Timeouts(
-            TimeUnit.MILLISECONDS.toNanos(writeMillis),
-            TimeUnit.MILLISECONDS.toNanos(drainIdleMillis),
-            TimeUnit.MILLISECONDS.toNanos(drainMaxMillis)
-        );
     }
 
     private TestTransport startTransport(Settings settings) {
