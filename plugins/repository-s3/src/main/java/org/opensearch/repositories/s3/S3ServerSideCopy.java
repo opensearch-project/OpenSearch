@@ -60,6 +60,9 @@ final class S3ServerSideCopy {
     /** Hard S3 limit on parts in one multipart upload. */
     static final int MAX_PARTS = 10_000;
 
+    /** Hard S3 minimum for every part of a multipart upload except the last. */
+    static final ByteSizeValue MIN_PART_SIZE = new ByteSizeValue(5, ByteSizeUnit.MB);
+
     private S3ServerSideCopy() {}
 
     /**
@@ -242,12 +245,17 @@ final class S3ServerSideCopy {
     }
 
     /**
-     * Chooses a part size that both respects the configured value and keeps the part count inside the provider limit.
-     * A large object with a small configured part size would otherwise fail late, after the upload has been created.
+     * Chooses a part size that respects the configured value, keeps the part count inside the provider limit, and is
+     * one the provider will accept. Both limits would otherwise fail late, after the upload has been created, leaving
+     * a billable orphan behind.
+     *
+     * <p>The {@link #MIN_PART_SIZE} floor is not reachable through this plugin's own caller, because
+     * {@code buffer_size} is already bounded below by the same 5 MB. It is applied here anyway so that the part size
+     * this method returns is valid on its own terms rather than only while that setting's bound happens to agree.
      */
     static long resolvePartSize(final long configuredPartSize, final long sourceSize) {
         final long minimumForPartLimit = (sourceSize + MAX_PARTS - 1) / MAX_PARTS;
-        return Math.max(configuredPartSize, minimumForPartLimit);
+        return Math.max(Math.max(configuredPartSize, minimumForPartLimit), MIN_PART_SIZE.getBytes());
     }
 
     /**
