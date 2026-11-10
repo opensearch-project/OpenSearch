@@ -38,7 +38,7 @@
 
   - do:
       node_selector:
-        version: " 2.13.0 - 3.8.99"
+        version: " 2.13.0 - 3.9.99"
       indices.forcemerge:
         index: test_index
         wait_for_completion: false
