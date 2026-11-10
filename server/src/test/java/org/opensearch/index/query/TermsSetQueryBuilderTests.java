@@ -324,6 +324,22 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         }
     }
 
+    public void testMissingMinimumShouldMatchThrowsException() {
+        TermsSetQueryBuilder query = new TermsSetQueryBuilder(
+            "my_field",
+            Arrays.asList("term1", "term2")
+        );
+        // Don't set minimumShouldMatchField or minimumShouldMatchScript
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> query.doToQuery(createShardContext())
+        );
+
+        assertThat(e.getMessage(), containsString("minimum_should_match_field"));
+        assertThat(e.getMessage(), containsString("minimum_should_match_script"));
+    }
+
     private static List<?> randomValues(final String fieldName) {
         final int numValues = randomIntBetween(0, 10);
         final List<Object> values = new ArrayList<>(numValues);
