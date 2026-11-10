@@ -231,6 +231,8 @@ final class DefaultSearchContext extends SearchContext {
     private Query query;
     private ParsedQuery postFilter;
     private Query aliasFilter;
+    /** Whether {@link #aliasFilter} has been built from the request, which {@link #preProcess} does. */
+    private boolean aliasFilterBuilt;
     private int[] docIdsToLoad;
     private int docsIdsToLoadFrom;
     private int docsIdsToLoadSize;
@@ -463,6 +465,7 @@ final class DefaultSearchContext extends SearchContext {
         try {
             final QueryBuilder queryBuilder = request.getAliasFilter().getQueryBuilder();
             aliasFilter = queryBuilder == null ? null : queryBuilder.toQuery(queryShardContext);
+            aliasFilterBuilt = true;
             filteredStatisticsFilterMemo = null;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -930,9 +933,25 @@ final class DefaultSearchContext extends SearchContext {
             && withinFilteredStatisticsBudget();
     }
 
+    @Override
+    public boolean restrictsStatistics() {
+        // Read the built alias query, as useFilteredStatistics() does, so the two agree; before preProcess builds it,
+        // read the request.
+        final AliasFilter.ScoringMode scoringMode = aliasFilterBuilt ? aliasScoringMode() : requestedAliasScoringMode();
+        return scoringMode == AliasFilter.ScoringMode.NO_STATS
+            || scoringMode == AliasFilter.ScoringMode.FILTERED_STATS
+            || pluginVisibleSubsetFilter != null;
+    }
+
     /** The scoring mode of the alias filter on this request, or {@code null} when no alias filter applies. */
     private AliasFilter.ScoringMode aliasScoringMode() {
         return aliasFilter == null ? null : request.getAliasFilter().getScoringMode();
+    }
+
+    /** The scoring mode the request asks for, or {@code null} when the request carries no alias query. */
+    private AliasFilter.ScoringMode requestedAliasScoringMode() {
+        final AliasFilter requested = request.getAliasFilter();
+        return requested == null || requested.getQueryBuilder() == null ? null : requested.getScoringMode();
     }
 
     /**

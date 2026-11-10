@@ -395,6 +395,17 @@ public abstract class SearchContext implements Releasable {
     }
 
     /**
+     * Whether scoring on this request must not use statistics from documents outside its alias filter or restriction.
+     * When this is true and {@link #useFilteredStatistics()} is false, the request scores without corpus statistics, and
+     * the dfs phase ships none.
+     *
+     * @return true when the alias mode or a declared restriction limits the statistics this request may use
+     */
+    public boolean restrictsStatistics() {
+        return false;
+    }
+
+    /**
      * The query that defines the visible subset for statistics purposes, which is the alias filter for a
      * {@code filtered_stats} alias and otherwise whatever a plugin has supplied through
      * {@link #visibleSubsetFilter(Query)}.
