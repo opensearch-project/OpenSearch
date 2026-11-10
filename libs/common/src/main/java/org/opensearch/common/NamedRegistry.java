@@ -32,6 +32,8 @@
 
 package org.opensearch.common;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +46,7 @@ import static java.util.Objects.requireNonNull;
  *
  * @opensearch.internal
  */
+@ExperimentalApi
 public class NamedRegistry<T> {
     private final Map<String, T> registry = new HashMap<>();
     private final String targetName;
