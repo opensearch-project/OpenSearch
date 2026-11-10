@@ -106,9 +106,9 @@ public class DfsPhase {
             }
 
             if (context.restrictsStatistics() && filteredStatistics == false) {
-                // This shard scores without corpus statistics (no_stats, or filtered_stats over its ceiling). Its
-                // whole-shard numbers must not reach the coordinator, where they would change the scores of other
-                // shards that do scope their statistics.
+                // This shard scores without corpus statistics (no_stats, filtered_stats over its ceiling, or a plugin
+                // restriction over its ceiling). Its whole-shard numbers must not reach the coordinator, where they
+                // would change the scores of other shards that do scope their statistics.
                 stats.clear();
                 fieldStatistics.clear();
             }

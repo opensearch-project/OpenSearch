@@ -253,6 +253,53 @@ public class DefaultSearchContextFilteredStatisticsTests extends OpenSearchTestC
         }
     }
 
+    public void testDfsNoStatsAliasShipsNoStatistics() throws IOException {
+        try (DefaultSearchContext context = context(AliasFilter.ScoringMode.NO_STATS, -1)) {
+            runDfsWithScoringRescore(context);
+            assertEquals("a no_stats shard must not ship whole-shard statistics", 0, context.dfsResult().terms().length);
+            assertTrue(context.dfsResult().fieldStatistics().isEmpty());
+        }
+    }
+
+    public void testDfsRestrictionOverBudgetShipsNoStatistics() throws IOException {
+        try (DefaultSearchContext context = context(null, 0)) {
+            context.visibleSubsetFilter(RESTRICTION);
+            runDfsWithScoringRescore(context);
+            assertEquals("a restricted shard over its ceiling must not ship statistics", 0, context.dfsResult().terms().length);
+            assertTrue(context.dfsResult().fieldStatistics().isEmpty());
+        }
+    }
+
+    public void testDfsUnfilteredStatsShipsWholeShardStatistics() throws IOException {
+        try (DefaultSearchContext context = context(AliasFilter.ScoringMode.UNFILTERED_STATS, -1)) {
+            runDfsWithScoringRescore(context);
+            assertEquals("unfiltered_stats keeps shipping statistics", 2, context.dfsResult().terms().length);
+            for (int i = 0; i < 2; i++) {
+                assertEquals("whole-shard document frequency", 3, context.dfsResult().termStatistics()[i].docFreq());
+            }
+            assertFalse(context.dfsResult().fieldStatistics().isEmpty());
+        }
+    }
+
+    public void testRestrictsStatisticsAgreesWhenTheAliasQueryIsNull() throws IOException {
+        try (DefaultSearchContext context = context(AliasFilter.ScoringMode.FILTERED_STATS, -1, null)) {
+            context.preProcess(false);
+            assertFalse(context.useFilteredStatistics());
+            assertFalse("an alias query that builds to null restricts nothing", context.restrictsStatistics());
+        }
+    }
+
+    /** Runs the dfs phase with a scoring main query and a scoring rescore query, so statistics would be collected. */
+    private static void runDfsWithScoringRescore(DefaultSearchContext context) throws IOException {
+        context.parsedQuery(new ParsedQuery(new TermQuery(new Term("dept", "visible"))));
+        context.setTask(mock(SearchShardTask.class));
+        QueryRescorer.QueryRescoreContext rescore = new QueryRescorer.QueryRescoreContext(10);
+        rescore.setParsedQuery(new ParsedQuery(new TermQuery(new Term("dept", "hidden"))));
+        context.addRescore(rescore);
+        context.preProcess(false);
+        new DfsPhase().execute(context);
+    }
+
     private static Set<Query> filterClauses(Query query) {
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery bool = (BooleanQuery) query;
@@ -267,6 +314,11 @@ public class DefaultSearchContextFilteredStatisticsTests extends OpenSearchTestC
      * visible-document ceiling (unlimited when negative).
      */
     private DefaultSearchContext context(AliasFilter.ScoringMode scoringMode, long maxVisibleDocs) throws IOException {
+        return context(scoringMode, maxVisibleDocs, ALIAS);
+    }
+
+    /** As {@link #context(AliasFilter.ScoringMode, long)}, with the query the alias builds to. */
+    private DefaultSearchContext context(AliasFilter.ScoringMode scoringMode, long maxVisibleDocs, Query aliasQuery) throws IOException {
         ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 0);
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         when(request.searchType()).thenReturn(SearchType.DEFAULT);
@@ -276,7 +328,7 @@ public class DefaultSearchContextFilteredStatisticsTests extends OpenSearchTestC
             when(request.getAliasFilter()).thenReturn(AliasFilter.EMPTY);
         } else {
             QueryBuilder aliasBuilder = mock(QueryBuilder.class);
-            when(aliasBuilder.toQuery(any())).thenReturn(ALIAS);
+            when(aliasBuilder.toQuery(any())).thenReturn(aliasQuery);
             when(request.getAliasFilter()).thenReturn(new AliasFilter(aliasBuilder, scoringMode, "alias"));
         }
 
