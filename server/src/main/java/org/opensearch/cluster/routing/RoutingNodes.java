@@ -129,7 +129,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // also fill replicaSet information
         for (final IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
             for (IndexShardRoutingTable indexShard : indexRoutingTable) {
-                assert indexShard.assignedShards().stream().noneMatch(s -> s.isSearchOnly() == false) || indexShard.primary != null
+                assert indexShard.shards().stream().noneMatch(s -> s.isSearchOnly() == false) || indexShard.primary != null
                     : "Primary shard routing can't be null for non-search-only indices";
                 for (ShardRouting shard : indexShard) {
                     // to get all the shards belonging to an index, including the replicas,
