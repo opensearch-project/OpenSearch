@@ -195,7 +195,7 @@ public class ForceMergeRequestTests extends OpenSearchTestCase {
                     assertEquals(sample.flush(), flush);
                     assertEquals(sample.primaryOnly(), primaryOnly);
                     assertEquals(sample.forceMergeUUID(), forceMergeUUID);
-                    if (version.onOrAfter(Version.V_3_9_0)) {
+                    if (version.onOrAfter(Version.V_3_10_0)) {
                         boolean upgrade = in.readBoolean();
                         assertEquals(sample.upgrade(), upgrade);
                     }
@@ -220,7 +220,7 @@ public class ForceMergeRequestTests extends OpenSearchTestCase {
                 } else {
                     out.writeOptionalString(sample.forceMergeUUID());
                 }
-                if (version.onOrAfter(Version.V_3_9_0)) {
+                if (version.onOrAfter(Version.V_3_10_0)) {
                     out.writeBoolean(sample.upgrade());
                 }
 
@@ -235,7 +235,7 @@ public class ForceMergeRequestTests extends OpenSearchTestCase {
                 assertEquals(sample.flush(), deserializedRequest.flush());
                 assertEquals(sample.primaryOnly(), deserializedRequest.primaryOnly());
                 assertEquals(sample.forceMergeUUID(), deserializedRequest.forceMergeUUID());
-                if (version.onOrAfter(Version.V_3_9_0)) {
+                if (version.onOrAfter(Version.V_3_10_0)) {
                     assertEquals(sample.upgrade(), deserializedRequest.upgrade());
                 } else {
                     assertEquals(ForceMergeRequest.Defaults.UPGRADE, deserializedRequest.upgrade());
@@ -244,13 +244,13 @@ public class ForceMergeRequestTests extends OpenSearchTestCase {
         }
     }
 
-    public void testBwcSerializationPreV390DefaultsUpgrade() throws Exception {
+    public void testBwcSerializationPreV3100DefaultsUpgrade() throws Exception {
         final ForceMergeRequest sample = randomRequest();
         sample.upgrade(true);
         final Version version = VersionUtils.randomVersionBetween(
             random(),
             Version.V_3_0_0,
-            VersionUtils.getPreviousVersion(Version.V_3_9_0)
+            VersionUtils.getPreviousVersion(Version.V_3_10_0)
         );
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
@@ -261,7 +261,7 @@ public class ForceMergeRequestTests extends OpenSearchTestCase {
                 in.setVersion(version);
                 deserializedRequest = new ForceMergeRequest(in);
             }
-            // upgrade should default to false when deserializing from a pre-3.9.0 stream
+            // upgrade should default to false when deserializing from a pre-3.10.0 stream
             assertFalse(deserializedRequest.upgrade());
             // other fields should be preserved
             assertEquals(sample.maxNumSegments(), deserializedRequest.maxNumSegments());
