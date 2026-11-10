@@ -1,0 +1,20 @@
+// Need further scrutiny: neither are all permissions used, nor are all permissions effective.
+grant {
+  // needed to generate runtime classes
+  permission java.lang.RuntimePermission "createClassLoader";
+
+  // needed to find the classloader to load allowlisted classes from
+  permission java.lang.RuntimePermission "getClassLoader";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+
+  permission java.util.PropertyPermission "*", "read,write";
+  permission java.io.FilePermission "*", "read";
+
+  permission java.security.AllPermission;
+
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.RuntimePermission "accessUserInformation";
+  permission java.lang.RuntimePermission "loadLibrary.*";
+  permission java.lang.RuntimePermission "accessClassInPackage";
+};
