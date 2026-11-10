@@ -168,7 +168,6 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
             awaitForBlock(plugins);
 
             int throttledBefore = getThrottled(workloadGroupId);
-            long inFlightBefore = currentInFlightSearches();
 
             // Second search while the first is still in-flight: must be rejected (429).
             Throwable rejection = expectThrows(Throwable.class, () -> blockingSearch(indexName).execute().actionGet(TIMEOUT));
@@ -179,13 +178,10 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
 
             assertEquals("total_throttled should increment by exactly one", throttledBefore + 1, getThrottled(workloadGroupId));
 
-            // A rejected request must not leak the in-flight gauge. Poll, since background rule-sync searches also move it.
+            // A rejected request must not leak the in-flight gauge, so only the blocked search is counted. Poll for the exact
+            // value rather than a sampled baseline, since a background rule-sync search can briefly add one.
             assertBusy(
-                () -> assertEquals(
-                    "in-flight search gauge must exclude the throttle-rejected request",
-                    inFlightBefore,
-                    currentInFlightSearches()
-                ),
+                () -> assertEquals("in-flight search gauge must exclude the throttle-rejected request", 1L, currentInFlightSearches()),
                 30,
                 TimeUnit.SECONDS
             );
