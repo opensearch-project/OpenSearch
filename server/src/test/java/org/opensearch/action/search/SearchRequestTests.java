@@ -37,8 +37,12 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.ArrayUtils;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.geometry.LinearRing;
 import org.opensearch.index.query.GeoShapeQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -477,5 +481,41 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     private String toDescription(SearchRequest request) {
         return request.createTask(0, "test", SearchAction.NAME, TaskId.EMPTY_TASK_ID, emptyMap()).getDescription();
+    }
+
+    public void testOriginalRequestBodySerialization() throws IOException{
+        // Create a SearchRequest and set the otiginal request body
+        SearchRequest originalRequest = new SearchRequest();
+        BytesReference requestBody = new BytesArray("{\"query\":{\"match_all\":{}}}");
+        originalRequest.setOriginalRequestBody(requestBody);
+
+        // Serialize it
+        BytesStreamOutput out = new BytesStreamOutput();
+        originalRequest.writeTo(out);
+
+        // Deserialize it back
+        StreamInput in = out.bytes().streamInput();
+        SearchRequest deserialized = new SearchRequest(in);
+
+        // Validate that the original request body is preserved
+        assertNotNull(deserialized.getOriginalRequestBody());
+        assertEquals(requestBody.utf8ToString(), deserialized.getOriginalRequestBody().utf8ToString());
+    }
+
+    public void testOriginalRequestBodyIsNullByDefault() throws IOException{
+        // Create a new SearchRequest without setting the original body
+        SearchRequest request = new SearchRequest();
+
+        // Ensure the field is null initially
+        assertNull(request.getOriginalRequestBody());
+
+        // Serialize and deserialize it 
+        BytesStreamOutput out = new BytesStreamOutput();
+        request.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        SearchRequest deserialized = new SearchRequest(in);
+
+        //Validate it remains null after round-trip serialization
+        assertNull(deserialized.getOriginalRequestBody());
     }
 }
