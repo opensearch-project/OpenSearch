@@ -322,6 +322,17 @@ public class AzureBlobStore implements BlobStore {
         return readBlockSize == null ? AzureBlobContainer.DEFAULT_MINIMUM_READ_SIZE_IN_BYTES : readBlockSize;
     }
 
+    public long getBlobLength(String blob) throws URISyntaxException, BlobStorageException {
+        final Tuple<BlobServiceClient, Supplier<Context>> client = client();
+        final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
+        return AccessController.doPrivileged(() -> {
+            final BlobProperties properties = blobContainer.getBlobClient(blob)
+                .getPropertiesWithResponse(null, timeout(), client.v2().get())
+                .getValue();
+            return properties.getBlobSize();
+        });
+    }
+
     public Map<String, BlobMetadata> listBlobsByPrefix(String keyPath, String prefix) throws URISyntaxException, BlobStorageException {
         final Map<String, BlobMetadata> blobsBuilder = new HashMap<String, BlobMetadata>();
         final Tuple<BlobServiceClient, Supplier<Context>> client = client();
