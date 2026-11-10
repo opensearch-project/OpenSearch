@@ -38,10 +38,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.lucene.search.PrecompiledAutomatonQuery;
-import org.opensearch.common.lucene.search.RegexpAutomatonCache;
 
 public class RoutingFieldTypeTests extends FieldTypeTestCase {
 
@@ -62,14 +59,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
     public void testRegexpQuery() {
         MappedFieldType ft = RoutingFieldMapper.RoutingFieldType.INSTANCE;
 
-        CompiledAutomaton compiled = RegexpAutomatonCache.getInstance()
-            .getCompiledAutomaton("foo?", 0, 0, 10, RegexpQuery.DEFAULT_PROVIDER);
-        Query expected = new PrecompiledAutomatonQuery(
-            new Term("_routing", new BytesRef("foo?")),
-            compiled,
-            "foo?",
-            MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
-        );
+        Query expected = new RegexpQuery(new Term("_routing", new BytesRef("foo?")));
         assertEquals(expected, ft.regexpQuery("foo?", 0, 0, 10, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC));
 
         OpenSearchException ee = expectThrows(

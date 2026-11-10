@@ -39,10 +39,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.lucene.search.PrecompiledAutomatonQuery;
-import org.opensearch.common.lucene.search.RegexpAutomatonCache;
 
 public class IgnoredFieldTypeTests extends FieldTypeTestCase {
 
@@ -63,12 +62,12 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
     public void testRegexpQuery() {
         MappedFieldType ft = IgnoredFieldMapper.IgnoredFieldType.INSTANCE;
 
-        CompiledAutomaton compiled = RegexpAutomatonCache.getInstance()
-            .getCompiledAutomaton("foo?", 0, 0, 10, RegexpQuery.DEFAULT_PROVIDER);
-        Query expected = new PrecompiledAutomatonQuery(
+        Query expected = new RegexpQuery(
             new Term("_ignored", new BytesRef("foo?")),
-            compiled,
-            "foo?",
+            RegExp.ALL,
+            0,
+            RegexpQuery.DEFAULT_PROVIDER,
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
             MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
         );
         assertEquals(expected, ft.regexpQuery("foo?", 0, 0, 10, null, MOCK_QSC));

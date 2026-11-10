@@ -21,14 +21,11 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.opensearch.common.lucene.search.PrecompiledAutomatonQuery;
 import org.opensearch.common.lucene.search.RegexpAutomatonCache;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -261,9 +258,8 @@ public class SemanticVersionFieldMapper extends ParametrizedFieldMapper {
                 method = MultiTermQuery.CONSTANT_SCORE_REWRITE;
             }
             if (isSearchable) {
-                CompiledAutomaton compiled = RegexpAutomatonCache.getInstance()
-                    .getCompiledAutomaton(value, syntaxFlags, matchFlags, maxDeterminizedStates, RegexpQuery.DEFAULT_PROVIDER);
-                return new PrecompiledAutomatonQuery(new Term(name(), indexedValueForSearch(value)), compiled, value, method);
+                return RegexpAutomatonCache.getInstance()
+                    .regexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates, method);
             } else {
                 throw new IllegalArgumentException("Regexp queries require the field to be indexed");
             }

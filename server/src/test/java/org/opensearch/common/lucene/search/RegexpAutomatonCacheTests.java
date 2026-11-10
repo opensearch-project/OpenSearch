@@ -8,6 +8,9 @@
 
 package org.opensearch.common.lucene.search;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.AutomatonProvider;
@@ -24,6 +27,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RegexpAutomatonCacheTests extends OpenSearchTestCase {
 
@@ -90,8 +95,13 @@ public class RegexpAutomatonCacheTests extends OpenSearchTestCase {
 
     public void testDifferentFlagsProduceDistinctEntries() {
         RegexpAutomatonCache cache = newCache();
-        Automaton a = cache.getAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        Automaton b = cache.getAutomaton("foo.*", RegExp.ALL, RegExp.ASCII_CASE_INSENSITIVE, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        Automaton a = cache.getCompiledAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT).automaton;
+        Automaton b = cache.getCompiledAutomaton(
+            "foo.*",
+            RegExp.ALL,
+            RegExp.ASCII_CASE_INSENSITIVE,
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+        ).automaton;
         assertNotSame(a, b);
         assertEquals(2, cache.count());
         assertEquals(2, cache.misses());
@@ -100,8 +110,8 @@ public class RegexpAutomatonCacheTests extends OpenSearchTestCase {
 
     public void testDifferentPatternsProduceDistinctEntries() {
         RegexpAutomatonCache cache = newCache();
-        Automaton a = cache.getAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        Automaton b = cache.getAutomaton("bar.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        Automaton a = cache.getCompiledAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT).automaton;
+        Automaton b = cache.getCompiledAutomaton("bar.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT).automaton;
         assertNotSame(a, b);
         assertEquals(2, cache.count());
     }
@@ -109,15 +119,15 @@ public class RegexpAutomatonCacheTests extends OpenSearchTestCase {
     public void testDisabledBypassesCache() {
         RegexpAutomatonCache cache = newCache();
         cache.setEnabled(false);
-        Automaton a = cache.getAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        Automaton b = cache.getAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        Automaton a = cache.getCompiledAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT).automaton;
+        Automaton b = cache.getCompiledAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT).automaton;
         assertNotSame(a, b);
         assertEquals(0, cache.count());
     }
 
     public void testDisablingClearsExistingEntries() {
         RegexpAutomatonCache cache = newCache();
-        cache.getAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        cache.getCompiledAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         assertEquals(1, cache.count());
         cache.setEnabled(false);
         assertEquals(0, cache.count());
@@ -128,8 +138,8 @@ public class RegexpAutomatonCacheTests extends OpenSearchTestCase {
 
     public void testDisablingSwapsCacheInsteadOfInvalidating() {
         RegexpAutomatonCache cache = newCache();
-        cache.getAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        cache.getAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT); // hit
+        cache.getCompiledAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        cache.getCompiledAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT); // hit
         assertEquals(1, cache.hits());
         assertEquals(1, cache.misses());
 
@@ -150,8 +160,8 @@ public class RegexpAutomatonCacheTests extends OpenSearchTestCase {
         // Non-default provider should not be cached because named-automaton substitutions may
         // change the resulting automaton even for the same pattern + flags.
         AutomatonProvider provider = name -> null;
-        cache.getAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, provider);
-        cache.getAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, provider);
+        cache.getCompiledAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, provider);
+        cache.getCompiledAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, provider);
         assertEquals(0, cache.count());
     }
 
@@ -170,7 +180,7 @@ public class RegexpAutomatonCacheTests extends OpenSearchTestCase {
         // `[` without a matching `]` is invalid regex syntax.
         expectThrows(
             IllegalArgumentException.class,
-            () -> cache.getAutomaton("[abc", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+            () -> cache.getCompiledAutomaton("[abc", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
         );
         assertEquals(0, cache.count());
     }
@@ -190,7 +200,7 @@ public class RegexpAutomatonCacheTests extends OpenSearchTestCase {
         RegexpAutomatonCache cache = newCache();
         // Fill cache with 4 entries
         for (int i = 0; i < 4; i++) {
-            cache.getAutomaton("pattern" + i, RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            cache.getCompiledAutomaton("pattern" + i, RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         }
         assertEquals(4, cache.count());
 
@@ -201,9 +211,9 @@ public class RegexpAutomatonCacheTests extends OpenSearchTestCase {
         assertTrue("expected at most 2 entries after resize-down, got " + cache.count(), cache.count() <= 2);
 
         // New insertions still respect the smaller limit.
-        cache.getAutomaton("a", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        cache.getAutomaton("b", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        cache.getAutomaton("c", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        cache.getCompiledAutomaton("a", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        cache.getCompiledAutomaton("b", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        cache.getCompiledAutomaton("c", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         assertEquals(2, cache.count());
     }
 
@@ -215,9 +225,9 @@ public class RegexpAutomatonCacheTests extends OpenSearchTestCase {
         // Budget sized for exactly two of these (identically-shaped, single-character) automatons.
         long singleCharWeight = weightOf("a");
         RegexpAutomatonCache cache = newCache(singleCharWeight * 2);
-        cache.getAutomaton("a", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        cache.getAutomaton("b", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        cache.getAutomaton("c", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        cache.getCompiledAutomaton("a", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        cache.getCompiledAutomaton("b", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        cache.getCompiledAutomaton("c", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         // With a two-entry budget and three distinct patterns, at least one must have been evicted.
         assertEquals(2, cache.count());
         assertTrue("expected at least one eviction, got " + cache.evictions(), cache.evictions() >= 1);
@@ -308,6 +318,37 @@ public class RegexpAutomatonCacheTests extends OpenSearchTestCase {
             assertSame(canonical, result.get());
         }
         assertEquals(1, cache.count());
+    }
+
+    public void testRegexpQueryReturnsLuceneRegexpQueryWhenDisabled() {
+        RegexpAutomatonCache cache = newCache();
+        cache.setEnabled(false);
+        Term term = new Term("field", "foo.*");
+        Query query = cache.regexpQuery(term, RegExp.ALL, 0, 10, MultiTermQuery.CONSTANT_SCORE_REWRITE);
+        assertEquals(new RegexpQuery(term, RegExp.ALL, 0, RegexpQuery.DEFAULT_PROVIDER, 10, MultiTermQuery.CONSTANT_SCORE_REWRITE), query);
+        assertEquals(0, cache.count());
+    }
+
+    public void testRegexpQueryCompilesFromTermTextWhenEnabled() {
+        RegexpAutomatonCache cache = newCache();
+        Term term = new Term("field", "foo.*");
+        Query first = cache.regexpQuery(term, RegExp.ALL, 0, 10, MultiTermQuery.CONSTANT_SCORE_REWRITE);
+        Query second = cache.regexpQuery(term, RegExp.ALL, 0, 10, MultiTermQuery.CONSTANT_SCORE_REWRITE);
+        assertThat(first, instanceOf(PrecompiledAutomatonQuery.class));
+        assertEquals(first, second);
+        assertEquals("field:/foo.*/", first.toString());
+        assertEquals(
+            new PrecompiledAutomatonQuery(
+                term,
+                cache.getCompiledAutomaton("foo.*", RegExp.ALL, 0, 10),
+                "foo.*",
+                MultiTermQuery.CONSTANT_SCORE_REWRITE
+            ),
+            first
+        );
+        assertEquals(1, cache.count());
+        assertEquals(2, cache.hits());
+        assertEquals(1, cache.misses());
     }
 
     public void testGlobalInstanceIsReachable() {

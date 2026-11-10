@@ -55,7 +55,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
@@ -63,7 +62,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.AutomatonQueries;
-import org.opensearch.common.lucene.search.PrecompiledAutomatonQuery;
 import org.opensearch.common.lucene.search.RegexpAutomatonCache;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
@@ -322,36 +320,54 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    public void testRegexpQueryWithNormalizer() {
+        MappedFieldType ft = new KeywordFieldType("field", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()));
+        Term normalized = new Term("field", "foo.*");
+        RegexpAutomatonCache cache = RegexpAutomatonCache.getInstance();
+        boolean originalEnabled = cache.isEnabled();
+        try {
+            for (boolean enabled : new boolean[] { false, true }) {
+                cache.setEnabled(enabled);
+                Query expected = new IndexOrDocValuesQuery(
+                    cache.regexpQuery(normalized, 0, 0, 10, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE),
+                    cache.regexpQuery(normalized, 0, 0, 10, MultiTermQuery.DOC_VALUES_REWRITE)
+                );
+                Query actual = ft.regexpQuery(
+                    "FOO.*",
+                    0,
+                    0,
+                    10,
+                    MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
+                    MOCK_QSC_ENABLE_INDEX_DOC_VALUES
+                );
+                assertEquals(expected, actual);
+                assertEquals("field:/foo.*/", ((IndexOrDocValuesQuery) actual).getIndexQuery().toString());
+            }
+        } finally {
+            cache.setEnabled(originalEnabled);
+        }
+    }
+
     public void testRegexpQuery() {
-        CompiledAutomaton expectedCompiled = RegexpAutomatonCache.getInstance()
-            .getCompiledAutomaton("foo.*", 0, 0, 10, RegexpQuery.DEFAULT_PROVIDER);
         MappedFieldType ft = new KeywordFieldType("field");
         assertEquals(
             new IndexOrDocValuesQuery(
-                new PrecompiledAutomatonQuery(
-                    new Term("field", "foo.*"),
-                    expectedCompiled,
-                    "foo.*",
-                    MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
-                ),
-                new PrecompiledAutomatonQuery(new Term("field", "foo.*"), expectedCompiled, "foo.*", MultiTermQuery.DOC_VALUES_REWRITE)
+                new RegexpQuery(new Term("field", "foo.*")),
+                new RegexpQuery(new Term("field", "foo.*"), 0, 0, RegexpQuery.DEFAULT_PROVIDER, 10, MultiTermQuery.DOC_VALUES_REWRITE)
             ),
             ft.regexpQuery("foo.*", 0, 0, 10, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC_ENABLE_INDEX_DOC_VALUES)
         );
 
-        Query indexExpected = new PrecompiledAutomatonQuery(
-            new Term("field", "foo.*"),
-            expectedCompiled,
-            "foo.*",
-            MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
-        );
+        Query indexExpected = new RegexpQuery(new Term("field", "foo.*"));
         MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
         assertEquals(indexExpected, onlyIndexed.regexpQuery("foo.*", 0, 0, 10, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC));
 
-        Query dvExpected = new PrecompiledAutomatonQuery(
+        Query dvExpected = new RegexpQuery(
             new Term("field", "foo.*"),
-            expectedCompiled,
-            "foo.*",
+            0,
+            0,
+            RegexpQuery.DEFAULT_PROVIDER,
+            10,
             MultiTermQuery.DOC_VALUES_REWRITE
         );
         MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());

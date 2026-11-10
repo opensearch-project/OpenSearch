@@ -8,6 +8,8 @@
 
 package org.opensearch.common.lucene.search;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.AutomatonProvider;
@@ -69,7 +71,7 @@ public final class RegexpAutomatonCache {
      * memory under a count-based limit.
      */
     public static final Setting<ByteSizeValue> CACHE_MAX_SIZE_SETTING = Setting.memorySizeSetting(
-        "search.regexp.automaton_cache.max_size_bytes",
+        "search.regexp.automaton_cache.size",
         new ByteSizeValue(50, ByteSizeUnit.MB),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -91,18 +93,21 @@ public final class RegexpAutomatonCache {
     }
 
     private static Cache<Key, CompiledAutomaton> buildCache(long maxSizeBytes) {
+        // Keys are not weighed: the pattern string is bounded by index.max_regex_length (1000 chars by default),
+        // which is negligible next to the compiled automaton.
         return CacheBuilder.<Key, CompiledAutomaton>builder().setMaximumWeight(maxSizeBytes).weigher((k, v) -> v.ramBytesUsed()).build();
     }
 
     /**
-     * Snapshots the current cache's hit/miss/eviction counters into the persistent accumulators
-     * so they survive across a cache-instance swap (resize or disable).
+     * Swaps in {@code newCache} and folds {@code retiredStats}, the retired cache's counters, into the
+     * persistent accumulators. Accumulating only after the swap keeps {@link #hits()} and friends from
+     * counting the retired cache twice while the swap is in progress.
      */
-    private void snapshotStats() {
-        Cache.CacheStats stats = cacheRef.get().stats();
-        accumulatedHits.add(stats.getHits());
-        accumulatedMisses.add(stats.getMisses());
-        accumulatedEvictions.add(stats.getEvictions());
+    private void swapCache(Cache<Key, CompiledAutomaton> newCache, Cache.CacheStats retiredStats) {
+        cacheRef.set(newCache);
+        accumulatedHits.add(retiredStats.getHits());
+        accumulatedMisses.add(retiredStats.getMisses());
+        accumulatedEvictions.add(retiredStats.getEvictions());
     }
 
     public static RegexpAutomatonCache getInstance() {
@@ -118,8 +123,8 @@ public final class RegexpAutomatonCache {
      */
     public void resize(long maxSizeBytes) {
         Cache<Key, CompiledAutomaton> oldCache = cacheRef.get();
-        snapshotStats();
-
+        // Taken before copying so the copy's own get() calls are not counted as hits.
+        Cache.CacheStats oldStats = oldCache.stats();
         Cache<Key, CompiledAutomaton> newCache = buildCache(maxSizeBytes);
 
         List<Key> keysMruFirst = new ArrayList<>();
@@ -134,7 +139,7 @@ public final class RegexpAutomatonCache {
         }
 
         this.maxSizeBytes = maxSizeBytes;
-        cacheRef.set(newCache);
+        swapCache(newCache, oldStats);
     }
 
     /**
@@ -146,8 +151,7 @@ public final class RegexpAutomatonCache {
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
         if (enabled == false) {
-            snapshotStats();
-            cacheRef.set(buildCache(maxSizeBytes));
+            swapCache(buildCache(maxSizeBytes), cacheRef.get().stats());
         }
     }
 
@@ -246,18 +250,26 @@ public final class RegexpAutomatonCache {
     }
 
     /**
-     * Returns the raw {@link Automaton} for the supplied regex pattern. Convenience method
-     * for callers that do not need the fully compiled form.
+     * Builds a regexp query over {@code term.field()} whose pattern is {@code term.text()}, matching
+     * the semantics of Lucene's {@link RegexpQuery}: callers must pass the term after any search-time
+     * normalization so the automaton is compiled from the normalized pattern.
+     *
+     * <p>When the cache is disabled this returns a plain {@link RegexpQuery}, so the default code path
+     * is unchanged; otherwise it returns a {@link PrecompiledAutomatonQuery} backed by a cached automaton.
      */
-    Automaton getAutomaton(String pattern, int syntaxFlags, int matchFlags, int determinizeWorkLimit, AutomatonProvider provider) {
-        return getCompiledAutomaton(pattern, syntaxFlags, matchFlags, determinizeWorkLimit, provider).automaton;
-    }
-
-    /**
-     * Convenience overload that uses {@link RegexpQuery#DEFAULT_PROVIDER}.
-     */
-    Automaton getAutomaton(String pattern, int syntaxFlags, int matchFlags, int determinizeWorkLimit) {
-        return getAutomaton(pattern, syntaxFlags, matchFlags, determinizeWorkLimit, RegexpQuery.DEFAULT_PROVIDER);
+    public MultiTermQuery regexpQuery(
+        Term term,
+        int syntaxFlags,
+        int matchFlags,
+        int determinizeWorkLimit,
+        MultiTermQuery.RewriteMethod rewriteMethod
+    ) {
+        if (enabled == false) {
+            return new RegexpQuery(term, syntaxFlags, matchFlags, RegexpQuery.DEFAULT_PROVIDER, determinizeWorkLimit, rewriteMethod);
+        }
+        String pattern = term.text();
+        CompiledAutomaton compiled = getCompiledAutomaton(pattern, syntaxFlags, matchFlags, determinizeWorkLimit);
+        return new PrecompiledAutomatonQuery(term, compiled, pattern, rewriteMethod);
     }
 
     /**
