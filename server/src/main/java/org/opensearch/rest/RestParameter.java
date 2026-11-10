@@ -5,7 +5,6 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-
 package org.opensearch.rest;
 
 import org.opensearch.common.Booleans;
@@ -25,22 +24,23 @@ import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
 
 /**
  * A declared REST parameter. Mirrors {@link org.opensearch.common.settings.Setting}: the handler
- * declares the parameter once, and {@link #get(RestRequest)} consumes, parses, and applies the
- * required-or-default contract.
+ * declares a parameter once, and {@link RestRequest#param(RestParameter)} consumes and parses it.
  * <p>
  * An optional path segment is expressed by registering another route. A path parameter absent from
- * some of the handler's routes must be declared without {@link Property#Required}. Query parameters are
- * optional when they have a default (static, or supplied per call) and required when marked
- * {@link Property#Required}.
+ * some of the handler's routes must be declared without {@link Property#Required}. Query parameters
+ * without {@link Property#Required} are optional and return {@code null} when absent. A handler can
+ * pass an action request's default to {@link RestRequest#param(RestParameter, Object)}.
  * <pre>{@code
  * static final RestParameter<String> INDEX = RestParameter.simpleString("index", Property.Required, Property.Path);
- * static final RestParameter<Boolean> LOCAL = RestParameter.boolParam("local", false);
+ * static final RestParameter<Boolean> LOCAL = RestParameter.boolParam("local");
  * static final RestParameter<TimeValue> TIMEOUT = RestParameter.timeValue("timeout");
  *
- * String index = INDEX.get(request);
- * boolean local = LOCAL.get(request);
- * TimeValue timeout = TIMEOUT.get(request, actionRequest.timeout());
+ * String index = request.param(INDEX);
+ * boolean local = request.param(LOCAL, actionRequest.local());
+ * TimeValue timeout = request.param(TIMEOUT, actionRequest.timeout());
  * }</pre>
+ * {@link BaseRestHandler} validates all required declarations before it invokes
+ * {@link BaseRestHandler#prepareRequest(RestRequest, org.opensearch.transport.client.node.NodeClient)}.
  * Handlers expose their declarations from {@link RestHandler#parameters()} so a coverage check can
  * diff them against the API specification without executing a request.
  *
@@ -57,7 +57,7 @@ public final class RestParameter<T> {
     @ExperimentalApi
     public enum Property {
         /**
-         * The parameter must be present on every route of this handler. Mutually exclusive with a static default.
+         * The parameter must be present on every route of this handler.
          */
         Required,
 
@@ -74,208 +74,104 @@ public final class RestParameter<T> {
     }
 
     private final String key;
-    private final T defaultValue;
-    private final boolean hasDefault;
     private final Function<String, T> parser;
     private final Set<Property> properties;
 
-    private RestParameter(String key, T defaultValue, boolean hasDefault, Function<String, T> parser, Property... properties) {
+    private RestParameter(String key, Function<String, T> parser, Property... properties) {
         if (key == null || key.isEmpty()) {
             throw new IllegalArgumentException("parameter key must not be empty");
         }
         this.key = key;
-        this.defaultValue = defaultValue;
-        this.hasDefault = hasDefault;
         this.parser = Objects.requireNonNull(parser, "parameter parser must not be null");
         EnumSet<Property> parsed = EnumSet.noneOf(Property.class);
         for (Property property : Objects.requireNonNull(properties, "parameter properties must not be null")) {
             parsed.add(Objects.requireNonNull(property, "parameter property must not be null"));
         }
         this.properties = Collections.unmodifiableSet(parsed);
-        if (isRequired() && hasDefault) {
-            throw new IllegalArgumentException("parameter [" + key + "] cannot be required and have a default value");
-        }
     }
 
     /**
-     * A required or optional string parameter. Without {@link Property#Required}, a missing value
-     * returns {@code null}.
+     * A string parameter. Without {@link Property#Required}, a missing value returns {@code null}.
      */
     public static RestParameter<String> simpleString(String key, Property... properties) {
-        return new RestParameter<>(key, null, false, Function.identity(), properties);
+        return new RestParameter<>(key, Function.identity(), properties);
     }
 
     /**
-     * An optional string parameter with a static default.
-     */
-    public static RestParameter<String> simpleString(String key, String defaultValue, Property... properties) {
-        return new RestParameter<>(key, defaultValue, true, Function.identity(), properties);
-    }
-
-    /**
-     * An optional boolean parameter. An empty value means {@code true}, matching
+     * A boolean parameter. An empty value means {@code true}, matching
      * {@link RestRequest#paramAsBoolean(String, boolean)}.
      */
-    public static RestParameter<Boolean> boolParam(String key, boolean defaultValue, Property... properties) {
-        return new RestParameter<>(key, defaultValue, true, raw -> parseBoolean(raw, defaultValue), properties);
-    }
-
-    /**
-     * A required boolean parameter.
-     */
     public static RestParameter<Boolean> boolParam(String key, Property... properties) {
-        requireRequired(key, properties);
-        return new RestParameter<>(key, null, false, raw -> parseBoolean(raw, false), properties);
+        return new RestParameter<>(key, raw -> parseBoolean(raw, false), properties);
     }
 
     /**
-     * An optional int parameter.
-     */
-    public static RestParameter<Integer> intParam(String key, int defaultValue, Property... properties) {
-        return new RestParameter<>(key, defaultValue, true, raw -> parseInt(key, raw), properties);
-    }
-
-    /**
-     * A required int parameter.
+     * An integer parameter.
      */
     public static RestParameter<Integer> intParam(String key, Property... properties) {
-        requireRequired(key, properties);
-        return new RestParameter<>(key, null, false, raw -> parseInt(key, raw), properties);
+        return new RestParameter<>(key, raw -> parseInt(key, raw), properties);
     }
 
     /**
-     * An optional long parameter.
-     */
-    public static RestParameter<Long> longParam(String key, long defaultValue, Property... properties) {
-        return new RestParameter<>(key, defaultValue, true, raw -> parseLong(key, raw), properties);
-    }
-
-    /**
-     * A required long parameter.
+     * A long parameter.
      */
     public static RestParameter<Long> longParam(String key, Property... properties) {
-        requireRequired(key, properties);
-        return new RestParameter<>(key, null, false, raw -> parseLong(key, raw), properties);
+        return new RestParameter<>(key, raw -> parseLong(key, raw), properties);
     }
 
     /**
-     * An optional float parameter.
+     * A float parameter.
      */
-    public static RestParameter<Float> floatParam(String key, float defaultValue, Property... properties) {
-        return new RestParameter<>(key, defaultValue, true, raw -> parseFloat(key, raw), properties);
+    public static RestParameter<Float> floatParam(String key, Property... properties) {
+        return new RestParameter<>(key, raw -> parseFloat(key, raw), properties);
     }
 
     /**
-     * An optional time parameter with no static default. Use {@link #get(RestRequest, Object)} to
-     * supply the transport request's own default.
+     * A time parameter.
      */
     public static RestParameter<TimeValue> timeValue(String key, Property... properties) {
-        return new RestParameter<>(key, null, false, raw -> parseTimeValue(raw, key), properties);
+        return new RestParameter<>(key, raw -> parseTimeValue(raw, key), properties);
     }
 
     /**
-     * An optional time parameter with a static default.
-     */
-    public static RestParameter<TimeValue> timeValue(String key, TimeValue defaultValue, Property... properties) {
-        return new RestParameter<>(key, defaultValue, true, raw -> parseTimeValue(raw, defaultValue, key), properties);
-    }
-
-    /**
-     * An optional byte-size parameter with no static default.
+     * A byte-size parameter.
      */
     public static RestParameter<ByteSizeValue> byteSize(String key, Property... properties) {
-        return new RestParameter<>(key, null, false, raw -> parseBytesSizeValue(raw, key), properties);
-    }
-
-    /**
-     * An optional byte-size parameter with a static default.
-     */
-    public static RestParameter<ByteSizeValue> byteSize(String key, ByteSizeValue defaultValue, Property... properties) {
-        return new RestParameter<>(key, defaultValue, true, raw -> parseBytesSizeValue(raw, defaultValue, key), properties);
-    }
-
-    /**
-     * A comma-separated string array. A missing optional value returns {@code defaultValue}.
-     */
-    public static RestParameter<String[]> stringArray(String key, String[] defaultValue, Property... properties) {
-        return new RestParameter<>(key, defaultValue, true, Strings::splitStringByCommaToArray, properties);
+        return new RestParameter<>(key, raw -> parseBytesSizeValue(raw, key), properties);
     }
 
     /**
      * A comma-separated string array. Without {@link Property#Required}, a missing value returns
-     * an empty array.
+     * {@code null}.
      */
     public static RestParameter<String[]> stringArray(String key, Property... properties) {
-        if (isRequired(properties)) {
-            return new RestParameter<>(key, null, false, Strings::splitStringByCommaToArray, properties);
-        }
-        return stringArray(key, Strings.EMPTY_ARRAY, properties);
+        return new RestParameter<>(key, Strings::splitStringByCommaToArray, properties);
     }
 
     /**
      * An enum parameter parsed with {@link Enum#valueOf(Class, String)}.
      */
-    public static <E extends Enum<E>> RestParameter<E> enumParam(String key, Class<E> clazz, E defaultValue, Property... properties) {
-        Objects.requireNonNull(clazz, "enum class must not be null");
-        return new RestParameter<>(key, defaultValue, true, raw -> parseEnum(key, clazz, raw), properties);
-    }
-
-    /**
-     * A required enum parameter.
-     */
     public static <E extends Enum<E>> RestParameter<E> enumParam(String key, Class<E> clazz, Property... properties) {
-        requireRequired(key, properties);
         Objects.requireNonNull(clazz, "enum class must not be null");
-        return new RestParameter<>(key, null, false, raw -> parseEnum(key, clazz, raw), properties);
+        return new RestParameter<>(key, raw -> parseEnum(key, clazz, raw), properties);
     }
 
     /**
-     * A parameter with a caller-supplied parser and no static default.
+     * A parameter with a caller-supplied parser.
      */
     public static <T> RestParameter<T> param(String key, Function<String, T> parser, Property... properties) {
-        return new RestParameter<>(key, null, false, parser, properties);
+        return new RestParameter<>(key, parser, properties);
     }
 
     /**
-     * A parameter with a caller-supplied parser and a static default.
-     */
-    public static <T> RestParameter<T> param(String key, T defaultValue, Function<String, T> parser, Property... properties) {
-        return new RestParameter<>(key, defaultValue, true, parser, properties);
-    }
-
-    /**
-     * Consumes and parses this parameter.
+     * Consumes and parses this parameter. A missing optional value returns {@code null}.
+     * Requiredness is validated in bulk by {@link BaseRestHandler}.
      *
-     * @throws IllegalArgumentException if a required parameter is missing, or the value cannot be parsed
+     * @throws IllegalArgumentException if the value cannot be parsed
      */
     public T get(RestRequest request) {
         String raw = request.param(key);
-        if (raw == null) {
-            if (isRequired()) {
-                throw missing(request);
-            }
-            return hasDefault ? defaultValue : null;
-        }
-        return parser.apply(raw);
-    }
-
-    /**
-     * Consumes and parses this parameter, using {@code dynamicDefault} when it is absent.
-     * The dynamic default replaces a static default for this call. Required parameters reject
-     * a fallback: a missing required parameter is a request error, not a default.
-     *
-     * @throws IllegalStateException if this parameter is required
-     * @throws IllegalArgumentException if the value cannot be parsed
-     */
-    public T get(RestRequest request, T dynamicDefault) {
-        if (isRequired()) {
-            throw new IllegalStateException("parameter [" + key + "] is required and cannot take a fallback default");
-        }
-        String raw = request.param(key);
-        if (raw == null) {
-            return dynamicDefault;
-        }
-        return parser.apply(raw);
+        return raw == null ? null : parser.apply(raw);
     }
 
     public String getKey() {
@@ -294,14 +190,6 @@ public final class RestParameter<T> {
         return hasProperty(Property.Deprecated);
     }
 
-    public boolean hasDefault() {
-        return hasDefault;
-    }
-
-    public T defaultValue() {
-        return defaultValue;
-    }
-
     public boolean hasProperty(Property property) {
         return properties.contains(property);
     }
@@ -310,30 +198,7 @@ public final class RestParameter<T> {
         return properties;
     }
 
-    private IllegalArgumentException missing(RestRequest request) {
-        return new IllegalArgumentException("request [" + request.path() + "] is missing required parameter [" + key + "]");
-    }
-
-    private static void requireRequired(String key, Property... properties) {
-        if (isRequired(properties) == false) {
-            throw new IllegalArgumentException("parameter [" + key + "] has no default and must be Property.Required");
-        }
-    }
-
-    private static boolean isRequired(Property... properties) {
-        if (properties == null) {
-            return false;
-        }
-        for (Property property : properties) {
-            if (property == Property.Required) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private static Boolean parseBoolean(String raw, boolean defaultValue) {
-        // An empty query value means "turn this on", matching RestRequest#paramAsBoolean.
         if (raw != null && raw.length() == 0) {
             return true;
         }
@@ -379,5 +244,4 @@ public final class RestParameter<T> {
     public String toString() {
         return "RestParameter{key=" + key + ", properties=" + properties + "}";
     }
-
 }

@@ -5,11 +5,9 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-
 package org.opensearch.rest;
 
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.rest.RestParameter.Property;
 import org.opensearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
@@ -28,22 +26,20 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class RestParameterTests extends OpenSearchTestCase {
 
-    public void testRequiredStringMissing() {
+    public void testRequiredStringIsMetadataAndMissingValueIsNull() {
         RestParameter<String> index = RestParameter.simpleString("index", Property.Required, Property.Path);
         FakeRestRequest request = new FakeRestRequest();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> index.get(request));
-        assertThat(e.getMessage(), containsString("missing required parameter [index]"));
+        assertThat(index.get(request), nullValue());
         assertTrue(index.isRequired());
         assertTrue(index.isPath());
-        assertFalse(index.hasDefault());
     }
 
-    public void testOptionalStringDefault() {
-        RestParameter<String> metric = RestParameter.simpleString("metric", "_all");
+    public void testOptionalStringReturnsNullAndConsumesValue() {
+        RestParameter<String> metric = RestParameter.simpleString("metric");
         FakeRestRequest request = new FakeRestRequest();
 
-        assertThat(metric.get(request), equalTo("_all"));
+        assertThat(metric.get(request), nullValue());
         assertFalse(metric.isRequired());
         assertFalse(metric.isPath());
 
@@ -53,33 +49,26 @@ public class RestParameterTests extends OpenSearchTestCase {
     }
 
     public void testBooleanEmptyValueMeansTrue() {
-        RestParameter<Boolean> local = RestParameter.boolParam("local", false);
+        RestParameter<Boolean> local = RestParameter.boolParam("local");
         FakeRestRequest request = new FakeRestRequest();
         request.params().put("local", "");
 
         assertThat(local.get(request), equalTo(true));
     }
 
-    public void testBooleanUsesDefaultWhenAbsent() {
-        RestParameter<Boolean> local = RestParameter.boolParam("local", true);
-        assertThat(local.get(new FakeRestRequest()), equalTo(true));
-    }
+    public void testTypedRestRequestAccessorUsesActionDefaultWhenAbsent() {
+        RestParameter<TimeValue> timeout = RestParameter.timeValue("timeout");
+        TimeValue fallback = TimeValue.timeValueSeconds(30);
+        FakeRestRequest request = new FakeRestRequest();
 
-    public void testRequiredBooleanRejectsStaticDefaultFactory() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> RestParameter.boolParam("local", false, Property.Required)
-        );
-        assertThat(e.getMessage(), containsString("cannot be required and have a default value"));
-    }
+        assertThat(request.param(timeout, fallback), equalTo(fallback));
 
-    public void testPrimitiveWithoutDefaultMustBeRequired() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> RestParameter.intParam("size"));
-        assertThat(e.getMessage(), containsString("must be Property.Required"));
+        request.params().put("timeout", "5s");
+        assertThat(request.param(timeout, fallback), equalTo(new TimeValue(5, TimeUnit.SECONDS)));
     }
 
     public void testIntParseFailure() {
-        RestParameter<Integer> size = RestParameter.intParam("size", 10);
+        RestParameter<Integer> size = RestParameter.intParam("size");
         FakeRestRequest request = new FakeRestRequest();
         request.params().put("size", "nope");
 
@@ -87,27 +76,9 @@ public class RestParameterTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString("failed to parse int parameter [size]"));
     }
 
-    public void testTimeValueDynamicDefault() {
-        RestParameter<TimeValue> timeout = RestParameter.timeValue("timeout");
-        TimeValue fallback = TimeValue.timeValueSeconds(30);
-        FakeRestRequest request = new FakeRestRequest();
-
-        assertThat(timeout.get(request, fallback), equalTo(fallback));
-        assertThat(timeout.defaultValue(), nullValue());
-
-        request.params().put("timeout", "5s");
-        assertThat(timeout.get(request, fallback), equalTo(new TimeValue(5, TimeUnit.SECONDS)));
-    }
-
-    public void testRequiredRejectsDynamicDefault() {
-        RestParameter<String> repository = RestParameter.simpleString("repository", Property.Required);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> repository.get(new FakeRestRequest(), "fallback"));
-        assertThat(e.getMessage(), containsString("cannot take a fallback default"));
-    }
-
-    public void testStringArraySplitsAndDefaultsToEmpty() {
+    public void testStringArraySplitsAndReturnsNullWhenAbsent() {
         RestParameter<String[]> indices = RestParameter.stringArray("index", Property.Path);
-        assertThat(indices.get(new FakeRestRequest()), equalTo(Strings.EMPTY_ARRAY));
+        assertThat(indices.get(new FakeRestRequest()), nullValue());
 
         FakeRestRequest request = new FakeRestRequest();
         request.params().put("index", "a,b");
@@ -115,13 +86,13 @@ public class RestParameterTests extends OpenSearchTestCase {
     }
 
     public void testByteSizeAndEnum() {
-        ByteSizeValue oneByte = new ByteSizeValue(1);
-        RestParameter<ByteSizeValue> size = RestParameter.byteSize("max_size", oneByte);
-        assertThat(size.get(new FakeRestRequest()), equalTo(oneByte));
-
+        RestParameter<ByteSizeValue> size = RestParameter.byteSize("max_size");
         RestParameter<TimeUnit> unit = RestParameter.enumParam("unit", TimeUnit.class, Property.Required);
         FakeRestRequest request = new FakeRestRequest();
+        request.params().put("max_size", "1b");
         request.params().put("unit", "SECONDS");
+
+        assertThat(size.get(request), equalTo(new ByteSizeValue(1)));
         assertThat(unit.get(request), equalTo(TimeUnit.SECONDS));
 
         request.params().put("unit", "not-a-unit");

@@ -337,7 +337,7 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
                 RestParameter.Property.Required,
                 RestParameter.Property.Path
             );
-            private final RestParameter<Boolean> local = RestParameter.boolParam("local", false);
+            private final RestParameter<Boolean> local = RestParameter.boolParam("local");
 
             @Override
             public List<RestParameter<?>> parameters() {
@@ -374,7 +374,7 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
     public void testDeclarationsSupportTypedAndLegacyAccessors() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
         BaseRestHandler handler = new BaseRestHandler() {
-            private final RestParameter<Boolean> local = RestParameter.boolParam("local", false);
+            private final RestParameter<Boolean> local = RestParameter.boolParam("local");
 
             @Override
             public List<RestParameter<?>> parameters() {
@@ -443,7 +443,7 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
     public void testDeclaredParametersStillRejectUnknownParams() {
         BaseRestHandler handler = new BaseRestHandler() {
             private final RestParameter<String> index = RestParameter.simpleString("index", RestParameter.Property.Required);
-            private final RestParameter<Boolean> local = RestParameter.boolParam("local", false);
+            private final RestParameter<Boolean> local = RestParameter.boolParam("local");
 
             @Override
             public List<RestParameter<?>> parameters() {
