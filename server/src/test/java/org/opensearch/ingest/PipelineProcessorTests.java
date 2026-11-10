@@ -469,25 +469,7 @@ public class PipelineProcessorTests extends OpenSearchTestCase {
         TestProcessor innerSecond = new TestProcessor(doc -> {});
         Pipeline inner = new Pipeline("inner", null, null, new CompoundProcessor(innerFirst, innerSecond));
         when(ingestService.getPipeline("inner")).thenReturn(inner);
-        // a processor that runs other processors, like foreach, can have a request to terminate pending from an earlier step when it
-        // calls a pipeline in a later one: the request belongs to the pipeline that runs it, not to the pipeline that it calls
-        Processor requestsTerminationThenCallsPipeline = new AbstractProcessor(null, null) {
-            @Override
-            public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-                ingestDocument.terminatePipeline();
-                callPipeline("inner", ingestService).execute(ingestDocument, handler);
-            }
-
-            @Override
-            public IngestDocument execute(IngestDocument ingestDocument) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public String getType() {
-                return "test-loop";
-            }
-        };
+        Processor requestsTerminationThenCallsPipeline = requestsTerminationThenCallsPipeline("inner", ingestService);
         TestProcessor outerAfter = new TestProcessor(doc -> {});
         Pipeline outer = new Pipeline("outer", null, null, new CompoundProcessor(requestsTerminationThenCallsPipeline, outerAfter));
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
@@ -508,6 +490,62 @@ public class PipelineProcessorTests extends OpenSearchTestCase {
         // the request is still there when the calling pipeline gets back to it
         assertThat(outerAfter.getInvokedCounter(), equalTo(0));
         assertThat(ingestDocument.isPipelineTerminated(), equalTo(false));
+    }
+
+    public void testTerminateRequestPendingWhenACalledPipelineDropsTheDocument() {
+        IngestService ingestService = createIngestService();
+        TestProcessor dropper = new TestProcessor("", "drop", null, doc -> null);
+        TestProcessor innerAfterDrop = new TestProcessor(doc -> {});
+        Pipeline inner = new Pipeline("inner", null, null, new CompoundProcessor(dropper, innerAfterDrop));
+        when(ingestService.getPipeline("inner")).thenReturn(inner);
+        TestProcessor outerAfter = new TestProcessor(doc -> {});
+        Pipeline outer = new Pipeline(
+            "outer",
+            null,
+            null,
+            new CompoundProcessor(requestsTerminationThenCallsPipeline("inner", ingestService), outerAfter)
+        );
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+
+        boolean[] completed = new boolean[1];
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        ingestDocument.executePipeline(outer, (r, e) -> {
+            completed[0] = true;
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        // a dropped document has no result to hand the request back to, and that is not a failure
+        assertThat(completed[0], equalTo(true));
+        assertThat(failure[0], nullValue());
+        assertThat(result[0], nullValue());
+        assertThat(innerAfterDrop.getInvokedCounter(), equalTo(0));
+        assertThat(outerAfter.getInvokedCounter(), equalTo(0));
+    }
+
+    /**
+     * A processor that runs other processors, like foreach, can have a request to terminate pending from an earlier step when it
+     * calls a pipeline in a later one: the request belongs to the pipeline that runs it, not to the pipeline that it calls.
+     */
+    private static Processor requestsTerminationThenCallsPipeline(String pipelineId, IngestService ingestService) {
+        return new AbstractProcessor(null, null) {
+            @Override
+            public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+                ingestDocument.terminatePipeline();
+                callPipeline(pipelineId, ingestService).execute(ingestDocument, handler);
+            }
+
+            @Override
+            public IngestDocument execute(IngestDocument ingestDocument) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String getType() {
+                return "test-loop";
+            }
+        };
     }
 
     private static TestProcessor terminator() {
