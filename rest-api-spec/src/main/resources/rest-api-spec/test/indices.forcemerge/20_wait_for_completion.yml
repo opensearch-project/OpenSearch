@@ -32,8 +32,8 @@
 ---
 "Force merge index with wait_for_completion after task description changed":
   - skip:
-      version: " - 2.12.99, 3.9.0 - "
-      reason: "task description was changed in 2.13.0, and the upgrade parameter was added to it in 3.9.0"
+      version: " - 2.12.99, 3.10.0 - "
+      reason: "task description was changed in 2.13.0, and the upgrade parameter was added to it in 3.10.0"
       features: allowed_warnings, node_selector
 
   - do:
@@ -66,13 +66,13 @@
 ---
 "Force merge index with wait_for_completion after upgrade parameter added to task description":
   - skip:
-      version: " - 3.8.99 "
-      reason: "the upgrade parameter was added to the task description in 3.9.0"
+      version: " - 3.9.99 "
+      reason: "the upgrade parameter was added to the task description in 3.10.0"
       features: allowed_warnings, node_selector
 
   - do:
       node_selector:
-        version: " 3.9.0 - "
+        version: " 3.10.0 - "
       indices.forcemerge:
         index: test_index
         wait_for_completion: false

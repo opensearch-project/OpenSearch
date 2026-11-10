@@ -119,7 +119,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
                 "As of legacy version 7.7 [" + Engine.FORCE_MERGE_UUID_KEY + "] is no longer optional in force merge requests."
             );
         }
-        upgrade = in.getVersion().onOrAfter(Version.V_3_9_0) ? in.readBoolean() : Defaults.UPGRADE;
+        upgrade = in.getVersion().onOrAfter(Version.V_3_10_0) ? in.readBoolean() : Defaults.UPGRADE;
     }
 
     /**
@@ -273,7 +273,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         } else {
             out.writeOptionalString(forceMergeUUID);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_9_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
             out.writeBoolean(upgrade);
         }
     }
