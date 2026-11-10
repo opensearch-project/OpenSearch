@@ -787,6 +787,15 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         }
     }
 
+    /**
+     * Size of the source object, read through {@code sourceEndpoint} rather than through the source's own container.
+     *
+     * <p>The substitution is the point, not an oversight. An access point stands in wherever a bucket name would go,
+     * and addressing the bucket directly would bypass the access point policy that confines the read to a prefix.
+     * {@link ServerSideCopySource#container()} is therefore deliberately unused here and in the copy itself; what is
+     * taken from the source is its key prefix and its expected owner. The AWS SDK accepts an access point ARN in
+     * place of a bucket name without extra client configuration.
+     */
     private long sourceObjectSize(
         final S3Client client,
         final String sourceEndpoint,

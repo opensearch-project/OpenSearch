@@ -84,6 +84,44 @@ public class S3ServerSideCopyTests extends OpenSearchTestCase {
     }
 
     /**
+     * Every part but the last must reach S3's 5 MB minimum. A part size below it is rejected only after the multipart
+     * upload has been created, so the floor is applied up front rather than relying on the caller's setting bounds.
+     */
+    public void testPartSizeRaisedToProviderMinimum() {
+        // Just over the single-copy threshold, so the part-count limit alone would permit a part under 5 MB.
+        final long sourceSize = S3ServerSideCopy.MAX_SINGLE_COPY_SIZE.getBytes() + 1;
+        final long partCountFloor = (sourceSize + S3ServerSideCopy.MAX_PARTS - 1) / S3ServerSideCopy.MAX_PARTS;
+        assertTrue(
+            "fixture should leave the part-count floor below the provider minimum",
+            partCountFloor < S3ServerSideCopy.MIN_PART_SIZE.getBytes()
+        );
+
+        for (long configured : new long[] { 0L, -1L, 1024L, S3ServerSideCopy.MIN_PART_SIZE.getBytes() - 1 }) {
+            assertEquals(
+                "part size below the provider minimum must be raised",
+                S3ServerSideCopy.MIN_PART_SIZE.getBytes(),
+                S3ServerSideCopy.resolvePartSize(configured, sourceSize)
+            );
+        }
+    }
+
+    /**
+     * Repository blob names are generated - a {@code __}/{@code v__} prefix plus a base64url UUID - or Lucene file
+     * names. Neither contains a character the encoder alters, so the copy source carries them verbatim.
+     */
+    public void testGeneratedBlobNamesSurviveEncodingUnchanged() {
+        for (String blobName : new String[] {
+            "__gX7bNIIBrs0AUNsR2yEG",
+            "v__caQ0lbasTf29kBFmUqiI_w",
+            "__gX7bNIIBrs0AUNsR2yEG.part12",
+            "_0.cfs",
+            "segments_7" }) {
+            final String key = "base/indices/abc/0/" + blobName;
+            assertEquals("my-bucket/" + key, S3ServerSideCopy.encodeCopySource("my-bucket", key));
+        }
+    }
+
+    /**
      * Source addressing comes entirely from the existing repository: its access point and its {@code base_path}.
      */
     public void testSourceResolvesKeyUnderExistingRepositoryBasePath() {
