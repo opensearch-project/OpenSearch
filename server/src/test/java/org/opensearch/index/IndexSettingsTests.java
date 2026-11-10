@@ -1264,6 +1264,33 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         assertEquals(TimeValue.MINUS_ONE, settings.getPeriodicFlushInterval());
     }
 
+    public void testExplicitRefreshForRegularIndex() {
+        IndexSettings settings = newIndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
+        assertFalse(settings.isExplicitRefresh());
+    }
+
+    public void testExplicitRefreshForPullBasedIngestionIndex() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka").build()
+        );
+        IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
+        assertTrue(settings.isExplicitRefresh());
+        assertEquals(IndexSettings.DEFAULT_REFRESH_INTERVAL, settings.getRefreshInterval());
+
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "5s")
+                    .build()
+            )
+        );
+        assertTrue(settings.isExplicitRefresh());
+        assertEquals(TimeValue.timeValueSeconds(5), settings.getRefreshInterval());
+    }
+
     public void testPartitionStrategyDefault() {
         IndexMetadata metadata = newIndexMeta("index", Settings.builder().build());
         IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
