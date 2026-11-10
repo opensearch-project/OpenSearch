@@ -64,7 +64,7 @@ import java.util.function.Function;
  * A utility to build XContent (ie json).
  */
 @PublicApi(since = "1.0.0")
-public final class XContentBuilder implements Closeable, Flushable {
+public class XContentBuilder implements Closeable, Flushable {
 
     /**
      * Create a new {@link XContentBuilder} using the given {@link XContent} content.
@@ -263,7 +263,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      * @param os       the output stream
      * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
      * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
-     * @param parent references the parent this instance was copied from
+     * @param parent if non-null, this builder shares the parent's underlying generator and write context
      * @param prettyPrint use pretty printer
      */
     private XContentBuilder(
@@ -279,6 +279,13 @@ public final class XContentBuilder implements Closeable, Flushable {
         this.includes = includes;
         this.excludes = excludes;
         this.prettyPrint = prettyPrint;
+        if (parent != null) {
+            // Share the parent's underlying generator so that all write operations act on the same
+            // generator and write context. Used by LazyXContentBuilder so that nested lazy builders
+            // do not each spin up their own generator on the shared stream (which would start in the
+            // root context and fail with "Current context not Object but root" when closing objects).
+            this.generator = parent.generatorInstance();
+        }
     }
 
     /**
@@ -1173,4 +1180,35 @@ public final class XContentBuilder implements Closeable, Flushable {
         }
     }
 
+    /**
+     * This is a workaround for derived source feature.
+     * Allows lazy initialisation of a parent objects only when there is a field with some value inside.
+     */
+    public static final class LazyXContentBuilder extends XContentBuilder {
+
+        private boolean initialised = false;
+        private final String objectName;
+        private final XContentBuilder delegate;
+
+        public LazyXContentBuilder(String objectName, XContentBuilder delegate) throws IOException {
+            super(delegate.xContent, delegate.bos, delegate.includes, delegate.excludes, delegate, delegate.humanReadable);
+            this.objectName = objectName;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public XContentBuilder field(String name) throws IOException {
+            if (!initialised) {
+                initialised = true;
+                delegate.startObject(objectName);
+            }
+            return delegate.field(name);
+        }
+
+        public void endObjectIfInitialised() throws IOException {
+            if (initialised) {
+                delegate.endObject();
+            }
+        }
+    }
 }
