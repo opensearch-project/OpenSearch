@@ -924,6 +924,18 @@ final class DefaultSearchContext extends SearchContext {
             && withinFilteredStatisticsBudget();
     }
 
+    @Override
+    public boolean restrictsStatistics() {
+        // Read the request, not the built alias query, so the answer does not depend on whether preProcess has run.
+        final AliasFilter requested = request.getAliasFilter();
+        final AliasFilter.ScoringMode scoringMode = requested == null || requested.getQueryBuilder() == null
+            ? null
+            : requested.getScoringMode();
+        return scoringMode == AliasFilter.ScoringMode.NO_STATS
+            || scoringMode == AliasFilter.ScoringMode.FILTERED_STATS
+            || pluginVisibleSubsetFilter != null;
+    }
+
     /** The scoring mode of the alias filter on this request, or {@code null} when no alias filter applies. */
     private AliasFilter.ScoringMode aliasScoringMode() {
         return aliasFilter == null ? null : request.getAliasFilter().getScoringMode();

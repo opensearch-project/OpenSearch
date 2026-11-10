@@ -25,6 +25,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -44,11 +45,13 @@ import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.search.dfs.DfsPhase;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.internal.VisibleSubsetStatistics;
+import org.opensearch.search.rescore.QueryRescorer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -205,6 +208,51 @@ public class DefaultSearchContextFilteredStatisticsTests extends OpenSearchTestC
         }
     }
 
+    public void testRestrictsStatisticsFollowsTheAliasModeAndTheRestriction() throws IOException {
+        try (DefaultSearchContext context = context(null, -1)) {
+            assertFalse(context.restrictsStatistics());
+            context.visibleSubsetFilter(RESTRICTION);
+            assertTrue(context.restrictsStatistics());
+        }
+        try (DefaultSearchContext context = context(AliasFilter.ScoringMode.UNFILTERED_STATS, -1)) {
+            assertFalse("unfiltered_stats keeps today's whole-index statistics", context.restrictsStatistics());
+        }
+        try (DefaultSearchContext context = context(AliasFilter.ScoringMode.NO_STATS, -1)) {
+            assertTrue(context.restrictsStatistics());
+        }
+        try (DefaultSearchContext context = context(AliasFilter.ScoringMode.FILTERED_STATS, -1)) {
+            assertTrue(context.restrictsStatistics());
+        }
+    }
+
+    public void testDfsOverBudgetShipsNoStatistics() throws IOException {
+        try (DefaultSearchContext context = context(AliasFilter.ScoringMode.FILTERED_STATS, 0)) {
+            context.parsedQuery(new ParsedQuery(new TermQuery(new Term("dept", "visible"))));
+            context.setTask(mock(SearchShardTask.class));
+            // The main query falls back to constant score and reads no statistics; a rescore query still scores, so
+            // without the guard its whole-shard statistics would reach the coordinator.
+            QueryRescorer.QueryRescoreContext rescore = new QueryRescorer.QueryRescoreContext(10);
+            rescore.setParsedQuery(new ParsedQuery(new TermQuery(new Term("dept", "hidden"))));
+            context.addRescore(rescore);
+            context.preProcess(false);
+            new DfsPhase().execute(context);
+            assertEquals("a shard that falls back must not ship whole-shard statistics", 0, context.dfsResult().terms().length);
+            assertTrue(context.dfsResult().fieldStatistics().isEmpty());
+        }
+    }
+
+    public void testDfsWithinBudgetShipsScopedStatistics() throws IOException {
+        try (DefaultSearchContext context = context(AliasFilter.ScoringMode.FILTERED_STATS, -1)) {
+            context.parsedQuery(new ParsedQuery(new TermQuery(new Term("dept", "visible"))));
+            context.setTask(mock(SearchShardTask.class));
+            context.preProcess(false);
+            new DfsPhase().execute(context);
+            assertEquals(1, context.dfsResult().terms().length);
+            // the alias admits documents 0..3, and 0 and 2 of those are visible
+            assertEquals(2, context.dfsResult().termStatistics()[0].docFreq());
+        }
+    }
+
     private static Set<Query> filterClauses(Query query) {
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery bool = (BooleanQuery) query;
@@ -223,6 +271,7 @@ public class DefaultSearchContextFilteredStatisticsTests extends OpenSearchTestC
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         when(request.searchType()).thenReturn(SearchType.DEFAULT);
         when(request.shardId()).thenReturn(shardId);
+        when(request.indexBoost()).thenReturn(1.0f); // the real default; a zero boost would stop Lucene reading statistics
         if (scoringMode == null) {
             when(request.getAliasFilter()).thenReturn(AliasFilter.EMPTY);
         } else {
