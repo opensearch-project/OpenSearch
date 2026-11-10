@@ -262,6 +262,7 @@ class FlightTransport extends TcpTransport {
                 final long keepAliveTimeMs = ServerConfig.getGrpcKeepAliveTime().millis();
                 final long keepAliveTimeoutMs = ServerConfig.getGrpcKeepAliveTimeout().millis();
                 builder.transportHint("grpc.builderConsumer", (Consumer<NettyServerBuilder>) b -> {
+                    b.intercept(new PeerInfoServerInterceptor());
                     b.keepAliveTime(keepAliveTimeMs, TimeUnit.MILLISECONDS);
                     b.keepAliveTimeout(keepAliveTimeoutMs, TimeUnit.MILLISECONDS);
                 });

@@ -2016,6 +2016,33 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assertReplicationLagTimersStartAfterRecoveryCompletes(true);
     }
 
+    /**
+     * A segments_only shard sits on a node that is not remote enabled for replication purposes, because being so
+     * requires a translog repository. Its replica is still fed over the wire and still needs timing, so the lag
+     * timers have to start all the same.
+     */
+    public void testSegmentsOnlyReplicationLagTimersStartAfterRecoveryCompletes() {
+        assertReplicationLagTimersStartAfterRecoveryCompletes(
+            false,
+            Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true).build()
+        );
+    }
+
+    /**
+     * The counterpart, where the translog is remote backed as well, so the shard is timed for being on a remote
+     * enabled node rather than for holding its translog locally.
+     */
+    public void testRemoteTranslogReplicationLagTimersStartAfterRecoveryCompletes() {
+        assertReplicationLagTimersStartAfterRecoveryCompletes(
+            true,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "segment-repo")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
+                .build()
+        );
+    }
+
     public void testSegmentReplicationLagTimersTrackRelocatingReplicaSource() {
         Settings settings = Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
         final AllocationId primaryId = AllocationId.newInitializing();
@@ -2063,7 +2090,11 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
     }
 
     private void assertReplicationLagTimersStartAfterRecoveryCompletes(boolean remote) {
-        Settings settings = Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        assertReplicationLagTimersStartAfterRecoveryCompletes(remote, Settings.EMPTY);
+    }
+
+    private void assertReplicationLagTimersStartAfterRecoveryCompletes(boolean remote, Settings indexSettings) {
+        Settings settings = Settings.builder().put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).put(indexSettings).build();
         final AllocationId primaryId = AllocationId.newInitializing();
         final AllocationId recoveringReplicaId = AllocationId.newInitializing();
         final Set<AllocationId> initializingIds = Set.of(recoveringReplicaId);
