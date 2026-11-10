@@ -72,6 +72,7 @@ tasks.named('thirdPartyAudit').configure {
     'org.apache.arrow.memory.util.MemoryUtil',
     'org.apache.arrow.memory.util.MemoryUtil$1',
     // Netty internals — standard violations for any module bundling netty-buffer
+    'io.netty.buffer.JfrEventRegistration',
     'io.netty.buffer.AbstractAllocatorEvent',
     'io.netty.buffer.AbstractBufferEvent',
     'io.netty.buffer.AbstractChunkEvent',

@@ -536,18 +536,15 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                                                                                                                                     // flush
         }
         if (random.nextBoolean()) {
-            builder.put(
-                IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(),
-                RandomPicks.randomFrom(random, Translog.Durability.values())
-            );
-        }
-
-        if (random.nextBoolean()) {
-            builder.put(
-                IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(),
-                RandomNumbers.randomIntBetween(random, 100, 5000),
-                TimeUnit.MILLISECONDS
-            );
+            Translog.Durability durability = RandomPicks.randomFrom(random, Translog.Durability.values());
+            builder.put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), durability);
+            if (durability == Translog.Durability.ASYNC) {
+                builder.put(
+                    IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(),
+                    RandomNumbers.randomIntBetween(random, 100, 300),
+                    TimeUnit.MILLISECONDS
+                );
+            }
         }
 
         return builder;
