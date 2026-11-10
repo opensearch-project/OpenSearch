@@ -337,6 +337,10 @@ public class CompoundProcessor implements Processor {
     ) {
         if (currentOnFailureProcessor == 0) {
             putFailureMetadata(ingestDocument, exception);
+            // The processor that failed did not complete, so a request to terminate that it made before it failed is discarded: the
+            // failure is handled as it always is, and from here only an on_failure processor can end the pipeline. (With
+            // ignore_failure the failure is not handled, the processor counts as completed and its request is honoured.)
+            ingestDocument.clearPipelineTermination();
         }
 
         if (currentOnFailureProcessor == onFailureProcessors.size()) {

@@ -1007,6 +1007,80 @@ public class CompoundProcessorTests extends OpenSearchTestCase {
         assertStats(0, compoundProcessor, 0, 3, 1, 0);
     }
 
+    public void testOnFailureProcessorsRunInFullWhenTheFailedProcessorAskedForTermination() {
+        // a processor that asks for termination and then fails has not completed: without ignore_failure the failure is handled as it
+        // always is, and the request of the failed processor does not cut the on_failure processors short
+        TestProcessor terminateThenFail = new TestProcessor(doc -> {
+            doc.terminatePipeline();
+            throw new RuntimeException("boom");
+        });
+        TestProcessor onFailureFirst = new TestProcessor(doc -> {});
+        TestProcessor onFailureLast = new TestProcessor(doc -> {});
+        TestProcessor last = new TestProcessor(doc -> {});
+        CompoundProcessor wrapped = new CompoundProcessor(
+            false,
+            singletonList(terminateThenFail),
+            Arrays.asList(onFailureFirst, onFailureLast),
+            ZERO_CLOCK
+        );
+        CompoundProcessor outer = new CompoundProcessor(false, Arrays.asList(wrapped, last), Collections.emptyList(), ZERO_CLOCK);
+
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        outer.execute(ingestDocument, (r, e) -> {
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        assertThat(failure[0], nullValue());
+        assertThat(result[0], sameInstance(ingestDocument));
+        assertThat(terminateThenFail.getInvokedCounter(), equalTo(1));
+        assertThat(onFailureFirst.getInvokedCounter(), equalTo(1));
+        assertThat(onFailureLast.getInvokedCounter(), equalTo(1));
+        // the failure was handled, so the pipeline carries on as it does after any handled failure
+        assertThat(last.getInvokedCounter(), equalTo(1));
+        assertThat(ingestDocument.isPipelineTerminated(), equalTo(false));
+        assertThat(ingestDocument.getIngestMetadata().isEmpty(), is(true));
+    }
+
+    public void testBatchExecute_onFailureProcessorsRunInFullWhenTheFailedProcessorAskedForTermination() {
+        List<IngestDocumentWrapper> wrapperList = Arrays.asList(
+            IngestDocumentPreparer.createIngestDocumentWrapper(1),
+            IngestDocumentPreparer.createIngestDocumentWrapper(2, true),
+            IngestDocumentPreparer.createIngestDocumentWrapper(3)
+        );
+        TestProcessor terminateThenFail = new TestProcessor(doc -> {
+            if (doc.hasField(SHOULD_FAIL_KEY) && doc.getFieldValue(SHOULD_FAIL_KEY, Boolean.class)) {
+                doc.terminatePipeline();
+                throw new RuntimeException("boom");
+            }
+        });
+        TestProcessor second = new TestProcessor(doc -> {});
+        TestProcessor onFailureFirst = new TestProcessor(doc -> {});
+        TestProcessor onFailureLast = new TestProcessor(doc -> {});
+        CompoundProcessor compoundProcessor = new CompoundProcessor(
+            false,
+            Arrays.asList(terminateThenFail, second),
+            Arrays.asList(onFailureFirst, onFailureLast),
+            ZERO_CLOCK
+        );
+
+        List<IngestDocumentWrapper> totalResults = Collections.synchronizedList(new ArrayList<>());
+        compoundProcessor.batchExecute(wrapperList, results -> totalResults.addAll(results));
+
+        assertThat(totalResults, hasSize(3));
+        assertThat(terminateThenFail.getInvokedCounter(), equalTo(3));
+        assertThat(second.getInvokedCounter(), equalTo(2));
+        assertThat(onFailureFirst.getInvokedCounter(), equalTo(1));
+        assertThat(onFailureLast.getInvokedCounter(), equalTo(1));
+        for (IngestDocumentWrapper result : totalResults) {
+            assertThat(result.getIngestDocument(), notNullValue());
+            assertThat(result.getException(), nullValue());
+            assertThat(result.getIngestDocument().isPipelineTerminated(), equalTo(false));
+            assertThat(result.getIngestDocument().getIngestMetadata().isEmpty(), is(true));
+        }
+    }
+
     public void testBatchExecute_ignoreFailureWithFailedWrapperThatHasNoDocument() {
         // a batching processor may update the wrappers that it is given in place, which leaves a failed one without a document
         Processor failsInPlace = new Processor() {
