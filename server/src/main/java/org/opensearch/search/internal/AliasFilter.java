@@ -213,8 +213,10 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
         out.writeOptionalNamedWriteable(filter);
         if (out.getVersion().onOrAfter(SCORING_MODE_VERSION)) {
             scoringMode.writeTo(out);
+        } else if (scoringMode != ScoringMode.UNFILTERED_STATS) {
+            // An older node, such as the coordinator of a cross-cluster search, would score with unfiltered_stats.
+            ensureScoringModeSupported(String.join(",", aliases), scoringMode.value(), out.getVersion());
         }
-        // Pre-3.8 receivers implicitly treat the field as UNFILTERED_STATS.
     }
 
     /**
