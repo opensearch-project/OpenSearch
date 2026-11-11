@@ -99,6 +99,7 @@ import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.search.SearchModule;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
@@ -5052,4 +5053,45 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertTrue(settingsBuilder.build().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, false));
     }
 
+    public void testCreateIndexAliasRejectsTheScoringModeWhileANodePredatesIt() throws Exception {
+        withTemporaryClusterService(((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesServices,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                new Environment(Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                threadPool,
+                null,
+                new SystemIndices(Collections.emptyMap()),
+                false,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                DefaultRemoteStoreSettings.INSTANCE,
+                repositoriesServiceSupplier
+            );
+            ClusterState mixed = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(
+                    DiscoveryNodes.builder()
+                        .add(new DiscoveryNode("new", buildNewFakeTransportAddress(), Version.CURRENT))
+                        .add(
+                            new DiscoveryNode(
+                                "old",
+                                buildNewFakeTransportAddress(),
+                                VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION)
+                            )
+                        )
+                )
+                .build();
+            CreateIndexClusterStateUpdateRequest request = new CreateIndexClusterStateUpdateRequest("test", "scoped_idx", "scoped_idx")
+                .aliases(Collections.singleton(new Alias("scoped").filter("{\"match_all\":{}}").scoringMode("no_stats")));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> checkerService.applyCreateIndexRequest(mixed, request, false)
+            );
+            assertThat(e.getMessage(), containsString("[scoring_mode] on alias [scoped]"));
+        }));
+    }
 }

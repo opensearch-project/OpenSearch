@@ -16,7 +16,9 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 
@@ -48,19 +50,25 @@ public class AliasScoringModeTests extends OpenSearchTestCase {
         assertThat(builder.toString(), containsString("\"scoring_mode\":\"no_stats\""));
     }
 
-    public void testRoundTripsAndIsDroppedForAnOlderNode() throws IOException {
+    public void testRoundTripsAndIsRejectedForAnOlderNode() throws IOException {
         Alias alias = new Alias("scoped").filter("{\"term\":{\"f\":\"v\"}}").scoringMode("no_stats");
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             alias.writeTo(out);
             assertEquals("no_stats", new Alias(out.bytes().streamInput()).scoringMode());
         }
+        final Version older = VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(Version.V_3_9_0);
-            alias.writeTo(out);
+            out.setVersion(older);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> alias.writeTo(out));
+            assertThat(e.getMessage(), containsString("[scoring_mode] on alias [scoped]"));
+        }
+        Alias plain = new Alias("scoped").filter("{\"term\":{\"f\":\"v\"}}");
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(older);
+            plain.writeTo(out);
             StreamInput in = out.bytes().streamInput();
-            in.setVersion(Version.V_3_9_0);
-            Alias read = new Alias(in);
-            assertNull(read.scoringMode());
+            in.setVersion(older);
+            assertNull(new Alias(in).scoringMode());
             assertEquals("the stream must be fully consumed", 0, in.available());
         }
     }

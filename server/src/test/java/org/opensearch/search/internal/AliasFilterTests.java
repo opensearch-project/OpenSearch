@@ -33,7 +33,10 @@
 package org.opensearch.search.internal;
 
 import org.opensearch.Version;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.Template;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -44,9 +47,12 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.SearchModule;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -202,4 +208,35 @@ public class AliasFilterTests extends OpenSearchTestCase {
         assertSame(AliasFilter.ScoringMode.NO_STATS, rewritten.getScoringMode());
     }
 
+    public void testScoringModeNeedsEveryNodeToReadIt() {
+        final Version older = VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION);
+        AliasFilter.ensureScoringModeSupported("a", null, older);
+        AliasFilter.ensureScoringModeSupported("a", "no_stats", AliasFilter.SCORING_MODE_VERSION);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> AliasFilter.ensureScoringModeSupported("a", "no_stats", older)
+        );
+        assertEquals(
+            "[scoring_mode] on alias [a] requires all nodes on version ["
+                + AliasFilter.SCORING_MODE_VERSION
+                + "] or later, but a node is on ["
+                + older
+                + "]",
+            e.getMessage()
+        );
+    }
+
+    public void testEveryAliasOfATemplateIsChecked() {
+        final Version older = VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION);
+        Map<String, AliasMetadata> aliases = new LinkedHashMap<>();
+        aliases.put("plain", AliasMetadata.builder("plain").filter("{\"match_all\":{}}").build());
+        aliases.put("scoped", AliasMetadata.builder("scoped").filter("{\"match_all\":{}}").scoringMode("no_stats").build());
+        AliasFilter.ensureScoringModesSupported(aliases, AliasFilter.SCORING_MODE_VERSION);
+        AliasFilter.ensureScoringModesSupported(new Template(Settings.EMPTY, null, null), older);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> AliasFilter.ensureScoringModesSupported(new Template(Settings.EMPTY, null, aliases), older)
+        );
+        assertThat(e.getMessage(), containsString("on alias [scoped]"));
+    }
 }

@@ -33,6 +33,7 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
@@ -50,6 +51,7 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.search.internal.AliasFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -138,7 +140,11 @@ public class MetadataIndexAliasesService {
             // 1. We don't cause error when attempting to replace an index with a alias of the same name.
             // 2. We don't allow removal of aliases from indexes that we're just going to delete anyway. That'd be silly.
             Set<Index> indicesToDelete = new HashSet<>();
+            final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
             for (AliasAction action : actions) {
+                if (action instanceof AliasAction.Add add) {
+                    AliasFilter.ensureScoringModeSupported(add.getAlias(), add.getScoringMode(), minNodeVersion);
+                }
                 if (action.removeIndex()) {
                     IndexMetadata index = currentState.metadata().getIndices().get(action.getIndex());
                     if (index == null) {

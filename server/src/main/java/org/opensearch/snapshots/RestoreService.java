@@ -51,6 +51,8 @@ import org.opensearch.cluster.RestoreInProgress.ShardRestoreStatus;
 import org.opensearch.cluster.SnapshotDeletionsInProgress;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.ComponentTemplate;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.DataStreamMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -100,6 +102,7 @@ import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryData;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -449,6 +452,10 @@ public class RestoreService implements ClusterStateApplier {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
+                        final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
+                        if (request.includeGlobalState()) {
+                            ensureTemplateScoringModesSupported(metadata, minNodeVersion);
+                        }
                         // Check if the snapshot to restore is currently being deleted
                         SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(
                             SnapshotDeletionsInProgress.TYPE,
@@ -581,7 +588,13 @@ public class RestoreService implements ClusterStateApplier {
                                         // Remove all aliases - they shouldn't be restored
                                         indexMdBuilder.removeAllAliases();
                                     } else {
-                                        applyAliasesWithRename(snapshotIndexMetadata.getAliases(), request, indexMdBuilder, aliases);
+                                        applyAliasesWithRename(
+                                            snapshotIndexMetadata.getAliases(),
+                                            request,
+                                            indexMdBuilder,
+                                            aliases,
+                                            minNodeVersion
+                                        );
                                     }
                                     IndexMetadata updatedIndexMetadata = indexMdBuilder.build();
                                     if (partial) {
@@ -626,7 +639,13 @@ public class RestoreService implements ClusterStateApplier {
                                             indexMdBuilder.putAlias(alias);
                                         }
                                     } else {
-                                        applyAliasesWithRename(snapshotIndexMetadata.getAliases(), request, indexMdBuilder, aliases);
+                                        applyAliasesWithRename(
+                                            snapshotIndexMetadata.getAliases(),
+                                            request,
+                                            indexMdBuilder,
+                                            aliases,
+                                            minNodeVersion
+                                        );
                                     }
                                     final Settings.Builder indexSettingsBuilder = Settings.builder()
                                         .put(snapshotIndexMetadata.getSettings())
@@ -763,8 +782,10 @@ public class RestoreService implements ClusterStateApplier {
                         Map<String, AliasMetadata> snapshotAliases,
                         RestoreSnapshotRequest request,
                         IndexMetadata.Builder indexMdBuilder,
-                        Set<String> aliases
+                        Set<String> aliases,
+                        Version minNodeVersion
                     ) {
+                        AliasFilter.ensureScoringModesSupported(snapshotAliases, minNodeVersion);
                         if (request.renameAliasPattern() == null || request.renameAliasReplacement() == null) {
                             for (final Map.Entry<String, AliasMetadata> alias : snapshotAliases.entrySet()) {
                                 AliasMetadata transformedAlias = applyAliasWriteIndexPolicy(
@@ -1532,6 +1553,25 @@ public class RestoreService implements ClusterStateApplier {
             }
         } catch (Exception t) {
             logger.warn("Failed to update restore state ", t);
+        }
+    }
+
+    /**
+     * Rejects restoring templates whose aliases set a scoring mode that a node in the cluster cannot read.
+     * Package-private for testing.
+     *
+     * @param metadata the global metadata of the snapshot
+     * @param minNodeVersion the oldest node in the cluster
+     */
+    static void ensureTemplateScoringModesSupported(Metadata metadata, Version minNodeVersion) {
+        for (IndexTemplateMetadata template : metadata.templates().values()) {
+            AliasFilter.ensureScoringModesSupported(template.aliases(), minNodeVersion);
+        }
+        for (ComponentTemplate template : metadata.componentTemplates().values()) {
+            AliasFilter.ensureScoringModesSupported(template.template(), minNodeVersion);
+        }
+        for (ComposableIndexTemplate template : metadata.templatesV2().values()) {
+            AliasFilter.ensureScoringModesSupported(template.template(), minNodeVersion);
         }
     }
 

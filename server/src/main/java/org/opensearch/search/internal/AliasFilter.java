@@ -33,6 +33,9 @@
 package org.opensearch.search.internal;
 
 import org.opensearch.Version;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.Template;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
@@ -45,6 +48,7 @@ import org.opensearch.index.query.Rewriteable;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -114,7 +118,47 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
      * First version that carries {@link ScoringMode} on the wire. The alias request and alias metadata gate their copy
      * of the field on the same version.
      */
-    static final Version SCORING_MODE_VERSION = Version.V_3_10_0;
+    public static final Version SCORING_MODE_VERSION = Version.V_3_10_0;
+
+    /**
+     * Rejects a scoring mode that a node on {@code version} cannot read, so the mode is never stored or sent where it
+     * would be dropped.
+     *
+     * @param alias the alias that sets the mode
+     * @param scoringMode the mode, or {@code null} when the alias sets none
+     * @param version the oldest node in the cluster, or the node a request is sent to
+     * @throws IllegalArgumentException if a mode is set and {@code version} predates {@link #SCORING_MODE_VERSION}
+     */
+    public static void ensureScoringModeSupported(String alias, @Nullable String scoringMode, Version version) {
+        if (scoringMode != null && version.before(SCORING_MODE_VERSION)) {
+            throw new IllegalArgumentException(
+                "[scoring_mode] on alias ["
+                    + alias
+                    + "] requires all nodes on version ["
+                    + SCORING_MODE_VERSION
+                    + "] or later, but a node is on ["
+                    + version
+                    + "]"
+            );
+        }
+    }
+
+    /** Applies {@link #ensureScoringModeSupported} to every alias of {@code template}, which may be {@code null}. */
+    public static void ensureScoringModesSupported(@Nullable Template template, Version version) {
+        if (template != null) {
+            ensureScoringModesSupported(template.aliases(), version);
+        }
+    }
+
+    /** Applies {@link #ensureScoringModeSupported} to every alias in {@code aliases}, which may be {@code null}. */
+    public static void ensureScoringModesSupported(@Nullable Map<String, AliasMetadata> aliases, Version version) {
+        if (aliases == null || version.onOrAfter(SCORING_MODE_VERSION)) {
+            return;
+        }
+        for (AliasMetadata alias : aliases.values()) {
+            ensureScoringModeSupported(alias.alias(), alias.scoringMode(), version);
+        }
+    }
 
     private final String[] aliases;
     private final QueryBuilder filter;
