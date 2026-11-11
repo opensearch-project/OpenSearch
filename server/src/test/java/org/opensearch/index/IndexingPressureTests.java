@@ -32,11 +32,15 @@
 
 package org.opensearch.index;
 
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.stats.IndexingPressureStats;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.io.IOException;
 
 public class IndexingPressureTests extends OpenSearchTestCase {
 
@@ -70,6 +74,27 @@ public class IndexingPressureTests extends OpenSearchTestCase {
         assertEquals(20, stats.getTotalPrimaryBytes());
         assertEquals(80, stats.getTotalCombinedCoordinatingAndPrimaryBytes());
         assertEquals(35, stats.getTotalReplicaBytes());
+    }
+
+    public void testMemoryLimit() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        assertEquals(10 * 1024, indexingPressure.stats().getMemoryLimit());
+    }
+
+    public void testStatsSerialization() throws IOException {
+        IndexingPressureStats stats = new IndexingPressureStats.Builder().currentCoordinatingBytes(randomNonNegativeLong())
+            .replicaRejections(randomNonNegativeLong())
+            .memoryLimit(randomNonNegativeLong())
+            .build();
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            stats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                IndexingPressureStats deserialized = new IndexingPressureStats(in);
+                assertEquals(stats.getCurrentCoordinatingBytes(), deserialized.getCurrentCoordinatingBytes());
+                assertEquals(stats.getReplicaRejections(), deserialized.getReplicaRejections());
+                assertEquals(stats.getMemoryLimit(), deserialized.getMemoryLimit());
+            }
+        }
     }
 
     public void testAvoidDoubleAccounting() {
