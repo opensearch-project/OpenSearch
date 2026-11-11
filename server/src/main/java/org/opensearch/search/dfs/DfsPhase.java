@@ -88,8 +88,11 @@ public class DfsPhase {
                         throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
                     }
                     // Delegate to the ContextIndexSearcher so filtered (visible-subset) stats are used during dfs.
+                    // visibleSubsetCollectionStatistics, not collectionStatistics: a shard whose visible subset has no
+                    // document with the field must contribute nothing, and the local-scoring override substitutes a
+                    // floor for that case.
                     CollectionStatistics cs = filteredStatistics
-                        ? contextSearcher.collectionStatistics(field)
+                        ? contextSearcher.visibleSubsetCollectionStatistics(field)
                         : super.collectionStatistics(field);
                     if (cs != null) {
                         fieldStatistics.put(field, cs);
