@@ -96,6 +96,28 @@ public class PluginVisibleSubsetStatisticsIT extends OpenSearchIntegTestCase {
         assertScoped("fs_view", SearchType.QUERY_THEN_FETCH);
     }
 
+    public void testRestrictionDisjointFromFilteredStatsAliasReturnsNoHits() throws Exception {
+        String index = "restricted_disjoint";
+        assertAcked(
+            prepareCreate(index).setMapping("dept", "type=keyword", "region", "type=keyword", "content", "type=text")
+                .setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
+        );
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 10; i++) {
+            // The alias admits these, and the restriction hides them.
+            bulk.add(client().prepareIndex(index).setSource("dept", HIDDEN_DEPT, "region", "x", "content", "filler " + HIDDEN_TERM));
+            // The restriction admits these, and the alias excludes them.
+            bulk.add(client().prepareIndex(index).setSource("dept", VISIBLE_DEPT, "region", "y", "content", "elsewhere " + HIDDEN_TERM));
+        }
+        assertFalse(bulk.get().hasFailures());
+        addAlias(index, "disjoint_view", "filtered_stats");
+        for (SearchType type : List.of(SearchType.QUERY_THEN_FETCH, SearchType.DFS_QUERY_THEN_FETCH)) {
+            SearchResponse resp = search("disjoint_view", HIDDEN_TERM, type);
+            assertEquals(type + " must not fail any shard", 0, resp.getFailedShards());
+            assertHitCount(resp, 0);
+        }
+    }
+
     public void testRestrictionAppliesThroughUnfilteredStatsAlias() throws Exception {
         buildCorpus("restricted_post_alias", 1);
         addAlias("restricted_post_alias", "post_view", "unfiltered_stats");

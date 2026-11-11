@@ -19,11 +19,14 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -141,6 +144,18 @@ public class ContextIndexSearcherFilteredStatisticsTests extends OpenSearchTestC
         assertEquals(1, local.totalTermFreq());
 
         assertNull("the dfs phase must contribute nothing for the term", searcher.visibleSubsetTermStatistics(term, 2, 2));
+    }
+
+    public void testAFilterThatAdmitsNoDocumentScoresNothingAndDoesNotFail() throws IOException {
+        Query nothing = new TermQuery(new Term("dept", "nobody"));
+        ContextIndexSearcher searcher = searcher(contextScopedTo(nothing));
+        Query query = new BooleanQuery.Builder().add(new TermQuery(new Term("body", "alpha")), BooleanClause.Occur.MUST)
+            .add(nothing, BooleanClause.Occur.FILTER)
+            .build();
+
+        TopDocs top = searcher.search(query, 10);
+        assertEquals(0, top.totalHits.value());
+        assertNull("the dfs phase must contribute nothing for the field", searcher.visibleSubsetCollectionStatistics("body"));
     }
 
     public void testUnscopedContextReadsWholeIndexStatistics() throws IOException {

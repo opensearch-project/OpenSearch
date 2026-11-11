@@ -631,7 +631,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // (already filtered, thanks to case 2) statistics rather than recomputing per-shard, so this filtered
         // branch is intentionally skipped and we fall through to the aggregatedDfs lookup below.
         if (useFilteredStatistics() && aggregatedDfs == null) {
-            return filteredCollectionStatistics(field);
+            CollectionStatistics visible = filteredCollectionStatistics(field);
+            final long maxDoc = getIndexReader().maxDoc();
+            if (visible == null && maxDoc > 0) {
+                // No visible document has the field. Lucene builds a scorer whenever term statistics are not null,
+                // and termStatistics substitutes a floor for a term with no visible document, so null here would
+                // reach the similarity and fail. Return the smallest statistics CollectionStatistics permits, as
+                // Lucene does for weights that need no scores. No visible document can match on this field, so
+                // the value never reaches a score. The dfs phase calls visibleSubsetCollectionStatistics instead.
+                return new CollectionStatistics(field, maxDoc, 1, 1, 1);
+            }
+            return visible;
         }
         if (aggregatedDfs == null) {
             // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
@@ -643,6 +653,22 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return super.collectionStatistics(field);
         }
         return collectionStatistics;
+    }
+
+    /**
+     * Visible-subset collection statistics for the dfs phase. Returns null when no visible document has the field,
+     * so the shard adds nothing for the field to the coordinator's aggregate; {@link #collectionStatistics(String)}
+     * substitutes a floor for that case because it feeds local scoring.
+     *
+     * @param field the field
+     * @return the statistics over the visible subset, or null when no visible document has the field
+     * @throws IOException if the index cannot be read
+     */
+    public CollectionStatistics visibleSubsetCollectionStatistics(String field) throws IOException {
+        if (useFilteredStatistics() && aggregatedDfs == null) {
+            return filteredCollectionStatistics(field);
+        }
+        return super.collectionStatistics(field);
     }
 
     private boolean useFilteredStatistics() {

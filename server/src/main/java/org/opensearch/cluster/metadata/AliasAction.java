@@ -111,48 +111,99 @@ public abstract class AliasAction {
         @Nullable
         private final String scoringMode;
 
-        /**
-         * Build the operation without an explicit scoring mode (defaults to {@code null}).
-         */
-        public Add(
-            String index,
-            String alias,
-            @Nullable String filter,
-            @Nullable String indexRouting,
-            @Nullable String searchRouting,
-            @Nullable Boolean writeIndex,
-            @Nullable Boolean isHidden
-        ) {
-            this(index, alias, filter, indexRouting, searchRouting, writeIndex, isHidden, null);
+        private Add(Builder builder) {
+            super(builder.index);
+            if (false == Strings.hasText(builder.alias)) {
+                throw new IllegalArgumentException("[alias] is required");
+            }
+            if (builder.scoringMode != null && Strings.hasText(builder.filter) == false) {
+                throw new IllegalArgumentException("[scoring_mode] requires a [filter] on alias [" + builder.alias + "]");
+            }
+            this.alias = builder.alias;
+            this.filter = builder.filter;
+            this.indexRouting = builder.indexRouting;
+            this.searchRouting = builder.searchRouting;
+            this.writeIndex = builder.writeIndex;
+            this.isHidden = builder.isHidden;
+            this.scoringMode = builder.scoringMode;
         }
 
         /**
-         * Build the operation.
+         * Starts an operation that adds {@code alias} to {@code index}; every other property is optional.
+         *
+         * @param index the index to add the alias to
+         * @param alias the alias name
+         * @return a builder for the operation
          */
-        public Add(
-            String index,
-            String alias,
-            @Nullable String filter,
-            @Nullable String indexRouting,
-            @Nullable String searchRouting,
-            @Nullable Boolean writeIndex,
-            @Nullable Boolean isHidden,
-            @Nullable String scoringMode
-        ) {
-            super(index);
-            if (false == Strings.hasText(alias)) {
-                throw new IllegalArgumentException("[alias] is required");
+        public static Builder builder(String index, String alias) {
+            return new Builder(index, alias);
+        }
+
+        /**
+         * Builds an {@link Add} operation.
+         *
+         * @opensearch.internal
+         */
+        public static final class Builder {
+            private final String index;
+            private final String alias;
+            private String filter;
+            private String indexRouting;
+            private String searchRouting;
+            private Boolean writeIndex;
+            private Boolean isHidden;
+            private String scoringMode;
+
+            private Builder(String index, String alias) {
+                this.index = index;
+                this.alias = alias;
             }
-            if (scoringMode != null && Strings.hasText(filter) == false) {
-                throw new IllegalArgumentException("[scoring_mode] requires a [filter] on alias [" + alias + "]");
+
+            /** Sets the alias filter as a JSON query. */
+            public Builder filter(@Nullable String filter) {
+                this.filter = filter;
+                return this;
             }
-            this.alias = alias;
-            this.filter = filter;
-            this.indexRouting = indexRouting;
-            this.searchRouting = searchRouting;
-            this.writeIndex = writeIndex;
-            this.isHidden = isHidden;
-            this.scoringMode = scoringMode;
+
+            /** Sets the routing used when indexing through the alias. */
+            public Builder indexRouting(@Nullable String indexRouting) {
+                this.indexRouting = indexRouting;
+                return this;
+            }
+
+            /** Sets the routing used when searching through the alias. */
+            public Builder searchRouting(@Nullable String searchRouting) {
+                this.searchRouting = searchRouting;
+                return this;
+            }
+
+            /** Sets whether the index is the write index of the alias. */
+            public Builder writeIndex(@Nullable Boolean writeIndex) {
+                this.writeIndex = writeIndex;
+                return this;
+            }
+
+            /** Sets whether the alias is hidden. */
+            public Builder isHidden(@Nullable Boolean isHidden) {
+                this.isHidden = isHidden;
+                return this;
+            }
+
+            /** Sets the scoring mode; it requires a filter. */
+            public Builder scoringMode(@Nullable String scoringMode) {
+                this.scoringMode = scoringMode;
+                return this;
+            }
+
+            /**
+             * Builds the operation.
+             *
+             * @return the operation
+             * @throws IllegalArgumentException if the alias is empty, or a scoring mode is set without a filter
+             */
+            public Add build() {
+                return new Add(this);
+            }
         }
 
         /**
