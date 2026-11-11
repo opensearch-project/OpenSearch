@@ -28,6 +28,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rule.RuleEntityParser;
@@ -80,6 +81,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -313,6 +315,33 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         verify(listener).onFailure(exceptionCaptor.capture());
         Exception exception = exceptionCaptor.getValue();
         assertTrue(exception instanceof ResourceNotFoundException);
+    }
+
+    public void testGetRuleSkipsSearchWhenIndexMissing() {
+        when(clusterService.state().metadata().hasIndex(TEST_INDEX_NAME)).thenReturn(false);
+        GetRuleRequest getRuleRequest = mock(GetRuleRequest.class);
+        when(getRuleRequest.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
+        ActionListener<GetRuleResponse> listener = mock(ActionListener.class);
+
+        rulePersistenceService.getRule(getRuleRequest, listener);
+
+        ArgumentCaptor<GetRuleResponse> responseCaptor = ArgumentCaptor.forClass(GetRuleResponse.class);
+        verify(listener).onResponse(responseCaptor.capture());
+        assertTrue(responseCaptor.getValue().getRules().isEmpty());
+        verify(client, never()).prepareSearch(anyString());
+    }
+
+    public void testGetRuleReturnsEmptyWhenIndexDeletedAfterCheck() {
+        GetRuleRequest getRuleRequest = mock(GetRuleRequest.class);
+        when(getRuleRequest.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
+        when(searchRequestBuilder.get()).thenThrow(new IndexNotFoundException(TEST_INDEX_NAME));
+        ActionListener<GetRuleResponse> listener = mock(ActionListener.class);
+
+        rulePersistenceService.getRule(getRuleRequest, listener);
+
+        ArgumentCaptor<GetRuleResponse> responseCaptor = ArgumentCaptor.forClass(GetRuleResponse.class);
+        verify(listener).onResponse(responseCaptor.capture());
+        assertTrue(responseCaptor.getValue().getRules().isEmpty());
     }
 
     private Client setUpMockClient(SearchRequestBuilder searchRequestBuilder) {

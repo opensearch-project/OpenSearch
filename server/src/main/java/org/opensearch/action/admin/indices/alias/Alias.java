@@ -33,7 +33,6 @@
 package org.opensearch.action.admin.indices.alias;
 
 import org.opensearch.OpenSearchGenerationException;
-import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
@@ -97,7 +96,7 @@ public class Alias implements Writeable, ToXContentFragment {
         searchRouting = in.readOptionalString();
         writeIndex = in.readOptionalBoolean();
         isHidden = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
+        if (in.getVersion().onOrAfter(AliasFilter.SCORING_MODE_VERSION)) {
             scoringMode = in.readOptionalString();
         }
     }
@@ -263,8 +262,10 @@ public class Alias implements Writeable, ToXContentFragment {
         out.writeOptionalString(searchRouting);
         out.writeOptionalBoolean(writeIndex);
         out.writeOptionalBoolean(isHidden);
-        if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
+        if (out.getVersion().onOrAfter(AliasFilter.SCORING_MODE_VERSION)) {
             out.writeOptionalString(scoringMode);
+        } else {
+            AliasFilter.ensureScoringModeSupported(name, scoringMode, out.getVersion());
         }
     }
 

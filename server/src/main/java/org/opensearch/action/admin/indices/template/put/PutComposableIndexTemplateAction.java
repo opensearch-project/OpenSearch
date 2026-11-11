@@ -46,6 +46,7 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.search.internal.AliasFilter;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -101,6 +102,7 @@ public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedRes
             out.writeString(name);
             out.writeOptionalString(cause);
             out.writeBoolean(create);
+            AliasFilter.ensureScoringModesSupported(indexTemplate.template(), out.getVersion());
             this.indexTemplate.writeTo(out);
         }
 

@@ -8,15 +8,19 @@
 
 package org.opensearch.aliases;
 
+import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
+
+import java.util.List;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -543,5 +547,26 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
         float restricted = rescoredSampleScore("rescored_fs", RESTRICTED_TERM);
         assertEquals(rescoredSampleScore("rescored_fs", ABSENT_TERM), restricted, 0.0001f);
         assertNotEquals("filtered_stats keeps BM25 scoring rather than a constant", 2.0f, restricted, 0.0001f);
+    }
+
+    public void testCreateIndexAndTemplateKeepTheScoringMode() {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("created_scoped")
+                .addAlias(new Alias("created_view").filter(QueryBuilders.termQuery("f", "v")).scoringMode("no_stats"))
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .preparePutTemplate("scoped_template")
+                .setPatterns(List.of("templated_*"))
+                .addAlias(new Alias("templated_view").filter(QueryBuilders.termQuery("f", "v")).scoringMode("no_stats"))
+                .get()
+        );
+        assertAcked(client().admin().indices().prepareCreate("templated_1"));
+        Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
+        assertEquals("no_stats", metadata.index("created_scoped").getAliases().get("created_view").scoringMode());
+        assertEquals("no_stats", metadata.index("templated_1").getAliases().get("templated_view").scoringMode());
     }
 }

@@ -45,7 +45,9 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Map;
@@ -395,7 +397,7 @@ public class AliasActionsTests extends OpenSearchTestCase {
         assertNull(filtered.validate());
     }
 
-    public void testScoringModeRoundTripsAndIsDroppedForAnOlderNode() throws IOException {
+    public void testScoringModeRoundTripsAndIsRejectedForAnOlderNode() throws IOException {
         AliasActions action = AliasActions.add().index("i").alias("a").scoringMode("filtered_stats");
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             action.writeTo(out);
@@ -405,17 +407,23 @@ public class AliasActionsTests extends OpenSearchTestCase {
                 assertEquals("filtered_stats", read.scoringMode());
             }
         }
+        final Version older = VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(Version.V_3_9_0);
-            action.writeTo(out);
+            out.setVersion(older);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.writeTo(out));
+            assertThat(e.getMessage(), containsString("[scoring_mode] on alias [a]"));
+        }
+        AliasActions plain = AliasActions.add().index("i").alias("a");
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(older);
+            plain.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                in.setVersion(Version.V_3_9_0);
-                AliasActions read = new AliasActions(in);
-                assertNull(read.scoringMode());
+                in.setVersion(older);
+                assertEquals(plain, new AliasActions(in));
                 assertEquals(0, in.available());
             }
         }
-        assertNotEquals(action, AliasActions.add().index("i").alias("a"));
+        assertNotEquals(action, plain);
         assertThat(action.toString(), containsString("scoringMode=filtered_stats"));
     }
 
