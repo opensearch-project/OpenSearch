@@ -1836,14 +1836,14 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
     public void testFilteredStatsCacheStatsVersionGate() throws IOException {
         NodeStats nodeStats = createNodeStats();
-        for (Version version : List.of(Version.V_3_10_0, Version.V_3_9_0)) {
+        for (Version version : List.of(Version.V_3_11_0, Version.V_3_10_0)) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setVersion(version);
                 nodeStats.writeTo(out);
                 try (StreamInput in = out.bytes().streamInput()) {
                     in.setVersion(version);
                     NodeStats deserialized = new NodeStats(in);
-                    if (version.onOrAfter(Version.V_3_10_0)) {
+                    if (version.onOrAfter(Version.V_3_11_0)) {
                         assertEquals(nodeStats.getFilteredStatsCacheStats(), deserialized.getFilteredStatsCacheStats());
                     } else {
                         assertNull("an older node does not receive the cache stats", deserialized.getFilteredStatsCacheStats());
