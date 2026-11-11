@@ -49,9 +49,15 @@ import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.IntArray;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.common.util.LongHash;
+import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
@@ -112,6 +118,21 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected int segmentsWithMultiValuedOrds = 0;
     protected CardinalityUpperBound cardinalityUpperBound;
     private String resultSelectionStrategy;
+
+    /*
+     * Segment-ordinal counting: with dense global ords, doc counts are kept per segment ordinal during collection and
+     * mapped to global ordinals once per segment, instead of incrementing the global doc counts for every collected
+     * document. Sub-aggregations, if any, still get every doc with its global ordinal. See canCountSegmentOrds.
+     */
+    private SegmentOrdCounts segmentOrdCounts;
+    protected int segmentsWithSegmentOrdCounting = 0;
+    /**
+     * Set once the counts couldn't be sized within the breakers: from then on this aggregator, which serves one shard or
+     * one concurrent-search slice, uses the original path.
+     */
+    private boolean segmentOrdCountingDisabledByBreaker = false;
+    /** The flush reports new buckets to the bucket consumer in batches of this size, see {@link #checkMemoryForNewBuckets}. */
+    private static final int NEW_BUCKETS_PER_CONSUMER_CALL = 1024;
 
     public GlobalOrdinalsStringTermsAggregator(
         String name,
@@ -227,6 +248,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     @Override
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        // Add the previous segment's counts first, so buckets become non-empty in segment order, as in the original path.
+        flushSegmentOrdCounts();
         if (tryStarTreePrecompute(ctx) == true) {
             return true;
         }
@@ -253,6 +276,15 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        // Adds the previous segment's counts to docCounts. This also zeroes every entry it read, so the reused arrays are
+        // all zeros when the next segment starts.
+        flushSegmentOrdCounts();
+        if (canCountSegmentOrds(ctx)) {
+            final LeafBucketCollector segmentOrdCollector = segmentOrdCountingCollector(ctx, sub);
+            if (segmentOrdCollector != null) {
+                return segmentOrdCollector;
+            }
+        }
         SortedSetDocValues globalOrds = this.getGlobalOrds(ctx);
         collectionStrategy.globalOrdsReady(globalOrds);
         SortedDocValues singleValues = DocValues.unwrapSingleton(globalOrds);
@@ -430,7 +462,394 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        flushSegmentOrdCounts();
         return resultStrategy.buildAggregations(owningBucketOrds);
+    }
+
+    @Override
+    protected void doPostCollection() throws IOException {
+        super.doPostCollection();
+        flushSegmentOrdCounts();
+        // Nothing is pending after the last flush, so release the counts before the buckets are built. If collection
+        // resumes, for example with the next batch of a streaming request, getLeafCollector allocates them again.
+        releaseSegmentOrdCounts();
+    }
+
+    /**
+     * Whether this segment can be counted by segment ordinal: dense global ords (one owning bucket, and the bucket ordinal
+     * is the global ordinal), plain {@code terms} results, no include/exclude, a mapping from segment to global
+     * ordinals, and no {@code _doc_count} field in the segment, so every doc counts once.
+     */
+    private boolean canCountSegmentOrds(LeafReaderContext ctx) {
+        return segmentOrdCountingDisabledByBreaker == false
+            && collectionStrategy instanceof DenseGlobalOrds
+            && resultStrategy instanceof StandardTermsResults
+            && acceptedGlobalOrdinals == ALWAYS_TRUE
+            && valuesSource.supportsGlobalOrdinalsMapping()
+            && ctx.reader().getFieldInfos().fieldInfo(DocCountFieldMapper.NAME) == null;
+    }
+
+    /**
+     * Returns a collector that counts segment ordinals, or {@code null} if the segment should use the original path:
+     * when its ordinals already are the global ordinals and the query isn't known to collect many docs, or when the
+     * counts don't fit in the request breaker.
+     */
+    private LeafBucketCollector segmentOrdCountingCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        final SortedSetDocValues segmentOrds = valuesSource.ordinalsValues(ctx);
+        final long segmentValueCount = segmentOrds.getValueCount();
+        if (segmentValueCount == valueCount && collectsManyDocs(ctx, segmentValueCount) == false) {
+            // The segment has every term, so its ordinals are the global ordinals, e.g. on a single-segment shard, and the
+            // original path reads them without a mapping. Counting them separately still pays off when the query collects
+            // many docs, but for a selective query it would mostly allocate counts for every global ordinal.
+            return null;
+        }
+        // All that DenseGlobalOrds#globalOrdsReady does. The global ordinals doc values the original path reads aren't needed.
+        grow(valueCount);
+        if (segmentOrdCounts == null) {
+            segmentOrdCounts = new SegmentOrdCounts();
+        }
+        final LongUnaryOperator mapping = valuesSource.globalOrdinalsMapping(ctx);
+        if (segmentOrdCounts.startSegment(segmentValueCount, mapping) == false) {
+            // From now on this aggregator uses the original path, which needs no extra memory.
+            segmentOrdCountingDisabledByBreaker = true;
+            releaseSegmentOrdCounts();
+            return null;
+        }
+        segmentsWithSegmentOrdCounting++;
+        final SortedDocValues singleValues = DocValues.unwrapSingleton(segmentOrds);
+        if (singleValues != null) {
+            segmentsWithSingleValuedOrds++;
+            if (sub == LeafBucketCollector.NO_OP_COLLECTOR) {
+                return new SingleValuedSegmentOrdCollector(singleValues, segmentOrdCounts);
+            }
+            return new SingleValuedSegmentOrdCollectorWithSub(sub, singleValues, segmentOrdCounts, mapping);
+        }
+        segmentsWithMultiValuedOrds++;
+        if (sub == LeafBucketCollector.NO_OP_COLLECTOR) {
+            return new MultiValuedSegmentOrdCollector(segmentOrds, segmentOrdCounts);
+        }
+        return new MultiValuedSegmentOrdCollectorWithSub(sub, segmentOrds, segmentOrdCounts, mapping);
+    }
+
+    /**
+     * Whether the query is known to match at least a quarter as many docs in the segment as it has ordinals. Below that,
+     * allocating and scanning the counts costs about as much as counting segment ordinals saves.
+     */
+    private boolean collectsManyDocs(LeafReaderContext ctx, long segmentValueCount) throws IOException {
+        if (weight == null) {
+            return false;
+        }
+        final int count = weight.count(ctx); // -1 if it can't be computed cheaply
+        return count >= 0 && count >= segmentValueCount / 4;
+    }
+
+    /**
+     * Adds the pending segment's counts to the doc counts. Safe to call more than once.
+     */
+    private void flushSegmentOrdCounts() {
+        if (segmentOrdCounts != null) {
+            segmentOrdCounts.flush();
+        }
+    }
+
+    private void releaseSegmentOrdCounts() {
+        if (segmentOrdCounts != null) {
+            segmentOrdCounts.close();
+            segmentOrdCounts = null;
+        }
+    }
+
+    /**
+     * At least what BigArrays adds to the request breaker when it grows an array of {@code currentSize} elements (0: no
+     * array yet) to {@code newSize}: the added pages when it grows a paged array in place, otherwise the whole new array,
+     * which it charges before releasing the old one, in whole pages plus the wrapper of an array that fits on one page.
+     */
+    private static long growthBytes(long currentSize, long newSize, int pageSize, int bytesPerElement) {
+        final long pageBytes = (long) pageSize * bytesPerElement;
+        final long newPages = (BigArrays.overSize(newSize, pageSize, bytesPerElement) + pageSize - 1) / pageSize;
+        if (currentSize > pageSize) {
+            return (newPages - (currentSize + pageSize - 1) / pageSize) * pageBytes;
+        }
+        return Math.max(newPages, 1) * pageBytes + 256; // 256: more than the wrapper object and array header
+    }
+
+    /**
+     * Doc counts by segment ordinal for the segment being collected, reused across segments and sized to the largest
+     * segment seen so far. {@code touched} has a bit for every ordinal with a non-zero count, so a flush costs
+     * O(segment value count / 64 + distinct ordinals) and resets exactly the entries it reads. Both arrays come from
+     * {@link BigArrays}, so they are paged, recycled and charged to the request breaker.
+     */
+    private final class SegmentOrdCounts implements Releasable {
+        private IntArray counts;
+        private LongArray touched;
+        private long segmentWords;
+        /** Maps the pending segment's ordinals to global ordinals; {@code null} when nothing is pending. */
+        private LongUnaryOperator mapping;
+
+        /**
+         * Sizes the arrays for a segment. Returns {@code false} if they can't be grown within the breakers. They may then
+         * be partly grown, and the caller releases them.
+         */
+        boolean startSegment(long segmentValueCount, LongUnaryOperator mapping) {
+            assert this.mapping == null : "the previous segment wasn't flushed";
+            final long words = (segmentValueCount + 63) >>> 6;
+            final long countsSize = counts == null ? 0 : counts.size();
+            final long touchedSize = touched == null ? 0 : touched.size();
+            final boolean growCounts = counts == null || countsSize < segmentValueCount;
+            final boolean growTouched = touched == null || touchedSize < words;
+            final long bytes = (growCounts ? growthBytes(countsSize, segmentValueCount, PageCacheRecycler.INT_PAGE_SIZE, Integer.BYTES) : 0)
+                + (growTouched ? growthBytes(touchedSize, words, PageCacheRecycler.LONG_PAGE_SIZE, Long.BYTES) : 0);
+            if (bytes > 0 && wouldTripRequestBreaker(bytes)) {
+                return false;
+            }
+            try {
+                if (growCounts) {
+                    counts = counts == null
+                        ? context.bigArrays().newIntArray(segmentValueCount, true)
+                        : context.bigArrays().grow(counts, segmentValueCount);
+                }
+                if (growTouched) {
+                    touched = touched == null ? context.bigArrays().newLongArray(words, true) : context.bigArrays().grow(touched, words);
+                }
+            } catch (CircuitBreakingException e) {
+                // Backstop for the check above, e.g. when the parent breaker trips or another slice used the headroom. The
+                // caller releases whatever was allocated.
+                return false;
+            }
+            this.segmentWords = words;
+            this.mapping = mapping;
+            return true;
+        }
+
+        /**
+         * Whether adding {@code bytes} could trip the request breaker, by the breaker's own formula. Checked before
+         * allocating, so that falling back doesn't count as a tripped breaker, except when the parent breaker or another
+         * thread trips it first.
+         */
+        private boolean wouldTripRequestBreaker(long bytes) {
+            final CircuitBreakerService breakerService = context.bigArrays().breakerService();
+            if (breakerService == null) {
+                return false;
+            }
+            final CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+            final long limit = breaker.getLimit();
+            if (limit < 0) {
+                return false; // no limit
+            }
+            return (long) ((breaker.getUsed() + bytes) * breaker.getOverhead()) > limit;
+        }
+
+        void count(long ord) {
+            if (counts.increment(ord, 1) == 1) {
+                final long word = ord >>> 6;
+                touched.set(word, touched.get(word) | (1L << (ord & 63)));
+            }
+        }
+
+        /**
+         * Adds the pending segment's counts to the doc counts and resets every entry it reads. No-op if nothing is pending.
+         */
+        void flush() {
+            final LongUnaryOperator mapping = this.mapping;
+            if (mapping == null) {
+                return;
+            }
+            this.mapping = null;
+            final LongArray docCounts = GlobalOrdinalsStringTermsAggregator.this.docCounts;
+            boolean flushed = false;
+            try {
+                int newBuckets = 0;
+                for (long word = 0; word < segmentWords; word++) {
+                    long bits = touched.get(word);
+                    if (bits == 0) {
+                        continue;
+                    }
+                    touched.set(word, 0);
+                    do {
+                        final long ord = (word << 6) | Long.numberOfTrailingZeros(bits);
+                        bits &= bits - 1;
+                        final int count = counts.set(ord, 0);
+                        assert count > 0 : "touched ordinal " + ord + " has no count";
+                        // Dense global ords: the bucket ordinal is the global ordinal, and docCounts has a slot for every one.
+                        if (docCounts.increment(mapping.applyAsLong(ord), count) == count) {
+                            if (++newBuckets == NEW_BUCKETS_PER_CONSUMER_CALL) {
+                                checkMemoryForNewBuckets(newBuckets);
+                                newBuckets = 0;
+                            }
+                        }
+                    } while (bits != 0);
+                }
+                if (newBuckets > 0) {
+                    checkMemoryForNewBuckets(newBuckets);
+                }
+                flushed = true;
+            } finally {
+                if (flushed == false) {
+                    // The bucket consumer threw, e.g. the parent breaker tripped. Drop the half-reset arrays so that
+                    // nothing can count them again; the request fails anyway.
+                    close();
+                }
+            }
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(counts, touched);
+            counts = null;
+            touched = null;
+            mapping = null;
+        }
+    }
+
+    private static final class SingleValuedSegmentOrdCollector extends LeafBucketCollectorBase {
+        private final SortedDocValues ords;
+        private final SegmentOrdCounts counts;
+
+        SingleValuedSegmentOrdCollector(SortedDocValues ords, SegmentOrdCounts counts) {
+            super(LeafBucketCollector.NO_OP_COLLECTOR, ords);
+            this.ords = ords;
+            this.counts = counts;
+        }
+
+        @Override
+        public void collect(int doc, long owningBucketOrd) throws IOException {
+            assert owningBucketOrd == 0;
+            if (ords.advanceExact(doc)) {
+                counts.count(ords.ordValue());
+            }
+        }
+
+        @Override
+        public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+            super.collect(stream, owningBucketOrd);
+        }
+
+        @Override
+        public void collectRange(int min, int max) throws IOException {
+            super.collectRange(min, max);
+        }
+    }
+
+    private static final class MultiValuedSegmentOrdCollector extends LeafBucketCollectorBase {
+        private final SortedSetDocValues ords;
+        private final SegmentOrdCounts counts;
+
+        MultiValuedSegmentOrdCollector(SortedSetDocValues ords, SegmentOrdCounts counts) {
+            super(LeafBucketCollector.NO_OP_COLLECTOR, ords);
+            this.ords = ords;
+            this.counts = counts;
+        }
+
+        @Override
+        public void collect(int doc, long owningBucketOrd) throws IOException {
+            assert owningBucketOrd == 0;
+            if (ords.advanceExact(doc)) {
+                // Read the count once: for some field data the count decreases as ordinals are read.
+                for (int i = ords.docValueCount(); i > 0; i--) {
+                    counts.count(ords.nextOrd());
+                }
+            }
+        }
+
+        @Override
+        public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+            super.collect(stream, owningBucketOrd);
+        }
+
+        @Override
+        public void collectRange(int min, int max) throws IOException {
+            super.collectRange(min, max);
+        }
+    }
+
+    /**
+     * Like {@link SingleValuedSegmentOrdCollector}, and passes every doc to the sub-aggregations with its global
+     * ordinal, which is the bucket ordinal for dense global ords.
+     */
+    private static final class SingleValuedSegmentOrdCollectorWithSub extends LeafBucketCollectorBase {
+        private final LeafBucketCollector sub;
+        private final SortedDocValues ords;
+        private final SegmentOrdCounts counts;
+        private final LongUnaryOperator mapping;
+
+        SingleValuedSegmentOrdCollectorWithSub(
+            LeafBucketCollector sub,
+            SortedDocValues ords,
+            SegmentOrdCounts counts,
+            LongUnaryOperator mapping
+        ) {
+            super(sub, ords);
+            this.sub = sub;
+            this.ords = ords;
+            this.counts = counts;
+            this.mapping = mapping;
+        }
+
+        @Override
+        public void collect(int doc, long owningBucketOrd) throws IOException {
+            assert owningBucketOrd == 0;
+            if (ords.advanceExact(doc)) {
+                final int ord = ords.ordValue();
+                counts.count(ord);
+                sub.collect(doc, mapping.applyAsLong(ord));
+            }
+        }
+
+        @Override
+        public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+            super.collect(stream, owningBucketOrd);
+        }
+
+        @Override
+        public void collectRange(int min, int max) throws IOException {
+            super.collectRange(min, max);
+        }
+    }
+
+    /**
+     * Like {@link MultiValuedSegmentOrdCollector}, and passes every doc to the sub-aggregations with each of its global
+     * ordinals, which are the bucket ordinals for dense global ords.
+     */
+    private static final class MultiValuedSegmentOrdCollectorWithSub extends LeafBucketCollectorBase {
+        private final LeafBucketCollector sub;
+        private final SortedSetDocValues ords;
+        private final SegmentOrdCounts counts;
+        private final LongUnaryOperator mapping;
+
+        MultiValuedSegmentOrdCollectorWithSub(
+            LeafBucketCollector sub,
+            SortedSetDocValues ords,
+            SegmentOrdCounts counts,
+            LongUnaryOperator mapping
+        ) {
+            super(sub, ords);
+            this.sub = sub;
+            this.ords = ords;
+            this.counts = counts;
+            this.mapping = mapping;
+        }
+
+        @Override
+        public void collect(int doc, long owningBucketOrd) throws IOException {
+            assert owningBucketOrd == 0;
+            if (ords.advanceExact(doc)) {
+                for (int i = ords.docValueCount(); i > 0; i--) {
+                    final long ord = ords.nextOrd();
+                    counts.count(ord);
+                    sub.collect(doc, mapping.applyAsLong(ord));
+                }
+            }
+        }
+
+        @Override
+        public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+            super.collect(stream, owningBucketOrd);
+        }
+
+        @Override
+        public void collectRange(int min, int max) throws IOException {
+            super.collectRange(min, max);
+        }
     }
 
     @Override
@@ -448,6 +867,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         add.accept("segments_with_multi_valued_ords", segmentsWithMultiValuedOrds);
         add.accept("has_filter", acceptedGlobalOrdinals != ALWAYS_TRUE);
         add.accept("result_selection_strategy", resultSelectionStrategy);
+        add.accept("segments_with_segment_ord_counting", segmentsWithSegmentOrdCounting);
+        add.accept("segment_ord_counting_disabled_by_breaker", segmentOrdCountingDisabledByBreaker);
     }
 
     public String getResultSelectionStrategy() {
@@ -499,7 +920,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     @Override
     protected void doClose() {
-        Releasables.close(resultStrategy, collectionStrategy);
+        Releasables.close(resultStrategy, collectionStrategy, segmentOrdCounts);
     }
 
     /**
@@ -575,6 +996,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             segmentDocCounts = context.bigArrays().grow(segmentDocCounts, 1 + segmentOrds.getValueCount());
             assert sub == LeafBucketCollector.NO_OP_COLLECTOR;
             mapping = valuesSource.globalOrdinalsMapping(ctx);
+            segmentsWithSegmentOrdCounting++;
 
             final SortedDocValues singleValues = DocValues.unwrapSingleton(segmentOrds);
             if (singleValues != null) {
