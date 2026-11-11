@@ -136,15 +136,13 @@ public class RegexpAutomatonCacheTests extends OpenSearchTestCase {
         assertEquals(0, cache.count());
     }
 
-    public void testDisablingSwapsCacheInsteadOfInvalidating() {
+    public void testDisablingPreservesStats() {
         RegexpAutomatonCache cache = newCache();
         cache.getCompiledAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         cache.getCompiledAutomaton("foo.*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT); // hit
         assertEquals(1, cache.hits());
         assertEquals(1, cache.misses());
 
-        // Disabling swaps in a fresh empty cache, but cumulative stats are preserved
-        // via the persistent accumulators.
         cache.setEnabled(false);
         assertEquals(0, cache.count());
         assertEquals(1, cache.hits());
@@ -205,7 +203,7 @@ public class RegexpAutomatonCacheTests extends OpenSearchTestCase {
         assertEquals(4, cache.count());
 
         // Resize down to a budget sized for exactly two single-character automatons (identical
-        // compiled weight) -- warm entries are copied, but the new cache's eviction trims to fit.
+        // compiled weight); the in-place resize evicts until the cache fits.
         long singleCharWeight = weightOf("a");
         cache.resize(singleCharWeight * 2);
         assertTrue("expected at most 2 entries after resize-down, got " + cache.count(), cache.count() <= 2);
@@ -215,6 +213,21 @@ public class RegexpAutomatonCacheTests extends OpenSearchTestCase {
         cache.getCompiledAutomaton("b", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         cache.getCompiledAutomaton("c", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         assertEquals(2, cache.count());
+    }
+
+    public void testResizeDownKeepsMostRecentlyUsedEntries() {
+        RegexpAutomatonCache cache = newCache();
+        CompiledAutomaton a = cache.getCompiledAutomaton("a", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        cache.getCompiledAutomaton("b", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        CompiledAutomaton c = cache.getCompiledAutomaton("c", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        assertSame(a, cache.getCompiledAutomaton("a", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
+
+        cache.resize(weightOf("a") * 2);
+
+        assertEquals(2, cache.count());
+        assertEquals(1, cache.evictions());
+        assertSame(a, cache.getCompiledAutomaton("a", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
+        assertSame(c, cache.getCompiledAutomaton("c", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
     }
 
     public void testMaxSizeSettingIsDynamic() {

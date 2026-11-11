@@ -24,12 +24,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Process-wide LRU cache for compiled regex {@link CompiledAutomaton} objects.
@@ -54,7 +50,7 @@ public final class RegexpAutomatonCache {
 
     /**
      * Whether the regex automaton cache is enabled. When disabled, every regex query compiles its
-     * automaton from scratch. Toggling this off also clears the existing cache contents.
+     * automaton from scratch. Toggling this off also invalidates the existing cache contents.
      */
     public static final Setting<Boolean> CACHE_ENABLED_SETTING = Setting.boolSetting(
         "search.regexp.automaton_cache.enabled",
@@ -79,35 +75,16 @@ public final class RegexpAutomatonCache {
 
     private static final RegexpAutomatonCache INSTANCE = new RegexpAutomatonCache(CACHE_MAX_SIZE_SETTING.get(Settings.EMPTY).getBytes());
 
-    private final AtomicReference<Cache<Key, CompiledAutomaton>> cacheRef;
+    private final Cache<Key, CompiledAutomaton> cache;
     private volatile boolean enabled = CACHE_ENABLED_SETTING.get(Settings.EMPTY);
-    private volatile long maxSizeBytes;
-
-    private final LongAdder accumulatedHits = new LongAdder();
-    private final LongAdder accumulatedMisses = new LongAdder();
-    private final LongAdder accumulatedEvictions = new LongAdder();
 
     RegexpAutomatonCache(long maxSizeBytes) {
-        this.maxSizeBytes = maxSizeBytes;
-        this.cacheRef = new AtomicReference<>(buildCache(maxSizeBytes));
-    }
-
-    private static Cache<Key, CompiledAutomaton> buildCache(long maxSizeBytes) {
         // Keys are not weighed: the pattern string is bounded by index.max_regex_length (1000 chars by default),
         // which is negligible next to the compiled automaton.
-        return CacheBuilder.<Key, CompiledAutomaton>builder().setMaximumWeight(maxSizeBytes).weigher((k, v) -> v.ramBytesUsed()).build();
-    }
-
-    /**
-     * Swaps in {@code newCache} and folds {@code retiredStats}, the retired cache's counters, into the
-     * persistent accumulators. Accumulating only after the swap keeps {@link #hits()} and friends from
-     * counting the retired cache twice while the swap is in progress.
-     */
-    private void swapCache(Cache<Key, CompiledAutomaton> newCache, Cache.CacheStats retiredStats) {
-        cacheRef.set(newCache);
-        accumulatedHits.add(retiredStats.getHits());
-        accumulatedMisses.add(retiredStats.getMisses());
-        accumulatedEvictions.add(retiredStats.getEvictions());
+        this.cache = CacheBuilder.<Key, CompiledAutomaton>builder()
+            .setMaximumWeight(maxSizeBytes)
+            .weigher((k, v) -> v.ramBytesUsed())
+            .build();
     }
 
     public static RegexpAutomatonCache getInstance() {
@@ -115,43 +92,27 @@ public final class RegexpAutomatonCache {
     }
 
     /**
-     * Resize the underlying cache. Builds a new cache with the updated byte budget and copies
-     * all existing entries into it so the warm state is preserved. Entries are inserted in
-     * LRU order (least-recently-used first) so that when the new budget is smaller, the cache's
-     * own weight-based eviction naturally keeps the most-recently-used entries and drops the
-     * least-recently-used ones.
+     * Updates the byte budget in place, as {@code IndicesFieldDataCache} does for its size setting.
+     * Cached entries are kept; when the budget shrinks, least-recently-used entries are evicted
+     * until the cache fits. Eviction runs on the calling thread, which is acceptable because the
+     * cache is bounded to a few tens of megabytes.
      */
     public void resize(long maxSizeBytes) {
-        Cache<Key, CompiledAutomaton> oldCache = cacheRef.get();
-        // Taken before copying so the copy's own get() calls are not counted as hits.
-        Cache.CacheStats oldStats = oldCache.stats();
-        Cache<Key, CompiledAutomaton> newCache = buildCache(maxSizeBytes);
-
-        List<Key> keysMruFirst = new ArrayList<>();
-        for (Key key : oldCache.keys()) {
-            keysMruFirst.add(key);
+        long oldMaxSizeBytes = cache.getMaximumWeight();
+        cache.setMaximumWeight(maxSizeBytes);
+        if (maxSizeBytes < oldMaxSizeBytes) {
+            cache.refresh();
         }
-        for (int i = keysMruFirst.size() - 1; i >= 0; i--) {
-            CompiledAutomaton value = oldCache.get(keysMruFirst.get(i));
-            if (value != null) {
-                newCache.put(keysMruFirst.get(i), value);
-            }
-        }
-
-        this.maxSizeBytes = maxSizeBytes;
-        swapCache(newCache, oldStats);
     }
 
     /**
-     * Enable or disable the cache. Disabling swaps in a fresh, empty cache instance (rather
-     * than invalidating the existing one) so subsequent re-enables start from a clean state
-     * without paying the cost of an all-segment {@link Cache#invalidateAll()} walk. Cumulative
-     * hit/miss/eviction counters are preserved across the swap.
+     * Enables or disables the cache. Disabling invalidates every cached entry, so re-enabling
+     * starts from an empty cache. Hit, miss and eviction counters are not reset.
      */
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
         if (enabled == false) {
-            swapCache(buildCache(maxSizeBytes), cacheRef.get().stats());
+            cache.invalidateAll();
         }
     }
 
@@ -161,32 +122,32 @@ public final class RegexpAutomatonCache {
 
     /** Number of entries currently held in the cache. */
     public long count() {
-        return cacheRef.get().count();
+        return cache.count();
     }
 
     /** Current total RAM, in bytes, retained by cached {@link CompiledAutomaton} entries. */
     public long ramBytesUsed() {
-        return cacheRef.get().weight();
+        return cache.weight();
     }
 
     /** Configured maximum RAM, in bytes, the cache is allowed to retain. */
     public long maxSizeBytes() {
-        return maxSizeBytes;
+        return cache.getMaximumWeight();
     }
 
     /** Cache hit count since process start. */
     public long hits() {
-        return accumulatedHits.longValue() + cacheRef.get().stats().getHits();
+        return cache.stats().getHits();
     }
 
     /** Cache miss count since process start. */
     public long misses() {
-        return accumulatedMisses.longValue() + cacheRef.get().stats().getMisses();
+        return cache.stats().getMisses();
     }
 
     /** Cache eviction count since process start. */
     public long evictions() {
-        return accumulatedEvictions.longValue() + cacheRef.get().stats().getEvictions();
+        return cache.stats().getEvictions();
     }
 
     private static CompiledAutomaton buildCompiledAutomaton(
@@ -222,11 +183,10 @@ public final class RegexpAutomatonCache {
         }
         Key key = new Key(pattern, syntaxFlags, matchFlags, determinizeWorkLimit);
         try {
-            return cacheRef.get()
-                .computeIfAbsent(
-                    key,
-                    k -> buildCompiledAutomaton(k.pattern, k.syntaxFlags, k.matchFlags, k.determinizeWorkLimit, provider)
-                );
+            return cache.computeIfAbsent(
+                key,
+                k -> buildCompiledAutomaton(k.pattern, k.syntaxFlags, k.matchFlags, k.determinizeWorkLimit, provider)
+            );
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
             if (cause instanceof TooComplexToDeterminizeException) {
