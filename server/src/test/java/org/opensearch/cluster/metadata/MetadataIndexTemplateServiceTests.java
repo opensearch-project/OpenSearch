@@ -39,6 +39,8 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.applicationtemplates.ClusterStateSystemTemplateLoader;
 import org.opensearch.cluster.applicationtemplates.SystemTemplateMetadata;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.compress.CompressedXContent;
@@ -71,7 +73,9 @@ import org.opensearch.indices.InvalidIndexTemplateException;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -2875,5 +2879,98 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
     @Override
     protected Settings featureFlagSettings() {
         return Settings.builder().put(super.featureFlagSettings()).put(APPLICATION_BASED_CONFIGURATION_TEMPLATES, false).build();
+    }
+
+    private static DiscoveryNodes nodesWithOneThatPredatesTheScoringMode() {
+        return DiscoveryNodes.builder()
+            .add(new DiscoveryNode("new", buildNewFakeTransportAddress(), Version.CURRENT))
+            .add(
+                new DiscoveryNode("old", buildNewFakeTransportAddress(), VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION))
+            )
+            .build();
+    }
+
+    private static Template templateWithAScoringMode() {
+        AliasMetadata alias = AliasMetadata.builder("scoped").filter("{\"match_all\":{}}").scoringMode("no_stats").build();
+        return new Template(Settings.EMPTY, null, Collections.singletonMap("scoped", alias));
+    }
+
+    public void testLegacyTemplateRejectsTheScoringModeWhileANodePredatesIt() {
+        ClusterState mixed = ClusterState.builder(ClusterState.EMPTY_STATE).nodes(nodesWithOneThatPredatesTheScoringMode()).build();
+        PutRequest request = new PutRequest("test", "scoped").patterns(singletonList("scoped-*"))
+            .aliases(Collections.singleton(new Alias("scoped").filter("{\"match_all\":{}}").scoringMode("no_stats")));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataIndexTemplateService.innerPutTemplate(mixed, request, IndexTemplateMetadata.builder("scoped"))
+        );
+        assertThat(e.getMessage(), containsString("[scoring_mode] on alias [scoped]"));
+
+        PutRequest plain = new PutRequest("test", "plain").patterns(singletonList("plain-*"))
+            .aliases(Collections.singleton(new Alias("plain").filter("{\"match_all\":{}}")));
+        ClusterState withPlain = MetadataIndexTemplateService.innerPutTemplate(mixed, plain, IndexTemplateMetadata.builder("plain"));
+        assertNotNull(withPlain.metadata().templates().get("plain"));
+
+        ClusterState current = MetadataIndexTemplateService.innerPutTemplate(
+            ClusterState.EMPTY_STATE,
+            request,
+            IndexTemplateMetadata.builder("scoped")
+        );
+        assertEquals("no_stats", current.metadata().templates().get("scoped").aliases().get("scoped").scoringMode());
+    }
+
+    public void testComponentTemplateRejectsTheScoringModeWhileANodePredatesIt() throws Exception {
+        ClusterState mixed = ClusterState.builder(ClusterState.EMPTY_STATE).nodes(nodesWithOneThatPredatesTheScoringMode()).build();
+        ComponentTemplate componentTemplate = new ComponentTemplate(templateWithAScoringMode(), 1L, new HashMap<>());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> getMetadataIndexTemplateService().addComponentTemplate(mixed, false, "scoped", componentTemplate)
+        );
+        assertThat(e.getMessage(), containsString("[scoring_mode] on alias [scoped]"));
+
+        ComponentTemplate plain = new ComponentTemplate(templateWithoutAScoringMode(), 1L, new HashMap<>());
+        assertNotNull(
+            getMetadataIndexTemplateService().addComponentTemplate(mixed, false, "plain", plain)
+                .metadata()
+                .componentTemplates()
+                .get("plain")
+        );
+
+        ClusterState current = getMetadataIndexTemplateService().addComponentTemplate(
+            ClusterState.EMPTY_STATE,
+            false,
+            "scoped",
+            componentTemplate
+        );
+        assertEquals("no_stats", current.metadata().componentTemplates().get("scoped").template().aliases().get("scoped").scoringMode());
+    }
+
+    public void testComposableTemplateRejectsTheScoringModeWhileANodePredatesIt() throws Exception {
+        ClusterState mixed = ClusterState.builder(ClusterState.EMPTY_STATE).nodes(nodesWithOneThatPredatesTheScoringMode()).build();
+        ComposableIndexTemplate template = composable(templateWithAScoringMode());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> getMetadataIndexTemplateService().addIndexTemplateV2(mixed, false, "scoped", template)
+        );
+        assertThat(e.getMessage(), containsString("[scoring_mode] on alias [scoped]"));
+
+        ClusterState plain = getMetadataIndexTemplateService().addIndexTemplateV2(
+            mixed,
+            false,
+            "plain",
+            composable(templateWithoutAScoringMode())
+        );
+        assertNotNull(plain.metadata().templatesV2().get("plain"));
+
+        ClusterState current = getMetadataIndexTemplateService().addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "scoped", template);
+        assertEquals("no_stats", current.metadata().templatesV2().get("scoped").template().aliases().get("scoped").scoringMode());
+    }
+
+    private static Template templateWithoutAScoringMode() {
+        AliasMetadata alias = AliasMetadata.builder("plain").filter("{\"match_all\":{}}").build();
+        return new Template(Settings.EMPTY, null, Collections.singletonMap("plain", alias));
+    }
+
+    private static ComposableIndexTemplate composable(Template template) {
+        return new ComposableIndexTemplate(singletonList("scoped-*"), template, null, null, null, null, null);
     }
 }

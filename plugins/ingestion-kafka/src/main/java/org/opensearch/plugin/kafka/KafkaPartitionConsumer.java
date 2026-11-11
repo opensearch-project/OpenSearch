@@ -18,6 +18,8 @@ import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
+import org.apache.kafka.common.utils.ConfigUtils;
+import org.apache.kafka.common.utils.Utils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.IngestionShardConsumer;
@@ -108,8 +110,18 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         // apply user provided overrides
         consumerProp.putAll(config.getConsumerConfigurations());
 
-        logger.info("Kafka consumer properties for topic {}: {}", config.getTopic(), consumerProp);
+        logger.info("Kafka consumer properties for topic {}: {}", config.getTopic(), toRedactedString(consumerProp));
         return consumerProp;
+    }
+
+    /**
+     * Render the consumer properties for logging. Values of sensitive properties, and of properties ConsumerConfig
+     * does not define (whose sensitivity is unknown), are redacted, as Kafka's own config log does.
+     * @param consumerProp the consumer properties
+     * @return a string that is safe to log
+     */
+    static String toRedactedString(Properties consumerProp) {
+        return ConfigUtils.configMapToRedactedString(Utils.propsToMap(consumerProp), ConsumerConfig.configDef());
     }
 
     /**

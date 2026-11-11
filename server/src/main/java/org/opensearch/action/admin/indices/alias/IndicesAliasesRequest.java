@@ -33,7 +33,6 @@
 package org.opensearch.action.admin.indices.alias;
 
 import org.opensearch.OpenSearchGenerationException;
-import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.AliasesRequest;
 import org.opensearch.action.CompositeIndicesRequest;
@@ -290,7 +289,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             isHidden = in.readOptionalBoolean();
             originalAliases = in.readStringArray();
             mustExist = in.readOptionalBoolean();
-            if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
+            if (in.getVersion().onOrAfter(AliasFilter.SCORING_MODE_VERSION)) {
                 scoringMode = in.readOptionalString();
             }
         }
@@ -308,8 +307,10 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             out.writeOptionalBoolean(isHidden);
             out.writeStringArray(originalAliases);
             out.writeOptionalBoolean(mustExist);
-            if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
+            if (out.getVersion().onOrAfter(AliasFilter.SCORING_MODE_VERSION)) {
                 out.writeOptionalString(scoringMode);
+            } else if (scoringMode != null) {
+                AliasFilter.ensureScoringModeSupported(String.join(",", aliases), scoringMode, out.getVersion());
             }
         }
 

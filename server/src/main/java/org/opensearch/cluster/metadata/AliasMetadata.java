@@ -33,7 +33,6 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.OpenSearchGenerationException;
-import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.Nullable;
@@ -246,7 +245,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
 
         out.writeOptionalBoolean(writeIndex());
         out.writeOptionalBoolean(isHidden());
-        if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
+        if (out.getVersion().onOrAfter(AliasFilter.SCORING_MODE_VERSION)) {
             out.writeOptionalString(scoringMode);
         }
     }
@@ -272,7 +271,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
         writeIndex = in.readOptionalBoolean();
         isHidden = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
+        if (in.getVersion().onOrAfter(AliasFilter.SCORING_MODE_VERSION)) {
             scoringMode = in.readOptionalString();
         } else {
             scoringMode = null;
