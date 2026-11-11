@@ -72,7 +72,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
         assert msg instanceof Netty4HttpRequest : "Invalid message type: " + msg.getClass();
-        HttpPipelinedRequest pipelinedRequest = new Netty4HttpPipelinedRequest(aggregator.nextReadSequence(), (Netty4HttpRequest) msg);
+        HttpPipelinedRequest pipelinedRequest = aggregator.read(((Netty4HttpRequest) msg));
         ctx.fireChannelRead(pipelinedRequest);
     }
 
