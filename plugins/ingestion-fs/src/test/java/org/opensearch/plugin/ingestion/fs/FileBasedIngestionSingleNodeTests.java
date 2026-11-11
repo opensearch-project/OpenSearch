@@ -23,6 +23,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.query.RangeQueryBuilder;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -396,6 +397,50 @@ public class FileBasedIngestionSingleNodeTests extends OpenSearchSingleNodeTestC
         });
 
         // cleanup
+        client().admin().indices().delete(new DeleteIndexRequest(index)).actionGet();
+    }
+
+    public void testFileIngestionWithRouting() throws Exception {
+        Path shardFile = ingestionDir.resolve(stream).resolve("0.ndjson");
+        try (BufferedWriter writer = Files.newBufferedWriter(shardFile, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
+            writer.write(
+                "{\"_id\":\"3\",\"_version\":\"1\",\"_op_type\":\"index\",\"_routing\":\"r1\",\"_source\":{\"name\":\"carol\", \"age\": 40}}\n"
+            );
+        }
+
+        String mappings = """
+            {
+              "properties": {
+                "name": { "type": "text" },
+                "age": { "type": "integer" }
+              }
+            }
+            """;
+        createIndexWithMappingSource(
+            index,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "FILE")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.stream", stream)
+                .put("ingestion_source.param.base_directory", ingestionDir.toString())
+                .put("index.replication.type", "SEGMENT")
+                .build(),
+            mappings
+        );
+        ensureGreen(index);
+
+        waitForState(() -> {
+            SearchResponse response = client().prepareSearch(index).setQuery(new RangeQueryBuilder("age").gte(0)).get();
+            return response.getHits().getTotalHits().value() == 3;
+        });
+
+        // only the message with a routing value is stored with it
+        SearchResponse response = client().prepareSearch(index).setQuery(new TermQueryBuilder("_routing", "r1")).get();
+        assertEquals(1, response.getHits().getTotalHits().value());
+        assertEquals("3", response.getHits().getAt(0).getId());
+
         client().admin().indices().delete(new DeleteIndexRequest(index)).actionGet();
     }
 
