@@ -49,6 +49,7 @@ import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -123,14 +124,8 @@ public class AliasFilterTests extends OpenSearchTestCase {
     /** Against a node that predates the field, it is not on the wire and the receiver defaults to UNFILTERED_STATS. */
     public void testBackwardCompatibilityBeforeScoringModeVersion() throws Exception {
         // The newest release without the field, which is what a mixed-version cluster during upgrade contains.
-        final Version legacy = Version.V_3_9_0;
-        assertTrue("test premise: legacy predates the gate", legacy.before(AliasFilter.SCORING_MODE_VERSION));
-
-        final AliasFilter original = new AliasFilter(
-            QueryBuilders.termQuery("field", "value"),
-            AliasFilter.ScoringMode.NO_STATS,   // sender records NO_STATS
-            "alias_0"
-        );
+        final Version legacy = VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION);
+        final AliasFilter original = new AliasFilter(QueryBuilders.termQuery("field", "value"), "alias_0");
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(legacy);
         original.writeTo(out);
@@ -238,5 +233,20 @@ public class AliasFilterTests extends OpenSearchTestCase {
             () -> AliasFilter.ensureScoringModesSupported(new Template(Settings.EMPTY, null, aliases), older)
         );
         assertThat(e.getMessage(), containsString("on alias [scoped]"));
+    }
+
+    public void testAScoringModeIsNotSentToANodeThatPredatesIt() throws IOException {
+        final Version older = VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION);
+        AliasFilter scoped = new AliasFilter(QueryBuilders.termQuery("f", "v"), AliasFilter.ScoringMode.NO_STATS, "scoped");
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(older);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> scoped.writeTo(out));
+            assertThat(e.getMessage(), containsString("[scoring_mode] on alias [scoped]"));
+        }
+        AliasFilter plain = new AliasFilter(QueryBuilders.termQuery("f", "v"), "plain");
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(older);
+            plain.writeTo(out);
+        }
     }
 }
