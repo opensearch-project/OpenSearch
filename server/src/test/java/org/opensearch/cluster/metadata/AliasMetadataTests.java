@@ -39,7 +39,9 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.test.AbstractXContentTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.function.Predicate;
@@ -113,11 +115,12 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
 
     public void testScoringModeIsNotSentToANodeThatPredatesIt() throws IOException {
         final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").scoringMode("filtered_stats").build();
+        final Version older = VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION);
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(Version.V_3_9_0);
+        out.setVersion(older);
         before.writeTo(out);
         final StreamInput in = out.bytes().streamInput();
-        in.setVersion(Version.V_3_9_0);
+        in.setVersion(older);
         final AliasMetadata after = new AliasMetadata(in);
         // The stream must be fully consumed, or the next field in cluster state would be read from the wrong offset.
         assertThat(in.available(), equalTo(0));

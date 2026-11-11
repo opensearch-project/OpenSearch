@@ -125,7 +125,7 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
      * First version that carries {@link ScoringMode} on the wire. The alias request and alias metadata gate their copy
      * of the field on the same version.
      */
-    public static final Version SCORING_MODE_VERSION = Version.V_3_10_0;
+    public static final Version SCORING_MODE_VERSION = Version.V_3_11_0;
 
     /**
      * Rejects a scoring mode that a node on {@code version} cannot read, so the mode is never stored or sent where it
