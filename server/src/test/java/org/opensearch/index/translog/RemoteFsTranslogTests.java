@@ -313,6 +313,22 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         );
     }
 
+    public void testBatchedAddAndRemoteSync() throws IOException {
+        List<Translog.Operation> operations = List.of(
+            new Translog.Index("1", 0L, primaryTerm.get(), new byte[] { 1 }),
+            new Translog.Index("2", 1L, primaryTerm.get(), new byte[] { 2 }),
+            new Translog.Index("3", 2L, primaryTerm.get(), new byte[] { 3 })
+        );
+
+        Translog.Location[] locations = translog.add(operations);
+
+        assertThat(locations.length, equalTo(operations.size()));
+        assertTrue(locations[0].compareTo(locations[1]) < 0);
+        assertTrue(locations[1].compareTo(locations[2]) < 0);
+        assertThat(translog.totalOperations(), equalTo(operations.size()));
+        assertTrue(translog.ensureSynced(locations[locations.length - 1]));
+    }
+
     private Translog.Location addToTranslogAndList(Translog translog, List<Translog.Operation> list, Translog.Operation op)
         throws IOException {
         Translog.Location loc = translog.add(op);

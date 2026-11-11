@@ -91,9 +91,17 @@ public class BlobStoreTransferService implements TransferService {
         CryptoMetadata cryptoMetadata
     ) throws IOException {
         BlobPath blobPath = (BlobPath) remoteTransferPath;
+        Map<String, String> metadata = buildTransferFileMetadata(fileSnapshot);
         try (InputStream inputStream = fileSnapshot.inputStream()) {
             blobStore.blobContainer(blobPath)
-                .writeBlobWithMetadata(fileSnapshot.getName(), inputStream, fileSnapshot.getContentLength(), true, null, cryptoMetadata);
+                .writeBlobWithMetadata(
+                    fileSnapshot.getName(),
+                    inputStream,
+                    fileSnapshot.getContentLength(),
+                    true,
+                    metadata,
+                    cryptoMetadata
+                );
         }
     }
 
@@ -173,6 +181,21 @@ public class BlobStoreTransferService implements TransferService {
         return metadata;
     }
 
+    private Map<String, String> buildTransferFileMetadata(TransferFileSnapshot fileSnapshot) throws IOException {
+        InputStream metadataInputStream = fileSnapshot.getMetadataFileInputStream();
+        if (metadataInputStream == null) {
+            return null;
+        }
+        ensureBlobMetadataEnabled();
+        return buildTransferFileMetadata(metadataInputStream);
+    }
+
+    private void ensureBlobMetadataEnabled() {
+        if (blobStore.isBlobMetadataEnabled() == false) {
+            throw new IllegalStateException("Blob metadata is not enabled for the configured blob store");
+        }
+    }
+
     private void uploadBlob(
         TransferFileSnapshot fileSnapshot,
         ActionListener<TransferFileSnapshot> listener,
@@ -182,10 +205,7 @@ public class BlobStoreTransferService implements TransferService {
     ) {
 
         try {
-            Map<String, String> metadata = null;
-            if (fileSnapshot.getMetadataFileInputStream() != null) {
-                metadata = buildTransferFileMetadata(fileSnapshot.getMetadataFileInputStream());
-            }
+            Map<String, String> metadata = buildTransferFileMetadata(fileSnapshot);
 
             // Length and part streams both come from the snapshot, so a subclass that transforms the bytes
             // (e.g. decrypting a client-side encrypted translog) is honoured without the transfer service
@@ -271,7 +291,7 @@ public class BlobStoreTransferService implements TransferService {
     @Override
     @ExperimentalApi
     public InputStreamWithMetadata downloadBlobWithMetadata(Iterable<String> path, String fileName) throws IOException {
-        assert blobStore.isBlobMetadataEnabled();
+        ensureBlobMetadataEnabled();
         return blobStore.blobContainer((BlobPath) path).readBlobWithMetadata(fileName);
     }
 

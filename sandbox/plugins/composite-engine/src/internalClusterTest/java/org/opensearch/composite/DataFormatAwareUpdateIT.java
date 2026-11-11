@@ -276,6 +276,106 @@ public class DataFormatAwareUpdateIT extends AbstractCompositeEngineIT {
     }
 
     /**
+     * An {@code _update} carrying a stale {@code if_seq_no} must be rejected once the document has
+     * been refreshed out of the live version map.
+     *
+     * <p>{@code getById} resolves in three tiers: the version map, then (on engines that read ahead)
+     * a prefetch cache, then the primary store. {@code UpdateHelper} performs its get through
+     * {@code ShardGetService.getForUpdate(id, ifSeqNo, ifPrimaryTerm)}, so the precondition reaches
+     * the engine on the get — and the resulting index request is rebuilt with
+     * {@code setIfSeqNo(getResult.getSeqNo())}. If the get does not enforce the precondition it is
+     * not merely unchecked, it is <em>overwritten</em>: the update proceeds against whatever version
+     * it found and the caller's condition is lost.
+     *
+     * <p>Distinct from {@link #testUpdateVersionConflict}, which issues an {@code _index} (the
+     * write-side check, in a different code path) and never refreshes, so it only covers the version
+     * map tier.
+     */
+    public void testUpdateVersionConflictAfterRefresh() {
+        createManualRefreshIndex();
+
+        IndexResponse created = indexDoc("k1", "v_old", 1);
+        assertEquals(DocWriteResponse.Result.CREATED, created.getResult());
+        long staleSeqNo = created.getSeqNo();
+        long term = created.getPrimaryTerm();
+
+        IndexResponse updated = indexDoc("k1", "v_new", 2);
+        assertEquals(DocWriteResponse.Result.UPDATED, updated.getResult());
+
+        // The document now lives in the primary store, so the update's get must fall through to it
+        // rather than being answered from the version map.
+        refreshIndex(INDEX);
+
+        VersionConflictEngineException ex = expectThrows(
+            VersionConflictEngineException.class,
+            () -> client().prepareUpdate(INDEX, "k1")
+                .setDoc("name", "v_conflict")
+                .setIfSeqNo(staleSeqNo)
+                .setIfPrimaryTerm(term)
+                .setRetryOnConflict(0)
+                .get()
+        );
+        assertTrue("expected a version-conflict message, got: " + ex.getMessage(), ex.getMessage().contains("version conflict"));
+
+        // The rejected update must not have mutated anything — a silently-dropped precondition
+        // shows up here as the conflicting value having been written.
+        GetResponse after = client().prepareGet(INDEX, "k1").setRealtime(true).get();
+        assertTrue(after.isExists());
+        assertEquals("v_new", name(after));
+        assertEquals(2, value(after));
+    }
+
+    /**
+     * The same precondition on a plain {@code _get} after a refresh. Covers the read path directly,
+     * without {@code UpdateHelper} in between.
+     */
+    public void testGetWithStaleIfSeqNoAfterRefreshConflicts() {
+        createManualRefreshIndex();
+
+        IndexResponse created = indexDoc("k1", "v_old", 1);
+        long staleSeqNo = created.getSeqNo();
+        long term = created.getPrimaryTerm();
+        assertEquals(DocWriteResponse.Result.UPDATED, indexDoc("k1", "v_new", 2).getResult());
+        refreshIndex(INDEX);
+
+        VersionConflictEngineException ex = expectThrows(
+            VersionConflictEngineException.class,
+            () -> client().prepareUpdate(INDEX, "k1")
+                .setDoc("value", 99)
+                .setIfSeqNo(staleSeqNo)
+                .setIfPrimaryTerm(term)
+                .setRetryOnConflict(0)
+                .get()
+        );
+        assertTrue("expected a version-conflict message, got: " + ex.getMessage(), ex.getMessage().contains("version conflict"));
+        assertEquals(2, value(client().prepareGet(INDEX, "k1").setRealtime(true).get()));
+    }
+
+    /**
+     * Control: a <em>current</em> {@code if_seq_no} after a refresh must still be accepted, so the
+     * enforcement above cannot be satisfied by rejecting everything.
+     */
+    public void testUpdateWithCurrentIfSeqNoAfterRefreshSucceeds() {
+        createManualRefreshIndex();
+
+        assertEquals(DocWriteResponse.Result.CREATED, indexDoc("k1", "v_old", 1).getResult());
+        IndexResponse current = indexDoc("k1", "v_new", 2);
+        refreshIndex(INDEX);
+
+        UpdateResponse ok = client().prepareUpdate(INDEX, "k1")
+            .setDoc("value", 42)
+            .setIfSeqNo(current.getSeqNo())
+            .setIfPrimaryTerm(current.getPrimaryTerm())
+            .setRetryOnConflict(0)
+            .get();
+        assertEquals(DocWriteResponse.Result.UPDATED, ok.getResult());
+
+        GetResponse after = client().prepareGet(INDEX, "k1").setRealtime(true).get();
+        assertEquals("v_new", name(after));
+        assertEquals(42, value(after));
+    }
+
+    /**
      * A conditional delete carrying a stale {@code if_seq_no} must be rejected with a
      * {@link VersionConflictEngineException} (exercising delete()'s pre-flight early-result path),
      * and the document must survive.

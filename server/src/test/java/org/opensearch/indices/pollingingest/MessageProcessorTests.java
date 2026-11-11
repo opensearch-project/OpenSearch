@@ -124,6 +124,55 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         assertEquals("1", deleteOperation.id());
     }
 
+    public void testGetIndexOperationWithRouting() throws IOException {
+        byte[] payload = "{\"_id\":\"1\",\"_routing\":\"r1\",\"_source\":{\"name\":\"bob\"}}".getBytes(StandardCharsets.UTF_8);
+        FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
+
+        ParsedDocument parsedDocument = mock(ParsedDocument.class);
+        when(documentMapper.parse(any())).thenReturn(parsedDocument);
+        when(parsedDocument.rootDoc()).thenReturn(new ParseContext.Document());
+
+        processor.getOperation(
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), 0),
+            MessageProcessorRunnable.MessageProcessorMetrics.create()
+        );
+
+        ArgumentCaptor<SourceToParse> captor = ArgumentCaptor.forClass(SourceToParse.class);
+        verify(documentMapper).parse(captor.capture());
+        assertEquals("r1", captor.getValue().routing());
+    }
+
+    public void testGetDeleteOperationWithRouting() throws IOException {
+        byte[] payload = "{\"_id\":\"1\",\"_routing\":\"r1\",\"_op_type\":\"delete\"}".getBytes(StandardCharsets.UTF_8);
+        FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
+
+        MessageProcessorRunnable.MessageOperation operation = processor.getOperation(
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), -1),
+            MessageProcessorRunnable.MessageProcessorMetrics.create()
+        );
+
+        assertTrue(operation.engineOperation() instanceof Engine.Delete);
+        assertEquals("r1", ((Engine.Delete) operation.engineOperation()).routing());
+    }
+
+    public void testInvalidRoutingType() throws IOException {
+        byte[] payload = "{\"_id\":\"1\",\"_routing\":100,\"_source\":{\"name\":\"bob\"}}".getBytes(StandardCharsets.UTF_8);
+        FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
+        ParsedDocument parsedDocument = mock(ParsedDocument.class);
+        when(documentMapper.parse(any())).thenReturn(parsedDocument);
+        when(parsedDocument.rootDoc()).thenReturn(new ParseContext.Document());
+        MessageProcessorRunnable.MessageProcessorMetrics metrics = MessageProcessorRunnable.MessageProcessorMetrics.create();
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> processor.getOperation(
+                new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), 0),
+                metrics
+            )
+        );
+        assertEquals(1, metrics.invalidMessageCounter().count());
+    }
+
     public void testSkipNoSourceIndexOperation() throws IOException {
         final byte[] payload = "{\"_id\":\"1\"}".getBytes(StandardCharsets.UTF_8);
         FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);

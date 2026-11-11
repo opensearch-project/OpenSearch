@@ -298,11 +298,7 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
             throw new NoSuchFileException(String.format(java.util.Locale.ROOT, "No container for format %s, file %s", format, name));
         }
 
-        List<BlobMetadata> metadata = container.listBlobsByPrefixInSortedOrder(name, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
-        if (metadata.size() == 1 && metadata.get(0).name().equals(name)) {
-            return metadata.get(0).length();
-        }
-        throw new NoSuchFileException(name);
+        return container.getBlobMetadata(name).length();
     }
 
     /**

@@ -341,6 +341,61 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return location;
     }
 
+    /**
+     * Adds a batch of already-serialized operations to the translog in a single critical section. Each entry in
+     * {@code data} is framed exactly as a single {@link #add(BytesReference, long)} call would frame it, so the
+     * on-disk bytes are byte-identical to performing N individual adds. The force-write threshold is evaluated once
+     * before the batch (mirroring the per-op check amortised over the batch) and the writer monitor is entered a
+     * single time for the whole batch rather than once per operation.
+     *
+     * @param data   the per-operation serialized bytes (each already size-framed and checksummed)
+     * @param seqNos the sequence number associated with each operation, parallel to {@code data}
+     * @return the locations the operations were written to, parallel to {@code data}
+     * @throws IOException if writing to the translog resulted in an I/O exception
+     */
+    public Translog.Location[] add(final BytesReference[] data, final long[] seqNos) throws IOException {
+        assert data.length == seqNos.length : "data and seqNos length mismatch: " + data.length + " != " + seqNos.length;
+        final int count = data.length;
+        final Translog.Location[] locations = new Translog.Location[count];
+
+        long bufferedBytesBeforeAdd = this.bufferedBytes;
+        if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
+            writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
+        }
+
+        synchronized (this) {
+            ensureOpen();
+            if (buffer == null) {
+                buffer = new ReleasableBytesStreamOutput(bigArrays);
+            }
+            assert bufferedBytes == buffer.size();
+            for (int i = 0; i < count; i++) {
+                final BytesReference d = data[i];
+                final long seqNo = seqNos[i];
+                final long offset = totalOffset;
+                totalOffset += d.length();
+                d.writeTo(buffer);
+
+                assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
+                assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
+
+                minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
+                maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
+
+                nonFsyncedSequenceNumbers.add(seqNo);
+
+                operationCounter++;
+
+                assert assertNoSeqNumberConflict(seqNo, d);
+
+                locations[i] = new Translog.Location(generation, offset, d.length());
+            }
+            bufferedBytes = buffer.size();
+        }
+
+        return locations;
+    }
+
     private synchronized boolean assertNoSeqNumberConflict(long seqNo, BytesReference data) throws IOException {
         if (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             // nothing to do

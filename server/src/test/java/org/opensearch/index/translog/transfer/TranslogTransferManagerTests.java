@@ -1313,6 +1313,53 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertTlogCkpDownloadStatsWithMetadata();
     }
 
+    public void testSynchronousUploadMetadataRecoversCheckpointWithoutCheckpointBlob() throws IOException {
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        BlobStore blobStore = mock(BlobStore.class);
+        when(blobStore.isBlobMetadataEnabled()).thenReturn(true);
+        when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
+
+        AtomicReference<byte[]> uploadedTranslog = new AtomicReference<>();
+        AtomicReference<Map<String, String>> uploadedMetadata = new AtomicReference<>();
+        doAnswer(invocation -> {
+            uploadedTranslog.set(((InputStream) invocation.getArgument(1)).readAllBytes());
+            uploadedMetadata.set(Map.copyOf(invocation.getArgument(4)));
+            return null;
+        }).when(blobContainer)
+            .writeBlobWithMetadata(eq("translog-23.tlog"), any(InputStream.class), Mockito.anyLong(), eq(true), any(), Mockito.isNull());
+        when(blobContainer.readBlobWithMetadata("translog-23.tlog")).thenAnswer(
+            invocation -> new InputStreamWithMetadata(new ByteArrayInputStream(uploadedTranslog.get()), uploadedMetadata.get())
+        );
+
+        BlobStoreTransferService blobStoreTransferService = new BlobStoreTransferService(blobStore, threadPool);
+        TransferFileSnapshot transferFileSnapshot = new TransferFileSnapshot("translog-23.tlog", tlogBytes, 12);
+        transferFileSnapshot.setMetadataFileInputStream(new ByteArrayInputStream(ckpBytes));
+        blobStoreTransferService.uploadBlob(
+            transferFileSnapshot,
+            remoteBaseTransferPath.add(TRANSLOG.getName()).add("12"),
+            WritePriority.HIGH,
+            null
+        );
+
+        TranslogTransferManager manager = new TranslogTransferManager(
+            shardId,
+            blobStoreTransferService,
+            remoteBaseTransferPath.add(TRANSLOG.getName()),
+            remoteBaseTransferPath.add(METADATA.getName()),
+            tracker,
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE,
+            true
+        );
+        Path location = createTempDir();
+        manager.downloadTranslog("12", "23", location);
+
+        assertArrayEquals(tlogBytes, Files.readAllBytes(location.resolve("translog-23.tlog")));
+        assertArrayEquals(ckpBytes, Files.readAllBytes(location.resolve("translog-23.ckp")));
+        verify(blobContainer, times(1)).readBlobWithMetadata("translog-23.tlog");
+        verify(blobContainer, times(0)).readBlob("translog-23.ckp");
+    }
+
     private void mockDownloadBlobWithMetadataResponse() throws IOException {
         Map<String, String> metadata = new HashMap<>();
         String ckpDataString = Base64.getEncoder().encodeToString(ckpBytes);
@@ -1466,12 +1513,21 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         translogTransferManager.populateFileTrackerWithLocalState(List.of(reader1, reader2, reader3, reader4));
         assertEquals(
-            Set.of("translog-12.tlog", "translog-23.tlog", "translog-34.tlog", "translog-45.tlog"),
+            Set.of(
+                "translog-12.tlog",
+                "translog-12.ckp",
+                "translog-23.tlog",
+                "translog-23.ckp",
+                "translog-34.tlog",
+                "translog-34.ckp",
+                "translog-45.tlog",
+                "translog-45.ckp"
+            ),
             translogTransferManager.getFileTransferTracker().allUploaded()
         );
     }
 
-    public void testPopulateFileTrackerWithLocalStateNoCkpAsMetadata() {
+    public void testPopulateFileTrackerWithLocalStateUsingTranslogMetadata() {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
@@ -1489,9 +1545,6 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         when(reader2.getGeneration()).thenReturn(23L);
 
         translogTransferManager.populateFileTrackerWithLocalState(List.of(reader1, reader2));
-        assertEquals(
-            Set.of("translog-12.tlog", "translog-12.ckp", "translog-23.tlog", "translog-23.ckp"),
-            translogTransferManager.getFileTransferTracker().allUploaded()
-        );
+        assertEquals(Set.of("translog-12.tlog", "translog-23.tlog"), translogTransferManager.getFileTransferTracker().allUploaded());
     }
 }

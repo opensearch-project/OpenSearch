@@ -54,6 +54,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     private final SearchTransportService searchTransportService;
     private final SearchPhaseController searchPhaseController;
     private final ThreadPool threadPool;
+    private final SearchExecutionGate searchExecutionGate;
 
     @Inject
     public TransportSearchScrollAction(
@@ -62,23 +63,28 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
         ActionFilters actionFilters,
         SearchTransportService searchTransportService,
         SearchPhaseController searchPhaseController,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        SearchExecutionGate searchExecutionGate
     ) {
         super(SearchScrollAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchScrollRequest>) SearchScrollRequest::new);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
         this.searchPhaseController = searchPhaseController;
         this.threadPool = threadPool;
+        this.searchExecutionGate = searchExecutionGate;
     }
 
     @Override
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
+        if (task instanceof WorkloadGroupTask workloadGroupTask) {
+            workloadGroupTask.setWorkloadGroupId(threadPool.getThreadContext());
+        }
+        // Scroll pages are admitted too, or ?scroll= would bypass the limit.
+        searchExecutionGate.execute(task, request, listener, admittedListener -> executeScroll(task, request, admittedListener));
+    }
+
+    private void executeScroll(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
-
-            if (task instanceof WorkloadGroupTask) {
-                ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
-            }
-
             ParsedScrollId scrollId = request.parseScrollId();
             Runnable action;
             switch (scrollId.getType()) {

@@ -82,6 +82,10 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     private final ArchiveOperations archiveOperations;
     private int nodeIndex = 0;
     private int zoneCount = 1;
+    private int firstNodeIndex = 0;
+    private int numberOfNodes = 1;
+    /** What first needed this cluster's nodes, and so created them; null until then. */
+    private String realizedBy;
 
     public OpenSearchCluster(
         String clusterName,
@@ -98,10 +102,10 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
         this.workingDirBase = workingDirBase;
+        // No nodes yet. They are created when something first needs them (see nodes()), so that how many there are and
+        // how they are numbered can be configured in any order beforehand. Every cluster-wide setter below is a rule on
+        // this container, applied to each node as it is added, so configuration set before the nodes exist reaches them.
         this.nodes = project.container(OpenSearchNode.class);
-        // Always add the first node
-        String zone = hasZoneProperty() ? "zone-1" : "";
-        addNode(clusterName + "-0", zone);
         // configure the cluster name eagerly so all nodes know about it
         this.nodes.all((node) -> node.defaultConfig.put("cluster.name", safeName(clusterName)));
 
@@ -122,30 +126,63 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             throw new IllegalArgumentException("Number of nodes should be >= 1 but was " + numberOfNodes + " for " + this);
         }
 
+        if (realizedBy == null) {
+            this.numberOfNodes = numberOfNodes;
+            return;
+        }
+
+        // The nodes exist already, because something asked for them first. A cluster may still grow then, as it always
+        // could; it may not shrink.
         if (numberOfNodes <= nodes.size()) {
             throw new IllegalArgumentException(
-                "Cannot shrink " + this + " to have " + numberOfNodes + " nodes as it already has " + getNumberOfNodes()
+                "Cannot shrink " + this + " to have " + numberOfNodes + " nodes as it already has " + nodes.size()
             );
         }
+        for (int i = nodes.size(); i < numberOfNodes; i++) {
+            addNode(nodeName(i), zoneOf(i));
+        }
+        this.numberOfNodes = numberOfNodes;
+    }
 
-        if (numberOfNodes < zoneCount) {
-            throw new IllegalArgumentException(
-                "Number of nodes should be >= zoneCount but was " + numberOfNodes + " for " + this.zoneCount
+    /**
+     * Numbers this cluster's nodes from {@code firstNodeIndex} rather than from 0, so that its nodes are named
+     * {@code <cluster>-<firstNodeIndex>} onwards and do not share a name, and so a working directory, with the nodes of
+     * another build running the same cluster. Lets a second {@code ./gradlew run} add nodes to the cluster the first one
+     * started: nodes numbered from an offset join an existing cluster rather than bootstrapping one, and {@link RunTask}
+     * starts their ports at the same offset. Must be set before anything reads this cluster's nodes.
+     */
+    public void setFirstNodeIndex(int firstNodeIndex) {
+        checkFrozen();
+        if (firstNodeIndex < 0) {
+            throw new IllegalArgumentException("First node index should be >= 0 but was " + firstNodeIndex + " for " + this);
+        }
+        if (realizedBy != null) {
+            throw new IllegalStateException(
+                "Cannot number the nodes of "
+                    + this
+                    + " from "
+                    + firstNodeIndex
+                    + ": they were already created, by "
+                    + realizedBy
+                    + ". Set firstNodeIndex before anything reads the cluster's nodes."
             );
         }
+        this.firstNodeIndex = firstNodeIndex;
+    }
 
-        if (hasZoneProperty()) {
-            int currentZone;
-            for (int i = nodes.size(); i < numberOfNodes; i++) {
-                currentZone = i % zoneCount + 1;
-                String zoneName = "zone-" + currentZone;
-                addNode(clusterName + "-" + i, zoneName);
-            }
-        } else {
-            for (int i = nodes.size(); i < numberOfNodes; i++) {
-                addNode(clusterName + "-" + i, "");
-            }
-        }
+    @Internal
+    public int getFirstNodeIndex() {
+        return firstNodeIndex;
+    }
+
+    /** The name of this cluster's {@code i}th node, counting from 0 within this cluster. */
+    private String nodeName(int i) {
+        return clusterName + "-" + (firstNodeIndex + i);
+    }
+
+    /** Zones are assigned round-robin by node index, so nodes numbered from an offset continue the rotation. */
+    private String zoneOf(int i) {
+        return hasZoneProperty() ? "zone-" + ((firstNodeIndex + i) % zoneCount + 1) : "";
     }
 
     private boolean hasZoneProperty() {
@@ -170,12 +207,54 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
 
     @Internal
     OpenSearchNode getFirstNode() {
-        return nodes.getAt(clusterName + "-0");
+        return nodes().getAt(nodeName(0));
     }
 
     @Internal
     public int getNumberOfNodes() {
-        return nodes.size();
+        return nodes().size();
+    }
+
+    /**
+     * This cluster's nodes, created on first use from what has been configured. Every read goes through here; the
+     * cluster-wide setters do not, since they are rules on the container and must not create the nodes early.
+     *
+     * <p>First use is at the latest when Gradle snapshots the inputs of a task using this cluster, since the nodes are
+     * {@link #getNodes() nested inputs} of it, and that happens before anything starts.
+     */
+    private NamedDomainObjectContainer<OpenSearchNode> nodes() {
+        if (realizedBy == null) {
+            realize(describeCaller());
+        }
+        return nodes;
+    }
+
+    /**
+     * Creates this cluster's nodes from what has been configured, if nothing has yet. Called by {@link TestClustersPlugin}
+     * when the project has finished evaluating, so that the nodes, and the distributions and configurations they create,
+     * exist before Gradle plans any task with them.
+     *
+     * @param why what is creating them, for the error if something later tries to change how they are numbered
+     */
+    void realize(String why) {
+        if (realizedBy != null) {
+            return;
+        }
+        realizedBy = why;
+        for (int i = 0; i < numberOfNodes; i++) {
+            addNode(nodeName(i), zoneOf(i));
+        }
+    }
+
+    /** The first caller outside this class, for an error that has to say what created the nodes too early. */
+    private static String describeCaller() {
+        return StackWalker.getInstance()
+            .walk(
+                frames -> frames.filter(frame -> frame.getClassName().equals(OpenSearchCluster.class.getName()) == false)
+                    .findFirst()
+                    .map(frame -> frame.getClassName() + "." + frame.getMethodName() + ":" + frame.getLineNumber())
+                    .orElse("an unknown caller")
+            );
     }
 
     @Internal
@@ -330,7 +409,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
 
     @Internal
     public boolean isPreserveDataDir() {
-        return nodes.stream().anyMatch(node -> node.isPreserveDataDir());
+        return nodes().stream().anyMatch(node -> node.isPreserveDataDir());
     }
 
     @Override
@@ -340,7 +419,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     public void freeze() {
-        nodes.forEach(OpenSearchNode::freeze);
+        nodes().forEach(OpenSearchNode::freeze);
         configurationFrozen.set(true);
     }
 
@@ -353,26 +432,26 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     @Override
     public void start() {
         commonNodeConfig();
-        nodes.stream().filter(node -> {
+        nodes().stream().filter(node -> {
             if (node.getVersion().onOrAfter("6.5.0")) {
                 return true;
             } else {
                 // We already started it to set seed nodes
-                return node.equals(nodes.iterator().next()) == false;
+                return node.equals(nodes().iterator().next()) == false;
             }
         }).forEach(OpenSearchNode::start);
     }
 
     private void commonNodeConfig() {
         final String nodeNames;
-        if (nodes.stream().map(OpenSearchNode::getName).anyMatch(name -> name == null)) {
+        if (nodes().stream().map(OpenSearchNode::getName).anyMatch(name -> name == null)) {
             nodeNames = null;
         } else {
-            nodeNames = nodes.stream().map(OpenSearchNode::getName).map(this::safeName).collect(Collectors.joining(","));
+            nodeNames = nodes().stream().map(OpenSearchNode::getName).map(this::safeName).collect(Collectors.joining(","));
         }
 
         OpenSearchNode firstNode = null;
-        for (OpenSearchNode node : nodes) {
+        for (OpenSearchNode node : nodes()) {
             // Can only configure master nodes if we have node names defined
             if (nodeNames != null) {
                 commonNodeConfig(node, nodeNames, firstNode);
@@ -394,7 +473,11 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
                 .filter(name -> name.startsWith("discovery.zen."))
                 .collect(Collectors.toList())
                 .forEach(node.defaultConfig::remove);
-            if (nodeNames != null && node.settings.getOrDefault("discovery.type", "anything").equals("single-node") == false) {
+            // Nodes numbered from an offset join a cluster that is already running, so they must not bootstrap one: listed
+            // as the initial cluster-manager nodes, they could elect among themselves and form a second cluster.
+            if (nodeNames != null
+                && firstNodeIndex == 0
+                && node.settings.getOrDefault("discovery.type", "anything").equals("single-node") == false) {
                 // To promote inclusive language, the old setting name is deprecated n 2.0.0
                 if (node.getVersion().onOrAfter("2.0.0")) {
                     node.defaultConfig.put("cluster.initial_cluster_manager_nodes", "[" + nodeNames + "]");
@@ -406,8 +489,8 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             node.defaultConfig.put("discovery.seed_hosts", "[]");
         } else {
             node.defaultConfig.put("discovery.zen.master_election.wait_for_joins_timeout", "5s");
-            if (nodes.size() > 1) {
-                node.defaultConfig.put("discovery.zen.minimum_master_nodes", Integer.toString(nodes.size() / 2 + 1));
+            if (nodes().size() > 1) {
+                node.defaultConfig.put("discovery.zen.minimum_master_nodes", Integer.toString(nodes().size() / 2 + 1));
             }
             if (node.getVersion().onOrAfter("6.5.0")) {
                 node.defaultConfig.put("discovery.zen.hosts_provider", "file");
@@ -425,19 +508,19 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     public void restart() {
-        nodes.forEach(OpenSearchNode::restart);
+        nodes().forEach(OpenSearchNode::restart);
     }
 
     public void goToNextVersion() {
         stop(false);
-        nodes.all(OpenSearchNode::goToNextVersion);
+        nodes().all(OpenSearchNode::goToNextVersion);
         start();
         writeUnicastHostsFiles();
     }
 
     public void upgradeAllNodesAndPluginsToNextVersion(List<Provider<RegularFile>> plugins) {
         stop(false);
-        nodes.all(OpenSearchNode::goToNextVersion);
+        nodes().all(OpenSearchNode::goToNextVersion);
         upgradePlugin(plugins);
         start();
         writeUnicastHostsFiles();
@@ -475,8 +558,8 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     }
 
     private void writeUnicastHostsFiles() {
-        String unicastUris = nodes.stream().flatMap(node -> node.getAllTransportPortURI().stream()).collect(Collectors.joining("\n"));
-        nodes.forEach(node -> {
+        String unicastUris = nodes().stream().flatMap(node -> node.getAllTransportPortURI().stream()).collect(Collectors.joining("\n"));
+        nodes().forEach(node -> {
             try {
                 Files.write(node.getConfigDir().resolve("unicast_hosts.txt"), unicastUris.getBytes(StandardCharsets.UTF_8));
             } catch (IOException e) {
@@ -486,10 +569,10 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     }
 
     private OpenSearchNode upgradeNodeToNextVersion() {
-        if (nodeIndex + 1 > nodes.size()) {
+        if (nodeIndex + 1 > nodes().size()) {
             throw new TestClustersException("Ran out of nodes to take to the next version");
         }
-        OpenSearchNode node = nodes.getByName(clusterName + "-" + nodeIndex);
+        OpenSearchNode node = nodes().getByName(nodeName(nodeIndex));
         node.stop(false);
         node.goToNextVersion();
         commonNodeConfig(node, null, null);
@@ -515,14 +598,14 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     @Internal
     public List<String> getAllHttpSocketURI() {
         waitForAllConditions();
-        return nodes.stream().flatMap(each -> each.getAllHttpSocketURI().stream()).collect(Collectors.toList());
+        return nodes().stream().flatMap(each -> each.getAllHttpSocketURI().stream()).collect(Collectors.toList());
     }
 
     @Override
     @Internal
     public List<String> getAllTransportPortURI() {
         waitForAllConditions();
-        return nodes.stream().flatMap(each -> each.getAllTransportPortURI().stream()).collect(Collectors.toList());
+        return nodes().stream().flatMap(each -> each.getAllTransportPortURI().stream()).collect(Collectors.toList());
     }
 
     public void waitForAllConditions() {
@@ -534,7 +617,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     public void stop(boolean tailLogs) {
-        nodes.forEach(each -> each.stop(tailLogs));
+        nodes().forEach(each -> each.stop(tailLogs));
     }
 
     @Override
@@ -545,12 +628,12 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
     @Override
     @Internal
     public boolean isProcessAlive() {
-        return nodes.stream().noneMatch(node -> node.isProcessAlive() == false);
+        return nodes().stream().noneMatch(node -> node.isProcessAlive() == false);
     }
 
     public OpenSearchNode singleNode() {
-        if (nodes.size() != 1) {
-            throw new IllegalStateException("Can't treat " + this + " as single node as it has " + nodes.size() + " nodes");
+        if (nodes().size() != 1) {
+            throw new IllegalStateException("Can't treat " + this + " as single node as it has " + nodes().size() + " nodes");
         }
         return getFirstNode();
     }
@@ -560,7 +643,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
             try {
                 WaitForHttpResource wait;
                 if (!getFirstNode().isSecure()) {
-                    wait = new WaitForHttpResource("http", getFirstNode().getHttpSocketURI(), nodes.size());
+                    wait = new WaitForHttpResource("http", getFirstNode().getHttpSocketURI(), nodes().size());
                     List<Map<String, String>> credentials = getFirstNode().getCredentials();
                     if (getFirstNode().getCredentials().isEmpty() == false) {
                         wait.setUsername(credentials.get(0).get("useradd"));
@@ -572,7 +655,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
                         getFirstNode().getHttpSocketURI(),
                         getFirstNode().getCredentials().get(0).get("username"),
                         getFirstNode().getCredentials().get(0).get("password"),
-                        nodes.size()
+                        nodes().size()
                     );
                     wait.setUsername(getFirstNode().getCredentials().get(0).get("username"));
                     wait.setPassword(getFirstNode().getCredentials().get(0).get("password"));
@@ -592,7 +675,7 @@ public class OpenSearchCluster implements TestClusterConfiguration, Named {
 
     @Nested
     public NamedDomainObjectContainer<OpenSearchNode> getNodes() {
-        return nodes;
+        return nodes();
     }
 
     @Override

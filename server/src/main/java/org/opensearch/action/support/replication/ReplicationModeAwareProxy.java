@@ -79,14 +79,15 @@ public class ReplicationModeAwareProxy<ReplicaRequest extends ReplicationRequest
             return ReplicationMode.FULL_REPLICATION;
         }
         /*
-        Only applicable during remote store migration.
-        During the migration process, remote based index settings will not be enabled,
-        thus we will rely on node attributes to figure out the replication mode
+        Applicable during remote store migration and when the remote store only holds segments.
+        In both cases the index level remote translog setting is not enabled, so we rely on node attributes to figure
+        out the replication mode. The replica can only be skipped when its translog is durably stored in a remote
+        store; otherwise the operations would never reach it.
          */
         if (isRemoteEnabled == false) {
             DiscoveryNode targetNode = discoveryNodes.get(shardRouting.currentNodeId());
-            if (targetNode != null && targetNode.isRemoteStoreNode() == false) {
-                // Perform full replication if replica is hosted on a non-remote node.
+            if (targetNode != null && targetNode.isRemoteTranslogStoreNode() == false) {
+                // Perform full replication if the replica does not have a remote translog.
                 return ReplicationMode.FULL_REPLICATION;
             }
         }

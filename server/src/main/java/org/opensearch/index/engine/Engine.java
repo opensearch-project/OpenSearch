@@ -494,6 +494,46 @@ public abstract class Engine implements LifecycleAware, Closeable {
     public abstract NoOpResult noOp(NoOp noOp) throws IOException;
 
     /**
+     * A bulk-request scope that batches successful primary index operations before appending them to the translog.
+     * Created by {@link #beginTranslogBatch()}.
+     * <p>
+     * The default {@link #beginTranslogBatch()} returns {@link #NO_OP_TRANSLOG_BATCH}, under which engines keep writing
+     * inline exactly as today; only an engine that overrides it defers. {@link #flush()} appends the currently pending
+     * chunk but keeps the scope open, allowing a realtime GET or a size limit to force an early append while the bulk
+     * continues. {@link #finish()} appends the final chunk and closes the scope.
+     * <p>
+     * A flush may be initiated by another thread resolving a pending realtime GET. Implementations must serialize
+     * concurrent add/flush activity. If an append fails, all affected requests must fail with the exception the
+     * per-operation translog path would have thrown, and the engine is consulted exactly as for a per-operation
+     * translog failure: it fails only if the exception is the translog's own tragic event.
+     *
+     * @opensearch.api
+     */
+    @PublicApi(since = "3.0.0")
+    public interface TranslogBatch {
+        /** Append the currently pending chunk and return the greatest location appended by this scope so far. */
+        @Nullable
+        Translog.Location flush();
+
+        /** Append the final pending chunk, close this scope, and return its greatest translog location. */
+        @Nullable
+        default Translog.Location finish() {
+            return flush();
+        }
+    }
+
+    /** A {@link TranslogBatch} that batches nothing; every op is written inline as before. */
+    public static final TranslogBatch NO_OP_TRANSLOG_BATCH = () -> null;
+
+    /**
+     * Begin a translog batch for the current bulk-request execution scope. The default is a no-op batch, so engines
+     * that do not opt in keep appending inline.
+     */
+    public TranslogBatch beginTranslogBatch() {
+        return NO_OP_TRANSLOG_BATCH;
+    }
+
+    /**
      * Base class for index and delete operation results
      * Holds result meta data (e.g. translog location, updated version)
      * for an executed write {@link Operation}
@@ -842,10 +882,17 @@ public abstract class Engine implements LifecycleAware, Closeable {
     }
 
     public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {
-        SearcherSupplier releasable = null;
+        return acquireSearcher(source, acquireSearcherSupplier(wrapper, scope));
+    }
+
+    /**
+     * Acquires one searcher from {@code supplier} and ties the supplier's lifetime to it. Takes ownership of
+     * {@code supplier}: it is closed with the returned searcher, or immediately if acquisition fails.
+     */
+    public static Searcher acquireSearcher(String source, SearcherSupplier supplier) {
+        SearcherSupplier releasable = supplier;
         try {
-            SearcherSupplier reader = releasable = acquireSearcherSupplier(wrapper, scope);
-            Searcher searcher = reader.acquireSearcher(source);
+            Searcher searcher = supplier.acquireSearcher(source);
             releasable = null;
             return new Searcher(
                 source,
@@ -853,7 +900,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 searcher.getSimilarity(),
                 searcher.getQueryCache(),
                 searcher.getQueryCachingPolicy(),
-                () -> Releasables.close(searcher, reader)
+                () -> Releasables.close(searcher, supplier)
             );
         } finally {
             Releasables.close(releasable);
@@ -1357,13 +1404,18 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * regardless of retention policy. Default wraps {@link #acquireLastIndexCommit(boolean)}.
      * Propagates {@link IOException} as-is so callers (e.g. shard-store fetch on corrupted
      * indices) can treat read failures uniformly with the legacy commit path.
+     * <p>
+     * The commit is read through {@link Store#toCatalogSnapshot(IndexCommit)} rather than
+     * {@link Lucene#readSegmentInfos(IndexCommit)} so that a commit which cannot be parsed is classified as
+     * corruption and marks the store. Reading via Lucene directly would bypass that bookkeeping, leaving a
+     * shard with damaged segment metadata to fail every snapshot attempt without ever being failed and
+     * reallocated.
      */
     @ExperimentalApi
     public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException, IOException {
         final GatedCloseable<IndexCommit> commitRef = acquireLastIndexCommit(flushFirst);
         try {
-            final SegmentInfos infos = Lucene.readSegmentInfos(commitRef.get());
-            final CatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(infos);
+            final CatalogSnapshot snapshot = store.toCatalogSnapshot(commitRef.get());
             return new GatedCloseable<>(snapshot, commitRef::close);
         } catch (IOException | RuntimeException e) {
             try {
