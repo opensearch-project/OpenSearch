@@ -95,7 +95,7 @@ public class IngestionSource {
         this.warmupConfig = warmupConfig;
         this.sourcePartitionStrategy = sourcePartitionStrategy;
         this.writeEnabled = writeEnabled;
-        this.writeParams = writeParams != null ? Collections.unmodifiableMap(writeParams) : Collections.emptyMap();
+        this.writeParams = writeParams != null ? Collections.unmodifiableMap(new HashMap<>(writeParams)) : Collections.emptyMap();
     }
 
     public String getType() {

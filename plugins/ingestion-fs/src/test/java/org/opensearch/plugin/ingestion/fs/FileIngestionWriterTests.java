@@ -74,6 +74,23 @@ public class FileIngestionWriterTests extends OpenSearchTestCase {
         }
     }
 
+    public void testWritersOnTheSameFileReportTheRightOffsets() throws Exception {
+        // several writers in one JVM append to the same partition file, as coordinating nodes in a test cluster do
+        Path baseDir = createTempDir();
+        try (
+            IngestionWriter first = new FileIngestionWriter(config(baseDir));
+            IngestionWriter second = new FileIngestionWriter(config(baseDir))
+        ) {
+            assertEquals(new FileOffset(0), write(first, 0, "{\"_id\":\"a\"}"));
+            assertEquals(new FileOffset(1), write(second, 0, "{\"_id\":\"b\"}"));
+            assertEquals(new FileOffset(2), write(first, 0, "{\"_id\":\"c\"}"));
+        }
+        assertEquals(
+            List.of("{\"_id\":\"a\"}", "{\"_id\":\"b\"}", "{\"_id\":\"c\"}"),
+            Files.readAllLines(baseDir.resolve("stream/0.ndjson"))
+        );
+    }
+
     public void testTheConsumerReadsWhatTheWriterWrote() throws Exception {
         Path baseDir = createTempDir();
         try (IngestionWriter writer = new FileIngestionWriter(config(baseDir))) {

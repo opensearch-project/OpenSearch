@@ -388,4 +388,12 @@ public class IngestionSourceTests extends OpenSearchTestCase {
             e.getMessage()
         );
     }
+
+    public void testWriteParamsAreCopiedFromTheBuilder() {
+        Map<String, Object> writeParams = new HashMap<>(Map.of("linger.ms", "5"));
+        IngestionSource source = new IngestionSource.Builder("type").setWriteParams(writeParams).build();
+
+        writeParams.put("acks", "all");
+        assertEquals(Map.of("linger.ms", "5"), source.getWriteParams());
+    }
 }

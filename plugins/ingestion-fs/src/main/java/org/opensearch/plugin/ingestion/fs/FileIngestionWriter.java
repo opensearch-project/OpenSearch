@@ -8,6 +8,8 @@
 
 package org.opensearch.plugin.ingestion.fs;
 
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.util.concurrent.KeyedLock;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.IngestionWriter;
@@ -19,19 +21,19 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * File-based writer for testing ingestion. Appends each message as one line to ${baseDir}/${stream}/${partition}.ndjson,
  * the file {@link FilePartitionConsumer} reads for that shard, and reports the message's line number as its offset.
- * Assumes it is the only writer of these files.
+ * Writers in the same JVM share a lock per file and count its lines on every write, so several writers can append to
+ * the same partition; other processes must not write these files.
  */
 public class FileIngestionWriter implements IngestionWriter {
 
+    // one lock per file, shared by all writers in the JVM
+    private static final KeyedLock<Path> FILE_LOCKS = new KeyedLock<>();
+
     private final Path streamDir;
-    // next line number per partition, counted from the file on first use
-    private final Map<Integer, Long> nextLines = new HashMap<>();
 
     /**
      * Initialize a FileIngestionWriter.
@@ -53,21 +55,22 @@ public class FileIngestionWriter implements IngestionWriter {
         listener.onResponse(offset);
     }
 
-    private synchronized FileOffset append(int partition, byte[] message) throws IOException {
+    private FileOffset append(int partition, byte[] message) throws IOException {
         for (byte b : message) {
             if (b == '\n' || b == '\r') {
                 throw new IllegalArgumentException("message must be a single line");
             }
         }
-        Path file = streamDir.resolve(partition + ".ndjson");
-        long line = nextLines.computeIfAbsent(partition, p -> countLines(file));
-        Files.createDirectories(streamDir);
-        byte[] lineBytes = new byte[message.length + 1];
-        System.arraycopy(message, 0, lineBytes, 0, message.length);
-        lineBytes[message.length] = '\n';
-        Files.write(file, lineBytes, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-        nextLines.put(partition, line + 1);
-        return new FileOffset(line);
+        Path file = streamDir.resolve(partition + ".ndjson").toAbsolutePath().normalize();
+        try (Releasable ignored = FILE_LOCKS.acquire(file)) {
+            Files.createDirectories(streamDir);
+            long line = countLines(file);
+            byte[] lineBytes = new byte[message.length + 1];
+            System.arraycopy(message, 0, lineBytes, 0, message.length);
+            lineBytes[message.length] = '\n';
+            Files.write(file, lineBytes, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            return new FileOffset(line);
+        }
     }
 
     // counts newline bytes, so the count does not depend on the encoding; a last line without a
