@@ -755,6 +755,48 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertEquals(expected, transformedMap);
     }
 
+    public void testTransformDottedKeys() {
+        Map<String, Object> mapToTransform = MapBuilder.<String, Object>newMapBuilder()
+            .put("test1.nest1", "value_before")
+            .put("test2.nest2", List.of(Map.of("nest3", "value_before"), Map.of("nest3", "value_before")))
+            .put("test3", Map.of("nest4.nest5", "value_before"))
+            .put("test4.nest6", Map.of("nest7", "value_before"))
+            .immutableMap();
+        Map<String, Function<Object, Object>> transformers = Map.of(
+            "test1.nest1",
+            v -> "value_after",
+            "test2.nest2.nest3",
+            v -> "value_after",
+            "test3.nest4.nest5",
+            v -> "value_after",
+            "test4.nest6.nest7",
+            v -> "value_after"
+        );
+
+        Map<String, Object> expected = MapBuilder.<String, Object>newMapBuilder()
+            .put("test1.nest1", "value_after")
+            .put("test2.nest2", List.of(Map.of("nest3", "value_after"), Map.of("nest3", "value_after")))
+            .put("test3", Map.of("nest4.nest5", "value_after"))
+            .put("test4.nest6", Map.of("nest7", "value_after"))
+            .immutableMap();
+
+        Map<String, Object> transformedMap = XContentMapValues.transform(mapToTransform, transformers, false);
+        assertEquals(expected, transformedMap);
+    }
+
+    public void testTransformDottedKeysWithoutMatch() {
+        Map<String, Object> mapToTransform = MapBuilder.<String, Object>newMapBuilder()
+            .put("test1.other", "value_before")
+            .put("test1.", "value_before")
+            .put(".test1", "value_before")
+            .put("test1.nest1.nest2", "value_before")
+            .immutableMap();
+        Map<String, Function<Object, Object>> transformers = Map.of("test1.nest1", v -> "value_after");
+
+        Map<String, Object> transformedMap = XContentMapValues.transform(mapToTransform, transformers, false);
+        assertEquals(mapToTransform, transformedMap);
+    }
+
     public void testCaseInsensitive_ExcludeLeafUnderObject() {
         Map<String, Object> doc = new HashMap<>();
         Map<String, Object> book = new HashMap<>();

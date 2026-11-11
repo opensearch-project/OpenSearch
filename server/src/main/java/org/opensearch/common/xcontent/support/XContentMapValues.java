@@ -676,7 +676,8 @@ public class XContentMapValues {
     /**
      * Performs a depth first traversal of a map and applies a transformation for each field matched along the way. For
      * duplicated paths with transformers (i.e. "test.nested" and "test.nested.field"), only the transformer for
-     * the shorter path is applied.
+     * the shorter path is applied. A source key that contains dots, such as "test.nested", matches
+     * the same transformers as the object path it stands for.
      *
      * @param source Source map to perform transformation on
      * @param transformers Map from path to transformer to apply to each path. Each transformer is a function that takes
@@ -695,7 +696,8 @@ public class XContentMapValues {
     /**
      * Returns function that performs a depth first traversal of a map and applies a transformation for each field
      * matched along the way. For duplicated paths with transformers (i.e. "test.nested" and "test.nested.field"), only
-     * the transformer for the shorter path is applied.
+     * the transformer for the shorter path is applied. A source key that contains dots, such as "test.nested", matches the same
+     * transformers as the object path it stands for.
      *
      * @param transformers Map from path to transformer to apply to each path. Each transformer is a function that takes
      *                     the current value and returns a transformed value
@@ -758,11 +760,10 @@ public class XContentMapValues {
         String key = entry.getKey();
         Object value = entry.getValue();
 
-        Object subTrieObj = currentTrie.get(key);
-        if (subTrieObj instanceof Map == false) {
+        Map<String, Object> subTrie = resolveSubTrie(currentTrie, key);
+        if (subTrie == null) {
             return;
         }
-        Map<String, Object> subTrie = nodeMapValue(subTrieObj, "transform");
 
         // Apply transformation if available
         Function<Object, Object> transformer = (Function<Object, Object>) subTrie.get(TRANSFORMER_TRIE_LEAF_KEY);
@@ -787,6 +788,31 @@ public class XContentMapValues {
             }
             processList(subList, subTrie, stack, inPlace);
         }
+    }
+
+    /**
+     * Returns the trie node for a source key, or {@code null} if no transformer path goes through it. A key with dots, such
+     * as {@code "a.b"}, is the same field as the object path {@code a -> b}, so it is resolved one part at a time. If a part
+     * before the last one already has a transformer, that shorter path owns the field and the key is not resolved.
+     */
+    private static Map<String, Object> resolveSubTrie(Map<String, Object> currentTrie, String key) {
+        if (key.indexOf('.') < 0) {
+            Object subTrieObj = currentTrie.get(key);
+            return subTrieObj instanceof Map ? nodeMapValue(subTrieObj, "transform") : null;
+        }
+        String[] parts = key.split("\\.", -1);
+        Map<String, Object> subTrie = currentTrie;
+        for (int i = 0; i < parts.length; i++) {
+            Object subTrieObj = subTrie.get(parts[i]);
+            if (subTrieObj instanceof Map == false) {
+                return null;
+            }
+            subTrie = nodeMapValue(subTrieObj, "transform");
+            if (i < parts.length - 1 && subTrie.containsKey(TRANSFORMER_TRIE_LEAF_KEY)) {
+                return null;
+            }
+        }
+        return subTrie;
     }
 
     private static void processList(
