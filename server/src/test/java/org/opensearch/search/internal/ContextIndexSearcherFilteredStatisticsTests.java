@@ -48,6 +48,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -148,14 +149,21 @@ public class ContextIndexSearcherFilteredStatisticsTests extends OpenSearchTestC
 
     public void testAFilterThatAdmitsNoDocumentScoresNothingAndDoesNotFail() throws IOException {
         Query nothing = new TermQuery(new Term("dept", "nobody"));
-        ContextIndexSearcher searcher = searcher(contextScopedTo(nothing));
-        Query query = new BooleanQuery.Builder().add(new TermQuery(new Term("body", "alpha")), BooleanClause.Occur.MUST)
-            .add(nothing, BooleanClause.Occur.FILTER)
-            .build();
+        FilteredStatsCache cache = new FilteredStatsCache(
+            IndexSettingsModule.newIndexSettings("idx", Settings.EMPTY),
+            new IndicesFilteredStatsCache(Settings.EMPTY, new NoopCircuitBreaker(CircuitBreaker.FIELDDATA))
+        );
+        // Without the cache, then twice through it, so the fill and the hit are both checked.
+        for (FilteredStatsCache c : Arrays.asList(null, cache, cache)) {
+            ContextIndexSearcher searcher = searcher(contextScopedTo(nothing, c));
+            Query query = new BooleanQuery.Builder().add(new TermQuery(new Term("body", "alpha")), BooleanClause.Occur.MUST)
+                .add(nothing, BooleanClause.Occur.FILTER)
+                .build();
 
-        TopDocs top = searcher.search(query, 10);
-        assertEquals(0, top.totalHits.value());
-        assertNull("the dfs phase must contribute nothing for the field", searcher.visibleSubsetCollectionStatistics("body"));
+            TopDocs top = searcher.search(query, 10);
+            assertEquals(0, top.totalHits.value());
+            assertNull("the dfs phase must contribute nothing for the field", searcher.visibleSubsetCollectionStatistics("body"));
+        }
     }
 
     public void testUnscopedContextReadsWholeIndexStatistics() throws IOException {
