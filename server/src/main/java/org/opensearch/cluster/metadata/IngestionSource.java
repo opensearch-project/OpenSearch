@@ -8,6 +8,7 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -31,6 +32,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_POI
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_POLL_TIMEOUT;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_WRITE_ENABLED_SETTING;
 
 /**
  * Class encapsulating the configuration of an ingestion source.
@@ -53,6 +55,8 @@ public class IngestionSource {
     private final Map<String, Object> decoderSettings;
     private final WarmupConfig warmupConfig;
     private final SourcePartitionStrategy sourcePartitionStrategy;
+    private final boolean writeEnabled;
+    private final Map<String, Object> writeParams;
 
     private IngestionSource(
         String type,
@@ -70,7 +74,9 @@ public class IngestionSource {
         String decoderType,
         Map<String, Object> decoderSettings,
         WarmupConfig warmupConfig,
-        SourcePartitionStrategy sourcePartitionStrategy
+        SourcePartitionStrategy sourcePartitionStrategy,
+        boolean writeEnabled,
+        Map<String, Object> writeParams
     ) {
         this.type = type;
         this.pointerInitReset = pointerInitReset;
@@ -88,6 +94,8 @@ public class IngestionSource {
         this.decoderSettings = decoderSettings != null ? Collections.unmodifiableMap(decoderSettings) : Collections.emptyMap();
         this.warmupConfig = warmupConfig;
         this.sourcePartitionStrategy = sourcePartitionStrategy;
+        this.writeEnabled = writeEnabled;
+        this.writeParams = writeParams != null ? Collections.unmodifiableMap(writeParams) : Collections.emptyMap();
     }
 
     public String getType() {
@@ -154,6 +162,57 @@ public class IngestionSource {
         return sourcePartitionStrategy;
     }
 
+    /**
+     * Whether the index accepts document writes, which are produced to its stream.
+     */
+    @ExperimentalApi
+    public boolean isWriteEnabled() {
+        return writeEnabled;
+    }
+
+    /**
+     * Producer-only settings, added to {@link #params()} when writing to the stream.
+     */
+    @ExperimentalApi
+    public Map<String, Object> getWriteParams() {
+        return writeParams;
+    }
+
+    /**
+     * The settings a writer uses: {@link #params()} plus {@link #getWriteParams()}. Write params can only add settings;
+     * a key that is also in {@link #params()} is rejected, so the writer uses the stream the shards read.
+     *
+     * @throws IllegalArgumentException if a write param is also set in {@link #params()}
+     */
+    @ExperimentalApi
+    public Map<String, Object> getWriterParams() {
+        validateWriteParams(params, writeParams);
+        Map<String, Object> writerParams = new HashMap<>(params);
+        writerParams.putAll(writeParams);
+        return Collections.unmodifiableMap(writerParams);
+    }
+
+    /**
+     * Rejects write params that are also set as params, so that a writer uses the stream the shards read.
+     *
+     * @param params      the {@code index.ingestion_source.param.*} values
+     * @param writeParams the {@code index.ingestion_source.write.param.*} values
+     * @throws IllegalArgumentException if a write param is also set as a param
+     */
+    static void validateWriteParams(Map<String, Object> params, Map<String, Object> writeParams) {
+        for (String key : writeParams.keySet()) {
+            if (params.containsKey(key)) {
+                throw new IllegalArgumentException(
+                    "[index.ingestion_source.write.param."
+                        + key
+                        + "] is already set as [index.ingestion_source.param."
+                        + key
+                        + "]: write params can only add settings, so that writes go to the stream the index reads"
+                );
+            }
+        }
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -174,7 +233,9 @@ public class IngestionSource {
             && Objects.equals(decoderType, ingestionSource.decoderType)
             && Objects.equals(decoderSettings, ingestionSource.decoderSettings)
             && Objects.equals(warmupConfig, ingestionSource.warmupConfig)
-            && Objects.equals(sourcePartitionStrategy, ingestionSource.sourcePartitionStrategy);
+            && Objects.equals(sourcePartitionStrategy, ingestionSource.sourcePartitionStrategy)
+            && writeEnabled == ingestionSource.writeEnabled
+            && Objects.equals(writeParams, ingestionSource.writeParams);
     }
 
     @Override
@@ -195,7 +256,9 @@ public class IngestionSource {
             decoderType,
             decoderSettings,
             warmupConfig,
-            sourcePartitionStrategy
+            sourcePartitionStrategy,
+            writeEnabled,
+            writeParams
         );
     }
 
@@ -240,6 +303,10 @@ public class IngestionSource {
             + ", sourcePartitionStrategy='"
             + sourcePartitionStrategy
             + '\''
+            + ", writeEnabled="
+            + writeEnabled
+            + ", writeParams="
+            + writeParams
             + '}';
     }
 
@@ -357,6 +424,8 @@ public class IngestionSource {
         // Warmup configuration
         private TimeValue warmupTimeout = INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING.getDefault(Settings.EMPTY);
         private long warmupLagThreshold = INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING.getDefault(Settings.EMPTY);
+        private boolean writeEnabled = INGESTION_SOURCE_WRITE_ENABLED_SETTING.getDefault(Settings.EMPTY);
+        private Map<String, Object> writeParams = new HashMap<>();
 
         public Builder(String type) {
             this.type = type;
@@ -380,6 +449,8 @@ public class IngestionSource {
             WarmupConfig wc = ingestionSource.warmupConfig;
             this.warmupTimeout = wc.timeout();
             this.warmupLagThreshold = wc.lagThreshold();
+            this.writeEnabled = ingestionSource.writeEnabled;
+            this.writeParams = new HashMap<>(ingestionSource.writeParams);
         }
 
         public Builder setPointerInitReset(PointerInitReset pointerInitReset) {
@@ -473,6 +544,18 @@ public class IngestionSource {
             return this;
         }
 
+        @ExperimentalApi
+        public Builder setWriteEnabled(boolean writeEnabled) {
+            this.writeEnabled = writeEnabled;
+            return this;
+        }
+
+        @ExperimentalApi
+        public Builder setWriteParams(Map<String, Object> writeParams) {
+            this.writeParams = writeParams;
+            return this;
+        }
+
         public IngestionSource build() {
             WarmupConfig warmupConfig = new WarmupConfig(warmupTimeout, warmupLagThreshold);
             return new IngestionSource(
@@ -491,7 +574,9 @@ public class IngestionSource {
                 decoderType,
                 decoderSettings,
                 warmupConfig,
-                sourcePartitionStrategy
+                sourcePartitionStrategy,
+                writeEnabled,
+                writeParams
             );
         }
 
