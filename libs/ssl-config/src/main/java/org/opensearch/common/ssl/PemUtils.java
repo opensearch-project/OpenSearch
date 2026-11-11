@@ -33,10 +33,12 @@
 package org.opensearch.common.ssl;
 
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
+import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
 import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
-import org.bouncycastle.jsse.provider.BouncyCastleJsseProvider;
 import org.bouncycastle.openssl.PEMEncryptedKeyPair;
+import org.bouncycastle.openssl.PEMException;
 import org.bouncycastle.openssl.PEMKeyPair;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
@@ -45,33 +47,43 @@ import org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo;
 import org.bouncycastle.pkcs.PKCSException;
 import org.bouncycastle.pkcs.jcajce.JcePKCSPBEInputDecryptorProviderBuilder;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
+import java.security.KeyFactory;
 import java.security.PrivateKey;
-import java.security.Security;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Supplier;
 
 final class PemUtils {
 
-    static {
-        var highestPriority = 1;
-        if (Security.getProvider(BouncyCastleFipsProvider.PROVIDER_NAME) == null) {
-            Security.insertProviderAt(new BouncyCastleFipsProvider(), highestPriority++);
-        }
-        if (Security.getProvider(BouncyCastleJsseProvider.PROVIDER_NAME) == null) {
-            Security.insertProviderAt(new BouncyCastleJsseProvider(), highestPriority);
-        }
-    }
+    /**
+     * The standard JCA key algorithm of each common private key type. {@link JcaPEMKeyConverter} asks for "ECDSA" instead of "EC",
+     * which only BouncyCastle offers, so an EC key would always come from BouncyCastle, even when the JDK's providers come first.
+     */
+    private static final byte DER_SEQUENCE_TAG = 0x30;
+
+    private static final Map<ASN1ObjectIdentifier, String> KEY_ALGORITHMS = Map.of(
+        PKCSObjectIdentifiers.rsaEncryption,
+        "RSA",
+        PKCSObjectIdentifiers.id_RSASSA_PSS,
+        "RSASSA-PSS",
+        X9ObjectIdentifiers.id_ecPublicKey,
+        "EC",
+        X9ObjectIdentifiers.id_dsa,
+        "DSA"
+    );
 
     PemUtils() {
         throw new IllegalStateException("Utility class should not be instantiated");
@@ -87,23 +99,49 @@ final class PemUtils {
      */
     public static PrivateKey readPrivateKey(Path keyPath, Supplier<char[]> passwordSupplier) throws IOException, PKCSException {
         PrivateKeyInfo pki = loadPrivateKeyFromFile(keyPath, passwordSupplier);
-        JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
-        return converter.getPrivateKey(pki);
+        return toPrivateKey(pki);
+    }
+
+    /**
+     * Converts the key with the first provider that supports its standard algorithm, the JDK's or BouncyCastle FIPS in FIPS mode.
+     */
+    private static PrivateKey toPrivateKey(PrivateKeyInfo pki) throws IOException {
+        final String algorithm = KEY_ALGORITHMS.get(pki.getPrivateKeyAlgorithm().getAlgorithm());
+        if (algorithm == null) {
+            return new JcaPEMKeyConverter().getPrivateKey(pki);
+        }
+        try {
+            return KeyFactory.getInstance(algorithm).generatePrivate(new PKCS8EncodedKeySpec(pki.getEncoded()));
+        } catch (GeneralSecurityException e) {
+            throw new PEMException("unable to convert the " + algorithm + " private key: " + e.getMessage(), e);
+        }
     }
 
     static List<Certificate> readCertificates(Collection<Path> certPaths) throws CertificateException, IOException {
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
         List<Certificate> certificates = new ArrayList<>(certPaths.size());
         for (Path path : certPaths) {
-            try (InputStream input = Files.newInputStream(path)) {
-                final Collection<? extends Certificate> parsed = certFactory.generateCertificates(input);
-                if (parsed.isEmpty()) {
-                    throw new SslConfigException("Failed to parse any certificate from [" + path.toAbsolutePath() + "]");
-                }
-                certificates.addAll(parsed);
+            final byte[] content = Files.readAllBytes(path);
+            if (containsCertificateData(content) == false) {
+                throw new SslConfigException("Failed to parse any certificate from [" + path.toAbsolutePath() + "]");
             }
+            final Collection<? extends Certificate> parsed = certFactory.generateCertificates(new ByteArrayInputStream(content));
+            if (parsed.isEmpty()) {
+                throw new SslConfigException("Failed to parse any certificate from [" + path.toAbsolutePath() + "]");
+            }
+            certificates.addAll(parsed);
         }
         return certificates;
+    }
+
+    /**
+     * Whether the content holds certificate data at all: a DER sequence, or a PEM block. Without this check, the outcome for a file
+     * without certificates would depend on the provider: the JDK's factory throws, BouncyCastle's returns no certificates.
+     */
+    private static boolean containsCertificateData(byte[] content) {
+        final boolean isDerSequence = content.length > 0 && content[0] == DER_SEQUENCE_TAG;
+        final boolean hasPemBlock = new String(content, StandardCharsets.US_ASCII).contains("-----BEGIN");
+        return isDerSequence || hasPemBlock;
     }
 
     /**

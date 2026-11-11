@@ -44,6 +44,7 @@ import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.crypto.FipsApprovedOnlyMode;
 import org.opensearch.common.hash.MessageDigests;
 import org.opensearch.core.common.settings.SecureString;
 
@@ -84,7 +85,6 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 /**
@@ -449,7 +449,7 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     private void decryptLegacyEntries() throws GeneralSecurityException, IOException {
-        if (inFipsMode.get()) {
+        if (FipsApprovedOnlyMode.isActive()) {
             throw new SecurityException("Legacy KeyStore formats v1 & v2 are not supported in FIPS JVM");
         }
 
@@ -579,17 +579,6 @@ public class KeyStoreWrapper implements SecureSettings {
             attrs.setPermissions(PosixFilePermissions.fromString("rw-rw----"));
         }
     }
-
-    private static final Supplier<Boolean> inFipsMode = () -> {
-        try {
-            // Equivalent to: boolean approvedOnly = CryptoServicesRegistrar.isInApprovedOnlyMode()
-            var registrarClass = Class.forName("org.bouncycastle.crypto.CryptoServicesRegistrar");
-            var isApprovedOnlyMethod = registrarClass.getMethod("isInApprovedOnlyMode");
-            return (Boolean) isApprovedOnlyMethod.invoke(null);
-        } catch (ReflectiveOperationException e) {
-            return false;
-        }
-    };
 
     /**
      * It is possible to retrieve the setting names even if the keystore is closed.

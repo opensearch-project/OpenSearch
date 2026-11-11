@@ -17,7 +17,8 @@ public class BouncyCastleThreadFilter implements ThreadFilter {
     @Override
     public boolean reject(Thread t) {
         String n = t.getName();
-        // Ignore BC’s global background threads
-        return "BC Disposal Daemon".equals(n) || "BC Cleanup Executor".equals(n);
+        // Ignore BC’s global background threads. The entropy daemon starts with the first BCFIPS DRBG: before any suite in a FIPS
+        // JVM, but inside the first suite that uses BCFIPS when it is only declared after the JDK's providers.
+        return "BC Disposal Daemon".equals(n) || "BC Cleanup Executor".equals(n) || "BC FIPS Entropy Daemon".equals(n);
     }
 }
