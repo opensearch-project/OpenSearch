@@ -32,11 +32,15 @@
 
 package org.opensearch.http.netty4;
 
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
+import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
@@ -45,6 +49,9 @@ import org.opensearch.http.HttpPipelinedRequest;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.NullDispatcher;
+import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.opensearch.rest.BytesRestResponse;
+import org.opensearch.rest.RestChannel;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -53,13 +60,17 @@ import org.opensearch.transport.SharedGroupFactory;
 import org.junit.After;
 import org.junit.Before;
 
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -71,6 +82,7 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.util.ReferenceCounted;
 
+import static org.opensearch.http.TestDispatcherBuilder.dispatcherBuilderWithDefaults;
 import static org.hamcrest.Matchers.contains;
 
 /**
@@ -118,6 +130,78 @@ public class Netty4HttpServerPipeliningTests extends OpenSearchTestCase {
                     assertThat(responseBodies, contains(requests.toArray()));
                 } finally {
                     responses.forEach(ReferenceCounted::release);
+                }
+            }
+        }
+    }
+
+    @SuppressForbidden(reason = "A raw socket is needed to disconnect while HTTP responses remain queued")
+    public void testDisconnectReleasesQueuedResponseBreakerReservations() throws Exception {
+        final Settings settings = Settings.builder()
+            .put("http.port", "0")
+            .put("http.host", "127.0.0.1")
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final AtomicReference<RestChannel> heldChannel = new AtomicReference<>();
+        final AtomicReference<Exception> dispatchFailure = new AtomicReference<>();
+        final CountDownLatch queuedResponses = new CountDownLatch(2);
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
+            (request, channel, context) -> {
+                if (request.rawPath().equals("/hold")) {
+                    heldChannel.set(channel);
+                    return;
+                }
+                try {
+                    // Allocate through the actual DefaultRestChannel, which releases this output from its HTTP completion listener.
+                    BytesStreamOutput output = channel.bytesOutput();
+                    output.writeByte((byte) 1);
+                    channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, output.bytes()));
+                } catch (RuntimeException e) {
+                    dispatchFailure.set(e);
+                } finally {
+                    queuedResponses.countDown();
+                }
+            }
+        ).build();
+        try (
+            HierarchyCircuitBreakerService breakerService = new HierarchyCircuitBreakerService(settings, List.of(), clusterSettings);
+            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+                settings,
+                networkService,
+                new BigArrays(null, breakerService, CircuitBreaker.REQUEST).withCircuitBreaking(),
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                clusterSettings,
+                new SharedGroupFactory(settings),
+                NoopTracer.INSTANCE
+            )
+        ) {
+            transport.start();
+            CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+            assertEquals(0, breaker.getUsed());
+            try {
+                try (Socket socket = new Socket()) {
+                    socket.connect(randomFrom(transport.boundAddress().boundAddresses()).address(), 10000);
+                    socket.getOutputStream()
+                        .write(
+                            ("GET /hold HTTP/1.1\r\nHost: localhost\r\n\r\n"
+                                + "GET /queued/1 HTTP/1.1\r\nHost: localhost\r\n\r\n"
+                                + "GET /queued/2 HTTP/1.1\r\nHost: localhost\r\n\r\n").getBytes(StandardCharsets.US_ASCII)
+                        );
+                    socket.getOutputStream().flush();
+                    assertTrue(queuedResponses.await(10, TimeUnit.SECONDS));
+                    assertNull(dispatchFailure.get());
+                    assertNotNull(heldChannel.get());
+                    assertTrue("Later responses must remain charged while response zero is outstanding", breaker.getUsed() > 0);
+                }
+                // Only the client has closed: the server and the first request remain outstanding during this assertion.
+                assertBusy(() -> assertEquals("Peer disconnect must release queued response outputs", 0, breaker.getUsed()));
+            } finally {
+                if (heldChannel.get() != null) {
+                    heldChannel.get()
+                        .sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
                 }
             }
         }
