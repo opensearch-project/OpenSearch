@@ -40,7 +40,10 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.junit.Before;
 
 import java.util.Iterator;
@@ -203,5 +206,79 @@ public class RoutingNodesTests extends OpenSearchAllocationTestCase {
             shardCount++;
         }
         assertEquals(shardCount, this.totalNumberOfShards);
+    }
+
+    public void testSearchReplicaWithoutPrimary() {
+        Index index = new Index(TEST_INDEX_1, UUIDs.randomBase64UUID());
+        clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(DiscoveryNodes.builder().add(newNode("node0")))
+            .metadata(
+                Metadata.builder()
+                    .put(
+                        IndexMetadata.builder(TEST_INDEX_1)
+                            .numberOfShards(1)
+                            .numberOfSearchReplicas(1)
+                            .numberOfReplicas(0)
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                            )
+                    )
+            )
+            .routingTable(
+                new RoutingTable.Builder().add(
+                    new IndexRoutingTable.Builder(index).addShard(
+                        ShardRouting.newUnassigned(
+                            new ShardId(index, 0),
+                            false,
+                            true,
+                            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                            new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null)
+                        )
+                    )
+                ).build()
+            )
+            .build();
+        startInitializingShards(TEST_INDEX_1);
+    }
+
+    public void testReplicaWithoutPrimary() {
+        Index index = new Index(TEST_INDEX_1, UUIDs.randomBase64UUID());
+        clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(DiscoveryNodes.builder().add(newNode("node0")))
+            .metadata(
+                Metadata.builder()
+                    .put(
+                        IndexMetadata.builder(TEST_INDEX_1)
+                            .numberOfShards(1)
+                            .numberOfSearchReplicas(1)
+                            .numberOfReplicas(0)
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                            )
+                    )
+            )
+            .routingTable(
+                new RoutingTable.Builder().add(
+                    new IndexRoutingTable.Builder(index).addShard(
+                        ShardRouting.newUnassigned(
+                            new ShardId(index, 0),
+                            false,
+                            false,
+                            RecoverySource.PeerRecoverySource.INSTANCE,
+                            new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null)
+                        )
+                    )
+                ).build()
+            )
+            .build();
+        expectThrows(AssertionError.class, () -> startInitializingShards(TEST_INDEX_1));
     }
 }
