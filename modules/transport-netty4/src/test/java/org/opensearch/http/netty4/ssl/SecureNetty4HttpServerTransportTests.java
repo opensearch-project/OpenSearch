@@ -254,6 +254,9 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
                 throw new AssertionError("Cannot create the TLS client context", e);
             }
         };
+        final SSLEngine engine = clientContextProvider.create().createSSLEngine();
+        engine.setUseClientMode(true);
+        engine.setEnabledProtocols(new String[] { protocol });
         try (
             SecureNetty4HttpServerTransport transport = new SecureNetty4HttpServerTransport(
                 settings,
@@ -287,15 +290,12 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
                     };
                 }
             };
-            Socket socket = new Socket()
+            Socket socket = new Socket();
+            Netty4HttpRawTlsClient client = new Netty4HttpRawTlsClient(engine, socket)
         ) {
             transport.start();
             socket.connect(Netty4HttpRawClient.ipv4Address(transport.boundAddress().boundAddresses()), 10_000);
             socket.setSoTimeout(10_000);
-            final SSLEngine engine = clientContextProvider.create().createSSLEngine();
-            engine.setUseClientMode(true);
-            engine.setEnabledProtocols(new String[] { protocol });
-            final Netty4HttpRawTlsClient client = new Netty4HttpRawTlsClient(engine, socket);
             client.handshake();
             final byte[] request = new Netty4HttpRawClient.RequestBuilder("POST", "/").rawBody(new byte[2 * limit]).chunked(true).bytes();
             client.writeEncrypted(client.encrypt(request));

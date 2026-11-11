@@ -9,82 +9,89 @@
 package org.opensearch.http.netty4.ssl;
 
 import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLEngineResult;
 
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
-import java.nio.ByteBuffer;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.ssl.SslHandler;
 
 /**
  * Drives TLS over a raw socket so tests can distinguish an authenticated close_notify from TCP EOF,
- * and send already-encrypted upload bytes after the server closes its output.
+ * and send already-encrypted upload bytes after the server closes its output. An offline {@link SslHandler}
+ * runs the TLS engine; this class only moves its records to and from the socket, one record at a time.
  */
-final class Netty4HttpRawTlsClient {
-    private final SSLEngine engine;
-    private final InputStream in;
-    private final OutputStream out;
-    private final ByteArrayOutputStream plaintext = new ByteArrayOutputStream();
-    private boolean closeNotify;
+final class Netty4HttpRawTlsClient implements Closeable {
+    private final SslHandler ssl;
+    private final EmbeddedChannel tls;
+    private final Socket socket;
 
-    Netty4HttpRawTlsClient(SSLEngine engine, Socket socket) throws IOException {
-        this.engine = engine;
-        in = socket.getInputStream();
-        out = socket.getOutputStream();
+    /** The socket may be connected later, before {@link #handshake()}. */
+    Netty4HttpRawTlsClient(SSLEngine engine, Socket socket) {
+        ssl = new SslHandler(engine);
+        tls = new EmbeddedChannel(ssl);
+        this.socket = socket;
     }
 
     void handshake() throws IOException {
-        engine.beginHandshake();
-        while (true) {
-            switch (engine.getHandshakeStatus()) {
-                case NEED_TASK -> runTasks();
-                case NEED_WRAP -> writeEncrypted(wrap(ByteBuffer.allocate(0)));
-                case NEED_UNWRAP -> readRecord();
-                case NEED_UNWRAP_AGAIN -> unwrap(ByteBuffer.allocate(0));
-                case FINISHED, NOT_HANDSHAKING -> {
-                    return;
-                }
+        while (ssl.handshakeFuture().isDone() == false) {
+            writeEncrypted(encrypted());
+            if (ssl.handshakeFuture().isDone() == false) {
+                readRecord();
             }
+        }
+        writeEncrypted(encrypted());
+        if (ssl.handshakeFuture().isSuccess() == false) {
+            throw new IOException("TLS handshake failed", ssl.handshakeFuture().cause());
         }
     }
 
-    byte[] encrypt(byte[] bytes) throws IOException {
-        final ByteBuffer input = ByteBuffer.wrap(bytes);
-        final ByteArrayOutputStream encrypted = new ByteArrayOutputStream();
-        while (input.hasRemaining()) {
-            encrypted.writeBytes(wrap(input));
-        }
-        return encrypted.toByteArray();
+    byte[] encrypt(byte[] bytes) {
+        tls.writeOutbound(Unpooled.wrappedBuffer(bytes));
+        return encrypted();
     }
 
     void writeEncrypted(byte[] bytes) throws IOException {
+        final OutputStream out = socket.getOutputStream();
         out.write(bytes);
         out.flush();
     }
 
+    /** Returns the decrypted response. Fails if TCP ends before the server's close_notify. */
     byte[] readUntilCloseNotify() throws IOException {
-        while (closeNotify == false) {
+        while (ssl.sslCloseFuture().isDone() == false) {
             readRecord();
+        }
+        if (ssl.sslCloseFuture().isSuccess() == false) {
+            throw new IOException("TLS closed without close_notify", ssl.sslCloseFuture().cause());
+        }
+        final ByteArrayOutputStream plaintext = new ByteArrayOutputStream();
+        for (ByteBuf buf; (buf = tls.readInbound()) != null; buf.release()) {
+            plaintext.writeBytes(ByteBufUtil.getBytes(buf));
         }
         return plaintext.toByteArray();
     }
 
-    private byte[] wrap(ByteBuffer input) throws IOException {
-        final ByteBuffer packet = ByteBuffer.allocate(engine.getSession().getPacketBufferSize());
-        final SSLEngineResult result = engine.wrap(input, packet);
-        if (result.getStatus() != SSLEngineResult.Status.OK || result.bytesConsumed() + result.bytesProduced() == 0) {
-            throw new IOException("TLS wrap made no progress: " + result);
+    /** Takes the records the engine has produced so far. */
+    private byte[] encrypted() {
+        final ByteArrayOutputStream encrypted = new ByteArrayOutputStream();
+        for (ByteBuf buf; (buf = tls.readOutbound()) != null; buf.release()) {
+            encrypted.writeBytes(ByteBufUtil.getBytes(buf));
         }
-        packet.flip();
-        final byte[] bytes = new byte[packet.remaining()];
-        packet.get(bytes);
-        return bytes;
+        return encrypted.toByteArray();
     }
 
+    /** Reads exactly one record, so that nothing after close_notify is consumed. */
     private void readRecord() throws IOException {
+        final InputStream in = socket.getInputStream();
         final byte[] header = in.readNBytes(5);
         if (header.length != 5) {
             throw new EOFException("TCP EOF before TLS close_notify");
@@ -94,35 +101,11 @@ final class Netty4HttpRawTlsClient {
         if (body.length != length) {
             throw new EOFException("TCP EOF inside a TLS record");
         }
-        final ByteBuffer record = ByteBuffer.allocate(header.length + length);
-        record.put(header).put(body).flip();
-        unwrap(record);
+        tls.writeInbound(Unpooled.wrappedBuffer(header, body));
     }
 
-    private void unwrap(ByteBuffer record) throws IOException {
-        do {
-            final ByteBuffer decoded = ByteBuffer.allocate(engine.getSession().getApplicationBufferSize());
-            final SSLEngineResult result = engine.unwrap(record, decoded);
-            if (result.getStatus() == SSLEngineResult.Status.CLOSED) {
-                closeNotify = true;
-            } else if (result.getStatus() != SSLEngineResult.Status.OK) {
-                throw new IOException("Cannot unwrap a complete TLS record: " + result);
-            }
-            decoded.flip();
-            final byte[] bytes = new byte[decoded.remaining()];
-            decoded.get(bytes);
-            plaintext.writeBytes(bytes);
-            runTasks();
-            if (record.hasRemaining() && result.bytesConsumed() + result.bytesProduced() == 0) {
-                throw new IOException("TLS unwrap made no progress: " + result);
-            }
-        } while (record.hasRemaining());
-    }
-
-    private void runTasks() {
-        Runnable task;
-        while ((task = engine.getDelegatedTask()) != null) {
-            task.run();
-        }
+    @Override
+    public void close() {
+        tls.finishAndReleaseAll();
     }
 }
