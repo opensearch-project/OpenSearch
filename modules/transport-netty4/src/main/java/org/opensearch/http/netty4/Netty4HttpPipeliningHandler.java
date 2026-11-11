@@ -128,7 +128,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                     return;
                 }
                 // Poll one at a time so a reentrant close can still release all responses not yet handed to Netty.
-                ctx.write(next.v1().getDelegateRequest(), next.v2());
+                ctx.write(next.v1().getDelegateResponse(), next.v2());
             }
         } finally {
             draining = false;
@@ -159,7 +159,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     private static void reject(HttpPipelinedResponse response, ChannelPromise promise, ClosedChannelException failure) {
-        ReferenceCountUtil.safeRelease(response.getDelegateRequest());
+        ReferenceCountUtil.safeRelease(response.getDelegateResponse());
         promise.tryFailure(failure);
     }
 }
