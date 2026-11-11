@@ -43,7 +43,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 
@@ -51,7 +50,6 @@ import java.io.IOException;
 import java.net.Socket;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.util.Collections;
 import java.util.Locale;
@@ -245,18 +243,6 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
         final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
             (request, channel, context) -> dispatched.incrementAndGet()
         ).build();
-        final FipsAwareSslProvider<SSLContext> clientContextProvider = (keyStoreType, extension, jcaProvider, jsseProvider) -> {
-            try {
-                final SSLContext context = SSLContext.getInstance("TLS", jsseProvider);
-                context.init(null, InsecureTrustManagerFactory.INSTANCE.getTrustManagers(), null);
-                return context;
-            } catch (GeneralSecurityException e) {
-                throw new AssertionError("Cannot create the TLS client context", e);
-            }
-        };
-        final SSLEngine engine = clientContextProvider.create().createSSLEngine();
-        engine.setUseClientMode(true);
-        engine.setEnabledProtocols(new String[] { protocol });
         try (
             SecureNetty4HttpServerTransport transport = new SecureNetty4HttpServerTransport(
                 settings,
@@ -291,7 +277,7 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
                 }
             };
             Socket socket = new Socket();
-            Netty4HttpRawTlsClient client = new Netty4HttpRawTlsClient(engine, socket)
+            Netty4HttpRawTlsClient client = new Netty4HttpRawTlsClient(protocol, socket)
         ) {
             transport.start();
             socket.connect(Netty4HttpRawClient.ipv4Address(transport.boundAddress().boundAddresses()), 10_000);

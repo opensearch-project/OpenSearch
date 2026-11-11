@@ -8,7 +8,7 @@
 
 package org.opensearch.http.netty4.ssl;
 
-import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
@@ -19,10 +19,13 @@ import java.io.OutputStream;
 import java.net.Socket;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 /**
  * Drives TLS over a raw socket so tests can distinguish an authenticated close_notify from TCP EOF,
@@ -35,8 +38,12 @@ final class Netty4HttpRawTlsClient implements Closeable {
     private final Socket socket;
 
     /** The socket may be connected later, before {@link #handshake()}. */
-    Netty4HttpRawTlsClient(SSLEngine engine, Socket socket) {
-        ssl = new SslHandler(engine);
+    Netty4HttpRawTlsClient(String protocol, Socket socket) throws SSLException {
+        ssl = SslContextBuilder.forClient()
+            .trustManager(InsecureTrustManagerFactory.INSTANCE)
+            .protocols(protocol)
+            .build()
+            .newHandler(ByteBufAllocator.DEFAULT);
         tls = new EmbeddedChannel(ssl);
         this.socket = socket;
     }
