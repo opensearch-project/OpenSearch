@@ -47,6 +47,7 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.search.internal.AliasFilter;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -66,6 +67,7 @@ public class Alias implements Writeable, ToXContentFragment {
     private static final ParseField SEARCH_ROUTING = new ParseField("search_routing", "searchRouting", "search-routing");
     private static final ParseField IS_WRITE_INDEX = new ParseField("is_write_index");
     private static final ParseField IS_HIDDEN = new ParseField("is_hidden");
+    private static final ParseField SCORING_MODE = new ParseField("scoring_mode");
 
     private String name;
 
@@ -84,6 +86,9 @@ public class Alias implements Writeable, ToXContentFragment {
     @Nullable
     private Boolean isHidden;
 
+    @Nullable
+    private String scoringMode;
+
     public Alias(StreamInput in) throws IOException {
         name = in.readString();
         filter = in.readOptionalString();
@@ -91,6 +96,9 @@ public class Alias implements Writeable, ToXContentFragment {
         searchRouting = in.readOptionalString();
         writeIndex = in.readOptionalBoolean();
         isHidden = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(AliasFilter.SCORING_MODE_VERSION)) {
+            scoringMode = in.readOptionalString();
+        }
     }
 
     public Alias(String name) {
@@ -225,6 +233,27 @@ public class Alias implements Writeable, ToXContentFragment {
         return this;
     }
 
+    /**
+     * Returns how this alias's filter is applied when searching, or {@code null} for the default.
+     */
+    @Nullable
+    public String scoringMode() {
+        return scoringMode;
+    }
+
+    /**
+     * Sets how this alias's filter is applied when searching; it requires a filter.
+     *
+     * @param scoringMode the mode, such as {@code no_stats}, or {@code null} for the default
+     */
+    public Alias scoringMode(@Nullable String scoringMode) {
+        if (scoringMode != null) {
+            AliasFilter.ScoringMode.fromString(scoringMode);
+        }
+        this.scoringMode = scoringMode;
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
@@ -233,6 +262,11 @@ public class Alias implements Writeable, ToXContentFragment {
         out.writeOptionalString(searchRouting);
         out.writeOptionalBoolean(writeIndex);
         out.writeOptionalBoolean(isHidden);
+        if (out.getVersion().onOrAfter(AliasFilter.SCORING_MODE_VERSION)) {
+            out.writeOptionalString(scoringMode);
+        } else {
+            AliasFilter.ensureScoringModeSupported(name, scoringMode, out::getVersion);
+        }
     }
 
     /**
@@ -261,6 +295,8 @@ public class Alias implements Writeable, ToXContentFragment {
                     alias.indexRouting(parser.text());
                 } else if (SEARCH_ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.searchRouting(parser.text());
+                } else if (SCORING_MODE.match(currentFieldName, parser.getDeprecationHandler())) {
+                    alias.scoringMode(parser.text());
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if (IS_WRITE_INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -298,6 +334,10 @@ public class Alias implements Writeable, ToXContentFragment {
 
         if (isHidden != null) {
             builder.field(IS_HIDDEN.getPreferredName(), isHidden);
+        }
+
+        if (scoringMode != null) {
+            builder.field(SCORING_MODE.getPreferredName(), scoringMode);
         }
 
         builder.endObject();

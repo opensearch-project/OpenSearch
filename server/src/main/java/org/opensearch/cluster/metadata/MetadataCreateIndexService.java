@@ -114,6 +114,7 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -1523,6 +1524,7 @@ public class MetadataCreateIndexService {
                 .searchRouting(alias.searchRouting())
                 .writeIndex(alias.writeIndex())
                 .isHidden(alias.isHidden())
+                .scoringMode(alias.scoringMode())
                 .build();
             resolvedAliases.add(aliasMetadata);
         }
@@ -1730,6 +1732,9 @@ public class MetadataCreateIndexService {
         validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
         validateContext(request);
         validateIngestionSourceSettings(request.settings(), state);
+        for (Alias alias : request.aliases()) {
+            AliasFilter.ensureScoringModeSupported(alias.name(), alias.scoringMode(), () -> state.nodes().getMinNodeVersion());
+        }
     }
 
     public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)

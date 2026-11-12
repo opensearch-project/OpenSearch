@@ -41,6 +41,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.search.internal.AliasFilter;
 
 import java.io.IOException;
 
@@ -93,6 +94,7 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
             out.writeString(name);
             out.writeOptionalString(cause);
             out.writeBoolean(create);
+            AliasFilter.ensureScoringModesSupported(componentTemplate.template(), out::getVersion);
             this.componentTemplate.writeTo(out);
         }
 
