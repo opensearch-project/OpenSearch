@@ -29,6 +29,7 @@
 
 package org.opensearch.gradle
 
+import org.gradle.testkit.runner.GradleRunner
 import org.opensearch.gradle.fixtures.AbstractGradleFuncTest
 import spock.lang.IgnoreIf
 
@@ -53,10 +54,17 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
                     println 'SomeClusterAwareTask executed'
                 }
             }
+
+            class RestartingClusterAwareTask extends DefaultTestClustersTask {
+                @TaskAction void doSomething() {
+                    clusters.each { it.restart() }
+                    println 'RestartingClusterAwareTask executed'
+                }
+            }
         """
     }
 
-    def "test cluster distribution is configured and started"() {
+    def "test cluster distribution is copied into the working directory and started"() {
         given:
         buildFile << """
             testClusters {
@@ -79,7 +87,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         result.output.contains("opensearch-keystore script executed!")
         assertOpenSearchStdoutContains("myCluster", "Starting OpenSearch process")
         assertOpenSearchStdoutContains("myCluster", "Stopping node")
-        assertNoCustomDistro('myCluster')
+        assertCustomDistro('myCluster')
     }
 
     def "custom distro folder created for tweaked cluster distribution"() {
@@ -109,23 +117,72 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         assertCustomDistro('myCluster')
     }
 
+    def "three nodes use isolated distros and relative JVM paths across restart"() {
+        given:
+        buildFile << """
+            testClusters {
+              myCluster {
+                testDistribution = 'archive'
+                numberOfNodes = 3
+              }
+            }
+
+            tasks.register('myTask', RestartingClusterAwareTask) {
+                useCluster testClusters.myCluster
+            }
+        """
+
+        when:
+        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i')) {
+            build()
+        }
+
+        then:
+        result.output.contains('RestartingClusterAwareTask executed')
+        (0..<3).each { nodeIndex ->
+            String nodeName = "myCluster-${nodeIndex}"
+            assertCustomDistroForNode(nodeName)
+            assertRelativeJvmOptions(nodeName)
+            assertOpenSearchStdoutCount(nodeName, 'Starting OpenSearch process', 2)
+            assertOpenSearchStdoutCount(nodeName, 'Stopping node', 2)
+        }
+    }
+
     boolean assertOpenSearchStdoutContains(String testCluster, String expectedOutput) {
         assert new File(testProjectDir.root,
                 "build/testclusters/${testCluster}-0/logs/opensearch.stdout.log").text.contains(expectedOutput)
         true
     }
 
+    boolean assertOpenSearchStdoutCount(String nodeName, String expectedOutput, int expectedCount) {
+        File stdout = new File(testProjectDir.root, "build/testclusters/${nodeName}/logs/opensearch.stdout.log")
+        assert stdout.readLines().count { it.contains(expectedOutput) } == expectedCount
+        true
+    }
+
     boolean assertCustomDistro(String clusterName) {
-        assert customDistroFolder(clusterName).exists()
+        assertCustomDistroForNode("${clusterName}-0")
+    }
+
+    boolean assertCustomDistroForNode(String nodeName) {
+        File distro = new File(testProjectDir.root, "build/testclusters/${nodeName}/distro")
+        assert distro.isDirectory()
+        assert distro.listFiles().find { new File(it, 'config/jvm.options').isFile() } != null
         true
     }
 
-    boolean assertNoCustomDistro(String clusterName) {
-        assert !customDistroFolder(clusterName).exists()
+    boolean assertRelativeJvmOptions(String nodeName) {
+        File jvmOptions = new File(testProjectDir.root, "build/testclusters/${nodeName}/config/jvm.options")
+        assert jvmOptions.isFile()
+        List<String> outputPathOptions = jvmOptions.readLines().findAll {
+            it.contains('HeapDumpPath') || it.contains('logs/gc.log') || it.contains('ErrorFile')
+        }
+        assert outputPathOptions.any { it == '-XX:HeapDumpPath=logs' }
+        assert outputPathOptions.any { it.contains('file=logs/gc.log') }
+        assert outputPathOptions.any { it == '-XX:ErrorFile=logs/hs_err_pid%p.log' }
+        assert outputPathOptions.every { it.contains(testProjectDir.root.absolutePath) == false }
+        assert outputPathOptions.every { it.contains(testKitDir.absolutePath) == false }
         true
     }
 
-    private File customDistroFolder(String clusterName) {
-        new File(testProjectDir.root, "build/testclusters/${clusterName}-0/distro")
-    }
 }
