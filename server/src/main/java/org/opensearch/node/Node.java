@@ -1299,13 +1299,14 @@ public class Node implements Closeable {
 
             final WorkloadGroupsStateAccessor workloadGroupsStateAccessor = new WorkloadGroupsStateAccessor();
 
+            final WorkloadGroupTaskCancellationService workloadGroupTaskCancellationService = new WorkloadGroupTaskCancellationService(
+                workloadManagementSettings,
+                new MaximumResourceTaskSelectionStrategy(),
+                workloadGroupResourceUsageTrackerService,
+                workloadGroupsStateAccessor
+            );
             final WorkloadGroupService workloadGroupService = new WorkloadGroupService(
-                new WorkloadGroupTaskCancellationService(
-                    workloadManagementSettings,
-                    new MaximumResourceTaskSelectionStrategy(),
-                    workloadGroupResourceUsageTrackerService,
-                    workloadGroupsStateAccessor
-                ),
+                workloadGroupTaskCancellationService,
                 clusterService,
                 threadPool,
                 workloadManagementSettings,
@@ -1507,6 +1508,8 @@ public class Node implements Closeable {
                 transportService
             );
             workloadGroupService.setSharedThrottleService(workloadGroupSharedThrottleService);
+            // WLM cancels breaching tasks and their descendants through the TaskManager, which the transport service owns.
+            workloadGroupTaskCancellationService.setTaskManager(transportService.getTaskManager());
             // Admits searches against WLM resource limits and throttles, and scroll pages against throttles; the search actions
             // depend only on the core interface.
             final SearchExecutionGate searchExecutionGate = new SearchExecutionGate(
