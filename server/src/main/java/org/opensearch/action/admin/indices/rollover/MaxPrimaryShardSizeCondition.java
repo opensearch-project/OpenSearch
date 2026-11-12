@@ -29,6 +29,9 @@ public class MaxPrimaryShardSizeCondition extends Condition<ByteSizeValue> {
 
     public MaxPrimaryShardSizeCondition(ByteSizeValue value) {
         super(NAME);
+        if (value.getBytes() < 0) {
+            throw new IllegalArgumentException("[" + NAME + "] must be non-negative, got [" + value.getStringRep() + "]");
+        }
         this.value = value;
     }
 

@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ConditionTests extends OpenSearchTestCase {
@@ -127,6 +128,16 @@ public class ConditionTests extends OpenSearchTestCase {
         assertThat(condition.evaluate(statsWithPrimary(ByteSizeValue.ZERO, 101)).matched, equalTo(true));
     }
 
+    public void testPrimaryShardConditionsRejectNegativeValues() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MaxPrimaryShardSizeCondition(new ByteSizeValue(-1))
+        );
+        assertThat(e.getMessage(), containsString(MaxPrimaryShardSizeCondition.NAME));
+        e = expectThrows(IllegalArgumentException.class, () -> new MaxPrimaryShardDocsCondition(-1L));
+        assertThat(e.getMessage(), containsString(MaxPrimaryShardDocsCondition.NAME));
+    }
+
     public void testPrimaryShardConditionsVersionGate() {
         for (Condition<?> condition : List.of(
             new MaxPrimaryShardSizeCondition(new ByteSizeValue(1)),
@@ -156,11 +167,11 @@ public class ConditionTests extends OpenSearchTestCase {
             condition -> new MaxPrimaryShardSizeCondition(randomByteSize())
         );
 
-        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(randomLong());
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(randomNonNegativeLong());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             maxPrimaryShardDocsCondition,
             condition -> new MaxPrimaryShardDocsCondition(condition.value),
-            condition -> new MaxPrimaryShardDocsCondition(randomLong())
+            condition -> new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
         );
 
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomLong());

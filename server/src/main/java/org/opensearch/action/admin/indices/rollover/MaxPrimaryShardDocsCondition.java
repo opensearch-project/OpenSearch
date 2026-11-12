@@ -27,6 +27,9 @@ public class MaxPrimaryShardDocsCondition extends Condition<Long> {
 
     public MaxPrimaryShardDocsCondition(Long value) {
         super(NAME);
+        if (value < 0) {
+            throw new IllegalArgumentException("[" + NAME + "] must be non-negative, got [" + value + "]");
+        }
         this.value = value;
     }
 
