@@ -129,15 +129,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // also fill replicaSet information
         for (final IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
             for (IndexShardRoutingTable indexShard : indexRoutingTable) {
-                IndexMetadata idxMetadata = metadata.index(indexShard.shardId().getIndex());
-                boolean isSearchOnlyClusterBlockEnabled = false;
-                if (idxMetadata != null) {
-                    isSearchOnlyClusterBlockEnabled = idxMetadata.getSettings()
-                        .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
-                }
-                if (isSearchOnlyClusterBlockEnabled == false) {
-                    assert indexShard.primary != null : "Primary shard routing can't be null for non-search-only indices";
-                }
+                assert indexShard.shards().stream().allMatch(ShardRouting::isSearchOnly) || indexShard.primary != null
+                    : "Primary shard routing can't be null if non-search-only replicas exist";
                 for (ShardRouting shard : indexShard) {
                     // to get all the shards belonging to an index, including the replicas,
                     // we define a replica set and keep track of it. A replica set is identified

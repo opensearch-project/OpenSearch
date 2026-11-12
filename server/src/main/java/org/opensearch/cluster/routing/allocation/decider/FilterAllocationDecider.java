@@ -193,7 +193,7 @@ public class FilterAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocateAnyShardToNode(RoutingNode node, RoutingAllocation allocation) {
         Decision decision = shouldClusterFilter(node.node(), allocation);
-        return decision == Decision.NO ? decision : Decision.ALWAYS;
+        return decision != null && decision.type() == Decision.Type.NO ? decision : Decision.ALWAYS;
     }
 
     private Decision shouldFilter(ShardRouting shardRouting, DiscoveryNode node, RoutingAllocation allocation) {

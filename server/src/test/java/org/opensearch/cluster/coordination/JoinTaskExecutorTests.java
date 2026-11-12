@@ -39,10 +39,13 @@ import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.cluster.decommission.NodeDecommissionedException;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.metadata.Template;
 import org.opensearch.cluster.metadata.View;
 import org.opensearch.cluster.metadata.ViewMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -57,6 +60,7 @@ import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
@@ -1864,5 +1868,78 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         settings.put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true);
 
         return new RepositoryMetadata(name, type, settings.build());
+    }
+
+    private static IndexMetadata indexWithAlias(Version created, String scoringMode) {
+        return IndexMetadata.builder("scoped_idx")
+            .settings(settings(created))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetadata.builder("scoped").filter("{\"match_all\":{}}").scoringMode(scoringMode))
+            .build();
+    }
+
+    public void testNodeThatCannotReadAStoredScoringModeIsRejected() {
+        final Version older = VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION);
+        Metadata withIndexMode = Metadata.builder().put(indexWithAlias(older, "no_stats"), false).build();
+        Template template = new Template(
+            null,
+            null,
+            Map.of("scoped", AliasMetadata.builder("scoped").filter("{\"match_all\":{}}").scoringMode("no_stats").build())
+        );
+        Metadata withTemplateMode = Metadata.builder()
+            .put("composable", new ComposableIndexTemplate(List.of("scoped-*"), template, null, null, null, null, null))
+            .build();
+        for (Metadata metadata : List.of(withIndexMode, withTemplateMode)) {
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> JoinTaskExecutor.ensureScoringModeCompatibility(older, metadata)
+            );
+            assertThat(e.getMessage(), containsString("[scoring_mode] on alias [scoped]"));
+            JoinTaskExecutor.ensureScoringModeCompatibility(AliasFilter.SCORING_MODE_VERSION, metadata);
+        }
+        JoinTaskExecutor.ensureScoringModeCompatibility(older, Metadata.builder().put(indexWithAlias(older, null), false).build());
+    }
+
+    public void testJoinOfANodeThatCannotReadAStoredScoringModeFails() throws Exception {
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RemoteStoreNodeService remoteStoreNodeService = mock(RemoteStoreNodeService.class);
+        when(remoteStoreNodeService.updateRepositoriesMetadata(any(), any())).thenReturn(new RepositoriesMetadata(Collections.emptyList()));
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
+            Settings.EMPTY,
+            allocationService,
+            logger,
+            (reason, priority, listener) -> listener.onResponse(null),
+            remoteStoreNodeService,
+            node -> true
+        );
+        final Version older = VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION);
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(clusterManagerNode)
+                    .localNodeId(clusterManagerNode.getId())
+                    .clusterManagerNodeId(clusterManagerNode.getId())
+            )
+            .metadata(Metadata.builder().put(indexWithAlias(older, "no_stats"), false))
+            .build();
+
+        final DiscoveryNode oldNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), older);
+        ClusterStateTaskExecutor.TaskResult rejected = joinTaskExecutor.execute(
+            clusterState,
+            List.of(new JoinTaskExecutor.Task(oldNode, "test"))
+        ).executionResults.values().iterator().next();
+        assertFalse(rejected.isSuccess());
+        assertThat(rejected.getFailure().getMessage(), containsString("[scoring_mode] on alias [scoped]"));
+
+        final DiscoveryNode newNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        assertTrue(
+            joinTaskExecutor.execute(clusterState, List.of(new JoinTaskExecutor.Task(newNode, "test"))).executionResults.values()
+                .iterator()
+                .next()
+                .isSuccess()
+        );
     }
 }

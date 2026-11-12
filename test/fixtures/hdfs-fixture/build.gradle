@@ -91,7 +91,7 @@ dependencies {
   api "org.eclipse.jetty:jetty-server:${versions.jetty}"
   api "org.eclipse.jetty.websocket:javax-websocket-server-impl:${versions.jetty}"
 
-  api 'org.apache.zookeeper:zookeeper:3.9.5'
+  api 'org.apache.zookeeper:zookeeper:3.9.7'
   api "org.apache.commons:commons-text:1.15.0"
   api "commons-net:commons-net:3.13.0"
   api "org.jboss.xnio:xnio-nio:3.8.17.Final"
