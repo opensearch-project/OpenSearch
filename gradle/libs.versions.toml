@@ -8,8 +8,8 @@ bundled_jdk = "21.0.13+9"
 # optional dependencies
 spatial4j         = "0.7"
 jts               = "1.15.0"
-jackson           = "2.18.9"
-jackson_databind  = "2.18.9"
+jackson           = "2.18.12"
+jackson_databind  = "2.18.12"
 snakeyaml         = "2.1"
 icu4j             = "75.1"
 supercsv          = "2.4.0"
@@ -72,7 +72,7 @@ bytebuddy         = "1.15.10"
 jmh               = "1.35"
 
 # compression
-zstd              = "1.5.5-5"
+zstd              = "1.5.7-25"
 
 jzlib             = "1.1.3"
 
