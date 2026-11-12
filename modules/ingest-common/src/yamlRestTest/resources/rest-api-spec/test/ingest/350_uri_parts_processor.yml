@@ -8,8 +8,8 @@ teardown:
 ---
 "Test uri_parts processor splits a URL with the simulate API":
   - skip:
-      version: " - 3.9.99"
-      reason: "introduced in 3.10.0"
+      version: " - 3.10.99"
+      reason: "introduced in 3.11.0"
   - do:
       ingest.simulate:
         body: >
@@ -49,8 +49,8 @@ teardown:
 ---
 "Test uri_parts processor in an indexing pipeline with all options":
   - skip:
-      version: " - 3.9.99"
-      reason: "introduced in 3.10.0"
+      version: " - 3.10.99"
+      reason: "introduced in 3.11.0"
   - do:
       ingest.put_pipeline:
         id: "1"
@@ -108,8 +108,8 @@ teardown:
 ---
 "Test uri_parts processor with IPv6, relative and partial inputs":
   - skip:
-      version: " - 3.9.99"
-      reason: "introduced in 3.10.0"
+      version: " - 3.10.99"
+      reason: "introduced in 3.11.0"
   - do:
       ingest.simulate:
         body: >
@@ -142,8 +142,8 @@ teardown:
 ---
 "Test uri_parts processor replaces an existing target field":
   - skip:
-      version: " - 3.9.99"
-      reason: "introduced in 3.10.0"
+      version: " - 3.10.99"
+      reason: "introduced in 3.11.0"
   - do:
       ingest.simulate:
         body: >
@@ -166,8 +166,8 @@ teardown:
 ---
 "Test uri_parts processor invalid input fails the document":
   - skip:
-      version: " - 3.9.99"
-      reason: "introduced in 3.10.0"
+      version: " - 3.10.99"
+      reason: "introduced in 3.11.0"
   - do:
       ingest.simulate:
         body: >
@@ -203,8 +203,8 @@ teardown:
 ---
 "Test uri_parts processor invalid input reaches on_failure":
   - skip:
-      version: " - 3.9.99"
-      reason: "introduced in 3.10.0"
+      version: " - 3.10.99"
+      reason: "introduced in 3.11.0"
   - do:
       ingest.simulate:
         body: >
@@ -244,8 +244,8 @@ teardown:
 ---
 "Test uri_parts processor with ignore_failure":
   - skip:
-      version: " - 3.9.99"
-      reason: "introduced in 3.10.0"
+      version: " - 3.10.99"
+      reason: "introduced in 3.11.0"
   - do:
       ingest.simulate:
         body: >
@@ -277,8 +277,8 @@ teardown:
 ---
 "Test uri_parts processor with ignore_missing and a conditional":
   - skip:
-      version: " - 3.9.99"
-      reason: "introduced in 3.10.0"
+      version: " - 3.10.99"
+      reason: "introduced in 3.11.0"
   - do:
       ingest.simulate:
         body: >
@@ -312,8 +312,8 @@ teardown:
 ---
 "Test uri_parts processor configuration errors":
   - skip:
-      version: " - 3.9.99"
-      reason: "introduced in 3.10.0"
+      version: " - 3.10.99"
+      reason: "introduced in 3.11.0"
   - do:
       catch: bad_request
       ingest.put_pipeline:
