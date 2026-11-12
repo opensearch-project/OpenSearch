@@ -85,7 +85,7 @@ public class UpdateRuleRequest extends ActionRequest {
         super.writeTo(out);
         out.writeString(id);
         out.writeOptionalString(description);
-        featureType.writeTo(out);
+        out.writeNamedWriteable(featureType);
         out.writeMap(attributeMap, (o, a) -> a.writeTo(o), StreamOutput::writeStringCollection);
         out.writeOptionalString(featureValue);
     }
