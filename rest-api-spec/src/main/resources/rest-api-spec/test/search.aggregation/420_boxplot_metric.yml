@@ -35,8 +35,8 @@ setup:
 ---
 "basic test":
   - skip:
-      version: " - 3.9.99"
-      reason: "boxplot aggregation added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "boxplot aggregation added in 3.11.0"
 
   - do:
       search:
@@ -80,8 +80,8 @@ setup:
 ---
 "with setting compression":
   - skip:
-      version: " - 3.9.99"
-      reason: "boxplot aggregation added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "boxplot aggregation added in 3.11.0"
 
   - do:
       search:
@@ -125,8 +125,8 @@ setup:
 ---
 "no documents":
   - skip:
-      version: " - 3.9.99"
-      reason: "boxplot aggregation added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "boxplot aggregation added in 3.11.0"
 
   - do:
       search:
@@ -156,8 +156,8 @@ setup:
 ---
 "missing value":
   - skip:
-      version: " - 3.9.99"
-      reason: "boxplot aggregation added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "boxplot aggregation added in 3.11.0"
 
   - do:
       search:
@@ -178,8 +178,8 @@ setup:
 ---
 "with format":
   - skip:
-      version: " - 3.9.99"
-      reason: "boxplot aggregation added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "boxplot aggregation added in 3.11.0"
 
   - do:
       search:
@@ -200,8 +200,8 @@ setup:
 ---
 "bad arguments":
   - skip:
-      version: " - 3.9.99"
-      reason: "boxplot aggregation added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "boxplot aggregation added in 3.11.0"
 
   - do:
       catch: bad_request
