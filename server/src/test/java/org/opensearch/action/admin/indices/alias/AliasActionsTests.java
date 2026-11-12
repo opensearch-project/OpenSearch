@@ -32,9 +32,12 @@
 
 package org.opensearch.action.admin.indices.alias;
 
+import org.opensearch.Version;
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -42,7 +45,9 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Map;
@@ -338,6 +343,88 @@ public class AliasActionsTests extends OpenSearchTestCase {
             assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(e.getCause().getCause().getMessage(), containsString("Only one of [alias] and [aliases] is supported"));
         }
+    }
+
+    public void testParseScoringMode() throws IOException {
+        String scoringMode = randomFrom("unfiltered_stats", "no_stats");
+        XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
+        b.startObject()
+            .startObject("add")
+            .field("index", "i")
+            .field("alias", "a")
+            .field("scoring_mode", scoringMode)
+            .endObject()
+            .endObject();
+        try (XContentParser parser = createParser(b)) {
+            AliasActions action = AliasActions.PARSER.apply(parser, null);
+            assertEquals(scoringMode, action.scoringMode());
+            // It is written back out, so the request round-trips through the REST layer.
+            assertThat(Strings.toString(MediaTypeRegistry.JSON, action), containsString("\"scoring_mode\":\"" + scoringMode + "\""));
+        }
+    }
+
+    public void testUnknownScoringModeIsRejected() throws IOException {
+        XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
+        b.startObject()
+            .startObject("add")
+            .field("index", "i")
+            .field("alias", "a")
+            .field("scoring_mode", "filter_stats")
+            .endObject()
+            .endObject();
+        try (XContentParser parser = createParser(b)) {
+            Exception e = expectThrows(XContentParseException.class, () -> AliasActions.PARSER.apply(parser, null));
+            Throwable root = e;
+            while (root.getCause() != null) {
+                root = root.getCause();
+            }
+            assertThat(root.getMessage(), containsString("unknown alias scoring mode [filter_stats]"));
+        }
+        expectThrows(IllegalArgumentException.class, () -> AliasActions.add().scoringMode("filter_stats"));
+    }
+
+    public void testScoringModeRequiresAFilter() {
+        IndicesAliasesRequest request = new IndicesAliasesRequest().addAliasAction(
+            AliasActions.add().index("i").alias("a").scoringMode("no_stats")
+        );
+        ActionRequestValidationException e = request.validate();
+        assertNotNull(e);
+        assertThat(e.getMessage(), containsString("[scoring_mode] requires a [filter]"));
+
+        IndicesAliasesRequest filtered = new IndicesAliasesRequest().addAliasAction(
+            AliasActions.add().index("i").alias("a").filter("{\"term\":{\"f\":\"v\"}}").scoringMode("no_stats")
+        );
+        assertNull(filtered.validate());
+    }
+
+    public void testScoringModeRoundTripsAndIsRejectedForAnOlderNode() throws IOException {
+        AliasActions action = AliasActions.add().index("i").alias("a").scoringMode("no_stats");
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            action.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                AliasActions read = new AliasActions(in);
+                assertEquals(action, read);
+                assertEquals("no_stats", read.scoringMode());
+            }
+        }
+        final Version older = VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(older);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.writeTo(out));
+            assertThat(e.getMessage(), containsString("[scoring_mode] on alias [a]"));
+        }
+        AliasActions plain = AliasActions.add().index("i").alias("a");
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(older);
+            plain.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(older);
+                assertEquals(plain, new AliasActions(in));
+                assertEquals(0, in.available());
+            }
+        }
+        assertNotEquals(action, plain);
+        assertThat(action.toString(), containsString("scoringMode=no_stats"));
     }
 
     public void testRoundTrip() throws IOException {
