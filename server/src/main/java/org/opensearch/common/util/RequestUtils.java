@@ -10,6 +10,8 @@ package org.opensearch.common.util;
 
 import org.opensearch.common.UUIDs;
 
+import java.util.regex.Pattern;
+
 /**
  * Common utility methods for request handling.
  *
@@ -18,6 +20,21 @@ import org.opensearch.common.UUIDs;
 public final class RequestUtils {
 
     private RequestUtils() {}
+
+    /** Matches ASCII control characters (0x00-0x1F and 0x7F). */
+    private static final Pattern CONTROL_CHARS = Pattern.compile("\\p{Cntrl}");
+
+    /**
+     * Removes control characters from a client-provided header value so it is safe to emit in
+     * single-line log output and response headers. A {@code null} input is returned unchanged;
+     * well-formed values (UUIDs, hexadecimal or alphanumeric identifiers) are unaffected.
+     */
+    public static String sanitizeHeaderValue(String value) {
+        if (value == null) {
+            return null;
+        }
+        return CONTROL_CHARS.matcher(value).replaceAll("");
+    }
 
     /**
      * Generates a new ID field for new documents.
