@@ -32,11 +32,18 @@
 
 package org.opensearch.action.admin.indices.rollover;
 
+import org.opensearch.Version;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.indices.IndicesModule;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -106,7 +113,56 @@ public class ConditionTests extends OpenSearchTestCase {
         assertThat(result.matched, equalTo(true));
     }
 
+    public void testMaxPrimaryShardSize() {
+        MaxPrimaryShardSizeCondition condition = new MaxPrimaryShardSizeCondition(new ByteSizeValue(10, ByteSizeUnit.MB));
+        assertThat(condition.evaluate(statsWithPrimary(new ByteSizeValue(9, ByteSizeUnit.MB), 0)).matched, equalTo(false));
+        assertThat(condition.evaluate(statsWithPrimary(new ByteSizeValue(10, ByteSizeUnit.MB), 0)).matched, equalTo(true));
+        assertThat(condition.evaluate(statsWithPrimary(new ByteSizeValue(11, ByteSizeUnit.MB), 0)).matched, equalTo(true));
+    }
+
+    public void testMaxPrimaryShardDocs() {
+        MaxPrimaryShardDocsCondition condition = new MaxPrimaryShardDocsCondition(100L);
+        assertThat(condition.evaluate(statsWithPrimary(ByteSizeValue.ZERO, 99)).matched, equalTo(false));
+        assertThat(condition.evaluate(statsWithPrimary(ByteSizeValue.ZERO, 100)).matched, equalTo(true));
+        assertThat(condition.evaluate(statsWithPrimary(ByteSizeValue.ZERO, 101)).matched, equalTo(true));
+    }
+
+    public void testPrimaryShardConditionsVersionGate() {
+        for (Condition<?> condition : List.of(
+            new MaxPrimaryShardSizeCondition(new ByteSizeValue(1)),
+            new MaxPrimaryShardDocsCondition(1L)
+        )) {
+            assertThat(condition.includedInVersion(Version.V_3_10_0), equalTo(false));
+            assertThat(condition.includedInVersion(Version.V_3_11_0), equalTo(true));
+        }
+    }
+
+    public void testPrimaryShardConditionsSerialization() throws IOException {
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(new IndicesModule(Collections.emptyList()).getNamedWriteables());
+        for (Condition<?> condition : List.of(
+            new MaxPrimaryShardSizeCondition(randomByteSize()),
+            new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
+        )) {
+            Condition<?> copy = copyNamedWriteable(condition, registry, Condition.class);
+            assertThat(copy, equalTo(condition));
+        }
+    }
+
     public void testEqualsAndHashCode() {
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(randomByteSize());
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            maxPrimaryShardSizeCondition,
+            condition -> new MaxPrimaryShardSizeCondition(condition.value),
+            condition -> new MaxPrimaryShardSizeCondition(randomByteSize())
+        );
+
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(randomLong());
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            maxPrimaryShardDocsCondition,
+            condition -> new MaxPrimaryShardDocsCondition(condition.value),
+            condition -> new MaxPrimaryShardDocsCondition(randomLong())
+        );
+
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomLong());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             maxDocsCondition,
@@ -127,6 +183,10 @@ public class ConditionTests extends OpenSearchTestCase {
             condition -> new MaxAgeCondition(condition.value),
             condition -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong()))
         );
+    }
+
+    private static Condition.Stats statsWithPrimary(ByteSizeValue maxPrimaryShardSize, long maxPrimaryShardDocs) {
+        return new Condition.Stats.Builder().maxPrimaryShardSize(maxPrimaryShardSize).maxPrimaryShardDocs(maxPrimaryShardDocs).build();
     }
 
     private static ByteSizeValue randomByteSize() {
