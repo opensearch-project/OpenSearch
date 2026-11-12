@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 3.9.99"
-      reason: "terms_enum API added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
   - do:
       indices.create:
         index: test
@@ -23,8 +23,8 @@ setup:
 ---
 "Missing field":
   - skip:
-      version: " - 3.9.99"
-      reason: "terms_enum API added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
   - do:
       catch: bad_request
       terms_enum:
@@ -36,8 +36,8 @@ setup:
 ---
 "Size below minimum":
   - skip:
-      version: " - 3.9.99"
-      reason: "terms_enum API added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
   - do:
       catch: bad_request
       terms_enum:
@@ -47,8 +47,8 @@ setup:
 ---
 "Size above the configured maximum":
   - skip:
-      version: " - 3.9.99"
-      reason: "terms_enum API added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
   - do:
       catch: bad_request
       terms_enum:
@@ -59,8 +59,8 @@ setup:
 ---
 "Field type without terms enumeration support":
   - skip:
-      version: " - 3.9.99"
-      reason: "terms_enum API added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
   - do:
       catch: bad_request
       terms_enum:
@@ -71,8 +71,8 @@ setup:
 ---
 "Filtered alias target":
   - skip:
-      version: " - 3.9.99"
-      reason: "terms_enum API added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
   - do:
       indices.put_alias:
         index: test
@@ -89,8 +89,8 @@ setup:
 ---
 "Closed index is rejected, or skipped with ignore_unavailable":
   - skip:
-      version: " - 3.9.99"
-      reason: "terms_enum API added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
   - do:
       indices.create:
         index: test-closed

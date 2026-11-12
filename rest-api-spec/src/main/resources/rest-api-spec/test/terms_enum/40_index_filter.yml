@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 3.9.99"
-      reason: "terms_enum API added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
   - do:
       indices.create:
         index: old
@@ -41,8 +41,8 @@ setup:
 ---
 "index_filter skips shards that cannot match":
   - skip:
-      version: " - 3.9.99"
-      reason: "terms_enum API added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
   - do:
       terms_enum:
         index: old,new

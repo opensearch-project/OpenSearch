@@ -103,7 +103,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
     );
 
     /** The first version whose nodes handle {@link #SHARD_ACTION_NAME}. */
-    static final Version MIN_SHARD_VERSION = Version.V_3_10_0;
+    static final Version MIN_SHARD_VERSION = Version.V_3_11_0;
 
     /**
      * How long past the request's remaining time the transport layer keeps waiting for a shard reply. It only bounds

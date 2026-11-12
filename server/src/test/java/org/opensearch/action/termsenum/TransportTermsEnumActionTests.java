@@ -449,7 +449,7 @@ public class TransportTermsEnumActionTests extends OpenSearchSingleNodeTestCase 
         assertTrue(response.isComplete());
     }
 
-    private static final DiscoveryNode OLD_NODE = new DiscoveryNode("old", buildNewFakeTransportAddress(), Version.V_3_9_0);
+    private static final DiscoveryNode OLD_NODE = new DiscoveryNode("old", buildNewFakeTransportAddress(), Version.V_3_10_0);
     private static final DiscoveryNode NEW_NODE = new DiscoveryNode("new", buildNewFakeTransportAddress(), Version.CURRENT);
 
     private static DiscoveryNodes nodes() {
@@ -488,7 +488,7 @@ public class TransportTermsEnumActionTests extends OpenSearchSingleNodeTestCase 
         assertEquals(2, plans.size());
         assertEquals(List.of(), plans.get(0).copies());
         assertThat(plans.get(0).failure(), instanceOf(IllegalStateException.class));
-        assertThat(plans.get(0).failure().getMessage(), containsString("3.10.0"));
+        assertThat(plans.get(0).failure().getMessage(), containsString("3.11.0"));
         assertEquals(List.of(onNew), plans.get(1).copies());
         assertNull(plans.get(1).failure());
     }
@@ -506,7 +506,7 @@ public class TransportTermsEnumActionTests extends OpenSearchSingleNodeTestCase 
                 nodes()
             )
         );
-        assertEquals("[terms_enum] requires nodes on version 3.10.0 or later, but no copy of any target shard is on one", e.getMessage());
+        assertEquals("[terms_enum] requires nodes on version 3.11.0 or later, but no copy of any target shard is on one", e.getMessage());
     }
 
     public void testPlanShardsReportsShardWithoutCopies() {

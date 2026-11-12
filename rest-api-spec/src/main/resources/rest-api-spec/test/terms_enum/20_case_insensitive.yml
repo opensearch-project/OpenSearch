@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 3.9.99"
-      reason: "terms_enum API added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
   - do:
       indices.create:
         index: test
@@ -44,8 +44,8 @@ setup:
 ---
 "Case sensitive by default":
   - skip:
-      version: " - 3.9.99"
-      reason: "terms_enum API added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
   - do:
       terms_enum:
         index: test
@@ -55,8 +55,8 @@ setup:
 ---
 "Case insensitive":
   - skip:
-      version: " - 3.9.99"
-      reason: "terms_enum API added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
   - do:
       terms_enum:
         index: test

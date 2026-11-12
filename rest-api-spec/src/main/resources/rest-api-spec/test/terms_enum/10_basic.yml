@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 3.9.99"
-      reason: "terms_enum API added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
   - do:
       indices.create:
         index: test
@@ -44,8 +44,8 @@ setup:
 ---
 "Terms across indices":
   - skip:
-      version: " - 3.9.99"
-      reason: "terms_enum API added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
   - do:
       terms_enum:
         index: test,test-2
@@ -57,8 +57,8 @@ setup:
 ---
 "Size limits the terms in byte order":
   - skip:
-      version: " - 3.9.99"
-      reason: "terms_enum API added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
   - do:
       terms_enum:
         index: test
@@ -68,8 +68,8 @@ setup:
 ---
 "Data stream target":
   - skip:
-      version: " - 3.9.99"
-      reason: "terms_enum API added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
       features: allowed_warnings
   - do:
       allowed_warnings:
