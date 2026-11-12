@@ -1,8 +1,8 @@
 ---
 "Remove a write block":
   - skip:
-      version: " - 3.9.99"
-      reason: "The remove index block API (indices.remove_block) was added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "The remove index block API (indices.remove_block) was added in 3.11.0"
 
   - do:
       indices.create:
@@ -47,8 +47,8 @@
 ---
 "Remove a block that is not set":
   - skip:
-      version: " - 3.9.99"
-      reason: "The remove index block API (indices.remove_block) was added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "The remove index block API (indices.remove_block) was added in 3.11.0"
 
   - do:
       indices.create:
@@ -76,8 +76,8 @@
 ---
 "Remove read_only and write blocks that were set together":
   - skip:
-      version: " - 3.9.99"
-      reason: "The remove index block API (indices.remove_block) was added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "The remove index block API (indices.remove_block) was added in 3.11.0"
 
   - do:
       indices.create:
@@ -115,8 +115,8 @@
 ---
 "Remove a block from several indices with a wildcard":
   - skip:
-      version: " - 3.9.99"
-      reason: "The remove index block API (indices.remove_block) was added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "The remove index block API (indices.remove_block) was added in 3.11.0"
 
   - do:
       indices.create:
@@ -158,8 +158,8 @@
 ---
 "Remove a block with unavailable and missing indices":
   - skip:
-      version: " - 3.9.99"
-      reason: "The remove index block API (indices.remove_block) was added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "The remove index block API (indices.remove_block) was added in 3.11.0"
 
   - do:
       catch: missing
@@ -192,8 +192,8 @@
 ---
 "Blocks that cannot be removed with this API are rejected":
   - skip:
-      version: " - 3.9.99"
-      reason: "The remove index block API (indices.remove_block) was added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "The remove index block API (indices.remove_block) was added in 3.11.0"
 
   - do:
       indices.create:

@@ -257,13 +257,13 @@ public class TransportRemoveIndexBlockActionTests extends OpenSearchTestCase {
             () -> TransportRemoveIndexBlockAction.ensureAllNodesSupportRemoveIndexBlock(mixed)
         );
         assertThat(e.getMessage(), containsString("indices:admin/block/remove"));
-        assertThat(e.getMessage(), containsString(Version.V_3_10_0.toString()));
+        assertThat(e.getMessage(), containsString(Version.V_3_11_0.toString()));
         assertThat(e.getMessage(), containsString(Version.V_3_9_0.toString()));
     }
 
     public void testClusterOfNewNodesIsAccepted() {
         TransportRemoveIndexBlockAction.ensureAllNodesSupportRemoveIndexBlock(nodes(Version.CURRENT));
-        TransportRemoveIndexBlockAction.ensureAllNodesSupportRemoveIndexBlock(nodes(Version.V_3_10_0, Version.CURRENT));
+        TransportRemoveIndexBlockAction.ensureAllNodesSupportRemoveIndexBlock(nodes(Version.V_3_11_0, Version.CURRENT));
     }
 
     public void testRequestIsNotForwardedInAMixedVersionCluster() {
@@ -277,7 +277,7 @@ public class TransportRemoveIndexBlockActionTests extends OpenSearchTestCase {
             () -> action.doExecute(mock(Task.class), new RemoveIndexBlockRequest(APIBlock.WRITE, "test"), listener)
         );
 
-        assertThat(e.getMessage(), containsString(Version.V_3_10_0.toString()));
+        assertThat(e.getMessage(), containsString(Version.V_3_11_0.toString()));
         // nothing was started: the request never reaches the cluster manager, which could be a node that lacks the action
         verifyNoInteractions(indexStateService, listener);
     }

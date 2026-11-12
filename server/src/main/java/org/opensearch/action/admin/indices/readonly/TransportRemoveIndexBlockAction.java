@@ -99,12 +99,12 @@ public class TransportRemoveIndexBlockAction extends TransportClusterManagerNode
      */
     static void ensureAllNodesSupportRemoveIndexBlock(DiscoveryNodes nodes) {
         final Version minNodeVersion = nodes.getMinNodeVersion();
-        if (minNodeVersion.before(Version.V_3_10_0)) {
+        if (minNodeVersion.before(Version.V_3_11_0)) {
             throw new IllegalArgumentException(
                 "action ["
                     + RemoveIndexBlockAction.NAME
                     + "] requires all nodes in the cluster to be on version ["
-                    + Version.V_3_10_0
+                    + Version.V_3_11_0
                     + "] or later, but the oldest node is on version ["
                     + minNodeVersion
                     + "]"

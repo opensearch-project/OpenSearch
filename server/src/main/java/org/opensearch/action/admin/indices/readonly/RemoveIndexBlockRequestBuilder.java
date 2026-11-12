@@ -19,7 +19,7 @@ import org.opensearch.transport.client.OpenSearchClient;
  *
  * @opensearch.api
  */
-@PublicApi(since = "3.10.0")
+@PublicApi(since = "3.11.0")
 public class RemoveIndexBlockRequestBuilder extends AcknowledgedRequestBuilder<
     RemoveIndexBlockRequest,
     RemoveIndexBlockResponse,

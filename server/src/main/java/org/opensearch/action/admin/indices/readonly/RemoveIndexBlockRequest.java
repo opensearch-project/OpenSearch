@@ -28,7 +28,7 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  *
  * @opensearch.api
  */
-@PublicApi(since = "3.10.0")
+@PublicApi(since = "3.11.0")
 public class RemoveIndexBlockRequest extends AcknowledgedRequest<RemoveIndexBlockRequest> implements IndicesRequest.Replaceable {
 
     private final APIBlock block;

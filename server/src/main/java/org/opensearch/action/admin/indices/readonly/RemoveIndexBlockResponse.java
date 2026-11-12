@@ -33,7 +33,7 @@ import static java.util.Collections.unmodifiableList;
  *
  * @opensearch.api
  */
-@PublicApi(since = "3.10.0")
+@PublicApi(since = "3.11.0")
 public class RemoveIndexBlockResponse extends AcknowledgedResponse {
 
     private final List<RemoveBlockResult> indices;
@@ -82,7 +82,7 @@ public class RemoveIndexBlockResponse extends AcknowledgedResponse {
      *
      * @opensearch.api
      */
-    @PublicApi(since = "3.10.0")
+    @PublicApi(since = "3.11.0")
     public static class RemoveBlockResult implements Writeable, ToXContentFragment {
 
         private final Index index;
