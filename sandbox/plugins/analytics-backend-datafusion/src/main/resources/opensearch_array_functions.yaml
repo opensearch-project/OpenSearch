@@ -69,6 +69,34 @@ scalar_functions:
             name: array
         return: "list<any1>"
 
+  - name: array_has
+    description: >-
+      Return true if the array contains the given element, false otherwise. Calcite's
+      {@code SqlLibraryOperators.ARRAY_CONTAINS} lowers to this name.
+      datafusion-substrait resolves "array_has" to DataFusion's native array_has UDF.
+      The extra i64/f64/string element overloads (in addition to the parameterized
+      any1 form) let isthmus bind when a Calcite integer literal (i32) or numeric
+      literal is compared against a wider-typed list without an explicit cast.
+    impls:
+      - args:
+          - value: "list<any1>"
+            name: array
+          - value: any1
+            name: element
+        return: "boolean"
+      - args:
+          - value: "list<i64>"
+            name: array
+          - value: "i32"
+            name: element
+        return: "boolean"
+      - args:
+          - value: "list<i64?>"
+            name: array
+          - value: "i32"
+            name: element
+        return: "boolean"
+
   - name: array_element
     description: >-
       Return the element at the given 1-based position. Calcite's
