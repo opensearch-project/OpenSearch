@@ -1,11 +1,4 @@
-/*
- * SPDX-License-Identifier: Apache-2.0
- *
- * The OpenSearch Contributors require contributions made to
- * this file be licensed under the Apache-2.0 license or a
- * compatible open source license.
- */
-
+/* SPDX-License-Identifier: Apache-2.0 */
 package org.opensearch.be.datafusion;
 
 import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
@@ -18,6 +11,7 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.opensearch.analytics.schema.IpType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
@@ -34,9 +28,85 @@ public class ComparisonTemporalCoercionAdapterTests extends OpenSearchTestCase {
         return rexBuilder.makeInputRef(typeFactory.createSqlType(name), 0);
     }
 
+    private RexNode ipField(boolean nullable) {
+        return rexBuilder.makeInputRef(new IpType(nullable), 0);
+    }
+
+    private RexNode varbinaryField(boolean nullable) {
+        return rexBuilder.makeInputRef(
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARBINARY), nullable),
+            0
+        );
+    }
+
     private RexCall eq(RexNode l, RexNode r) {
         return (RexCall) rexBuilder.makeCall(SqlStdOperatorTable.EQUALS, List.of(l, r));
     }
+
+    // ── IpType comparison tests ─────────────────────────────────────────────
+
+    /** IpType vs IpType: both operands must be cast to plain VARBINARY. */
+    public void testIpTypeVsIpTypeCastToVarbinary() {
+        RexCall original = eq(ipField(true), ipField(true));
+
+        RexCall adapted = (RexCall) adapter.adapt(original, List.of(), cluster);
+
+        assertNotSame(original, adapted);
+        for (int i = 0; i < 2; i++) {
+            RexNode operand = adapted.getOperands().get(i);
+            assertEquals(SqlKind.CAST, operand.getKind());
+            assertSame(SqlTypeName.VARBINARY, operand.getType().getSqlTypeName());
+        }
+    }
+
+    /** IpType vs VARBINARY: only the IpType side is cast; VARBINARY side passes through. */
+    public void testIpTypeVsVarbinaryCastsIpSideOnly() {
+        RexCall original = eq(ipField(true), varbinaryField(true));
+
+        RexCall adapted = (RexCall) adapter.adapt(original, List.of(), cluster);
+
+        assertNotSame(original, adapted);
+        // Left (IpType) must be cast to VARBINARY
+        assertEquals(SqlKind.CAST, adapted.getOperands().get(0).getKind());
+        assertSame(SqlTypeName.VARBINARY, adapted.getOperands().get(0).getType().getSqlTypeName());
+        // Right (VARBINARY) must pass through unchanged
+        assertSame(original.getOperands().get(1), adapted.getOperands().get(1));
+    }
+
+    /** VARBINARY vs IpType: symmetric — only the IpType side is cast. */
+    public void testVarbinaryVsIpTypeCastsIpSideOnly() {
+        RexCall original = eq(varbinaryField(true), ipField(true));
+
+        RexCall adapted = (RexCall) adapter.adapt(original, List.of(), cluster);
+
+        assertNotSame(original, adapted);
+        assertSame(original.getOperands().get(0), adapted.getOperands().get(0));
+        assertEquals(SqlKind.CAST, adapted.getOperands().get(1).getKind());
+        assertSame(SqlTypeName.VARBINARY, adapted.getOperands().get(1).getType().getSqlTypeName());
+    }
+
+    /** IpType vs VARCHAR: IpType is cast to VARBINARY; VARCHAR remains unchanged (temporal coercion may handle it separately). */
+    public void testIpTypeVsVarchar() {
+        RexCall original = eq(ipField(true), field(SqlTypeName.VARCHAR));
+
+        RexCall adapted = (RexCall) adapter.adapt(original, List.of(), cluster);
+
+        assertNotSame(original, adapted);
+        assertEquals(SqlKind.CAST, adapted.getOperands().get(0).getKind());
+        assertSame(SqlTypeName.VARBINARY, adapted.getOperands().get(0).getType().getSqlTypeName());
+        assertSame(original.getOperands().get(1), adapted.getOperands().get(1));
+    }
+
+    /** Plain VARBINARY vs VARBINARY (no IpType involved) must pass through unchanged. */
+    public void testPlainVarbinaryComparisonPassesThrough() {
+        RexCall original = eq(varbinaryField(true), varbinaryField(true));
+
+        RexCall adapted = (RexCall) adapter.adapt(original, List.of(), cluster);
+
+        assertSame(original, adapted);
+    }
+
+    // ── Original temporal coercion tests ─────────────────────────────────────
 
     /** TIME vs TIMESTAMP: TIME side rewritten to today-anchored TIMESTAMP, TIMESTAMP side untouched. */
     public void testTimeVsTimestampCoercesTimeSide() {
@@ -121,11 +191,7 @@ public class ComparisonTemporalCoercionAdapterTests extends OpenSearchTestCase {
         assertSame(original, adapted);
     }
 
-    /**
-     * Calcite's binary-comparison type-coercion wraps the TIME side with
-     * {@code to_timestamp(time)} to align with a DATE peer — that's the actual production input
-     * shape (not a raw TIME ref). The adapter must unwrap to find the inner TIME and rewrite it.
-     */
+    /** Calcite's binary-comparison type-coercion wraps the TIME side with to_timestamp(time). */
     public void testToTimestampWrappedTimeVsDateCoerces() {
         RexNode timeRef = field(SqlTypeName.TIME);
         RexNode wrappedTime = rexBuilder.makeCall(
@@ -143,10 +209,7 @@ public class ComparisonTemporalCoercionAdapterTests extends OpenSearchTestCase {
         assertSame("DATE peer must not be rewritten", date, adapted.getOperands().get(1));
     }
 
-    /**
-     * {@code CAST(time AS TIMESTAMP)} is the other wrapped form Calcite's coercion may emit. The
-     * adapter's {@code unwrapToTime} also recognises CAST as a single-operand wrapper.
-     */
+    /** CAST(time AS TIMESTAMP) wrapped form. */
     public void testCastWrappedTimeVsTimestampCoerces() {
         RexNode timeRef = field(SqlTypeName.TIME);
         RexNode castTime = rexBuilder.makeCast(typeFactory.createSqlType(SqlTypeName.TIMESTAMP), timeRef);
@@ -160,10 +223,7 @@ public class ComparisonTemporalCoercionAdapterTests extends OpenSearchTestCase {
         assertSame(ts, adapted.getOperands().get(1));
     }
 
-    /**
-     * The DATE/TIMESTAMP peer can also arrive wrapped (e.g. {@code to_timestamp(date)}); the adapter
-     * still has to recognise it as a temporal peer to fire the TIME-side rewrite.
-     */
+    /** TIME vs to_timestamp-wrapped DATE. */
     public void testTimeVsToTimestampWrappedDateCoerces() {
         RexNode time = field(SqlTypeName.TIME);
         RexNode dateRef = field(SqlTypeName.DATE);
