@@ -50,6 +50,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * Represents a {@link QueryBuilder} and a list of alias names that filters the builder is composed of.
@@ -126,33 +127,33 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
      *
      * @param alias the alias that sets the mode
      * @param scoringMode the mode, or {@code null} when the alias sets none
-     * @param version the oldest node in the cluster, or the node a request is sent to
+     * @param version the oldest node in the cluster, or the node a request is sent to; read only when a mode is set
      * @throws IllegalArgumentException if a mode is set and {@code version} predates {@link #SCORING_MODE_VERSION}
      */
-    public static void ensureScoringModeSupported(String alias, @Nullable String scoringMode, Version version) {
-        if (scoringMode != null && version.before(SCORING_MODE_VERSION)) {
+    public static void ensureScoringModeSupported(String alias, @Nullable String scoringMode, Supplier<Version> version) {
+        if (scoringMode != null && version.get().before(SCORING_MODE_VERSION)) {
             throw new IllegalArgumentException(
                 "[scoring_mode] on alias ["
                     + alias
                     + "] requires all nodes on version ["
                     + SCORING_MODE_VERSION
                     + "] or later, but a node is on ["
-                    + version
+                    + version.get()
                     + "]"
             );
         }
     }
 
     /** Applies {@link #ensureScoringModeSupported} to every alias of {@code template}, which may be {@code null}. */
-    public static void ensureScoringModesSupported(@Nullable Template template, Version version) {
+    public static void ensureScoringModesSupported(@Nullable Template template, Supplier<Version> version) {
         if (template != null) {
             ensureScoringModesSupported(template.aliases(), version);
         }
     }
 
     /** Applies {@link #ensureScoringModeSupported} to every alias in {@code aliases}, which may be {@code null}. */
-    public static void ensureScoringModesSupported(@Nullable Map<String, AliasMetadata> aliases, Version version) {
-        if (aliases == null || version.onOrAfter(SCORING_MODE_VERSION)) {
+    public static void ensureScoringModesSupported(@Nullable Map<String, AliasMetadata> aliases, Supplier<Version> version) {
+        if (aliases == null) {
             return;
         }
         for (AliasMetadata alias : aliases.values()) {
@@ -208,7 +209,7 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
             scoringMode.writeTo(out);
         } else if (scoringMode != ScoringMode.UNFILTERED_STATS) {
             // An older node, such as the coordinator of a cross-cluster search, would score with unfiltered_stats.
-            ensureScoringModeSupported(String.join(",", aliases), scoringMode.value(), out.getVersion());
+            ensureScoringModeSupported(String.join(",", aliases), scoringMode.value(), out::getVersion);
         }
     }
 

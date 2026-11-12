@@ -310,7 +310,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (out.getVersion().onOrAfter(AliasFilter.SCORING_MODE_VERSION)) {
                 out.writeOptionalString(scoringMode);
             } else if (scoringMode != null) {
-                AliasFilter.ensureScoringModeSupported(String.join(",", aliases), scoringMode, out.getVersion());
+                AliasFilter.ensureScoringModeSupported(String.join(",", aliases), scoringMode, out::getVersion);
             }
         }
 

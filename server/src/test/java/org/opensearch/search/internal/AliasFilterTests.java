@@ -205,11 +205,11 @@ public class AliasFilterTests extends OpenSearchTestCase {
 
     public void testScoringModeNeedsEveryNodeToReadIt() {
         final Version older = VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION);
-        AliasFilter.ensureScoringModeSupported("a", null, older);
-        AliasFilter.ensureScoringModeSupported("a", "no_stats", AliasFilter.SCORING_MODE_VERSION);
+        AliasFilter.ensureScoringModeSupported("a", null, () -> { throw new AssertionError("no mode, so no version lookup"); });
+        AliasFilter.ensureScoringModeSupported("a", "no_stats", () -> AliasFilter.SCORING_MODE_VERSION);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> AliasFilter.ensureScoringModeSupported("a", "no_stats", older)
+            () -> AliasFilter.ensureScoringModeSupported("a", "no_stats", () -> older)
         );
         assertEquals(
             "[scoring_mode] on alias [a] requires all nodes on version ["
@@ -226,11 +226,11 @@ public class AliasFilterTests extends OpenSearchTestCase {
         Map<String, AliasMetadata> aliases = new LinkedHashMap<>();
         aliases.put("plain", AliasMetadata.builder("plain").filter("{\"match_all\":{}}").build());
         aliases.put("scoped", AliasMetadata.builder("scoped").filter("{\"match_all\":{}}").scoringMode("no_stats").build());
-        AliasFilter.ensureScoringModesSupported(aliases, AliasFilter.SCORING_MODE_VERSION);
-        AliasFilter.ensureScoringModesSupported(new Template(Settings.EMPTY, null, null), older);
+        AliasFilter.ensureScoringModesSupported(aliases, () -> AliasFilter.SCORING_MODE_VERSION);
+        AliasFilter.ensureScoringModesSupported(new Template(Settings.EMPTY, null, null), () -> older);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> AliasFilter.ensureScoringModesSupported(new Template(Settings.EMPTY, null, aliases), older)
+            () -> AliasFilter.ensureScoringModesSupported(new Template(Settings.EMPTY, null, aliases), () -> older)
         );
         assertThat(e.getMessage(), containsString("on alias [scoped]"));
     }

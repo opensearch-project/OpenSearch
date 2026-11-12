@@ -94,7 +94,7 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
             out.writeString(name);
             out.writeOptionalString(cause);
             out.writeBoolean(create);
-            AliasFilter.ensureScoringModesSupported(componentTemplate.template(), out.getVersion());
+            AliasFilter.ensureScoringModesSupported(componentTemplate.template(), out::getVersion);
             this.componentTemplate.writeTo(out);
         }
 
