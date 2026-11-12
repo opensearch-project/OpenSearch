@@ -19,10 +19,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 @ExperimentalApi
 public class TermsEnumAction extends ActionType<TermsEnumResponse> {
 
-    /**
-     * The action name. It must not start with {@code indices:data/read/search}, because the security plugin turns off
-     * reader-level document-level security for actions under that prefix.
-     */
+    /** The action name. */
     public static final String NAME = "indices:data/read/terms_enum";
 
     /** The single instance of this action. */

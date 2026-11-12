@@ -32,17 +32,24 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.index.query.QueryShardContext;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -100,6 +107,30 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
             bytesCollector.accept(elem);
         }
         return new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), bytesCollector.get());
+    }
+
+    /**
+     * Returns the terms of this field in one segment that start with {@code prefix}, in ascending order, or {@code null}
+     * if the segment has no terms for this field. The prefix goes through {@link #indexedValueForSearch} first, and
+     * {@code caseInsensitive} folds the case of ASCII letters only. The enum starts after {@code searchAfter} when the
+     * prefix matches it; otherwise terms up to {@code searchAfter} can still be returned.
+     */
+    @Nullable
+    public TermsEnum termsEnum(LeafReader reader, String prefix, boolean caseInsensitive, @Nullable BytesRef searchAfter)
+        throws IOException {
+        failIfNotIndexed();
+        Terms terms = reader.terms(name());
+        if (terms == null) {
+            return null;
+        }
+        BytesRef normalizedPrefix = indexedValueForSearch(prefix);
+        CompiledAutomaton automaton = caseInsensitive
+            ? new CompiledAutomaton(AutomatonQueries.caseInsensitivePrefix(normalizedPrefix.utf8ToString()), false, false, false)
+            : new CompiledAutomaton(PrefixQuery.toAutomaton(normalizedPrefix), false, false, true);
+        // intersect can only start at a term that the automaton accepts
+        boolean startAfter = searchAfter != null
+            && automaton.getByteRunnable().run(searchAfter.bytes, searchAfter.offset, searchAfter.length);
+        return terms.intersect(automaton, startAfter ? searchAfter : null);
     }
 
 }

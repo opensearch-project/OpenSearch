@@ -10,42 +10,35 @@ package org.opensearch.action.termsenum;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Nullable;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.TermBasedFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeSet;
 import java.util.function.BooleanSupplier;
 
 /**
- * Collects the terms of one reader that at least one live document contains, in the order of a field type's
- * {@link MappedFieldType#termsEnum} candidates. Dropping terms without a live document keeps terms of deleted
- * documents, and of documents that a reader wrapper hides for document-level security, out of the result.
- * It stops at {@code size} terms, and returns the terms collected so far when the deadline passes.
- * <p>
- * Liveness is decided from each segment's own {@link org.apache.lucene.index.LeafReader#getLiveDocs()}, never from
- * {@code numDocs()} or {@code hasDeletions()}, so a reader wrapper that hides documents without lowering its
- * document counts still cannot leak their terms.
+ * Collects the smallest terms of a field in one reader. Each segment's terms come from
+ * {@link TermBasedFieldType#termsEnum}, and the first {@code size} distinct terms across all segments are kept.
+ * Like any term dictionary lookup, this can return terms of deleted documents until a merge removes them, and terms
+ * of documents that document-level security hides.
  *
  * @opensearch.internal
  */
 public final class TermsEnumCollector {
 
-    /** How many candidate terms are visited between two deadline checks. */
+    /** How many terms are visited between two deadline checks. */
     static final int CHECK_INTERVAL = 128;
-    /** How many postings of a single term are walked between two deadline checks. */
-    static final int POSTINGS_CHECK_INTERVAL = 4096;
 
     /**
      * The terms collected from one reader.
      *
-     * @param terms the display strings of the live terms, in candidate order
+     * @param terms the display strings of the terms, in ascending byte order
      * @param timedOut whether the deadline stopped the collection before it was complete
      */
     public record Result(List<String> terms, boolean timedOut) {
@@ -55,52 +48,15 @@ public final class TermsEnumCollector {
         }
     }
 
-    private enum Liveness {
-        LIVE,
-        DEAD,
-        TIMED_OUT
-    }
-
-    private final int maxDoc;
-    /** The first top-level doc id of each segment. */
-    private final int[] docBases;
-    /** One past the last top-level doc id of each segment. */
-    private final int[] docEnds;
-    /** Each segment's own live docs, null where the segment neither deletes nor hides a document. */
-    private final Bits[] segmentLiveDocs;
-    /** Whether no segment deletes or hides a document. */
-    private final boolean allSegmentsLive;
-    private final BooleanSupplier timedOut;
-    private PostingsEnum postings;
-    /** Cached answer for terms in every document, which only depends on the reader. */
-    @Nullable
-    private Liveness termInEveryDocLiveness;
-
-    private TermsEnumCollector(IndexReader reader, BooleanSupplier timedOut) {
-        List<LeafReaderContext> leaves = reader.leaves();
-        this.maxDoc = reader.maxDoc();
-        this.docBases = new int[leaves.size()];
-        this.docEnds = new int[leaves.size()];
-        this.segmentLiveDocs = new Bits[leaves.size()];
-        boolean allLive = true;
-        for (int i = 0; i < leaves.size(); i++) {
-            LeafReaderContext leaf = leaves.get(i);
-            docBases[i] = leaf.docBase;
-            docEnds[i] = leaf.docBase + leaf.reader().maxDoc();
-            segmentLiveDocs[i] = leaf.reader().getLiveDocs();
-            allLive &= segmentLiveDocs[i] == null;
-        }
-        this.allSegmentsLive = allLive;
-        this.timedOut = timedOut;
-    }
+    private TermsEnumCollector() {}
 
     /**
-     * Collects up to {@code size} candidate terms that sort after {@code searchAfter} and that at least one live
-     * document of {@code reader} contains.
+     * Collects up to {@code size} terms that start with {@code prefix} and sort after {@code searchAfter}.
      *
-     * @param fieldType the field type that produced {@code candidates}, used to render each term
-     * @param candidates the candidate terms in ascending byte order, or {@code null} for none
-     * @param reader the top-level reader that {@code candidates} enumerates
+     * @param fieldType the field whose terms are collected
+     * @param reader the reader whose segments are read
+     * @param prefix the prefix every term starts with
+     * @param caseInsensitive whether to match the prefix with ASCII case folding
      * @param searchAfter only terms strictly greater than this are collected, or {@code null} for no lower bound
      * @param size the maximum number of terms to collect, at least 1
      * @param timedOut polled periodically; once it returns {@code true}, the terms collected so far are returned.
@@ -109,9 +65,10 @@ public final class TermsEnumCollector {
      * @throws IOException if reading the index fails
      */
     public static Result collect(
-        MappedFieldType fieldType,
-        @Nullable TermsEnum candidates,
+        TermBasedFieldType fieldType,
         IndexReader reader,
+        String prefix,
+        boolean caseInsensitive,
         @Nullable BytesRef searchAfter,
         int size,
         BooleanSupplier timedOut
@@ -119,101 +76,37 @@ public final class TermsEnumCollector {
         if (size < 1) {
             throw new IllegalArgumentException("size must be at least 1 but was [" + size + "]");
         }
-        if (candidates == null) {
-            return new Result(List.of(), false);
-        }
-        return new TermsEnumCollector(reader, timedOut).collect(fieldType, candidates, searchAfter, size);
-    }
-
-    private Result collect(MappedFieldType fieldType, TermsEnum candidates, @Nullable BytesRef searchAfter, int size) throws IOException {
-        List<String> terms = new ArrayList<>();
+        TreeSet<BytesRef> smallest = new TreeSet<>();
         long visited = 0;
-        for (BytesRef term = candidates.next(); term != null; term = candidates.next()) {
-            if (searchAfter == null || term.compareTo(searchAfter) > 0) {
-                Liveness liveness = liveness(candidates);
-                if (liveness == Liveness.TIMED_OUT) {
-                    return new Result(terms, true);
+        for (LeafReaderContext leaf : reader.leaves()) {
+            TermsEnum termsEnum = fieldType.termsEnum(leaf.reader(), prefix, caseInsensitive, searchAfter);
+            if (termsEnum == null) {
+                continue;
+            }
+            for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
+                if (smallest.size() == size && term.compareTo(smallest.last()) >= 0) {
+                    break; // the rest of this segment sorts after every term kept
                 }
-                if (liveness == Liveness.LIVE) {
-                    terms.add(displayString(fieldType, term));
-                    if (terms.size() == size) {
-                        return new Result(terms, false);
+                if (searchAfter == null || term.compareTo(searchAfter) > 0) {
+                    smallest.add(BytesRef.deepCopyOf(term));
+                    if (smallest.size() > size) {
+                        smallest.pollLast();
                     }
                 }
-            }
-            // candidates skipped as dead or not after searchAfter count toward the deadline check too
-            if (++visited % CHECK_INTERVAL == 0 && timedOut.getAsBoolean()) {
-                return new Result(terms, true);
-            }
-        }
-        return new Result(terms, false);
-    }
-
-    /** Whether a live document contains the current term of {@code candidates}. */
-    private Liveness liveness(TermsEnum candidates) throws IOException {
-        // a term in every document, including a synthesized one that has no postings, is live if any document is
-        if (candidates.docFreq() == maxDoc) {
-            if (termInEveryDocLiveness != null) {
-                return termInEveryDocLiveness;
-            }
-            Liveness liveness = anyLiveDoc();
-            if (liveness != Liveness.TIMED_OUT) {
-                termInEveryDocLiveness = liveness;
-            }
-            return liveness;
-        }
-        // the term has a posting in some segment, and no segment deletes or hides a document
-        if (allSegmentsLive) {
-            return Liveness.LIVE;
-        }
-        // the postings use top-level doc ids, ascending, so each doc is checked against its own segment's live docs
-        postings = candidates.postings(postings, PostingsEnum.NONE);
-        int segment = -1;
-        int docBase = 0;
-        int docEnd = 0;
-        Bits liveDocs = null;
-        long walked = 0;
-        for (int doc = postings.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = postings.nextDoc()) {
-            while (doc >= docEnd) {
-                segment++;
-                docBase = docBases[segment];
-                docEnd = docEnds[segment];
-                liveDocs = segmentLiveDocs[segment];
-            }
-            // a segment without live docs bits keeps every document, so its first posting is live
-            if (liveDocs == null || liveDocs.get(doc - docBase)) {
-                return Liveness.LIVE;
-            }
-            if (++walked % POSTINGS_CHECK_INTERVAL == 0 && timedOut.getAsBoolean()) {
-                return Liveness.TIMED_OUT;
-            }
-        }
-        return Liveness.DEAD;
-    }
-
-    /**
-     * Whether any segment has a live document. This is the per-segment walk for a term that is in every document:
-     * its postings in each segment are every doc id, so the segment's live docs are walked directly. A synthesized
-     * term has no postings to walk.
-     */
-    private Liveness anyLiveDoc() {
-        long walked = 0;
-        for (int segment = 0; segment < segmentLiveDocs.length; segment++) {
-            int segmentMaxDoc = docEnds[segment] - docBases[segment];
-            Bits liveDocs = segmentLiveDocs[segment];
-            if (liveDocs == null && segmentMaxDoc > 0) {
-                return Liveness.LIVE;
-            }
-            for (int doc = 0; doc < segmentMaxDoc; doc++) {
-                if (liveDocs.get(doc)) {
-                    return Liveness.LIVE;
-                }
-                if (++walked % POSTINGS_CHECK_INTERVAL == 0 && timedOut.getAsBoolean()) {
-                    return Liveness.TIMED_OUT;
+                if (++visited % CHECK_INTERVAL == 0 && timedOut.getAsBoolean()) {
+                    return result(fieldType, smallest, true);
                 }
             }
         }
-        return Liveness.DEAD;
+        return result(fieldType, smallest, false);
+    }
+
+    private static Result result(MappedFieldType fieldType, TreeSet<BytesRef> terms, boolean timedOut) {
+        List<String> display = new ArrayList<>(terms.size());
+        for (BytesRef term : terms) {
+            display.add(displayString(fieldType, term));
+        }
+        return new Result(display, timedOut);
     }
 
     /**

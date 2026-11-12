@@ -154,11 +154,6 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        protected String constantValue(QueryShardContext context) {
-            return value;
-        }
-
-        @Override
         protected FieldTypeCapabilities.Capability searchCapability() {
             return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
         }

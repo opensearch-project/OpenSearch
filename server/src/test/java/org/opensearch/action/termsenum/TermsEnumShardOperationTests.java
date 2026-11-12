@@ -113,43 +113,10 @@ public class TermsEnumShardOperationTests extends OpenSearchSingleNodeTestCase {
         assertOk(run("idx", new TermsEnumRequest("idx").field("tag").string("web")), List.of("web-01", "web-02"));
     }
 
-    public void testTermOnlyInDeletedDocIsNotReturned() throws IOException {
-        createMapped("idx", "{\"properties\":{\"tag\":{\"type\":\"keyword\"}}}");
-        index("idx", "1", "{\"tag\":\"ghost\"}");
-        index("idx", "2", "{\"tag\":\"live\"}");
-        client().admin().indices().prepareRefresh("idx").get();
-        client().prepareDelete("idx", "1").get();
-        client().admin().indices().prepareRefresh("idx").get();
-        assertOk(run("idx", new TermsEnumRequest("idx").field("tag")), List.of("live"));
-    }
-
-    public void testConstantKeywordOnEmptyIndex() throws IOException {
-        createMapped("idx", "{\"properties\":{\"team\":{\"type\":\"constant_keyword\",\"value\":\"red\"}}}");
-        assertOk(run("idx", new TermsEnumRequest("idx").field("team")), List.of());
-    }
-
-    public void testConstantKeywordWithDocs() throws IOException {
-        createMapped("idx", "{\"properties\":{\"team\":{\"type\":\"constant_keyword\",\"value\":\"red\"}}}");
-        index("idx", "1", "{\"other\":1}");
-        assertOk(run("idx", new TermsEnumRequest("idx").field("team")), List.of("red"));
-    }
-
-    public void testIndexMetaField() throws IOException {
-        createMapped("idx", "{\"properties\":{\"tag\":{\"type\":\"keyword\"}}}");
-        index("idx", "1", "{\"tag\":\"a\"}");
-        client().admin().indices().prepareRefresh("idx").get();
-        assertOk(run("idx", new TermsEnumRequest("idx").field("_index").string("")), List.of("idx"));
-    }
-
     public void testFieldHiddenByFieldFilterIsAbsent() throws IOException {
-        createMapped(
-            "idx",
-            "{\"properties\":{\"secret_tag\":{\"type\":\"keyword\"},"
-                + "\"secret_team\":{\"type\":\"constant_keyword\",\"value\":\"red\"}}}"
-        );
+        createMapped("idx", "{\"properties\":{\"secret_tag\":{\"type\":\"keyword\"}}}");
         index("idx", "1", "{\"secret_tag\":\"hidden\"}");
         assertEquals(TermsEnumShardResponse.fieldAbsent(), run("idx", new TermsEnumRequest("idx").field("secret_tag")));
-        assertEquals(TermsEnumShardResponse.fieldAbsent(), run("idx", new TermsEnumRequest("idx").field("secret_team")));
     }
 
     public void testUnmappedFieldIsAbsent() throws IOException {

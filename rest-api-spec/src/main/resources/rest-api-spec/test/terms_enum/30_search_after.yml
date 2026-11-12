@@ -13,7 +13,6 @@ setup:
           mappings:
             properties:
               tag: { type: keyword }
-              team: { type: constant_keyword, value: red }
               count: { type: long }
   - do:
       indices.create:

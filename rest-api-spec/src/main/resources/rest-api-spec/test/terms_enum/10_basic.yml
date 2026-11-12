@@ -13,7 +13,6 @@ setup:
           mappings:
             properties:
               tag: { type: keyword }
-              team: { type: constant_keyword, value: red }
               count: { type: long }
   - do:
       indices.create:
@@ -65,28 +64,6 @@ setup:
         index: test
         body: { field: tag, size: 2 }
   - match: { terms: [Web-03, api-01] }
-
----
-"Constant keyword field":
-  - skip:
-      version: " - 3.9.99"
-      reason: "terms_enum API added in 3.10.0"
-  - do:
-      terms_enum:
-        index: test
-        body: { field: team }
-  - match: { terms: [red] }
-
----
-"_index field":
-  - skip:
-      version: " - 3.9.99"
-      reason: "terms_enum API added in 3.10.0"
-  - do:
-      terms_enum:
-        index: test,test-2
-        body: { field: _index, string: test }
-  - match: { terms: [test, test-2] }
 
 ---
 "Data stream target":

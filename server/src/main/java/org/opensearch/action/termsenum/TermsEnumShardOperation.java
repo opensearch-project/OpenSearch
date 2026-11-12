@@ -8,14 +8,15 @@
 
 package org.opensearch.action.termsenum;
 
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.DerivedFieldType;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.TermBasedFieldType;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
@@ -50,7 +51,7 @@ final class TermsEnumShardOperation {
     /**
      * Creates the operation.
      *
-     * @param indicesService resolves shards, field filters and metadata fields
+     * @param indicesService resolves shards and field filters
      * @param searchService rules shards out through the index filter
      * @param nanoClock a monotonic clock in nanoseconds, the same one that produced {@code startNanos}
      */
@@ -85,30 +86,23 @@ final class TermsEnumShardOperation {
             if (fieldType == null) {
                 return TermsEnumShardResponse.fieldAbsent();
             }
-            // the field filter is the only field-level security guard for types that never read the terms dictionary
-            if (indicesService.isMetadataField(fieldType.name()) == false
-                && indicesService.getFieldFilter().apply(shardId.getIndexName()).test(fieldType.name()) == false) {
+            if (indicesService.getFieldFilter().apply(shardId.getIndexName()).test(fieldType.name()) == false) {
                 return TermsEnumShardResponse.fieldAbsent();
             }
-            BytesRef searchAfter = request.searchAfter() == null ? null : new BytesRef(request.searchAfter());
-            final TermsEnum candidates;
-            try {
-                candidates = fieldType.termsEnum(
-                    searcher.getIndexReader(),
-                    request.string(),
-                    request.caseInsensitive(),
-                    searchAfter,
-                    context
-                );
-            } catch (IllegalArgumentException e) {
-                return TermsEnumShardResponse.fieldUnsupported(e.getMessage());
+            if (fieldType.unwrap() instanceof KeywordFieldMapper.KeywordFieldType == false) {
+                return TermsEnumShardResponse.fieldUnsupported(unsupported(fieldType, ""));
             }
+            if (fieldType.isSearchable() == false) {
+                return TermsEnumShardResponse.fieldUnsupported(unsupported(fieldType, " because it is not indexed"));
+            }
+            BytesRef searchAfter = request.searchAfter() == null ? null : new BytesRef(request.searchAfter());
             // stop at the deadline or on cancellation; a cancelled task is reported as such below, not as a partial result
             BooleanSupplier stop = () -> task.isCancelled() || nanoClock.getAsLong() - deadline >= 0;
             TermsEnumCollector.Result result = TermsEnumCollector.collect(
-                fieldType,
-                candidates,
+                (TermBasedFieldType) fieldType.unwrap(),
                 searcher.getIndexReader(),
+                request.string(),
+                request.caseInsensitive(),
                 searchAfter,
                 request.size(),
                 stop
@@ -139,6 +133,10 @@ final class TermsEnumShardOperation {
             return mapped;
         }
         return context.fieldMapper(field);
+    }
+
+    private static String unsupported(MappedFieldType fieldType, String reason) {
+        return "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "] does not support terms enumeration" + reason;
     }
 
     private static void throwIfCancelled(CancellableTask task) {

@@ -302,14 +302,6 @@ public class TransportTermsEnumActionTests extends OpenSearchSingleNodeTestCase 
         }
     }
 
-    public void testActionNamesKeepReaderLevelDls() {
-        assertEquals("indices:data/read/terms_enum", TermsEnumAction.NAME);
-        assertEquals("indices:data/read/terms_enum[s]", TransportTermsEnumAction.SHARD_ACTION_NAME);
-        // the security plugin turns off reader-level document-level security for actions under this prefix
-        assertFalse(TermsEnumAction.NAME.startsWith("indices:data/read/search"));
-        assertFalse(TransportTermsEnumAction.SHARD_ACTION_NAME.startsWith("indices:data/read/search"));
-    }
-
     public void testShardBudgetLeavesReserve() {
         assertEquals(900, TransportTermsEnumAction.shardBudgetMillis(1000));
         assertEquals(90, TransportTermsEnumAction.shardBudgetMillis(100));

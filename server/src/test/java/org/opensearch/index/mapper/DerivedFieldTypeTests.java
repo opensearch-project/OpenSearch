@@ -15,7 +15,6 @@ import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.util.BytesRef;
@@ -175,17 +174,6 @@ public class DerivedFieldTypeTests extends FieldTypeTestCase {
             IllegalArgumentException.class,
             () -> dft.spanPrefixQuery("value", mock(SpanMultiTermQueryWrapper.SpanRewriteMethod.class), mock(QueryShardContext.class))
         );
-    }
-
-    public void testTermsEnumUnsupported() throws IOException {
-        DerivedFieldType dft = createDerivedFieldType("keyword");
-        try (MultiReader reader = new MultiReader()) {
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> dft.termsEnum(reader, "", false, null, mock(QueryShardContext.class))
-            );
-            assertTrue(e.getMessage(), e.getMessage().contains("of type [derived] does not support terms enumeration"));
-        }
     }
 
     private static LeafSearchLookup mockValueFetcherForAggs(QueryShardContext mockContext, DerivedFieldType dft, List<Object> expected) {

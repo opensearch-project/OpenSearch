@@ -227,18 +227,12 @@ public class TermsEnumIT extends DataStreamTestCase {
         }
         ensureGreen();
         refresh("logs-ds-web");
-        String backingIndex = getDataStreams("logs-ds-web").getDataStreams().get(0).getDataStream().getIndices().get(0).getName();
 
         TermsEnumResponse hosts = termsEnum(
             new TermsEnumRequest("logs-ds-web").field("host.keyword").string("web").timeout(GENEROUS_TIMEOUT)
         );
         assertEquals(List.of("web-01", "web-02"), hosts.getTerms());
         assertTrue(hosts.isComplete());
-        TermsEnumResponse indices = termsEnum(
-            new TermsEnumRequest("logs-ds-web").field("_index").string(".ds-logs-ds-web").timeout(GENEROUS_TIMEOUT)
-        );
-        assertEquals(List.of(backingIndex), indices.getTerms());
-        assertTrue(indices.isComplete());
     }
 
     public void testUnansweredShardMakesResponseIncomplete() throws Exception {
