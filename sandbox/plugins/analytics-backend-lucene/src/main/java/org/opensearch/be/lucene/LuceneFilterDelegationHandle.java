@@ -59,6 +59,8 @@ import java.util.function.BooleanSupplier;
 final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
 
     private static final Logger LOGGER = LogManager.getLogger(LuceneFilterDelegationHandle.class);
+    /** Deletion rate at or below which Lucene90LiveDocsFormat reads live docs as SparseLiveDocs ({@code delCount / maxDoc}). */
+    private static final double SPARSE_DENSE_THRESHOLD = 0.01;
 
     // TODO: lazy query compilation for performance-delegated predicates. Today
     // every delegated expression is compiled (QueryBuilder → Lucene Query) at
@@ -215,7 +217,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
             boolean matchAllProvider = liveDocsProviderKeys.contains(providerKey);
             Scorer scorer = matchAllProvider ? null : weight.scorer(leaf);
             // Match-all uses the fast path, so no liveIntersection iterator is required.
-            DocIdSetIterator liveIntersection = matchAllProvider ? null : liveIntersection(scorer, liveDocs);
+            DocIdSetIterator liveIntersection = matchAllProvider ? null : liveIntersection(leaf, scorer, liveDocs);
             int collectorKey = nextCollectorKey.getAndIncrement();
             // Keep only what collectDocs reads: a pre-filtered (dense-delete) leaf walks liveIntersection
             // alone, so drop the scorer and liveDocs; the raw-scorer path keeps both, and match-all keeps
@@ -250,22 +252,32 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     }
 
     /**
-     * Intersect the scorer with live docs for dense-delete leaves ({@code DenseLiveDocs}, which expose a
-     * backing {@link FixedBitSet} of live docs): lead a conjunction with it so {@link ConjunctionUtils}
-     * skips the deleted majority. Returns {@code null} when there's nothing to pre-filter — no scorer,
-     * no deletions, or sparse deletions with no FixedBitSet backing — in which case collectDocs uses the
-     * raw scorer and drops deleted docs per-doc via {@code liveDocs.get}.
+     * Intersect the scorer with the leaf's live docs by leading a conjunction with a live {@link FixedBitSet}, so
+     * {@link ConjunctionUtils} skips the deleted majority. The bitset comes from one of two places: a dense codec
+     * {@link LiveDocs} ({@code DenseLiveDocs}, reader opened from a commit) exposes its backing live bitset through
+     * {@link BitSetIterator#getFixedBitSetOrNull}, while a sparse one ({@code SparseLiveDocs}) exposes none; any
+     * other {@link Bits} (the NRT {@code FixedBits} view of deletes not yet flushed) is materialised once per
+     * collector with {@link FixedBitSet#copyOf}, a word clone, but only when the leaf's deletion rate is above
+     * {@link #SPARSE_DENSE_THRESHOLD}, the same cut the codec uses to pick the dense representation. Returns
+     * {@code null} when there's nothing to pre-filter — no scorer, no deletions, or sparse deletions — in which
+     * case collectDocs uses the raw scorer and drops deleted docs per-doc via {@code liveDocs.get}.
      */
-    private static DocIdSetIterator liveIntersection(Scorer scorer, Bits liveDocs) {
-        if (scorer != null && liveDocs instanceof LiveDocs ld) {
-            FixedBitSet liveBits = BitSetIterator.getFixedBitSetOrNull(ld.liveDocsIterator());
-            if (liveBits != null) {
-                return ConjunctionUtils.intersectIterators(
-                    List.of(new BitSetIterator(liveBits, liveBits.cardinality()), scorer.iterator())
-                );
-            }
+    private static DocIdSetIterator liveIntersection(LeafReaderContext leaf, Scorer scorer, Bits liveDocs) {
+        if (scorer == null || liveDocs == null) {
+            return null;
         }
-        return null;
+        FixedBitSet liveDocsBitSet = null;
+        if (liveDocs instanceof LiveDocs ld) {
+            liveDocsBitSet = BitSetIterator.getFixedBitSetOrNull(ld.liveDocsIterator());
+        } else if ((double) leaf.reader().numDeletedDocs() / leaf.reader().maxDoc() > SPARSE_DENSE_THRESHOLD) {
+            liveDocsBitSet = FixedBitSet.copyOf(liveDocs);
+        }
+        if (liveDocsBitSet == null) {
+            return null;
+        }
+        return ConjunctionUtils.intersectIterators(
+            List.of(new BitSetIterator(liveDocsBitSet, liveDocsBitSet.cardinality()), scorer.iterator())
+        );
     }
 
     @Override
@@ -373,14 +385,24 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     /**
      * Pack the LIVE-docs slice {@code [minDoc, minDoc+span)} into {@code out} as {@code wordCount} LSB-first
      * longs (set bit == live), without scorer iteration. No deletions ({@code liveDocs == null}) emits
-     * all-ones; dense segments word-copy the backing {@link FixedBitSet} (O(words)); sparse segments fill
-     * all-alive then clear the O(deletions) deleted bits. Caller guarantees {@code span > 0} and that a
-     * non-null {@code liveDocs} is a {@link LiveDocs} (the codec contract for a segment with deletions).
+     * all-ones; a codec {@link LiveDocs} (reader opened from a commit) word-copies the backing
+     * {@link FixedBitSet} when dense and clears the O(deletions) deleted bits when sparse; any other
+     * {@link Bits} (the NRT {@code FixedBits} view of deletes not yet flushed, or a reader wrapper's bitset)
+     * masks an all-alive slice through {@link Bits#applyMask}, word-level for {@code FixedBits}. Caller
+     * guarantees {@code span > 0}.
      */
     private static void fillLiveDocsWords(Bits liveDocs, int minDoc, int span, int wordCount, MemorySegment out) {
         if (liveDocs == null) {
             // Segment has no deletions — every doc is live (all-ones, trailing word masked).
             fillAllAliveWords(out, span, wordCount);
+            return;
+        }
+        if (liveDocs instanceof LiveDocs == false) {
+            // Not a codec LiveDocs: start all-alive and let the Bits clear the deleted docs.
+            FixedBitSet live = new FixedBitSet(span);
+            live.set(0, Math.min(span, liveDocs.length() - minDoc));
+            liveDocs.applyMask(live, minDoc);
+            MemorySegment.copy(live.getBits(), 0, out, ValueLayout.JAVA_LONG, 0L, wordCount);
             return;
         }
         LiveDocs ld = (LiveDocs) liveDocs;
