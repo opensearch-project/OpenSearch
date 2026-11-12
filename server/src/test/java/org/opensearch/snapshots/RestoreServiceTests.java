@@ -397,16 +397,16 @@ public class RestoreServiceTests extends OpenSearchTestCase {
         for (Metadata metadata : List.of(legacy, component, composable)) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> RestoreService.ensureTemplateScoringModesSupported(metadata, older)
+                () -> RestoreService.ensureTemplateScoringModesSupported(metadata, () -> older)
             );
             assertThat(e.getMessage(), containsString("[scoring_mode] on alias [scoped]"));
-            RestoreService.ensureTemplateScoringModesSupported(metadata, AliasFilter.SCORING_MODE_VERSION);
+            RestoreService.ensureTemplateScoringModesSupported(metadata, () -> AliasFilter.SCORING_MODE_VERSION);
         }
         Metadata noModes = Metadata.builder()
             .put(IndexTemplateMetadata.builder("legacy").patterns(Collections.singletonList("l-*")).putAlias(plain).build())
             .put("component", new ComponentTemplate(withoutMode, null, null))
             .put("composable", new ComposableIndexTemplate(Collections.singletonList("c-*"), withoutMode, null, null, null, null, null))
             .build();
-        RestoreService.ensureTemplateScoringModesSupported(noModes, older);
+        RestoreService.ensureTemplateScoringModesSupported(noModes, () -> older);
     }
 }

@@ -1733,7 +1733,7 @@ public class MetadataCreateIndexService {
         validateContext(request);
         validateIngestionSourceSettings(request.settings(), state);
         for (Alias alias : request.aliases()) {
-            AliasFilter.ensureScoringModeSupported(alias.name(), alias.scoringMode(), state.nodes().getMinNodeVersion());
+            AliasFilter.ensureScoringModeSupported(alias.name(), alias.scoringMode(), () -> state.nodes().getMinNodeVersion());
         }
     }
 

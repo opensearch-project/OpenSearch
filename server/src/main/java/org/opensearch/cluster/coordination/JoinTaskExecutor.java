@@ -72,6 +72,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
@@ -449,18 +450,19 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         if (nodeVersion.onOrAfter(AliasFilter.SCORING_MODE_VERSION)) {
             return;
         }
+        final Supplier<Version> version = () -> nodeVersion;
         try {
             for (IndexMetadata index : metadata) {
-                AliasFilter.ensureScoringModesSupported(index.getAliases(), nodeVersion);
+                AliasFilter.ensureScoringModesSupported(index.getAliases(), version);
             }
             for (IndexTemplateMetadata template : metadata.templates().values()) {
-                AliasFilter.ensureScoringModesSupported(template.aliases(), nodeVersion);
+                AliasFilter.ensureScoringModesSupported(template.aliases(), version);
             }
             for (ComponentTemplate template : metadata.componentTemplates().values()) {
-                AliasFilter.ensureScoringModesSupported(template.template(), nodeVersion);
+                AliasFilter.ensureScoringModesSupported(template.template(), version);
             }
             for (ComposableIndexTemplate template : metadata.templatesV2().values()) {
-                AliasFilter.ensureScoringModesSupported(template.template(), nodeVersion);
+                AliasFilter.ensureScoringModesSupported(template.template(), version);
             }
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException("node version [" + nodeVersion + "] cannot join: " + e.getMessage(), e);

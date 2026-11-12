@@ -265,7 +265,7 @@ public class Alias implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(AliasFilter.SCORING_MODE_VERSION)) {
             out.writeOptionalString(scoringMode);
         } else {
-            AliasFilter.ensureScoringModeSupported(name, scoringMode, out.getVersion());
+            AliasFilter.ensureScoringModeSupported(name, scoringMode, out::getVersion);
         }
     }
 
