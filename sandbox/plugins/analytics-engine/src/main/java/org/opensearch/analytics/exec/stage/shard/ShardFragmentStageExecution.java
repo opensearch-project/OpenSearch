@@ -23,6 +23,7 @@ import org.opensearch.analytics.exec.canmatch.CanMatchFilterSerializer;
 import org.opensearch.analytics.exec.canmatch.CanMatchPreFilterPhase;
 import org.opensearch.analytics.exec.canmatch.SortSpec;
 import org.opensearch.analytics.exec.canmatch.TopNGate;
+import org.opensearch.analytics.exec.profile.CanMatchProfile;
 import org.opensearch.analytics.exec.stage.AbstractStageExecution;
 import org.opensearch.analytics.exec.stage.DataProducer;
 import org.opensearch.analytics.exec.stage.StageTask;
@@ -46,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 /**
@@ -66,6 +68,16 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
     private final AnalyticsSearchTransportService dispatcher;
     private volatile TopNGate topNGate;
     private volatile Map<ExecutionTarget, ShardSortBounds> sortBounds = Collections.emptyMap();
+
+    // ── can_match profile capture (coordinator-side; null/zero unless the probe ran) ──
+    // Raw pieces set at probe completion; the final CanMatchProfile is assembled lazily at
+    // snapshot time so it reflects top-N skips that accrue AFTER the probe returns.
+    private volatile boolean canMatchRan = false;
+    private volatile long canMatchMs;
+    private volatile int canMatchTotalShards;
+    private volatile int canMatchPrunedByFilter;
+    // Incremented from ShardTaskRunner as the top-N gate skips shards during staggered dispatch.
+    private final AtomicInteger canMatchSkippedByTopN = new AtomicInteger();
 
     public ShardFragmentStageExecution(
         Stage stage,
@@ -218,6 +230,26 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
         return sortBounds;
     }
 
+    /** Records that the top-N gate skipped one shard's dispatch. Called by {@link ShardTaskRunner}. */
+    void recordTopNSkip() {
+        canMatchSkippedByTopN.incrementAndGet();
+    }
+
+    /**
+     * Assembles this stage's can_match profile, or {@code null} if the phase did not run. Read at
+     * profile-snapshot time so top-N skips and gate-armed state reflect the whole dispatch, not
+     * just what was known when the probe returned.
+     */
+    public CanMatchProfile canMatchProfile() {
+        if (canMatchRan == false) {
+            return null;
+        }
+        int skipped = canMatchSkippedByTopN.get();
+        boolean armed = topNGate != null && topNGate.isArmed();
+        int dispatched = canMatchTotalShards - canMatchPrunedByFilter - skipped;
+        return new CanMatchProfile(canMatchMs, canMatchTotalShards, canMatchPrunedByFilter, skipped, armed, dispatched);
+    }
+
     /**
      * Dispatches can-match with a timeout. Ensures exactly one listener invocation:
      * either the shard-check result on success, or a keep-everything result on timeout/error.
@@ -252,6 +284,13 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
             if (fired.compareAndSet(false, true)) {
                 scheduled.cancel();
                 long elapsed = (System.nanoTime() - startNanos) / 1_000_000;
+                // Retain the coordinator-side can_match aggregates for the profile. The top-N
+                // skip count and gate-armed state are read later, at snapshot time, because they
+                // accrue during the staggered dispatch that follows this callback.
+                this.canMatchRan = true;
+                this.canMatchMs = elapsed;
+                this.canMatchTotalShards = targets.size();
+                this.canMatchPrunedByFilter = targets.size() - checked.targets().size();
                 logger.debug(
                     "can-match complete: {} shards checked, {} pruned, {}ms, sortColumn={}",
                     targets.size(),

@@ -38,10 +38,12 @@ import java.util.List;
  *                             carried by the stage's filter / shard-scan-with-delegation instruction;
  *                             {@code null} when the stage has no delegation-bearing instruction (omitted from JSON).
  * @param tasks                per-partition task profiles registered with the TaskTracker
+ * @param canMatch             can_match pre-filter summary for this stage, or {@code null} when the phase
+ *                             did not run (non-SHARD_FRAGMENT stage, or no filters/bounded sort / narrow fan-out)
  */
 public record StageProfile(int stageId, String executionType, String distribution, String state, long startMs, long endMs, long elapsedMs,
     long rowsProcessed, long tasksCompleted, long tasksFailed, List<String> fragment, String chosenBackend, String treeShape, List<
-        TaskProfile> tasks) implements ToXContentObject {
+        TaskProfile> tasks, CanMatchProfile canMatch) implements ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -64,6 +66,10 @@ public record StageProfile(int stageId, String executionType, String distributio
         }
         builder.field("chosen_backend", chosenBackend != null ? chosenBackend : "unknown");
         if (treeShape != null) builder.field("tree_shape", treeShape);
+        if (canMatch != null) {
+            builder.field("can_match");
+            canMatch.toXContent(builder, params);
+        }
         builder.startArray("tasks");
         for (TaskProfile t : tasks) {
             t.toXContent(builder, params);
