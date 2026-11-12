@@ -32,16 +32,21 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.AliasMetadata.Builder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.test.AbstractXContentTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.function.Predicate;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> {
@@ -67,6 +72,62 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
         assertThat(after, equalTo(before));
     }
 
+    public void testScoringModeIsPartOfIdentity() {
+        AliasMetadata with = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").scoringMode("no_stats").build();
+        AliasMetadata without = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").build();
+        assertNotEquals(with, without);
+        assertNotEquals(with.hashCode(), without.hashCode());
+        assertEquals(with, AliasMetadata.newAliasMetadata(with, "alias"));
+    }
+
+    public void testScoringModeWithoutAFilterIsRejected() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> AliasMetadata.builder("alias").scoringMode("no_stats").build()
+        );
+        assertThat(e.getMessage(), containsString("[scoring_mode] requires a [filter] on alias [alias]"));
+    }
+
+    public void testTemplateAliasesValidateTheMode() throws IOException {
+        // Composable and component templates parse their aliases through fromXContent rather than the alias API.
+        String misspelled = "{\"alias\":{\"filter\":{\"term\":{\"f\":\"v\"}},\"scoring_mode\":\"no_stat\"}}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, misspelled)) {
+            parser.nextToken(); // the enclosing object
+            parser.nextToken(); // the alias name, where fromXContent starts
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> AliasMetadata.Builder.fromXContent(parser));
+            assertThat(e.getMessage(), containsString("unknown alias scoring mode [no_stat]"));
+        }
+        String unfiltered = "{\"alias\":{\"scoring_mode\":\"no_stats\"}}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, unfiltered)) {
+            parser.nextToken(); // the enclosing object
+            parser.nextToken(); // the alias name, where fromXContent starts
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> AliasMetadata.Builder.fromXContent(parser));
+            assertThat(e.getMessage(), containsString("[scoring_mode] requires a [filter]"));
+        }
+    }
+
+    public void testScoringModeRoundTripsOnCurrentVersion() throws IOException {
+        final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").scoringMode("no_stats").build();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        before.writeTo(out);
+        assertThat(new AliasMetadata(out.bytes().streamInput()).scoringMode(), equalTo("no_stats"));
+    }
+
+    public void testScoringModeIsNotSentToANodeThatPredatesIt() throws IOException {
+        final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").scoringMode("no_stats").build();
+        final Version older = VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION);
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(older);
+        before.writeTo(out);
+        final StreamInput in = out.bytes().streamInput();
+        in.setVersion(older);
+        final AliasMetadata after = new AliasMetadata(in);
+        // The stream must be fully consumed, or the next field in cluster state would be read from the wrong offset.
+        assertThat(in.available(), equalTo(0));
+        assertNull(after.scoringMode());
+        assertThat(after.alias(), equalTo("alias"));
+    }
+
     @Override
     protected void assertEqualInstances(AliasMetadata expectedInstance, AliasMetadata newInstance) {
         assertNotSame(newInstance, expectedInstance);
@@ -77,6 +138,7 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
                 .searchRouting(expectedInstance.searchRouting())
                 .writeIndex(randomBoolean() ? null : randomBoolean())
                 .isHidden(randomBoolean() ? null : randomBoolean())
+                .scoringMode(expectedInstance.scoringMode())
                 .build();
         }
         assertEquals(expectedInstance, newInstance);
@@ -121,13 +183,17 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
         if (randomBoolean()) {
             builder.indexRouting(randomAlphaOfLengthBetween(3, 10));
         }
-        if (randomBoolean()) {
+        final boolean filtered = randomBoolean();
+        if (filtered) {
             builder.filter("{\"term\":{\"year\":2016}}");
         }
         builder.writeIndex(randomBoolean());
 
         if (randomBoolean()) {
             builder.isHidden(randomBoolean());
+        }
+        if (filtered && randomBoolean()) {
+            builder.scoringMode(randomFrom("unfiltered_stats", "no_stats"));
         }
         return builder.build();
     }
