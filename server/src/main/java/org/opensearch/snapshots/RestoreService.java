@@ -452,7 +452,7 @@ public class RestoreService implements ClusterStateApplier {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
+                        final Supplier<Version> minNodeVersion = () -> currentState.nodes().getMinNodeVersion();
                         if (request.includeGlobalState()) {
                             ensureTemplateScoringModesSupported(metadata, minNodeVersion);
                         }
@@ -783,7 +783,7 @@ public class RestoreService implements ClusterStateApplier {
                         RestoreSnapshotRequest request,
                         IndexMetadata.Builder indexMdBuilder,
                         Set<String> aliases,
-                        Version minNodeVersion
+                        Supplier<Version> minNodeVersion
                     ) {
                         AliasFilter.ensureScoringModesSupported(snapshotAliases, minNodeVersion);
                         if (request.renameAliasPattern() == null || request.renameAliasReplacement() == null) {
@@ -1563,7 +1563,7 @@ public class RestoreService implements ClusterStateApplier {
      * @param metadata the global metadata of the snapshot
      * @param minNodeVersion the oldest node in the cluster
      */
-    static void ensureTemplateScoringModesSupported(Metadata metadata, Version minNodeVersion) {
+    static void ensureTemplateScoringModesSupported(Metadata metadata, Supplier<Version> minNodeVersion) {
         for (IndexTemplateMetadata template : metadata.templates().values()) {
             AliasFilter.ensureScoringModesSupported(template.aliases(), minNodeVersion);
         }

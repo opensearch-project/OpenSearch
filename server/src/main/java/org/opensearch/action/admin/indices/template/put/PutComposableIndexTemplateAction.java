@@ -102,7 +102,7 @@ public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedRes
             out.writeString(name);
             out.writeOptionalString(cause);
             out.writeBoolean(create);
-            AliasFilter.ensureScoringModesSupported(indexTemplate.template(), out.getVersion());
+            AliasFilter.ensureScoringModesSupported(indexTemplate.template(), out::getVersion);
             this.indexTemplate.writeTo(out);
         }
 

@@ -265,7 +265,7 @@ public class MetadataIndexTemplateService {
         if (create && existing != null) {
             throw new IllegalArgumentException("component template [" + name + "] already exists");
         }
-        AliasFilter.ensureScoringModesSupported(template.template(), currentState.nodes().getMinNodeVersion());
+        AliasFilter.ensureScoringModesSupported(template.template(), () -> currentState.nodes().getMinNodeVersion());
 
         CompressedXContent mappings = template.template().mappings();
         String stringMappings = mappings == null ? null : mappings.string();
@@ -631,7 +631,7 @@ public class MetadataIndexTemplateService {
         if (create && existing != null) {
             throw new IllegalArgumentException("index template [" + name + "] already exists");
         }
-        AliasFilter.ensureScoringModesSupported(template.template(), currentState.nodes().getMinNodeVersion());
+        AliasFilter.ensureScoringModesSupported(template.template(), () -> currentState.nodes().getMinNodeVersion());
 
         Map<String, List<String>> overlaps = findConflictingV2Templates(
             currentState,
@@ -1127,7 +1127,7 @@ public class MetadataIndexTemplateService {
             templateBuilder.putAlias(aliasMetadata);
         }
         IndexTemplateMetadata template = templateBuilder.build();
-        AliasFilter.ensureScoringModesSupported(template.aliases(), currentState.nodes().getMinNodeVersion());
+        AliasFilter.ensureScoringModesSupported(template.aliases(), () -> currentState.nodes().getMinNodeVersion());
         IndexTemplateMetadata existingTemplate = currentState.metadata().templates().get(request.name);
         if (template.equals(existingTemplate)) {
             // The template is unchanged, therefore there is no need for a cluster state update
