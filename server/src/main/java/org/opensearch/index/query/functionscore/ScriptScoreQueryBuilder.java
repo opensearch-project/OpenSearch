@@ -142,6 +142,13 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
         return this.query;
     }
 
+    /**
+     * Returns the script used to compute the score of each document matched by {@link #query()}.
+     */
+    public Script script() {
+        return this.script;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
