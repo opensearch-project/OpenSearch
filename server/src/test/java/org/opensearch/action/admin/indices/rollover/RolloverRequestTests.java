@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.indices.rollover;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -94,6 +95,49 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         assertThat(maxDocsCondition.value, equalTo(100L));
         MaxSizeCondition maxSizeCondition = (MaxSizeCondition) conditions.get(MaxSizeCondition.NAME);
         assertThat(maxSizeCondition.value.getBytes(), equalTo(ByteSizeUnit.GB.toBytes(45)));
+    }
+
+    public void testPrimaryShardConditionsParsing() throws Exception {
+        final RolloverRequest request = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        final XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("conditions")
+            .field("max_primary_shard_size", "50gb")
+            .field("max_primary_shard_docs", 1000)
+            .endObject()
+            .endObject();
+        request.fromXContent(createParser(builder));
+        Map<String, Condition<?>> conditions = request.getConditions();
+        assertThat(conditions.size(), equalTo(2));
+        MaxPrimaryShardSizeCondition sizeCondition = (MaxPrimaryShardSizeCondition) conditions.get(MaxPrimaryShardSizeCondition.NAME);
+        assertThat(sizeCondition.value, equalTo(new ByteSizeValue(50, ByteSizeUnit.GB)));
+        MaxPrimaryShardDocsCondition docsCondition = (MaxPrimaryShardDocsCondition) conditions.get(MaxPrimaryShardDocsCondition.NAME);
+        assertThat(docsCondition.value, equalTo(1000L));
+    }
+
+    public void testSerializeNewConditionsToOlderVersionFails() {
+        RolloverRequest request = new RolloverRequest("alias", null);
+        request.addMaxPrimaryShardDocsCondition(10);
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_3_10_0);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
+        assertThat(e.getMessage(), containsString(MaxPrimaryShardDocsCondition.NAME));
+        assertThat(e.getMessage(), containsString(Version.V_3_10_0.toString()));
+    }
+
+    public void testSerializeOldConditionsToOlderVersion() throws Exception {
+        RolloverRequest originalRequest = new RolloverRequest("alias-index", null);
+        originalRequest.addMaxIndexDocsCondition(randomNonNegativeLong());
+        originalRequest.addMaxIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_3_10_0);
+            originalRequest.writeTo(out);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writeableRegistry)) {
+                in.setVersion(Version.V_3_10_0);
+                RolloverRequest cloneRequest = new RolloverRequest(in);
+                assertThat(cloneRequest.getConditions(), equalTo(originalRequest.getConditions()));
+            }
+        }
     }
 
     public void testParsingWithIndexSettings() throws Exception {
@@ -160,6 +204,8 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         originalRequest.addMaxIndexDocsCondition(randomNonNegativeLong());
         originalRequest.addMaxIndexAgeCondition(TimeValue.timeValueNanos(randomNonNegativeLong()));
         originalRequest.addMaxIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        originalRequest.addMaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        originalRequest.addMaxPrimaryShardDocsCondition(randomNonNegativeLong());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             originalRequest.writeTo(out);
             BytesReference bytes = out.bytes();
@@ -213,6 +259,8 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         conditionsGenerator.add((request) -> request.addMaxIndexDocsCondition(randomNonNegativeLong()));
         conditionsGenerator.add((request) -> request.addMaxIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
         conditionsGenerator.add((request) -> request.addMaxIndexAgeCondition(new TimeValue(randomNonNegativeLong())));
+        conditionsGenerator.add((request) -> request.addMaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
+        conditionsGenerator.add((request) -> request.addMaxPrimaryShardDocsCondition(randomNonNegativeLong()));
     }
 
 }
