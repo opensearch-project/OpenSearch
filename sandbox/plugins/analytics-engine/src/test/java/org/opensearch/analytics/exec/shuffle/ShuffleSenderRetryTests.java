@@ -15,6 +15,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -55,18 +56,67 @@ public class ShuffleSenderRetryTests extends OpenSearchTestCase {
         assertEquals(3, sendAttempts.get());
     }
 
-    public void testGiveUpAfterMaxAttempts() {
+    public void testGiveUpWhenWaitCeilingReached() {
         AtomicInteger sendAttempts = new AtomicInteger();
         BiConsumer<AnalyticsShuffleDataRequest, ActionListener<AnalyticsShuffleDataResponse>> sender = (r, listener) -> {
             sendAttempts.incrementAndGet();
             listener.onResponse(AnalyticsShuffleDataResponse.backpressureReject());
         };
         AtomicReference<AnalyticsShuffleDataResponse> result = new AtomicReference<>();
-        ShuffleSenderRetry.sendWithRetry(req(), sender, inlineScheduler(), ActionListener.wrap(result::set, e -> fail(e.getMessage())));
+        // Wait ceiling of 0 => already out of time at the first reject, so it gives up immediately.
+        // Two bounds exist: the attempt budget (8, which trips first in production) and this wall-clock
+        // ceiling, which exists because attempts alone do not bound TIME as the backoff grows.
+        ShuffleSenderRetry.sendWithRetry(req(), sender, inlineScheduler(), ActionListener.wrap(result::set, e -> fail(e.getMessage())), 0L);
         assertNotNull(result.get());
         assertTrue("final result must still reflect reject", result.get().isBackpressureRejected());
-        // Default max attempts is 8.
-        assertEquals(8, sendAttempts.get());
+        assertEquals("a zero wait ceiling must give up after a single attempt", 1, sendAttempts.get());
+    }
+
+    /**
+     * Every scheduled backoff must be non-negative and within the cap. Regression guard: the backoff
+     * was computed as {@code initial << (attempt-1)}, and Java's {@code <<} on a long uses only the LOW
+     * 6 BITS of the shift count — so past ~32 attempts it overflowed NEGATIVE and the scheduler threw
+     * "duration cannot be negative", failing the query. Unreachable at the original 8-attempt budget;
+     * reachable as soon as the budget grew to serve steady-state pacing.
+     */
+    public void testBackoffNeverNegativeAcrossTheFullAttemptBudget() {
+        // Accept at attempt 200 rather than spinning on a wall-clock ceiling: the inline scheduler
+        // recurses synchronously, so an open-ended spin would overflow the stack rather than test the
+        // backoff. 200 comfortably passes the wrap point — the old formula went negative once
+        // `attempt-1` reached the 59..63 range (20 << 59 overflows a long).
+        final int acceptAt = 200;
+        List<Long> delays = new ArrayList<>();
+        AtomicInteger sendAttempts = new AtomicInteger();
+        BiConsumer<AnalyticsShuffleDataRequest, ActionListener<AnalyticsShuffleDataResponse>> sender = (r, listener) -> {
+            if (sendAttempts.incrementAndGet() < acceptAt) {
+                listener.onResponse(AnalyticsShuffleDataResponse.backpressureReject());
+            } else {
+                listener.onResponse(new AnalyticsShuffleDataResponse(false));
+            }
+        };
+        BiConsumer<Long, Runnable> recordingScheduler = (delay, task) -> {
+            delays.add(delay);
+            task.run();
+        };
+        AtomicReference<AnalyticsShuffleDataResponse> result = new AtomicReference<>();
+        // Explicit 200-attempt budget: the production budget is 8 (shift <= 7), which would never reach
+        // the wrap point this guards. A generous wait ceiling keeps TIME from ending the loop first.
+        ShuffleSenderRetry.sendWithRetry(
+            req(),
+            sender,
+            recordingScheduler,
+            ActionListener.wrap(result::set, e -> fail(e.getMessage())),
+            TimeUnit.MINUTES.toMillis(5),
+            acceptAt
+        );
+
+        assertEquals(acceptAt, sendAttempts.get());
+        assertEquals("every reject must have scheduled exactly one retry", acceptAt - 1, delays.size());
+        for (int i = 0; i < delays.size(); i++) {
+            long d = delays.get(i);
+            assertTrue("backoff #" + i + " must be non-negative, was " + d, d >= 0);
+            assertTrue("backoff #" + i + " must respect the cap, was " + d, d <= 5_000);
+        }
     }
 
     public void testTransportFailureBubblesUpWithoutRetry() {
