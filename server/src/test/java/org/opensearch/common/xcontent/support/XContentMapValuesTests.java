@@ -50,6 +50,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -782,6 +783,33 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
         Map<String, Object> transformedMap = XContentMapValues.transform(mapToTransform, transformers, false);
         assertEquals(expected, transformedMap);
+    }
+
+    public void testTransformInDocumentOrder() {
+        for (boolean inPlace : new boolean[] { true, false }) {
+            Map<String, Object> nested = new LinkedHashMap<>();
+            nested.put("nest1", new ArrayList<>(List.of(new LinkedHashMap<>(Map.of("nest2", "value_before")))));
+            Map<String, Object> mapToTransform = new LinkedHashMap<>();
+            mapToTransform.put(
+                "test1.nest1",
+                new ArrayList<>(
+                    List.of(new LinkedHashMap<>(Map.of("nest2", "value_before")), new LinkedHashMap<>(Map.of("nest2", "value_before")))
+                )
+            );
+            mapToTransform.put("test1", nested);
+            Iterator<String> values = IntStream.rangeClosed(1, 3).mapToObj(i -> "value_after" + i).iterator();
+            Map<String, Function<Object, Object>> transformers = Map.of("test1.nest1.nest2", v -> values.next());
+
+            Map<String, Object> expected = Map.of(
+                "test1.nest1",
+                List.of(Map.of("nest2", "value_after1"), Map.of("nest2", "value_after2")),
+                "test1",
+                Map.of("nest1", List.of(Map.of("nest2", "value_after3")))
+            );
+
+            Map<String, Object> transformedMap = XContentMapValues.transform(mapToTransform, transformers, inPlace);
+            assertEquals(expected, transformedMap);
+        }
     }
 
     public void testTransformDottedKeysWithoutMatch() {

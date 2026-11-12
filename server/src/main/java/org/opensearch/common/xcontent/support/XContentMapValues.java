@@ -50,6 +50,7 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -711,7 +712,7 @@ public class XContentMapValues {
         Map<String, Object> transformerTrie = buildTransformerTrie(transformers);
         return source -> {
             Deque<TransformContext> stack = new ArrayDeque<>();
-            Map<String, Object> result = inPlace ? source : new HashMap<>(source);
+            Map<String, Object> result = inPlace ? source : new LinkedHashMap<>(source);
             stack.push(new TransformContext(result, transformerTrie));
 
             processStack(stack, inPlace);
@@ -736,25 +737,37 @@ public class XContentMapValues {
     private static void processStack(Deque<TransformContext> stack, boolean inPlace) {
         while (!stack.isEmpty()) {
             TransformContext ctx = stack.pop();
-            processMap(ctx.map, ctx.trie, stack, inPlace);
+            if (ctx.transformer != null) {
+                ctx.entry.setValue(ctx.transformer.apply(ctx.entry.getValue()));
+            } else {
+                processMap(ctx.map, ctx.trie, stack, inPlace);
+            }
         }
     }
 
+    /**
+     * Schedules the work for a map's entries so that the stack pops it in document order. Transformers are therefore applied
+     * in the order their values appear in the source, which is also the order in which nested documents are created from it.
+     */
     private static void processMap(
         Map<String, Object> currentMap,
         Map<String, Object> currentTrie,
         Deque<TransformContext> stack,
         boolean inPlace
     ) {
+        List<TransformContext> children = new ArrayList<>();
         for (Map.Entry<String, Object> entry : currentMap.entrySet()) {
-            processEntry(entry, currentTrie, stack, inPlace);
+            processEntry(entry, currentTrie, children, inPlace);
+        }
+        for (int i = children.size() - 1; i >= 0; i--) {
+            stack.push(children.get(i));
         }
     }
 
     private static void processEntry(
         Map.Entry<String, Object> entry,
         Map<String, Object> currentTrie,
-        Deque<TransformContext> stack,
+        List<TransformContext> children,
         boolean inPlace
     ) {
         String key = entry.getKey();
@@ -768,7 +781,7 @@ public class XContentMapValues {
         // Apply transformation if available
         Function<Object, Object> transformer = (Function<Object, Object>) subTrie.get(TRANSFORMER_TRIE_LEAF_KEY);
         if (transformer != null) {
-            entry.setValue(transformer.apply(value));
+            children.add(new TransformContext(entry, transformer));
             return;
         }
 
@@ -776,17 +789,17 @@ public class XContentMapValues {
         if (value instanceof Map) {
             Map<String, Object> subMap = nodeMapValue(value, "transform");
             if (inPlace == false) {
-                subMap = new HashMap<>(subMap);
+                subMap = new LinkedHashMap<>(subMap);
                 entry.setValue(subMap);
             }
-            stack.push(new TransformContext(subMap, subTrie));
+            children.add(new TransformContext(subMap, subTrie));
         } else if (value instanceof List<?> list) {
             List<Object> subList = (List<Object>) list;
             if (inPlace == false) {
                 subList = new ArrayList<>(list);
                 entry.setValue(subList);
             }
-            processList(subList, subTrie, stack, inPlace);
+            processList(subList, subTrie, children, inPlace);
         }
     }
 
@@ -818,29 +831,37 @@ public class XContentMapValues {
     private static void processList(
         List<Object> list,
         Map<String, Object> transformerTrie,
-        Deque<TransformContext> stack,
+        List<TransformContext> children,
         boolean inPlace
     ) {
-        for (int i = list.size() - 1; i >= 0; i--) {
+        for (int i = 0; i < list.size(); i++) {
             Object value = list.get(i);
             if (value instanceof Map) {
                 Map<String, Object> subMap = nodeMapValue(value, "transform");
                 if (inPlace == false) {
-                    subMap = new HashMap<>(subMap);
+                    subMap = new LinkedHashMap<>(subMap);
                     list.set(i, subMap);
                 }
-                stack.push(new TransformContext(subMap, transformerTrie));
+                children.add(new TransformContext(subMap, transformerTrie));
             }
         }
     }
 
+    /** A map to walk with its trie node, or an entry whose value a transformer replaces. */
     private static class TransformContext {
         Map<String, Object> map;
         Map<String, Object> trie;
+        Map.Entry<String, Object> entry;
+        Function<Object, Object> transformer;
 
         TransformContext(Map<String, Object> map, Map<String, Object> trie) {
             this.map = map;
             this.trie = trie;
+        }
+
+        TransformContext(Map.Entry<String, Object> entry, Function<Object, Object> transformer) {
+            this.entry = entry;
+            this.transformer = transformer;
         }
     }
 }
