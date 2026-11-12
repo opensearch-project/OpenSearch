@@ -103,12 +103,12 @@ public class InternalStringStats extends InternalNumericMetricsAggregation.Multi
      * with the reason, instead of that node failing on a name it does not recognise.
      */
     static void ensureSupportedBy(StreamOutput out) {
-        if (out.getVersion().before(Version.V_3_10_0)) {
+        if (out.getVersion().before(Version.V_3_11_0)) {
             throw new IllegalArgumentException(
                 "["
                     + NAME
                     + "] aggregation requires every node of the cluster to be on version "
-                    + Version.V_3_10_0
+                    + Version.V_3_11_0
                     + " or later, but it would be sent to a node on version "
                     + out.getVersion()
             );

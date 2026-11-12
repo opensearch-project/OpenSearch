@@ -54,8 +54,8 @@ setup:
 ---
 "basic test":
   - skip:
-      version: " - 3.9.99"
-      reason: "string_stats aggregation added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "string_stats aggregation added in 3.11.0"
 
   - do:
       search:
@@ -85,8 +85,8 @@ setup:
 ---
 "show distribution":
   - skip:
-      version: " - 3.9.99"
-      reason: "string_stats aggregation added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "string_stats aggregation added in 3.11.0"
 
   - do:
       search:
@@ -115,8 +115,8 @@ setup:
 ---
 "distribution switched off":
   - skip:
-      version: " - 3.9.99"
-      reason: "string_stats aggregation added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "string_stats aggregation added in 3.11.0"
 
   - do:
       search:
@@ -135,8 +135,8 @@ setup:
 ---
 "multi-valued field":
   - skip:
-      version: " - 3.9.99"
-      reason: "string_stats aggregation added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "string_stats aggregation added in 3.11.0"
 
   - do:
       search:
@@ -157,8 +157,8 @@ setup:
 ---
 "order terms by a statistic":
   - skip:
-      version: " - 3.9.99"
-      reason: "string_stats aggregation added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "string_stats aggregation added in 3.11.0"
 
   - do:
       search:
@@ -215,8 +215,8 @@ setup:
 ---
 "statistics in buckets_path":
   - skip:
-      version: " - 3.9.99"
-      reason: "string_stats aggregation added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "string_stats aggregation added in 3.11.0"
 
   - do:
       search:
@@ -246,8 +246,8 @@ setup:
 ---
 "missing value":
   - skip:
-      version: " - 3.9.99"
-      reason: "string_stats aggregation added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "string_stats aggregation added in 3.11.0"
 
   - do:
       search:
@@ -268,8 +268,8 @@ setup:
 ---
 "no documents":
   - skip:
-      version: " - 3.9.99"
-      reason: "string_stats aggregation added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "string_stats aggregation added in 3.11.0"
 
   - do:
       search:
@@ -302,8 +302,8 @@ setup:
 ---
 "unmapped field":
   - skip:
-      version: " - 3.9.99"
-      reason: "string_stats aggregation added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "string_stats aggregation added in 3.11.0"
 
   - do:
       search:
@@ -322,8 +322,8 @@ setup:
 ---
 "typed keys":
   - skip:
-      version: " - 3.9.99"
-      reason: "string_stats aggregation added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "string_stats aggregation added in 3.11.0"
 
   - do:
       search:
@@ -345,8 +345,8 @@ setup:
 ---
 "bad arguments":
   - skip:
-      version: " - 3.9.99"
-      reason: "string_stats aggregation added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "string_stats aggregation added in 3.11.0"
 
   # the values are strings, so there is no format for them
   - do:
@@ -405,8 +405,8 @@ setup:
 ---
 "unknown statistic":
   - skip:
-      version: " - 3.9.99"
-      reason: "string_stats aggregation added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "string_stats aggregation added in 3.11.0"
 
   # the distribution is not a number, so it can not be used to order buckets, and neither can a name that is not a statistic
   - do:

@@ -140,7 +140,7 @@ public class StringStatsTests extends BaseAggregationTestCase<StringStatsAggrega
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> out.writeNamedWriteable(builder));
 
         assertThat(e.getMessage(), containsString("[string_stats]"));
-        assertThat(e.getMessage(), containsString("3.10.0"));
+        assertThat(e.getMessage(), containsString("3.11.0"));
     }
 
     private StringStatsAggregationBuilder parseBuilder(String json) throws IOException {

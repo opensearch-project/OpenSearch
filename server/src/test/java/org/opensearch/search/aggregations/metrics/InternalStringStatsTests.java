@@ -545,7 +545,7 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> out.writeNamedWriteable(stats));
 
         assertThat(e.getMessage(), containsString("[string_stats]"));
-        assertThat(e.getMessage(), containsString("3.10.0"));
+        assertThat(e.getMessage(), containsString("3.11.0"));
     }
 
     public void testRejectsBytesThatAreNotAResult() throws IOException {
