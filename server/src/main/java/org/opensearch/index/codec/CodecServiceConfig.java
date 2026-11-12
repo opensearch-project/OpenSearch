@@ -26,6 +26,8 @@ public final class CodecServiceConfig {
     private final MapperService mapperService;
     private final Logger logger;
     private final List<AdditionalCodecs> additionalCodecs;
+    private final List<PerFieldCodecBuilder> perFieldCodecBuilders;
+    private final List<CodecDecorator> codecDecorators;
 
     public CodecServiceConfig(
         IndexSettings indexSettings,
@@ -33,10 +35,23 @@ public final class CodecServiceConfig {
         @Nullable Logger logger,
         List<AdditionalCodecs> additionalCodecs
     ) {
+        this(indexSettings, mapperService, logger, additionalCodecs, List.of(), List.of());
+    }
+
+    public CodecServiceConfig(
+        IndexSettings indexSettings,
+        @Nullable MapperService mapperService,
+        @Nullable Logger logger,
+        List<AdditionalCodecs> additionalCodecs,
+        List<PerFieldCodecBuilder> perFieldCodecBuilders,
+        List<CodecDecorator> codecDecorators
+    ) {
         this.indexSettings = Objects.requireNonNull(indexSettings);
         this.mapperService = mapperService;
         this.logger = logger;
         this.additionalCodecs = Objects.requireNonNull(additionalCodecs);
+        this.perFieldCodecBuilders = Objects.requireNonNull(perFieldCodecBuilders);
+        this.codecDecorators = Objects.requireNonNull(codecDecorators);
     }
 
     public IndexSettings getIndexSettings() {
@@ -55,5 +70,13 @@ public final class CodecServiceConfig {
 
     public List<AdditionalCodecs> getAdditionalCodecs() {
         return additionalCodecs;
+    }
+
+    public List<PerFieldCodecBuilder> getPerFieldCodecBuilders() {
+        return perFieldCodecBuilders;
+    }
+
+    public List<CodecDecorator> getCodecDecorators() {
+        return codecDecorators;
     }
 }

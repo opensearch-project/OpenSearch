@@ -138,7 +138,9 @@ public class CodecTests extends OpenSearchTestCase {
     }
 
     public void testLuceneCodecsWithCompressionLevel() {
-        String codecName = randomFrom(Codec.availableCodecs());
+        String codecName = randomFrom(
+            Codec.availableCodecs().stream().filter(codec -> DecoratedCodec.isDecoratedCodec(codec) == false).toList()
+        );
         Codec codec = Codec.forName(codecName);
 
         final Settings settings = Settings.builder()

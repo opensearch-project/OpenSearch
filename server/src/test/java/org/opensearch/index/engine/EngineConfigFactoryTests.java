@@ -10,14 +10,23 @@ package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
+import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.codecs.simpletext.SimpleTextCodec;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.AdditionalCodecs;
+import org.opensearch.index.codec.CodecDecorator;
 import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.codec.CodecServiceConfig;
 import org.opensearch.index.codec.CodecServiceFactory;
+import org.opensearch.index.codec.CompositeDelegatingPerFieldCodec;
+import org.opensearch.index.codec.DecoratedCodec;
+import org.opensearch.index.codec.DecoratedCodecTests;
+import org.opensearch.index.codec.PerFieldCodecBuilder;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.translog.InternalTranslogFactory;
@@ -41,6 +50,10 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class EngineConfigFactoryTests extends OpenSearchTestCase {
     public void testCreateEngineConfigFromFactory() {
@@ -155,6 +168,211 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         EngineConfigFactory factory = new EngineConfigFactory(plugins, indexSettings);
 
         assertThrows(IllegalStateException.class, () -> factory.newDefaultCodecService(indexSettings, null, logger));
+    }
+
+    public void testCreateEngineConfigFromFactoryPerFieldCodecBuilders() {
+        IndexMetadata meta = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        List<EnginePlugin> plugins = Arrays.asList(new QuxEnginePlugin(new Lucene104PostingsFormat()));
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
+        EngineConfigFactory factory = new EngineConfigFactory(plugins, indexSettings);
+
+        final CodecService codecService = factory.newDefaultCodecService(indexSettings, null, logger);
+        assertThat(codecService.codec("default"), is(instanceOf(CompositeDelegatingPerFieldCodec.class)));
+    }
+
+    public void testPerFieldCodecBuildersArePassedToCustomCodecServiceFactory() {
+        IndexMetadata meta = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        final PostingsFormat postingsFormat = new Lucene104PostingsFormat();
+        final AtomicReference<CodecServiceConfig> captured = new AtomicReference<>();
+        List<EnginePlugin> plugins = Arrays.asList(new QuxEnginePlugin(postingsFormat), new EnginePlugin() {
+            @Override
+            public Optional<CodecServiceFactory> getCustomCodecServiceFactory(IndexSettings indexSettings) {
+                return Optional.of(config -> {
+                    captured.set(config);
+                    return new CodecService(
+                        config.getMapperService(),
+                        config.getIndexSettings(),
+                        LogManager.getLogger(getClass()),
+                        config.getAdditionalCodecs(),
+                        config.getPerFieldCodecBuilders()
+                    );
+                });
+            }
+        });
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
+        EngineConfigFactory factory = new EngineConfigFactory(plugins, indexSettings);
+
+        final CodecService codecService = factory.newCodecServiceOrDefault(indexSettings, null, logger, null);
+        assertThat(captured.get().getPerFieldCodecBuilders(), hasSize(1));
+        assertThat(codecService.codec("default"), is(instanceOf(CompositeDelegatingPerFieldCodec.class)));
+    }
+
+    public void testCreateEngineConfigFromFactoryCodecDecorators() {
+        IndexMetadata meta = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        List<EnginePlugin> plugins = Arrays.asList(new QuuxEnginePlugin(), new QuxEnginePlugin(new Lucene104PostingsFormat()));
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
+        EngineConfigFactory factory = new EngineConfigFactory(plugins, indexSettings);
+
+        final CodecService codecService = factory.newDefaultCodecService(indexSettings, null, logger);
+        assertThat(codecService.codec("default"), is(instanceOf(DecoratedCodec.class)));
+    }
+
+    public void testCodecDecoratorsArePassedToCustomCodecServiceFactory() {
+        IndexMetadata meta = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        final AtomicReference<CodecServiceConfig> captured = new AtomicReference<>();
+        List<EnginePlugin> plugins = Arrays.asList(new QuuxEnginePlugin(), new EnginePlugin() {
+            @Override
+            public Optional<CodecServiceFactory> getCustomCodecServiceFactory(IndexSettings indexSettings) {
+                return Optional.of(config -> {
+                    captured.set(config);
+                    return new CodecService(
+                        config.getMapperService(),
+                        config.getIndexSettings(),
+                        LogManager.getLogger(getClass()),
+                        config.getAdditionalCodecs(),
+                        config.getPerFieldCodecBuilders(),
+                        config.getCodecDecorators()
+                    );
+                });
+            }
+        });
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
+        EngineConfigFactory factory = new EngineConfigFactory(plugins, indexSettings);
+
+        final CodecService codecService = factory.newCodecServiceOrDefault(indexSettings, null, logger, null);
+        assertThat(captured.get().getCodecDecorators(), hasSize(1));
+        assertThat(codecService.codec("default"), is(instanceOf(DecoratedCodec.class)));
+    }
+
+    public void testCodecServiceFactoryWhichDropsContributionsIsRejected() {
+        IndexMetadata meta = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        List<EnginePlugin> plugins = Arrays.asList(new QuuxEnginePlugin(), new EnginePlugin() {
+            @Override
+            public Optional<CodecServiceFactory> getCustomCodecServiceFactory(IndexSettings indexSettings) {
+                // the constructor which predates the codec contributions, the way the plugins use it today
+                return Optional.of(
+                    config -> new CodecService(
+                        config.getMapperService(),
+                        config.getIndexSettings(),
+                        LogManager.getLogger(getClass()),
+                        config.getAdditionalCodecs()
+                    )
+                );
+            }
+        });
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
+
+        // rejected along with the index creation, before any shard is started
+        final IllegalStateException ex = expectThrows(IllegalStateException.class, () -> new EngineConfigFactory(plugins, indexSettings));
+        assertThat(ex.getMessage(), containsString(QuuxEnginePlugin.class.getName()));
+        assertThat(ex.getMessage(), containsString("CodecService(CodecServiceConfig)"));
+    }
+
+    public void testCodecServiceFactoryWhichDropsMappingDependentContributionsIsRejectedForShard() {
+        IndexMetadata meta = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        List<EnginePlugin> plugins = Arrays.asList(new EnginePlugin() {
+            @Override
+            public Optional<CodecDecorator> getCodecDecorator(MapperService mapperService, IndexSettings indexSettings) {
+                // only known once the mapping is
+                return (mapperService != null) ? Optional.of(new DecoratedCodecTests.SideFileDecoratorA()) : Optional.empty();
+            }
+        }, new EnginePlugin() {
+            @Override
+            public Optional<CodecServiceFactory> getCustomCodecServiceFactory(IndexSettings indexSettings) {
+                return Optional.of(
+                    config -> new CodecService(
+                        config.getMapperService(),
+                        config.getIndexSettings(),
+                        LogManager.getLogger(getClass()),
+                        config.getAdditionalCodecs()
+                    )
+                );
+            }
+        });
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
+        EngineConfigFactory factory = new EngineConfigFactory(plugins, indexSettings);
+
+        final MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        final IllegalStateException ex = expectThrows(
+            IllegalStateException.class,
+            () -> factory.newCodecServiceOrDefault(indexSettings, mapperService, logger, null)
+        );
+        assertThat(ex.getMessage(), containsString("CodecService(CodecServiceConfig)"));
+    }
+
+    public void testCodecServiceFactoryWhichDropsNothingIsAccepted() {
+        IndexMetadata meta = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        List<EnginePlugin> plugins = Arrays.asList(new EnginePlugin() {
+            @Override
+            public Optional<CodecServiceFactory> getCustomCodecServiceFactory(IndexSettings indexSettings) {
+                return Optional.of(
+                    config -> new CodecService(
+                        config.getMapperService(),
+                        config.getIndexSettings(),
+                        LogManager.getLogger(getClass()),
+                        config.getAdditionalCodecs()
+                    )
+                );
+            }
+        });
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
+        EngineConfigFactory factory = new EngineConfigFactory(plugins, indexSettings);
+
+        final CodecService codecService = factory.newCodecServiceOrDefault(indexSettings, null, logger, null);
+        assertFalse(codecService.composesPluginCodecs());
+    }
+
+    public void testCodecServiceFactoryUsingConfigComposesContributions() {
+        IndexMetadata meta = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        List<EnginePlugin> plugins = Arrays.asList(
+            new QuuxEnginePlugin(),
+            new QuxEnginePlugin(new Lucene104PostingsFormat()),
+            new EnginePlugin() {
+                @Override
+                public Optional<CodecServiceFactory> getCustomCodecServiceFactory(IndexSettings indexSettings) {
+                    return Optional.of(CodecService::new);
+                }
+            }
+        );
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
+        EngineConfigFactory factory = new EngineConfigFactory(plugins, indexSettings);
+
+        final CodecService codecService = factory.newCodecServiceOrDefault(indexSettings, null, logger, null);
+        assertTrue(codecService.composesPluginCodecs());
+        assertThat(codecService.codec("default"), is(instanceOf(DecoratedCodec.class)));
     }
 
     public void testCreateCodecServiceFromFactory() {
@@ -433,6 +651,36 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
                     List.of()
                 )
             );
+        }
+    }
+
+    private static class QuuxEnginePlugin extends Plugin implements EnginePlugin {
+        @Override
+        public Optional<CodecDecorator> getCodecDecorator(MapperService mapperService, IndexSettings indexSettings) {
+            return Optional.of(new DecoratedCodecTests.SideFileDecoratorA());
+        }
+    }
+
+    private static class QuxEnginePlugin extends Plugin implements EnginePlugin {
+        private final PerFieldPostingsFormat postingsFormat;
+
+        QuxEnginePlugin(final PostingsFormat postingsFormat) {
+            this.postingsFormat = new PerFieldPostingsFormat() {
+                @Override
+                public PostingsFormat getPostingsFormatForField(String field) {
+                    return "claimed".equals(field) ? postingsFormat : null;
+                }
+            };
+        }
+
+        @Override
+        public Optional<PerFieldCodecBuilder> getPerFieldCodecBuilder(MapperService mapperService, IndexSettings indexSettings) {
+            return Optional.of(new PerFieldCodecBuilder() {
+                @Override
+                public Optional<PerFieldPostingsFormat> postingsFormat() {
+                    return Optional.of(postingsFormat);
+                }
+            });
         }
     }
 
