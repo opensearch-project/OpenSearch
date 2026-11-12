@@ -12,7 +12,6 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
-import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.ExistsQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 
@@ -29,12 +28,8 @@ public class ExistsQueryTranslator implements QueryTranslator {
     @Override
     public RexNode convert(QueryBuilder query, ConversionContext ctx) throws ConversionException {
         ExistsQueryBuilder existsQuery = (ExistsQueryBuilder) query;
+        rejectScoringParams(existsQuery, "Exists");
         String fieldName = existsQuery.fieldName();
-        float boost = existsQuery.boost();
-
-        if (boost != AbstractQueryBuilder.DEFAULT_BOOST) {
-            throw new ConversionException("boost is unsupported for Exists query type");
-        }
 
         RexNode fieldRef = ctx.makeFieldRef(fieldName);
         return ctx.getRexBuilder().makeCall(SqlStdOperatorTable.IS_NOT_NULL, fieldRef);

@@ -10,8 +10,12 @@ package org.opensearch.dsl.converter;
 
 /**
  * Thrown when DSL-to-Calcite conversion fails.
+ *
+ * <p>WHY: extends {@link IllegalArgumentException} so {@code ExceptionsHelper.status} maps it to
+ * HTTP 400, matching vanilla {@code NumberFieldMapper}, which rejects the same inputs with an
+ * {@code IllegalArgumentException}. A plain checked exception would fall through to 500.
  */
-public class ConversionException extends Exception {
+public class ConversionException extends IllegalArgumentException {
 
     /**
      * Creates a conversion exception.
