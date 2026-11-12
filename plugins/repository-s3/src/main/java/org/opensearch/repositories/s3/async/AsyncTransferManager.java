@@ -255,9 +255,9 @@ public final class AsyncTransferManager {
         String fileName,
         long expectedChecksum
     ) {
-        long resultantChecksum = fromBase64String(inputStreamContainers.get(0).getChecksum());
+        long resultantChecksum = fromBase64String(fileName, inputStreamContainers.get(0).getChecksum());
         for (int index = 1; index < inputStreamContainers.length(); index++) {
-            long curChecksum = fromBase64String(inputStreamContainers.get(index).getChecksum());
+            long curChecksum = fromBase64String(fileName, inputStreamContainers.get(index).getChecksum());
             resultantChecksum = JZlib.crc32_combine(resultantChecksum, curChecksum, inputStreamContainers.get(index).getContentLength());
         }
 
@@ -319,7 +319,15 @@ public final class AsyncTransferManager {
         return Base64.getEncoder().encodeToString(Arrays.copyOfRange(ByteUtils.toByteArrayBE(val), 4, 8));
     }
 
-    private static long fromBase64String(String base64String) {
+    private static long fromBase64String(String fileName, String base64String) {
+        if (base64String == null) {
+            throw SdkClientException.create(
+                "Failed to verify checksum for ["
+                    + fileName
+                    + "]: the S3-compatible endpoint did not return a CRC32 checksum (x-amz-checksum-crc32) for an "
+                    + "uploaded part. The endpoint may not support checksum validation on multipart uploads."
+            );
+        }
         byte[] decodedBytes = Base64.getDecoder().decode(base64String);
         if (decodedBytes.length != 4) {
             throw new IllegalArgumentException("Invalid Base64 encoded CRC32 checksum");
