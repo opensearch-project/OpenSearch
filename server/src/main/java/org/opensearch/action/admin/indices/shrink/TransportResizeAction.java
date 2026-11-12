@@ -37,9 +37,13 @@ import org.opensearch.action.admin.indices.create.CreateIndexAction;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
+import org.opensearch.action.admin.indices.stats.IndexStats;
+import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
+import org.opensearch.cluster.ClusterInfo;
+import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -48,6 +52,10 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.RoutingNode;
+import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider.AdditionalBytesDecision;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
@@ -69,13 +77,16 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.IntFunction;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.ENABLE_FOR_SINGLE_DATA_NODE;
 
 /**
  * Main class to initiate resizing (shrink / split) an index into a new index
@@ -86,6 +97,9 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
     implements
         TransportIndicesResolvingAction<ResizeRequest> {
     private final MetadataCreateIndexService createIndexService;
+    private final ClusterInfoService clusterInfoService;
+    private final DiskThresholdSettings diskThresholdSettings;
+    private final boolean enableForSingleDataNode;
     private final Client client;
 
     @Inject
@@ -96,6 +110,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         MetadataCreateIndexService createIndexService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        ClusterInfoService clusterInfoService,
         Client client
     ) {
         this(
@@ -106,6 +121,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
             createIndexService,
             actionFilters,
             indexNameExpressionResolver,
+            clusterInfoService,
             client
         );
     }
@@ -118,10 +134,14 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         MetadataCreateIndexService createIndexService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        ClusterInfoService clusterInfoService,
         Client client
     ) {
         super(actionName, transportService, clusterService, threadPool, actionFilters, ResizeRequest::new, indexNameExpressionResolver);
         this.createIndexService = createIndexService;
+        this.clusterInfoService = clusterInfoService;
+        this.diskThresholdSettings = new DiskThresholdSettings(clusterService.getSettings(), clusterService.getClusterSettings());
+        this.enableForSingleDataNode = ENABLE_FOR_SINGLE_DATA_NODE.get(clusterService.getSettings());
         this.client = client;
     }
 
@@ -212,10 +232,12 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
                 .setDocs(true)
                 .setStore(true)
                 .execute(ActionListener.delegateFailure(listener, (delegatedListener, indicesStatsResponse) -> {
+                    final IndexStats sourceIndexStats = indicesStatsResponse.getIndex(sourceIndex);
                     CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(resizeRequest, state, i -> {
-                        IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
+                        IndexShardStats shard = sourceIndexStats.getIndexShards().get(i);
                         return shard == null ? null : shard.getPrimary().getDocs();
                     }, indicesStatsResponse.getPrimaries().store, clusterSettings, sourceIndex, targetIndex);
+                    validateSplitCanAccommodateAdditionalBytes(resizeRequest, state, sourceIndex, sourceIndexStats);
                     createIndexService.createIndex(
                         updateRequest,
                         ActionListener.map(
@@ -230,6 +252,58 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
                 }));
         }
 
+    }
+
+    protected void validateSplitCanAccommodateAdditionalBytes(
+        ResizeRequest resizeRequest,
+        ClusterState state,
+        String sourceIndex,
+        IndexStats sourceIndexStats
+    ) {
+        if (resizeRequest.getResizeType() != ResizeType.SPLIT || sourceIndexStats == null) {
+            return;
+        }
+
+        final Map<String, Long> additionalBytesByNode = new HashMap<>();
+        for (IndexShardStats indexShardStats : sourceIndexStats) {
+            for (ShardStats shardStats : indexShardStats) {
+                if (shardStats.getShardRouting().primary() == false || shardStats.getStats().getStore() == null) {
+                    continue;
+                }
+                final String nodeId = shardStats.getShardRouting().currentNodeId();
+                if (nodeId == null) {
+                    continue;
+                }
+                additionalBytesByNode.merge(nodeId, shardStats.getStats().getStore().getSizeInBytes(), Math::addExact);
+            }
+        }
+
+        final ClusterInfo clusterInfo = clusterInfoService.getClusterInfo();
+        for (Map.Entry<String, Long> entry : additionalBytesByNode.entrySet()) {
+            final String nodeId = entry.getKey();
+            final RoutingNode routingNode = state.getRoutingNodes().node(nodeId);
+            if (routingNode == null || routingNode.node() == null) {
+                continue;
+            }
+            final AdditionalBytesDecision decision = DiskThresholdDecider.canAccommodateAdditionalBytes(
+                routingNode,
+                entry.getValue(),
+                clusterInfo,
+                state.metadata(),
+                state.routingTable(),
+                diskThresholdSettings,
+                enableForSingleDataNode,
+                state.nodes().getDataNodes().size()
+            );
+            if (decision.isAllowed() == false) {
+                throw new IllegalArgumentException(
+                    "cannot split index ["
+                        + sourceIndex
+                        + "] because the node hosting a source primary does not have enough free disk space: "
+                        + decision.getExplanation()
+                );
+            }
+        }
     }
 
     /**

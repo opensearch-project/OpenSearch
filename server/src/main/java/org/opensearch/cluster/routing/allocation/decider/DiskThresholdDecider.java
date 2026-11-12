@@ -372,8 +372,8 @@ public class DiskThresholdDecider extends AllocationDecider {
             allocation.routingTable()
         );
         assert shardSize >= 0 : shardSize;
-        double freeSpaceAfterShard = freeDiskPercentageAfterShardAssigned(usage, shardSize);
-        long freeBytesAfterShard = freeBytes - shardSize;
+        final long freeBytesAfterShard = freeBytes - shardSize;
+        final double freeSpaceAfterShard = freeDiskPercentageAfterShardAssigned(usage, shardSize);
         if (freeBytesAfterShard < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {
             logger.warn(
                 "after allocating [{}] node [{}] would have less than the required threshold of "
@@ -542,6 +542,151 @@ public class DiskThresholdDecider extends AllocationDecider {
         );
     }
 
+    /**
+     * Checks whether the node can absorb the requested additional bytes without breaching disk allocation watermarks.
+     * <p>
+     * This is a best-effort request-time validation helper. For split requests, callers should pass the 1x source-primary
+     * bytes required as merge headroom on the source-primary node. This matches allocation because split target shards are checked
+     * independently and resize-created initializing shards are ignored as hard-linked.
+     *
+     * @param routingNode routing node to validate
+     * @param additionalBytes additional bytes the node must accommodate
+     * @param clusterInfo current cluster disk usage information
+     * @param metadata current cluster metadata
+     * @param routingTable current routing table
+     * @param diskThresholdSettings current disk threshold settings
+     * @param enableForSingleDataNode whether disk watermarks are enabled for single-data-node clusters
+     * @param dataNodeCount number of data nodes in the current cluster state
+     * @return a decision explaining whether the node can accommodate the additional bytes
+     */
+    public static AdditionalBytesDecision canAccommodateAdditionalBytes(
+        RoutingNode routingNode,
+        long additionalBytes,
+        ClusterInfo clusterInfo,
+        Metadata metadata,
+        RoutingTable routingTable,
+        DiskThresholdSettings diskThresholdSettings,
+        boolean enableForSingleDataNode,
+        int dataNodeCount
+    ) {
+        if (additionalBytes < 0L) {
+            throw new IllegalArgumentException("additional bytes must be non-negative but was [" + additionalBytes + "]");
+        }
+        if (diskThresholdSettings.isEnabled() == false) {
+            return AdditionalBytesDecision.YES;
+        }
+        if (enableForSingleDataNode == false && dataNodeCount <= 1) {
+            return AdditionalBytesDecision.YES;
+        }
+        if (clusterInfo == null) {
+            return AdditionalBytesDecision.YES;
+        }
+
+        final Map<String, DiskUsage> usages = clusterInfo.getNodeMostAvailableDiskUsages();
+        if (usages.isEmpty()) {
+            return AdditionalBytesDecision.YES;
+        }
+
+        final String nodeId = routingNode.nodeId();
+        final DiskUsageWithRelocations usage = getDiskUsage(
+            routingNode,
+            usages,
+            clusterInfo.getAvgFreeByte(),
+            clusterInfo.getAvgTotalBytes(),
+            false,
+            clusterInfo,
+            metadata,
+            routingTable,
+            diskThresholdSettings
+        );
+
+        final long freeBytes = usage.getFreeBytes();
+        if (freeBytes < 0L) {
+            return AdditionalBytesDecision.no(
+                "node ["
+                    + nodeId
+                    + "] has fewer free bytes remaining than the total size of incoming shards: free space ["
+                    + (freeBytes + usage.getRelocatingShardSize())
+                    + "B], incoming shards ["
+                    + usage.getRelocatingShardSize()
+                    + "B]"
+            );
+        }
+
+        if (freeBytes < diskThresholdSettings.getFreeBytesThresholdLow().getBytes()) {
+            return AdditionalBytesDecision.no(
+                "node ["
+                    + nodeId
+                    + "] is above the low watermark cluster setting ["
+                    + CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
+                    + "="
+                    + diskThresholdSettings.getLowWatermarkRaw()
+                    + "], having less than the minimum required ["
+                    + diskThresholdSettings.getFreeBytesThresholdLow()
+                    + "] free space (free: ["
+                    + new ByteSizeValue(freeBytes)
+                    + "])"
+            );
+        }
+
+        final double freeDiskPercentage = usage.getFreeDiskAsPercentage();
+        if (freeDiskPercentage < diskThresholdSettings.getFreeDiskThresholdLow()) {
+            return AdditionalBytesDecision.no(
+                "node ["
+                    + nodeId
+                    + "] is above the low watermark cluster setting ["
+                    + CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
+                    + "="
+                    + diskThresholdSettings.getLowWatermarkRaw()
+                    + "], using more disk space than the maximum allowed ["
+                    + Strings.format1Decimals(100.0 - diskThresholdSettings.getFreeDiskThresholdLow(), "%")
+                    + "] (free: ["
+                    + Strings.format1Decimals(freeDiskPercentage, "%")
+                    + "])"
+            );
+        }
+
+        final long freeBytesAfterAddingBytes = freeBytes - additionalBytes;
+        if (freeBytesAfterAddingBytes < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {
+            return AdditionalBytesDecision.no(
+                "adding ["
+                    + new ByteSizeValue(additionalBytes)
+                    + "] to node ["
+                    + nodeId
+                    + "] would bring the node above the high watermark cluster setting ["
+                    + CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
+                    + "="
+                    + diskThresholdSettings.getHighWatermarkRaw()
+                    + "] and leave less than the minimum required ["
+                    + diskThresholdSettings.getFreeBytesThresholdHigh()
+                    + "] of free space (free: ["
+                    + new ByteSizeValue(freeBytes)
+                    + "])"
+            );
+        }
+
+        final double freeDiskPercentageAfterAddingBytes = freeDiskPercentageAfterShardAssigned(usage, additionalBytes);
+        if (freeDiskPercentageAfterAddingBytes < diskThresholdSettings.getFreeDiskThresholdHigh()) {
+            return AdditionalBytesDecision.no(
+                "adding ["
+                    + new ByteSizeValue(additionalBytes)
+                    + "] to node ["
+                    + nodeId
+                    + "] would bring the node above the high watermark cluster setting ["
+                    + CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()
+                    + "="
+                    + diskThresholdSettings.getHighWatermarkRaw()
+                    + "] and cause it to use more disk space than the maximum allowed ["
+                    + Strings.format1Decimals(100.0 - diskThresholdSettings.getFreeDiskThresholdHigh(), "%")
+                    + "] (free space after bytes added: ["
+                    + Strings.format1Decimals(freeDiskPercentageAfterAddingBytes, "%")
+                    + "])"
+            );
+        }
+
+        return AdditionalBytesDecision.YES;
+    }
+
     private DiskUsageWithRelocations getDiskUsage(
         RoutingNode node,
         RoutingAllocation allocation,
@@ -550,33 +695,36 @@ public class DiskThresholdDecider extends AllocationDecider {
         final long avgTotalBytes,
         boolean subtractLeavingShards
     ) {
-        DiskUsage usage = usages.get(node.nodeId());
-        if (usage == null) {
-            // If there is no usage, and we have other nodes in the cluster,
-            // use the average usage for all nodes as the usage for this node
-            usage = new DiskUsage(node.nodeId(), node.node().getName(), "_na_", avgTotalBytes, avgFreeBytes);
-            if (logger.isDebugEnabled()) {
-                logger.debug(
-                    "unable to determine disk usage for {}, defaulting to average across nodes [{} total] [{} free] [{}% free]",
-                    node.nodeId(),
-                    usage.getTotalBytes(),
-                    usage.getFreeBytes(),
-                    usage.getFreeDiskAsPercentage()
-                );
-            }
-        }
+        return getDiskUsage(
+            node,
+            usages,
+            avgFreeBytes,
+            avgTotalBytes,
+            subtractLeavingShards,
+            allocation.clusterInfo(),
+            allocation.metadata(),
+            allocation.routingTable(),
+            diskThresholdSettings
+        );
+    }
+
+    private static DiskUsageWithRelocations getDiskUsage(
+        RoutingNode node,
+        final Map<String, DiskUsage> usages,
+        final long avgFreeBytes,
+        final long avgTotalBytes,
+        boolean subtractLeavingShards,
+        ClusterInfo clusterInfo,
+        Metadata metadata,
+        RoutingTable routingTable,
+        DiskThresholdSettings diskThresholdSettings
+    ) {
+        DiskUsage usage = getDiskUsageOrDefault(node.nodeId(), node.node().getName(), usages, avgFreeBytes, avgTotalBytes);
 
         final DiskUsageWithRelocations diskUsageWithRelocations = new DiskUsageWithRelocations(
             usage,
             diskThresholdSettings.includeRelocations()
-                ? sizeOfRelocatingShards(
-                    node,
-                    subtractLeavingShards,
-                    usage.getPath(),
-                    allocation.clusterInfo(),
-                    allocation.metadata(),
-                    allocation.routingTable()
-                )
+                ? sizeOfRelocatingShards(node, subtractLeavingShards, usage.getPath(), clusterInfo, metadata, routingTable)
                 : 0
         );
         if (logger.isTraceEnabled()) {
@@ -586,6 +734,32 @@ public class DiskThresholdDecider extends AllocationDecider {
         return diskUsageWithRelocations;
     }
 
+    private static DiskUsage getDiskUsageOrDefault(
+        String nodeId,
+        String nodeName,
+        Map<String, DiskUsage> usages,
+        long avgFreeBytes,
+        long avgTotalBytes
+    ) {
+        DiskUsage usage = usages.get(nodeId);
+        if (usage != null) {
+            return usage;
+        }
+
+        // If there is no usage, and we have other nodes in the cluster, use the average usage for all nodes as the usage for this node.
+        usage = new DiskUsage(nodeId, nodeName, "_na_", avgTotalBytes, avgFreeBytes);
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "unable to determine disk usage for {}, defaulting to average across nodes [{} total] [{} free] [{}% free]",
+                nodeId,
+                usage.getTotalBytes(),
+                usage.getFreeBytes(),
+                usage.getFreeDiskAsPercentage()
+            );
+        }
+        return usage;
+    }
+
     /**
      * Given the DiskUsage for a node and the size of the shard, return the
      * percentage of free disk if the shard were to be allocated to the node.
@@ -593,7 +767,7 @@ public class DiskThresholdDecider extends AllocationDecider {
      * @param shardSize Size in bytes of the shard
      * @return Percentage of free space after the shard is assigned to the node
      */
-    double freeDiskPercentageAfterShardAssigned(DiskUsageWithRelocations usage, Long shardSize) {
+    static double freeDiskPercentageAfterShardAssigned(DiskUsageWithRelocations usage, Long shardSize) {
         shardSize = (shardSize == null) ? 0 : shardSize;
         DiskUsage newUsage = new DiskUsage(
             usage.getNodeId(),
@@ -714,6 +888,10 @@ public class DiskThresholdDecider extends AllocationDecider {
             }
         }
 
+        long getRelocatingShardSize() {
+            return relocatingShardSize;
+        }
+
         String getPath() {
             return diskUsage.getPath();
         }
@@ -728,6 +906,35 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         long getTotalBytes() {
             return diskUsage.getTotalBytes();
+        }
+    }
+
+    /**
+     * The result of checking whether a node can accommodate additional bytes.
+     *
+     * @opensearch.internal
+     */
+    public static class AdditionalBytesDecision {
+        private static final AdditionalBytesDecision YES = new AdditionalBytesDecision(true, "enough disk for additional bytes on node");
+
+        private final boolean allowed;
+        private final String explanation;
+
+        private AdditionalBytesDecision(boolean allowed, String explanation) {
+            this.allowed = allowed;
+            this.explanation = explanation;
+        }
+
+        public boolean isAllowed() {
+            return allowed;
+        }
+
+        public String getExplanation() {
+            return explanation;
+        }
+
+        private static AdditionalBytesDecision no(String explanation) {
+            return new AdditionalBytesDecision(false, explanation);
         }
     }
 
