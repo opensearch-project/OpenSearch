@@ -370,6 +370,7 @@ class S3AsyncService implements Closeable {
         // TODO: add max retry and UseThrottleRetry. Replace values with settings and put these in default settings
         clientBuilder.connectionTimeout(Duration.ofMillis(clientSettings.connectionTimeoutMillis));
         clientBuilder.connectionAcquisitionTimeout(Duration.ofMillis(clientSettings.connectionAcquisitionTimeoutMillis));
+        clientBuilder.readTimeout(Duration.ofMillis(clientSettings.readTimeoutMillis));
         clientBuilder.maxPendingConnectionAcquires(10_000);
         clientBuilder.maxConcurrency(clientSettings.maxConnections);
         clientBuilder.eventLoopGroup(SdkEventLoopGroup.create(asyncTransferEventLoopGroup.getEventLoopGroup()));
@@ -394,6 +395,7 @@ class S3AsyncService implements Closeable {
         }
 
         crtClientBuilder.connectionTimeout(Duration.ofMillis(clientSettings.connectionTimeoutMillis));
+        crtClientBuilder.readTimeout(Duration.ofMillis(clientSettings.readTimeoutMillis));
         crtClientBuilder.maxConcurrency(clientSettings.maxConnections);
         return crtClientBuilder.build();
     }
