@@ -320,6 +320,30 @@ public final class Settings implements ToXContentFragment {
     }
 
     /**
+     * Returns the setting value (as int) associated with the setting key. If it does not exist,
+     * returns the default value provided.
+     *
+     * <p>Unlike {@link #getAsInt(String, Integer)}, a value that cannot be parsed as an integer
+     * throws {@link IllegalArgumentException} (surfaced to REST callers as HTTP 400 with a
+     * message naming the setting and the offending value) instead of {@link SettingsException}.
+     * Use this variant only when the value being read is known to be caller-supplied input and
+     * the setting is defined to be integral (e.g. the ngram {@code min_gram}/{@code max_gram}
+     * character counts), so that a malformed value such as {@code "1.0"} is reported as a
+     * client error rather than an internal one.
+     */
+    public Integer getAsIntStrict(String setting, Integer defaultValue) {
+        String sValue = get(setting);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(sValue);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("[" + setting + "] must be an integer, got [" + sValue + "]", e);
+        }
+    }
+
+    /**
      * Returns the setting value (as long) associated with the setting key. If it does not exists,
      * returns the default value provided.
      */
