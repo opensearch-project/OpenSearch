@@ -106,9 +106,9 @@
 ---
 "Terminate processor exists":
   - skip:
-      version: " - 3.9.99"
+      version: " - 3.10.99"
       features: contains
-      reason: "terminate processor was introduced in 3.10.0 and contains is a newly added assertion"
+      reason: "terminate processor was introduced in 3.11.0 and contains is a newly added assertion"
   - do:
       cluster.state: {}
 

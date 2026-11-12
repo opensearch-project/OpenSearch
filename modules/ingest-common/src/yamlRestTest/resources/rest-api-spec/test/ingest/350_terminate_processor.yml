@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 3.9.99"
-      reason: "the terminate processor was introduced in 3.10.0"
+      version: " - 3.10.99"
+      reason: "the terminate processor was introduced in 3.11.0"
 
 ---
 teardown:
