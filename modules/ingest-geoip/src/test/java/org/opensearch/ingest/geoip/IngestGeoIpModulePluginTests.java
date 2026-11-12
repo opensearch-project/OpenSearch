@@ -32,7 +32,9 @@
 
 package org.opensearch.ingest.geoip;
 
-import com.maxmind.geoip2.model.AbstractResponse;
+import com.maxmind.geoip2.JsonSerializable;
+import com.maxmind.geoip2.model.AsnResponse;
+import com.maxmind.geoip2.model.CityResponse;
 
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.Setting;
@@ -57,33 +59,53 @@ public class IngestGeoIpModulePluginTests extends OpenSearchTestCase {
 
     public void testCachesAndEvictsResults() {
         GeoIpCache cache = new GeoIpCache(1);
-        AbstractResponse response1 = mock(AbstractResponse.class);
-        AbstractResponse response2 = mock(AbstractResponse.class);
+        JsonSerializable response1 = mock(JsonSerializable.class);
+        JsonSerializable response2 = mock(JsonSerializable.class);
 
         // add a key
-        AbstractResponse cachedResponse = cache.putIfAbsent(InetAddresses.forString("127.0.0.1"), AbstractResponse.class, ip -> response1);
+        JsonSerializable cachedResponse = cache.putIfAbsent(InetAddresses.forString("127.0.0.1"), JsonSerializable.class, ip -> response1);
         assertSame(cachedResponse, response1);
-        assertSame(cachedResponse, cache.putIfAbsent(InetAddresses.forString("127.0.0.1"), AbstractResponse.class, ip -> response1));
-        assertSame(cachedResponse, cache.get(InetAddresses.forString("127.0.0.1"), AbstractResponse.class));
+        assertSame(cachedResponse, cache.putIfAbsent(InetAddresses.forString("127.0.0.1"), JsonSerializable.class, ip -> response1));
+        assertSame(cachedResponse, cache.get(InetAddresses.forString("127.0.0.1"), JsonSerializable.class));
 
         // evict old key by adding another value
-        cachedResponse = cache.putIfAbsent(InetAddresses.forString("127.0.0.2"), AbstractResponse.class, ip -> response2);
+        cachedResponse = cache.putIfAbsent(InetAddresses.forString("127.0.0.2"), JsonSerializable.class, ip -> response2);
         assertSame(cachedResponse, response2);
-        assertSame(cachedResponse, cache.putIfAbsent(InetAddresses.forString("127.0.0.2"), AbstractResponse.class, ip -> response2));
-        assertSame(cachedResponse, cache.get(InetAddresses.forString("127.0.0.2"), AbstractResponse.class));
+        assertSame(cachedResponse, cache.putIfAbsent(InetAddresses.forString("127.0.0.2"), JsonSerializable.class, ip -> response2));
+        assertSame(cachedResponse, cache.get(InetAddresses.forString("127.0.0.2"), JsonSerializable.class));
 
-        assertNotSame(response1, cache.get(InetAddresses.forString("127.0.0.1"), AbstractResponse.class));
+        assertNotSame(response1, cache.get(InetAddresses.forString("127.0.0.1"), JsonSerializable.class));
     }
 
     public void testThrowsFunctionsException() {
         GeoIpCache cache = new GeoIpCache(1);
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> cache.putIfAbsent(InetAddresses.forString("127.0.0.1"), AbstractResponse.class, ip -> {
+            () -> cache.putIfAbsent(InetAddresses.forString("127.0.0.1"), JsonSerializable.class, ip -> {
                 throw new IllegalArgumentException("bad");
             })
         );
         assertEquals("bad", ex.getMessage());
+    }
+
+    public void testCachesDifferentResponseTypesForSameIp() {
+        GeoIpCache cache = new GeoIpCache(2);
+        var address = InetAddresses.forString("127.0.0.1");
+        CityResponse city = new CityResponse(null, null, null, null, null, null, null, null, null, null);
+        AsnResponse asn = new AsnResponse(64512L, "Example", address, null);
+
+        assertSame(city, cache.putIfAbsent(address, CityResponse.class, ip -> city));
+        assertSame(asn, cache.putIfAbsent(address, AsnResponse.class, ip -> asn));
+        assertSame(city, cache.get(address, CityResponse.class));
+        assertSame(asn, cache.get(address, AsnResponse.class));
+        assertSame(city, cache.putIfAbsent(address, CityResponse.class, ip -> {
+            fail("Cached city response should not be reloaded");
+            return null;
+        }));
+        assertSame(asn, cache.putIfAbsent(address, AsnResponse.class, ip -> {
+            fail("Cached ASN response should not be reloaded");
+            return null;
+        }));
     }
 
     public void testInvalidInit() {
