@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 
 ### Dependencies
+- Bump Jackson from 2.18.9 to 2.18.12 (CVE-2026-68495, CVE-2026-68496, CVE-2026-89425, CVE-2026-89407)
+- Bump `com.github.luben:zstd-jni` from 1.5.5-5 to 1.5.7-25 (CVE-2026-90560, CVE-2026-87795, CVE-2026-87823, CVE-2026-90852, CVE-2026-87824, CVE-2026-87825, CVE-2026-87877, CVE-2026-89045)
 - Update Jackson to 2.18.9 and Log4j to 2.25.5 ([#22990](https://github.com/opensearch-project/OpenSearch/pull/22990))
 - Updated Netty to 4.1.140.Final ([#23490](https://github.com/opensearch-project/OpenSearch/pull/23490), [#23251](https://github.com/opensearch-project/OpenSearch/pull/23251), [#21491](https://github.com/opensearch-project/OpenSearch/pull/21491), [#21968](https://github.com/opensearch-project/OpenSearch/pull/21968), [#22692](https://github.com/opensearch-project/OpenSearch/pull/22692), [#23003](https://github.com/opensearch-project/OpenSearch/pull/23003))
 - Update bundled JDK to 21.0.13+9 ([#23408](https://github.com/opensearch-project/OpenSearch/issues/23408), [#22572](https://github.com/opensearch-project/OpenSearch/issues/22572), [#22809](https://github.com/opensearch-project/OpenSearch/issues/22809))
