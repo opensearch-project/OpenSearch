@@ -94,10 +94,20 @@ public class InternalTranslogManager implements TranslogManager, RemoteStoreFenc
      */
     @Override
     public void rollTranslogGeneration() throws TranslogException, IOException {
+        rollTranslogGeneration(true);
+    }
+
+    @Override
+    public void rollTranslogGeneration(boolean sync) throws TranslogException, IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
             engineLifeCycleAware.ensureOpen();
-            translog.rollGeneration();
-            translog.trimUnreferencedReaders();
+            translog.rollGeneration(sync);
+            boolean isRemoteTranslog = translog instanceof RemoteFsTranslog;
+            if (sync || !isRemoteTranslog) {
+                // trim operation triggers upload when remote store is enabled. When local translog rollover is desired,
+                // we defer trim to the next successful flush or explicit trim operation.
+                translog.trimUnreferencedReaders();
+            }
         } catch (TranslogUploadFailedException e) {
             // Do not trigger the translogEventListener as it fails the Engine while this is only an issue with remote upload
             throw e;
