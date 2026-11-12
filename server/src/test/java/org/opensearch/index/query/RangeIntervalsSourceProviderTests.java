@@ -240,7 +240,7 @@ public class RangeIntervalsSourceProviderTests extends AbstractSerializingTestCa
         assertThat(fields, equalTo(Set.of("other")));
     }
 
-    public void testWritingToNodeOlderThan310Fails() throws IOException {
+    public void testWritingToNodeOlderThan311Fails() throws IOException {
         Range range = createTestInstance();
         for (Version version : List.of(Version.V_3_9_0, Version.V_3_9_1)) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -249,7 +249,7 @@ public class RangeIntervalsSourceProviderTests extends AbstractSerializingTestCa
                 assertThat(
                     e.getMessage(),
                     equalTo(
-                        "The [range] interval rule cannot be used with version [" + version + "], it requires version [3.10.0] or later"
+                        "The [range] interval rule cannot be used with version [" + version + "], it requires version [3.11.0] or later"
                     )
                 );
             }
@@ -266,7 +266,7 @@ public class RangeIntervalsSourceProviderTests extends AbstractSerializingTestCa
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(Version.V_3_9_0);
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> out.writeNamedWriteable(combine));
-            assertThat(e.getMessage(), containsString("3.10.0"));
+            assertThat(e.getMessage(), containsString("3.11.0"));
         }
     }
 
@@ -275,7 +275,7 @@ public class RangeIntervalsSourceProviderTests extends AbstractSerializingTestCa
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(Version.V_3_9_0);
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> out.writeNamedWriteable(query));
-            assertThat(e.getMessage(), containsString("3.10.0"));
+            assertThat(e.getMessage(), containsString("3.11.0"));
         }
     }
 }

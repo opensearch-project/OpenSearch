@@ -1345,14 +1345,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().before(Version.V_3_10_0)) {
+            if (out.getVersion().before(Version.V_3_11_0)) {
                 throw new IllegalArgumentException(
                     "The ["
                         + NAME
                         + "] interval rule cannot be used with version ["
                         + out.getVersion()
                         + "], it requires version ["
-                        + Version.V_3_10_0
+                        + Version.V_3_11_0
                         + "] or later"
                 );
             }

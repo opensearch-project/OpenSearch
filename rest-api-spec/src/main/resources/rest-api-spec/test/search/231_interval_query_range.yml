@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 3.9.99"
-      reason: "The range rule of the intervals query was added in 3.10.0"
+      version: " - 3.10.99"
+      reason: "The range rule of the intervals query was added in 3.11.0"
   - do:
       indices.create:
         index: filings
