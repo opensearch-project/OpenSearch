@@ -42,7 +42,7 @@ public class SocketChannelInterceptor {
     @SuppressWarnings("removal")
     public static void intercept(@Advice.AllArguments Object[] args, @Origin Method method) throws Exception {
         final Policy policy = AgentPolicy.getPolicy();
-        if (policy == null) {
+        if (policy == null || AgentPolicy.isEnforcementEnabled() == false) {
             return; /* noop */
         }
 
