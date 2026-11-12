@@ -298,19 +298,21 @@
                foo\n
             $/
 
-  # limit=0 means no limit
+  # limit must be a positive integer
   - do:
+      catch: bad_request
       cat.indices:
-        h: [index]
-        s: [index]
         limit: 0
 
-  - match:
-      $body: |
-            /^ bar\n
-               baz\n
-               foo\n
-            $/
+  - do:
+      catch: bad_request
+      cat.indices:
+        limit: -1
+
+  - do:
+      catch: bad_request
+      cat.indices:
+        limit: abc
 
 ---
 "Test cat indices with invalid health parameter":

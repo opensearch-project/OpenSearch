@@ -8,80 +8,134 @@
 
 package org.opensearch.wlm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.SearchAdmission;
-import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
 
-import java.util.function.BooleanSupplier;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Admits searches and scroll pages against workload group throttles, so the search actions depend only on the core
- * {@link SearchAdmission}. Creating a point in time is never throttled. Active only while
- * {@link WorkloadGroupService#isThrottlingActive()}.
+ * Admits searches and scroll pages through the workload group {@linkplain WorkloadGroupAdmissionPolicy policies} (resource
+ * limits, then throttle); the first refusal releases the permits already granted and fails the request. Creating a point in
+ * time is admitted unchecked.
  *
  * @opensearch.internal
  */
 public final class WorkloadGroupSearchAdmission implements SearchAdmission {
 
-    private final WorkloadGroupService workloadGroupService;
-    private final ClusterService clusterService;
-    private final TaskManager taskManager;
+    private static final Logger logger = LogManager.getLogger(WorkloadGroupSearchAdmission.class);
+
+    private final List<WorkloadGroupAdmissionPolicy> policies;
 
     public WorkloadGroupSearchAdmission(WorkloadGroupService workloadGroupService, ClusterService clusterService, TaskManager taskManager) {
-        this.workloadGroupService = workloadGroupService;
-        this.clusterService = clusterService;
-        this.taskManager = taskManager;
+        this(
+            List.of(
+                new ResourceLimitAdmissionPolicy(workloadGroupService),
+                new ThrottleAdmissionPolicy(workloadGroupService, clusterService, taskManager)
+            )
+        );
+    }
+
+    WorkloadGroupSearchAdmission(List<WorkloadGroupAdmissionPolicy> policies) {
+        this.policies = List.copyOf(policies);
     }
 
     @Override
     public boolean isActive() {
-        return workloadGroupService.isThrottlingActive();
+        for (WorkloadGroupAdmissionPolicy policy : policies) {
+            if (policy.isActive()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     public void admit(Task task, ActionRequest request, ActionListener<Releasable> listener) {
-        // Creating a point in time is admitted uncharged: it only opens a reader context on each shard and runs no query.
-        // The searches that later use the point in time are throttled.
+        // Creating a point in time is admitted unchecked: it only opens a reader context on each shard and runs no query.
+        // The searches that later use the point in time are checked and throttled.
         if (task instanceof WorkloadGroupTask == false || CreatePitAction.NAME.equals(task.getAction())) {
             listener.onResponse(NOOP_PERMIT);
             return;
         }
-        // The service reports "nothing to charge" as a null permit; the admission contract wants a non-null one.
-        final ActionListener<Releasable> permitListener = ActionListener.delegateFailure(
-            listener,
-            (l, permit) -> l.onResponse(permit == null ? NOOP_PERMIT : permit)
-        );
-        // A scroll page is never a nested search, so it never inherits a parent's charge.
-        final BooleanSupplier parentAlreadyCounted = request instanceof SearchScrollRequest
-            ? () -> false
-            : () -> parentAlreadyCounted(task);
-        workloadGroupService.acquireThrottlePermit((WorkloadGroupTask) task, parentAlreadyCounted, permitListener);
+        admitFrom(0, (WorkloadGroupTask) task, request, new ArrayList<>(), listener);
     }
 
-    /**
-     * Whether this request's parent task is already counted against a throttle bucket, so admission charges it
-     * nothing (see {@link WorkloadGroupService#acquireThrottlePermit}); a nested coordinator search issued during rewrite
-     * would otherwise make the request compete with itself. Only the immediate, local parent is inspected: the rewrite
-     * client is the only thing that parents a counted coordinator search, and {@code TransportSearchAction} parents rewrite
-     * searches on a task only when that task is counted, so a counted ancestor is always the immediate parent. Non-search
-     * parents (an {@code _msearch} task, a reindex task) never carry the flag, so their child searches are each charged, as
-     * intended. Remote parents are skipped because {@code TaskManager#getTask} is node-local.
-     */
-    private boolean parentAlreadyCounted(final Task task) {
-        TaskId parentTaskId = task.getParentTaskId();
-        if (parentTaskId == null || parentTaskId.isSet() == false) {
-            return false;
+    /** Runs the policies from {@code index} on, each after the previous one admits, which may be asynchronous. */
+    private void admitFrom(
+        int index,
+        WorkloadGroupTask task,
+        ActionRequest request,
+        List<Releasable> permits,
+        ActionListener<Releasable> listener
+    ) {
+        for (int i = index; i < policies.size(); i++) {
+            final WorkloadGroupAdmissionPolicy policy = policies.get(i);
+            boolean applies;
+            try {
+                applies = policy.isActive() && policy.appliesTo(task, request);
+            } catch (Exception e) {
+                // Fail open, like the policies themselves: an error deciding whether a policy applies skips it.
+                logger.debug("Skipping a workload group admission policy due to an error", e);
+                applies = false;
+            }
+            if (applies == false) {
+                continue;
+            }
+            final int next = i + 1;
+            // Only the policy's first outcome counts: a policy may report a failure after responding.
+            final AtomicBoolean completed = new AtomicBoolean();
+            // Not ActionListener.wrap: a throw from the admitted request's listener is not a refusal.
+            final ActionListener<Releasable> policyListener = new ActionListener<>() {
+                @Override
+                public void onResponse(Releasable permit) {
+                    if (completed.compareAndSet(false, true)) {
+                        if (permit != NOOP_PERMIT) {
+                            permits.add(permit);
+                        }
+                        admitFrom(next, task, request, permits, listener);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (completed.compareAndSet(false, true)) {
+                        Releasables.closeWhileHandlingException(permits);
+                        task.markAdmissionRejected();
+                        listener.onFailure(e);
+                    } else {
+                        logger.debug("Ignoring a failure reported after the admission policy completed", e);
+                    }
+                }
+            };
+            try {
+                policy.admit(task, request, policyListener);
+            } catch (Exception e) {
+                // A throw before the policy completes is a refusal. After it completes, the throw came from a later policy or
+                // the caller's listener, so it is not a refusal.
+                if (completed.get()) {
+                    throw e;
+                }
+                policyListener.onFailure(e);
+            }
+            return;
         }
-        if (clusterService.localNode().getId().equals(parentTaskId.getNodeId()) == false) {
-            return false;
+        if (permits.isEmpty()) {
+            listener.onResponse(NOOP_PERMIT);
+        } else if (permits.size() == 1) {
+            listener.onResponse(permits.get(0));
+        } else {
+            listener.onResponse(Releasables.wrap(permits));
         }
-        return taskManager.getTask(parentTaskId.getId()) instanceof WorkloadGroupTask parent && parent.isThrottleCounted();
     }
 }
