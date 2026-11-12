@@ -671,7 +671,7 @@ public class MetadataCreateIndexService {
     }
 
     /**
-     * Ingestion write settings were introduced in V_3_10_0. Reject them on mixed clusters, where older nodes do not
+     * Ingestion write settings were introduced in V_3_11_0. Reject them on mixed clusters, where older nodes do not
      * recognise the keys and would fail to create the index.
      */
     static void validateIngestionWriteSettingsVersion(Settings settings, ClusterState state) {
@@ -685,10 +685,10 @@ public class MetadataCreateIndexService {
             return;
         }
         Version minNodeVersion = state.nodes().getMinNodeVersion();
-        if (minNodeVersion.before(Version.V_3_10_0)) {
+        if (minNodeVersion.before(Version.V_3_11_0)) {
             throw new IllegalArgumentException(
                 "index.ingestion_source.write.* settings require all nodes in the cluster to be on version ["
-                    + Version.V_3_10_0
+                    + Version.V_3_11_0
                     + "] or later, but the minimum node version is ["
                     + minNodeVersion
                     + "]"

@@ -4694,9 +4694,9 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     }
 
     public void testValidateIngestionWriteSettingsRejectedOnMixedCluster() {
-        // write.enabled and write.param.* were introduced in V_3_10_0; older nodes would receive index metadata
+        // write.enabled and write.param.* were introduced in V_3_11_0; older nodes would receive index metadata
         // with unknown setting keys and fail to create the index
-        ClusterState state = mixedClusterState(Version.V_3_9_0);
+        ClusterState state = mixedClusterState(Version.V_3_10_0);
 
         for (Settings settings : List.of(
             Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_WRITE_ENABLED, true).build(),
@@ -4707,8 +4707,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 () -> MetadataCreateIndexService.validateIngestionSourceSettings(settings, state)
             );
             assertTrue(e.getMessage().contains("index.ingestion_source.write.* settings require all nodes"));
+            assertTrue(e.getMessage().contains(Version.V_3_11_0.toString()));
             assertTrue(e.getMessage().contains(Version.V_3_10_0.toString()));
-            assertTrue(e.getMessage().contains(Version.V_3_9_0.toString()));
         }
     }
 
@@ -4728,7 +4728,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put("index.ingestion_source.param.topic", "orders").build();
 
         // should not throw
-        MetadataCreateIndexService.validateIngestionSourceSettings(settings, mixedClusterState(Version.V_3_9_0));
+        MetadataCreateIndexService.validateIngestionSourceSettings(settings, mixedClusterState(Version.V_3_10_0));
     }
 
     private ClusterState mixedClusterState(Version oldVersion) {
