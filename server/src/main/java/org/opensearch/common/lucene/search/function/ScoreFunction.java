@@ -64,6 +64,18 @@ public abstract class ScoreFunction {
      */
     public abstract boolean needsScores();
 
+    /**
+     * Whether this function holds a score-script factory, and through it the search request's
+     * {@link org.apache.lucene.search.IndexSearcher}, even when scoring is skipped and the script never runs.
+     * A query that holds such a function must not be stored in the query cache, directly or inside a cached
+     * parent, or the cache key would keep that searcher, and a reader generation, reachable.
+     *
+     * @return {@code true} if this function, or a function it wraps, holds a score-script factory.
+     */
+    public boolean usesScript() {
+        return false;
+    }
+
     @Override
     public final boolean equals(Object obj) {
         if (this == obj) {
