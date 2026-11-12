@@ -63,6 +63,13 @@ class OTelSpan extends AbstractSpan {
     }
 
     @Override
+    public void setError(String errorMessage) {
+        if (errorMessage != null) {
+            delegateSpan.setStatus(StatusCode.ERROR, errorMessage);
+        }
+    }
+
+    @Override
     public void addEvent(String event) {
         delegateSpan.addEvent(event);
     }
