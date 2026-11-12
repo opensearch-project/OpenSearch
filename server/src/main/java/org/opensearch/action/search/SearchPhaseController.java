@@ -952,12 +952,14 @@ public final class SearchPhaseController {
 
                 ProfileShardResult existingProfile = mergedResults.get(shardId);
                 if (existingProfile != null) {
-                    // Merge fetch profile data into existing query profile
+                    // Merge fetch profile data into existing query profile. Shard level timings stay on the query
+                    // phase values, so the fetch phase copies of network time and queue wait are not carried over.
                     ProfileShardResult merged = new ProfileShardResult(
                         existingProfile.getQueryProfileResults(),
                         existingProfile.getAggregationProfileResults(),
                         fetchProfile.getFetchProfileResult(), // Use fetch profile data
-                        existingProfile.getNetworkTime()
+                        existingProfile.getNetworkTime(),
+                        existingProfile.getQueueWaitNanos()
                     );
                     mergedResults.put(shardId, merged);
                 }
