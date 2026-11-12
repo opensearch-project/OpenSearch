@@ -38,24 +38,22 @@
 (* FenceTakeover.tla studies and a single shared register cannot provide.   *)
 (*                                                                          *)
 (* An acknowledgement is NOT one atomic step here. The implementation runs  *)
-(* a metadata PUT and the fence CAS as separate store writes and joins both *)
-(* before acking, so the model splits them too: StartUpload reserves the    *)
-(* op, MetaPut makes its metadata visible to readers, CasAdvance advances   *)
-(* the chain, JoinAck acknowledges once both landed. The SEQUENCED constant *)
-(* selects the write-side ordering. FALSE lets the CAS land while the       *)
-(* metadata PUT is still in flight - the original design, where the CAS ran *)
-(* concurrently with the PUT to stay off the latency path. TLC refutes it:  *)
-(* the CAS can win against the incumbent's object before a takeover's       *)
-(* sweep, while the metadata lands only after the takeover read its restore *)
-(* point - the acked op's metadata then sorts below every file the new      *)
-(* owner publishes, and no later recovery resolves it. Acked-write loss,    *)
-(* despite "seal before restore" holding: the upload straddles the sweep    *)
-(* and the restore read, neither acked-before-seal nor refused-after. With  *)
-(* SEQUENCED = TRUE the CAS is issued only after the metadata PUT           *)
-(* completed, which restores the invariant by happens-before: CAS success   *)
-(* means the incumbent's object still existed, so the sweep - and the       *)
-(* restore read behind it - came later, and the metadata was already        *)
-(* visible (read-after-write) when the restore point was read.              *)
+(* a metadata PUT and then a fence READ, and acks once both are done, so    *)
+(* the model splits them: StartUpload reserves the op, MetaPut makes its    *)
+(* metadata visible, CasAdvance compares the fence token with the one       *)
+(* this writer's own last write produced, JoinAck acknowledges. The ack     *)
+(* path never writes the fence; only claims do. The read is atomic, as a    *)
+(* strongly consistent store's read is: it sees every write and delete that *)
+(* completed before it.                                                     *)
+(*                                                                          *)
+(* SEQUENCED selects the ordering. FALSE lets the check pass while the      *)
+(* metadata PUT is still in flight, and TLC refutes it: the check passes    *)
+(* before a takeover's claim, the metadata lands only after the takeover    *)
+(* read its restore point, and the acked op is in no restore point, ever.   *)
+(* With SEQUENCED = TRUE the check runs only after the PUT completed: a     *)
+(* passing check means the claim - and the restore read behind it - came   *)
+(* later, when the metadata was already visible. The argument is the same   *)
+(* whether the check is a read or a CAS.                                    *)
 (*                                                                          *)
 (* Reading the restore point is correspondingly restore' = visible, not     *)
 (* restore' = acked: a recovering copy resolves whatever metadata has       *)
@@ -82,8 +80,8 @@ CONSTANTS
   NoWriter,         \* model value: "no owner"
   MaxTerm,          \* bound on primary terms (state-space bound only)
   MaxOps,           \* bound on acknowledged operations (state-space bound only)
-  SEQUENCED         \* TRUE: the fence CAS is issued only after the metadata PUT
-                    \* completed (the shipped ordering). FALSE: CAS and PUT run
+  SEQUENCED         \* TRUE: the fence check runs only after the metadata PUT
+                    \* completed (the shipped ordering). FALSE: check and PUT run
                     \* concurrently (the refuted original design).
 
 ASSUME NoWriter \notin Writers
@@ -112,7 +110,7 @@ VARIABLES
   (* recovering copy can resolve. Grows on MetaPut, never shrinks.        *)
   visible,
   (* Per-writer in-flight upload: the reserved op (0 = none) and which of *)
-  (* its two store writes have landed. One upload at a time per writer,   *)
+  (* its two store operations are done. One upload at a time per writer,  *)
   (* which is the implementation's sync permit.                           *)
   upOp, upMetaDone, upCasDone
 
@@ -233,13 +231,13 @@ ReadRestorePoint(w) ==
   /\ UNCHANGED <<fenceVars, wTerm, wHeld, wObserved, ackVars, upVars>>
 
 (***************************************************************************)
-(* Acknowledging a write - the upload pipeline. Two independent store       *)
-(* writes back every acknowledgement: the immutable metadata PUT that makes *)
-(* the operation resolvable, and the fence CAS that proves the writer still *)
+(* Acknowledging a write - the upload pipeline. Two store operations back  *)
+(* every acknowledgement: the immutable metadata PUT that makes the         *)
+(* operation resolvable, and the fence read that proves the writer still    *)
 (* owns the chain. The implementation joins both before acking; the model   *)
 (* keeps them as separate steps so their interleaving with a takeover is    *)
-(* explored rather than assumed away. SEQUENCED selects whether the CAS may *)
-(* be issued while the metadata PUT is still in flight.                     *)
+(* explored rather than assumed away. SEQUENCED selects whether the check   *)
+(* may run while the metadata PUT is still in flight.                       *)
 (***************************************************************************)
 StartUpload(w) ==
   /\ wState[w] = "active"
@@ -262,33 +260,31 @@ MetaPut(w) ==
   /\ UNCHANGED <<fenceVars, wTerm, wState, wHeld, wObserved, restore, hasRead,
                  ackVars, upOp, upCasDone>>
 
-(* The fence CAS. Under SEQUENCED it is issued only once the metadata PUT   *)
-(* completed; unsequenced it can land first - and win against the           *)
-(* incumbent's object before a takeover sweeps it, which is the refuted     *)
-(* interleaving. A writer with a stale token finds out here and is fenced   *)
-(* for good - "fenced is terminal" - so it never acknowledges the write.    *)
+(* The fence check: a read, compared against the token of this writer's    *)
+(* own last write. It changes nothing in the store. Under SEQUENCED it runs *)
+(* only once the metadata PUT completed; unsequenced it can pass first -    *)
+(* against the incumbent's object, before a takeover claims it - which is   *)
+(* the refuted interleaving. A writer with a stale token finds out here and *)
+(* is fenced for good - "fenced is terminal" - so it never acknowledges the *)
+(* write. The name is kept from when this step was a CAS that advanced the  *)
+(* chain; it now only reads.                                                *)
 CasAdvance(w) ==
   /\ wState[w] = "active"
   /\ upOp[w] /= 0
   /\ ~upCasDone[w]
   /\ (SEQUENCED => upMetaDone[w])
   /\ IF wHeld[w] = fenceToken
-       THEN /\ fenceToken' = fenceToken + 1
-            /\ fenceTerm'  = wTerm[w]
-            /\ fenceSeq'   = fenceSeq + 1
-            /\ fenceOwner' = w
-            /\ wHeld'      = [wHeld EXCEPT ![w] = fenceToken + 1]
-            /\ upCasDone'  = [upCasDone EXCEPT ![w] = TRUE]
-            /\ UNCHANGED <<wTerm, wState, wObserved, restore, hasRead, ackVars,
-                           visible, upOp, upMetaDone>>
+       THEN /\ upCasDone' = [upCasDone EXCEPT ![w] = TRUE]
+            /\ UNCHANGED <<fenceVars, wTerm, wState, wHeld, wObserved, restore, hasRead,
+                           ackVars, visible, upOp, upMetaDone>>
        ELSE /\ wState' = [wState EXCEPT ![w] = "fenced"]
             /\ UNCHANGED <<fenceVars, wTerm, wHeld, wObserved, restore, hasRead,
                            ackVars, upVars>>
 
-(* Both store writes landed: the operation is acknowledged to the client.   *)
-(* No store interaction remains, so nothing can refuse it - which is        *)
-(* exactly why everything that must be true at ack time has to have been    *)
-(* proven by the two writes above.                                          *)
+(* Both store operations are done: the operation is acknowledged to the    *)
+(* client. No store interaction remains, so nothing can refuse it - which   *)
+(* is exactly why everything that must be true at ack time has to have     *)
+(* been proven by the PUT and the check above.                              *)
 JoinAck(w) ==
   /\ wState[w] = "active"
   /\ upOp[w] /= 0

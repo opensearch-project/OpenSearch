@@ -16,6 +16,7 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.InputStreamWithMetadata;
+import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
@@ -474,9 +475,9 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertEquals(primaryTerm, fence.getTerm());
         assertEquals(0, fence.getSeq());
 
-        // A subsequent sync advances the same CAS chain
+        // A subsequent sync is checked against the same chain, without advancing it
         assertTrue(manager.transferSnapshot(createTransferSnapshot(), listener, null));
-        assertEquals(1, fence.getSeq());
+        assertEquals(0, fence.getSeq());
 
         assertEquals(2, uploadComplete.get());
         assertNull(uploadFailure.get());
@@ -600,8 +601,11 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         // takeover's sweep while the metadata PUT is still in flight; the takeover then reads a restore point
         // without this generation and the writer acknowledges an operation no recovery will ever resolve -
         // acked-write loss (RemoteStoreFence.tla in formal-models/ exhibits the trace with SEQUENCED = FALSE).
+        // The same holds for the fence read on every later upload.
         AtomicBoolean metadataUploaded = new AtomicBoolean();
-        AtomicBoolean casSawMetadataUploaded = new AtomicBoolean();
+        AtomicBoolean fenceRanBeforeMetadata = new AtomicBoolean();
+        AtomicInteger fenceWrites = new AtomicInteger();
+        AtomicInteger fenceReads = new AtomicInteger();
 
         Path repoPath = createTempDir();
         FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, repoPath, false);
@@ -609,8 +613,20 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             @Override
             public String writeBlobConditionally(String blobName, InputStream inputStream, long blobSize, String expectedVersionToken)
                 throws IOException {
-                casSawMetadataUploaded.set(metadataUploaded.get());
+                fenceWrites.incrementAndGet();
+                if (metadataUploaded.get() == false) {
+                    fenceRanBeforeMetadata.set(true);
+                }
                 return super.writeBlobConditionally(blobName, inputStream, blobSize, expectedVersionToken);
+            }
+
+            @Override
+            public VersionedBlob readBlobWithVersion(String blobName) throws IOException {
+                fenceReads.incrementAndGet();
+                if (metadataUploaded.get() == false) {
+                    fenceRanBeforeMetadata.set(true);
+                }
+                return super.readBlobWithVersion(blobName);
             }
         };
 
@@ -632,11 +648,28 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             }
         }, null));
 
-        assertTrue("fence CAS was issued before the metadata upload completed", casSawMetadataUploaded.get());
+        assertFalse("the fence claim ran before the metadata upload completed", fenceRanBeforeMetadata.get());
         assertEquals(0, fence.getSeq());
+
+        // A later upload checks the fence by reading, still strictly after its own metadata, and writes nothing.
+        final int writesAfterClaim = fenceWrites.get();
+        final int readsAfterClaim = fenceReads.get();
+        metadataUploaded.set(false);
+        assertTrue(manager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
+            @Override
+            public void onUploadComplete(TransferSnapshot transferSnapshot) {}
+
+            @Override
+            public void onUploadFailed(TransferSnapshot transferSnapshot, Exception ex) {
+                throw new AssertionError(ex);
+            }
+        }, null));
+        assertFalse("the fence check ran before the metadata upload completed", fenceRanBeforeMetadata.get());
+        assertEquals("a steady-state upload must not write the fence", writesAfterClaim, fenceWrites.get());
+        assertEquals("a steady-state upload checks the fence with exactly one read", readsAfterClaim + 1, fenceReads.get());
     }
 
-    public void testTakeoverBetweenMetadataUploadAndCasIsNotAcknowledged() throws Exception {
+    public void testTakeoverBetweenMetadataUploadAndFenceCheckIsNotAcknowledged() throws Exception {
         mockSuccessfulFileUploads();
         FsBlobContainer container = fenceContainer();
         RemoteStoreFence fence = new RemoteStoreFence(container, "node-old-alloc", "node-old", shardId);
@@ -644,7 +677,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         // The interleaving that lost acked writes under the concurrent design: a new primary claims the fence
         // while this upload's metadata PUT is in flight, then reads its restore point - which cannot include this
-        // generation. Sequenced, the CAS comes after the metadata and finds the chain taken, so the operation is
+        // generation. Sequenced, the check comes after the metadata and finds the chain taken, so the operation is
         // refused rather than acknowledged: the metadata file is a harmless never-acknowledged orphan.
         doAnswer(invocationOnMock -> {
             new RemoteStoreFence(container, "node-new-alloc", "node-new", shardId).validateAndAdvance(primaryTerm + 1);
