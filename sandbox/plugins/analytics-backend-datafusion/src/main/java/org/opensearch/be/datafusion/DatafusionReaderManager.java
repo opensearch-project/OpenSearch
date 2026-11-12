@@ -51,6 +51,8 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     private final List<String> sortFields;
     /** Parallel to {@link #sortFields}; values are {@code "asc"} or {@code "desc"}. */
     private final List<String> sortOrders;
+    /** Parallel to {@link #sortFields}; values are {@code "_first"} or {@code "_last"}. */
+    private final List<String> sortMissing;
 
     /**
      * Creates a reader manager.
@@ -64,7 +66,27 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
      *                   reader so the indexed scan path can decide whether to iterate segments in reverse
      *                   catalog-snapshot order to feed a {@code TopK} above us.
      * @param sortOrders {@code index.sort.order} values ("asc"/"desc"), parallel to {@code sortFields}.
+     * @param sortMissing {@code index.sort.missing} values ("_first"/"_last"), parallel to {@code sortFields}.
      */
+    public DatafusionReaderManager(
+        DataFormat dataFormat,
+        ShardPath shardPath,
+        DataFusionService dataFusionService,
+        NativeStoreHandle dataformatAwareStoreHandle,
+        List<String> sortFields,
+        List<String> sortOrders,
+        List<String> sortMissing
+    ) {
+        this.dataFormat = dataFormat;
+        this.directoryPath = shardPath.getDataPath().resolve(dataFormat.name()).toString();
+        this.dataFusionService = dataFusionService;
+        this.dataformatAwareStoreHandle = dataformatAwareStoreHandle;
+        this.sortFields = sortFields == null ? List.of() : List.copyOf(sortFields);
+        this.sortOrders = sortOrders == null ? List.of() : List.copyOf(sortOrders);
+        this.sortMissing = sortMissing == null ? List.of() : List.copyOf(sortMissing);
+    }
+
+    /** Uses the writer's default missing-value placement ({@code _last}) for existing callers. */
     public DatafusionReaderManager(
         DataFormat dataFormat,
         ShardPath shardPath,
@@ -73,12 +95,15 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
         List<String> sortFields,
         List<String> sortOrders
     ) {
-        this.dataFormat = dataFormat;
-        this.directoryPath = shardPath.getDataPath().resolve(dataFormat.name()).toString();
-        this.dataFusionService = dataFusionService;
-        this.dataformatAwareStoreHandle = dataformatAwareStoreHandle;
-        this.sortFields = sortFields == null ? List.of() : List.copyOf(sortFields);
-        this.sortOrders = sortOrders == null ? List.of() : List.copyOf(sortOrders);
+        this(
+            dataFormat,
+            shardPath,
+            dataFusionService,
+            dataformatAwareStoreHandle,
+            sortFields,
+            sortOrders,
+            sortFields == null ? List.of() : sortFields.stream().map(f -> "_last").toList()
+        );
     }
 
     @Override
@@ -148,7 +173,8 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
             catalogSnapshot.getSearchableFiles(dataFormat.name()),
             dataformatAwareStoreHandle,
             sortFields,
-            sortOrders
+            sortOrders,
+            sortMissing
         );
         readers.put(catalogSnapshot.getId(), reader);
     }

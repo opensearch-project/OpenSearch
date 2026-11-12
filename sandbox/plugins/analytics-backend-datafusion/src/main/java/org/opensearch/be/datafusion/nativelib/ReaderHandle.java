@@ -31,7 +31,21 @@ public final class ReaderHandle extends NativeHandle {
      * @param dataformatAwareStoreHandle per-format native store handle (null = local, live = use store pointer)
      * @param sortFields index.sort.field values (or empty if no index sort). Parallel to {@code sortOrders}.
      * @param sortOrders index.sort.order values ("asc"/"desc"), parallel to {@code sortFields}.
+     * @param sortMissing index.sort.missing values ("_first"/"_last"), parallel to {@code sortFields}.
      */
+    public ReaderHandle(
+        String path,
+        List<MonoFileWriterSet> segments,
+        NativeStoreHandle dataformatAwareStoreHandle,
+        List<String> sortFields,
+        List<String> sortOrders,
+        List<String> sortMissing
+    ) {
+        super(NativeBridge.createDatafusionReader(path, segments, dataformatAwareStoreHandle, sortFields, sortOrders, sortMissing));
+        this.ownsPointer = true;
+    }
+
+    /** Uses the writer's default missing-value placement ({@code _last}) for existing callers. */
     public ReaderHandle(
         String path,
         List<MonoFileWriterSet> segments,
@@ -39,8 +53,14 @@ public final class ReaderHandle extends NativeHandle {
         List<String> sortFields,
         List<String> sortOrders
     ) {
-        super(NativeBridge.createDatafusionReader(path, segments, dataformatAwareStoreHandle, sortFields, sortOrders));
-        this.ownsPointer = true;
+        this(
+            path,
+            segments,
+            dataformatAwareStoreHandle,
+            sortFields,
+            sortOrders,
+            sortFields == null ? List.of() : sortFields.stream().map(f -> "_last").toList()
+        );
     }
 
     /** Wraps an existing pointer without taking ownership. */
