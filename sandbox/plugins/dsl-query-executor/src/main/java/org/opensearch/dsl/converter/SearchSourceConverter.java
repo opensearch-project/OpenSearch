@@ -36,10 +36,10 @@ import org.opensearch.dsl.aggregation.AggregationMetadataBuilder;
 import org.opensearch.dsl.aggregation.AggregationRegistry;
 import org.opensearch.dsl.aggregation.AggregationRegistryFactory;
 import org.opensearch.dsl.aggregation.AggregationTreeWalker;
+import org.opensearch.dsl.aggregation.FieldTypeLookup;
 import org.opensearch.dsl.executor.QueryPlans;
 import org.opensearch.dsl.query.QueryRegistry;
 import org.opensearch.dsl.query.QueryRegistryFactory;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
@@ -50,7 +50,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.function.Supplier;
 
 /**
  * Converts {@link SearchSourceBuilder} DSL into Calcite {@link QueryPlans}.
@@ -76,23 +75,23 @@ public class SearchSourceConverter {
 
     /**
      * Initializes planning infrastructure without mapping resolution — conversion-only use;
-     * terms rendering fails without a MapperService. Intended for tests.
+     * terms rendering fails without a field-type lookup. Intended for tests.
      *
      * @param schema Calcite schema with index tables from the analytics engine
      */
     public SearchSourceConverter(SchemaPlus schema) {
-        this(schema, () -> null);
+        this(schema, null);
     }
 
     /**
      * Initializes planning infrastructure from the given schema.
      *
      * @param schema Calcite schema with index tables from the analytics engine
-     * @param mapperServiceSupplier supplies the target index's MapperService for response key
-     *        type and format resolution; evaluated lazily. Supplying null skips
-     *        mapping-dependent validation and fails terms rendering.
+     * @param fieldTypeLookup resolves referenced field mappings for response key type and format
+     *        resolution; evaluated lazily. Supplying null skips mapping-dependent validation and
+     *        fails terms rendering.
      */
-    public SearchSourceConverter(SchemaPlus schema, Supplier<MapperService> mapperServiceSupplier) {
+    public SearchSourceConverter(SchemaPlus schema, FieldTypeLookup fieldTypeLookup) {
         // TODO: Once Analytics plugin starts providing the RelOptTable, use it directly —
         // no need to reconstruct typeFactory, CatalogReader, and planning infrastructure here.
         this.typeFactory = new SqlTypeFactoryImpl(DslTypeSystems.NANO_TIMESTAMP);
@@ -112,7 +111,7 @@ public class SearchSourceConverter {
         this.preAggConverter = new PreAggregateConverter();
         this.postAggConverter = new PostAggregateConverter();
 
-        this.aggRegistry = AggregationRegistryFactory.create(mapperServiceSupplier);
+        this.aggRegistry = AggregationRegistryFactory.create(fieldTypeLookup);
         this.treeWalker = new AggregationTreeWalker(aggRegistry);
     }
 
@@ -122,10 +121,11 @@ public class SearchSourceConverter {
     }
 
     /**
-     * Converts DSL for the given index into query plans.
+     * Converts DSL for the given index expression into query plans.
      *
      * @param searchSource the DSL query
-     * @param indexName target index
+     * @param indexName target index expression; a concrete name, or a comma-list of the resolved
+     *        concrete indices, which the schema resolves to one cross-index union table
      * @return one or more query plans
      * @throws ConversionException if DSL conversion fails
      */

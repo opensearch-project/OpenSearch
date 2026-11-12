@@ -68,7 +68,10 @@ public class RequestScopedMapperServiceTests extends OpenSearchTestCase {
     }
 
     public void testRejectsNullIndexMetadata() {
-        expectThrows(NullPointerException.class, () -> new RequestScopedMapperService(null, metadata -> mock(MapperService.class)));
+        expectThrows(
+            NullPointerException.class,
+            () -> new RequestScopedMapperService((IndexMetadata) null, metadata -> mock(MapperService.class))
+        );
     }
 
     public void testReturnsNullWhenCreationFails() {

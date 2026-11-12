@@ -32,6 +32,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Validates a query against the DSL-to-Calcite conversion pipeline without executing it.
@@ -62,7 +63,7 @@ public class TransportValidateAction extends HandledTransportAction<ValidateQuer
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final IndexResolutionStrategy indexResolutionStrategy = new SingleIndexResolutionStrategy();
+    private final IndexResolutionStrategy indexResolutionStrategy = new MultiIndexResolutionStrategy();
     private final ThreadPool threadPool;
 
     /**
@@ -120,14 +121,29 @@ public class TransportValidateAction extends HandledTransportAction<ValidateQuer
         // One snapshot per request: index resolution, the engine schema, and mapping resolution
         // all derive from the same immutable cluster state.
         final ClusterState state = clusterService.state();
-        final IndexMetadata indexMetadata = indexResolutionStrategy.resolve(indexNameExpressionResolver, state, request).get(0);
-        final String indexName = indexMetadata.getIndex().getName();
-
-        SearchSourceBuilder source = new SearchSourceBuilder();
-        source.query(request.query());
+        final List<IndexMetadata> resolvedIndices = indexResolutionStrategy.resolve(indexNameExpressionResolver, state, request);
+        // Reject filtering aliases the engine cannot honor (including hidden aliases reached via
+        // expand_wildcards=open,hidden) before conversion — matching the execution path's 400 divergence.
+        FilteringAliasGuard.check(indexNameExpressionResolver, state, request.indices(), request.indicesOptions(), resolvedIndices);
+        // A comma-list of the resolved concrete names resolves to the schema's cross-index union
+        // table; at one index it is that single name, matching the single-index path.
+        final String indexExpression = resolvedIndices.stream().map(index -> index.getIndex().getName()).collect(Collectors.joining(","));
 
         // Like vanilla, detail (the plan explanation) is returned only when explicitly requested.
         final boolean detailRequested = request.explain() || request.rewrite() || request.allShards();
+
+        // Legitimate empty resolution (allow_no_indices=true matching nothing) is trivially valid —
+        // nothing to convert — mirroring the execution path's 200-empty short-circuit.
+        // allow_no_indices=false with no match already threw IndexNotFoundException above.
+        if (resolvedIndices.isEmpty()) {
+            List<QueryExplanation> explanations = detailRequested
+                ? List.of(new QueryExplanation(indexExpression, QueryExplanation.RANDOM_SHARD, true, null, null))
+                : null;
+            return new ValidateQueryResponse(true, explanations, 1, 1, 0, List.of());
+        }
+
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.query(request.query());
 
         boolean valid;
         String explanation = null;
@@ -135,12 +151,26 @@ public class TransportValidateAction extends HandledTransportAction<ValidateQuer
         // Mapping pinned at request start, mirroring execution, and released when validation ends.
         try (
             RequestScopedMapperService mapperService = new RequestScopedMapperService(
-                indexMetadata,
+                resolvedIndices,
                 indicesService::createIndexMapperService
             )
         ) {
-            SearchSourceConverter converter = new SearchSourceConverter(contextProvider.getContext(state).schema(), mapperService);
-            QueryPlans plans = converter.convert(source, indexName);
+            SearchSourceConverter converter = new SearchSourceConverter(
+                contextProvider.getContext(state, request.indicesOptions()).schema(),
+                mapperService::fieldType
+            );
+            QueryPlans plans = converter.convert(source, indexExpression);
+            // Mirror execution's schema-equivalence gate so a query validates here iff execution
+            // would accept it; a no-op at a single index. A divergent multi-index query surfaces
+            // as a request failure.
+            if (resolvedIndices.size() > 1) {
+                SchemaEquivalenceGate.check(
+                    resolvedIndices,
+                    mapperService::fieldType,
+                    PlanFieldReferences.referencedFields(plans),
+                    PlanFieldReferences.aggregatedBucketFields(source)
+                );
+            }
             valid = true;
             if (detailRequested) {
                 explanation = plans.first().map(plan -> plan.relNode().explain().trim()).orElse(null);
@@ -151,7 +181,7 @@ public class TransportValidateAction extends HandledTransportAction<ValidateQuer
         }
 
         List<QueryExplanation> explanations = detailRequested
-            ? List.of(new QueryExplanation(indexName, QueryExplanation.RANDOM_SHARD, valid, valid ? explanation : null, error))
+            ? List.of(new QueryExplanation(indexExpression, QueryExplanation.RANDOM_SHARD, valid, valid ? explanation : null, error))
             : null;
         return new ValidateQueryResponse(valid, explanations, 1, 1, 0, List.of());
     }

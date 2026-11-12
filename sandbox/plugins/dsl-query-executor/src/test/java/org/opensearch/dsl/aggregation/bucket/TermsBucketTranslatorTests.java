@@ -8,6 +8,7 @@
 
 package org.opensearch.dsl.aggregation.bucket;
 
+import org.opensearch.dsl.aggregation.FieldTypeLookup;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.result.BucketEntry;
 import org.opensearch.index.mapper.BooleanFieldMapper;
@@ -15,7 +16,6 @@ import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -31,7 +31,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.List;
 import java.util.Map;
 
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -53,15 +52,9 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
         new DateFieldMapper.DateFieldType("created")
     );
 
-    private final TermsBucketTranslator translator = new TermsBucketTranslator(TermsBucketTranslatorTests::mappedService);
-    private final TermsBucketTranslator unmappedTranslator = new TermsBucketTranslator(() -> null);
+    private final TermsBucketTranslator translator = new TermsBucketTranslator(FIELD_TYPES::get);
+    private final TermsBucketTranslator unmappedTranslator = new TermsBucketTranslator((FieldTypeLookup) null);
     private final TermsAggregationBuilder brandAgg = new TermsAggregationBuilder("by_brand").field("brand");
-
-    private static MapperService mappedService() {
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType(anyString())).thenAnswer(invocation -> FIELD_TYPES.get(invocation.<String>getArgument(0)));
-        return mapperService;
-    }
 
     public void testGetGrouping() {
         assertEquals(List.of("brand"), translator.getGrouping(brandAgg).getFieldNames());
@@ -326,9 +319,8 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
     public void testValidateRejectsDateNanosField() {
         MappedFieldType nanosType = mock(MappedFieldType.class);
         when(nanosType.typeName()).thenReturn(DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType("created_nanos")).thenReturn(nanosType);
-        TermsBucketTranslator nanosTranslator = new TermsBucketTranslator(() -> mapperService);
+        FieldTypeLookup nanosLookup = field -> "created_nanos".equals(field) ? nanosType : null;
+        TermsBucketTranslator nanosTranslator = new TermsBucketTranslator(nanosLookup);
 
         TermsAggregationBuilder dateAgg = new TermsAggregationBuilder("by_day").field("created_nanos");
 
