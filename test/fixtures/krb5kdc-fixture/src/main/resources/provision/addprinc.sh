@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
 
 # Licensed to Elasticsearch under one or more contributor
 # license agreements. See the NOTICE file distributed with

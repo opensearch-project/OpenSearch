@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
 set -e -o pipefail
 
 if [ "$#" -eq 0 ]; then

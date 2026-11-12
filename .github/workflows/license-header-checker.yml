@@ -1,0 +1,12 @@
+---
+name: License Header Checker
+
+on: [push, pull_request]
+
+jobs:
+  license-header-checker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Check License Header
+        uses: peterzhuamazon/license_checker_github_action@ee6c65336e5d72ac79a8358de0b7856c3b1c6bcb # v1.0.8
