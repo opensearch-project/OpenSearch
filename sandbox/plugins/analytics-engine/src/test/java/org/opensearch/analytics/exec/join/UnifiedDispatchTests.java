@@ -98,7 +98,13 @@ public class UnifiedDispatchTests extends OpenSearchTestCase {
             mock(ClusterService.class),
             mock(CapabilityRegistry.class),
             /* preferMetadataDriver */ false,
-            /* sortMergeJoinMinRows */ Long.MAX_VALUE
+            /* sortMergeJoinMinRows */ Long.MAX_VALUE,
+            /* runtimeFilterEnabled */ false,
+            /* runtimeFilterMaxValues */ 0,
+            /* runtimeFilterBloomBytes */ 0,
+            /* runtimeFilterBuildSideMaxRows */ 0,
+            /* runtimeFilterProbeSideMinRows */ 0,
+            new RuntimeFilterMetrics()
         );
         dispatch.run(ctx, dag, buildStage -> mock(ExchangeSink.class), /* queryExecutionSink */ null, terminal);
 
@@ -174,7 +180,13 @@ public class UnifiedDispatchTests extends OpenSearchTestCase {
             mock(ClusterService.class),
             mock(CapabilityRegistry.class),
             /* preferMetadataDriver */ false,
-            /* sortMergeJoinMinRows */ Long.MAX_VALUE
+            /* sortMergeJoinMinRows */ Long.MAX_VALUE,
+            /* runtimeFilterEnabled */ false,
+            /* runtimeFilterMaxValues */ 0,
+            /* runtimeFilterBloomBytes */ 0,
+            /* runtimeFilterBuildSideMaxRows */ 0,
+            /* runtimeFilterProbeSideMinRows */ 0,
+            new RuntimeFilterMetrics()
         );
         dispatch.run(ctx, dag, buildStage -> new FakeCaptureSink(), /* queryExecutionSink */ null, terminal);
 

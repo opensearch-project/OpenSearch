@@ -77,6 +77,12 @@ pub struct SessionContextHandle {
     /// Phantom reservation holding pool capacity for untracked memory.
     /// Dropped when the handle is closed, releasing the capacity.
     pub(crate) phantom_reservation: Option<datafusion::execution::memory_pool::MemoryReservation>,
+    /// Join runtime filters installed on this session, keyed by filter id.
+    ///
+    /// The fragment's plan carries only the id; the bitset arrives separately as an
+    /// instruction and is decoded into here before the fragment runs. Shared with the
+    /// `os_runtime_filter` UDF registered on `ctx`, which is the only reader.
+    pub(crate) runtime_filters: crate::runtime_filter::RuntimeFilterRegistry,
 }
 
 /// Configuration for indexed execution with filter delegation, provided by Java.
@@ -298,6 +304,10 @@ pub async unsafe fn create_session_context(
     // of building a fresh one.
     crate::udf::register_all(&ctx);
     crate::udaf::register_all(&ctx);
+    // Registers the build aggregate and the probe UDF together and hands back the
+    // registry the instruction handler fills in. Both halves must be present or a
+    // plan carrying either one cannot execute on this session.
+    let runtime_filters = crate::runtime_filter::register(&ctx);
     crate::udwf::register_all(&ctx);
 
     // Register default ListingTable for parquet scans.
@@ -435,6 +445,7 @@ pub async unsafe fn create_session_context(
         has_topk,
         prepared_plan: None,
         phantom_reservation: phantom,
+        runtime_filters,
     };
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
@@ -493,6 +504,10 @@ pub async unsafe fn create_worker_session_context(
     let ctx = SessionContext::new_with_state(state);
     crate::udf::register_all(&ctx);
     crate::udaf::register_all(&ctx);
+    // Registers the build aggregate and the probe UDF together and hands back the
+    // registry the instruction handler fills in. Both halves must be present or a
+    // plan carrying either one cannot execute on this session.
+    let runtime_filters = crate::runtime_filter::register(&ctx);
 
     // Sentinel placeholder for table_path — workers never reference a listing table; the
     // handle still requires a value here. Use the project root as a benign stable URL.
@@ -524,6 +539,7 @@ pub async unsafe fn create_worker_session_context(
         has_topk: false,
         prepared_plan: None,
         phantom_reservation: None,
+        runtime_filters,
         io_handle: tokio::runtime::Handle::current(),
     };
     Ok(Box::into_raw(Box::new(handle)) as i64)
@@ -923,6 +939,7 @@ mod tests {
             has_topk: false,
             prepared_plan: None,
             phantom_reservation: None,
+            runtime_filters: crate::runtime_filter::new_registry(),
         };
         (handle, buf)
     }
