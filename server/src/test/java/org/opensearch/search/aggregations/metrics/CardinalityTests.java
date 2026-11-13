@@ -47,4 +47,15 @@ public class CardinalityTests extends BaseAggregationTestCase<CardinalityAggrega
         return factory;
     }
 
+    public void testParameterAccessors() {
+        CardinalityAggregationBuilder builder = new CardinalityAggregationBuilder("cardinality");
+        assertNull(builder.precisionThreshold());
+        assertNull(builder.executionHint());
+
+        builder.precisionThreshold(100).executionHint("global_ordinals");
+
+        assertEquals(Long.valueOf(100), builder.precisionThreshold());
+        assertEquals("global_ordinals", builder.executionHint());
+    }
+
 }

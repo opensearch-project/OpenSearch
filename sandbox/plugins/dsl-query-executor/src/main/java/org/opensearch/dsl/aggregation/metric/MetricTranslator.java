@@ -10,6 +10,7 @@ package org.opensearch.dsl.aggregation.metric;
 
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.opensearch.dsl.aggregation.AggregationTranslator;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.aggregations.AggregationBuilder;
@@ -28,10 +29,11 @@ public interface MetricTranslator<T extends AggregationBuilder> extends Aggregat
      *
      * @param agg the metric aggregation builder
      * @param rowType the index row type for field lookup
+     * @param typeFactory the type factory for aggregate return types
      * @return the Calcite AggregateCall
      * @throws ConversionException if conversion fails
      */
-    AggregateCall toAggregateCall(T agg, RelDataType rowType) throws ConversionException;
+    AggregateCall toAggregateCall(T agg, RelDataType rowType, RelDataTypeFactory typeFactory) throws ConversionException;
 
     /**
      * Returns the output field name for this aggregation.

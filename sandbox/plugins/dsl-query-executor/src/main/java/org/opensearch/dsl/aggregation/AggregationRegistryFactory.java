@@ -10,6 +10,7 @@ package org.opensearch.dsl.aggregation;
 
 import org.opensearch.dsl.aggregation.bucket.TermsBucketTranslator;
 import org.opensearch.dsl.aggregation.metric.AvgMetricTranslator;
+import org.opensearch.dsl.aggregation.metric.CardinalityMetricTranslator;
 import org.opensearch.dsl.aggregation.metric.MaxMetricTranslator;
 import org.opensearch.dsl.aggregation.metric.MinMetricTranslator;
 import org.opensearch.dsl.aggregation.metric.SumMetricTranslator;
@@ -34,6 +35,7 @@ public class AggregationRegistryFactory {
     public static AggregationRegistry create(Supplier<MapperService> mapperServiceSupplier) {
         AggregationRegistry registry = new AggregationRegistry();
         registry.register(new AvgMetricTranslator());
+        registry.register(new CardinalityMetricTranslator());
         registry.register(new SumMetricTranslator());
         registry.register(new MinMetricTranslator());
         registry.register(new MaxMetricTranslator());

@@ -11,6 +11,7 @@ package org.opensearch.dsl.aggregation.metric;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.opensearch.dsl.converter.ConversionException;
@@ -60,7 +61,7 @@ public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregation
     protected abstract String getFieldName(T agg);
 
     @Override
-    public AggregateCall toAggregateCall(T agg, RelDataType rowType) throws ConversionException {
+    public AggregateCall toAggregateCall(T agg, RelDataType rowType, RelDataTypeFactory typeFactory) throws ConversionException {
         String fieldName = getFieldName(agg);
         RelDataTypeField field = rowType.getField(fieldName, false, false);
         if (field == null) {
@@ -76,9 +77,14 @@ public abstract class AbstractMetricTranslator<T extends ValuesSourceAggregation
             Collections.singletonList(field.getIndex()),
             -1,
             RelCollations.EMPTY,
-            field.getType(),
+            getReturnType(agg, field, typeFactory),
             agg.getName()
         );
+    }
+
+    /** Returns the aggregate call's result type. Defaults to the input field type. */
+    protected RelDataType getReturnType(T agg, RelDataTypeField field, RelDataTypeFactory typeFactory) {
+        return field.getType();
     }
 
     @Override
