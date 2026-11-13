@@ -25,6 +25,9 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
@@ -236,6 +239,60 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         String nodeId = response.getHits().getAt(0).getShard().getNodeId();
         IndexShardRoutingTable indexShardRoutingTable = getIndexShardRoutingTable();
         assertEquals(nodeId, indexShardRoutingTable.searchOnlyReplicas().get(0).currentNodeId());
+    }
+
+    /**
+     * With writer replicas present, {@code _search_replica} routing must spread requests evenly across all
+     * search replicas instead of favouring the one that precedes a writer replica in the routing table.
+     */
+    public void testSearchReplicaRoutingEvenDistributionWithWriterReplicas() throws Exception {
+        int numSearchReplicas = 3;
+        int numWriterReplicas = 1;
+        String coordinatorNode = internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(1 + numWriterReplicas);
+        createIndex(
+            TEST_INDEX,
+            Settings.builder()
+                .put(indexSettings())
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numWriterReplicas)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numSearchReplicas)
+                .build()
+        );
+        ensureYellow(TEST_INDEX);
+        client().prepareIndex(TEST_INDEX).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        List<String> searchNodes = internalCluster().startSearchOnlyNodes(numSearchReplicas);
+        ensureGreen(TEST_INDEX);
+        assertActiveShardCounts(numSearchReplicas, numWriterReplicas);
+
+        // every search replica must have the doc so each response tells us which node served it
+        for (String searchNode : searchNodes) {
+            assertBusy(() -> assertHitCount(client(searchNode).prepareSearch(TEST_INDEX).setSize(0).setPreference("_only_local").get(), 1));
+        }
+
+        IndexShardRoutingTable indexShardRoutingTable = getIndexShardRoutingTable();
+        Map<String, Integer> hitsPerNode = new HashMap<>();
+        for (ShardRouting searchReplica : indexShardRoutingTable.searchOnlyReplicas()) {
+            hitsPerNode.put(searchReplica.currentNodeId(), 0);
+        }
+
+        // Route through a single coordinator so all requests share one rotation sequence. The
+        // count is a multiple of both n and n + 1 so the old skewed rotation can't look uniform.
+        int rounds = 3;
+        int numSearches = numSearchReplicas * (numSearchReplicas + numWriterReplicas) * rounds;
+        for (int i = 0; i < numSearches; i++) {
+            SearchResponse response = client(coordinatorNode).prepareSearch(TEST_INDEX)
+                .setPreference(Preference.SEARCH_REPLICA.type())
+                .setQuery(QueryBuilders.matchAllQuery())
+                .get();
+            String nodeId = response.getHits().getAt(0).getShard().getNodeId();
+            assertTrue("search was routed to a non search replica node [" + nodeId + "]", hitsPerNode.containsKey(nodeId));
+            hitsPerNode.merge(nodeId, 1, Integer::sum);
+        }
+
+        int expectedPerNode = numSearches / numSearchReplicas;
+        for (Map.Entry<String, Integer> entry : hitsPerNode.entrySet()) {
+            assertEquals("uneven search replica distribution " + hitsPerNode, expectedPerNode, (int) entry.getValue());
+        }
     }
 
     public void testSearchReplicaRoutingPreferenceWhenSearchReplicaUnassigned() {
