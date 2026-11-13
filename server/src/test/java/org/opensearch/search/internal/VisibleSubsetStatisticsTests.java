@@ -36,6 +36,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -146,5 +147,29 @@ public class VisibleSubsetStatisticsTests extends OpenSearchTestCase {
                 assertArrayEquals(field, lucene(reference, field), scoped(reader, new TermQuery(new Term("dept", "visible")), field));
             }
         }
+    }
+
+    public void testNestedChildrenFollowTheirRootDocument() {
+        // Two blocks: children 0 and 1 with root 2, then child 3 with root 4.
+        FixedBitSet parents = new FixedBitSet(5);
+        parents.set(2);
+        parents.set(4);
+        FixedBitSet firstRootAndASecondBlockChild = new FixedBitSet(5);
+        firstRootAndASecondBlockChild.set(2);
+        firstRootAndASecondBlockChild.set(3);
+        BitSet expanded = VisibleSubsetStatistics.withNestedChildren(firstRootAndASecondBlockChild, parents);
+        assertTrue(expanded.get(0) && expanded.get(1) && expanded.get(2));
+        assertFalse("a child is visible only through its root", expanded.get(3));
+        assertFalse(expanded.get(4));
+
+        FixedBitSet secondRoot = new FixedBitSet(5);
+        secondRoot.set(4);
+        BitSet second = VisibleSubsetStatistics.withNestedChildren(secondRoot, parents);
+        assertEquals(2, second.cardinality());
+        assertTrue(second.get(3) && second.get(4));
+
+        FixedBitSet onlyAChild = new FixedBitSet(5);
+        onlyAChild.set(0);
+        assertNull(VisibleSubsetStatistics.withNestedChildren(onlyAChild, parents));
     }
 }

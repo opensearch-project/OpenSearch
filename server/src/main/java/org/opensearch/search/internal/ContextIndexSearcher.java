@@ -61,6 +61,7 @@ import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
@@ -69,6 +70,7 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -100,7 +102,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 
 /**
@@ -134,6 +139,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private boolean visibleDocsInitialized = false;
     /** Bytes charged to the request breaker for the visible bitsets this searcher built; returned when its context closes. */
     private long visibleDocsChargedBytes;
+    private final Map<String, Optional<CollectionStatistics>> fieldStatisticsMemo = new ConcurrentHashMap<>();
 
     public ContextIndexSearcher(
         IndexReader reader,
@@ -576,18 +582,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // The third case -- the query phase of a dfs search (aggregatedDfs != null) -- must NOT recompute: it has to
         // read the pre-aggregated (already-filtered) stats, so it falls through to the aggregatedDfs branch below.
         if (useFilteredStatistics() && aggregatedDfs == null) {
-            TermStatistics visible = filteredTermStatistics(term);
-            if (visible == null) {
-                // No visible document contains the term. We cannot return null: to Lucene null means the term is
-                // absent from the index, and TermQuery.TermWeight then leaves its SimScorer null while still building
-                // a scorer supplier from the term's real postings, which throws as soon as the supplier is asked for a
-                // scorer. Hand back the smallest statistics TermStatistics permits instead. Nothing visible can match
-                // the term, so the value never reaches a score, and being a constant it says nothing about how many
-                // hidden documents hold the term. The dfs phase must not take this substitution, which is why it calls
-                // visibleSubsetTermStatistics rather than this method.
-                return new TermStatistics(term.bytes(), 1, 1);
-            }
-            return visible;
+            return scopedTermStatistics(term);
         }
         if (aggregatedDfs == null) {
             // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
@@ -595,10 +590,27 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
         TermStatistics termStatistics = aggregatedDfs.termStatistics().get(term);
         if (termStatistics == null) {
-            // we don't have stats for this - this might be a must_not clauses etc. that doesn't allow extract terms on the query
-            return super.termStatistics(term, docFreq, totalTermFreq);
+            // we don't have stats for this - this might be a must_not clauses etc. that doesn't allow extract terms on the query.
+            // Under filtered_stats, whole-shard statistics would read documents outside the view, so scope them here.
+            return useFilteredStatistics() ? scopedTermStatistics(term) : super.termStatistics(term, docFreq, totalTermFreq);
         }
         return termStatistics;
+    }
+
+    /** Visible-subset term statistics for local scoring, with a floor when no visible document holds the term. */
+    private TermStatistics scopedTermStatistics(Term term) throws IOException {
+        TermStatistics visible = filteredTermStatistics(term);
+        if (visible == null) {
+            // No visible document contains the term. We cannot return null: to Lucene null means the term is
+            // absent from the index, and TermQuery.TermWeight then leaves its SimScorer null while still building
+            // a scorer supplier from the term's real postings, which throws as soon as the supplier is asked for a
+            // scorer. Hand back the smallest statistics TermStatistics permits instead. Nothing visible can match
+            // the term, so the value never reaches a score, and being a constant it says nothing about how many
+            // hidden documents hold the term. The dfs phase must not take this substitution, which is why it calls
+            // visibleSubsetTermStatistics rather than this method.
+            return new TermStatistics(term.bytes(), 1, 1);
+        }
+        return visible;
     }
 
     /**
@@ -628,17 +640,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // (already filtered, thanks to case 2) statistics rather than recomputing per-shard, so this filtered
         // branch is intentionally skipped and we fall through to the aggregatedDfs lookup below.
         if (useFilteredStatistics() && aggregatedDfs == null) {
-            CollectionStatistics visible = filteredCollectionStatistics(field);
-            final long maxDoc = getIndexReader().maxDoc();
-            if (visible == null && maxDoc > 0) {
-                // No visible document has the field. Lucene builds a scorer whenever term statistics are not null,
-                // and termStatistics substitutes a floor for a term with no visible document, so null here would
-                // reach the similarity and fail. Return the smallest statistics CollectionStatistics permits, as
-                // Lucene does for weights that need no scores. No visible document can match on this field, so
-                // the value never reaches a score. The dfs phase calls visibleSubsetCollectionStatistics instead.
-                return new CollectionStatistics(field, maxDoc, 1, 1, 1);
-            }
-            return visible;
+            return scopedCollectionStatistics(field);
         }
         if (aggregatedDfs == null) {
             // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
@@ -646,10 +648,26 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
         CollectionStatistics collectionStatistics = aggregatedDfs.fieldStatistics().get(field);
         if (collectionStatistics == null) {
-            // we don't have stats for this - this might be a must_not clauses etc. that doesn't allow extract terms on the query
-            return super.collectionStatistics(field);
+            // we don't have stats for this - this might be a must_not clauses etc. that doesn't allow extract terms on the query.
+            // Under filtered_stats, whole-shard statistics would read documents outside the view, so scope them here.
+            return useFilteredStatistics() ? scopedCollectionStatistics(field) : super.collectionStatistics(field);
         }
         return collectionStatistics;
+    }
+
+    /** Visible-subset collection statistics for local scoring, with a floor when no visible document has the field. */
+    private CollectionStatistics scopedCollectionStatistics(String field) throws IOException {
+        CollectionStatistics visible = filteredCollectionStatistics(field);
+        final long maxDoc = getIndexReader().maxDoc();
+        if (visible == null && maxDoc > 0) {
+            // No visible document has the field. Lucene builds a scorer whenever term statistics are not null,
+            // and termStatistics substitutes a floor for a term with no visible document, so null here would
+            // reach the similarity and fail. Return the smallest statistics CollectionStatistics permits, as
+            // Lucene does for weights that need no scores. No visible document can match on this field, so
+            // the value never reaches a score. The dfs phase calls visibleSubsetCollectionStatistics instead.
+            return new CollectionStatistics(field, maxDoc, 1, 1, 1);
+        }
+        return visible;
     }
 
     /**
@@ -668,6 +686,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return super.collectionStatistics(field);
     }
 
+    /**
+     * Whether this searcher has already built the visible documents that filtered statistics are counted over.
+     *
+     * @return {@code true} once filtered statistics have been computed for this request
+     */
+    public synchronized boolean filteredStatisticsComputed() {
+        return visibleDocsInitialized;
+    }
+
     private boolean useFilteredStatistics() {
         return searchContext != null && searchContext.useFilteredStatistics() && searchContext.filteredStatisticsFilter() != null;
     }
@@ -684,11 +711,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
         final List<LeafReaderContext> leaves = getIndexReader().leaves();
         final BitSet[] bitSets = new BitSet[leaves.size()];
-        final Query filter = rewrite(searchContext.filteredStatisticsFilter());
+        // A plain searcher, so the filter is neither profiled nor reported as part of the user's query.
+        final IndexSearcher plain = new IndexSearcher(getIndexReader());
+        plain.setQueryCache(getQueryCache());
+        plain.setQueryCachingPolicy(getQueryCachingPolicy());
+        final Query filter = plain.rewrite(searchContext.filteredStatisticsFilter());
         // COMPLETE_NO_SCORES: we only need the matching doc ids, not scores.
-        final Weight weight = createWeight(filter, ScoreMode.COMPLETE_NO_SCORES, 1f);
+        final Weight weight = plain.createWeight(filter, ScoreMode.COMPLETE_NO_SCORES, 1f);
+        final BitSetProducer parents = searchContext.mapperService() != null && searchContext.mapperService().hasNested()
+            ? searchContext.bitsetFilterCache().getBitSetProducer(Queries.newNonNestedFilter())
+            : null;
         for (LeafReaderContext ctx : leaves) {
-            bitSets[ctx.ord] = buildVisibleDocs(weight, ctx);
+            bitSets[ctx.ord] = buildVisibleDocs(weight, ctx, parents);
         }
         this.visibleDocsPerSegment = bitSets;
         this.visibleDocsInitialized = true;
@@ -700,7 +734,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * rejected with a {@link CircuitBreakingException} rather than filling the heap. The charge lasts as long as this
      * searcher's context.
      */
-    private BitSet buildVisibleDocs(Weight weight, LeafReaderContext ctx) throws IOException {
+    private BitSet buildVisibleDocs(Weight weight, LeafReaderContext ctx, BitSetProducer parents) throws IOException {
         final CircuitBreaker breaker = requestBreaker();
         if (breaker != null) {
             final long bytes = VisibleSubsetStatistics.visibleBitSetBytes(ctx.reader().maxDoc());
@@ -713,7 +747,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
             visibleDocsChargedBytes += bytes;
         }
-        return VisibleSubsetStatistics.computeVisibleBitSet(weight, ctx);
+        final BitSet visible = VisibleSubsetStatistics.computeVisibleBitSet(weight, ctx);
+        return parents == null || visible == null ? visible : VisibleSubsetStatistics.withNestedChildren(visible, parents.getBitSet(ctx));
     }
 
     private CircuitBreaker requestBreaker() {
@@ -729,6 +764,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * {@code null} when the field has no visible documents (matching Lucene's "field absent" contract).
      */
     private CollectionStatistics filteredCollectionStatistics(String field) throws IOException {
+        // Every term of a field asks for the same statistics, and counting them reads the field's postings.
+        final Optional<CollectionStatistics> memo = fieldStatisticsMemo.get(field);
+        if (memo != null) {
+            return memo.orElse(null);
+        }
+        final CollectionStatistics computed = computeFilteredCollectionStatistics(field);
+        fieldStatisticsMemo.put(field, Optional.ofNullable(computed));
+        return computed;
+    }
+
+    private CollectionStatistics computeFilteredCollectionStatistics(String field) throws IOException {
         final BitSet[] visibleDocs = getVisibleDocsPerSegment();
         final List<LeafReaderContext> leaves = getIndexReader().leaves();
         long docCount = 0;         // number of visible docs that have at least one term in this field

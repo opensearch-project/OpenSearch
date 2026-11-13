@@ -42,6 +42,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -171,7 +172,8 @@ final class DefaultSearchContext extends SearchContext {
      * Memoized result of the {@code filtered_stats} small-view guardrail; see {@link #withinFilteredStatisticsBudget()}.
      * {@code null} until first evaluated.
      */
-    private Boolean filteredStatisticsWithinBudget;
+    // Read from concurrent search slices, so writes must be visible to them.
+    private volatile Boolean filteredStatisticsWithinBudget;
 
     private final ReaderContext readerContext;
     private final Engine.Searcher engineSearcher;
@@ -871,13 +873,18 @@ final class DefaultSearchContext extends SearchContext {
     private Query pluginVisibleSubsetFilter;
 
     /** {@link #filteredStatisticsFilter()} for this request, built once and cleared when a restriction is declared. */
-    private Query filteredStatisticsFilterMemo;
+    private volatile Query filteredStatisticsFilterMemo;
 
     /** Whether {@link #preProcess} has built {@link #query} yet. */
     private boolean queryBuilt;
 
     @Override
     public void visibleSubsetFilter(Query filter) {
+        if (searcher.filteredStatisticsComputed()) {
+            // The statistics already in use were scoped without this restriction, and narrowing them now would leave
+            // the request scored against two different views.
+            throw new IllegalStateException("a visible-subset filter must be declared before filtered statistics are computed");
+        }
         // A second declaration narrows the first rather than replacing it, so neither restriction is lost.
         this.pluginVisibleSubsetFilter = intersect(pluginVisibleSubsetFilter, filter);
         this.filteredStatisticsFilterMemo = null;
@@ -911,9 +918,11 @@ final class DefaultSearchContext extends SearchContext {
      * loses relevance ordering rather than scoring against documents the caller cannot read.
      */
     private Query restrictionFallback(Query q) {
-        if (pluginVisibleSubsetFilter != null && useFilteredStatistics() == false && (q instanceof ConstantScoreQuery) == false) {
+        if (pluginVisibleSubsetFilter != null && useFilteredStatistics() == false) {
+            // Set even when the query already scores constantly: rescore, inner hits and scored sub-queries use the
+            // searcher's similarity and would otherwise read whole-shard statistics.
             searcher.setSimilarity(new BooleanSimilarity());
-            return new ConstantScoreQuery(q);
+            return q instanceof ConstantScoreQuery ? q : new ConstantScoreQuery(q);
         }
         return q;
     }
@@ -974,7 +983,10 @@ final class DefaultSearchContext extends SearchContext {
         }
         boolean withinBudget;
         try {
-            final Weight weight = searcher.createWeight(searcher.rewrite(filteredStatisticsFilter()), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            // A plain searcher, so the estimate is neither profiled nor reported as part of the user's query.
+            final IndexSearcher plain = new IndexSearcher(searcher.getIndexReader());
+            plain.setQueryCache(null);
+            final Weight weight = plain.createWeight(plain.rewrite(filteredStatisticsFilter()), ScoreMode.COMPLETE_NO_SCORES, 1f);
             long estimate = 0;
             for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
                 final ScorerSupplier scorerSupplier = weight.scorerSupplier(ctx);

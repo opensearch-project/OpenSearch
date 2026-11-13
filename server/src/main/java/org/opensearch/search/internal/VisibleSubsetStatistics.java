@@ -42,9 +42,9 @@ public final class VisibleSubsetStatistics {
      * Optional ceiling on how many admitted documents {@code filtered_stats} will compute statistics over, above which
      * a request falls back to the {@code no_stats} constant-score behaviour.
      * <p>
-     * Unlimited by default, and a negative value is also unlimited. The first query on a segment costs one pass over
-     * the documents the view admits, which is proportional to the view rather than to the index, so a ceiling is a
-     * capacity choice for an operator who would rather lose relevance ordering than pay that cost. Defaulting it to a
+     * Unlimited by default, and a negative value is also unlimited. Scoped statistics cost a bitset of the admitted
+     * documents per segment and a walk of each queried field's postings against it, so a ceiling is a capacity choice
+     * for an operator who would rather lose relevance ordering than pay that cost. Defaulting it to a
      * finite value would mean a large view quietly scoring without relevance ordering: the request succeeds, the
      * documents are right, and only the ordering is wrong, which is harder to notice than the cost it avoids.
      */
@@ -79,6 +79,30 @@ public final class VisibleSubsetStatistics {
             }
         }
         return bitSet.cardinality() > 0 ? bitSet : null;
+    }
+
+    /**
+     * Makes a nested child visible exactly when its root document is, as in an index that held only the visible root
+     * documents and their children. A child that the filter matched on its own is dropped unless its root is visible.
+     *
+     * @param visible the documents the filter admits in this segment
+     * @param parents the root (non-nested) documents of this segment
+     * @return the visible root documents and their nested children, or {@code null} when there are none
+     */
+    public static BitSet withNestedChildren(BitSet visible, BitSet parents) {
+        if (parents == null) {
+            return null;
+        }
+        final FixedBitSet expanded = new FixedBitSet(visible.length());
+        final BitSetIterator roots = new BitSetIterator(visible, visible.approximateCardinality());
+        for (int doc = roots.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = roots.nextDoc()) {
+            if (parents.get(doc)) {
+                // A block is its children followed by the root, so the children run from just after the previous root.
+                final int firstChild = doc == 0 ? 0 : parents.prevSetBit(doc - 1) + 1;
+                expanded.set(firstChild, doc + 1);
+            }
+        }
+        return expanded.cardinality() > 0 ? expanded : null;
     }
 
     /**

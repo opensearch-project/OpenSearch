@@ -119,6 +119,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -1044,10 +1045,13 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
             indicesService.buildAliasFilter(state, "scoring_mode_idx", Set.of("post", "pre")).getScoringMode()
         );
         // filtered_stats outranks no_stats: a request reaching both must not score over documents either excludes.
-        assertSame(
-            AliasFilter.ScoringMode.FILTERED_STATS,
-            indicesService.buildAliasFilter(state, "scoring_mode_idx", Set.of("post", "pre", "stats")).getScoringMode()
-        );
+        // Both orders, because the aliases are visited in the order the request resolved them.
+        for (List<String> order : List.of(List.of("post", "pre", "stats"), List.of("stats", "pre", "post"))) {
+            assertSame(
+                AliasFilter.ScoringMode.FILTERED_STATS,
+                indicesService.buildAliasFilter(state, "scoring_mode_idx", new LinkedHashSet<>(order)).getScoringMode()
+            );
+        }
     }
 
 }
