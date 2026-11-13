@@ -212,6 +212,74 @@ public class IndexShardRoutingTableTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * The replica-first iterator must round-robin evenly across active replicas even when some
+     * replicas are initializing or unassigned. Rotating the full replicas list before dropping the
+     * inactive ones used to favour the active replica that precedes them in list order.
+     */
+    public void testReplicaFirstShardIteratorEvenDistribution() {
+        ShardId shardId = new ShardId(new Index("a", UUID.randomUUID().toString()), 0);
+        List<ShardRouting> shards = new ArrayList<>();
+        shards.add(TestShardRouting.newShardRouting(shardId, "node-primary", true, ShardRoutingState.STARTED));
+        int activeReplicas = randomIntBetween(2, 5);
+        for (int i = 0; i < activeReplicas; i++) {
+            shards.add(TestShardRouting.newShardRouting(shardId, "node-replica-" + i, false, ShardRoutingState.STARTED));
+        }
+        int initializingReplicas = randomIntBetween(0, 2);
+        for (int i = 0; i < initializingReplicas; i++) {
+            shards.add(TestShardRouting.newShardRouting(shardId, "node-initializing-" + i, false, ShardRoutingState.INITIALIZING));
+        }
+        int unassignedReplicas = randomIntBetween(initializingReplicas == 0 ? 1 : 0, 2);
+        for (int i = 0; i < unassignedReplicas; i++) {
+            shards.add(TestShardRouting.newShardRouting(shardId, null, false, ShardRoutingState.UNASSIGNED));
+        }
+        Collections.shuffle(shards, random());
+        IndexShardRoutingTable table = new IndexShardRoutingTable(shardId, shards);
+
+        int iterationsPerReplica = 100;
+        Map<String, Integer> firstShardCounts = new HashMap<>();
+        for (int i = 0; i < activeReplicas * iterationsPerReplica; i++) {
+            ShardRouting first = table.replicaFirstActiveInitializingShardsIt().nextOrNull();
+            assertNotNull(first);
+            assertTrue(first.active());
+            assertFalse(first.primary());
+            firstShardCounts.merge(first.currentNodeId(), 1, Integer::sum);
+        }
+        assertEquals(activeReplicas, firstShardCounts.size());
+        for (Map.Entry<String, Integer> count : firstShardCounts.entrySet()) {
+            assertEquals(
+                "replica on " + count.getKey() + " should receive an equal share of requests",
+                iterationsPerReplica,
+                count.getValue().intValue()
+            );
+        }
+    }
+
+    public void testReplicaFirstShardIteratorOrdersActiveReplicasThenPrimaryThenInitializing() {
+        ShardId shardId = new ShardId(new Index("a", UUID.randomUUID().toString()), 0);
+        List<ShardRouting> shards = new ArrayList<>();
+        shards.add(TestShardRouting.newShardRouting(shardId, "node-primary", true, ShardRoutingState.STARTED));
+        shards.add(TestShardRouting.newShardRouting(shardId, "node-replica-0", false, ShardRoutingState.STARTED));
+        shards.add(TestShardRouting.newShardRouting(shardId, "node-replica-1", false, ShardRoutingState.STARTED));
+        shards.add(TestShardRouting.newShardRouting(shardId, "node-initializing", false, ShardRoutingState.INITIALIZING));
+        shards.add(TestShardRouting.newShardRouting(shardId, null, false, ShardRoutingState.UNASSIGNED));
+        Collections.shuffle(shards, random());
+        IndexShardRoutingTable table = new IndexShardRoutingTable(shardId, shards);
+
+        for (int i = 0; i < 10; i++) {
+            ShardIterator iterator = table.replicaFirstActiveInitializingShardsIt();
+            assertEquals(4, iterator.size());
+            ShardRouting first = iterator.nextOrNull();
+            ShardRouting second = iterator.nextOrNull();
+            assertTrue(first.active() && first.primary() == false);
+            assertTrue(second.active() && second.primary() == false);
+            assertNotEquals(first.currentNodeId(), second.currentNodeId());
+            assertEquals("node-primary", iterator.nextOrNull().currentNodeId());
+            assertEquals("node-initializing", iterator.nextOrNull().currentNodeId());
+            assertNull(iterator.nextOrNull());
+        }
+    }
+
     public void testSearchReplicaShardIteratorReturnsActiveBeforeInitializing() {
         ShardId shardId = new ShardId(new Index("a", UUID.randomUUID().toString()), 0);
         List<ShardRouting> shards = new ArrayList<>();

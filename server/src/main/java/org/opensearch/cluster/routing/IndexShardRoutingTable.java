@@ -683,13 +683,15 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
             return new PlainShardIterator(shardId, Collections.emptyList());
         }
 
-        ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
-        // fill it in a randomized fashion with the active replicas
-        for (ShardRouting replica : shuffler.shuffle(replicas)) {
+        List<ShardRouting> activeReplicas = new ArrayList<>(replicas.size());
+        for (ShardRouting replica : replicas) {
             if (replica.active()) {
-                ordered.add(replica);
+                activeReplicas.add(replica);
             }
         }
+        ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
+        // Rotate only the active replicas so inactive ones can't skew the round-robin (see filterAndOrderShards).
+        ordered.addAll(shuffler.shuffle(activeReplicas));
 
         // Add the primary shard
         ordered.add(primary);
