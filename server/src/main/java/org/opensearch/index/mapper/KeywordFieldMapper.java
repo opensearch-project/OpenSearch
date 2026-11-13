@@ -433,6 +433,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             return CONTENT_TYPE;
         }
 
+        @Override
+        public boolean isSearchableViaDocValues(IndexSettings indexSettings) {
+            return isSearchable() || (indexSettings != null && indexSettings.isPluggableDataFormatEnabled() && hasDocValues());
+        }
+
         NamedAnalyzer normalizer() {
             return indexAnalyzer();
         }
