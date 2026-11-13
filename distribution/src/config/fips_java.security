@@ -1,10 +1,37 @@
-# Security Properties for JDK 11 and higher, with BouncyCastle FIPS provider and BouncyCastleJsseProvider in approved-only mode
-# Intended to be used complementary with a single equal sign e.g. 'java.security.properties=fips_java.security'
+# EXAMPLE security properties for FIPS mode (OPENSEARCH_FIPS_MODE=true).
+#
+# This is a reference configuration, not a FIPS 140 validated setup. Only the BouncyCastle providers (slots 1 and 2,
+# running in approved-only mode) are FIPS 140 validated. The JDK providers below (SunPKCS11, SUN, SunJGSS, JdkLDAP) are
+# NOT validated: they only cover services BouncyCastle FIPS does not implement, so that OpenSearch works out of the box.
+# A deployment that must be FIPS compliant replaces them with the validated providers of a FIPS-compliant JDK or of the
+# platform, and adapts this file to that environment.
+#
+# How the file is used: it is not passed to the JVM directly. On every start, the launcher generates a java.security file
+# from the java.security of the JDK that runs OpenSearch and replaces that JDK file with it
+# ('java.security.properties==<file>'):
+#   - the providers listed here are the only providers; none of the JDK's providers is kept,
+#   - every other key here overrides the JDK default of the same name; all other JDK defaults are kept.
+# Providers must be numbered consecutively from 1. Only override a JDK default where FIPS mode needs a different value:
+# a copied default no longer follows JDK updates. SunJCE is intentionally absent, which removes DES, MD5-based PBE and
+# other non-approved algorithms.
 
+# FIPS 140 validated
 security.provider.1=org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider C:HYBRID;ENABLE{All};
 security.provider.2=org.bouncycastle.jsse.provider.BouncyCastleJsseProvider fips:BCFIPS
-security.provider.3=SUN
-security.provider.4=SunJGSS
+
+# NOT validated, replace with the providers of a FIPS-compliant JDK or platform:
+# PKCS#11 key and trust stores (HSMs, NSS, the system trust store of opensearch-fips-demo-installer)
+security.provider.3=SunPKCS11
+# JKS/PKCS12 key store types, the PKIX CertPath services, and the policy and JAAS login configuration
+security.provider.4=SUN
+# Kerberos (GSS-API, SPNEGO)
+security.provider.5=SunJGSS
+# LDAP CertStore, for CRL distribution points with ldap:// URLs
+security.provider.6=JdkLDAP
+
+# KeyStore.getDefaultType()
+keystore.type=BCFKS
+# SecureRandom.getInstanceStrong(); the JDK default names SUN's non-approved generators
+securerandom.strongAlgorithms=DEFAULT:BCFIPS
 
 ssl.KeyManagerFactory.algorithm=PKIX
-ssl.TrustManagerFactory.algorithm=PKIX

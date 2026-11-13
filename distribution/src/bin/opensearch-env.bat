@@ -34,18 +34,21 @@ REM FIPS mode is runtime-configured via env var (default: false)
 if "%OPENSEARCH_FIPS_MODE%"=="" set "OPENSEARCH_FIPS_MODE=false"
 
 rem Check if any bc-fips jar exists on classpath
-rem run in FIPS JVM if jar is found
 set "FOUND_BC_FIPS="
 if exist "%OPENSEARCH_HOME%\lib\bc-fips*.jar" (
     set "FOUND_BC_FIPS=true"
 )
 
-REM Enable only if value equals "true" (case-insensitive) AND BC-FIPS JAR is present
+REM Enable if value equals "true" (case-insensitive); FIPS mode without the BC-FIPS JAR is an error
+set "JAVA_SECURITY_MODE=default"
 if /I "%OPENSEARCH_FIPS_MODE%"=="true" (
-    if "%FOUND_BC_FIPS%"=="true" (
-        echo FIPS mode enabled, setting JVM options.
-        set "OPENSEARCH_JAVA_OPTS=-Dorg.bouncycastle.fips.approved_only=true -Djava.security.properties=""%OPENSEARCH_PATH_CONF%\fips_java.security"" %OPENSEARCH_JAVA_OPTS%"
+    if not "%FOUND_BC_FIPS%"=="true" (
+        echo OPENSEARCH_FIPS_MODE=true requires the BouncyCastle FIPS jars in %OPENSEARCH_HOME%\lib, but this distribution does not contain them 1>&2
+        exit /b 1
     )
+    echo FIPS mode enabled, setting JVM options.
+    set "JAVA_SECURITY_MODE=fips"
+    set "OPENSEARCH_JAVA_OPTS=-Dorg.bouncycastle.fips.approved_only=true %OPENSEARCH_JAVA_OPTS%"
 )
 
 set OPENSEARCH_DISTRIBUTION_TYPE=${opensearch.distribution.type}
@@ -97,3 +100,15 @@ if defined JAVA_OPTS (
 
 rem check the Java version
 "%JAVA%" -cp "%OPENSEARCH_CLASSPATH%" "org.opensearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
+
+rem Generate the java.security file for the JDK selected above. It replaces the JDK's own file (note the "=="), so the
+rem provider list is exactly the one declared: fips_java.security in FIPS mode, otherwise the JDK's providers followed by
+rem BouncyCastle FIPS. Prints nothing when OPENSEARCH_JAVA_OPTS already sets java.security.properties.
+set "JAVA_SECURITY_FILE="
+for /F "usebackq delims=" %%a in (`CALL "%JAVA%" -cp "!OPENSEARCH_CLASSPATH!" "org.opensearch.tools.launchers.JavaSecurityFile" "!OPENSEARCH_PATH_CONF!" "!JAVA_SECURITY_MODE!" ^|^| echo java_security_file_failed`) do set "JAVA_SECURITY_FILE=%%a"
+if "!JAVA_SECURITY_FILE!" == "java_security_file_failed" (
+  exit /b 1
+)
+if defined JAVA_SECURITY_FILE (
+  set "OPENSEARCH_JAVA_OPTS=-Djava.security.properties==""!JAVA_SECURITY_FILE!"" %OPENSEARCH_JAVA_OPTS%"
+)

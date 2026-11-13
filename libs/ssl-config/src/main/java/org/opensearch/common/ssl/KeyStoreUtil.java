@@ -33,6 +33,7 @@
 package org.opensearch.common.ssl;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.crypto.FipsApprovedOnlyMode;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
@@ -61,18 +62,7 @@ import java.util.Map;
  */
 final class KeyStoreUtil {
 
-    public static final boolean IN_FIPS_MODE = detectFipsMode();
-
-    private static boolean detectFipsMode() {
-        try {
-            // Equivalent to: boolean approvedOnly = CryptoServicesRegistrar.isInApprovedOnlyMode()
-            var registrarClass = Class.forName("org.bouncycastle.crypto.CryptoServicesRegistrar");
-            var isApprovedOnlyMethod = registrarClass.getMethod("isInApprovedOnlyMode");
-            return (Boolean) isApprovedOnlyMethod.invoke(null);
-        } catch (ReflectiveOperationException e) {
-            return false;
-        }
-    }
+    public static final boolean IN_FIPS_MODE = FipsApprovedOnlyMode.isActive();
 
     public static final Map<String, List<String>> TYPE_TO_EXTENSION_MAP = Map.of(
         "JKS",

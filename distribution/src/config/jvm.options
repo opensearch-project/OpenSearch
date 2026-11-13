@@ -93,3 +93,10 @@ ${error.file}
 -Dorg.apache.lucene.store.MMapDirectory.sharedArenaMaxPermits=1
 
 25-:-XX:+UseCompactObjectHeaders
+
+# Route java.util.logging (JUL) through log4j2. This MUST be a launch-time -D:
+# LogConfigurator sets the same property at runtime, but that is too late for
+# early JUL users such as the BouncyCastle FIPS JSSE provider (registered during
+# bootstrap), whose per-handshake INFO logs would otherwise leak to System.err
+# and be captured as [WARN][stderr]. Requires log4j-jul on the classpath (in lib/).
+-Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
