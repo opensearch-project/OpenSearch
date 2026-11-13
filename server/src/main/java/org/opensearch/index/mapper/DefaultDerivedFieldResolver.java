@@ -71,8 +71,8 @@ public class DefaultDerivedFieldResolver implements DerivedFieldResolver {
     public Set<String> resolvePattern(String pattern) {
         Set<String> derivedFields = new HashSet<>();
         if (queryShardContext != null && queryShardContext.getMapperService() != null) {
-            for (MappedFieldType fieldType : queryShardContext.getMapperService().fieldTypes()) {
-                if (fieldType != null && fieldType.unwrap() instanceof DerivedFieldType && Regex.simpleMatch(pattern, fieldType.name())) {
+            for (MappedFieldType fieldType : queryShardContext.getMapperService().derivedFieldTypes()) {
+                if (Regex.simpleMatch(pattern, fieldType.name())) {
                     derivedFields.add(fieldType.name());
                 }
             }

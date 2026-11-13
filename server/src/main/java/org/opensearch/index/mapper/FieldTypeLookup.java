@@ -36,11 +36,13 @@ import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.collect.Iterators;
 import org.opensearch.common.regex.Regex;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -65,6 +67,12 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     private final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
     private final DynamicKeyFieldTypeLookup dynamicKeyLookup;
 
+    /**
+     * The derived field types defined in the mapping, collected once so that resolving derived fields does not
+     * iterate every mapped field on each lookup.
+     */
+    private final List<MappedFieldType> derivedFieldTypes = new ArrayList<>();
+
     private final DynamicPropertyFieldTypeResolver dynamicPropertyFieldTypes;
 
     FieldTypeLookup() {
@@ -86,6 +94,9 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             String fieldName = fieldMapper.name();
             MappedFieldType fieldType = fieldMapper.fieldType();
             fullNameToFieldType.put(fieldType.name(), fieldType);
+            if (fieldType.unwrap() instanceof DerivedFieldType) {
+                derivedFieldTypes.add(fieldType);
+            }
             if (fieldMapper instanceof DynamicKeyFieldMapper) {
                 dynamicKeyMappers.put(fieldName, (DynamicKeyFieldMapper) fieldMapper);
             }
@@ -175,6 +186,13 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         }
 
         return fieldToCopiedFields.containsKey(resolvedField) ? fieldToCopiedFields.get(resolvedField) : Set.of(resolvedField);
+    }
+
+    /**
+     * Returns the derived field types defined in the mapping.
+     */
+    public Collection<MappedFieldType> derivedFieldTypes() {
+        return Collections.unmodifiableList(derivedFieldTypes);
     }
 
     @Override
