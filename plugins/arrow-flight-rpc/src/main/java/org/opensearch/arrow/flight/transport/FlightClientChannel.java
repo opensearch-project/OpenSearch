@@ -44,6 +44,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 /**
@@ -52,8 +53,12 @@ import java.util.function.BiConsumer;
  */
 class FlightClientChannel implements TcpChannel {
     private static final Logger logger = LogManager.getLogger(FlightClientChannel.class);
-    private static final AtomicLong GLOBAL_CHANNEL_COUNTER = new AtomicLong();
-    private final AtomicLong correlationIdGenerator = new AtomicLong();
+    /**
+     * One sequence for every channel of this node, so no two streams share a correlation id, even when several
+     * channels go to the same node. Response headers are matched to their stream by it, and both nodes log it.
+     * Seeded from the clock so ids differ across restarts.
+     */
+    private static final AtomicLong CORRELATION_ID_GENERATOR = new AtomicLong(System.currentTimeMillis() << 20);
     private final FlightClient client;
     private final DiscoveryNode node;
     private final BoundTransportAddress boundAddress;
@@ -84,6 +89,8 @@ class FlightClientChannel implements TcpChannel {
     private final Set<FlightTransportResponse<?>> activeStreams = ConcurrentHashMap.newKeySet();
     /** Signalled whenever a stream leaves {@link #activeStreams}, to wake {@link #close()}. */
     private final Object activeStreamsMonitor = new Object();
+    /** The channels of the same node connection, closed together; see {@link #setGroup}. Null when used alone. */
+    private volatile Group group;
 
     /**
      * Constructs a new FlightClientChannel for handling Arrow Flight streams.
@@ -133,11 +140,6 @@ class FlightClientChannel implements TcpChannel {
         this.removableCloseListeners = new CopyOnWriteArrayList<>();
         this.stats = new ChannelStats();
         this.isClosed = false;
-        // Initialize with timestamp + global counter to ensure uniqueness with multiple channels
-        // Upper bits: timestamp, lower 20 bits: channel ID
-        long channelId = GLOBAL_CHANNEL_COUNTER.incrementAndGet() & 0xFFFFF; // 20 bits for channel ID
-        long initialValue = (System.currentTimeMillis() << 20) | channelId;
-        this.correlationIdGenerator.set(initialValue);
         if (statsCollector != null) {
             statsCollector.incrementClientChannelsActive();
         }
@@ -172,18 +174,21 @@ class FlightClientChannel implements TcpChannel {
         // The FlightClient's allocator close treats any outstanding buffer as a leak, and live
         // streams legitimately hold buffers (current batch root, retained heartbeat metadata)
         // until their consumer closes them. So: cancel every active stream — FlightStream.cancel
-        // is safe from this thread and unblocks consumers parked in nextResponse()
-        for (FlightTransportResponse<?> streamResponse : activeStreams) {
-            try {
-                streamResponse.cancelStreamOnly("channel to node [" + node.getId() + "] closed");
-            } catch (Exception e) {
-                logger.warn(
-                    () -> new ParameterizedMessage("Error cancelling active stream while closing channel to node [{}]", node.getId()),
-                    e
-                );
-            }
+        // is safe from this thread and unblocks consumers parked in nextResponse().
+        // A node connection closes its channels one at a time and each close waits for its own
+        // streams. In a group, the first close cancels the streams of every channel and sets one
+        // deadline that all of them wait against, so the whole connection closes in about one
+        // timeout instead of one per channel.
+        final long timeoutNanos = config.getStreamCloseTimeout().nanos();
+        final Group group = this.group;
+        final long deadlineNanos;
+        if (group == null) {
+            cancelActiveStreams();
+            deadlineNanos = System.nanoTime() + timeoutNanos;
+        } else {
+            deadlineNanos = group.startClose(timeoutNanos);
         }
-        awaitActiveStreamsClosed();
+        awaitActiveStreamsClosed(deadlineNanos);
 
         closeFuture.complete(null);
         notifyListeners(closeListeners, closeFuture);
@@ -197,8 +202,28 @@ class FlightClientChannel implements TcpChannel {
         }
     }
 
+    /** Makes this channel part of {@code group}. Called once, when the node connection is opened. */
+    void setGroup(Group group) {
+        this.group = group;
+    }
+
+    /** Cancels every stream currently open on this channel. Safe to call from any thread, and more than once. */
+    void cancelActiveStreams() {
+        for (FlightTransportResponse<?> streamResponse : activeStreams) {
+            try {
+                streamResponse.cancelStreamOnly("channel to node [" + node.getId() + "] closed");
+            } catch (Exception e) {
+                logger.warn(
+                    () -> new ParameterizedMessage("Error cancelling active stream while closing channel to node [{}]", node.getId()),
+                    e
+                );
+            }
+        }
+    }
+
     /**
-     * Waits up to {@link FlightTransportConfig#getStreamCloseTimeout()} for active streams to be
+     * Waits until {@code deadlineNanos} (by default {@link FlightTransportConfig#getStreamCloseTimeout()}
+     * from now) for active streams to be
      * released by their consumers (each removes itself from {@link #activeStreams} once its buffers
      * are released). On timeout, proceeds anyway — the subsequent {@link FlightClient#close()} may
      * then report the stragglers' buffers as leaked, which is logged, not thrown.
@@ -207,9 +232,8 @@ class FlightClientChannel implements TcpChannel {
      * their release cannot happen until the callback returns, which cannot happen until this close
      * returns, so waiting for them would burn the whole timeout to no effect.
      */
-    private void awaitActiveStreamsClosed() {
-        final long timeoutMillis = config.getStreamCloseTimeout().millis();
-        final long deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
+    private void awaitActiveStreamsClosed(long deadlineNanos) {
+        final long startNanos = System.nanoTime();
         synchronized (activeStreamsMonitor) {
             long remainingNanos;
             while (hasStreamsToAwait() && (remainingNanos = deadlineNanos - System.nanoTime()) > 0) {
@@ -230,7 +254,7 @@ class FlightClientChannel implements TcpChannel {
             logger.warn(
                 "Gave up after [{}ms] waiting for [{}] active stream(s) to be released while closing channel to node [{}]; "
                     + "their buffers may be reported as leaked",
-                timeoutMillis,
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos),
                 straggling,
                 node.getId()
             );
@@ -247,7 +271,7 @@ class FlightClientChannel implements TcpChannel {
 
     /**
      * Whether any active stream can still be released while this close is waiting — that is, any
-     * stream not owned by the calling thread. See {@link #awaitActiveStreamsClosed()}.
+     * stream not owned by the calling thread. See {@link #awaitActiveStreamsClosed(long)}.
      */
     private boolean hasStreamsToAwait() {
         Thread current = Thread.currentThread();
@@ -341,7 +365,7 @@ class FlightClientChannel implements TcpChannel {
             // ticket will contain the serialized headers
             Ticket ticket = serializeToTicket(reference);
             TransportResponseHandler<?> handler = responseHandlers.onResponseReceived(requestId, messageListener);
-            long correlationId = correlationIdGenerator.incrementAndGet();
+            long correlationId = CORRELATION_ID_GENERATOR.incrementAndGet();
 
             if (callTracker != null) {
                 handler = new MetricsTrackingResponseHandler<>(handler, callTracker);
@@ -568,5 +592,30 @@ class FlightClientChannel implements TcpChannel {
     @Override
     public String toString() {
         return "FlightClientChannel{node=" + node.getId() + ", remoteAddress=" + getRemoteAddress() + ", profile=" + profile + '}';
+    }
+
+    /**
+     * The channels of one node connection. They close together: the first channel to close cancels the
+     * streams of all of them and fixes one deadline that every channel's close waits against.
+     */
+    static final class Group {
+        private final List<FlightClientChannel> channels;
+        private final AtomicReference<Long> closeDeadlineNanos = new AtomicReference<>();
+
+        Group(List<FlightClientChannel> channels) {
+            this.channels = List.copyOf(channels);
+        }
+
+        /** Cancels the streams of every channel, once, and returns the deadline shared by all closes. */
+        long startClose(long timeoutNanos) {
+            final long deadlineNanos = System.nanoTime() + timeoutNanos;
+            if (closeDeadlineNanos.compareAndSet(null, deadlineNanos)) {
+                for (FlightClientChannel channel : channels) {
+                    channel.cancelActiveStreams();
+                }
+                return deadlineNanos;
+            }
+            return closeDeadlineNanos.get();
+        }
     }
 }

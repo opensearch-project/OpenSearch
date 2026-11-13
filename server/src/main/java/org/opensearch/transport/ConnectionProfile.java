@@ -112,7 +112,7 @@ public final class ConnectionProfile {
         // if we are not a data-node we don't need any dedicated channels for recovery
         builder.addConnections(DiscoveryNode.isDataNode(settings) ? connectionsPerNodeRecovery : 0, TransportRequestOptions.Type.RECOVERY);
         builder.addConnections(connectionsPerNodeReg, TransportRequestOptions.Type.REG);
-        // we build a single channel profile with only supported type as STREAM for stream transport defined in StreamTransportService
+        // STREAM traffic does not use the regular transport; StreamTransportService builds its own STREAM-only profile
         builder.addConnections(0, TransportRequestOptions.Type.STREAM);
         return builder.build();
     }
@@ -136,8 +136,26 @@ public final class ConnectionProfile {
         @Nullable TimeValue pingInterval,
         @Nullable Boolean compressionEnabled
     ) {
+        return buildSingleTypeProfile(channelType, 1, connectTimeout, handshakeTimeout, pingInterval, compressionEnabled);
+    }
+
+    /**
+     * Builds a connection profile with {@code numConnections} channels, all of a single channel type. Allows
+     * passing connection and handshake timeouts and compression settings.
+     */
+    static ConnectionProfile buildSingleTypeProfile(
+        TransportRequestOptions.Type channelType,
+        int numConnections,
+        @Nullable TimeValue connectTimeout,
+        @Nullable TimeValue handshakeTimeout,
+        @Nullable TimeValue pingInterval,
+        @Nullable Boolean compressionEnabled
+    ) {
+        if (numConnections < 1) {
+            throw new IllegalArgumentException("numConnections must be >= 1 but was: " + numConnections);
+        }
         Builder builder = new Builder();
-        builder.addConnections(1, channelType);
+        builder.addConnections(numConnections, channelType);
         final EnumSet<TransportRequestOptions.Type> otherTypes = EnumSet.allOf(TransportRequestOptions.Type.class);
         otherTypes.remove(channelType);
         builder.addConnections(0, otherTypes.toArray(new TransportRequestOptions.Type[0]));
