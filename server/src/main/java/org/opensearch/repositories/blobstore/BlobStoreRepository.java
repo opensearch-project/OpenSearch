@@ -75,6 +75,7 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.ServerSideCopyBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.common.blobstore.transfer.stream.RateLimitingOffsetRangeInputStream;
@@ -4046,6 +4047,37 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ActionListener<String> listener,
         IndexMetadata indexMetadata
     ) {
+        snapshotShard(
+            store,
+            mapperService,
+            snapshotId,
+            indexId,
+            catalogSnapshot,
+            shardStateIdentifier,
+            snapshotStatus,
+            repositoryMetaVersion,
+            userMetadata,
+            listener,
+            indexMetadata,
+            null
+        );
+    }
+
+    @Override
+    public void snapshotShard(
+        Store store,
+        MapperService mapperService,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        CatalogSnapshot catalogSnapshot,
+        String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        Version repositoryMetaVersion,
+        Map<String, Object> userMetadata,
+        ActionListener<String> listener,
+        IndexMetadata indexMetadata,
+        RemoteStoreCopySource remoteStoreCopySource
+    ) {
         if (isReadOnly()) {
             listener.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));
             return;
@@ -4147,11 +4179,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     if (existingFileInfo == null) {
                         indexIncrementalFileCount++;
                         indexIncrementalSize += md.length();
-                        // create a new FileInfo
+                        // A file the provider can copy for us is stored as a single blob. The remote store holds one
+                        // object per file, so chunking the destination into .partN blobs would turn one copy into a
+                        // ranged copy per part, each its own multipart upload. The provider already splits a large
+                        // copy internally, so there is nothing to gain.
+                        final boolean copyable = needsWrite && canCopyServerSide(remoteStoreCopySource, md, shardContainer);
                         BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = new BlobStoreIndexShardSnapshot.FileInfo(
                             (needsWrite ? UPLOADED_DATA_BLOB_PREFIX : VIRTUAL_DATA_BLOB_PREFIX) + UUIDs.randomBase64UUID(),
                             md,
-                            chunkSize()
+                            copyable ? null : chunkSize()
                         );
                         indexCommitPointFiles.add(snapshotFileInfo);
                         if (needsWrite) {
@@ -4251,7 +4287,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     filesToSnapshot,
                     executor,
                     filesListener,
-                    cryptoMetadata
+                    cryptoMetadata,
+                    remoteStoreCopySource
                 );
             }
         } catch (Exception e) {
@@ -4267,7 +4304,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot,
         Executor executor,
         ActionListener<Void> listener,
-        CryptoMetadata cryptoMetadata
+        CryptoMetadata cryptoMetadata,
+        @Nullable RemoteStoreCopySource remoteStoreCopySource
     ) throws InterruptedException {
         final ShardId shardId = store.shardId();
         final BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = filesToSnapshot.poll(0L, TimeUnit.MILLISECONDS);
@@ -4276,8 +4314,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else {
             executor.execute(ActionRunnable.wrap(listener, l -> {
                 try (Releasable ignored = incrementStoreRef(store, snapshotStatus, shardId)) {
-                    snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store, cryptoMetadata);
-                    executeOneFileSnapshot(store, snapshotId, indexId, snapshotStatus, filesToSnapshot, executor, l, cryptoMetadata);
+                    snapshotFile(
+                        snapshotFileInfo,
+                        indexId,
+                        shardId,
+                        snapshotId,
+                        snapshotStatus,
+                        store,
+                        cryptoMetadata,
+                        remoteStoreCopySource
+                    );
+                    executeOneFileSnapshot(
+                        store,
+                        snapshotId,
+                        indexId,
+                        snapshotStatus,
+                        filesToSnapshot,
+                        executor,
+                        l,
+                        cryptoMetadata,
+                        remoteStoreCopySource
+                    );
                 }
             }));
         }
@@ -4914,9 +4971,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         SnapshotId snapshotId,
         IndexShardSnapshotStatus snapshotStatus,
         Store store,
-        CryptoMetadata cryptoMetadata
+        CryptoMetadata cryptoMetadata,
+        @Nullable RemoteStoreCopySource remoteStoreCopySource
     ) throws IOException {
         final BlobContainer shardContainer = shardContainer(indexId, shardId);
+
+        if (copyFileServerSide(fileInfo, shardContainer, remoteStoreCopySource, shardId, snapshotId)) {
+            snapshotStatus.addProcessedFile(fileInfo.length());
+            return;
+        }
 
         final String file = fileInfo.physicalName();
         try (IndexInput indexInput = store.openVerifyingInput(file, IOContext.DEFAULT, fileInfo.metadata())) {
@@ -4958,6 +5021,74 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             snapshotStatus.addProcessedFile(0);
             throw t;
         }
+    }
+
+    /**
+     * Whether {@code md} is a file the storage provider could copy for us rather than us uploading its bytes.
+     *
+     * <p>Consulted twice, and must answer the same both times: once while building the file's {@link
+     * BlobStoreIndexShardSnapshot.FileInfo}, to decide whether to chunk it, and again in {@link #copyFileServerSide}.
+     * It can, because the commit's mapping is immutable once resolved.
+     */
+    private static boolean canCopyServerSide(
+        @Nullable final RemoteStoreCopySource remoteStoreCopySource,
+        final StoreFileMetadata md,
+        final BlobContainer shardContainer
+    ) {
+        if (remoteStoreCopySource == null || shardContainer instanceof ServerSideCopyBlobContainer == false) {
+            return false;
+        }
+        return ((ServerSideCopyBlobContainer) shardContainer).isServerSideCopyConfigured()
+            && remoteStoreCopySource.blobNameFor(md).isPresent();
+    }
+
+    /**
+     * Has the storage provider copy this file straight from the remote store into the shard container, so that its
+     * bytes never pass through this process.
+     *
+     * <p>Returns false when the copy was not attempted, in which case the caller must upload the bytes as before.
+     * A copy that <em>was</em> attempted and failed throws instead of falling back: a provider refusing the copy
+     * means the grants are wrong, and quietly uploading several gigabytes per shard would hide that while appearing
+     * to work.
+     *
+     * @return true if the file now exists in the shard container
+     */
+    private boolean copyFileServerSide(
+        final BlobStoreIndexShardSnapshot.FileInfo fileInfo,
+        final BlobContainer shardContainer,
+        @Nullable final RemoteStoreCopySource remoteStoreCopySource,
+        final ShardId shardId,
+        final SnapshotId snapshotId
+    ) throws IOException {
+        if (remoteStoreCopySource == null || shardContainer instanceof ServerSideCopyBlobContainer == false) {
+            return false;
+        }
+        final ServerSideCopyBlobContainer destination = (ServerSideCopyBlobContainer) shardContainer;
+        if (destination.isServerSideCopyConfigured() == false) {
+            return false;
+        }
+        // One source object becomes one destination object. A chunked FileInfo expects several .partN blobs, which a
+        // whole-object copy cannot produce, so refuse rather than write a truncated first part.
+        if (fileInfo.numberOfParts() != 1) {
+            return false;
+        }
+        final Optional<String> sourceBlobName = remoteStoreCopySource.blobNameFor(fileInfo.metadata());
+        if (sourceBlobName.isEmpty()) {
+            return false;
+        }
+
+        logger.trace(
+            () -> new ParameterizedMessage(
+                "[{}] [{}] copying [{}] from [{}] to [{}] without reading its bytes",
+                shardId,
+                snapshotId,
+                fileInfo.physicalName(),
+                sourceBlobName.get(),
+                fileInfo.name()
+            )
+        );
+        destination.copyBlobFrom(remoteStoreCopySource.source(), sourceBlobName.get(), fileInfo.name());
+        return true;
     }
 
     private static void failStoreIfCorrupted(Store store, Exception e) {

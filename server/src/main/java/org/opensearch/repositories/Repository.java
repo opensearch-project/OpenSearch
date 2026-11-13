@@ -59,6 +59,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
+import org.opensearch.repositories.blobstore.RemoteStoreCopySource;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 
@@ -499,6 +500,64 @@ public interface Repository extends LifecycleComponent {
             snapshotId,
             indexId,
             snapshotIndexCommit,
+            shardStateIdentifier,
+            snapshotStatus,
+            repositoryMetaVersion,
+            userMetadata,
+            listener,
+            indexMetadata
+        );
+    }
+
+    /**
+     * Creates a snapshot of the shard, optionally having the storage provider copy segments directly from where the
+     * remote store already holds them instead of reading their bytes through this node.
+     *
+     * <p>Identical to
+     * {@link #snapshotShard(Store, MapperService, SnapshotId, IndexId, CatalogSnapshot, String,
+     * IndexShardSnapshotStatus, Version, Map, ActionListener, IndexMetadata)} except for
+     * {@code remoteStoreCopySource}, which is an optimisation and never a requirement: it is null for a shard that is
+     * not remote-store-backed, for a commit the remote store no longer holds, and for providers with no server-side
+     * copy primitive. The default implementation ignores it, so a repository that cannot copy server-side - or has
+     * not been taught to - keeps snapshotting exactly as before.
+     *
+     * @param store                 store to be snapshotted
+     * @param mapperService         the shards mapper service
+     * @param snapshotId            snapshot id
+     * @param indexId               id for the index being snapshotted
+     * @param catalogSnapshot       commit point
+     * @param shardStateIdentifier  a unique identifier of the state of the shard that is stored with the shard's snapshot and used
+     *                              to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
+     *                              snapshotting will be done by inspecting the physical files referenced by {@code catalogSnapshot}
+     * @param snapshotStatus        snapshot status
+     * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param userMetadata          user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
+     * @param listener              listener invoked on completion
+     * @param indexMetadata         index metadata for the shard being snapshotted
+     * @param remoteStoreCopySource where the remote store already holds this commit's segments, or {@code null} if
+     *                              the bytes must be read from {@code store}
+     */
+    @ExperimentalApi
+    default void snapshotShard(
+        Store store,
+        MapperService mapperService,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        CatalogSnapshot catalogSnapshot,
+        @Nullable String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        Version repositoryMetaVersion,
+        Map<String, Object> userMetadata,
+        ActionListener<String> listener,
+        @Nullable IndexMetadata indexMetadata,
+        @Nullable RemoteStoreCopySource remoteStoreCopySource
+    ) {
+        snapshotShard(
+            store,
+            mapperService,
+            snapshotId,
+            indexId,
+            catalogSnapshot,
             shardStateIdentifier,
             snapshotStatus,
             repositoryMetaVersion,
