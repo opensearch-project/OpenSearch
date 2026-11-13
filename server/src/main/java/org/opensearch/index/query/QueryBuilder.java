@@ -112,6 +112,8 @@ public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewritea
 
     /**
      * Recurse through the QueryBuilder tree, visiting any child QueryBuilder.
+     * Builders with child queries must call {@code child.visit(visitor.getChildVisitor(occur))} for each child, not
+     * {@code visitor.getChildVisitor(occur).accept(child)}, so the visitor also reaches queries nested inside the child.
      * @param visitor a query builder visitor to be called by each query builder in the tree.
      */
     default void visit(QueryBuilderVisitor visitor) {
