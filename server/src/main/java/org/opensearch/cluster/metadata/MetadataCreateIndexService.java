@@ -54,6 +54,7 @@ import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
@@ -157,6 +158,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANS
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
 import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findContextTemplateName;
+import static org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.cluster.service.ClusterManagerTask.CREATE_INDEX;
@@ -1124,7 +1126,10 @@ public class MetadataCreateIndexService {
             final Version createdVersion = Version.min(Version.CURRENT, nodes.getSmallestNonClientNodeVersion());
             indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion);
         }
-        if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexSettingsBuilder) == false) {
+        // Captured before the static default is applied so node-aware sharding below can tell an explicit
+        // request/template shard count from the fallback.
+        final boolean shardCountExplicit = INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexSettingsBuilder);
+        if (shardCountExplicit == false) {
             indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, INDEX_NUMBER_OF_SHARDS_SETTING.get(settings));
         }
         if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettingsBuilder) == false
@@ -1143,6 +1148,10 @@ public class MetadataCreateIndexService {
 
         updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, combinedTemplateSettings, clusterSettings);
         updateRemoteStoreSettings(indexSettingsBuilder, currentState, clusterSettings, settings, request.index());
+        if (sourceMetadata == null) {
+            // Resize targets derive their shard count from the source index, so they are never sized by node count.
+            updateNodeAwareShardingSettings(indexSettingsBuilder, currentState.nodes(), clusterSettings, shardCountExplicit);
+        }
         updatePluggableDataFormatSettings(indexSettingsBuilder, clusterSettings, request.index());
 
         if (sourceMetadata != null) {
@@ -1400,6 +1409,75 @@ public class MetadataCreateIndexService {
             && clusterSettings.get(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED)) {
             settingsBuilder.put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true);
         }
+    }
+
+    /**
+     * Sizes a remote-store-backed, segment-replicated index by the data nodes present at creation time, when
+     * {@code cluster.remote_store.index.node_aware_sharding.enabled} is on.
+     * <ul>
+     * <li>If the request and templates leave {@code index.number_of_shards} unset, the index gets one primary per
+     * data node ({@code number_of_shards = data_nodes}), replacing the static default already in the builder.</li>
+     * <li>Unless set explicitly, {@code index.routing.allocation.total_primary_shards_per_node} becomes
+     * {@code ceil(number_of_shards / data_nodes)}, which is {@code 1} in the implicit case, so the allocator spreads
+     * primaries evenly instead of letting one node collect several.</li>
+     * </ul>
+     * The node count is the smaller of the nodes currently carrying the {@code data} role and the operator-declared
+     * fleet size {@code cluster.routing.allocation.load_awareness.provisioned_capacity} (the number the
+     * load-awareness decider trusts; search, warm and dedicated cluster-manager nodes are not part of it). Taking the
+     * minimum means a mid-scale-out or blue/green cluster is never sized past the nodes that can actually take a
+     * primary, while a fleet temporarily above its declared capacity is still sized by the declared number. With
+     * {@code provisioned_capacity} unset ({@code -1}) the joined data-role count alone is used. With no data-role node
+     * joined nothing is stamped and the static defaults stand. Warm (remote-capable) indices are skipped because their
+     * per-node cap is a different setting.
+     *
+     * @param settingsBuilder index settings builder, already carrying the remote store and replication settings
+     * @param nodes current discovery nodes
+     * @param clusterSettings cluster level settings
+     * @param shardCountExplicit whether {@code index.number_of_shards} came from the request or a template
+     */
+    static void updateNodeAwareShardingSettings(
+        Settings.Builder settingsBuilder,
+        DiscoveryNodes nodes,
+        ClusterSettings clusterSettings,
+        boolean shardCountExplicit
+    ) {
+        if (clusterSettings.get(RemoteStoreSettings.CLUSTER_REMOTE_STORE_NODE_AWARE_SHARDING_ENABLED) == false) {
+            return;
+        }
+        final Settings current = settingsBuilder.build();
+        // Read raw: the typed replication-type setting validates the remote-store/SEGMENT invariant and would
+        // pre-empt the clearer error validateIndexReplicationTypeSettings raises a few steps later.
+        if (current.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false) == false
+            || ReplicationType.SEGMENT.toString().equals(current.get(SETTING_REPLICATION_TYPE)) == false
+            || current.getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false)) {
+            return;
+        }
+        final int dataNodes = effectiveDataNodeCount(nodes, clusterSettings);
+        if (dataNodes <= 0) {
+            return;
+        }
+        final int numberOfShards;
+        if (shardCountExplicit) {
+            numberOfShards = INDEX_NUMBER_OF_SHARDS_SETTING.get(current);
+        } else {
+            numberOfShards = dataNodes;
+            settingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards);
+        }
+        if (INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.exists(current) == false) {
+            final int primariesPerNode = (numberOfShards + dataNodes - 1) / dataNodes;
+            settingsBuilder.put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), primariesPerNode);
+        }
+    }
+
+    /**
+     * {@code min(joined data-role nodes, provisioned_capacity)}, with an unset ({@code <= 0}) capacity ignored.
+     */
+    static int effectiveDataNodeCount(DiscoveryNodes nodes, ClusterSettings clusterSettings) {
+        final int joinedDataNodes = Math.toIntExact(
+            nodes.getNodes().values().stream().filter(node -> node.getRoles().contains(DiscoveryNodeRole.DATA_ROLE)).count()
+        );
+        final int provisionedCapacity = clusterSettings.get(CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING);
+        return provisionedCapacity > 0 ? Math.min(joinedDataNodes, provisionedCapacity) : joinedDataNodes;
     }
 
     /**
