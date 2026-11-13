@@ -17,12 +17,22 @@ import java.util.List;
 
 /**
  * Resolves an indices-bearing request (which may carry aliases or wildcards) to the concrete indices
- * the DSL Calcite path will operate on. The implementation owns the cardinality policy:
- * {@link SingleIndexResolutionStrategy} requires exactly one concrete index (the constraint today),
- * while a future multi-index strategy may return several. Transport actions call a single
- * {@link #resolve} and leave the policy to the strategy.
+ * the DSL Calcite path will operate on. The implementation owns the cardinality policy.
+ * Transport actions call a single {@link #resolve} and leave the policy to the strategy.
  */
 interface IndexResolutionStrategy {
+
+    /**
+     * Returns the logical table expression for planning. Keeping the original request expression
+     * preserves alias validation; requests without an explicit expression use the resolved names.
+     */
+    static String tableExpression(IndicesRequest request, List<IndexMetadata> resolvedIndices) {
+        String[] requestedIndices = request.indices();
+        if (requestedIndices != null && requestedIndices.length > 0) {
+            return String.join(",", requestedIndices);
+        }
+        return resolvedIndices.stream().map(index -> index.getIndex().getName()).collect(java.util.stream.Collectors.joining(","));
+    }
 
     /**
      * Resolves the request's indices to the concrete indices this strategy permits.

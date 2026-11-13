@@ -17,12 +17,13 @@ import org.opensearch.index.mapper.MapperService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
  * Request-scoped, lazily created {@link MapperService} for response key typing, pinned to the
- * index mapping captured when the request started. {@code IndicesService#createIndexMapperService}
+ * index mappings captured when the request started. {@code IndicesService#createIndexMapperService}
  * returns an <em>empty</em> MapperService, so the holder merges the pinned mapping in before
  * handing it out ({@link MapperService.MergeReason#MAPPING_RECOVERY}, the same create-and-merge
  * pattern the server's {@code MetadataMappingService} uses), memoizes the result, and releases
@@ -32,7 +33,7 @@ final class RequestScopedMapperService implements Supplier<MapperService>, Close
 
     private static final Logger logger = LogManager.getLogger(RequestScopedMapperService.class);
 
-    private final IndexMetadata indexMetadata;
+    private final List<IndexMetadata> indicesMetadata;
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
 
     private MapperService mapperService;
@@ -43,7 +44,17 @@ final class RequestScopedMapperService implements Supplier<MapperService>, Close
         IndexMetadata indexMetadata,
         CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory
     ) {
-        this.indexMetadata = Objects.requireNonNull(indexMetadata, "indexMetadata must not be null");
+        this(List.of(Objects.requireNonNull(indexMetadata, "indexMetadata must not be null")), mapperServiceFactory);
+    }
+
+    RequestScopedMapperService(
+        List<IndexMetadata> indicesMetadata,
+        CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory
+    ) {
+        this.indicesMetadata = List.copyOf(Objects.requireNonNull(indicesMetadata, "indicesMetadata must not be null"));
+        if (this.indicesMetadata.isEmpty()) {
+            throw new IllegalArgumentException("indicesMetadata must not be empty");
+        }
         this.mapperServiceFactory = mapperServiceFactory;
     }
 
@@ -61,16 +72,22 @@ final class RequestScopedMapperService implements Supplier<MapperService>, Close
 
     private MapperService resolve() {
         try {
-            MapperService created = mapperServiceFactory.apply(indexMetadata);
+            MapperService created = mapperServiceFactory.apply(indicesMetadata.get(0));
             try {
-                created.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
+                for (IndexMetadata indexMetadata : indicesMetadata) {
+                    created.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
+                }
                 return created;
             } catch (Exception e) {
                 IOUtils.closeWhileHandlingException(created);
                 throw e;
             }
         } catch (Exception e) {
-            logger.warn("Failed to resolve MapperService for index [{}]", indexMetadata.getIndex().getName(), e);
+            logger.warn(
+                "Failed to resolve MapperService for indices [{}]",
+                indicesMetadata.stream().map(metadata -> metadata.getIndex().getName()).toList(),
+                e
+            );
             return null;
         }
     }

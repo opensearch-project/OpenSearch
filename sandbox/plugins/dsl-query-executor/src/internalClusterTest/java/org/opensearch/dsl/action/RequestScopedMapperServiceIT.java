@@ -19,6 +19,8 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
+import java.util.List;
+
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 /**
@@ -32,6 +34,41 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 public class RequestScopedMapperServiceIT extends OpenSearchIntegTestCase {
 
     private static final String INDEX = "dynamic-probe";
+    private static final String SECOND_INDEX = "dynamic-probe-2";
+
+    public void testCoordinatorMergesMappingsAcrossResolvedIndices() throws Exception {
+        internalCluster().startNode();
+        String coordNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        createSingleShardIndex(INDEX);
+        createSingleShardIndex(SECOND_INDEX);
+
+        client().prepareIndex(INDEX).setSource("{\"brand\":\"brandX\"}", XContentType.JSON).get();
+        client().prepareIndex(SECOND_INDEX).setSource("{\"price\":42}", XContentType.JSON).get();
+
+        ClusterService coordClusterService = internalCluster().getInstance(ClusterService.class, coordNode);
+        assertBusy(() -> {
+            IndexMetadata first = coordClusterService.state().metadata().index(INDEX);
+            IndexMetadata second = coordClusterService.state().metadata().index(SECOND_INDEX);
+            assertNotNull(first);
+            assertNotNull(second);
+            assertNotNull(first.mapping());
+            assertNotNull(second.mapping());
+            assertTrue(first.mapping().source().string().contains("brand"));
+            assertTrue(second.mapping().source().string().contains("price"));
+        });
+
+        IndicesService coordIndicesService = internalCluster().getInstance(IndicesService.class, coordNode);
+        List<IndexMetadata> pinned = List.of(
+            coordClusterService.state().metadata().index(INDEX),
+            coordClusterService.state().metadata().index(SECOND_INDEX)
+        );
+        try (RequestScopedMapperService holder = new RequestScopedMapperService(pinned, coordIndicesService::createIndexMapperService)) {
+            MapperService mapperService = holder.get();
+            assertNotNull(mapperService);
+            assertEquals("keyword", mapperService.fieldType("brand.keyword").typeName());
+            assertEquals("long", mapperService.fieldType("price").typeName());
+        }
+    }
 
     public void testCoordinatorResolvesPinnedMappingSnapshotUnderDynamicUpdates() throws Exception {
         internalCluster().startNode();
@@ -114,10 +151,14 @@ public class RequestScopedMapperServiceIT extends OpenSearchIntegTestCase {
     }
 
     private void createSingleShardIndex() {
+        createSingleShardIndex(INDEX);
+    }
+
+    private void createSingleShardIndex(String indexName) {
         createIndex(
-            INDEX,
+            indexName,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
-        ensureGreen(INDEX);
+        ensureGreen(indexName);
     }
 }

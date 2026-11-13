@@ -62,7 +62,7 @@ public class TransportValidateAction extends HandledTransportAction<ValidateQuer
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final IndexResolutionStrategy indexResolutionStrategy = new SingleIndexResolutionStrategy();
+    private final IndexResolutionStrategy indexResolutionStrategy = new MultiIndexResolutionStrategy();
     private final ThreadPool threadPool;
 
     /**
@@ -109,7 +109,7 @@ public class TransportValidateAction extends HandledTransportAction<ValidateQuer
     /**
      * Runs the conversion pipeline and maps the outcome to a {@link ValidateQueryResponse}.
      * A {@link ConversionException} means the query is invalid on this path; any other
-     * exception (index not found, multiple indices) propagates as a request failure,
+     * exception (for example, index not found) propagates as a request failure,
      * matching how {@code _search} reports the same conditions.
      *
      * <p>Conversion is set up exactly as {@link TransportExecuteAction} does — same cluster-state
@@ -120,8 +120,8 @@ public class TransportValidateAction extends HandledTransportAction<ValidateQuer
         // One snapshot per request: index resolution, the engine schema, and mapping resolution
         // all derive from the same immutable cluster state.
         final ClusterState state = clusterService.state();
-        final IndexMetadata indexMetadata = indexResolutionStrategy.resolve(indexNameExpressionResolver, state, request).get(0);
-        final String indexName = indexMetadata.getIndex().getName();
+        final List<IndexMetadata> indicesMetadata = indexResolutionStrategy.resolve(indexNameExpressionResolver, state, request);
+        final String indexExpression = IndexResolutionStrategy.tableExpression(request, indicesMetadata);
 
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.query(request.query());
@@ -135,12 +135,12 @@ public class TransportValidateAction extends HandledTransportAction<ValidateQuer
         // Mapping pinned at request start, mirroring execution, and released when validation ends.
         try (
             RequestScopedMapperService mapperService = new RequestScopedMapperService(
-                indexMetadata,
+                indicesMetadata,
                 indicesService::createIndexMapperService
             )
         ) {
             SearchSourceConverter converter = new SearchSourceConverter(contextProvider.getContext(state).schema(), mapperService);
-            QueryPlans plans = converter.convert(source, indexName);
+            QueryPlans plans = converter.convert(source, indexExpression);
             valid = true;
             if (detailRequested) {
                 explanation = plans.first().map(plan -> plan.relNode().explain().trim()).orElse(null);
@@ -151,7 +151,7 @@ public class TransportValidateAction extends HandledTransportAction<ValidateQuer
         }
 
         List<QueryExplanation> explanations = detailRequested
-            ? List.of(new QueryExplanation(indexName, QueryExplanation.RANDOM_SHARD, valid, valid ? explanation : null, error))
+            ? List.of(new QueryExplanation(indexExpression, QueryExplanation.RANDOM_SHARD, valid, valid ? explanation : null, error))
             : null;
         return new ValidateQueryResponse(valid, explanations, 1, 1, 0, List.of());
     }

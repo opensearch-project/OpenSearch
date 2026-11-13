@@ -55,7 +55,7 @@ public class TransportExecuteAction extends HandledTransportAction<SearchRequest
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final IndexResolutionStrategy indexResolutionStrategy = new SingleIndexResolutionStrategy();
+    private final IndexResolutionStrategy indexResolutionStrategy = new MultiIndexResolutionStrategy();
     private final ThreadPool threadPool;
 
     /**
@@ -95,21 +95,21 @@ public class TransportExecuteAction extends HandledTransportAction<SearchRequest
             // One snapshot per request: index resolution, the engine schema, and response
             // typing all derive from the same immutable cluster state.
             final ClusterState state = clusterService.state();
-            final IndexMetadata indexMetadata;
+            final List<IndexMetadata> indicesMetadata;
             try {
-                indexMetadata = indexResolutionStrategy.resolve(indexNameExpressionResolver, state, request).get(0);
+                indicesMetadata = indexResolutionStrategy.resolve(indexNameExpressionResolver, state, request);
             } catch (Exception e) {
                 listener.onFailure(e);
                 return;
             }
-            final String indexName = indexMetadata.getIndex().getName();
+            final String indexExpression = IndexResolutionStrategy.tableExpression(request, indicesMetadata);
 
             // Response typing works off the mapping pinned at request start: one immutable
             // snapshot for conversion and response building, created lazily, and closed when
             // the request completes whether it succeeded or failed.
             // TODO: cache per (indexUUID, mappingVersion) to avoid rebuilding analyzers.
             final RequestScopedMapperService mapperServiceHolder = new RequestScopedMapperService(
-                indexMetadata,
+                indicesMetadata,
                 indicesService::createIndexMapperService
             );
             final ActionListener<SearchResponse> requestListener = ActionListener.runAfter(listener, mapperServiceHolder::close);
@@ -118,7 +118,7 @@ public class TransportExecuteAction extends HandledTransportAction<SearchRequest
             final SearchSourceConverter converter;
             try {
                 converter = new SearchSourceConverter(contextProvider.getContext(state).schema(), mapperServiceHolder);
-                plans = converter.convert(request.source(), indexName);
+                plans = converter.convert(request.source(), indexExpression);
             } catch (ConversionException e) {
                 // The request carries a shape or parameter this path cannot honor — a client
                 // error (400), matching classic search's rejection of unsupported parameters.
