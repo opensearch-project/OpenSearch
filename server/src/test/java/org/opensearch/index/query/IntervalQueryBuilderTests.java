@@ -63,6 +63,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -1027,6 +1028,257 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         );
         assertEquals(expected, builder.toQuery(createShardContext()));
 
+    }
+
+    private static String rangeJson(String field, String rangeBody) {
+        return "{ \"intervals\" : { \"" + field + "\": { \"range\" : " + rangeBody + " } } }";
+    }
+
+    private Query rangeQuery(String field, String rangeBody) throws IOException {
+        return ((IntervalQueryBuilder) parseQuery(rangeJson(field, rangeBody))).toQuery(createShardContext());
+    }
+
+    private static IntervalsSource rangeSource(String lower, String upper, boolean includeLower, boolean includeUpper) {
+        return Intervals.range(new BytesRef(lower), new BytesRef(upper), includeLower, includeUpper);
+    }
+
+    public void testRange() throws IOException {
+        // bounds are normalized with the search analyzer of the field, which lower-cases them for a text field
+        assertEquals(
+            new IntervalQuery(TEXT_FIELD_NAME, rangeSource("alpha", "omega", true, true)),
+            rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"Alpha\", \"lte\" : \"Omega\" }")
+        );
+        assertEquals(
+            new IntervalQuery(TEXT_FIELD_NAME, rangeSource("alpha", "omega", false, true)),
+            rangeQuery(TEXT_FIELD_NAME, "{ \"gt\" : \"Alpha\", \"lte\" : \"Omega\" }")
+        );
+        assertEquals(
+            new IntervalQuery(TEXT_FIELD_NAME, rangeSource("alpha", "omega", true, false)),
+            rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"Alpha\", \"lt\" : \"Omega\" }")
+        );
+        assertEquals(
+            new IntervalQuery(TEXT_FIELD_NAME, rangeSource("alpha", "omega", false, false)),
+            rangeQuery(TEXT_FIELD_NAME, "{ \"gt\" : \"Alpha\", \"lt\" : \"Omega\" }")
+        );
+    }
+
+    public void testRangeInclusivenessChangesTheQuery() throws IOException {
+        Query inclusive = rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"a\", \"lte\" : \"c\" }");
+        assertNotEquals(inclusive, rangeQuery(TEXT_FIELD_NAME, "{ \"gt\" : \"a\", \"lte\" : \"c\" }"));
+        assertNotEquals(inclusive, rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"a\", \"lt\" : \"c\" }"));
+    }
+
+    public void testRangeWithKeywordAnalyzerKeepsCase() throws IOException {
+        assertEquals(
+            new IntervalQuery(TEXT_FIELD_NAME, rangeSource("Alpha", "Omega", true, true)),
+            rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"Alpha\", \"lte\" : \"Omega\", \"analyzer\" : \"keyword\" }")
+        );
+    }
+
+    public void testRangeBoundWithSeveralWordsIsOneTerm() throws IOException {
+        // normalization does not tokenize: the bound stays a single term, compared byte by byte
+        assertEquals(
+            new IntervalQuery(TEXT_FIELD_NAME, rangeSource("fiscal year", "fiscal zone", true, false)),
+            rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"Fiscal Year\", \"lt\" : \"Fiscal Zone\" }")
+        );
+    }
+
+    public void testRangeWithUseField() throws IOException {
+        assertEquals(
+            new IntervalQuery(TEXT_FIELD_NAME, Intervals.fixField(MASKED_FIELD, rangeSource("alpha", "omega", true, false))),
+            rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"Alpha\", \"lt\" : \"Omega\", \"use_field\" : \"" + MASKED_FIELD + "\" }")
+        );
+        assertEquals(
+            new IntervalQuery(TEXT_FIELD_NAME, Intervals.fixField(MASKED_FIELD, rangeSource("Alpha", "Omega", true, false))),
+            rangeQuery(
+                TEXT_FIELD_NAME,
+                "{ \"gte\" : \"Alpha\", \"lt\" : \"Omega\", \"use_field\" : \"" + MASKED_FIELD + "\", \"analyzer\" : \"keyword\" }"
+            )
+        );
+    }
+
+    public void testRangeWithUseFieldWithoutPositions() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"a\", \"lte\" : \"b\", \"use_field\" : \"" + NO_POSITIONS_FIELD + "\" }")
+        );
+        assertThat(e.getMessage(), equalTo("Cannot create intervals over field [" + NO_POSITIONS_FIELD + "] with no positions indexed"));
+    }
+
+    public void testRangeWithUnmappedUseFieldMatchesNothing() throws IOException {
+        assertThat(
+            rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"a\", \"lte\" : \"b\", \"use_field\" : \"no_such_field\" }"),
+            instanceOf(MatchNoDocsQuery.class)
+        );
+    }
+
+    public void testRangeOnUnmappedFieldMatchesNothing() throws IOException {
+        assertThat(rangeQuery("no_such_field", "{ \"gte\" : \"a\", \"lte\" : \"b\" }"), instanceOf(MatchNoDocsQuery.class));
+    }
+
+    public void testRangeOnFieldWithoutPositions() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> rangeQuery(NO_POSITIONS_FIELD, "{ \"gte\" : \"a\", \"lte\" : \"b\" }")
+        );
+        assertThat(e.getMessage(), equalTo("Cannot create intervals over field [" + NO_POSITIONS_FIELD + "] with no positions indexed"));
+    }
+
+    public void testRangeOnKeywordFieldIsRejected() {
+        // keyword fields do not index positions, which intervals need
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> rangeQuery(KEYWORD_FIELD_NAME, "{ \"gte\" : \"a\", \"lte\" : \"b\" }")
+        );
+        assertThat(e.getMessage(), equalTo("Cannot create intervals over field [" + KEYWORD_FIELD_NAME + "] with no positions indexed"));
+    }
+
+    public void testRangeOnKeywordFieldWithUseFieldOnTextField() throws IOException {
+        assertEquals(
+            new IntervalQuery(KEYWORD_FIELD_NAME, Intervals.fixField(MASKED_FIELD, rangeSource("alpha", "omega", true, true))),
+            rangeQuery(KEYWORD_FIELD_NAME, "{ \"gte\" : \"Alpha\", \"lte\" : \"Omega\", \"use_field\" : \"" + MASKED_FIELD + "\" }")
+        );
+    }
+
+    public void testRangeMaxExpansions() throws IOException {
+        assertEquals(
+            new IntervalQuery(TEXT_FIELD_NAME, Intervals.range(new BytesRef("a"), new BytesRef("b"), true, true, 500)),
+            rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"a\", \"lte\" : \"b\", \"max_expansions\" : 500 }")
+        );
+        assertNotEquals(
+            rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"a\", \"lte\" : \"b\", \"max_expansions\" : 500 }"),
+            rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"a\", \"lte\" : \"b\" }")
+        );
+        // the default is Lucene's
+        assertEquals(
+            new IntervalQuery(
+                TEXT_FIELD_NAME,
+                Intervals.range(new BytesRef("a"), new BytesRef("b"), true, true, Intervals.DEFAULT_MAX_EXPANSIONS)
+            ),
+            rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"a\", \"lte\" : \"b\" }")
+        );
+        // like for wildcard and regexp, a non-positive value means the default
+        assertEquals(
+            new IntervalQuery(TEXT_FIELD_NAME, rangeSource("a", "b", true, true)),
+            rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"a\", \"lte\" : \"b\", \"max_expansions\" : -20 }")
+        );
+    }
+
+    public void testRangeMaxExpansionsAboveMaxClauseCount() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> rangeQuery(
+                TEXT_FIELD_NAME,
+                "{ \"gte\" : \"a\", \"lte\" : \"b\", \"max_expansions\" : " + (IndexSearcher.getMaxClauseCount() + 1) + " }"
+            )
+        );
+    }
+
+    public void testRangeWithUnknownAnalyzer() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"a\", \"lte\" : \"b\", \"analyzer\" : \"no_such_analyzer\" }")
+        );
+        assertThat(e.getMessage(), equalTo("Unknown analyzer [no_such_analyzer] for the [range] interval rule"));
+    }
+
+    public void testRangeLowerBoundAboveUpperBound() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"b\", \"lte\" : \"a\" }")
+        );
+        assertThat(e.getMessage(), equalTo("The lower bound [b] of the [range] interval rule is greater than its upper bound [a]"));
+    }
+
+    public void testRangeBoundsAreComparedAfterAnalysis() throws IOException {
+        // "Omega" sorts before "alpha" as typed, but not once the text field's analyzer lower-cases it
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"Omega\", \"lte\" : \"alpha\" }")
+        );
+        assertThat(e.getMessage(), containsString("greater than"));
+        // with the keyword analyzer nothing is lower-cased, so the same bounds are in order
+        assertEquals(
+            new IntervalQuery(TEXT_FIELD_NAME, rangeSource("Omega", "alpha", true, true)),
+            rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"Omega\", \"lte\" : \"alpha\", \"analyzer\" : \"keyword\" }")
+        );
+    }
+
+    public void testRangeWithEqualBounds() throws IOException {
+        assertEquals(
+            new IntervalQuery(TEXT_FIELD_NAME, rangeSource("a", "a", true, true)),
+            rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"a\", \"lte\" : \"a\" }")
+        );
+        // an exclusive side makes it an empty range, which is accepted and different from the single term
+        Query inclusive = rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"a\", \"lte\" : \"a\" }");
+        for (String exclusive : new String[] {
+            "{ \"gt\" : \"a\", \"lte\" : \"a\" }",
+            "{ \"gte\" : \"a\", \"lt\" : \"a\" }",
+            "{ \"gt\" : \"a\", \"lt\" : \"a\" }" }) {
+            Query query = rangeQuery(TEXT_FIELD_NAME, exclusive);
+            assertThat(query, instanceOf(IntervalQuery.class));
+            assertNotEquals(inclusive, query);
+        }
+    }
+
+    public void testRangeOnNumericFieldIsRejected() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> rangeQuery(INT_FIELD_NAME, "{ \"gte\" : \"1\", \"lte\" : \"2\" }")
+        );
+        assertThat(e.getMessage(), equalTo("Cannot create intervals over field [" + INT_FIELD_NAME + "] with no positions indexed"));
+    }
+
+    public void testRangeInsideDisjunction() throws IOException {
+        String json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { \"any_of\" : { \"intervals\" : ["
+            + "{ \"match\" : { \"query\" : \"one\" } },"
+            + "{ \"range\" : { \"gte\" : \"2019\", \"lte\" : \"2023\" } } ] } } } }";
+        Query expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.or(Intervals.term("one"), rangeSource("2019", "2023", true, true)));
+        assertEquals(expected, ((IntervalQueryBuilder) parseQuery(json)).toQuery(createShardContext()));
+    }
+
+    public void testRangeInsideFilter() throws IOException {
+        String json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { \"match\" : { \"query\" : \"fiscal\", \"filter\" : { \"before\" : "
+            + "{ \"range\" : { \"gte\" : \"2019\", \"lte\" : \"2023\" } } } } } } }";
+        Query expected = new IntervalQuery(
+            TEXT_FIELD_NAME,
+            Intervals.before(Intervals.term("fiscal"), rangeSource("2019", "2023", true, true))
+        );
+        assertEquals(expected, ((IntervalQueryBuilder) parseQuery(json)).toQuery(createShardContext()));
+    }
+
+    public void testRangeWithEmptyBound() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"\", \"lte\" : \"b\" }")
+        );
+        assertThat(e.getMessage(), equalTo("The lower bound of the [range] interval rule must not be empty"));
+        e = expectThrows(IllegalArgumentException.class, () -> rangeQuery(TEXT_FIELD_NAME, "{ \"gte\" : \"a\", \"lte\" : \"\" }"));
+        assertThat(e.getMessage(), equalTo("The upper bound of the [range] interval rule must not be empty"));
+    }
+
+    public void testRangeInsideCombine() throws IOException {
+        String json = "{ \"intervals\" : { \""
+            + TEXT_FIELD_NAME
+            + "\": { \"all_of\" : { \"mode\" : \"ordered\", \"max_gaps\" : 0, \"intervals\" : ["
+            + "{ \"match\" : { \"query\" : \"fiscal year\", \"mode\" : \"ordered\", \"max_gaps\" : 0 } },"
+            + "{ \"range\" : { \"gte\" : \"2019\", \"lte\" : \"2023\" } } ] } } } }";
+        Query expected = new IntervalQuery(
+            TEXT_FIELD_NAME,
+            Intervals.phrase(Intervals.phrase(Intervals.term("fiscal"), Intervals.term("year")), rangeSource("2019", "2023", true, true))
+        );
+        assertEquals(expected, ((IntervalQueryBuilder) parseQuery(json)).toQuery(createShardContext()));
+    }
+
+    public void testRangeRoundTripsThroughQueryBuilderXContent() throws IOException {
+        String json = rangeJson(TEXT_FIELD_NAME, "{ \"gt\" : \"a\", \"lte\" : \"c\", \"analyzer\" : \"keyword\", \"max_expansions\" : 9 }");
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        assertEquals(builder, parseQuery(builder.toString()));
+        assertThat(builder.getSourceProvider(), instanceOf(IntervalsSourceProvider.Range.class));
     }
 
 }
