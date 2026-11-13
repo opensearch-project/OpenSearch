@@ -48,6 +48,9 @@ import org.opensearch.action.admin.indices.readonly.AddIndexBlockClusterStateUpd
 import org.opensearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.opensearch.action.admin.indices.readonly.AddIndexBlockResponse.AddBlockResult;
 import org.opensearch.action.admin.indices.readonly.AddIndexBlockResponse.AddBlockShardResult;
+import org.opensearch.action.admin.indices.readonly.RemoveIndexBlockClusterStateUpdateRequest;
+import org.opensearch.action.admin.indices.readonly.RemoveIndexBlockResponse;
+import org.opensearch.action.admin.indices.readonly.RemoveIndexBlockResponse.RemoveBlockResult;
 import org.opensearch.action.admin.indices.readonly.TransportVerifyShardIndexBlockAction;
 import org.opensearch.action.support.ActiveShardsObserver;
 import org.opensearch.action.support.replication.ReplicationResponse;
@@ -108,7 +111,7 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.unmodifiableMap;
 
 /**
- * Service responsible for submitting open/close index requests as well as for adding index blocks
+ * Service responsible for submitting open/close index requests as well as for adding and removing index blocks
  *
  * @opensearch.internal
  */
@@ -1123,6 +1126,139 @@ public class MetadataIndexStateService {
             ClusterState.builder(currentState).blocks(blocks).metadata(metadata).routingTable(routingTable.build()).build(),
             blockingResults.values()
         );
+    }
+
+    /**
+     * Removes the given block from the given indices, and sets the matching {@code index.blocks.*} setting to {@code false}, in one
+     * cluster state update. The listener is notified once all nodes have acknowledged the cluster state, or the acknowledgement timed
+     * out. The response is only acknowledged if the block is gone from every index. Unlike adding a block, no coordination with the
+     * shards is needed.
+     *
+     * @see #removeIndexBlock(Index[], ClusterState, APIBlock) for what is removed
+     */
+    public void removeIndexBlock(RemoveIndexBlockClusterStateUpdateRequest request, ActionListener<RemoveIndexBlockResponse> listener) {
+        final Index[] concreteIndices = request.indices();
+        if (concreteIndices == null || concreteIndices.length == 0) {
+            throw new IllegalArgumentException("Index name is required");
+        }
+
+        clusterService.submitStateUpdateTask(
+            "remove-index-block-[" + request.getBlock().name + "]-" + Arrays.toString(concreteIndices),
+            new AckedClusterStateUpdateTask<RemoveIndexBlockResponse>(Priority.URGENT, request, listener) {
+
+                private volatile List<RemoveBlockResult> results = Collections.emptyList();
+
+                @Override
+                protected RemoveIndexBlockResponse newResponse(boolean acknowledged) {
+                    // as for the add block API, an index that still has its block means the request is not acknowledged
+                    final List<RemoveBlockResult> indexResults = results;
+                    return new RemoveIndexBlockResponse(
+                        acknowledged && indexResults.stream().allMatch(RemoveBlockResult::isUnblocked),
+                        indexResults
+                    );
+                }
+
+                @Override
+                public ClusterState execute(final ClusterState currentState) {
+                    final Tuple<ClusterState, List<RemoveBlockResult>> tup = removeIndexBlock(
+                        concreteIndices,
+                        currentState,
+                        request.getBlock()
+                    );
+                    results = tup.v2();
+                    return tup.v1();
+                }
+            }
+        );
+    }
+
+    /**
+     * Removes the given block from the given indices. Per index, the full (not UUID based) cluster block with the id of the block is
+     * removed, and {@code index.blocks.<block>} is set to {@code false} if it was {@code true}, so that cluster state and settings keep
+     * agreeing. The two are changed together in the returned cluster state. Other blocks of the index, including the index closed block,
+     * are not touched, and neither are the indices that are not listed.
+     * <p>
+     * An index that does not have the block is a no-op and is reported as unblocked. If every index is a no-op, the very same cluster
+     * state is returned.
+     * <p>
+     * A temporary UUID based block with the id of the block is what an add block request leaves while it is running, and what stays
+     * behind when the request did not complete. It cannot be told apart, so it is left alone, together with the setting that goes with
+     * it, and the index is reported with an {@link IllegalStateException} instead of as unblocked. Once the add block request completed,
+     * or is repeated, the block is a regular one and can be removed.
+     *
+     * @param indices The indices to remove the block from
+     * @param currentState The current cluster state
+     * @param block The type of block to remove
+     * @return a tuple of the updated cluster state, and the result for every index, in the order of {@code indices}
+     * @throws IndexNotFoundException if one of the indices does not exist
+     */
+    static Tuple<ClusterState, List<RemoveBlockResult>> removeIndexBlock(
+        final Index[] indices,
+        final ClusterState currentState,
+        final APIBlock block
+    ) {
+        final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+        final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+        final List<RemoveBlockResult> results = new ArrayList<>(indices.length);
+        final List<String> unblockedIndices = new ArrayList<>();
+
+        for (Index index : indices) {
+            final IndexMetadata indexMetadata = metadata.getSafe(index); // to check if index exists
+            final String indexName = index.getName();
+
+            final boolean hasTemporaryBlock = currentState.blocks()
+                .indices()
+                .getOrDefault(indexName, Collections.emptySet())
+                .stream()
+                .anyMatch(clusterBlock -> clusterBlock.id() == block.block.id() && Strings.hasLength(clusterBlock.uuid()));
+            if (hasTemporaryBlock) {
+                logger.debug("index {} has a temporary block {}, not removing it", index, block.block);
+                results.add(
+                    new RemoveBlockResult(
+                        index,
+                        new IllegalStateException(
+                            "cannot remove block ["
+                                + block.name
+                                + "] from index ["
+                                + indexName
+                                + "]: a temporary ["
+                                + block.name
+                                + "] block is present because a request to add it is still running or did not complete. Wait for the "
+                                + "request to finish, or repeat it so that the block is fully applied, and then remove the block"
+                        )
+                    )
+                );
+                continue;
+            }
+
+            boolean changed = false;
+            if (currentState.blocks().hasIndexBlock(indexName, block.block)) {
+                blocks.removeIndexBlock(indexName, block.block);
+                changed = true;
+            }
+            // update index settings as well to match the block
+            if (block.setting().get(indexMetadata.getSettings())) {
+                final Settings updatedSettings = Settings.builder()
+                    .put(indexMetadata.getSettings())
+                    .put(block.settingName(), false)
+                    .build();
+                metadata.put(
+                    IndexMetadata.builder(indexMetadata).settings(updatedSettings).settingsVersion(indexMetadata.getSettingsVersion() + 1)
+                );
+                changed = true;
+            }
+            if (changed) {
+                unblockedIndices.add(indexName);
+            }
+            results.add(new RemoveBlockResult(index));
+        }
+
+        if (unblockedIndices.isEmpty()) {
+            return Tuple.tuple(currentState, results);
+        }
+
+        logger.info("removed block {} from indices {}", block.name, unblockedIndices);
+        return Tuple.tuple(ClusterState.builder(currentState).blocks(blocks).metadata(metadata).build(), results);
     }
 
     /**

@@ -864,6 +864,8 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             "dangling_indices.delete_dangling_index",
             "dangling_indices.import_dangling_index",
             "dangling_indices.list_dangling_indices",
+            // The remove index block API is available through the low-level client, not the deprecated high-level client.
+            "indices.remove_block",
             "indices.shard_stores",
             "indices.upgrade",
             "indices.recovery",
