@@ -337,7 +337,7 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         when(
             remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
                 RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration),
-                1
+                Integer.MAX_VALUE
             )
         ).thenReturn(metadataFiles);
 
@@ -369,7 +369,7 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         when(
             remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
                 RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration),
-                1
+                Integer.MAX_VALUE
             )
         ).thenReturn(metadataFiles);
 
@@ -387,7 +387,7 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         when(
             remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
                 RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration),
-                1
+                Integer.MAX_VALUE
             )
         ).thenReturn(metadataFiles);
 
@@ -405,7 +405,7 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         when(
             remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
                 RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration),
-                1
+                Integer.MAX_VALUE
             )
         ).thenReturn(metadataFiles);
 
@@ -489,12 +489,57 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         when(
             remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
                 RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration),
-                1
+                Integer.MAX_VALUE
             )
         ).thenReturn(List.of("metadata__" + testPrimaryTerm + "__" + testGeneration + "__pqr"));
 
         String output = remoteSegmentStoreDirectory.getMetadataFileForCommit(testPrimaryTerm, testGeneration);
         assertEquals("metadata__" + testPrimaryTerm + "__" + testGeneration + "__pqr", output);
+    }
+
+    public void testGetMetadataFileForCommitPicksEarliestUpload() throws IOException {
+        long testPrimaryTerm = 2;
+        long testGeneration = 3;
+        // Filename fields after the commit generation are inverted, so for files sharing the commit prefix the
+        // earliest upload sorts last in lexicographic order.
+        String earliestUpload = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+            testPrimaryTerm,
+            testGeneration,
+            4,
+            9,
+            RemoteSegmentMetadata.CURRENT_VERSION,
+            "node-1",
+            1000
+        );
+        String middleUpload = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+            testPrimaryTerm,
+            testGeneration,
+            5,
+            10,
+            RemoteSegmentMetadata.CURRENT_VERSION,
+            "node-1",
+            2000
+        );
+        String latestUpload = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
+            testPrimaryTerm,
+            testGeneration,
+            6,
+            11,
+            RemoteSegmentMetadata.CURRENT_VERSION,
+            "node-1",
+            3000
+        );
+        // The remote listing is in ascending lexicographic order, so the latest upload comes first.
+        List<String> metadataFiles = List.of(latestUpload, middleUpload, earliestUpload);
+        assertEquals(latestUpload, metadataFiles.stream().sorted().findFirst().get());
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration),
+                Integer.MAX_VALUE
+            )
+        ).thenReturn(metadataFiles);
+
+        assertEquals(earliestUpload, remoteSegmentStoreDirectory.getMetadataFileForCommit(testPrimaryTerm, testGeneration));
     }
 
     public void testCopyFrom() throws IOException {
