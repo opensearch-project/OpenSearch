@@ -82,6 +82,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 
 import static org.opensearch.core.util.FileSystemUtils.isAccessibleDirectory;
 
@@ -100,8 +102,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     /**
      * We keep around a list of plugins and modules
      */
-    private final List<Tuple<PluginInfo, Plugin>> plugins;
-    private final PluginsAndModules info;
+    private volatile List<Tuple<PluginInfo, Plugin>> plugins;
+    private volatile PluginsAndModules info;
+
+    /**
+     * Map to track plugin load status for hot reload functionality
+     */
+    private final Map<String, PluginLoadStatus> pluginLoadStatusMap = new HashMap<>();
 
     public static final Setting<List<String>> MANDATORY_SETTING = Setting.listSetting(
         "plugin.mandatory",
@@ -832,5 +839,216 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     public <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.v2().getClass())).map(p -> ((T) p.v2())).collect(Collectors.toList());
+    }
+
+    // ========== Dynamic Plugin Loading Methods ==========
+
+    /**
+     * Dynamically load a plugin from the specified path
+     *
+     * @param pluginPath The path to the plugin directory
+     * @return The loaded plugin instance
+     * @throws IOException if plugin loading fails
+     */
+    @SuppressWarnings("removal")
+    public Plugin loadPluginDynamically(Path pluginPath) throws IOException {
+        try {
+            return AccessController.doPrivileged((PrivilegedExceptionAction<Plugin>) () -> {
+                if (!Files.exists(pluginPath) || !Files.isDirectory(pluginPath)) {
+                    throw new IllegalArgumentException("Plugin path does not exist or is not a directory: " + pluginPath);
+                }
+
+                // Read plugin bundle from the specified path
+                Set<Bundle> bundles = new HashSet<>();
+                Bundle bundle = readPluginBundle(bundles, pluginPath, "plugin");
+                bundles.add(bundle);
+
+                // Load the plugin
+                Map<String, Plugin> loaded = new HashMap<>();
+                // Add existing plugins to the loaded map to handle dependencies
+                for (Tuple<PluginInfo, Plugin> existingPlugin : plugins) {
+                    loaded.put(existingPlugin.v1().getName(), existingPlugin.v2());
+                }
+
+                Plugin plugin = loadBundle(bundle, loaded);
+
+                // Register the dynamically loaded plugin with the system
+                registerDynamicPlugin(bundle.plugin, plugin);
+
+                return plugin;
+            });
+        } catch (PrivilegedActionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof IOException) {
+                throw (IOException) cause;
+            } else if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            } else {
+                throw new IOException("Failed to load plugin dynamically", cause);
+            }
+        }
+    }
+
+    /**
+     * Register a dynamically loaded plugin with the system so it appears in _cat/plugins
+     * 
+     * @param pluginInfo The plugin information
+     * @param plugin The plugin instance
+     */
+    private synchronized void registerDynamicPlugin(PluginInfo pluginInfo, Plugin plugin) {
+        try {
+            // Check if plugin is already registered to prevent duplicates
+            boolean pluginExists = false;
+            for (Tuple<PluginInfo, Plugin> existingPlugin : plugins) {
+                if (existingPlugin.v1().getName().equals(pluginInfo.getName())) {
+                    pluginExists = true;
+                    logger.warn("Plugin [{}] is already registered. Skipping duplicate registration.", pluginInfo.getName());
+                    break;
+                }
+            }
+            
+            if (!pluginExists) {
+                // Create new plugin tuple
+                Tuple<PluginInfo, Plugin> pluginTuple = new Tuple<>(pluginInfo, plugin);
+                
+                // Create new plugins list with the dynamically loaded plugin
+                List<Tuple<PluginInfo, Plugin>> newPluginsList = new ArrayList<>(plugins);
+                newPluginsList.add(pluginTuple);
+                
+                // Update the plugins list
+                this.plugins = Collections.unmodifiableList(newPluginsList);
+                
+                // Create new plugin info list for PluginsAndModules
+                List<PluginInfo> newPluginInfoList = new ArrayList<>(info.getPluginInfos());
+                newPluginInfoList.add(pluginInfo);
+                
+                // Update the info object
+                this.info = new PluginsAndModules(newPluginInfoList, info.getModuleInfos());
+                
+                logger.info("Successfully registered dynamically loaded plugin [{}] with the system", pluginInfo.getName());
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to register dynamically loaded plugin [{}] with the system: {}", pluginInfo.getName(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Dynamically unload a plugin by name
+     *
+     * @param pluginName The name of the plugin to unload
+     * @return true if the plugin was successfully unloaded, false if not found
+     */
+    public synchronized boolean unloadPluginDynamically(String pluginName) {
+        try {
+            // Find the plugin to unload
+            Tuple<PluginInfo, Plugin> pluginToUnload = null;
+            for (Tuple<PluginInfo, Plugin> plugin : plugins) {
+                if (plugin.v1().getName().equals(pluginName) || 
+                    plugin.v2().getClass().getSimpleName().equals(pluginName)) {
+                    pluginToUnload = plugin;
+                    break;
+                }
+            }
+
+            if (pluginToUnload == null) {
+                logger.warn("Plugin [{}] not found for unloading", pluginName);
+                return false;
+            }
+
+            // Create new plugins list without the unloaded plugin
+            List<Tuple<PluginInfo, Plugin>> newPluginsList = new ArrayList<>();
+            for (Tuple<PluginInfo, Plugin> plugin : plugins) {
+                if (!plugin.equals(pluginToUnload)) {
+                    newPluginsList.add(plugin);
+                }
+            }
+
+            // Update the plugins list
+            this.plugins = Collections.unmodifiableList(newPluginsList);
+
+            // Create new plugin info list for PluginsAndModules
+            List<PluginInfo> newPluginInfoList = new ArrayList<>();
+            for (PluginInfo pluginInfo : info.getPluginInfos()) {
+                if (!pluginInfo.equals(pluginToUnload.v1())) {
+                    newPluginInfoList.add(pluginInfo);
+                }
+            }
+
+            // Update the info object
+            this.info = new PluginsAndModules(newPluginInfoList, info.getModuleInfos());
+
+            // Attempt to close class loader if it's a URLClassLoader
+            try {
+                ClassLoader pluginClassLoader = pluginToUnload.v2().getClass().getClassLoader();
+                if (pluginClassLoader instanceof URLClassLoader) {
+                    ((URLClassLoader) pluginClassLoader).close();
+                    logger.debug("Closed class loader for plugin [{}]", pluginName);
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to close class loader for plugin [{}]: {}", pluginName, e.getMessage());
+            }
+
+            logger.info("Successfully unloaded plugin [{}]", pluginName);
+            return true;
+
+        } catch (Exception e) {
+            logger.error("Failed to unload plugin [{}]: {}", pluginName, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * Get a plugin by name for unloading purposes
+     *
+     * @param pluginName The name of the plugin to find
+     * @return The plugin tuple if found, null otherwise
+     */
+    public Tuple<PluginInfo, Plugin> getPluginByName(String pluginName) {
+        for (Tuple<PluginInfo, Plugin> plugin : plugins) {
+            if (plugin.v1().getName().equals(pluginName) || 
+                plugin.v2().getClass().getSimpleName().equals(pluginName)) {
+                return plugin;
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Mark a plugin as loaded via the load API
+     *
+     * @param pluginName The name of the plugin
+     */
+    public void markPluginAsLoaded(String pluginName) {
+        updatePluginLoadStatus(pluginName, PluginLoadStatus.LOADED);
+    }
+    
+    /**
+     * Mark a plugin as active via the register API
+     *
+     * @param pluginName The name of the plugin
+     */
+    public void markPluginAsActive(String pluginName) {
+        updatePluginLoadStatus(pluginName, PluginLoadStatus.ACTIVE);
+    }
+    
+    /**
+     * Update the load status of a plugin
+     *
+     * @param pluginName The name of the plugin
+     * @param status The new load status
+     */
+    public void updatePluginLoadStatus(String pluginName, PluginLoadStatus status) {
+        pluginLoadStatusMap.put(pluginName, status);
+        logger.debug("Updated plugin [{}] load status to [{}]", pluginName, status.getDisplayName());
+    }
+    
+    /**
+     * Get the load status of a plugin
+     *
+     * @param pluginName The name of the plugin
+     * @return The load status, or INITIAL if not found
+     */
+    public PluginLoadStatus getPluginLoadStatus(String pluginName) {
+        return pluginLoadStatusMap.getOrDefault(pluginName, PluginLoadStatus.INITIAL);
     }
 }
