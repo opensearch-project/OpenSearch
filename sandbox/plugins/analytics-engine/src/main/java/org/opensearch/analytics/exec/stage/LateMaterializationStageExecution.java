@@ -29,6 +29,7 @@ import org.opensearch.analytics.exec.stage.coordinator.ReduceStageExecution;
 import org.opensearch.analytics.exec.stage.shard.ShardFragmentStageExecution;
 import org.opensearch.analytics.planner.ArrowCalciteTypes;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.dag.InputSinkDecorator;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
@@ -251,7 +252,9 @@ public final class LateMaterializationStageExecution extends AbstractStageExecut
      */
     @Override
     public ExchangeSink inputSink(int childStageId) {
-        return childInputBuffer;
+        // Set by the DAG cut when the child is the shard fragment itself (no reduce stage to stamp ___ugsi).
+        InputSinkDecorator decorator = stage.getInputSinkDecorator();
+        return decorator != null ? decorator.decorate(childInputBuffer, config.bufferAllocator()) : childInputBuffer;
     }
 
     /**
