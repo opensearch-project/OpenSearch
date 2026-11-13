@@ -43,6 +43,7 @@ import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.opensearch.search.aggregations.StarTreeBucketCollector;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
@@ -127,6 +128,22 @@ public abstract class BucketsAggregator extends AggregatorBase {
             multiBucketConsumer.accept(0);
         }
         subCollector.collect(doc, bucketOrd);
+    }
+
+    /**
+     * For aggregators that add doc counts in bulk: gives the bucket consumer the chance to check memory that
+     * {@link #collectExistingBucket} gives it for every bucket that goes from no docs to some docs, for {@code newBuckets}
+     * such buckets at once. Like there, it doesn't count toward {@code search.max_buckets}. Pass at most 1024 at a time,
+     * so the parent breaker is still checked at least once every 1024 new buckets.
+     */
+    protected final void checkMemoryForNewBuckets(int newBuckets) {
+        if (multiBucketConsumer instanceof MultiBucketConsumer consumer) {
+            consumer.acceptZeros(newBuckets);
+        } else {
+            for (int i = 0; i < newBuckets; i++) {
+                multiBucketConsumer.accept(0);
+            }
+        }
     }
 
     /**
