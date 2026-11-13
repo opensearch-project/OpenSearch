@@ -121,7 +121,8 @@ public class YamlXContent implements XContent, XContentConstraints {
                     readCtxt.getStreamReadFeatures(_streamReadFeatures),
                     readCtxt.getFormatReadFeatures(_formatReadFeatures),
                     _loadSettings,
-                    r
+                    r,
+                    false
                 ) {
                     @Override
                     protected Boolean _matchYAMLBoolean(String value, int len) {
@@ -142,7 +143,11 @@ public class YamlXContent implements XContent, XContentConstraints {
 
             @Override
             protected YAMLParser _createParser(ObjectReadContext readCtxt, IOContext ioCtxt, InputStream is) {
-                return _createParser(readCtxt, ioCtxt, _createReader(is, null, ioCtxt));
+                return _createParser(
+                    readCtxt,
+                    ioCtxt,
+                    _createReader(is, null, ioCtxt, readCtxt.getStreamReadFeatures(_streamReadFeatures))
+                );
             }
         };
         yamlXContent = new YamlXContent();
