@@ -1,0 +1,64 @@
+---
+setup:
+  - skip:
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              tag: { type: keyword }
+              count: { type: long }
+  - do:
+      indices.create:
+        index: test-2
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              tag: { type: keyword }
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index":{"_index":"test","_id":"1"}}
+          {"tag":"web-01","count":1}
+          {"index":{"_index":"test","_id":"2"}}
+          {"tag":"web-02","count":2}
+          {"index":{"_index":"test","_id":"3"}}
+          {"tag":"api-01","count":3}
+          {"index":{"_index":"test","_id":"4"}}
+          {"tag":"Web-03","count":4}
+          {"index":{"_index":"test-2","_id":"1"}}
+          {"tag":"web-02"}
+          {"index":{"_index":"test-2","_id":"2"}}
+          {"tag":"web-04"}
+
+---
+"Case sensitive by default":
+  - skip:
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
+  - do:
+      terms_enum:
+        index: test
+        body: { field: tag, string: "WEB-" }
+  - match: { terms: [] }
+
+---
+"Case insensitive":
+  - skip:
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
+  - do:
+      terms_enum:
+        index: test
+        body: { field: tag, string: "WEB-", case_insensitive: true }
+  - match: { terms: [Web-03, web-01, web-02] }
