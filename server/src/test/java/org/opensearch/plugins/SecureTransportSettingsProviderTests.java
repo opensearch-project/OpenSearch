@@ -25,9 +25,11 @@ public class SecureTransportSettingsProviderTests extends OpenSearchTestCase {
 
     public void testParameterDefaults() throws Exception {
         final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-        final SecureTransportSettingsProvider.SecureTransportParameters parameters = parameters(keyManagerFactory);
+        final TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        final SecureTransportSettingsProvider.SecureTransportParameters parameters = parameters(keyManagerFactory, trustManagerFactory);
 
         assertSame(keyManagerFactory, parameters.clientKeyManagerFactory().orElseThrow());
+        assertSame(trustManagerFactory, parameters.clientTrustManagerFactory().orElseThrow());
         assertEquals(Optional.empty(), parameters.enforceHostnameVerification());
         assertEquals(Optional.empty(), parameters.resolveHostname());
     }
@@ -54,7 +56,10 @@ public class SecureTransportSettingsProviderTests extends OpenSearchTestCase {
         assertEquals(Optional.empty(), provider.isNodeCertificate(new X509Certificate[0]));
     }
 
-    private static SecureTransportSettingsProvider.SecureTransportParameters parameters(final KeyManagerFactory keyManagerFactory) {
+    private static SecureTransportSettingsProvider.SecureTransportParameters parameters(
+        final KeyManagerFactory keyManagerFactory,
+        final TrustManagerFactory trustManagerFactory
+    ) {
         return new SecureTransportSettingsProvider.SecureTransportParameters() {
             @Override
             public boolean dualModeEnabled() {
@@ -88,7 +93,7 @@ public class SecureTransportSettingsProviderTests extends OpenSearchTestCase {
 
             @Override
             public Optional<TrustManagerFactory> trustManagerFactory() {
-                return Optional.empty();
+                return Optional.of(trustManagerFactory);
             }
         };
     }

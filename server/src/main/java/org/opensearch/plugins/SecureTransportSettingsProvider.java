@@ -123,6 +123,15 @@ public interface SecureTransportSettingsProvider {
          * @return instance of {@link TrustManagerFactory}
          */
         Optional<TrustManagerFactory> trustManagerFactory();
+
+        /**
+         * Provides the {@link TrustManagerFactory} for the client side of the transport. It differs from
+         * {@link #trustManagerFactory()} only when the transport uses separate client and server certificates.
+         * @return instance of {@link TrustManagerFactory}
+         */
+        default Optional<TrustManagerFactory> clientTrustManagerFactory() {
+            return trustManagerFactory();
+        }
     }
 
     /**
