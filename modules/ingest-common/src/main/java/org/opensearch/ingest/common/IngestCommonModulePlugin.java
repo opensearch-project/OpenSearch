@@ -111,6 +111,7 @@ public class IngestCommonModulePlugin extends Plugin implements ActionPlugin, In
         processors.put(JsonProcessor.TYPE, new JsonProcessor.Factory());
         processors.put(KeyValueProcessor.TYPE, new KeyValueProcessor.Factory(parameters.scriptService));
         processors.put(URLDecodeProcessor.TYPE, new URLDecodeProcessor.Factory());
+        processors.put(UriPartsProcessor.TYPE, new UriPartsProcessor.Factory());
         processors.put(BytesProcessor.TYPE, new BytesProcessor.Factory());
         processors.put(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService));
         processors.put(DissectProcessor.TYPE, new DissectProcessor.Factory());
