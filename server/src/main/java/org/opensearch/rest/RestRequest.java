@@ -379,6 +379,21 @@ public class RestRequest implements ToXContent.Params {
         return value;
     }
 
+    /**
+     * Consumes and parses a declared REST parameter. Missing optional parameters return {@code null}.
+     */
+    public final <T> T param(RestParameter<T> parameter) {
+        return parameter.get(this);
+    }
+
+    /**
+     * Consumes and parses a declared REST parameter, using the action request's default when it is absent.
+     */
+    public final <T> T param(RestParameter<T> parameter, T defaultValue) {
+        T value = parameter.get(this);
+        return value == null ? defaultValue : value;
+    }
+
     public Map<String, String> params() {
         return params;
     }

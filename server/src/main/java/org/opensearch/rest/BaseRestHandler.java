@@ -109,27 +109,67 @@ public abstract class BaseRestHandler implements RestHandler {
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+        final List<RestParameter<?>> declaredParameters = parameters();
+        validateDeclaredParameters(request, declaredParameters);
+
         // prepare the request for execution; has the side effect of touching the request parameters
         final RestChannelConsumer action = prepareRequest(request, client);
 
         // validate unconsumed params, but we must exclude params used to format the response
-        // use a sorted set so the unconsumed parameters appear in a reliable sorted order
+        // Use a sorted set so the unconsumed parameters appear in a reliable sorted order.
         final SortedSet<String> unconsumedParams = request.unconsumedParams()
             .stream()
-            .filter(p -> !responseParams().contains(p))
+            .filter(p -> responseParams().contains(p) == false)
             .collect(Collectors.toCollection(TreeSet::new));
 
         // validate the non-response params
-        if (!unconsumedParams.isEmpty()) {
+        if (unconsumedParams.isEmpty() == false) {
             final Set<String> candidateParams = new HashSet<>();
             candidateParams.addAll(request.consumedParams());
             candidateParams.addAll(responseParams());
+            declaredParameters.forEach(parameter -> candidateParams.add(parameter.getKey()));
             throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
         }
 
         usageCount.increment();
         // execute the action
         action.accept(channel);
+    }
+
+    private void validateDeclaredParameters(RestRequest request, List<RestParameter<?>> declaredParameters) {
+        if (declaredParameters.isEmpty()) {
+            return;
+        }
+        final Set<String> seen = new HashSet<>();
+        final SortedSet<String> missing = new TreeSet<>();
+        for (RestParameter<?> parameter : declaredParameters) {
+            if (seen.add(parameter.getKey()) == false) {
+                throw new IllegalStateException(
+                    "handler [" + getName() + "] declares parameter [" + parameter.getKey() + "] more than once"
+                );
+            }
+            if (parameter.isRequired() && request.hasParam(parameter.getKey()) == false) {
+                missing.add(parameter.getKey());
+            }
+        }
+        if (missing.isEmpty() == false) {
+            if (missing.size() == 1) {
+                throw new IllegalArgumentException(
+                    "request [" + request.path() + "] is missing required parameter [" + missing.first() + "]"
+                );
+            }
+            final StringBuilder message = new StringBuilder("request [").append(request.path())
+                .append("] is missing required parameters: ");
+            boolean first = true;
+            for (String key : missing) {
+                if (first == false) {
+                    message.append(", ");
+                }
+                message.append("[").append(key).append("]");
+                first = false;
+            }
+            throw new IllegalArgumentException(message.toString());
+        }
     }
 
     public static String unrecognizedStrings(
@@ -311,6 +351,11 @@ public abstract class BaseRestHandler implements RestHandler {
         @Override
         protected Set<String> responseParams() {
             return delegate.responseParams();
+        }
+
+        @Override
+        public List<RestParameter<?>> parameters() {
+            return delegate.parameters();
         }
 
         @Override
