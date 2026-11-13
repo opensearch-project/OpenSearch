@@ -39,6 +39,7 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.opensearch.Version;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.MapperService;
@@ -53,6 +54,7 @@ import java.util.stream.Collectors;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBuilder> {
 
@@ -130,9 +132,22 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
                     assertThat(booleanClause.occur(), equalTo(BooleanClause.Occur.SHOULD));
                 }
             } else if (context.getMapperService().fieldType(field).hasDocValues()) {
-                assertThat(constantScoreQuery.getQuery(), instanceOf(FieldExistsQuery.class));
-                FieldExistsQuery dvExistsQuery = (FieldExistsQuery) constantScoreQuery.getQuery();
-                assertEquals(field, dvExistsQuery.getField());
+                if (GEO_SHAPE_FIELD_NAME.equals(field) && context.getIndexSettings().getIndexVersionCreated().before(Version.V_2_9_0)) {
+                    // geo_shape doc values are only written to indices created on or after 2.9.0 (#10958), so on older
+                    // indices exists queries fall back to the _field_names marker plus a bounding box query over the
+                    // whole world instead of querying doc values (#11746).
+                    assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
+                    BooleanQuery booleanQuery = (BooleanQuery) constantScoreQuery.getQuery();
+                    assertThat(booleanQuery.clauses(), hasSize(2));
+                    assertThat(booleanQuery.clauses().get(0).occur(), equalTo(BooleanClause.Occur.SHOULD));
+                    assertThat(booleanQuery.clauses().get(1).occur(), equalTo(BooleanClause.Occur.SHOULD));
+                    assertThat(booleanQuery.clauses().get(0).query(), instanceOf(TermQuery.class));
+                    assertEquals(field, ((TermQuery) booleanQuery.clauses().get(0).query()).getTerm().text());
+                } else {
+                    assertThat(constantScoreQuery.getQuery(), instanceOf(FieldExistsQuery.class));
+                    FieldExistsQuery dvExistsQuery = (FieldExistsQuery) constantScoreQuery.getQuery();
+                    assertEquals(field, dvExistsQuery.getField());
+                }
             } else if (context.getMapperService().fieldType(field).getTextSearchInfo().hasNorms()) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(FieldExistsQuery.class));
                 FieldExistsQuery normsExistsQuery = (FieldExistsQuery) constantScoreQuery.getQuery();

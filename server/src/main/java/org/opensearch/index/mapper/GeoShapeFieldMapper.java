@@ -36,9 +36,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.document.ShapeField.QueryRelation;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.opensearch.Version;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.geo.GeometryParser;
@@ -154,6 +159,23 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         @Override
         public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
             return queryProcessor.geoShapeQuery(shape, fieldName, relation, context);
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (context.getIndexSettings().getIndexVersionCreated().before(Version.V_2_9_0)) {
+                // Older indices cannot write geo_shape doc values, regardless of the mapping declaration.
+                Query fieldNames = new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+                if (isSearchable()) {
+                    // Documents written after an upgrade may also lack _field_names (#11746).
+                    // Retain the marker query for older documents, including empty geometries.
+                    return new BooleanQuery.Builder().add(fieldNames, BooleanClause.Occur.SHOULD)
+                        .add(LatLonShape.newBoxQuery(name(), QueryRelation.INTERSECTS, -90, 90, -180, 180), BooleanClause.Occur.SHOULD)
+                        .build();
+                }
+                return fieldNames;
+            }
+            return super.existsQuery(context);
         }
 
         @Override
