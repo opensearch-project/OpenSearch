@@ -47,6 +47,13 @@ public class MetricInspectionHelper {
         return agg.getCount() > 0;
     }
 
+    /**
+     * @return whether the boxplot was computed from at least one value
+     */
+    public static boolean hasValue(InternalBoxplot agg) {
+        return agg.getState().size() > 0;
+    }
+
     public static boolean hasValue(InternalCardinality agg) {
         return agg.getCounts() != null;
     }

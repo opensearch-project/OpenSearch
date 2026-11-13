@@ -181,10 +181,12 @@ import org.opensearch.search.aggregations.bucket.terms.heuristic.PercentageScore
 import org.opensearch.search.aggregations.bucket.terms.heuristic.ScriptHeuristic;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.BoxplotAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.InternalAvg;
+import org.opensearch.search.aggregations.metrics.InternalBoxplot;
 import org.opensearch.search.aggregations.metrics.InternalCardinality;
 import org.opensearch.search.aggregations.metrics.InternalExtendedStats;
 import org.opensearch.search.aggregations.metrics.InternalGeoCentroid;
@@ -483,6 +485,12 @@ public class SearchModule {
                 MedianAbsoluteDeviationAggregationBuilder.PARSER
             ).addResultReader(InternalMedianAbsoluteDeviation::new)
                 .setAggregatorRegistrar(MedianAbsoluteDeviationAggregationBuilder::registerAggregators),
+            builder
+        );
+        registerAggregation(
+            new AggregationSpec(BoxplotAggregationBuilder.NAME, BoxplotAggregationBuilder::new, BoxplotAggregationBuilder.PARSER)
+                .addResultReader(InternalBoxplot::new)
+                .setAggregatorRegistrar(BoxplotAggregationBuilder::registerAggregators),
             builder
         );
         registerAggregation(
