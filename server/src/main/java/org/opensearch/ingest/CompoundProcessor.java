@@ -274,6 +274,10 @@ public class CompoundProcessor implements Processor {
         final Processor processor = processorWithMetric.v1();
         final OperationMetrics metric = processorWithMetric.v2();
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
+        // A request to terminate that is already pending when this processor starts was made by a processor that completed earlier, such
+        // as a previous iteration of a foreach processor, which does not cut its loop short. Handling the failure of this processor
+        // discards only its own request, so the pending one is put back when the on_failure processors have run.
+        final boolean terminationPending = ingestDocument.isPipelineTerminated();
         metric.before();
         processor.execute(ingestDocument, (result, e) -> {
             long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
@@ -288,7 +292,12 @@ public class CompoundProcessor implements Processor {
                     if (onFailureProcessors.isEmpty()) {
                         handler.accept(null, compoundProcessorException);
                     } else {
-                        executeOnFailureAsync(0, ingestDocument, compoundProcessorException, handler);
+                        executeOnFailureAsync(
+                            0,
+                            ingestDocument,
+                            compoundProcessorException,
+                            terminationPending ? keepingTerminationRequest(handler) : handler
+                        );
                     }
                 }
             } else {
@@ -315,6 +324,16 @@ public class CompoundProcessor implements Processor {
         }
     }
 
+    /** Sets the request to terminate again on the document that the handler is given, after the on_failure processors cleared it. */
+    private static BiConsumer<IngestDocument, Exception> keepingTerminationRequest(BiConsumer<IngestDocument, Exception> handler) {
+        return (result, e) -> {
+            if (result != null) {
+                result.terminatePipeline();
+            }
+            handler.accept(result, e);
+        };
+    }
+
     private static void addToContinueOrTerminated(
         IngestDocumentWrapper wrapper,
         List<IngestDocumentWrapper> documentsToContinue,
@@ -339,7 +358,8 @@ public class CompoundProcessor implements Processor {
             putFailureMetadata(ingestDocument, exception);
             // The processor that failed did not complete, so a request to terminate that it made before it failed is discarded: the
             // failure is handled as it always is, and from here only an on_failure processor can end the pipeline. (With
-            // ignore_failure the failure is not handled, the processor counts as completed and its request is honoured.)
+            // ignore_failure the failure is not handled, the processor counts as completed and its request is honoured.) A request that
+            // was already pending before the failed processor started is put back by the caller when the on_failure processors are done.
             ingestDocument.clearPipelineTermination();
         }
 

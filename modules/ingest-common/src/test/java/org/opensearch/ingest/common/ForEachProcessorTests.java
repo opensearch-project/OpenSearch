@@ -334,6 +334,42 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
         assertThat(ingestDocument.isPipelineTerminated(), is(true));
     }
 
+    public void testTerminateRequestOfAnEarlierIterationSurvivesAFailureHandledInALaterOne() throws Exception {
+        List<String> values = new ArrayList<>(List.of("foo", "bar", "baz"));
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("values", values));
+        TestProcessor terminateOnBarAndFailOnBaz = new TestProcessor(doc -> {
+            String value = doc.getFieldValue("_ingest._value", String.class);
+            if (value.equals("bar")) {
+                doc.terminatePipeline();
+            }
+            if (value.equals("baz")) {
+                throw new RuntimeException("boom");
+            }
+        });
+        TestProcessor onFailure = new TestProcessor(doc -> {});
+        ForEachProcessor processor = new ForEachProcessor(
+            "_tag",
+            null,
+            "values",
+            new CompoundProcessor(false, List.of(terminateOnBarAndFailOnBaz), List.of(onFailure)),
+            false
+        );
+
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        processor.execute(ingestDocument, (r, e) -> {
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        assertThat(failure[0], nullValue());
+        assertThat(result[0], sameInstance(ingestDocument));
+        assertThat(terminateOnBarAndFailOnBaz.getInvokedCounter(), equalTo(3));
+        assertThat(onFailure.getInvokedCounter(), equalTo(1));
+        // the failure of the last iteration was handled, and the request that the second iteration made is still there for the pipeline
+        assertThat(ingestDocument.isPipelineTerminated(), is(true));
+    }
+
     public void testIgnoreMissing() throws Exception {
         IngestDocument originalIngestDocument = new IngestDocument("_index", "_id", null, null, null, Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);

@@ -1043,6 +1043,36 @@ public class CompoundProcessorTests extends OpenSearchTestCase {
         assertThat(ingestDocument.getIngestMetadata().isEmpty(), is(true));
     }
 
+    public void testOnFailureKeepsARequestThatWasPendingBeforeTheFailedProcessorRan() {
+        // a processor that runs repeatedly on one document, like the inner processor of a foreach, can find a request that an earlier run
+        // left behind: handling its failure must not erase that request, and the on_failure processors still run in full
+        ingestDocument.terminatePipeline();
+        TestProcessor failing = new TestProcessor(new RuntimeException("boom"));
+        TestProcessor onFailureFirst = new TestProcessor(doc -> {});
+        TestProcessor onFailureLast = new TestProcessor(doc -> {});
+        CompoundProcessor wrapped = new CompoundProcessor(
+            false,
+            singletonList(failing),
+            Arrays.asList(onFailureFirst, onFailureLast),
+            ZERO_CLOCK
+        );
+
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        wrapped.execute(ingestDocument, (r, e) -> {
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        assertThat(failure[0], nullValue());
+        assertThat(result[0], sameInstance(ingestDocument));
+        assertThat(failing.getInvokedCounter(), equalTo(1));
+        assertThat(onFailureFirst.getInvokedCounter(), equalTo(1));
+        assertThat(onFailureLast.getInvokedCounter(), equalTo(1));
+        assertThat(ingestDocument.isPipelineTerminated(), is(true));
+        assertThat(ingestDocument.getIngestMetadata().isEmpty(), is(true));
+    }
+
     public void testBatchExecute_onFailureProcessorsRunInFullWhenTheFailedProcessorAskedForTermination() {
         List<IngestDocumentWrapper> wrapperList = Arrays.asList(
             IngestDocumentPreparer.createIngestDocumentWrapper(1),
