@@ -11,6 +11,9 @@ package org.opensearch.ratelimitting.admissioncontrol.controllers;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.node.IoUsageStats;
+import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
@@ -19,6 +22,8 @@ import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+
+import java.util.Optional;
 
 import org.mockito.Mockito;
 
@@ -138,5 +143,37 @@ public class IoBasedAdmissionControllerTests extends OpenSearchTestCase {
         admissionController.addRejectionCount(AdmissionControlActionType.INDEXING.getType(), 2);
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.SEARCH.getType()), 2);
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 5);
+    }
+
+    public void testForceMergeUsesItsOwnIoLimit() {
+        Settings settings = Settings.builder()
+            .put(
+                IoBasedAdmissionControllerSettings.IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+                AdmissionControlMode.ENFORCED.getMode()
+            )
+            .put(IoBasedAdmissionControllerSettings.FORCE_MERGE_IO_USAGE_LIMIT.getKey(), 50)
+            .put(IoBasedAdmissionControllerSettings.INDEXING_IO_USAGE_LIMIT.getKey(), 100)
+            .build();
+        ResourceUsageCollectorService rs = Mockito.mock(ResourceUsageCollectorService.class);
+        // needs an initial cluster state with a local node to resolve local resource usage
+        ClusterService clusterServiceWithState = ClusterServiceUtils.createClusterService(threadPool);
+        admissionController = new IoBasedAdmissionController(
+            IoBasedAdmissionController.IO_BASED_ADMISSION_CONTROLLER,
+            rs,
+            clusterServiceWithState,
+            settings
+        );
+        String localNodeId = clusterServiceWithState.state().nodes().getLocalNodeId();
+        Mockito.when(rs.getNodeStatistics(localNodeId))
+            .thenReturn(Optional.of(new NodeResourceUsageStats(localNodeId, System.currentTimeMillis(), 10, 10, new IoUsageStats(60), 0)));
+
+        admissionController.apply("indices:data/write/bulk[s][p]", AdmissionControlActionType.INDEXING);
+        expectThrows(
+            OpenSearchRejectedExecutionException.class,
+            () -> admissionController.apply("indices:admin/forcemerge", AdmissionControlActionType.FORCE_MERGE)
+        );
+        assertEquals(1, admissionController.getRejectionCount(AdmissionControlActionType.FORCE_MERGE.getType()));
+        assertEquals(0, admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()));
+        clusterServiceWithState.close();
     }
 }

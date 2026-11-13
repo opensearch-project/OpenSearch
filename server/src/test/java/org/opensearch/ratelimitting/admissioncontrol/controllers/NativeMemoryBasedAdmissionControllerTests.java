@@ -423,4 +423,40 @@ public class NativeMemoryBasedAdmissionControllerTests extends OpenSearchTestCas
             NativeMemoryBasedAdmissionControllerSettings.Defaults.INDEXING_NATIVE_MEMORY_POOL_USAGE_LIMIT
         );
     }
+
+    public void testForceMergeIsNotGovernedByNativeMemoryController() {
+        // enforced, every native memory limit at 0 and a saturated indexing pool: force merge must still be admitted,
+        // without throwing for an action type that has no native memory threshold
+        Settings settings = Settings.builder()
+            .put(
+                NativeMemoryBasedAdmissionControllerSettings.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+                AdmissionControlMode.ENFORCED.getMode()
+            )
+            .put(NativeMemoryBasedAdmissionControllerSettings.INDEXING_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 0)
+            .put(NativeMemoryBasedAdmissionControllerSettings.SEARCH_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 0)
+            .put(NativeMemoryBasedAdmissionControllerSettings.CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 0)
+            .put(NativeMemoryBasedAdmissionControllerSettings.INDEXING_NATIVE_MEMORY_POOL_USAGE_LIMIT.getKey(), 0)
+            .build();
+        ResourceUsageCollectorService rs = Mockito.mock(ResourceUsageCollectorService.class);
+        admissionController = new NativeMemoryBasedAdmissionController(
+            NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER,
+            rs,
+            clusterService,
+            settings,
+            indexingPoolSupplier(100, 100)
+        );
+        String localNodeId = clusterService.state().nodes().getLocalNodeId();
+        when(rs.getNodeStatistics(localNodeId)).thenReturn(
+            Optional.of(new NodeResourceUsageStats(localNodeId, System.currentTimeMillis(), 10, 10, null, 100))
+        );
+
+        admissionController.apply("indices:admin/forcemerge", AdmissionControlActionType.FORCE_MERGE);
+
+        assertEquals(0, admissionController.getRejectionCount(AdmissionControlActionType.FORCE_MERGE.getType()));
+        // the controller is otherwise active: the same pressure still rejects indexing
+        expectThrows(
+            org.opensearch.core.concurrency.OpenSearchRejectedExecutionException.class,
+            () -> admissionController.apply("indices:data/write/bulk[s][p]", AdmissionControlActionType.INDEXING)
+        );
+    }
 }

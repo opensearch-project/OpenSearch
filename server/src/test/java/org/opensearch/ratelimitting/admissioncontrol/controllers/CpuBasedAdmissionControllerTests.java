@@ -20,6 +20,15 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import org.mockito.Mockito;
 
 public class CpuBasedAdmissionControllerTests extends OpenSearchTestCase {
@@ -140,5 +149,68 @@ public class CpuBasedAdmissionControllerTests extends OpenSearchTestCase {
         admissionController.addRejectionCount(AdmissionControlActionType.INDEXING.getType(), 2);
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.SEARCH.getType()), 2);
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 5);
+    }
+
+    public void testRejectionCountReadsAndWritesConcurrentlyForNewActionType() throws Exception {
+        admissionController = new CpuBasedAdmissionController(
+            CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER,
+            Mockito.mock(ResourceUsageCollectorService.class),
+            clusterService,
+            Settings.EMPTY
+        );
+        final String type = AdmissionControlActionType.FORCE_MERGE.getType();
+        // never rejected yet: absent key reads as 0 from both getters
+        assertEquals(0, admissionController.getRejectionCount(type));
+        assertFalse(admissionController.getRejectionStats().containsKey(type));
+
+        final int writers = randomIntBetween(2, 8);
+        final int readers = randomIntBetween(2, 8);
+        final int incrementsPerWriter = randomIntBetween(100, 1000);
+        final CyclicBarrier barrier = new CyclicBarrier(writers + readers);
+        final CountDownLatch done = new CountDownLatch(writers + readers);
+        final AtomicBoolean writing = new AtomicBoolean(true);
+        final AtomicInteger writersLeft = new AtomicInteger(writers);
+        final List<Throwable> failures = Collections.synchronizedList(new ArrayList<>());
+        for (int i = 0; i < writers; i++) {
+            threadPool.generic().execute(() -> {
+                try {
+                    barrier.await();
+                    for (int j = 0; j < incrementsPerWriter; j++) {
+                        admissionController.addRejectionCount(type, 1);
+                    }
+                } catch (Throwable t) {
+                    failures.add(t);
+                } finally {
+                    if (writersLeft.decrementAndGet() == 0) {
+                        writing.set(false);
+                    }
+                    done.countDown();
+                }
+            });
+        }
+        for (int i = 0; i < readers; i++) {
+            threadPool.generic().execute(() -> {
+                try {
+                    barrier.await();
+                    long previous = 0;
+                    while (writing.get()) {
+                        // reads race with the first insertion of the key; they must never throw and never go backwards
+                        long current = admissionController.getRejectionCount(type);
+                        assertTrue(current >= previous);
+                        previous = current;
+                        Long fromStats = admissionController.getRejectionStats().get(type);
+                        assertTrue(fromStats == null || fromStats >= 0);
+                    }
+                } catch (Throwable t) {
+                    failures.add(t);
+                } finally {
+                    done.countDown();
+                }
+            });
+        }
+        assertTrue(done.await(30, TimeUnit.SECONDS));
+        assertTrue("unexpected failures: " + failures, failures.isEmpty());
+        assertEquals((long) writers * incrementsPerWriter, admissionController.getRejectionCount(type));
+        assertEquals(Long.valueOf((long) writers * incrementsPerWriter), admissionController.getRejectionStats().get(type));
     }
 }
