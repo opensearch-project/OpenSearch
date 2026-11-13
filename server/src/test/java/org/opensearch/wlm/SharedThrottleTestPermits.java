@@ -36,6 +36,7 @@ final class SharedThrottleTestPermits {
         String coordinatorId,
         long coordinatorTaskId
     ) {
+        // The tracker never reads wants_queue.
         return tracker.tryAcquire(
             new WorkloadGroupSharedThrottleService.AcquirePermitRequest(
                 bucketKey,
@@ -43,7 +44,8 @@ final class SharedThrottleTestPermits {
                 permitId,
                 ttlNanos,
                 coordinatorId,
-                coordinatorTaskId
+                coordinatorTaskId,
+                false
             )
         );
     }

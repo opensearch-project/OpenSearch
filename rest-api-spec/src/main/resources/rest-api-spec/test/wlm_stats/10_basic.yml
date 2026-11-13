@@ -133,3 +133,14 @@
   - is_true: $body
   - match:
       $body: /NODE_ID/
+
+---
+"Queue columns follow TOTAL_WOULD_THROTTLE":
+  - skip:
+      version: " - 3.9.99"
+      reason: "queue columns were added to wlm_stats_list in 3.10"
+  - do:
+      wlm_stats_list:
+        v: true
+  - match:
+      $body: /TOTAL_WOULD_THROTTLE \s+ \| \s+ TOTAL_QUEUED \s+ \| \s+ TOTAL_QUEUE_REJECTIONS \s+ \| \s+ QUEUED_CURRENT \s+ \| \s+ CPU_USAGE/

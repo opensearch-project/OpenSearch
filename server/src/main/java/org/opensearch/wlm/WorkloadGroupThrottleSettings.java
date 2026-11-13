@@ -29,8 +29,9 @@ public class WorkloadGroupThrottleSettings {
 
     /**
      * First version with WLM throttling. Gates every throttling wire format (throttling config in workload group metadata
-     * and in create/update requests, throttle stats) and which nodes can own shared-limit buckets. They all use this one
-     * value, since a reader and a writer that disagree on a gate desync the stream.
+     * and in create/update requests, throttle stats), the formats reserved for request queueing (queue config, queue
+     * stats), the parent task id and cluster-manager timeout of an update request, and which nodes can own shared-limit
+     * buckets. They all use this one value, since a reader and a writer that disagree on a gate desync the stream.
      */
     public static final Version MIN_SUPPORTED_VERSION = Version.V_3_10_0;
 
