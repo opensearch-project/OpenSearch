@@ -406,6 +406,19 @@ public class MetadataUpdateSettingsService {
                             MetadataCreateIndexService.validateStoreTypeSettings(indexSettings);
                         }
                     }
+                    // both are dynamic, so an update can make a write param repeat a param
+                    if (normalizedSettings.keySet()
+                        .stream()
+                        .anyMatch(
+                            key -> IndexMetadata.INGESTION_SOURCE_PARAMS_SETTING.match(key)
+                                || IndexMetadata.INGESTION_SOURCE_WRITE_PARAMS_SETTING.match(key)
+                        )) {
+                        for (String index : actualIndices) {
+                            MetadataCreateIndexService.validateIngestionWriteParams(metadataBuilder.get(index).getSettings());
+                        }
+                    }
+                    // an update can add write settings during a rolling upgrade
+                    MetadataCreateIndexService.validateIngestionWriteSettingsVersion(normalizedSettings, currentState);
                     boolean changed = false;
                     // increment settings versions
                     for (final String index : actualIndices) {

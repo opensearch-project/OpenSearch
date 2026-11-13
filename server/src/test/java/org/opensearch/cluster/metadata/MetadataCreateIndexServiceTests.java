@@ -4671,6 +4671,75 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     // ---- source_partition_strategy validation tests ----
 
+    public void testValidateIngestionWriteParams() {
+        // a write-only param is accepted
+        MetadataCreateIndexService.validateIngestionWriteParams(
+            Settings.builder()
+                .put("index.ingestion_source.param.topic", "orders")
+                .put("index.ingestion_source.write.param.linger.ms", "5")
+                .build()
+        );
+
+        // a write param that repeats a param is rejected
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataCreateIndexService.validateIngestionWriteParams(
+                Settings.builder()
+                    .put("index.ingestion_source.param.topic", "orders")
+                    .put("index.ingestion_source.write.param.topic", "other")
+                    .build()
+            )
+        );
+        assertTrue(e.getMessage().contains("[index.ingestion_source.write.param.topic] is already set"));
+    }
+
+    public void testValidateIngestionWriteSettingsRejectedOnMixedCluster() {
+        // write.enabled and write.param.* were introduced in V_3_11_0; older nodes would receive index metadata
+        // with unknown setting keys and fail to create the index
+        ClusterState state = mixedClusterState(Version.V_3_10_0);
+
+        for (Settings settings : List.of(
+            Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_WRITE_ENABLED, true).build(),
+            Settings.builder().put("index.ingestion_source.write.param.linger.ms", "5").build()
+        )) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> MetadataCreateIndexService.validateIngestionSourceSettings(settings, state)
+            );
+            assertTrue(e.getMessage().contains("index.ingestion_source.write.* settings require all nodes"));
+            assertTrue(e.getMessage().contains(Version.V_3_11_0.toString()));
+            assertTrue(e.getMessage().contains(Version.V_3_10_0.toString()));
+        }
+    }
+
+    public void testValidateIngestionWriteSettingsOnCurrentVersion() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_WRITE_ENABLED, true)
+            .put("index.ingestion_source.write.param.linger.ms", "5")
+            .build();
+
+        // should not throw
+        MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
+    }
+
+    public void testIngestionSettingsWithoutWriteSettingsAreAcceptedOnMixedCluster() {
+        Settings settings = Settings.builder().put("index.ingestion_source.param.topic", "orders").build();
+
+        // should not throw
+        MetadataCreateIndexService.validateIngestionSourceSettings(settings, mixedClusterState(Version.V_3_10_0));
+    }
+
+    private ClusterState mixedClusterState(Version oldVersion) {
+        final Set<DiscoveryNodeRole> roles = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        );
+        DiscoveryNode oldNode = new DiscoveryNode("old_node", buildNewFakeTransportAddress(), emptyMap(), roles, oldVersion);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(oldNode).build();
+        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+    }
+
     public void testValidateIngestionSourceSettingsPartitionStrategyOnCurrentVersion() {
         // source_partition_strategy explicitly set on a current-version cluster — should pass
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).build();
