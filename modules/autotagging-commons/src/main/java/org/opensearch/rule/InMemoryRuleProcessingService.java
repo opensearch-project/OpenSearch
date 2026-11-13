@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 
 /**
@@ -34,6 +35,11 @@ public class InMemoryRuleProcessingService {
      * Map of prioritized attributes
      */
     private final Map<Attribute, Integer> prioritizedAttributes;
+    /**
+     * Feature value of each rule, as the attribute value stores hold rule ids. While an update re-adds a rule under the
+     * same id, a request evaluated in between can briefly see the rule's old attributes with its new feature value.
+     */
+    private final Map<String, String> ruleFeatureValues = new ConcurrentHashMap<>();
 
     /**
      * Constructs an InMemoryRuleProcessingService with the given
@@ -54,6 +60,7 @@ public class InMemoryRuleProcessingService {
      * @param rule to be added
      */
     public void add(final Rule rule) {
+        ruleFeatureValues.put(rule.getId(), rule.getFeatureValue());
         perform(rule, this::addOperation);
     }
 
@@ -63,6 +70,7 @@ public class InMemoryRuleProcessingService {
      */
     public void remove(final Rule rule) {
         perform(rule, this::removeOperation);
+        ruleFeatureValues.remove(rule.getId());
     }
 
     private void perform(Rule rule, BiConsumer<Map.Entry<Attribute, Set<String>>, Rule> ruleOperation) {
@@ -80,14 +88,14 @@ public class InMemoryRuleProcessingService {
     private void removeOperation(Map.Entry<Attribute, Set<String>> attributeEntry, Rule rule) {
         AttributeValueStore<String, String> valueStore = attributeValueStoreFactory.getAttributeValueStore(attributeEntry.getKey());
         for (String value : attributeEntry.getValue()) {
-            valueStore.remove(value, rule.getFeatureValue());
+            valueStore.remove(value, rule.getId());
         }
     }
 
     private void addOperation(Map.Entry<Attribute, Set<String>> attributeEntry, Rule rule) {
         AttributeValueStore<String, String> valueStore = attributeValueStoreFactory.getAttributeValueStore(attributeEntry.getKey());
         for (String value : attributeEntry.getValue()) {
-            valueStore.put(value, rule.getFeatureValue());
+            valueStore.put(value, rule.getId());
         }
     }
 
@@ -99,7 +107,11 @@ public class InMemoryRuleProcessingService {
         attributeExtractors.sort(
             Comparator.comparingInt(extractor -> prioritizedAttributes.getOrDefault(extractor.getAttribute(), Integer.MAX_VALUE))
         );
-        FeatureValueResolver featureValueResolver = new FeatureValueResolver(attributeValueStoreFactory, attributeExtractors);
+        FeatureValueResolver featureValueResolver = new FeatureValueResolver(
+            attributeValueStoreFactory,
+            attributeExtractors,
+            ruleFeatureValues::get
+        );
         return featureValueResolver.resolve();
     }
 }
