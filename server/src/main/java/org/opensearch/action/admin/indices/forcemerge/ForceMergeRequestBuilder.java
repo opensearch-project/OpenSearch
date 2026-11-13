@@ -89,4 +89,13 @@ public class ForceMergeRequestBuilder extends BroadcastOperationRequestBuilder<
         request.primaryOnly(primaryOnly);
         return this;
     }
+
+    /**
+     * Should force merge bypass the node-duress guardrail and run even when the node is under resource pressure.
+     * Defaults to {@code false}.
+     */
+    public ForceMergeRequestBuilder setIgnoreDuress(boolean ignoreDuress) {
+        request.ignoreDuress(ignoreDuress);
+        return this;
+    }
 }

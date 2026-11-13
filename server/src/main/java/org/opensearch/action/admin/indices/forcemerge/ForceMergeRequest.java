@@ -72,14 +72,21 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         public static final boolean ONLY_EXPUNGE_DELETES = false;
         public static final boolean FLUSH = true;
         public static final boolean PRIMARY_ONLY = false;
+        public static final boolean IGNORE_DURESS = false;
     }
 
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
     private boolean primaryOnly = Defaults.PRIMARY_ONLY;
+    private boolean ignoreDuress = Defaults.IGNORE_DURESS;
 
     private static final Version FORCE_MERGE_UUID_VERSION = Version.V_3_0_0;
+
+    /**
+     * Version from which the {@link #ignoreDuress} flag is serialized over the wire.
+     */
+    private static final Version IGNORE_DURESS_VERSION = Version.V_3_10_0;
 
     /**
      * Force merge UUID to store in the live commit data of a shard under
@@ -113,6 +120,9 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
             throw new IllegalStateException(
                 "As of legacy version 7.7 [" + Engine.FORCE_MERGE_UUID_KEY + "] is no longer optional in force merge requests."
             );
+        }
+        if (in.getVersion().onOrAfter(IGNORE_DURESS_VERSION)) {
+            ignoreDuress = in.readBoolean();
         }
     }
 
@@ -189,6 +199,23 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     }
 
     /**
+     * Should this force merge bypass the node-duress guardrail and run even when the node is under
+     * resource pressure (CPU, JVM heap, or disk usage over the force merge thresholds). Defaults to {@code false}.
+     */
+    public boolean ignoreDuress() {
+        return ignoreDuress;
+    }
+
+    /**
+     * Should this force merge bypass the node-duress guardrail and run even when the node is under
+     * resource pressure (CPU, JVM heap, or disk usage over the force merge thresholds). Defaults to {@code false}.
+     */
+    public ForceMergeRequest ignoreDuress(boolean ignoreDuress) {
+        this.ignoreDuress = ignoreDuress;
+        return this;
+    }
+
+    /**
      * Should this task store its result after it has finished?
      */
     public void setShouldStoreResult(boolean shouldStoreResult) {
@@ -229,6 +256,9 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         } else {
             out.writeOptionalString(forceMergeUUID);
         }
+        if (out.getVersion().onOrAfter(IGNORE_DURESS_VERSION)) {
+            out.writeBoolean(ignoreDuress);
+        }
     }
 
     @Override
@@ -242,6 +272,8 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
             + flush
             + ", primaryOnly="
             + primaryOnly
+            + ", ignoreDuress="
+            + ignoreDuress
             + '}';
     }
 }
