@@ -315,6 +315,123 @@
         limit: abc
 
 ---
+"Test cat indices group_by and aggregate":
+  - skip:
+      version: " - 3.9.99"
+      reason: "group_by and aggregate parameters for _cat APIs added in 3.10.0"
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: bar
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: baz
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.close:
+        index: bar
+
+  # one row per group: the group_by columns first, then the aggregates
+  - do:
+      cat.indices:
+        group_by: [status]
+        aggregate: ["count(index)"]
+        s: [status]
+
+  - match:
+      $body: |
+            /^ close \s+ 1\n
+               open  \s+ 2\n
+            $/
+
+  # h selects columns of the aggregated result
+  - do:
+      cat.indices:
+        group_by: [status]
+        aggregate: ["count(index)"]
+        h: ["count(index)"]
+        s: [status]
+
+  - match:
+      $body: |
+            /^ 1\n
+               2\n
+            $/
+
+  # s and limit apply to the aggregated rows, so limit counts groups
+  - do:
+      cat.indices:
+        group_by: [status]
+        aggregate: ["count(index)"]
+        s: ["count(index):desc"]
+        limit: 1
+
+  - match:
+      $body: |
+            /^ open \s+ 2\n
+            $/
+
+  # without group_by there is a single row over all indices
+  - do:
+      cat.indices:
+        aggregate: ["count(index)"]
+
+  - match:
+      $body: |
+            /^ 3\n
+            $/
+
+  # group_by needs aggregate
+  - do:
+      catch: bad_request
+      cat.indices:
+        group_by: [status]
+
+  # invalid aggregate
+  - do:
+      catch: bad_request
+      cat.indices:
+        aggregate: ["median(index)"]
+
+  # unknown columns
+  - do:
+      catch: bad_request
+      cat.indices:
+        group_by: [no_such_column]
+        aggregate: ["count(index)"]
+
+  - do:
+      catch: bad_request
+      cat.indices:
+        group_by: [status]
+        aggregate: ["count(no_such_column)"]
+
+  # h can only select from the aggregated result
+  - do:
+      catch: bad_request
+      cat.indices:
+        group_by: [status]
+        aggregate: ["count(index)"]
+        h: [status, index]
+
+---
 "Test cat indices with invalid health parameter":
 
 

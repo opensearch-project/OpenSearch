@@ -1,0 +1,88 @@
+"Test cat shards group_by and aggregate":
+  - skip:
+      version: " - 3.9.99"
+      reason: "group_by and aggregate parameters for _cat APIs added in 3.10.0"
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "2"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: bar
+        body:
+          settings:
+            number_of_shards: "3"
+            number_of_replicas: "0"
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      index:
+        index: foo
+        id: "1"
+        body: { field: one }
+
+  - do:
+      index:
+        index: foo
+        id: "2"
+        body: { field: two }
+
+  - do:
+      indices.refresh:
+        index: foo
+
+  # Only routing columns are involved, so the per-shard stats are not collected
+  - do:
+      cat.shards:
+        group_by: [index]
+        aggregate: ["count(shard)"]
+        s: [index]
+
+  - match:
+      $body: |
+            /^ bar \s+ 3\n
+               foo \s+ 2\n
+            $/
+
+  # A stats column is involved, so the stats are collected; the number of documents is the same however they spread over shards
+  - do:
+      cat.shards:
+        group_by: [index]
+        aggregate: ["count(shard)", "sum(docs)"]
+        s: [index]
+
+  - match:
+      $body: |
+            /^ bar \s+ 3 \s+ 0\n
+               foo \s+ 2 \s+ 2\n
+            $/
+
+  # h hides a group_by column; the rows are still one per (index, prirep)
+  - do:
+      cat.shards:
+        group_by: [index, prirep]
+        aggregate: ["count(shard)"]
+        h: [index, "count(shard)"]
+        s: [index]
+
+  - match:
+      $body: |
+            /^ bar \s+ 3\n
+               foo \s+ 2\n
+            $/
+
+  # h can only select from the aggregated result
+  - do:
+      catch: bad_request
+      cat.shards:
+        group_by: [index]
+        aggregate: ["count(shard)"]
+        h: [shard]

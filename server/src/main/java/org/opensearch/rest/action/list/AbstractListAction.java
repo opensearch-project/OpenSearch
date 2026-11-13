@@ -11,6 +11,7 @@ package org.opensearch.rest.action.list;
 import org.opensearch.action.pagination.PageParams;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.cat.AbstractCatAction;
+import org.opensearch.rest.action.cat.TableSummarizer;
 import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
@@ -37,6 +38,10 @@ public abstract class AbstractListAction extends AbstractCatAction {
         boolean helpWanted = request.paramAsBoolean("help", false);
         if (helpWanted || isActionPaginated() == false) {
             return super.prepareRequest(request, client);
+        }
+        if (TableSummarizer.isRequested(request)) {
+            // A page is only part of the data, so aggregating it would silently produce wrong totals
+            throw new IllegalArgumentException("[group_by] and [aggregate] are not supported on paginated APIs");
         }
         this.pageParams = validateAndGetPageParams(request);
         assert Objects.nonNull(pageParams) : "pageParams can not be null for paginated queries";
