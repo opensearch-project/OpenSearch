@@ -69,7 +69,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
@@ -389,6 +392,89 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
         assertEquals(originalTasks.getTask("assigned-task"), returnedTasks.getTask("assigned-task"));
         assertNotEquals(originalTasks.getTask("task-on-deceased-node"), returnedTasks.getTask("task-on-deceased-node"));
         assertEquals(PersistentTasksCustomMetadata.LOST_NODE_ASSIGNMENT, returnedTasks.getTask("task-on-deceased-node").getAssignment());
+    }
+
+    public void testTaskCountsStayInStepWithTasks() {
+        List<String> taskNames = Arrays.asList("task_a", "task_b", "task_c");
+        List<String> nodes = Arrays.asList("node_1", "node_2", "node_3", "node_4");
+        PersistentTasksCustomMetadata current = null;
+        int taskSeq = 0;
+        for (int round = 0; round < 50; round++) {
+            if (current != null && randomBoolean()) {
+                // the source has (or has not) computed its counts yet; the builder must be right either way
+                current.getNumberOfTasksOnNode(randomFrom(nodes), randomFrom(taskNames));
+            }
+            Builder builder = randomBoolean() ? PersistentTasksCustomMetadata.builder(current) : PersistentTasksCustomMetadata.builder();
+            PersistentTasksCustomMetadata previous = builder.build();
+            Map<String, PersistentTask<?>> previousTasks = new HashMap<>(previous.taskMap());
+            for (int op = 0; op < randomIntBetween(1, 30); op++) {
+                List<String> ids = new ArrayList<>(builder.getCurrentTaskIds());
+                Assignment assignment = randomBoolean() ? new Assignment(null, "unassigned") : new Assignment(randomFrom(nodes), "");
+                int choice = ids.isEmpty() ? 0 : randomInt(3);
+                switch (choice) {
+                    case 0:
+                        String name = randomFrom(taskNames);
+                        builder.addTask("task_" + taskSeq++, name, emptyTaskParams(name), assignment);
+                        break;
+                    case 1:
+                        builder.reassignTask(randomFrom(ids), assignment);
+                        break;
+                    case 2:
+                        builder.updateTaskState(randomFrom(ids), null);
+                        break;
+                    default:
+                        builder.removeTask(randomFrom(ids));
+                }
+                if (randomInt(5) == 0) {
+                    assertCountsMatchTasks(builder.build(), taskNames, nodes);
+                }
+            }
+            current = builder.build();
+            assertCountsMatchTasks(current, taskNames, nodes);
+            // instances handed out earlier are not affected by later builder mutations
+            assertEquals(previousTasks, previous.taskMap());
+            assertCountsMatchTasks(previous, taskNames, nodes);
+        }
+    }
+
+    public void testTaskCountsDoNotAffectEqualsOrSerialization() throws IOException {
+        Builder builder = PersistentTasksCustomMetadata.builder();
+        for (int i = 0; i < 20; i++) {
+            builder.addTask("task_" + i, TestPersistentTasksExecutor.NAME, new TestParams("p" + i), new Assignment("node_" + (i % 3), ""));
+        }
+        PersistentTasksCustomMetadata withCounts = builder.build();
+        assertEquals(7, withCounts.getNumberOfTasksOnNode("node_0", TestPersistentTasksExecutor.NAME));
+        PersistentTasksCustomMetadata withoutCounts = new PersistentTasksCustomMetadata(
+            builder.getLastAllocationId(),
+            new HashMap<>(withCounts.taskMap())
+        );
+        assertEquals(withCounts, withoutCounts);
+        assertEquals(withCounts.hashCode(), withoutCounts.hashCode());
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        withCounts.writeTo(out);
+        BytesStreamOutput outWithout = new BytesStreamOutput();
+        withoutCounts.writeTo(outWithout);
+        assertEquals(out.bytes(), outWithout.bytes());
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry());
+        PersistentTasksCustomMetadata read = new PersistentTasksCustomMetadata(in);
+        assertEquals(withCounts, read);
+        assertEquals(7, read.getNumberOfTasksOnNode("node_0", TestPersistentTasksExecutor.NAME));
+        assertEquals(0, read.getNumberOfTasksOnNode("node_0", "other_task"));
+        assertEquals(0, read.getNumberOfTasksOnNode("unknown_node", TestPersistentTasksExecutor.NAME));
+    }
+
+    private static void assertCountsMatchTasks(PersistentTasksCustomMetadata metadata, List<String> taskNames, List<String> nodes) {
+        for (String taskName : taskNames) {
+            for (String node : nodes) {
+                long expected = metadata.tasks()
+                    .stream()
+                    .filter(t -> taskName.equals(t.getTaskName()) && node.equals(t.getExecutorNode()))
+                    .count();
+                assertEquals(taskName + " on " + node, expected, metadata.getNumberOfTasksOnNode(node, taskName));
+            }
+        }
+        assertEquals(PersistentTasksCustomMetadata.countTasks(metadata.tasks()), metadata.taskCountsForTesting());
     }
 
     private PersistentTaskParams emptyTaskParams(String taskName) {

@@ -69,8 +69,10 @@ import org.junit.BeforeClass;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -1291,6 +1293,128 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         assertThat(updateTaskState, is(notNullValue()));
         assertThat(updateTaskState.getThreshold(), equalTo(300));
         assertThat(updateTaskState.getKey(), equalTo("update-task-state"));
+    }
+
+    /**
+     * 16k tasks, half the nodes removed: the reassignment pass places every orphaned task exactly where the original algorithm
+     * (rebuild the cluster state per task, count tasks per node by scanning all tasks) places it. Timings are logged, not asserted.
+     */
+    public void testLargeReassignmentMatchesLeastLoadedReference() {
+        final int nodeCount = 16;
+        final int taskCount = 16_000;
+        final int indexCount = 2_000;
+
+        DiscoveryNodes.Builder allNodes = DiscoveryNodes.builder();
+        for (int i = 0; i < nodeCount; i++) {
+            allNodes.add(newNode("node_" + i));
+        }
+        allNodes.localNodeId("node_0").clusterManagerNodeId("node_0");
+        Metadata.Builder metadata = Metadata.builder();
+        for (int i = 0; i < indexCount; i++) {
+            metadata.put(
+                IndexMetadata.builder("index_" + i)
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            );
+        }
+        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
+        for (int i = 0; i < taskCount; i++) {
+            tasks.addTask(
+                "task_" + i,
+                TestPersistentTasksExecutor.NAME,
+                new TestParams("p"),
+                new Assignment("node_" + (i % nodeCount), "")
+            );
+        }
+        metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+        DiscoveryNodes.Builder remainingNodes = DiscoveryNodes.builder(allNodes.build());
+        for (int i = nodeCount / 2; i < nodeCount; i++) {
+            remainingNodes.remove("node_" + i);
+        }
+        // what the cluster manager does when the nodes leave, before the reassignment runs
+        final ClusterState state = PersistentTasksCustomMetadata.disassociateDeadNodes(
+            ClusterState.builder(ClusterName.DEFAULT).nodes(remainingNodes).metadata(metadata).build()
+        );
+
+        PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(
+            singleton(new PersistentTasksExecutor<TestParams>(TestPersistentTasksExecutor.NAME, null) {
+                @Override
+                protected void nodeOperation(AllocatedPersistentTask task, TestParams params, PersistentTaskState taskState) {
+                    throw new UnsupportedOperationException();
+                }
+            })
+        );
+        PersistentTasksClusterService service = new PersistentTasksClusterService(Settings.EMPTY, registry, clusterService, threadPool);
+
+        long start = System.nanoTime();
+        ClusterState reference = reassignLikeTheOriginalAlgorithm(state);
+        long referenceNanos = System.nanoTime() - start;
+        start = System.nanoTime();
+        ClusterState reassigned = reassign(service, state);
+        long serviceNanos = System.nanoTime() - start;
+
+        PersistentTasksCustomMetadata expected = reference.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata actual = reassigned.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        assertEquals(expected, actual);
+        for (PersistentTask<?> task : actual.tasks()) {
+            assertTrue(reassigned.nodes().nodeExists(task.getExecutorNode()));
+        }
+        for (int i = 0; i < nodeCount / 2; i++) {
+            assertEquals(taskCount / (nodeCount / 2), actual.getNumberOfTasksOnNode("node_" + i, TestPersistentTasksExecutor.NAME));
+        }
+        logger.info(
+            "reassigned {} of {} tasks over {} nodes ({} indices): reference algorithm {} ms, reassignTasks {} ms",
+            taskCount / 2,
+            taskCount,
+            nodeCount / 2,
+            indexCount,
+            TimeUnit.NANOSECONDS.toMillis(referenceNanos),
+            TimeUnit.NANOSECONDS.toMillis(serviceNanos)
+        );
+    }
+
+    /**
+     * The reassignment loop and default least-loaded selection as they were before task counts were cached: a full cluster state
+     * rebuild per reassigned task and a scan of every task to count tasks per node. One scan per task stands in for the original
+     * scan per candidate node; both pick the first node with the strictly lowest count.
+     */
+    private static ClusterState reassignLikeTheOriginalAlgorithm(ClusterState state) {
+        PersistentTasksCustomMetadata original = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        ClusterState current = state;
+        for (PersistentTask<?> task : original.tasks()) {
+            if (needsReassignment(task.getAssignment(), current.nodes()) == false) {
+                continue;
+            }
+            PersistentTasksCustomMetadata currentTasks = current.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+            Map<String, Long> counts = new HashMap<>();
+            for (PersistentTask<?> t : currentTasks.tasks()) {
+                if (t.getTaskName().equals(task.getTaskName()) && t.getExecutorNode() != null) {
+                    counts.merge(t.getExecutorNode(), 1L, Long::sum);
+                }
+            }
+            DiscoveryNode best = null;
+            long min = Long.MAX_VALUE;
+            for (DiscoveryNode node : current.nodes()) {
+                if (node.isDataNode() && min > counts.getOrDefault(node.getId(), 0L)) {
+                    min = counts.getOrDefault(node.getId(), 0L);
+                    best = node;
+                }
+            }
+            Assignment assignment = best == null ? NO_NODE_FOUND : new Assignment(best.getId(), "");
+            if (assignment.equals(task.getAssignment()) == false) {
+                current = ClusterState.builder(current)
+                    .metadata(
+                        Metadata.builder(current.metadata())
+                            .putCustom(
+                                PersistentTasksCustomMetadata.TYPE,
+                                PersistentTasksCustomMetadata.builder(currentTasks).reassignTask(task.getId(), assignment).build()
+                            )
+                    )
+                    .build();
+            }
+        }
+        return current;
     }
 
     private ClusterService createRecheckTestClusterService(ClusterState initialState, boolean shouldSimulateFailure) {
