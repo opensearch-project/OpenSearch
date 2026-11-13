@@ -37,13 +37,18 @@ import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class RolloverRequestTests extends OpenSearchTestCase {
     public void testConstructorAndFieldAssignments() {
@@ -56,6 +61,9 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         RolloverRequest rolloverRequest = new RolloverRequest(alias, newIndexName);
         assertEquals(alias, rolloverRequest.getAlias());
         assertEquals(newIndexName, rolloverRequest.getNewIndexName());
+        assertFalse(rolloverRequest.isCopyMappings());
+        assertSame(rolloverRequest, rolloverRequest.copyMappings(true));
+        assertTrue(rolloverRequest.isCopyMappings());
 
         // test assignment of conditions
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(new TimeValue(10));
@@ -67,6 +75,27 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         rolloverRequest.addMaxIndexDocsCondition(maxDocsCondition.value());
         List<Condition<?>> requestConditions = new ArrayList<>(rolloverRequest.getConditions().values());
         assertThat(requestConditions, containsInAnyOrder(expectedConditions));
+    }
+
+    public void testCopyMappingsToXContentPreservesPresence() throws Exception {
+        RolloverRequest rolloverRequest = new RolloverRequest("logs-write", null);
+
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            rolloverRequest.toXContent(builder, EMPTY_PARAMS);
+            assertThat(builder.toString(), not(containsString("\"copy_mappings\"")));
+        }
+
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            rolloverRequest.copyMappings(false);
+            rolloverRequest.toXContent(builder, EMPTY_PARAMS);
+            assertThat(builder.toString(), containsString("\"copy_mappings\":false"));
+        }
+
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            rolloverRequest.copyMappings(true);
+            rolloverRequest.toXContent(builder, EMPTY_PARAMS);
+            assertThat(builder.toString(), containsString("\"copy_mappings\":true"));
+        }
     }
 
     public void testValidation() {

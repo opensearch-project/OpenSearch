@@ -64,7 +64,7 @@
       }
     },
     "body":{
-      "description":"The conditions that needs to be met for executing rollover"
+      "description":"Rollover conditions, target index settings, mappings and aliases, and the optional boolean copy_mappings flag. When omitted, mapping copying follows cluster.indices.rollover.force_copy_mappings."
     }
   }
 }

@@ -39,11 +39,15 @@ import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
+import org.opensearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AutoExpandReplicas;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Template;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
@@ -59,6 +63,7 @@ import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
@@ -130,6 +135,320 @@ public class RolloverIT extends OpenSearchIntegTestCase {
             oldIndex.getRolloverInfos().get("test_alias").getTime(),
             is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L)))
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCopyMappingsFromWriteIndex() throws Exception {
+        final String aliasName = "copy-mappings-write";
+        final String sourceIndexName = "copy-mappings-000001";
+        final String sourceOnlyAlias = "source-only-alias";
+        assertAcked(
+            prepareCreate(sourceIndexName).setSettings(Settings.builder().put("index.refresh_interval", "42s"))
+                .addAlias(new Alias(aliasName).writeIndex(true))
+                .addAlias(new Alias(sourceOnlyAlias))
+                .get()
+        );
+        index(aliasName, SINGLE_MAPPING_NAME, "1", "dynamic_keyword", "value", "dynamic_long", 1L);
+
+        final RolloverResponse response = client().admin()
+            .indices()
+            .prepareRolloverIndex(aliasName)
+            .copyMappings(true)
+            .simpleMapping("explicit_field", "type=keyword")
+            .get();
+
+        assertTrue(response.isRolledOver());
+        final IndexMetadata targetIndex = client().admin()
+            .cluster()
+            .prepareState()
+            .get()
+            .getState()
+            .metadata()
+            .index(response.getNewIndex());
+        final Map<String, Object> properties = (Map<String, Object>) targetIndex.mapping().sourceAsMap().get("properties");
+        assertThat(properties.keySet(), containsInAnyOrder("dynamic_keyword", "dynamic_long", "explicit_field"));
+        assertFalse(targetIndex.getAliases().containsKey(sourceOnlyAlias));
+        assertNull(targetIndex.getSettings().get("index.refresh_interval"));
+    }
+
+    public void testRequestOverridesDynamicClusterMappingCopySetting() throws Exception {
+        final String settingKey = MetadataRolloverService.CLUSTER_ROLLOVER_FORCE_COPY_MAPPINGS_SETTING.getKey();
+        final String aliasName = "force-copy-mappings-write";
+        assertAcked(prepareCreate("force-copy-mappings-000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
+        index(aliasName, SINGLE_MAPPING_NAME, "1", "dynamic_field", "value");
+
+        try {
+            assertAcked(
+                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(settingKey, "enabled"))
+            );
+            final RolloverResponse enabledResponse = client().admin().indices().prepareRolloverIndex(aliasName).get();
+            assertRolloverContainsDynamicField(enabledResponse, true);
+
+            assertAcked(
+                client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(settingKey, "disabled"))
+            );
+            final RolloverResponse transientOverrideResponse = client().admin().indices().prepareRolloverIndex(aliasName).get();
+            assertRolloverContainsDynamicField(transientOverrideResponse, false);
+
+            index(aliasName, SINGLE_MAPPING_NAME, "2", "dynamic_field", "value");
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull(settingKey)));
+            final RolloverResponse optOutResponse = client().admin().indices().prepareRolloverIndex(aliasName).copyMappings(false).get();
+            assertRolloverContainsDynamicField(optOutResponse, false);
+
+            index(aliasName, SINGLE_MAPPING_NAME, "3", "dynamic_field", "value");
+            assertAcked(
+                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(settingKey, "disabled"))
+            );
+            final RolloverResponse optInResponse = client().admin().indices().prepareRolloverIndex(aliasName).copyMappings(true).get();
+            assertRolloverContainsDynamicField(optInResponse, true);
+            final RolloverResponse disabledResponse = client().admin().indices().prepareRolloverIndex(aliasName).get();
+            assertRolloverContainsDynamicField(disabledResponse, false);
+
+            index(aliasName, SINGLE_MAPPING_NAME, "4", "dynamic_field", "value");
+            assertAcked(
+                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(settingKey, "auto"))
+            );
+            assertRolloverContainsDynamicField(client().admin().indices().prepareRolloverIndex(aliasName).get(), false);
+
+            index(aliasName, SINGLE_MAPPING_NAME, "5", "dynamic_field", "value");
+            assertAcked(
+                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(settingKey, "enabled"))
+            );
+            assertRolloverContainsDynamicField(client().admin().indices().prepareRolloverIndex(aliasName).get(), true);
+
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().putNull(settingKey)));
+            assertRolloverContainsDynamicField(client().admin().indices().prepareRolloverIndex(aliasName).get(), false);
+        } finally {
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().putNull(settingKey))
+                    .setTransientSettings(Settings.builder().putNull(settingKey))
+            );
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertRolloverContainsDynamicField(RolloverResponse response, boolean expectedCopy) {
+        assertTrue(response.isRolledOver());
+        final IndexMetadata targetIndex = client().admin()
+            .cluster()
+            .prepareState()
+            .get()
+            .getState()
+            .metadata()
+            .index(response.getNewIndex());
+        final Map<String, Object> properties = targetIndex.mapping() == null
+            ? Collections.emptyMap()
+            : (Map<String, Object>) targetIndex.mapping().sourceAsMap().getOrDefault("properties", Collections.emptyMap());
+        assertEquals(expectedCopy, properties.containsKey("dynamic_field"));
+    }
+
+    public void testCopyMappingsPreservesLegacyTemplateRequestPrecedence() throws Exception {
+        assertCopyMappingsPreservesTemplateRequestPrecedence(false);
+    }
+
+    public void testCopyMappingsPreservesComposableTemplateRequestPrecedence() throws Exception {
+        assertCopyMappingsPreservesTemplateRequestPrecedence(true);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExplicitFieldAliasCanReferToCopiedField() throws Exception {
+        final String aliasName = "copy-field-alias-write";
+        assertAcked(
+            prepareCreate("copy-field-alias-000001").setMapping("source_field", "type=keyword")
+                .addAlias(new Alias(aliasName).writeIndex(true))
+                .get()
+        );
+
+        final RolloverResponse response = client().admin()
+            .indices()
+            .prepareRolloverIndex(aliasName)
+            .copyMappings(true)
+            .simpleMapping("source_field_alias", "type=alias,path=source_field")
+            .get();
+
+        assertTrue(response.isRolledOver());
+        final IndexMetadata targetIndex = client().admin()
+            .cluster()
+            .prepareState()
+            .get()
+            .getState()
+            .metadata()
+            .index(response.getNewIndex());
+        final Map<String, Object> properties = (Map<String, Object>) targetIndex.mapping().sourceAsMap().get("properties");
+        assertThat(((Map<String, Object>) properties.get("source_field")).get("type"), equalTo("keyword"));
+        assertThat(((Map<String, Object>) properties.get("source_field_alias")).get("type"), equalTo("alias"));
+        assertThat(((Map<String, Object>) properties.get("source_field_alias")).get("path"), equalTo("source_field"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCopyRoutingRequirementWithExplicitNewField() throws Exception {
+        final String aliasName = "copy-required-routing-write";
+        assertAcked(prepareCreate("copy-required-routing-000001").setMapping("""
+            {
+              "_routing": { "required": true },
+              "properties": { "source_field": { "type": "keyword" } }
+            }
+            """).addAlias(new Alias(aliasName).writeIndex(true)).get());
+
+        final RolloverResponse response = client().admin()
+            .indices()
+            .prepareRolloverIndex(aliasName)
+            .copyMappings(true)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_ROUTING_PARTITION_SIZE, 2)
+                    .build()
+            )
+            .simpleMapping("new_field", "type=long")
+            .get();
+
+        assertTrue(response.isRolledOver());
+        final IndexMetadata targetIndex = client().admin()
+            .cluster()
+            .prepareState()
+            .get()
+            .getState()
+            .metadata()
+            .index(response.getNewIndex());
+        final Map<String, Object> mapping = targetIndex.mapping().sourceAsMap();
+        assertThat(((Map<String, Object>) mapping.get("_routing")).get("required"), equalTo(true));
+        final Map<String, Object> properties = (Map<String, Object>) mapping.get("properties");
+        assertThat(((Map<String, Object>) properties.get("source_field")).get("type"), equalTo("keyword"));
+        assertThat(((Map<String, Object>) properties.get("new_field")).get("type"), equalTo("long"));
+        assertThat(targetIndex.getRoutingPartitionSize(), equalTo(2));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertCopyMappingsPreservesTemplateRequestPrecedence(boolean composableTemplate) throws Exception {
+        final String templateType = composableTemplate ? "v2" : "v1";
+        final String indexPrefix = "copy-request-precedence-" + templateType;
+        final String aliasName = indexPrefix + "-write";
+        final String sourceIndexName = indexPrefix + "-000001";
+        final String templateName = indexPrefix + "-template";
+        assertAcked(prepareCreate(sourceIndexName).addAlias(new Alias(aliasName).writeIndex(true)).get());
+        index(aliasName, SINGLE_MAPPING_NAME, "1", "source_only_field", 1L);
+
+        if (composableTemplate) {
+            final ComposableIndexTemplate template = new ComposableIndexTemplate(
+                Collections.singletonList(indexPrefix + "-*"),
+                new Template(null, new CompressedXContent("""
+                    {
+                      "properties": {
+                        "overridden_field": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                    """), null),
+                null,
+                200L,
+                null,
+                null,
+                null
+            );
+            assertAcked(
+                client().execute(
+                    PutComposableIndexTemplateAction.INSTANCE,
+                    new PutComposableIndexTemplateAction.Request(templateName).indexTemplate(template)
+                ).get()
+            );
+        } else {
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .preparePutTemplate(templateName)
+                    .setPatterns(Collections.singletonList(indexPrefix + "-*"))
+                    .setMapping("overridden_field", "type=keyword")
+                    .get()
+            );
+        }
+
+        final RolloverResponse response = client().admin()
+            .indices()
+            .prepareRolloverIndex(aliasName)
+            .copyMappings(true)
+            .simpleMapping("overridden_field", "type=text")
+            .get();
+
+        final IndexMetadata targetIndex = client().admin()
+            .cluster()
+            .prepareState()
+            .get()
+            .getState()
+            .metadata()
+            .index(response.getNewIndex());
+        final Map<String, Object> properties = (Map<String, Object>) targetIndex.mapping().sourceAsMap().get("properties");
+        assertThat(((Map<String, Object>) properties.get("source_only_field")).get("type"), equalTo("long"));
+        assertThat(((Map<String, Object>) properties.get("overridden_field")).get("type"), equalTo("text"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMappingsAreNotCopiedByDefaultForStandardIndex() throws Exception {
+        final String aliasName = "default-mappings-write";
+        assertAcked(prepareCreate("default-mappings-000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
+        index(aliasName, SINGLE_MAPPING_NAME, "1", "dynamic_field", "value");
+
+        final RolloverResponse response = client().admin().indices().prepareRolloverIndex(aliasName).get();
+
+        assertTrue(response.isRolledOver());
+        final IndexMetadata targetIndex = client().admin()
+            .cluster()
+            .prepareState()
+            .get()
+            .getState()
+            .metadata()
+            .index(response.getNewIndex());
+        if (targetIndex.mapping() != null) {
+            final Map<String, Object> properties = (Map<String, Object>) targetIndex.mapping().sourceAsMap().get("properties");
+            assertTrue(properties == null || properties.containsKey("dynamic_field") == false);
+        }
+    }
+
+    public void testCopyMappingsRejectsLegacyTemplateConflict() throws Exception {
+        final String aliasName = "copy-conflict-write";
+        final String sourceIndexName = "copy-conflict-000001";
+        assertAcked(prepareCreate(sourceIndexName).addAlias(new Alias(aliasName).writeIndex(true)).get());
+        index(aliasName, SINGLE_MAPPING_NAME, "1", "conflicting_field", 1L);
+        assertAcked(
+            client().admin()
+                .indices()
+                .preparePutTemplate("copy-conflict-template")
+                .setPatterns(Collections.singletonList("copy-conflict-*"))
+                .setMapping("conflicting_field", "type=keyword")
+                .get()
+        );
+
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareRolloverIndex(aliasName).copyMappings(true).get()
+        );
+        assertThat(exception.getMessage(), containsString("cannot copy mappings from source index [" + sourceIndexName + "]"));
+        assertThat(exception.getMessage(), containsString("rollover index [copy-conflict-000002]"));
+        assertThat(exception.getMessage(), containsString("copy-conflict-template"));
+    }
+
+    public void testCopyMappingsRejectsExplicitMappingConflict() throws Exception {
+        final String aliasName = "explicit-conflict-write";
+        final String sourceIndexName = "explicit-conflict-000001";
+        assertAcked(prepareCreate(sourceIndexName).addAlias(new Alias(aliasName).writeIndex(true)).get());
+        index(aliasName, SINGLE_MAPPING_NAME, "1", "conflicting_field", 1L);
+
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .indices()
+                .prepareRolloverIndex(aliasName)
+                .copyMappings(true)
+                .simpleMapping("conflicting_field", "type=keyword")
+                .get()
+        );
+        assertThat(exception.getMessage(), containsString("explicit mappings for rollover index [explicit-conflict-000002]"));
+        assertThat(exception.getMessage(), containsString("copied mappings from source index [" + sourceIndexName + "]"));
     }
 
     public void testRolloverWithExplicitWriteIndex() throws Exception {

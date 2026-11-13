@@ -62,6 +62,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -70,6 +71,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.index.Index;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DocumentMapper;
@@ -99,6 +101,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import org.mockito.ArgumentCaptor;
+
 import static java.util.Collections.emptyMap;
 import static org.opensearch.cluster.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsString;
@@ -111,6 +115,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -120,6 +125,217 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class MetadataRolloverServiceTests extends OpenSearchTestCase {
+
+    public void testRolloverCopiesMappingsWhenExplicitlyEnabled() throws Exception {
+        assertRolloverMappingCopy(Settings.builder(), true, true);
+    }
+
+    public void testRolloverCopiesMappingsByDefaultForPluggableCompositeIndex() throws Exception {
+        assertRolloverMappingCopy(
+            Settings.builder()
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "composite"),
+            null,
+            true
+        );
+    }
+
+    public void testRolloverDoesNotCopyMappingsByDefaultForStandardIndex() throws Exception {
+        assertRolloverMappingCopy(Settings.builder(), null, false);
+    }
+
+    public void testRolloverDoesNotCopyMappingsByDefaultForOtherPluggableFormat() throws Exception {
+        assertRolloverMappingCopy(
+            Settings.builder()
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "parquet"),
+            null,
+            false
+        );
+    }
+
+    public void testRolloverDoesNotCopyMappingsByDefaultForCoreCompositeIndex() throws Exception {
+        assertRolloverMappingCopy(Settings.builder().put("index.composite_index", true), null, false);
+    }
+
+    public void testExplicitFalseDisablesPluggableCompositeMappingCopy() throws Exception {
+        assertRolloverMappingCopy(
+            Settings.builder()
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "composite"),
+            false,
+            false
+        );
+    }
+
+    public void testMappingCopySettingDefaultsToAuto() {
+        final var setting = MetadataRolloverService.CLUSTER_ROLLOVER_FORCE_COPY_MAPPINGS_SETTING;
+        assertEquals("auto", setting.getDefaultRaw(Settings.EMPTY));
+        assertEquals(MetadataRolloverService.MappingCopyMode.AUTO, setting.get(Settings.EMPTY));
+        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(setting));
+    }
+
+    public void testClusterMappingCopyModesAndRequestOverrides() throws Exception {
+        assertMappingCopyModes(false);
+    }
+
+    public void testNodeMappingCopyModesAndRequestOverrides() throws Exception {
+        assertMappingCopyModes(true);
+    }
+
+    private void assertMappingCopyModes(boolean nodeSetting) throws Exception {
+        final String key = MetadataRolloverService.CLUSTER_ROLLOVER_FORCE_COPY_MAPPINGS_SETTING.getKey();
+        for (boolean composite : new boolean[] { false, true }) {
+            final Map<String, Boolean> modeDefaults = Map.of("auto", composite, "enabled", true, "disabled", false);
+            for (var modeDefault : modeDefaults.entrySet()) {
+                final Settings configured = Settings.builder().put(key, modeDefault.getKey()).build();
+                for (Boolean requested : Arrays.asList(null, false, true)) {
+                    assertRolloverMappingCopy(
+                        mappingCopySourceSettings(composite),
+                        requested,
+                        requested == null ? modeDefault.getValue() : requested,
+                        nodeSetting ? Settings.EMPTY : configured,
+                        nodeSetting ? configured : Settings.EMPTY
+                    );
+                }
+            }
+        }
+    }
+
+    public void testClusterMappingCopyModeOverridesNodeMode() throws Exception {
+        final String key = MetadataRolloverService.CLUSTER_ROLLOVER_FORCE_COPY_MAPPINGS_SETTING.getKey();
+        for (boolean composite : new boolean[] { false, true }) {
+            final Map<String, Boolean> modeDefaults = Map.of("auto", composite, "enabled", true, "disabled", false);
+            for (var clusterMode : modeDefaults.entrySet()) {
+                for (String nodeMode : modeDefaults.keySet()) {
+                    assertRolloverMappingCopy(
+                        mappingCopySourceSettings(composite),
+                        null,
+                        clusterMode.getValue(),
+                        Settings.builder().put(key, clusterMode.getKey()).build(),
+                        Settings.builder().put(key, nodeMode).build()
+                    );
+                }
+            }
+        }
+    }
+
+    public void testBooleanMappingCopySettingAliases() throws Exception {
+        final var setting = MetadataRolloverService.CLUSTER_ROLLOVER_FORCE_COPY_MAPPINGS_SETTING;
+        for (boolean enabled : new boolean[] { false, true }) {
+            final Settings configured = Settings.builder().put(setting.getKey(), enabled).build();
+            assertEquals(
+                enabled ? MetadataRolloverService.MappingCopyMode.ENABLED : MetadataRolloverService.MappingCopyMode.DISABLED,
+                setting.get(configured)
+            );
+            for (boolean composite : new boolean[] { false, true }) {
+                assertRolloverMappingCopy(mappingCopySourceSettings(composite), null, enabled, configured, Settings.EMPTY);
+            }
+        }
+    }
+
+    public void testMappingCopyModesAreCaseInsensitive() {
+        final var setting = MetadataRolloverService.CLUSTER_ROLLOVER_FORCE_COPY_MAPPINGS_SETTING;
+        for (var mode : MetadataRolloverService.MappingCopyMode.values()) {
+            assertEquals(mode, setting.get(Settings.builder().put(setting.getKey(), mode.name()).build()));
+        }
+    }
+
+    public void testInvalidMappingCopyModesAreRejected() {
+        final var setting = MetadataRolloverService.CLUSTER_ROLLOVER_FORCE_COPY_MAPPINGS_SETTING;
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        for (String value : List.of("", "always", "never", "1")) {
+            final IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> clusterSettings.validate(Settings.builder().put(setting.getKey(), value).build(), true)
+            );
+            assertThat(exception.getMessage(), containsString(setting.getKey()));
+            assertThat(exception.getMessage(), containsString("expected [auto, enabled, disabled]"));
+        }
+    }
+
+    private Settings.Builder mappingCopySourceSettings(boolean composite) {
+        final Settings.Builder builder = Settings.builder();
+        if (composite) {
+            builder.put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), "composite");
+        }
+        return builder;
+    }
+
+    private void assertRolloverMappingCopy(Settings.Builder sourceSettings, Boolean copyMappings, boolean expectedCopy) throws Exception {
+        assertRolloverMappingCopy(sourceSettings, copyMappings, expectedCopy, Settings.EMPTY, Settings.EMPTY);
+    }
+
+    private void assertRolloverMappingCopy(
+        Settings.Builder sourceSettings,
+        Boolean copyMappings,
+        boolean expectedCopy,
+        Settings clusterSettings,
+        Settings nodeSettings
+    ) throws Exception {
+        final String aliasName = "logs-write";
+        final String sourceIndexName = "logs-000001";
+        final String targetIndexName = "logs-000002";
+        final IndexMetadata sourceIndex = IndexMetadata.builder(sourceIndexName)
+            .putAlias(AliasMetadata.builder(aliasName).writeIndex(true).build())
+            .putMapping("""
+                {
+                  "_doc": {
+                    "properties": {
+                      "dynamic_field": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+                """)
+            .settings(sourceSettings.put(settings(Version.CURRENT).build()).build())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().persistentSettings(clusterSettings).put(sourceIndex, false))
+            .build();
+
+        ThreadPool threadPool = mock(ThreadPool.class);
+        MetadataCreateIndexService createIndexService = mock(MetadataCreateIndexService.class);
+        when(createIndexService.applyCreateIndexRequest(any(), any(), anyBoolean())).thenReturn(clusterState);
+        MetadataIndexAliasesService indexAliasesService = mock(MetadataIndexAliasesService.class);
+        when(indexAliasesService.applyAliasActions(any(), any())).thenReturn(clusterState);
+        IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+        when(indexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
+        MetadataRolloverService rolloverService = new MetadataRolloverService(
+            threadPool,
+            createIndexService,
+            indexAliasesService,
+            indexNameExpressionResolver,
+            nodeSettings
+        );
+
+        rolloverService.rolloverClusterState(
+            clusterState,
+            aliasName,
+            targetIndexName,
+            new CreateIndexRequest("_na_"),
+            copyMappings,
+            Collections.emptyList(),
+            false,
+            false
+        );
+
+        ArgumentCaptor<CreateIndexClusterStateUpdateRequest> requestCaptor = ArgumentCaptor.forClass(
+            CreateIndexClusterStateUpdateRequest.class
+        );
+        verify(createIndexService).applyCreateIndexRequest(same(clusterState), requestCaptor.capture(), anyBoolean());
+        if (expectedCopy) {
+            assertThat(requestCaptor.getValue().mappingsSourceIndex(), equalTo(sourceIndexName));
+            assertThat(requestCaptor.getValue().mappingsToCopy(), equalTo(sourceIndex.mapping().source().string()));
+        } else {
+            assertNull(requestCaptor.getValue().mappingsSourceIndex());
+            assertNull(requestCaptor.getValue().mappingsToCopy());
+        }
+    }
 
     public void testRolloverAliasActions() {
         String sourceAlias = randomAlphaOfLength(10);

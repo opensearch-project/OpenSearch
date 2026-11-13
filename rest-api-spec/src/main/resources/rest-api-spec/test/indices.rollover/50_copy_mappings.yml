@@ -1,0 +1,349 @@
+---
+setup:
+  - skip:
+      version: " - 3.10.99"
+      reason: "copy_mappings was added in 3.11.0"
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.indices.rollover.force_copy_mappings: null
+
+---
+"Copy mappings from the write index":
+  - do:
+      indices.create:
+        index: copy-mappings-000001
+        body:
+          settings:
+            index:
+              refresh_interval: 42s
+          aliases:
+            copy_write:
+              is_write_index: true
+            source_only_alias: {}
+
+  - do:
+      index:
+        index: copy_write
+        id: "1"
+        refresh: true
+        body:
+          dynamic_text: "value"
+          dynamic_long: 1
+
+  - do:
+      indices.rollover:
+        alias: copy_write
+        body:
+          copy_mappings: true
+          mappings:
+            properties:
+              explicit_keyword:
+                type: keyword
+
+  - match: { old_index: copy-mappings-000001 }
+  - match: { new_index: copy-mappings-000002 }
+  - match: { rolled_over: true }
+
+  - do:
+      indices.get_mapping:
+        index: copy-mappings-000002
+
+  - match: { copy-mappings-000002.mappings.properties.dynamic_text.type: text }
+  - match: { copy-mappings-000002.mappings.properties.dynamic_long.type: long }
+  - match: { copy-mappings-000002.mappings.properties.explicit_keyword.type: keyword }
+
+  - do:
+      indices.get_settings:
+        index: copy-mappings-000002
+        flat_settings: true
+
+  - is_false: copy-mappings-000002.settings.index\.refresh_interval
+
+  - do:
+      indices.get_alias:
+        index: copy-mappings-000002
+
+  - is_true: copy-mappings-000002.aliases.copy_write
+  - is_false: copy-mappings-000002.aliases.source_only_alias
+
+---
+"Standard mappings are not copied when omitted or explicitly disabled":
+  - do:
+      indices.create:
+        index: standard-mappings-000001
+        body:
+          aliases:
+            standard_write:
+              is_write_index: true
+
+  - do:
+      index:
+        index: standard_write
+        id: "1"
+        refresh: true
+        body:
+          dynamic_long: 1
+
+  - do:
+      indices.rollover:
+        alias: standard_write
+
+  - match: { new_index: standard-mappings-000002 }
+  - match: { rolled_over: true }
+
+  - do:
+      indices.get_mapping:
+        index: standard-mappings-000002
+
+  - is_false: standard-mappings-000002.mappings.properties.dynamic_long
+
+  - do:
+      index:
+        index: standard_write
+        id: "2"
+        refresh: true
+        body:
+          dynamic_boolean: true
+
+  - do:
+      indices.rollover:
+        alias: standard_write
+        body:
+          copy_mappings: false
+
+  - match: { new_index: standard-mappings-000003 }
+  - match: { rolled_over: true }
+
+  - do:
+      indices.get_mapping:
+        index: standard-mappings-000003
+
+  - is_false: standard-mappings-000003.mappings.properties.dynamic_boolean
+
+---
+"Explicit field alias can refer to a copied source field":
+  - do:
+      indices.create:
+        index: copy-field-alias-000001
+        body:
+          mappings:
+            properties:
+              source_field:
+                type: keyword
+          aliases:
+            copy_field_alias_write:
+              is_write_index: true
+
+  - do:
+      indices.rollover:
+        alias: copy_field_alias_write
+        body:
+          copy_mappings: true
+          mappings:
+            properties:
+              source_field_alias:
+                type: alias
+                path: source_field
+
+  - match: { rolled_over: true }
+
+  - do:
+      indices.get_mapping:
+        index: copy-field-alias-000002
+
+  - match: { copy-field-alias-000002.mappings.properties.source_field.type: keyword }
+  - match: { copy-field-alias-000002.mappings.properties.source_field_alias.type: alias }
+  - match: { copy-field-alias-000002.mappings.properties.source_field_alias.path: source_field }
+
+  - do:
+      catch: bad_request
+      indices.rollover:
+        alias: copy_field_alias_write
+        body:
+          copy_mappings: true
+          mappings:
+            properties:
+              invalid_alias:
+                type: alias
+                path: missing_field
+
+  - match:
+      error.reason: "Invalid [path] value [missing_field] for field alias [invalid_alias]: an alias must refer to an existing field in the mappings."
+
+  - do:
+      indices.exists:
+        index: copy-field-alias-000003
+
+  - is_false: ''
+
+---
+"Copied routing requirement supports partitioned rollover with new fields":
+  - do:
+      indices.create:
+        index: copy-routing-000001
+        body:
+          mappings:
+            _routing:
+              required: true
+            properties:
+              source_field:
+                type: keyword
+          aliases:
+            copy_routing_write:
+              is_write_index: true
+
+  - do:
+      indices.rollover:
+        alias: copy_routing_write
+        body:
+          copy_mappings: true
+          settings:
+            index.number_of_shards: 4
+            index.number_of_replicas: 0
+            index.routing_partition_size: 2
+          mappings:
+            properties:
+              new_field:
+                type: long
+
+  - match: { rolled_over: true }
+
+  - do:
+      indices.get_mapping:
+        index: copy-routing-000002
+
+  - match: { copy-routing-000002.mappings._routing.required: true }
+  - match: { copy-routing-000002.mappings.properties.source_field.type: keyword }
+  - match: { copy-routing-000002.mappings.properties.new_field.type: long }
+
+  - do:
+      indices.get_settings:
+        index: copy-routing-000002
+        flat_settings: true
+
+  - match: { copy-routing-000002.settings.index\.routing_partition_size: "2" }
+
+---
+"Cluster modes and explicit overrides apply across repeated rollovers":
+  - do:
+      indices.create:
+        index: copy-cluster-mode-000001
+        body:
+          aliases:
+            copy_cluster_mode_write:
+              is_write_index: true
+
+  - do:
+      index:
+        index: copy_cluster_mode_write
+        id: "1"
+        refresh: true
+        body:
+          dynamic_long: 1
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.indices.rollover.force_copy_mappings: enabled
+
+  - do:
+      indices.rollover:
+        alias: copy_cluster_mode_write
+
+  - match: { new_index: copy-cluster-mode-000002 }
+  - match: { rolled_over: true }
+
+  - do:
+      indices.get_mapping:
+        index: copy-cluster-mode-000002
+
+  - match: { copy-cluster-mode-000002.mappings.properties.dynamic_long.type: long }
+
+  - do:
+      indices.rollover:
+        alias: copy_cluster_mode_write
+        body:
+          copy_mappings: false
+
+  - match: { new_index: copy-cluster-mode-000003 }
+  - match: { rolled_over: true }
+
+  - do:
+      indices.get_mapping:
+        index: copy-cluster-mode-000003
+
+  - is_false: copy-cluster-mode-000003.mappings.properties.dynamic_long
+
+  - do:
+      index:
+        index: copy_cluster_mode_write
+        id: "2"
+        refresh: true
+        body:
+          dynamic_boolean: true
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.indices.rollover.force_copy_mappings: disabled
+
+  - do:
+      indices.rollover:
+        alias: copy_cluster_mode_write
+        body:
+          copy_mappings: true
+
+  - match: { new_index: copy-cluster-mode-000004 }
+  - match: { rolled_over: true }
+
+  - do:
+      indices.get_mapping:
+        index: copy-cluster-mode-000004
+
+  - match: { copy-cluster-mode-000004.mappings.properties.dynamic_boolean.type: boolean }
+
+  - do:
+      indices.rollover:
+        alias: copy_cluster_mode_write
+
+  - match: { new_index: copy-cluster-mode-000005 }
+  - match: { rolled_over: true }
+
+  - do:
+      indices.get_mapping:
+        index: copy-cluster-mode-000005
+
+  - is_false: copy-cluster-mode-000005.mappings.properties.dynamic_boolean
+
+---
+"Copy mappings permits rollover when the source has no mapping":
+  - do:
+      indices.create:
+        index: copy-empty-000001
+        body:
+          aliases:
+            copy_empty_write:
+              is_write_index: true
+
+  - do:
+      indices.rollover:
+        alias: copy_empty_write
+        body:
+          copy_mappings: true
+
+  - match: { old_index: copy-empty-000001 }
+  - match: { new_index: copy-empty-000002 }
+  - match: { rolled_over: true }
+
+  - do:
+      indices.get_mapping:
+        index: copy-empty-000002
+
+  - is_false: copy-empty-000002.mappings.properties

@@ -84,6 +84,11 @@ public class RolloverRequestBuilder extends ClusterManagerNodeOperationRequestBu
         return this;
     }
 
+    public RolloverRequestBuilder copyMappings(boolean copyMappings) {
+        this.request.copyMappings(copyMappings);
+        return this;
+    }
+
     public RolloverRequestBuilder settings(Settings settings) {
         this.request.getCreateIndexRequest().settings(settings);
         return this;
