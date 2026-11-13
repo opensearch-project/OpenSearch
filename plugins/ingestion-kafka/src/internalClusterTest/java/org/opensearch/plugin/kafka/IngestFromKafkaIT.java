@@ -23,6 +23,8 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.IngestionPayloadDecoder;
 import org.opensearch.index.IngestionPayloadDecoderFactory;
@@ -30,9 +32,12 @@ import org.opensearch.index.Message;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.pollingingest.IngestionUtils;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.pollingingest.XContentIngestionPayloadDecoder;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.IngestionConsumerPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
@@ -54,6 +59,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.awaitility.Awaitility.await;
 
@@ -851,6 +857,40 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
 
         waitForSearchableDocs(10, Arrays.asList(nodeA));
         waitForState(() -> getPeriodicFlushCount(nodeA, indexName) >= 1);
+    }
+
+    public void testSearchIdleShardKeepsRefreshing() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+        produceData("1", "name1", "24");
+
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueSeconds(1))
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+        ensureGreen(indexName);
+        waitForSearchableDocs(1, List.of(nodeA));
+
+        IndexShard shard = internalCluster().getInstance(IndicesService.class, nodeA).indexServiceSafe(resolveIndex(indexName)).getShard(0);
+        assertTrue(shard.indexSettings().isExplicitRefresh());
+        assertBusy(() -> assertTrue(shard.isSearchIdle()));
+        final long externalRefreshesBefore = shard.refreshStats().getExternalTotal();
+
+        // scheduled refreshes keep running while the shard is search idle, so the first search sees the new doc
+        produceData("2", "name2", "20");
+        assertBusy(() -> assertThat(shard.refreshStats().getExternalTotal(), greaterThan(externalRefreshesBefore)));
+        assertTrue(shard.isSearchIdle());
+        assertThat(getSearchableDocCount(nodeA), is(2L));
     }
 
     public void testRawPayloadMapperIngestion() throws Exception {
