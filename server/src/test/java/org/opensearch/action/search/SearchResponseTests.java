@@ -152,6 +152,18 @@ public class SearchResponseTests extends OpenSearchTestCase {
         List<SearchExtBuilder> searchExtBuilders,
         ShardSearchFailure... shardSearchFailures
     ) {
+        return createTestItem(minimal, (InternalAggregations) null, searchExtBuilders, shardSearchFailures);
+    }
+
+    /**
+     * @param responseAggregations the aggregations of the response, or null for random ones
+     */
+    private SearchResponse createTestItem(
+        boolean minimal,
+        InternalAggregations responseAggregations,
+        List<SearchExtBuilder> searchExtBuilders,
+        ShardSearchFailure... shardSearchFailures
+    ) {
         boolean timedOut = randomBoolean();
         Boolean terminatedEarly = randomBoolean() ? null : randomBoolean();
         int numReducePhases = randomIntBetween(1, 10);
@@ -167,7 +179,9 @@ public class SearchResponseTests extends OpenSearchTestCase {
         InternalSearchResponse internalSearchResponse;
         if (minimal == false) {
             SearchHits hits = SearchHitsTests.createTestItem(true, true);
-            InternalAggregations aggregations = aggregationsTests.createTestInstance();
+            InternalAggregations aggregations = responseAggregations != null
+                ? responseAggregations
+                : aggregationsTests.createTestInstance();
             Suggest suggest = SuggestTests.createTestItem();
             SearchProfileShardResults profileShardResults = SearchProfileShardResultsTests.createTestItem();
             internalSearchResponse = new InternalSearchResponse(
@@ -509,7 +523,9 @@ public class SearchResponseTests extends OpenSearchTestCase {
 
     public void testSerializationWithSearchExtBuildersOnUnsupportedWriterVersion() throws IOException {
         String id = UUID.randomUUID().toString();
-        SearchResponse searchResponse = createTestItem(false, List.of(new DummySearchExtBuilder(id)));
+        // The response is written as a 2.9.0 node reads it, and what this looks at is the search ext builders. It has no aggregations,
+        // as random ones may have an aggregation that is newer than that version, such as string_stats, which is not written to it.
+        SearchResponse searchResponse = createTestItem(false, InternalAggregations.EMPTY, List.of(new DummySearchExtBuilder(id)));
         SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.V_2_9_0);
         if (searchResponse.getHits().getTotalHits() == null) {
             assertNull(deserialized.getHits().getTotalHits());
