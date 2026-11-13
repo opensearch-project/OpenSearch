@@ -34,6 +34,7 @@ package org.opensearch.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -43,6 +44,9 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
@@ -104,6 +108,7 @@ import org.opensearch.search.internal.ScrollContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.internal.VisibleSubsetStatistics;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QueryPhaseExecutionException;
 import org.opensearch.search.query.QuerySearchResult;
@@ -155,6 +160,18 @@ import static org.opensearch.search.streaming.FlushModeResolver.STREAMING_MIN_ES
 final class DefaultSearchContext extends SearchContext {
 
     private static final Logger logger = LogManager.getLogger(DefaultSearchContext.class);
+
+    /** The index's ceiling on the documents scoped statistics may cover, or a negative value for none. */
+    long filteredStatisticsMaxVisibleDocs() {
+        final IndexSettings settings = indexService.getIndexSettings();
+        return settings == null ? -1L : settings.getValue(VisibleSubsetStatistics.INDEX_FILTERED_STATS_MAX_VISIBLE_DOCS_SETTING);
+    }
+
+    /**
+     * Memoized result of the {@code filtered_stats} small-view guardrail; see {@link #withinFilteredStatisticsBudget()}.
+     * {@code null} until first evaluated.
+     */
+    private Boolean filteredStatisticsWithinBudget;
 
     private final ReaderContext readerContext;
     private final Engine.Searcher engineSearcher;
@@ -213,6 +230,8 @@ final class DefaultSearchContext extends SearchContext {
     private Query query;
     private ParsedQuery postFilter;
     private Query aliasFilter;
+    /** Whether {@link #aliasFilter} has been built from the request, which {@link #preProcess} does. */
+    private boolean aliasFilterBuilt;
     private int[] docIdsToLoad;
     private int docsIdsToLoadFrom;
     private int docsIdsToLoadSize;
@@ -445,6 +464,8 @@ final class DefaultSearchContext extends SearchContext {
         try {
             final QueryBuilder queryBuilder = request.getAliasFilter().getQueryBuilder();
             aliasFilter = queryBuilder == null ? null : queryBuilder.toQuery(queryShardContext);
+            aliasFilterBuilt = true;
+            filteredStatisticsFilterMemo = null;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -463,6 +484,7 @@ final class DefaultSearchContext extends SearchContext {
                 throw new QueryPhaseExecutionException(shardTarget, "Failed to rewrite main query", e);
             }
         }
+        queryBuilt = true;
     }
 
     @Override
@@ -475,17 +497,32 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (aliasFilter != null) {
-            if (request.getAliasFilter().getScoringMode() == AliasFilter.ScoringMode.NO_STATS) {
-                // Filter before scoring and score every hit the same, so no corpus statistics are read and documents
-                // outside the alias cannot affect a score.
-                query = new ConstantScoreQuery(new BooleanQuery.Builder().add(query, Occur.MUST).add(aliasFilter, Occur.FILTER).build());
-                // Rescoring, inner hits and the inner query of function_score or script_score score separately through
-                // this searcher, so give it a similarity that reads no corpus statistics as well.
-                searcher.setSimilarity(new BooleanSimilarity());
+            final AliasFilter.ScoringMode scoringMode = aliasScoringMode();
+            if (scoringMode == AliasFilter.ScoringMode.NO_STATS || scoringMode == AliasFilter.ScoringMode.FILTERED_STATS) {
+                if (useFilteredStatistics()) {
+                    // filtered_stats: keep real BM25 scoring but restrict the
+                    // query to the visible subset by adding the alias filter as a normal (non-scoring) FILTER
+                    // clause. The visibility-aware statistics are supplied by ContextIndexSearcher, which computes
+                    // collection/term stats over only the alias-filter bitset (see useFilteredStatistics()). This
+                    // way a term confined to filtered-out docs contributes no df to a visible document's IDF,
+                    // without collapsing scoring to a constant like the constant_score behavior below does.
+                    filters.add(aliasFilter);
+                } else {
+                    // no_stats, or filtered_stats over its ceiling: filter before scoring and score every hit the
+                    // same, so no corpus statistics are read and documents outside the alias cannot affect a score.
+                    query = new ConstantScoreQuery(
+                        new BooleanQuery.Builder().add(query, Occur.MUST).add(aliasFilter, Occur.FILTER).build()
+                    );
+                    // Rescoring, inner hits and the inner query of function_score or script_score score separately
+                    // through this searcher, so give it a similarity that reads no corpus statistics as well.
+                    searcher.setSimilarity(new BooleanSimilarity());
+                }
             } else {
                 filters.add(aliasFilter);
             }
         }
+
+        query = restrictionFallback(query);
 
         if (sliceBuilder != null) {
             Query slicedQuery = sliceBuilder.toFilter(clusterService, request, queryShardContext, minNodeVersion);
@@ -828,6 +865,148 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public Query aliasFilter() {
         return aliasFilter;
+    }
+
+    /** A caller-declared restriction, set by {@link #visibleSubsetFilter(Query)}; combined with any alias filter. */
+    private Query pluginVisibleSubsetFilter;
+
+    /** {@link #filteredStatisticsFilter()} for this request, built once and cleared when a restriction is declared. */
+    private Query filteredStatisticsFilterMemo;
+
+    /** Whether {@link #preProcess} has built {@link #query} yet. */
+    private boolean queryBuilt;
+
+    @Override
+    public void visibleSubsetFilter(Query filter) {
+        // A second declaration narrows the first rather than replacing it, so neither restriction is lost.
+        this.pluginVisibleSubsetFilter = intersect(pluginVisibleSubsetFilter, filter);
+        this.filteredStatisticsFilterMemo = null;
+        this.filteredStatisticsWithinBudget = null;
+        if (queryBuilt) {
+            // Declared after the query was built, so apply the fallback now instead of relying on a later preProcess.
+            this.query = restrictionFallback(query);
+        }
+    }
+
+    @Override
+    public Query filteredStatisticsFilter() {
+        if (filteredStatisticsFilterMemo == null) {
+            final Query alias = aliasScoringMode() == AliasFilter.ScoringMode.FILTERED_STATS ? aliasFilter : null;
+            // Each restriction removes documents this caller must not be scored against, so honour both.
+            filteredStatisticsFilterMemo = intersect(alias, pluginVisibleSubsetFilter);
+        }
+        return filteredStatisticsFilterMemo;
+    }
+
+    /** Both filters as non-scoring clauses, or whichever is non-null. */
+    private static Query intersect(Query a, Query b) {
+        if (a == null || b == null) {
+            return a != null ? a : b;
+        }
+        return new BooleanQuery.Builder().add(a, Occur.FILTER).add(b, Occur.FILTER).build();
+    }
+
+    /**
+     * Wraps {@code q} in constant score when a declared restriction cannot have its statistics scoped, so the request
+     * loses relevance ordering rather than scoring against documents the caller cannot read.
+     */
+    private Query restrictionFallback(Query q) {
+        if (pluginVisibleSubsetFilter != null && useFilteredStatistics() == false && (q instanceof ConstantScoreQuery) == false) {
+            searcher.setSimilarity(new BooleanSimilarity());
+            return new ConstantScoreQuery(q);
+        }
+        return q;
+    }
+
+    @Override
+    public boolean useFilteredStatistics() {
+        final AliasFilter.ScoringMode scoringMode = aliasScoringMode();
+        // no_stats suppresses scoring, so there are no statistics to scope.
+        return scoringMode != AliasFilter.ScoringMode.NO_STATS
+            && (scoringMode == AliasFilter.ScoringMode.FILTERED_STATS || pluginVisibleSubsetFilter != null)
+            && withinFilteredStatisticsBudget();
+    }
+
+    @Override
+    public boolean restrictsStatistics() {
+        // Read the built alias query, as useFilteredStatistics() does, so the two agree; before preProcess builds it,
+        // read the request.
+        final AliasFilter.ScoringMode scoringMode = aliasFilterBuilt ? aliasScoringMode() : requestedAliasScoringMode();
+        return scoringMode == AliasFilter.ScoringMode.NO_STATS
+            || scoringMode == AliasFilter.ScoringMode.FILTERED_STATS
+            || pluginVisibleSubsetFilter != null;
+    }
+
+    /** The scoring mode of the alias filter on this request, or {@code null} when no alias filter applies. */
+    private AliasFilter.ScoringMode aliasScoringMode() {
+        return aliasFilter == null ? null : request.getAliasFilter().getScoringMode();
+    }
+
+    /** The scoring mode the request asks for, or {@code null} when the request carries no alias query. */
+    private AliasFilter.ScoringMode requestedAliasScoringMode() {
+        final AliasFilter requested = request.getAliasFilter();
+        return requested == null || requested.getQueryBuilder() == null ? null : requested.getScoringMode();
+    }
+
+    /**
+     * Small-view guardrail for {@code filtered_stats}. Estimates how many documents the statistics filter matches and
+     * returns {@code false} when that exceeds {@link #filteredStatisticsMaxVisibleDocs()}, so the caller falls back to
+     * the {@code constant_score} behavior (flat and unranked, and reads no corpus statistics) instead of paying an unbounded
+     * first-query cost on a very large view.
+     * <p>
+     * The estimate uses {@link ScorerSupplier#cost()}, which is an upper bound derived from postings metadata -- it
+     * does not iterate the filter, so the guardrail itself is cheap and, crucially, runs <em>before</em> the expensive
+     * visible-doc/statistics build it is protecting against.
+     * <p>
+     * The result is memoized for the life of this context because it is consulted twice per request -- once when
+     * choosing the query shape in {@link #buildFilteredQuery(Query)} and again when the searcher computes statistics.
+     * Those two decisions must agree: a filtered-stats query shape scored with whole-shard statistics would reintroduce
+     * the very whole-corpus IDF that filtered_stats is meant to exclude.
+     */
+    private boolean withinFilteredStatisticsBudget() {
+        if (filteredStatisticsWithinBudget != null) {
+            return filteredStatisticsWithinBudget;
+        }
+        final long maxVisibleDocs = filteredStatisticsMaxVisibleDocs();
+        if (maxVisibleDocs < 0) {
+            filteredStatisticsWithinBudget = true;
+            return true;
+        }
+        boolean withinBudget;
+        try {
+            final Weight weight = searcher.createWeight(searcher.rewrite(filteredStatisticsFilter()), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            long estimate = 0;
+            for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
+                final ScorerSupplier scorerSupplier = weight.scorerSupplier(ctx);
+                if (scorerSupplier != null) {
+                    estimate += scorerSupplier.cost();
+                    if (estimate > maxVisibleDocs) {
+                        break;
+                    }
+                }
+            }
+            withinBudget = estimate <= maxVisibleDocs;
+            if (withinBudget == false) {
+                // Warn rather than debug: the request will succeed and return the right documents, but without
+                // relevance ordering, and nothing in the response says so. An operator who set the ceiling should be
+                // able to see when it is taking effect.
+                logger.warn(
+                    "filtered_stats fell back to constant_score for this request: the filter matches ~{} documents, "
+                        + "above the [{}] ceiling of {} configured on this index. Documents and access control are "
+                        + "unaffected; relevance ordering is not applied.",
+                    estimate,
+                    VisibleSubsetStatistics.INDEX_FILTERED_STATS_MAX_VISIBLE_DOCS_SETTING.getKey(),
+                    maxVisibleDocs
+                );
+            }
+        } catch (IOException e) {
+            // Fail closed onto constant_score: it reads no corpus statistics and is cheaper, so an estimation failure degrades
+            // ranking rather than correctness or latency.
+            logger.warn("could not estimate how many documents filtered statistics would cover; falling back to constant_score", e);
+            withinBudget = false;
+        }
+        filteredStatisticsWithinBudget = withinBudget;
+        return withinBudget;
     }
 
     @Override

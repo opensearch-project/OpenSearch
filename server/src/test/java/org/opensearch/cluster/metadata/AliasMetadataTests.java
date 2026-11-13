@@ -73,7 +73,7 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
     }
 
     public void testScoringModeIsPartOfIdentity() {
-        AliasMetadata with = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").scoringMode("no_stats").build();
+        AliasMetadata with = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").scoringMode("filtered_stats").build();
         AliasMetadata without = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").build();
         assertNotEquals(with, without);
         assertNotEquals(with.hashCode(), without.hashCode());
@@ -107,14 +107,14 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
     }
 
     public void testScoringModeRoundTripsOnCurrentVersion() throws IOException {
-        final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").scoringMode("no_stats").build();
+        final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").scoringMode("filtered_stats").build();
         final BytesStreamOutput out = new BytesStreamOutput();
         before.writeTo(out);
-        assertThat(new AliasMetadata(out.bytes().streamInput()).scoringMode(), equalTo("no_stats"));
+        assertThat(new AliasMetadata(out.bytes().streamInput()).scoringMode(), equalTo("filtered_stats"));
     }
 
     public void testScoringModeIsNotSentToANodeThatPredatesIt() throws IOException {
-        final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").scoringMode("no_stats").build();
+        final AliasMetadata before = AliasMetadata.builder("alias").filter("{ \"term\": \"foo\"}").scoringMode("filtered_stats").build();
         final Version older = VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION);
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(older);
@@ -193,7 +193,7 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
             builder.isHidden(randomBoolean());
         }
         if (filtered && randomBoolean()) {
-            builder.scoringMode(randomFrom("unfiltered_stats", "no_stats"));
+            builder.scoringMode(randomFrom("unfiltered_stats", "no_stats", "filtered_stats"));
         }
         return builder.build();
     }
