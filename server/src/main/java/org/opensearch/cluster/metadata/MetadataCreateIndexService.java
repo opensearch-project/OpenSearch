@@ -77,6 +77,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
@@ -542,7 +543,14 @@ public class MetadataCreateIndexService {
             Template contextTemplate = applyContext(request, currentState, updatedMappings, tmpSettingsBuilder);
 
             try {
-                updateIndexMappingsAndBuildSortOrder(indexService, request, updatedMappings, sourceMetadata, indexCreationValidators);
+                updateIndexMappingsAndBuildSortOrder(
+                    indexService,
+                    request,
+                    updatedMappings,
+                    sourceMetadata,
+                    indexCreationValidators,
+                    templatesApplied
+                );
             } catch (Exception e) {
                 logger.log(silent ? Level.DEBUG : Level.INFO, "failed on parsing mappings on index creation [{}]", request.index(), e);
                 throw e;
@@ -1678,17 +1686,93 @@ public class MetadataCreateIndexService {
         return blocksBuilder;
     }
 
-    private static void updateIndexMappingsAndBuildSortOrder(
+    private void updateIndexMappingsAndBuildSortOrder(
         IndexService indexService,
         CreateIndexClusterStateUpdateRequest request,
         List<Map<String, Object>> mappings,
         @Nullable IndexMetadata sourceMetadata,
-        List<IndexCreationValidator> indexCreationValidators
+        List<IndexCreationValidator> indexCreationValidators,
+        List<String> templatesApplied
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
-        for (Map<String, Object> mapping : mappings) {
-            if (mapping.isEmpty() == false) {
-                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
+        if (request.mappingsToCopy() != null) {
+            final Map<String, Object> copiedMappings;
+            DocumentMapper copiedDocumentMapper;
+            try {
+                copiedMappings = MapperService.parseMapping(xContentRegistry, request.mappingsToCopy());
+                copiedDocumentMapper = copiedMappings.isEmpty() ? null : parseRolloverMapping(mapperService, copiedMappings, null);
+            } catch (Exception e) {
+                throw copiedMappingsConflict(request, templatesApplied, e);
+            }
+
+            // Build the complete mapping before installing it: partial template/request mappings may refer to copied fields
+            // or depend on copied metadata such as _routing.required.
+            DocumentMapper mergedDocumentMapper = null;
+            for (Map<String, Object> mapping : mappings) {
+                if (mapping.isEmpty() == false) {
+                    final DocumentMapper templateDocumentMapper = parseRolloverMapping(
+                        mapperService,
+                        mapping,
+                        mergedDocumentMapper == null ? copiedDocumentMapper : mergedDocumentMapper
+                    );
+                    mergedDocumentMapper = mergedDocumentMapper == null
+                        ? templateDocumentMapper
+                        : mergedDocumentMapper.merge(templateDocumentMapper.mapping(), MergeReason.INDEX_TEMPLATE);
+                }
+            }
+
+            try {
+                if (copiedDocumentMapper != null) {
+                    copiedDocumentMapper = parseRolloverMapping(mapperService, copiedMappings, mergedDocumentMapper);
+                }
+            } catch (Exception e) {
+                throw copiedMappingsConflict(request, templatesApplied, e);
+            }
+
+            final DocumentMapper explicitDocumentMapper;
+            try {
+                final Map<String, Object> explicitMappings = MapperService.parseMapping(xContentRegistry, request.mappings());
+                explicitDocumentMapper = explicitMappings.isEmpty()
+                    ? null
+                    : parseRolloverMapping(
+                        mapperService,
+                        explicitMappings,
+                        copiedDocumentMapper == null ? mergedDocumentMapper : copiedDocumentMapper
+                    );
+                if (copiedDocumentMapper != null && explicitDocumentMapper != null) {
+                    copiedDocumentMapper.merge(explicitDocumentMapper.mapping(), MergeReason.MAPPING_UPDATE);
+                }
+            } catch (Exception e) {
+                throw explicitMappingsConflict(request, templatesApplied, e);
+            }
+
+            try {
+                if (copiedDocumentMapper != null) {
+                    mergedDocumentMapper = mergedDocumentMapper == null
+                        ? copiedDocumentMapper
+                        : mergedDocumentMapper.merge(copiedDocumentMapper.mapping(), MergeReason.MAPPING_UPDATE);
+                }
+            } catch (Exception e) {
+                throw copiedMappingsConflict(request, templatesApplied, e);
+            }
+
+            try {
+                if (explicitDocumentMapper != null) {
+                    mergedDocumentMapper = mergedDocumentMapper == null
+                        ? explicitDocumentMapper
+                        : mergedDocumentMapper.merge(explicitDocumentMapper.mapping(), MergeReason.MAPPING_UPDATE);
+                }
+            } catch (Exception e) {
+                throw explicitMappingsConflict(request, templatesApplied, e);
+            }
+            if (mergedDocumentMapper != null) {
+                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mergedDocumentMapper.mappingSource(), MergeReason.MAPPING_UPDATE);
+            }
+        } else {
+            for (Map<String, Object> mapping : mappings) {
+                if (mapping.isEmpty() == false) {
+                    mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
+                }
             }
         }
 
@@ -1710,6 +1794,66 @@ public class MetadataCreateIndexService {
         if (request.dataStreamName() != null) {
             MetadataCreateDataStreamService.validateTimestampFieldMapping(mapperService);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private DocumentMapper parseRolloverMapping(
+        MapperService mapperService,
+        Map<String, Object> mapping,
+        @Nullable DocumentMapper previousDocumentMapper
+    ) throws IOException {
+        final Map<String, Object> mappingBody = new HashMap<>(
+            mapping.size() == 1 && mapping.containsKey(MapperService.SINGLE_MAPPING_NAME)
+                ? (Map<String, Object>) mapping.get(MapperService.SINGLE_MAPPING_NAME)
+                : mapping
+        );
+        if (previousDocumentMapper != null) {
+            // DocumentMapperParser normally inherits omitted metadata from the installed mapper. During this deferred merge,
+            // carry it from the previous in-memory mapper instead.
+            final Map<String, Object> previousMapping = (Map<String, Object>) MapperService.parseMapping(
+                xContentRegistry,
+                previousDocumentMapper.mappingSource().string()
+            ).get(MapperService.SINGLE_MAPPING_NAME);
+            for (Map.Entry<String, Object> entry : previousMapping.entrySet()) {
+                if (previousDocumentMapper.mapping().getMetadataMapper(entry.getKey()) != null) {
+                    mappingBody.putIfAbsent(entry.getKey(), entry.getValue());
+                }
+            }
+        }
+        return mapperService.documentMapperParser()
+            .parse(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(XContentFactory.jsonBuilder().map(mappingBody).toString()));
+    }
+
+    private static IllegalArgumentException copiedMappingsConflict(
+        CreateIndexClusterStateUpdateRequest request,
+        List<String> templatesApplied,
+        Exception cause
+    ) {
+        return new IllegalArgumentException(
+            "cannot copy mappings from source index ["
+                + request.mappingsSourceIndex()
+                + "] to rollover index ["
+                + request.index()
+                + "] because they conflict with matching index templates "
+                + templatesApplied,
+            cause
+        );
+    }
+
+    private static IllegalArgumentException explicitMappingsConflict(
+        CreateIndexClusterStateUpdateRequest request,
+        List<String> templatesApplied,
+        Exception cause
+    ) {
+        return new IllegalArgumentException(
+            "explicit mappings for rollover index ["
+                + request.index()
+                + "] conflict with copied mappings from source index ["
+                + request.mappingsSourceIndex()
+                + "] or matching index templates "
+                + templatesApplied,
+            cause
+        );
     }
 
     private static void validateActiveShardCount(ActiveShardCount waitForActiveShards, IndexMetadata indexMetadata) {

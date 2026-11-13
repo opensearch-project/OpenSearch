@@ -54,6 +54,7 @@ public class RolloverRequest extends TimedRequest implements ToXContentObject {
     private final String alias;
     private final String newIndexName;
     private boolean dryRun;
+    private Boolean copyMappings;
     private final Map<String, Condition<?>> conditions = new HashMap<>(2);
     // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private final CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
@@ -93,6 +94,21 @@ public class RolloverRequest extends TimedRequest implements ToXContentObject {
      */
     public boolean isDryRun() {
         return dryRun;
+    }
+
+    /**
+     * Sets whether to copy the current write index's mappings, overriding the cluster setting and index-type default.
+     */
+    public RolloverRequest copyMappings(boolean copyMappings) {
+        this.copyMappings = copyMappings;
+        return this;
+    }
+
+    /**
+     * Returns whether mapping copy was explicitly enabled.
+     */
+    public boolean isCopyMappings() {
+        return Boolean.TRUE.equals(copyMappings);
     }
 
     /**
@@ -149,6 +165,9 @@ public class RolloverRequest extends TimedRequest implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         createIndexRequest.innerToXContent(builder, params);
+        if (copyMappings != null) {
+            builder.field("copy_mappings", copyMappings);
+        }
 
         builder.startObject("conditions");
         for (Condition<?> condition : conditions.values()) {

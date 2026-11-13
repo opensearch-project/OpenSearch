@@ -34,6 +34,7 @@ package org.opensearch.common.settings;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.opensearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.action.search.SearchRequestSlowLog;
 import org.opensearch.action.search.SearchRequestStats;
@@ -336,6 +337,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
                 Metadata.DEFAULT_REPLICA_COUNT_SETTING,
                 Metadata.SETTING_CREATE_INDEX_BLOCK_SETTING,
+                MetadataRolloverService.CLUSTER_ROLLOVER_FORCE_COPY_MAPPINGS_SETTING,
                 ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
                 ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_CLUSTER,
                 ShardLimitValidator.SETTING_CLUSTER_MAX_REMOTE_CAPABLE_SHARDS_PER_NODE,

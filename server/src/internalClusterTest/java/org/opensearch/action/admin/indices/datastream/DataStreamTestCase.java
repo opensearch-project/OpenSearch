@@ -72,6 +72,16 @@ public class DataStreamTestCase extends OpenSearchIntegTestCase {
         return response;
     }
 
+    public RolloverResponse rolloverDataStream(String name, boolean copyMappings) throws Exception {
+        RolloverRequest request = new RolloverRequest(name, null);
+        request.copyMappings(copyMappings);
+        RolloverResponse response = client().admin().indices().rolloverIndex(request).get();
+        assertThat(response.isAcknowledged(), is(true));
+        assertThat(response.isRolledOver(), is(true));
+        performRemoteStoreTestAction();
+        return response;
+    }
+
     public AcknowledgedResponse createDataStreamIndexTemplate(String name, List<String> indexPatterns) throws Exception {
         return createDataStreamIndexTemplate(name, indexPatterns, "@timestamp");
     }

@@ -49,8 +49,10 @@ import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
@@ -73,25 +75,76 @@ import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findV
  * @opensearch.internal
  */
 public class MetadataRolloverService {
+    /**
+     * Default rollover mapping-copy mode: auto copies pluggable composite mappings only;
+     * enabled copies all indices, and disabled skips all. Explicit request flags take precedence.
+     * Boolean true/false values are aliases for enabled/disabled.
+     */
+    public static final Setting<MappingCopyMode> CLUSTER_ROLLOVER_FORCE_COPY_MAPPINGS_SETTING = new Setting<>(
+        "cluster.indices.rollover.force_copy_mappings",
+        "auto",
+        MappingCopyMode::parse,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Cluster defaults for rollover mapping copying.
+     *
+     * @opensearch.internal
+     */
+    public enum MappingCopyMode {
+        AUTO,
+        ENABLED,
+        DISABLED;
+
+        private static MappingCopyMode parse(String value) {
+            return switch (value.toLowerCase(Locale.ROOT)) {
+                case "auto" -> AUTO;
+                case "enabled", "true" -> ENABLED;
+                case "disabled", "false" -> DISABLED;
+                default -> throw new IllegalArgumentException(
+                    "unknown value ["
+                        + value
+                        + "] for setting [cluster.indices.rollover.force_copy_mappings], "
+                        + "expected [auto, enabled, disabled]"
+                );
+            };
+        }
+    }
+
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");
     private static final List<IndexAbstraction.Type> VALID_ROLLOVER_TARGETS = List.of(ALIAS, DATA_STREAM);
+    private static final String COMPOSITE_DATA_FORMAT = "composite";
 
     private final ThreadPool threadPool;
     private final MetadataCreateIndexService createIndexService;
     private final MetadataIndexAliasesService indexAliasesService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final Settings nodeSettings;
 
-    @Inject
     public MetadataRolloverService(
         ThreadPool threadPool,
         MetadataCreateIndexService createIndexService,
         MetadataIndexAliasesService indexAliasesService,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
+        this(threadPool, createIndexService, indexAliasesService, indexNameExpressionResolver, Settings.EMPTY);
+    }
+
+    @Inject
+    public MetadataRolloverService(
+        ThreadPool threadPool,
+        MetadataCreateIndexService createIndexService,
+        MetadataIndexAliasesService indexAliasesService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Settings nodeSettings
+    ) {
         this.threadPool = threadPool;
         this.createIndexService = createIndexService;
         this.indexAliasesService = indexAliasesService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.nodeSettings = nodeSettings;
     }
 
     /**
@@ -120,6 +173,28 @@ public class MetadataRolloverService {
         boolean silent,
         boolean onlyValidate
     ) throws Exception {
+        return rolloverClusterState(
+            currentState,
+            rolloverTarget,
+            newIndexName,
+            createIndexRequest,
+            null,
+            metConditions,
+            silent,
+            onlyValidate
+        );
+    }
+
+    public RolloverResult rolloverClusterState(
+        ClusterState currentState,
+        String rolloverTarget,
+        String newIndexName,
+        CreateIndexRequest createIndexRequest,
+        @Nullable Boolean copyMappings,
+        List<Condition<?>> metConditions,
+        boolean silent,
+        boolean onlyValidate
+    ) throws Exception {
         validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         switch (indexAbstraction.getType()) {
@@ -130,6 +205,7 @@ public class MetadataRolloverService {
                     rolloverTarget,
                     newIndexName,
                     createIndexRequest,
+                    copyMappings,
                     metConditions,
                     silent,
                     onlyValidate
@@ -140,6 +216,7 @@ public class MetadataRolloverService {
                     (IndexAbstraction.DataStream) indexAbstraction,
                     rolloverTarget,
                     createIndexRequest,
+                    copyMappings,
                     metConditions,
                     silent,
                     onlyValidate
@@ -156,6 +233,7 @@ public class MetadataRolloverService {
         String aliasName,
         String newIndexName,
         CreateIndexRequest createIndexRequest,
+        @Nullable Boolean copyMappings,
         List<Condition<?>> metConditions,
         boolean silent,
         boolean onlyValidate
@@ -185,6 +263,7 @@ public class MetadataRolloverService {
             rolloverIndexName,
             createIndexRequest
         );
+        copyMappings(currentState, writeIndex, createIndexClusterStateRequest, copyMappings);
         ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent);
         newState = indexAliasesService.applyAliasActions(
             newState,
@@ -207,6 +286,7 @@ public class MetadataRolloverService {
         IndexAbstraction.DataStream dataStream,
         String dataStreamName,
         CreateIndexRequest createIndexRequest,
+        @Nullable Boolean copyMappings,
         List<Condition<?>> metConditions,
         boolean silent,
         boolean onlyValidate
@@ -226,6 +306,7 @@ public class MetadataRolloverService {
             newWriteIndexName,
             createIndexRequest
         );
+        copyMappings(currentState, originalWriteIndex, createIndexClusterStateRequest, copyMappings);
         ClusterState newState = createIndexService.applyCreateIndexRequest(
             currentState,
             createIndexClusterStateRequest,
@@ -242,6 +323,32 @@ public class MetadataRolloverService {
             .build();
 
         return new RolloverResult(newWriteIndexName, originalWriteIndex.getIndex().getName(), newState);
+    }
+
+    private void copyMappings(
+        ClusterState currentState,
+        IndexMetadata sourceIndex,
+        CreateIndexClusterStateUpdateRequest createIndexRequest,
+        @Nullable Boolean requestedCopyMappings
+    ) {
+        final MappingCopyMode copyMode = CLUSTER_ROLLOVER_FORCE_COPY_MAPPINGS_SETTING.get(currentState.metadata().settings(), nodeSettings);
+        if (shouldCopyMappings(sourceIndex, requestedCopyMappings, copyMode)) {
+            final String mappings = sourceIndex.mapping() == null ? "{}" : sourceIndex.mapping().source().string();
+            createIndexRequest.mappingsToCopy(sourceIndex.getIndex().getName(), mappings);
+        }
+    }
+
+    static boolean shouldCopyMappings(IndexMetadata sourceIndex, @Nullable Boolean requestedCopyMappings, MappingCopyMode copyMode) {
+        if (requestedCopyMappings != null) {
+            return requestedCopyMappings;
+        }
+        final Settings sourceSettings = sourceIndex.getSettings();
+        return switch (copyMode) {
+            case ENABLED -> true;
+            case DISABLED -> false;
+            case AUTO -> IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(sourceSettings)
+                && COMPOSITE_DATA_FORMAT.equals(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(sourceSettings));
+        };
     }
 
     static String generateRolloverIndexName(String sourceIndexName, IndexNameExpressionResolver indexNameExpressionResolver) {
