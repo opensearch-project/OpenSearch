@@ -84,9 +84,25 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
     private final Map<String, PersistentTask<?>> tasks;
     private final long lastAllocationId;
 
+    /**
+     * Number of assigned tasks per task name and executor node, derived from {@link #tasks}. Computed on first use, or handed over
+     * by the {@link Builder} that tracked it, so {@link #getNumberOfTasksOnNode} does not scan every task. Never serialized and not
+     * part of {@link #equals}/{@link #hashCode}.
+     */
+    private volatile Map<String, Map<String, Long>> taskCounts;
+
     public PersistentTasksCustomMetadata(long lastAllocationId, Map<String, PersistentTask<?>> tasks) {
+        this(lastAllocationId, tasks, null);
+    }
+
+    private PersistentTasksCustomMetadata(
+        long lastAllocationId,
+        Map<String, PersistentTask<?>> tasks,
+        @Nullable Map<String, Map<String, Long>> taskCounts
+    ) {
         this.lastAllocationId = lastAllocationId;
         this.tasks = tasks;
+        this.taskCounts = taskCounts;
     }
 
     private static final ObjectParser<Builder, Void> PERSISTENT_TASKS_PARSER = new ObjectParser<>(TYPE, Builder::new);
@@ -214,10 +230,63 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
     }
 
     public long getNumberOfTasksOnNode(String nodeId, String taskName) {
-        return tasks.values()
-            .stream()
-            .filter(task -> taskName.equals(task.taskName) && nodeId.equals(task.assignment.executorNode))
-            .count();
+        Map<String, Long> perNode = taskCounts().get(taskName);
+        Long count = perNode == null ? null : perNode.get(nodeId);
+        return count == null ? 0 : count;
+    }
+
+    private Map<String, Map<String, Long>> taskCounts() {
+        Map<String, Map<String, Long>> counts = taskCounts;
+        if (counts == null) {
+            // Benign race: concurrent callers compute the same immutable value.
+            counts = immutableCopy(countTasks(tasks.values()));
+            taskCounts = counts;
+        }
+        return counts;
+    }
+
+    // visible for testing
+    Map<String, Map<String, Long>> taskCountsForTesting() {
+        return taskCounts();
+    }
+
+    // visible for testing
+    static Map<String, Map<String, Long>> countTasks(Collection<PersistentTask<?>> tasks) {
+        Map<String, Map<String, Long>> counts = new HashMap<>();
+        for (PersistentTask<?> task : tasks) {
+            adjustCount(counts, task, 1);
+        }
+        return counts;
+    }
+
+    private static void adjustCount(Map<String, Map<String, Long>> counts, PersistentTask<?> task, long delta) {
+        String executorNode = task.assignment.executorNode;
+        if (executorNode == null) {
+            return;
+        }
+        Map<String, Long> perNode = counts.computeIfAbsent(task.taskName, k -> new HashMap<>());
+        long count = perNode.getOrDefault(executorNode, 0L) + delta;
+        assert count >= 0 : "negative task count for [" + task.taskName + "] on [" + executorNode + "]";
+        if (count == 0) {
+            perNode.remove(executorNode);
+            if (perNode.isEmpty()) {
+                counts.remove(task.taskName);
+            }
+        } else {
+            perNode.put(executorNode, count);
+        }
+    }
+
+    private static Map<String, Map<String, Long>> mutableCopy(Map<String, Map<String, Long>> counts) {
+        Map<String, Map<String, Long>> copy = new HashMap<>(counts.size());
+        counts.forEach((taskName, perNode) -> copy.put(taskName, new HashMap<>(perNode)));
+        return copy;
+    }
+
+    private static Map<String, Map<String, Long>> immutableCopy(Map<String, Map<String, Long>> counts) {
+        Map<String, Map<String, Long>> copy = new HashMap<>(counts.size());
+        counts.forEach((taskName, perNode) -> copy.put(taskName, Collections.unmodifiableMap(new HashMap<>(perNode))));
+        return Collections.unmodifiableMap(copy);
     }
 
     @Override
@@ -605,7 +674,12 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
      * @opensearch.internal
      */
     public static class Builder {
-        private final Map<String, PersistentTask<?>> tasks = new HashMap<>();
+        private Map<String, PersistentTask<?>> tasks = new HashMap<>();
+        // Per task name and node counts kept in step with tasks, or null when the source metadata had not computed them.
+        @Nullable
+        private Map<String, Map<String, Long>> taskCounts = new HashMap<>();
+        // Set by build(): the next mutation copies tasks and counts so built instances stay immutable.
+        private boolean shared;
         private long lastAllocationId;
         private boolean changed;
 
@@ -614,6 +688,8 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         private Builder(PersistentTasksCustomMetadata tasksInProgress) {
             if (tasksInProgress != null) {
                 tasks.putAll(tasksInProgress.tasks);
+                Map<String, Map<String, Long>> sourceCounts = tasksInProgress.taskCounts;
+                taskCounts = sourceCounts == null ? null : mutableCopy(sourceCounts);
                 lastAllocationId = tasksInProgress.lastAllocationId;
             } else {
                 lastAllocationId = 0;
@@ -632,7 +708,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         private <Params extends PersistentTaskParams> Builder setTasks(List<TaskBuilder<Params>> tasks) {
             for (TaskBuilder builder : tasks) {
                 PersistentTask<?> task = builder.build();
-                this.tasks.put(task.getId(), task);
+                put(task);
             }
             return this;
         }
@@ -642,6 +718,38 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             return lastAllocationId;
         }
 
+        private void beforeMutation() {
+            if (shared) {
+                tasks = new HashMap<>(tasks);
+                if (taskCounts != null) {
+                    taskCounts = mutableCopy(taskCounts);
+                }
+                shared = false;
+            }
+        }
+
+        /** Puts the task and keeps the counts in step. Every mutation of {@link #tasks} goes through here or {@link #remove}. */
+        private PersistentTask<?> put(PersistentTask<?> task) {
+            beforeMutation();
+            PersistentTask<?> previous = tasks.put(task.getId(), task);
+            if (taskCounts != null) {
+                if (previous != null) {
+                    adjustCount(taskCounts, previous, -1);
+                }
+                adjustCount(taskCounts, task, 1);
+            }
+            return previous;
+        }
+
+        private PersistentTask<?> remove(String taskId) {
+            beforeMutation();
+            PersistentTask<?> removed = tasks.remove(taskId);
+            if (removed != null && taskCounts != null) {
+                adjustCount(taskCounts, removed, -1);
+            }
+            return removed;
+        }
+
         /**
          * Adds a new task to the builder
          * <p>
@@ -649,10 +757,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
          */
         public <Params extends PersistentTaskParams> Builder addTask(String taskId, String taskName, Params params, Assignment assignment) {
             changed = true;
-            PersistentTask<?> previousTask = tasks.put(
-                taskId,
-                new PersistentTask<>(taskId, taskName, params, getNextAllocationId(), assignment)
-            );
+            PersistentTask<?> previousTask = put(new PersistentTask<>(taskId, taskName, params, getNextAllocationId(), assignment));
             if (previousTask != null) {
                 throw new ResourceAlreadyExistsException("Trying to override task with id {" + taskId + "}");
             }
@@ -666,7 +771,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             PersistentTask<?> taskInProgress = tasks.get(taskId);
             if (taskInProgress != null) {
                 changed = true;
-                tasks.put(taskId, new PersistentTask<>(taskInProgress, getNextAllocationId(), assignment));
+                put(new PersistentTask<>(taskInProgress, getNextAllocationId(), assignment));
             } else {
                 throw new ResourceNotFoundException("cannot reassign task with id {" + taskId + "}, the task no longer exists");
             }
@@ -680,7 +785,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             PersistentTask<?> taskInProgress = tasks.get(taskId);
             if (taskInProgress != null) {
                 changed = true;
-                tasks.put(taskId, new PersistentTask<>(taskInProgress, taskState));
+                put(new PersistentTask<>(taskInProgress, taskState));
             } else {
                 throw new ResourceNotFoundException("cannot update task with id {" + taskId + "}, the task no longer exists");
             }
@@ -691,7 +796,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
          * Removes the task
          */
         public Builder removeTask(String taskId) {
-            if (tasks.remove(taskId) != null) {
+            if (remove(taskId) != null) {
                 changed = true;
             } else {
                 throw new ResourceNotFoundException("cannot remove task with id {" + taskId + "}, the task no longer exists");
@@ -718,7 +823,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         }
 
         Set<String> getCurrentTaskIds() {
-            return tasks.keySet();
+            return Collections.unmodifiableSet(tasks.keySet());
         }
 
         /**
@@ -729,7 +834,12 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         }
 
         public PersistentTasksCustomMetadata build() {
-            return new PersistentTasksCustomMetadata(lastAllocationId, Collections.unmodifiableMap(tasks));
+            shared = true;
+            return new PersistentTasksCustomMetadata(
+                lastAllocationId,
+                Collections.unmodifiableMap(tasks),
+                taskCounts == null ? null : immutableCopy(taskCounts)
+            );
         }
     }
 }
