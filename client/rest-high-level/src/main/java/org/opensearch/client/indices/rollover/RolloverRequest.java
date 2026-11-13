@@ -34,6 +34,8 @@ package org.opensearch.client.indices.rollover;
 import org.opensearch.action.admin.indices.rollover.Condition;
 import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.opensearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
+import org.opensearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.opensearch.client.TimedRequest;
 import org.opensearch.client.indices.CreateIndexRequest;
@@ -128,6 +130,30 @@ public class RolloverRequest extends TimedRequest implements ToXContentObject {
             throw new IllegalArgumentException(maxSizeCondition + " condition is already set");
         }
         this.conditions.put(maxSizeCondition.name(), maxSizeCondition);
+        return this;
+    }
+
+    /**
+     * Adds a size-based condition to check if the largest primary shard is at least <code>size</code>.
+     */
+    public RolloverRequest addMaxPrimaryShardSizeCondition(ByteSizeValue size) {
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(size);
+        if (this.conditions.containsKey(maxPrimaryShardSizeCondition.name())) {
+            throw new IllegalArgumentException(maxPrimaryShardSizeCondition.name() + " condition is already set");
+        }
+        this.conditions.put(maxPrimaryShardSizeCondition.name(), maxPrimaryShardSizeCondition);
+        return this;
+    }
+
+    /**
+     * Adds condition to check if the largest primary shard has at least <code>numDocs</code>
+     */
+    public RolloverRequest addMaxPrimaryShardDocsCondition(long numDocs) {
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(numDocs);
+        if (this.conditions.containsKey(maxPrimaryShardDocsCondition.name())) {
+            throw new IllegalArgumentException(maxPrimaryShardDocsCondition.name() + " condition is already set");
+        }
+        this.conditions.put(maxPrimaryShardDocsCondition.name(), maxPrimaryShardDocsCondition);
         return this;
     }
 

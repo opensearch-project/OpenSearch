@@ -38,6 +38,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.opensearch.cluster.ClusterState;
@@ -63,10 +64,12 @@ import java.util.Set;
 
 import static org.opensearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -600,6 +603,118 @@ public class RolloverIT extends OpenSearchIntegTestCase {
             assertThat("No rollover with an empty index", response.isRolledOver(), equalTo(false));
             final IndexMetadata oldIndex = client().admin().cluster().prepareState().get().getState().metadata().index("test-000002");
             assertThat(oldIndex.getRolloverInfos().size(), equalTo(0));
+        }
+    }
+
+    public void testRolloverMaxPrimaryShardDocs() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        assertAcked(
+            prepareCreate("test-1").setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            ).addAlias(new Alias("test_alias"))
+        );
+        ensureGreen("test-1");
+        for (int i = 0; i < 5; i++) {
+            client().prepareIndex("test-1").setId(Integer.toString(i)).setRouting("same-shard").setSource("field", "foo-" + i).get();
+        }
+        refresh("test_alias");
+
+        {
+            final RolloverResponse response = client().admin()
+                .indices()
+                .prepareRolloverIndex("test_alias")
+                .addMaxPrimaryShardDocsCondition(6)
+                .addMaxIndexDocsCondition(100)
+                .get();
+            assertThat("No rollover below max_primary_shard_docs", response.isRolledOver(), equalTo(false));
+            assertThat(response.getConditionStatus().get("[max_primary_shard_docs: 6]"), equalTo(false));
+        }
+
+        {
+            final RolloverResponse response = client().admin()
+                .indices()
+                .prepareRolloverIndex("test_alias")
+                .addMaxPrimaryShardDocsCondition(5)
+                .addMaxIndexDocsCondition(100)
+                .get();
+            assertThat(response.getOldIndex(), equalTo("test-1"));
+            assertThat(response.getNewIndex(), equalTo("test-000002"));
+            assertThat("Should rollover when one primary reaches max_primary_shard_docs", response.isRolledOver(), equalTo(true));
+            assertThat(response.getConditionStatus().get("[max_primary_shard_docs: 5]"), equalTo(true));
+            assertThat(response.getConditionStatus().get("[max_docs: 100]"), equalTo(false));
+            final IndexMetadata oldIndex = client().admin().cluster().prepareState().get().getState().metadata().index("test-1");
+            List<Condition<?>> metConditions = oldIndex.getRolloverInfos().get("test_alias").getMetConditions();
+            assertThat(metConditions.size(), equalTo(1));
+            assertThat(metConditions.get(0).toString(), equalTo(new MaxPrimaryShardDocsCondition(5L).toString()));
+        }
+
+        {
+            final RolloverResponse response = client().admin()
+                .indices()
+                .prepareRolloverIndex("test_alias")
+                .addMaxPrimaryShardDocsCondition(5)
+                .get();
+            assertThat(response.getOldIndex(), equalTo("test-000002"));
+            assertThat("No rollover with an empty index", response.isRolledOver(), equalTo(false));
+        }
+    }
+
+    public void testRolloverMaxPrimaryShardSize() throws Exception {
+        assertAcked(
+            prepareCreate("test-1").setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.refresh_interval", "-1")
+            ).addAlias(new Alias("test_alias"))
+        );
+        int numDocs = randomIntBetween(10, 20);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test-1").setId(Integer.toString(i)).setRouting("same-shard").setSource("field", "foo-" + i).get();
+        }
+        assertNoFailures(client().admin().indices().prepareForceMerge("test-1").setMaxNumSegments(1).setFlush(true).get());
+        refresh("test_alias");
+
+        long largestPrimary = 0;
+        for (ShardStats shard : client().admin()
+            .indices()
+            .prepareStats("test-1")
+            .clear()
+            .setDocs(true)
+            .get()
+            .getIndex("test-1")
+            .getShards()) {
+            if (shard.getShardRouting().primary()) {
+                largestPrimary = Math.max(largestPrimary, shard.getStats().getDocs().getTotalSizeInBytes());
+            }
+        }
+        assertThat(largestPrimary, greaterThan(0L));
+
+        {
+            final RolloverResponse response = client().admin()
+                .indices()
+                .prepareRolloverIndex("test_alias")
+                .addMaxPrimaryShardSizeCondition(new ByteSizeValue(largestPrimary + 1))
+                .get();
+            assertThat("No rollover below max_primary_shard_size", response.isRolledOver(), equalTo(false));
+        }
+
+        {
+            final RolloverResponse response = client().admin()
+                .indices()
+                .prepareRolloverIndex("test_alias")
+                .addMaxPrimaryShardSizeCondition(new ByteSizeValue(largestPrimary))
+                .get();
+            assertThat(response.getOldIndex(), equalTo("test-1"));
+            assertThat(response.getNewIndex(), equalTo("test-000002"));
+            assertThat("Should rollover when one primary reaches max_primary_shard_size", response.isRolledOver(), equalTo(true));
+            final IndexMetadata oldIndex = client().admin().cluster().prepareState().get().getState().metadata().index("test-1");
+            List<Condition<?>> metConditions = oldIndex.getRolloverInfos().get("test_alias").getMetConditions();
+            assertThat(metConditions.size(), equalTo(1));
+            assertThat(
+                metConditions.get(0).toString(),
+                equalTo(new MaxPrimaryShardSizeCondition(new ByteSizeValue(largestPrimary)).toString())
+            );
         }
     }
 
