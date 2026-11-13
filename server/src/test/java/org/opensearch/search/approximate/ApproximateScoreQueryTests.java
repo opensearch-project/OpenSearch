@@ -20,11 +20,15 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.opensearch.search.internal.ContextIndexSearcher;
+import org.opensearch.search.internal.SearchContext;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 import static org.apache.lucene.document.LongPoint.pack;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ApproximateScoreQueryTests extends OpenSearchTestCase {
 
@@ -98,6 +102,41 @@ public class ApproximateScoreQueryTests extends OpenSearchTestCase {
                     }
 
                 }
+            }
+        }
+    }
+
+    public void testOnlyMainQueryIsResolvedForApproximation() throws IOException {
+        Query mainOriginal = LongPoint.newRangeQuery("ts", 0L, 10L);
+        ApproximateQuery mainApproximation = approximateRange("ts", 0L, 10L);
+        ApproximateScoreQuery mainQuery = new ApproximateScoreQuery(mainOriginal, mainApproximation);
+
+        ApproximateScoreQuery otherQuery = new ApproximateScoreQuery(
+            LongPoint.newRangeQuery("ts", 0L, 10L),
+            approximateRange("ts", 0L, 10L)
+        );
+
+        SearchContext searchContext = mock(SearchContext.class);
+        when(searchContext.query()).thenReturn(mainQuery);
+
+        try (Directory directory = newDirectory();
+            RandomIndexWriter writer = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+            writer.addDocument(new Document());
+            try (IndexReader reader = writer.getReader();
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    false,
+                    null,
+                    searchContext
+                )) {
+                searcher.rewrite(mainQuery);
+                assertSame(mainApproximation, mainQuery.resolvedQuery);
+
+                assertFalse(searcher.rewrite(otherQuery) instanceof ApproximateQuery);
+                assertNull(otherQuery.resolvedQuery);
             }
         }
     }
