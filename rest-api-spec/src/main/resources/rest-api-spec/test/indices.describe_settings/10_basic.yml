@@ -1,8 +1,8 @@
 ---
 "Describe index settings without any index":
   - skip:
-      version: " - 3.9.99"
-      reason: "Index settings describe API introduced in 3.10.0"
+      version: " - 3.10.99"
+      reason: "Index settings describe API introduced in 3.11.0"
   - do:
       indices.describe_settings:
         settings: "index.number_of_replicas,index.number_of_shards,index.refresh_interval,index.unknown"
@@ -20,8 +20,8 @@
 ---
 "Definitions do not change when an index exists":
   - skip:
-      version: " - 3.9.99"
-      reason: "Index settings describe API introduced in 3.10.0"
+      version: " - 3.10.99"
+      reason: "Index settings describe API introduced in 3.11.0"
   - do:
       indices.create:
         index: test_index
@@ -39,8 +39,8 @@
 ---
 "There is no per-index form":
   - skip:
-      version: " - 3.9.99"
-      reason: "Index settings describe API introduced in 3.10.0"
+      version: " - 3.10.99"
+      reason: "Index settings describe API introduced in 3.11.0"
   # Describe lives at /_index/_settings/_describe only. /{index}/_settings/{name} belongs to indices.get_settings, which
   # treats _describe as a setting-name filter that matches nothing, so the response is an empty object, not a definition.
   - do:
@@ -55,8 +55,8 @@
 ---
 "Expand a prefix":
   - skip:
-      version: " - 3.9.99"
-      reason: "Index settings describe API introduced in 3.10.0"
+      version: " - 3.10.99"
+      reason: "Index settings describe API introduced in 3.11.0"
   - do:
       indices.describe_settings:
         settings: "index.unassigned.node_left.*"
@@ -66,8 +66,8 @@
 ---
 "Reject wildcard shapes other than a trailing prefix":
   - skip:
-      version: " - 3.9.99"
-      reason: "Index settings describe API introduced in 3.10.0"
+      version: " - 3.10.99"
+      reason: "Index settings describe API introduced in 3.11.0"
   - do:
       catch: bad_request
       indices.describe_settings:
