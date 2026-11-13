@@ -108,6 +108,7 @@ import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineBackedIndexer;
+import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineTestCase;
@@ -242,7 +243,9 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -6273,6 +6276,60 @@ public class IndexShardTests extends IndexShardTestCase {
                 assertNotNull(wrapped.get());
                 assertEquals(shard.store().readLastCommittedSegmentsInfo().getGeneration(), wrapped.get().getGeneration());
             }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    public void testAcquireLastIndexCommitAndRefreshClosesCommitOnRefreshFailure() throws Exception {
+        final IndexShard shard = newStartedShard(true);
+        try {
+            indexDoc(shard, "_doc", "1");
+            flushShard(shard);
+
+            AtomicBoolean commitClosed = new AtomicBoolean(false);
+            GatedCloseable<IndexCommit> realCommit = shard.acquireLastIndexCommit(false);
+            GatedCloseable<IndexCommit> trackedCommit = new GatedCloseable<>(realCommit.get(), () -> {
+                commitClosed.set(true);
+                realCommit.close();
+            });
+
+            Indexer spyIndexer = spy(shard.getIndexer());
+            doThrow(new EngineException(shard.shardId(), "simulated refresh failure")).when(spyIndexer).refresh(anyString());
+
+            IndexShard spyShard = spy(shard);
+            doReturn(spyIndexer).when(spyShard).getIndexer();
+            doReturn(trackedCommit).when(spyShard).acquireLastIndexCommit(false);
+
+            expectThrows(EngineException.class, () -> spyShard.acquireLastIndexCommitAndRefresh(false));
+            assertTrue("acquired commit must be closed on refresh failure", commitClosed.get());
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    public void testAcquireLastCommittedSnapshotAndRefreshClosesSnapshotOnRefreshFailure() throws Exception {
+        final IndexShard shard = newStartedShard(true);
+        try {
+            indexDoc(shard, "_doc", "1");
+            flushShard(shard);
+
+            AtomicBoolean snapshotClosed = new AtomicBoolean(false);
+            GatedCloseable<CatalogSnapshot> realSnapshot = shard.acquireLastCommittedSnapshot(false);
+            GatedCloseable<CatalogSnapshot> trackedSnapshot = new GatedCloseable<>(realSnapshot.get(), () -> {
+                snapshotClosed.set(true);
+                realSnapshot.close();
+            });
+
+            Indexer spyIndexer = spy(shard.getIndexer());
+            doThrow(new EngineException(shard.shardId(), "simulated refresh failure")).when(spyIndexer).refresh(anyString());
+
+            IndexShard spyShard = spy(shard);
+            doReturn(spyIndexer).when(spyShard).getIndexer();
+            doReturn(trackedSnapshot).when(spyShard).acquireLastCommittedSnapshot(false);
+
+            expectThrows(EngineException.class, () -> spyShard.acquireLastCommittedSnapshotAndRefresh(false));
+            assertTrue("acquired snapshot must be closed on refresh failure", snapshotClosed.get());
         } finally {
             closeShards(shard);
         }
