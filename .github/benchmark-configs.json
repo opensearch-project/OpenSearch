@@ -42,7 +42,7 @@
       "MIN_DISTRIBUTION": "true",
       "DATA_INSTANCE_TYPE": "c5.2xlarge",
       "TEST_WORKLOAD": "big5",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.6.0\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "restore-from-snapshot"
     },
@@ -93,7 +93,7 @@
       "DATA_INSTANCE_TYPE": "c5.2xlarge",
       "TEST_WORKLOAD": "big5",
       "ADDITIONAL_CONFIG": "search.concurrent_segment_search.enabled:true",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.6.0\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "restore-from-snapshot"
     },
@@ -112,7 +112,7 @@
       "DATA_INSTANCE_TYPE": "c5.2xlarge",
       "TEST_WORKLOAD": "big5",
       "ADDITIONAL_CONFIG": "search.concurrent_segment_search.mode:all",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.6.0\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "restore-from-snapshot"
     },
@@ -131,7 +131,7 @@
       "DATA_INSTANCE_TYPE": "c5.2xlarge",
       "TEST_WORKLOAD": "big5",
       "ADDITIONAL_CONFIG": "search.concurrent_segment_search.mode:auto",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.6.0\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "restore-from-snapshot"
     },
@@ -150,7 +150,7 @@
       "DATA_INSTANCE_TYPE": "c5.2xlarge",
       "TEST_WORKLOAD": "big5",
       "ADDITIONAL_CONFIG": "opensearch.experimental.feature.approximate_point_range_query.enabled:true",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.6.0\",\"snapshot_name\":\"big5_1_shard_single_client\"}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "restore-from-snapshot"
     },
@@ -183,7 +183,7 @@
       "SINGLE_NODE_CLUSTER": "true",
       "MIN_DISTRIBUTION": "true",
       "TEST_WORKLOAD": "http_logs",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"http_logs_1_shard\"}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.6.0\",\"snapshot_name\":\"http_logs_1_shard\"}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "restore-from-snapshot"
     },
@@ -200,7 +200,7 @@
       "SINGLE_NODE_CLUSTER": "true",
       "MIN_DISTRIBUTION": "true",
       "TEST_WORKLOAD": "nyc_taxis",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"nyc_taxis_1_shard\"}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.6.0\",\"snapshot_name\":\"nyc_taxis_1_shard\"}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "restore-from-snapshot"
     },
@@ -237,7 +237,7 @@
       "MIN_DISTRIBUTION": "true",
       "TEST_WORKLOAD": "http_logs",
       "ADDITIONAL_CONFIG": "search.concurrent_segment_search.mode:auto",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"http_logs_1_shard\"}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.6.0\",\"snapshot_name\":\"http_logs_1_shard\"}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "intra-segment"
     },
@@ -274,7 +274,7 @@
       "MIN_DISTRIBUTION": "true",
       "DATA_INSTANCE_TYPE": "c5.2xlarge",
       "TEST_WORKLOAD": "clickbench",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"clickbench_3_shards\",\"warmup_iterations\":10,\"test_iterations\":20}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.6.0\",\"snapshot_name\":\"clickbench_3_shards\",\"warmup_iterations\":10,\"test_iterations\":20}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "dsl-clickbench-snapshot"
     },
@@ -295,7 +295,7 @@
       "JVM_SYS_PROPS": "io.netty.allocator.numDirectArenas=16,io.netty.noUnsafe=false,io.netty.tryUnsafe=true,io.netty.tryReflectionSetAccessible=true",
       "ADDITIONAL_CONFIG": "opensearch.experimental.feature.transport.stream.enabled:true stream.search.enabled:true arrow.flight.publish_host:127.0.0.1 arrow.flight.bind_host:127.0.0.1 search.aggregations.streaming.max_estimated_bucket_count:2000000",
       "TEST_WORKLOAD": "clickbench",
-      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.5.0\",\"snapshot_name\":\"clickbench_3_shards\",\"use_snapshot\":true,\"snapshot_repo\":\"benchmark-workloads-repo-3x\",\"warmup_iterations\":10,\"test_iterations\":20}",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.6.0\",\"snapshot_name\":\"clickbench_3_shards\",\"use_snapshot\":true,\"snapshot_repo\":\"benchmark-workloads-repo-3x\",\"warmup_iterations\":10,\"test_iterations\":20}",
       "CAPTURE_NODE_STAT": "true",
       "TEST_PROCEDURE": "streaming-agg-clickbench"
     },
