@@ -109,6 +109,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private Boolean allowPartialSearchResults;
 
+    private Boolean nodeLevelQueryFanout;
+
     private Scroll scroll;
 
     private int batchedReduceSize = DEFAULT_BATCHED_REDUCE_SIZE;
@@ -222,6 +224,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.indices = indices;
         this.indicesOptions = searchRequest.indicesOptions;
         this.maxConcurrentShardRequests = searchRequest.maxConcurrentShardRequests;
+        this.nodeLevelQueryFanout = searchRequest.nodeLevelQueryFanout;
         this.preference = searchRequest.preference;
         this.preFilterShardSize = searchRequest.preFilterShardSize;
         this.requestCache = searchRequest.requestCache;
@@ -281,6 +284,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             phaseTook = in.readOptionalBoolean();
         }
+        if (in.getVersion().onOrAfter(Version.V_3_8_0)) {
+            nodeLevelQueryFanout = in.readOptionalBoolean();
+        }
     }
 
     @Override
@@ -314,6 +320,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeOptionalBoolean(phaseTook);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_8_0)) {
+            out.writeOptionalBoolean(nodeLevelQueryFanout);
         }
     }
 
@@ -623,6 +632,18 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /**
+     * Sets whether this request should use node-level query fanout. If unset, the cluster-level setting is used.
+     */
+    public SearchRequest nodeLevelQueryFanout(Boolean nodeLevelQueryFanout) {
+        this.nodeLevelQueryFanout = nodeLevelQueryFanout;
+        return this;
+    }
+
+    public Boolean nodeLevelQueryFanout() {
+        return nodeLevelQueryFanout;
+    }
+
+    /**
      * Sets the number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection
      * mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
      */
@@ -809,6 +830,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && Objects.equals(batchedReduceSize, that.batchedReduceSize)
             && Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests)
             && Objects.equals(preFilterShardSize, that.preFilterShardSize)
+            && Objects.equals(nodeLevelQueryFanout, that.nodeLevelQueryFanout)
             && Objects.equals(indicesOptions, that.indicesOptions)
             && Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults)
             && Objects.equals(localClusterAlias, that.localClusterAlias)
@@ -833,6 +855,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             batchedReduceSize,
             maxConcurrentShardRequests,
             preFilterShardSize,
+            nodeLevelQueryFanout,
             allowPartialSearchResults,
             localClusterAlias,
             absoluteStartMillis,
@@ -867,6 +890,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + batchedReduceSize
             + ", preFilterShardSize="
             + preFilterShardSize
+            + ", nodeLevelQueryFanout="
+            + nodeLevelQueryFanout
             + ", allowPartialSearchResults="
             + allowPartialSearchResults
             + ", localClusterAlias="
