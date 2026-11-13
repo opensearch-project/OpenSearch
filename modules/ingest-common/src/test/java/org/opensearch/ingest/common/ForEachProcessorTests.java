@@ -53,6 +53,9 @@ import java.util.stream.IntStream;
 
 import static org.opensearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ForEachProcessorTests extends OpenSearchTestCase {
 
@@ -301,6 +304,70 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
         List<?> result2 = ingestDocument.getFieldValue("values1.1.values2", List.class);
         assertThat(result2.get(0), equalTo("GHI"));
         assertThat(result2.get(1), equalTo("JKL"));
+    }
+
+    public void testTerminateInInnerProcessorTakesEffectWhenTheLoopHasFinished() throws Exception {
+        List<String> values = new ArrayList<>(List.of("foo", "bar", "baz"));
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("values", values));
+        TestProcessor uppercaseAndTerminateOnBar = new TestProcessor(doc -> {
+            String value = doc.getFieldValue("_ingest._value", String.class);
+            doc.setFieldValue("_ingest._value", value.toUpperCase(Locale.ENGLISH));
+            if (value.equals("bar")) {
+                doc.terminatePipeline();
+            }
+        });
+        ForEachProcessor processor = new ForEachProcessor("_tag", null, "values", uppercaseAndTerminateOnBar, false);
+
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        processor.execute(ingestDocument, (r, e) -> {
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        // foreach is a single step: the loop is not cut short, because that would write a truncated array back into the field...
+        assertThat(failure[0], nullValue());
+        assertThat(result[0], sameInstance(ingestDocument));
+        assertThat(uppercaseAndTerminateOnBar.getInvokedCounter(), equalTo(3));
+        assertThat(ingestDocument.getFieldValue("values", List.class), equalTo(List.of("FOO", "BAR", "BAZ")));
+        // ...and the request is left for the pipeline that runs the foreach processor
+        assertThat(ingestDocument.isPipelineTerminated(), is(true));
+    }
+
+    public void testTerminateRequestOfAnEarlierIterationSurvivesAFailureHandledInALaterOne() throws Exception {
+        List<String> values = new ArrayList<>(List.of("foo", "bar", "baz"));
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null, Collections.singletonMap("values", values));
+        TestProcessor terminateOnBarAndFailOnBaz = new TestProcessor(doc -> {
+            String value = doc.getFieldValue("_ingest._value", String.class);
+            if (value.equals("bar")) {
+                doc.terminatePipeline();
+            }
+            if (value.equals("baz")) {
+                throw new RuntimeException("boom");
+            }
+        });
+        TestProcessor onFailure = new TestProcessor(doc -> {});
+        ForEachProcessor processor = new ForEachProcessor(
+            "_tag",
+            null,
+            "values",
+            new CompoundProcessor(false, List.of(terminateOnBarAndFailOnBaz), List.of(onFailure)),
+            false
+        );
+
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        processor.execute(ingestDocument, (r, e) -> {
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        assertThat(failure[0], nullValue());
+        assertThat(result[0], sameInstance(ingestDocument));
+        assertThat(terminateOnBarAndFailOnBaz.getInvokedCounter(), equalTo(3));
+        assertThat(onFailure.getInvokedCounter(), equalTo(1));
+        // the failure of the last iteration was handled, and the request that the second iteration made is still there for the pipeline
+        assertThat(ingestDocument.isPipelineTerminated(), is(true));
     }
 
     public void testIgnoreMissing() throws Exception {
