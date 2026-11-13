@@ -855,6 +855,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             "cluster.allocation_explain",
             // New settings discovery API is available through the low-level client, not the deprecated high-level client.
             "cluster.describe_settings",
+            "indices.describe_settings",
             "cluster.pending_tasks",
             "cluster.reroute",
             "cluster.state",
