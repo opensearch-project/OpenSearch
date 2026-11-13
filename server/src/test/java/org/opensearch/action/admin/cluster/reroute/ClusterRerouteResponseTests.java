@@ -43,12 +43,16 @@ import org.opensearch.cluster.routing.allocation.RerouteExplanation;
 import org.opensearch.cluster.routing.allocation.RoutingExplanations;
 import org.opensearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.fielddomain.IndexFieldDomainMetadata;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -56,6 +60,37 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ClusterRerouteResponseTests extends OpenSearchTestCase {
+
+    public void testTransportReadFiltersPrivateIndexMetadata() throws IOException {
+        Map<String, String> privateData = Map.of("field", "private-value");
+        Map<String, String> publicData = Map.of("key", "public-value");
+        IndexMetadata index = IndexMetadata.builder("index")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putCustom(IndexFieldDomainMetadata.CUSTOM_KEY, privateData)
+            .putCustom("plugin_metadata", publicData)
+            .build();
+        ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder().put(index, false)).build();
+        // Simulate a response from a peer that has not filtered its metadata.
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeBoolean(true);
+            state.writeTo(out);
+            RoutingExplanations.writeTo(new RoutingExplanations(), out);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
+                ClusterRerouteResponse response = new ClusterRerouteResponse(in);
+                assertTrue(response.isAcknowledged());
+                assertNull(response.getState().metadata().index("index").getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY));
+                assertEquals(publicData, response.getState().metadata().index("index").getCustomData("plugin_metadata"));
+            }
+        }
+        assertEquals(privateData, state.metadata().index("index").getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY));
+    }
+
+    public void testResponseWithoutPrivateMetadataReusesState() {
+        ClusterState state = ClusterState.builder(new ClusterName("test")).build();
+        assertSame(state, new ClusterRerouteResponse(true, state, new RoutingExplanations()).getState());
+    }
 
     public void testToXContent() throws IOException {
         DiscoveryNode node0 = new DiscoveryNode("node0", new TransportAddress(TransportAddress.META_ADDRESS, 9000), Version.CURRENT);

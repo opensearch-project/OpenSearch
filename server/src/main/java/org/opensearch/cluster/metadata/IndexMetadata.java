@@ -44,6 +44,7 @@ import org.opensearch.cluster.node.DiscoveryNodeFilters;
 import org.opensearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.compress.CompressedXContent;
@@ -1580,6 +1581,27 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return this.customData.get(key);
     }
 
+    /**
+     * Returns a copy without custom metadata excluded from the given context, or this instance if no filtering is needed.
+     * Unregistered custom metadata is retained. This is a response view; internal cluster state must retain the original metadata.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public IndexMetadata filterCustomDataForContext(Metadata.XContentContext context) {
+        Objects.requireNonNull(context, "context must not be null");
+        Builder builder = null;
+        for (String type : customData.keySet()) {
+            if (IndexCustomMetadataContexts.isVisible(type, context) == false) {
+                if (builder == null) {
+                    builder = builder(this);
+                }
+                builder.removeCustom(type);
+            }
+        }
+        return builder == null ? this : builder.build();
+    }
+
     public Map<Integer, Set<String>> getInSyncAllocationIds() {
         return inSyncAllocationIds;
     }
@@ -2692,6 +2714,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             for (final Map.Entry<String, DiffableStringMap> cursor : indexMetadata.customData.entrySet()) {
+                if (IndexCustomMetadataContexts.isVisible(cursor.getKey(), context) == false) {
+                    continue;
+                }
                 builder.field(cursor.getKey());
                 builder.map(cursor.getValue());
             }
