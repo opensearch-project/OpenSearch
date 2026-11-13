@@ -67,13 +67,18 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
      * including documents the alias excludes. A node that predates the field behaves this way.
      * <p>
      * {@link #NO_STATS} scores without corpus statistics: every hit takes a constant score.
+     * <p>
+     * {@link #FILTERED_STATS} scores with BM25 over collection and term statistics computed only over the documents
+     * the alias admits, so relevance ordering is kept. It costs one pass over the admitted documents per segment the
+     * first time that segment is queried, and the result is cached.
      *
      * @opensearch.experimental
      */
     @ExperimentalApi
     public enum ScoringMode implements Writeable {
         UNFILTERED_STATS("unfiltered_stats"),
-        NO_STATS("no_stats");
+        NO_STATS("no_stats"),
+        FILTERED_STATS("filtered_stats");
 
         private final String value;
 
@@ -101,7 +106,9 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
                     return e;
                 }
             }
-            throw new IllegalArgumentException("unknown alias scoring mode [" + value + "], expected one of [unfiltered_stats, no_stats]");
+            throw new IllegalArgumentException(
+                "unknown alias scoring mode [" + value + "], expected one of [unfiltered_stats, no_stats, filtered_stats]"
+            );
         }
 
         // By name rather than ordinal, so a mode added later does not need a wire version of its own.
