@@ -73,7 +73,7 @@ dependencies {
   api hadoopDependency("org.apache.hadoop:hadoop-hdfs:${versions.hadoop3}")
   api hadoopDependency("org.apache.hadoop:hadoop-hdfs:${versions.hadoop3}:tests")
   api hadoopDependency("org.apache.hadoop:hadoop-hdfs-client:${versions.hadoop3}")
-  api "dnsjava:dnsjava:3.6.4"
+  api "dnsjava:dnsjava:3.7.1"
   api "org.codehaus.jettison:jettison:${versions.jettison}"
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
