@@ -45,6 +45,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -58,10 +59,12 @@ import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.shard.IndexingStats;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.StoreStats;
+import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -107,6 +110,120 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
             "{" + "\"transport_types\":{\"custom\":1}," + "\"http_types\":{\"custom\":2}" + "}",
             toXContent(stats, MediaTypeRegistry.JSON, randomBoolean()).utf8ToString()
         );
+    }
+
+    public void testClusterFsStatsDeduplicator() {
+        {
+            // single node, multiple data paths, different devices
+            InetAddress address1 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path1 = new FsInfo.Path("/a", "/dev/sda", 3, 2, 1);
+            FsInfo.Path path2 = new FsInfo.Path("/b", "/dev/sdb", 3, 2, 1);
+            ClusterStatsNodes.ClusterFsStatsDeduplicator deduplicator = new ClusterStatsNodes.ClusterFsStatsDeduplicator(1);
+            deduplicator.add(address1, newFsInfo(path1, path2));
+            FsInfo.Path total = deduplicator.getTotal();
+
+            assertThat(total.getTotal().getBytes(), equalTo(6L));
+            assertThat(total.getFree().getBytes(), equalTo(4L));
+            assertThat(total.getAvailable().getBytes(), equalTo(2L));
+        }
+
+        {
+            // single node, multiple data paths, same device
+            InetAddress address1 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path1 = new FsInfo.Path("/data/a", "/dev/sda", 3, 2, 1);
+            FsInfo.Path path2 = new FsInfo.Path("/data/b", "/dev/sda", 3, 2, 1);
+            ClusterStatsNodes.ClusterFsStatsDeduplicator deduplicator = new ClusterStatsNodes.ClusterFsStatsDeduplicator(1);
+            deduplicator.add(address1, newFsInfo(path1, path2));
+            FsInfo.Path total = deduplicator.getTotal();
+
+            assertThat(total.getTotal().getBytes(), equalTo(3L));
+            assertThat(total.getFree().getBytes(), equalTo(2L));
+            assertThat(total.getAvailable().getBytes(), equalTo(1L));
+        }
+
+        {
+            // two nodes, same ip address, but different data paths on different devices
+            InetAddress address1 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path1 = new FsInfo.Path("/data/a", "/dev/sda", 3, 2, 1);
+            InetAddress address2 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path2 = new FsInfo.Path("/data/b", "/dev/sdb", 3, 2, 1);
+            ClusterStatsNodes.ClusterFsStatsDeduplicator deduplicator = new ClusterStatsNodes.ClusterFsStatsDeduplicator(1);
+            deduplicator.add(address1, newFsInfo(path1));
+            deduplicator.add(address2, newFsInfo(path2));
+            FsInfo.Path total = deduplicator.getTotal();
+
+            assertThat(total.getTotal().getBytes(), equalTo(6L));
+            assertThat(total.getFree().getBytes(), equalTo(4L));
+            assertThat(total.getAvailable().getBytes(), equalTo(2L));
+        }
+
+        {
+            // two nodes, different ip addresses, different data paths, same device
+            InetAddress address1 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path1 = new FsInfo.Path("/data/a", "/dev/sda", 3, 2, 1);
+            InetAddress address2 = InetAddresses.forString("192.168.0.2");
+            FsInfo.Path path2 = new FsInfo.Path("/data/b", "/dev/sda", 3, 2, 1);
+            ClusterStatsNodes.ClusterFsStatsDeduplicator deduplicator = new ClusterStatsNodes.ClusterFsStatsDeduplicator(1);
+            deduplicator.add(address1, newFsInfo(path1));
+            deduplicator.add(address2, newFsInfo(path2));
+            FsInfo.Path total = deduplicator.getTotal();
+
+            assertThat(total.getTotal().getBytes(), equalTo(6L));
+            assertThat(total.getFree().getBytes(), equalTo(4L));
+            assertThat(total.getAvailable().getBytes(), equalTo(2L));
+        }
+
+        {
+            // two nodes, same ip address, same data path, same device
+            InetAddress address1 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path1 = new FsInfo.Path("/app/data", "/app (/dev/mapper/lxc-data)", 3, 2, 1);
+            InetAddress address2 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path2 = new FsInfo.Path("/app/data", "/app (/dev/mapper/lxc-data)", 3, 2, 1);
+            ClusterStatsNodes.ClusterFsStatsDeduplicator deduplicator = new ClusterStatsNodes.ClusterFsStatsDeduplicator(1);
+            deduplicator.add(address1, newFsInfo(path1));
+            deduplicator.add(address2, newFsInfo(path2));
+            FsInfo.Path total = deduplicator.getTotal();
+
+            assertThat(total.getTotal().getBytes(), equalTo(6L));
+            assertThat(total.getFree().getBytes(), equalTo(4L));
+            assertThat(total.getAvailable().getBytes(), equalTo(2L));
+        }
+
+        {
+            // two nodes, same ip address, different data paths, same device
+            InetAddress address1 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path1 = new FsInfo.Path("/app/data1", "/dev/sda", 3, 2, 1);
+            InetAddress address2 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path2 = new FsInfo.Path("/app/data2", "/dev/sda", 3, 2, 1);
+            ClusterStatsNodes.ClusterFsStatsDeduplicator deduplicator = new ClusterStatsNodes.ClusterFsStatsDeduplicator(1);
+            deduplicator.add(address1, newFsInfo(path1));
+            deduplicator.add(address2, newFsInfo(path2));
+            FsInfo.Path total = deduplicator.getTotal();
+
+            assertThat(total.getTotal().getBytes(), equalTo(3L));
+            assertThat(total.getFree().getBytes(), equalTo(2L));
+            assertThat(total.getAvailable().getBytes(), equalTo(1L));
+        }
+
+        {
+            // two nodes, same ip address, same data path, different devices
+            InetAddress address1 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path1 = new FsInfo.Path("/app/data", "/dev/sda", 3, 2, 1);
+            InetAddress address2 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path2 = new FsInfo.Path("/app/data", "/dev/sdb", 3, 2, 1);
+            ClusterStatsNodes.ClusterFsStatsDeduplicator deduplicator = new ClusterStatsNodes.ClusterFsStatsDeduplicator(1);
+            deduplicator.add(address1, newFsInfo(path1));
+            deduplicator.add(address2, newFsInfo(path2));
+            FsInfo.Path total = deduplicator.getTotal();
+
+            assertThat(total.getTotal().getBytes(), equalTo(6L));
+            assertThat(total.getFree().getBytes(), equalTo(4L));
+            assertThat(total.getAvailable().getBytes(), equalTo(2L));
+        }
+    }
+
+    private static FsInfo newFsInfo(FsInfo.Path... paths) {
+        return new FsInfo(-1, null, paths);
     }
 
     public void testIngestStats() throws Exception {
