@@ -1149,7 +1149,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             IndexReader indexReader = indexSearcher.getIndexReader();
             int limit = Math.min(MAX_REQUIRED_TERMS, IndexSearcher.getMaxClauseCount());
             List<Terms> segmentTerms = new ArrayList<>();
-            if (caseInsensitive) {
+            if (caseInsensitive || requiredTerms.stream().anyMatch(term -> term.length() < NGRAM_SIZE)) {
                 for (LeafReaderContext leaf : indexReader.leaves()) {
                     Terms terms = leaf.reader().terms(fieldName);
                     if (terms != null) {
@@ -1160,9 +1160,12 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             PriorityQueue<Candidate> queue = new PriorityQueue<>(limit, BEST_FIRST.reversed());
             for (String requiredTerm : requiredTerms) {
                 long maxFrequency = queue.size() < limit ? Long.MAX_VALUE : queue.peek().frequency;
-                long frequency = caseInsensitive
-                    ? caseInsensitiveFrequency(segmentTerms, requiredTerm, maxFrequency)
-                    : indexReader.docFreq(new Term(fieldName, requiredTerm));
+                long frequency;
+                if (caseInsensitive) {
+                    frequency = caseInsensitiveFrequency(segmentTerms, requiredTerm, maxFrequency);
+                } else {
+                    frequency = caseSensitiveFrequency(indexReader, segmentTerms, requiredTerm, maxFrequency);
+                }
                 if (frequency > maxFrequency) continue;
                 Candidate candidate = new Candidate(requiredTerm, frequency);
                 if (frequency == 0) {
@@ -1217,7 +1220,26 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         }
 
         static long caseInsensitiveFrequency(List<Terms> segmentTerms, String text, long maxFrequency) throws IOException {
-            CompiledAutomaton compiledAutomaton = new CompiledAutomaton(AutomatonQueries.toCaseInsensitiveString(text));
+            Automaton automaton;
+            if (text.length() < NGRAM_SIZE) {
+                automaton = AutomatonQueries.caseInsensitivePrefix(text);
+            } else {
+                automaton = AutomatonQueries.toCaseInsensitiveString(text);
+            }
+            return matchingFrequency(segmentTerms, new CompiledAutomaton(automaton), maxFrequency);
+        }
+
+        private long caseSensitiveFrequency(IndexReader reader, List<Terms> segmentTerms, String text, long maxFrequency)
+            throws IOException {
+            if (text.length() == NGRAM_SIZE) {
+                return reader.docFreq(new Term(fieldName, text));
+            }
+            CompiledAutomaton automaton = new CompiledAutomaton(PrefixQuery.toAutomaton(new BytesRef(text)), false, true, true);
+            return matchingFrequency(segmentTerms, automaton, maxFrequency);
+        }
+
+        private static long matchingFrequency(List<Terms> segmentTerms, CompiledAutomaton compiledAutomaton, long maxFrequency)
+            throws IOException {
             long frequency = 0;
             for (Terms segmentTerm : segmentTerms) {
                 TermsEnum matchedTermEnum = compiledAutomaton.getTermsEnum(segmentTerm);
