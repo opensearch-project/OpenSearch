@@ -1219,7 +1219,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             return builder.build();
         }
 
-        static long caseInsensitiveFrequency(List<Terms> segmentTerms, String text, long maxFrequency) throws IOException {
+        private static long caseInsensitiveFrequency(List<Terms> segmentTerms, String text, long maxFrequency) throws IOException {
             Automaton automaton;
             if (text.length() < NGRAM_SIZE) {
                 automaton = AutomatonQueries.caseInsensitivePrefix(text);
