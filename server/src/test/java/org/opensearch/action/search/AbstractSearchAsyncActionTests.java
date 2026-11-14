@@ -75,8 +75,10 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -84,6 +86,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -700,6 +703,85 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertSame(searchResponse.getProfileResults(), internalSearchResponse.profile());
         assertSame(searchResponse.getHits(), internalSearchResponse.hits());
         assertThat(searchResponse.getSuccessfulShards(), equalTo(shards.length));
+    }
+
+    public void testShouldTryNextCopyControlsFailover() throws InterruptedException {
+        for (boolean tryNextCopy : new boolean[] { true, false }) {
+            final Index index = new Index("test", UUID.randomUUID().toString());
+            final List<String> copies = List.of("n1", "n2", "n3");
+            final SearchShardIterator[] shards = IntStream.range(0, 1 + randomInt(4))
+                .mapToObj(i -> new SearchShardIterator(null, new ShardId(index, i), copies, null, null, null))
+                .toArray(SearchShardIterator[]::new);
+            final Map<ShardId, AtomicInteger> attempts = new ConcurrentHashMap<>();
+            final AtomicInteger groupFailures = new AtomicInteger();
+            final CountDownLatch phaseDone = new CountDownLatch(1);
+            final SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+            searchRequest.setMaxConcurrentShardRequests(randomIntBetween(1, 5));
+
+            final AbstractSearchAsyncAction<SearchPhaseResult> action = new AbstractSearchAsyncAction<SearchPhaseResult>(
+                "test",
+                logger,
+                null,
+                (cluster, node) -> null,
+                Collections.singletonMap(index.getUUID(), new AliasFilter(new MatchAllQueryBuilder())),
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                executor,
+                searchRequest,
+                // Every shard fails, so the phase ends with an "all shards failed" response.
+                ActionListener.wrap(r -> phaseDone.countDown(), e -> phaseDone.countDown()),
+                new GroupShardsIterator<>(Arrays.asList(shards)),
+                new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime),
+                ClusterState.EMPTY_STATE,
+                null,
+                new ArraySearchPhaseResults<>(shards.length),
+                searchRequest.getMaxConcurrentShardRequests(),
+                SearchResponse.Clusters.EMPTY,
+                new SearchRequestContext(
+                    new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                    searchRequest,
+                    () -> null
+                ),
+                NoopTracer.INSTANCE
+            ) {
+                @Override
+                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                    return new SearchPhase("next") {
+                        @Override
+                        public void run() {
+                            phaseDone.countDown();
+                        }
+                    };
+                }
+
+                @Override
+                protected void executePhaseOnShard(
+                    SearchShardIterator shardIt,
+                    SearchShardTarget shard,
+                    SearchActionListener<SearchPhaseResult> listener
+                ) {
+                    attempts.computeIfAbsent(shardIt.shardId(), k -> new AtomicInteger()).incrementAndGet();
+                    listener.onFailure(new IllegalStateException("copy failed"));
+                }
+
+                @Override
+                protected boolean shouldTryNextCopy(SearchShardTarget shard, Exception e) {
+                    return tryNextCopy;
+                }
+
+                @Override
+                protected void onShardGroupFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+                    groupFailures.incrementAndGet();
+                }
+            };
+            action.run();
+
+            assertTrue("the phase must complete once every copy is accounted for", phaseDone.await(10, TimeUnit.SECONDS));
+            for (SearchShardIterator shard : shards) {
+                assertEquals(tryNextCopy ? copies.size() : 1, attempts.get(shard.shardId()).get());
+            }
+            assertEquals(shards.length, groupFailures.get());
+        }
     }
 
     public void testExecutePhaseOnShardFailure() throws InterruptedException {

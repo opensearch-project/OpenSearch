@@ -34,6 +34,7 @@ package org.opensearch.transport;
 
 import org.opensearch.Version;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
@@ -86,6 +87,11 @@ public class TaskTransportChannel implements TransportChannel {
     @Override
     public boolean isCancelled() {
         return channel.isCancelled();
+    }
+
+    @Override
+    public void setBatchReadyTimeout(TimeValue timeout) {
+        channel.setBatchReadyTimeout(timeout);
     }
 
     @Override
