@@ -14,15 +14,19 @@ import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.BroadcastInjectionInstructionNode;
 import org.opensearch.analytics.spi.DataTransferCapability;
 import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.analytics.spi.PartialAggregateInstructionNode;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.analytics.spi.ShuffleProducerInstructionNode;
 import org.opensearch.analytics.spi.ShuffleScanInstructionNode;
 import org.opensearch.analytics.spi.ShuffleWorkerSetupInstructionNode;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.mockito.Mockito.mock;
@@ -159,6 +163,50 @@ public class ShuffleEnrichmentTests extends OpenSearchTestCase {
         assertEquals(2, right2.getShufflePartitionIndex());
     }
 
+    /**
+     * An aggregate-preparing instruction must be ordered AFTER the shuffle scans. Preparing a partial (or
+     * final) aggregate builds a PHYSICAL PLAN from the fragment bytes, which resolves every table the
+     * fragment names; on a worker tier those names are the shuffle inputs the scan instructions register.
+     * Regression guard: the preparation used to keep its original position ahead of the scans, so the
+     * fragment was planned against an empty catalog and the shard failed with
+     * "Error during planning: No table named 'input-&lt;id&gt;'". Instructions that only register data or
+     * state must NOT be reordered — they have to precede the scans.
+     */
+    public void testAggregatePreparationIsDeferredPastTheShuffleScans() {
+        Stage consumer = new Stage(/* stageId */ 9, null, List.of(), null, null, null);
+        consumer.setPlanAlternatives(
+            List.of(
+                new StagePlan(null, "df").withInstructions(
+                    List.of(
+                        new BroadcastInjectionInstructionNode("broadcast-0", 0, new byte[] { 7 }),
+                        new PartialAggregateInstructionNode()
+                    )
+                )
+            )
+        );
+
+        ShuffleEnrichment.enrichWorkerAlternatives(
+            consumer,
+            /* partitionCount */ 2,
+            /* leftExpectedSenders */ 3,
+            /* rightExpectedSenders */ 3,
+            /* queryId */ "qid",
+            /* leftProducerStageId */ 7,
+            /* rightProducerStageId */ 8,
+            /* preferHashJoin */ true
+        );
+
+        List<InstructionNode> instr = consumer.getPlanAlternatives().get(0).instructions();
+        // setup + broadcast injection + (2 partitions × 2 sides) scans + deferred partial-aggregate prep.
+        assertEquals(7, instr.size());
+        assertTrue(instr.get(0) instanceof ShuffleWorkerSetupInstructionNode);
+        assertTrue("a table-registering instruction stays ahead of the scans", instr.get(1) instanceof BroadcastInjectionInstructionNode);
+        for (int i = 2; i < 6; i++) {
+            assertTrue("scans occupy the middle", instr.get(i) instanceof ShuffleScanInstructionNode);
+        }
+        assertTrue("aggregate preparation must run last", instr.get(6) instanceof PartialAggregateInstructionNode);
+    }
+
     public void testWorkerSetupCarriesBothSidesExpectedSenders() {
         // The setup placeholder carries partition=-1 (filled per-task downstream) plus BOTH sides' expected
         // sender counts so each worker task knows how many producers to await before draining.
@@ -177,6 +225,61 @@ public class ShuffleEnrichmentTests extends OpenSearchTestCase {
         assertEquals("qid", setup.getQueryId());
         assertEquals(4, setup.getTargetStageId());
         assertFalse("preferHashJoin flows through to the setup placeholder", setup.getPreferHashJoin());
+    }
+
+    public void testEnrichWorkerAlternativesForThreeSlots() {
+        // N-ary transport: a 3-input worker gets 2 partitions × 3 slots = 6 scans + 1 setup. This is the
+        // shape a collapsed N-way join tier needs; the binary case is asserted above.
+        Stage consumer = new Stage(/* stageId */ 20, null, List.of(), null, null, null);
+        consumer.setPlanAlternatives(List.of(new StagePlan(null, "df")));
+
+        Map<String, Integer> expected = new LinkedHashMap<>();
+        expected.put("in0", 5);
+        expected.put("in1", 4);
+        expected.put("in2", 3);
+        Map<String, Integer> producers = new LinkedHashMap<>();
+        producers.put("in0", 31);
+        producers.put("in1", 32);
+        producers.put("in2", 33);
+
+        ShuffleEnrichment.enrichWorkerAlternatives(consumer, /* partitionCount */ 2, expected, "qid-n", producers, true);
+
+        List<InstructionNode> instr = consumer.getPlanAlternatives().get(0).instructions();
+        assertEquals("1 setup + 2 partitions × 3 slots = 7 instructions", 7, instr.size());
+        ShuffleWorkerSetupInstructionNode setup = (ShuffleWorkerSetupInstructionNode) instr.get(0);
+        assertEquals("setup declares every slot in one call", expected, setup.getExpectedSendersBySlot());
+
+        // Each (partition, slot) pair appears exactly once, bound to its own producer's named input.
+        Set<String> seen = new java.util.HashSet<>();
+        for (int i = 1; i < instr.size(); i++) {
+            ShuffleScanInstructionNode scan = (ShuffleScanInstructionNode) instr.get(i);
+            assertTrue("duplicate (partition,slot) scan", seen.add(scan.getShufflePartitionIndex() + ":" + scan.getSide()));
+            assertEquals("input-" + producers.get(scan.getSide()), scan.getNamedInputId());
+            assertEquals(expected.get(scan.getSide()).intValue(), scan.getExpectedSenders());
+            assertEquals(20, scan.getTargetStageId());
+            assertEquals("qid-n", scan.getQueryId());
+        }
+        assertEquals(6, seen.size());
+    }
+
+    public void testEnrichWorkerAlternativesRejectsSlotSetMismatch() {
+        // expectedSenders and producer-stage maps must describe the SAME slots — a mismatch would emit a
+        // scan with a null expected count (or omit a slot the buffer awaits) and hang the worker.
+        Stage consumer = new Stage(/* stageId */ 21, null, List.of(), null, null, null);
+        consumer.setPlanAlternatives(List.of(new StagePlan(null, "df")));
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> ShuffleEnrichment.enrichWorkerAlternatives(
+                consumer,
+                2,
+                new LinkedHashMap<>(Map.of("in0", 1, "in1", 1)),
+                "qid",
+                new LinkedHashMap<>(Map.of("in0", 5)),
+                true
+            )
+        );
+        assertTrue("must name the disagreeing slot sets", ex.getMessage().contains("disagree"));
     }
 
     private static Stage newProducerStage(int stageId, int partitionCount, List<Integer> hashKeys) {
@@ -203,5 +306,25 @@ public class ShuffleEnrichmentTests extends OpenSearchTestCase {
         when(registry.getBackend(org.mockito.ArgumentMatchers.anyString())).thenReturn(noTransferBackend);
         when(registry.getBackend(producerBackendName)).thenReturn(producerBackend);
         return registry;
+    }
+
+    /**
+     * An UNKNOWN build size must take the spillable join, not the hash join. {@code subtreeMaxScanRows}
+     * returns 0 when no table scan is reachable — which is exactly the case for an upper worker tier whose
+     * build is a derived relation — and its contract says callers must read 0 as unknown, never as small.
+     * Regression guard: the threshold comparison alone made {@code 0 < minRows} true and selected the
+     * non-spillable hash-join build for the largest builds in a multi-tier plan.
+     */
+    public void testUnknownBuildSizePrefersTheSpillableJoin() {
+        Stage consumer = new Stage(/* stageId */ 9, null, List.of(), null, null, null);
+        consumer.setPlanAlternatives(List.of(new StagePlan(null, "df")));
+
+        // preferHashJoin=false is what enrichLevels derives for an unknown (0-row) build; assert the flag
+        // reaches the worker setup placeholder, which is what the backend reads.
+        ShuffleEnrichment.enrichWorkerAlternatives(consumer, /* partitionCount */ 1, 1, 1, "qid", 3, 4, /* preferHashJoin */ false);
+
+        List<InstructionNode> instr = consumer.getPlanAlternatives().get(0).instructions();
+        ShuffleWorkerSetupInstructionNode setup = (ShuffleWorkerSetupInstructionNode) instr.get(0);
+        assertFalse("an unknown build must not request the non-spillable hash join", setup.getPreferHashJoin());
     }
 }

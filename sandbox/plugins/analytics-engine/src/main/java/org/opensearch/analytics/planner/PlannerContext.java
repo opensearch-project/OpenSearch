@@ -40,6 +40,7 @@ public class PlannerContext {
 
     private final CapabilityRegistry capabilityRegistry;
     private final ClusterState clusterState;
+    private java.util.Set<String> broadcastDisabledBuildTables = java.util.Set.of();
     private final Settings settings;
     private final ToLongFunction<String> tableRowCounts;
     @Nullable
@@ -211,6 +212,23 @@ public class PlannerContext {
      */
     public void setBroadcastEligible(boolean broadcastEligible) {
         this.broadcastEligible = broadcastEligible;
+    }
+
+    /**
+     * Tables that may not serve as a broadcast BUILD side in this planning attempt.
+     *
+     * <p>Set on the re-plan after a runtime overflow, INSTEAD of {@link #setBroadcastEligible} when the failing
+     * build could be identified. Disabling broadcast wholesale also removes the broadcasts that fit — and under
+     * a cascade the one that fits is typically the bottom level, the one keeping the largest scan in place, so
+     * the retry ends up shuffling the biggest table in the query to avoid replicating a much smaller one.
+     */
+    public java.util.Set<String> getBroadcastDisabledBuildTables() {
+        return broadcastDisabledBuildTables;
+    }
+
+    /** See {@link #getBroadcastDisabledBuildTables()}. */
+    public void setBroadcastDisabledBuildTables(java.util.Set<String> tables) {
+        this.broadcastDisabledBuildTables = java.util.Set.copyOf(tables);
     }
 
     public ClusterState getClusterState() {

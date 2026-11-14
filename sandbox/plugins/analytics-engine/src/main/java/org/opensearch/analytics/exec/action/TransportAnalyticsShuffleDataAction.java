@@ -129,7 +129,7 @@ public class TransportAnalyticsShuffleDataAction extends HandledTransportAction<
                 // Admit against the NODE + PER-QUERY shuffle budgets (ShuffleBufferManager.tryAdmit):
                 // - throws ShuffleBufferExceededException if THIS query's footprint alone exceeds the
                 // per-query budget → caught below → listener.onFailure → terminal, NON-retryable
-                // failure (the query can never fit; waiting won't help — the q17 OOM case);
+                // failure (the query can never fit, so waiting won't help);
                 // - returns REJECT_RETRY if the NODE is momentarily over budget but this query still
                 // fits its share → backpressureReject response → ShuffleSenderRetry backs off and
                 // retries (room frees when other queries finish and release their buffers);
@@ -173,7 +173,7 @@ public class TransportAnalyticsShuffleDataAction extends HandledTransportAction<
             listener.onResponse(new AnalyticsShuffleDataResponse());
         } catch (ShuffleBufferExceededException e) {
             // Expected, deliberate fail-fast: this query's footprint alone exceeds the per-query
-            // budget so it can never fit (the q17 case). Non-retryable; surface to the caller without
+            // budget so it can never fit. Non-retryable; surface to the caller without
             // an ERROR-level stack trace (it's not a defect — debug-log the actionable detail only).
             logger.debug(
                 "Shuffle query over per-query budget (fail-fast): query={}, stage={}, partition={}, side={}: {}",

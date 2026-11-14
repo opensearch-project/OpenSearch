@@ -265,8 +265,20 @@ public class FragmentConversionDriver {
             if (containsPartialAggregate(resolvedFragment)) {
                 factory.createPartialAggregateNode().ifPresent(instructions::add);
             }
-        } else if (leaf instanceof OpenSearchStageInputScan && containsEngineNativeAggregate(resolvedFragment, AggregateMode.FINAL)) {
-            factory.createFinalAggregateNode().ifPresent(instructions::add);
+        } else if (leaf instanceof OpenSearchStageInputScan) {
+            // FINAL takes precedence: a fragment topped by FINAL may still contain a PARTIAL below it (the
+            // gather-then-merge shape in one fragment), and the backend must prepare the FINAL half.
+            if (containsEngineNativeAggregate(resolvedFragment, AggregateMode.FINAL)) {
+                factory.createFinalAggregateNode().ifPresent(instructions::add);
+            } else if (containsPartialAggregate(resolvedFragment)) {
+                // A PARTIAL aggregate on a NON-shard fragment — a worker tier reading shuffle inputs. Without
+                // this instruction the backend never calls prepare_partial_plan, so DataFusion runs the
+                // aggregate to COMPLETION instead of emitting partial state. For a state-carrying aggregate
+                // that is a schema break (distinct_count emits Int64 where the fragment declares Binary HLL
+                // state, and the reduce sink rejects the batch), and for a plain one it is silently wrong:
+                // summing completed per-partition results is not merging partials.
+                factory.createPartialAggregateNode().ifPresent(instructions::add);
+            }
         }
         return instructions;
     }

@@ -17,7 +17,7 @@ import java.util.Map;
 
 /**
  * End-to-end tests for the GENERAL post-CBO scheduler on a real multi-data-node cluster
- * ({@code DistributionEnforcementPass} + {@code GeneralShuffleDAGRewriter} + {@code UnifiedDispatch}).
+ * (CBO's trait enforcement + {@code GeneralShuffleDAGRewriter} + {@code UnifiedDispatch}).
  *
  * <p>Where the JVM tests assert DAG/promotion SHAPE against a mock backend (no fragment convertor), this
  * exercises the ACTUAL execution: the DataFusion native backend, the hash-shuffle transport, in-place
