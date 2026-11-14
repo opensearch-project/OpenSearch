@@ -32,8 +32,11 @@
 
 package org.opensearch.repositories.azure;
 
+import com.azure.core.http.HttpHeader;
+import com.azure.core.http.HttpHeaders;
 import com.azure.core.http.HttpPipelineCallContext;
 import com.azure.core.http.HttpPipelineNextPolicy;
+import com.azure.core.http.HttpPipelineNextSyncPolicy;
 import com.azure.core.http.HttpPipelinePosition;
 import com.azure.core.http.HttpRequest;
 import com.azure.core.http.HttpResponse;
@@ -68,6 +71,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -315,7 +319,9 @@ public class AzureStorageService implements AutoCloseable {
 
         // We define a default exponential retry policy
         return new ClientState(
-            applyLocationMode(builder, azureStorageSettings, clientMode).addPolicy(new HttpStatsPolicy(statsCollector)).buildClient(),
+            applyLocationMode(builder, azureStorageSettings, clientMode).addPolicy(new MetadataHeaderNormalizationPolicy())
+                .addPolicy(new HttpStatsPolicy(statsCollector))
+                .buildClient(),
             eventLoopGroup
         );
     }
@@ -541,6 +547,41 @@ public class AzureStorageService implements AutoCloseable {
         versionedReadClients.clear();
         conditionalWriteClients.clear();
         return new ArrayList<>(detached);
+    }
+
+    /** Canonicalizes metadata response header names before the SDK extracts their dynamic values. */
+    private static class MetadataHeaderNormalizationPolicy implements HttpPipelinePolicy {
+        private static final String METADATA_HEADER_PREFIX = "x-ms-meta-";
+
+        @Override
+        public Mono<HttpResponse> process(HttpPipelineCallContext context, HttpPipelineNextPolicy next) {
+            return next.process().map(MetadataHeaderNormalizationPolicy::normalize);
+        }
+
+        @Override
+        public HttpResponse processSync(HttpPipelineCallContext context, HttpPipelineNextSyncPolicy next) {
+            return normalize(next.processSync());
+        }
+
+        @Override
+        public HttpPipelinePosition getPipelinePosition() {
+            return HttpPipelinePosition.PER_RETRY;
+        }
+
+        private static HttpResponse normalize(HttpResponse response) {
+            final HttpHeaders headers = response.getHeaders();
+            final List<HttpHeader> metadataHeaders = headers.stream()
+                .filter(header -> header.getName().regionMatches(true, 0, METADATA_HEADER_PREFIX, 0, METADATA_HEADER_PREFIX.length()))
+                .toList();
+            for (HttpHeader header : metadataHeaders) {
+                final String normalizedName = header.getName().toLowerCase(Locale.ROOT);
+                if (header.getName().equals(normalizedName) == false) {
+                    headers.remove(header.getName());
+                    headers.set(normalizedName, header.getValuesList());
+                }
+            }
+            return response;
+        }
     }
 
     /**
