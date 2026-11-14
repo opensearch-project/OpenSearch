@@ -417,6 +417,11 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public boolean indexedTermsMatchDocValues() {
+            return false;
+        }
+
+        @Override
         public Query fuzzyQuery(
             Object value,
             Fuzziness fuzziness,
