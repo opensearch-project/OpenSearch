@@ -80,12 +80,16 @@ public class MustNotToShouldRewriter implements QueryRewriter {
 
                 // For now, only handle the case where there's exactly 1 complement-aware query per field
                 for (QueryBuilder clause : boolQuery.mustNot()) {
-                    if (clause instanceof ComplementAwareQueryBuilder && clause instanceof WithFieldName wfn) {
+                    if (clause instanceof ComplementAwareQueryBuilder caq && clause instanceof WithFieldName wfn) {
                         String fieldName = wfn.fieldName();
 
                         if (fieldCounts.getOrDefault(fieldName, 0) == 1) {
-                            // Check that all docs on this field have exactly 1 value
-                            if (checkAllDocsHaveOneValue(leafReaderContexts, fieldName)) {
+                            // Check that all docs on this field have exactly 1 value, unless
+                            // the implementation declares the cardinality check is unnecessary
+                            // (e.g. ExistsQueryBuilder, where the complement is always valid).
+                            boolean cardinalityOk = !caq.requiresCardinalityCheck()
+                                || checkAllDocsHaveOneValue(leafReaderContexts, fieldName);
+                            if (cardinalityOk) {
                                 mustNotClausesToRewrite.add(clause);
                             }
                         }
