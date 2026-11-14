@@ -3,7 +3,6 @@
  */
 package org.opensearch.tools.cli.heapprof;
 
-import joptsimple.OptionSet;
 import org.opensearch.cli.Terminal;
 
 import javax.management.MBeanServerConnection;
@@ -18,7 +17,7 @@ class StopCommand extends HeapProfCommand {
     }
 
     @Override
-    protected void invokeOnMBean(MBeanServerConnection mbs, ObjectName mbean, Terminal terminal, OptionSet options) throws Exception {
+    protected void invokeOnMBean(MBeanServerConnection mbs, ObjectName mbean, Terminal terminal) throws Exception {
         mbs.invoke(mbean, "deactivate", null, null);
         terminal.println("Heap profiling deactivated. Zero overhead from this point.");
     }

@@ -32,7 +32,6 @@
 
 package org.opensearch.tools.cli.keystore;
 
-import joptsimple.OptionSet;
 import org.opensearch.cli.Terminal;
 import org.opensearch.common.settings.KeyStoreWrapper;
 import org.opensearch.env.Environment;
@@ -41,9 +40,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import picocli.CommandLine.Command;
+
 /**
- * A subcommand for the keystore cli to list all settings in the keystore.
+ * A subcommand for the keystore CLI to list all settings in the keystore.
  */
+@Command(name = "list", description = "List entries in the keystore", mixinStandardHelpOptions = true, usageHelpAutoWidth = true)
 class ListKeyStoreCommand extends BaseKeyStoreCommand {
 
     ListKeyStoreCommand() {
@@ -51,7 +53,7 @@ class ListKeyStoreCommand extends BaseKeyStoreCommand {
     }
 
     @Override
-    protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    protected void executeCommand(Terminal terminal, Environment env) throws Exception {
         final KeyStoreWrapper keyStore = getKeyStore();
         List<String> sortedEntries = new ArrayList<>(keyStore.getSettingNames());
         Collections.sort(sortedEntries);
