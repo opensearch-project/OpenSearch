@@ -1761,7 +1761,10 @@ final class DocumentParser {
         } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
             Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, XContentFieldType.BINARY, dynamic, fullPath);
             if (builder == null) {
-                return handleNoTemplateFound(dynamic, () -> new BinaryFieldMapper.Builder(currentFieldName));
+                return handleNoTemplateFound(
+                    dynamic,
+                    () -> new BinaryFieldMapper.Builder(currentFieldName, false, context.indexSettings().getSettings())
+                );
             }
             return builder;
         } else {
