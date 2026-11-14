@@ -28,6 +28,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -606,6 +607,54 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             assertEquals(0, reader.docFreq(new Term(FIELD_NAME, "aaa")));
             assertEquals(1, reader.docFreq(new Term(FIELD_NAME, "AAA")));
             assertEquals(builder.build(), query.rewrite(indexSearcher));
+        });
+    }
+
+    public void testRequiredTermsQuerySelectsAllShortPrefixes() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        Set<String> requiredTerms = new HashSet<>();
+        BooleanQuery.Builder expected = new BooleanQuery.Builder();
+        boolean caseInsensitive = false;
+        for (char c = 'a'; c <= 'p'; c++) {
+            String text = String.valueOf(c);
+            requiredTerms.add(text);
+            Term term = new Term(FIELD_NAME, text);
+            Query prefix = new PrefixQuery(term);
+            expected.add(prefix, BooleanClause.Occur.FILTER);
+        }
+        String value = "abcdefghijklmnop";
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, value)));
+        Query query = new WildcardFieldMapper.RequiredTermsQuery(FIELD_NAME, requiredTerms, caseInsensitive);
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
+            assertEquals(0, reader.docFreq(new Term(FIELD_NAME, "a")));
+            assertEquals(expected.build(), query.rewrite(new IndexSearcher(reader)));
+        });
+    }
+
+    public void testRequiredTermsQuerySelectsAllShortPrefixesCaseInsensitive() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        Set<String> requiredTerms = new HashSet<>();
+        BooleanQuery.Builder expected = new BooleanQuery.Builder();
+        boolean caseInsensitive = true;
+        for (char c = 'a'; c <= 'p'; c++) {
+            String text = String.valueOf(c);
+            requiredTerms.add(text);
+            Term term = new Term(FIELD_NAME, text);
+            Query prefix = AutomatonQueries.caseInsensitivePrefixQuery(term);
+            expected.add(prefix, BooleanClause.Occur.FILTER);
+        }
+
+        String value = "ABCDEFGHIJKLMNOP";
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, value)));
+        Query query = new WildcardFieldMapper.RequiredTermsQuery(FIELD_NAME, requiredTerms, caseInsensitive);
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
+            assertEquals(0, reader.docFreq(new Term(FIELD_NAME, "a")));
+            IndexSearcher searcher = new IndexSearcher(reader);
+            assertEquals(expected.build(), query.rewrite(searcher));
+            assertEquals(1, searcher.count(query));
         });
     }
 
