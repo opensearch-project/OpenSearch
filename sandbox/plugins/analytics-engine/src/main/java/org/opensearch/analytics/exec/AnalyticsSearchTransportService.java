@@ -230,6 +230,10 @@ public class AnalyticsSearchTransportService {
                     request.getFilterBytes(),
                     request.getBackendId(),
                     request.getSortColumn(),
+                    ContextAwareExecutor.wrap(
+                        transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
+                        transportService.getThreadPool()
+                    ),
                     new ActionListener<>() {
                         @Override
                         public void onResponse(AnalyticsCanMatchResponse response) {
