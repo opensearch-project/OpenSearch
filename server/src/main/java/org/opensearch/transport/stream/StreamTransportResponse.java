@@ -46,9 +46,32 @@ public interface StreamTransportResponse<T extends TransportResponse> extends Cl
      * <p>
      * The {@code reason} should describe the cause (e.g., "Client timeout"), and
      * {@code cause} may provide additional details (or be {@code null}).
+     * <p>
+     * Must be called from the consumer's own thread, since it also closes the stream. To cancel from
+     * another thread — a task-cancellation hook, a timeout, a channel shutdown — use
+     * {@link #cancelStreamOnly(String)}.
      *
      * @param reason the reason for cancellation
      * @param cause the underlying exception, if any
      */
     void cancel(String reason, Throwable cause);
+
+    /**
+     * Requests cancellation of the stream <em>without</em> closing it. Safe to call from any thread,
+     * including while the consumer is inside {@link #nextResponse()}: the parked read observes a
+     * cancellation error and returns, and the consumer remains responsible for {@link #close()}.
+     * <p>
+     * This is the only way to release a consumer parked in {@code nextResponse()}, which has no
+     * deadline of its own. {@link #cancel(String, Throwable)} cannot be used for it: cancel closes the
+     * stream, which frees the batch the consumer may be reading at that very instant.
+     * <p>
+     * The default delegates to {@link #cancel(String, Throwable)}, which is only correct for
+     * implementations holding no resources a concurrent reader could be using. An implementation whose
+     * {@code close()} releases buffers the consumer reads from MUST override this.
+     *
+     * @param reason the reason for cancellation
+     */
+    default void cancelStreamOnly(String reason) {
+        cancel(reason, null);
+    }
 }
