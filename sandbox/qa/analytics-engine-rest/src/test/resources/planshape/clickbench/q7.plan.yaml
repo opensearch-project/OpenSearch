@@ -10,18 +10,18 @@ plans:
         OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
           OpenSearchAggregate(group=[{}], min(EventDate)=[MIN($0)], max(EventDate)=[MAX($0)], mode=[PARTIAL], viableBackends=[[datafusion]])
             OpenSearchProject(EventDate=[$15], viableBackends=[[lucene, datafusion]])
-              OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+              OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
       OpenSearchAggregate(group=[{}], min(EventDate)=[MIN($0)], max(EventDate)=[MAX($0)], mode=[PARTIAL], viableBackends=[[datafusion]])
         OpenSearchProject(EventDate=[$15], viableBackends=[[lucene, datafusion]])
-          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+          OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
       [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
       OpenSearchAggregate(group=[{}], min(EventDate)=[MIN($0)], max(EventDate)=[MAX($1)], mode=[FINAL], viableBackends=[[datafusion]])
         OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
           OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
     shard_physical: |
-      ProjectionExec: expr=[<scrubbed> as min(EventDate), <scrubbed> as max(EventDate)]
+      ProjectionExec: expr=[scrub_S003 as min(EventDate), scrub_S003 as max(EventDate)]
         PlaceholderRowExec
     coord_physical: |
       AggregateExec: mode=Final, gby=[], aggr=[min(input-0.min(EventDate)) as min(EventDate), max(input-0.max(EventDate)) as max(EventDate)]
@@ -33,12 +33,12 @@ plans:
     post_cbo: |
       OpenSearchAggregate(group=[{}], min(EventDate)=[MIN($0)], max(EventDate)=[MAX($0)], mode=[SINGLE], viableBackends=[[datafusion]])
         OpenSearchProject(EventDate=[$15], viableBackends=[[lucene, datafusion]])
-          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+          OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
       OpenSearchAggregate(group=[{}], min(EventDate)=[MIN($0)], max(EventDate)=[MAX($0)], mode=[SINGLE], viableBackends=[[datafusion]])
         OpenSearchProject(EventDate=[$15], viableBackends=[[lucene, datafusion]])
-          OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+          OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     shard_physical: |
-      ProjectionExec: expr=[<scrubbed> as min(EventDate), <scrubbed> as max(EventDate)]
+      ProjectionExec: expr=[scrub_S003 as min(EventDate), scrub_S003 as max(EventDate)]
         PlaceholderRowExec

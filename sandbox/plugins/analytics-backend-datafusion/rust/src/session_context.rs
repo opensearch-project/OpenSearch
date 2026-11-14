@@ -17,8 +17,9 @@ use datafusion::{
     common::DataFusionError,
     datasource::file_format::parquet::ParquetFormat,
     datasource::listing::{ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl},
-    execution::cache::cache_manager::CachedFileList,
-    execution::cache::{CacheAccessor, DefaultListFilesCache},
+    execution::cache::cache_manager::{CachedFileList, DEFAULT_LIST_FILES_CACHE_MEMORY_LIMIT},
+    execution::cache::default_cache::DefaultCache,
+    execution::cache::Cache,
     execution::context::SessionContext,
     execution::memory_pool::MemoryPool,
     execution::runtime_env::RuntimeEnvBuilder,
@@ -199,7 +200,7 @@ pub async unsafe fn create_session_context(
         .memory_pool()
         .map(|p| p as Arc<dyn MemoryPool>);
 
-    let list_file_cache = Arc::new(DefaultListFilesCache::default());
+    let list_file_cache = Arc::new(DefaultCache::new(DEFAULT_LIST_FILES_CACHE_MEMORY_LIMIT));
     list_file_cache.put(
         &datafusion::execution::cache::TableScopedPath {
             table: None,
@@ -248,17 +249,16 @@ pub async unsafe fn create_session_context(
     let has_topk = has_partial_aggregate && substrait_has_fetch_rel(plan_bytes);
     config.options_mut().execution.parquet.pushdown_filters =
         query_config.listing_table_pushdown_filters;
-    // Disable DataFusion's adaptive skip-partial-aggregation when TopK is active.
-    // If DF abandons partial agg midstream, the partial state sent to the coordinator is
-    // incomplete — TopK sees wrong group counts and produces incorrect results.
-    if has_topk {
+    if needs_skip_partial_pin(has_topk, effective_partitions) {
         config
             .options_mut()
             .execution
             .skip_partial_aggregation_probe_ratio_threshold = 1.0;
     }
     config.options_mut().execution.target_partitions = effective_partitions;
-    config.options_mut().execution.batch_size = effective_batch_size;
+    config.options_mut().execution.batch_size =
+        datafusion::common::config::ConfigNonZeroUsize::try_new(effective_batch_size)
+            .expect("batch size must be greater than zero");
     // When the index has `index.sort.field`, ask DataFusion to use the sort-aware
     // file-group partitioner so `output_ordering` can propagate from the scan.
     if !shard_view.sort_fields.is_empty() {
@@ -307,11 +307,12 @@ pub async unsafe fn create_session_context(
     // effective partition count so the bin-packer produces up to N groups (one file per
     // group when min/max ranges can't chain). The session-state's `target_partitions`
     // controls EnforceDistribution; this one is independent.
-    let mut listing_options = ListingOptions::new(Arc::new(ParquetFormat::default()))
-        .with_file_extension(".parquet")
-        .with_collect_stat(true)
-        .with_target_partitions(effective_partitions);
+    let mut listing_options =
+        ListingOptions::new(Arc::new(ParquetFormat::default())).with_file_extension(".parquet");
 
+    // Advertise the index sort order (`index.sort.field`) via `with_file_sort_order` when present,
+    // so the scan reports `output_ordering` — enabling SortPreservingMerge, TopK `fetch` pushdown,
+    // and dynamic-filter row-group pruning. Advertised unconditionally.
     if let Some(sort_exprs) =
         build_file_sort_order(&shard_view.sort_fields, &shard_view.sort_orders)
     {
@@ -374,11 +375,16 @@ pub async unsafe fn create_session_context(
     // failing with "Cannot merge statistics with different number of columns". Non-widened
     // (single-index) scans keep full stats.
     // TODO: re-enable once DataFusion's Statistics::try_merge tolerates a column-count delta.
-    let listing_options = if resolved_schema.fields().len() != inferred_field_count {
-        listing_options.with_collect_stat(false)
-    } else {
-        listing_options
-    };
+    // `ctx` is scoped to this single shard scan, so disabling stats collection on its session
+    // config affects only this widened table.
+    if resolved_schema.fields().len() != inferred_field_count {
+        ctx.state_ref()
+            .write()
+            .config_mut()
+            .options_mut()
+            .execution
+            .collect_statistics = false;
+    }
 
     let table_config = ListingTableConfig::new(shard_view.table_path.clone())
         .with_listing_options(listing_options)
@@ -475,7 +481,9 @@ pub async unsafe fn create_worker_session_context(
 
     let mut config = SessionConfig::new();
     config.options_mut().execution.target_partitions = query_config.target_partitions;
-    config.options_mut().execution.batch_size = query_config.batch_size;
+    config.options_mut().execution.batch_size =
+        datafusion::common::config::ConfigNonZeroUsize::try_new(query_config.batch_size)
+            .expect("batch size must be greater than zero");
     // When the coordinator estimates this worker join's build side is too large for an in-memory
     // hash table, it sets prefer_hash_join=false so DataFusion's physical planner emits a spillable
     // SortMergeJoinExec instead of the non-spillable HashJoinExec build.
@@ -623,6 +631,14 @@ pub async fn prepare_partial_plan(
     Ok(())
 }
 
+/// Pin the skip-partial threshold to 1.0 (disabling skip) only where nothing merges partial state
+/// before TopK truncates: at >1 partition `agg_mode` installs PartialReduce, which merges every
+/// group key, so the pin is redundant and costs ~34% on unique keys. See
+/// code_analysis/q32_fix_RESULT_and_CR_evidence.md.
+fn needs_skip_partial_pin(has_topk: bool, target_partitions: usize) -> bool {
+    has_topk && target_partitions == 1
+}
+
 /// Returns true if the Substrait plan bytes contain a FetchRel (Sort+Limit node).
 /// A FetchRel in a shard fragment means `OpenSearchTopKRewriter` inserted a per-shard
 /// Sort+Limit — TopK is active. Used in `create_session_context` to detect TopK before
@@ -687,7 +703,7 @@ fn try_acquire_budget(
     config: &DatafusionQueryConfig,
 ) -> Option<crate::query_budget::QueryMemoryBudget> {
     use datafusion::datasource::physical_plan::parquet::metadata::CachedParquetMetaData;
-    use datafusion::execution::cache::CacheAccessor;
+    use datafusion::execution::cache::Cache;
     use parquet::arrow::parquet_to_arrow_schema;
 
     let first_meta = shard_view.object_metas.first()?;
@@ -992,7 +1008,8 @@ mod tests {
         use datafusion::datasource::listing::{
             ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
         };
-        use datafusion::execution::cache::file_statistics_cache::DefaultFileStatisticsCache;
+        use datafusion::execution::cache::cache_manager::DEFAULT_FILE_STATISTICS_MEMORY_LIMIT;
+        use datafusion::execution::cache::default_cache::DefaultCache;
         use datafusion::parquet::arrow::ArrowWriter;
 
         fn write_parquet(
@@ -1034,14 +1051,13 @@ mod tests {
         let table_url =
             ListingTableUrl::parse(format!("file://{}", dir.path().to_str().unwrap())).unwrap();
         // Shared, runtime-global stats cache — the crux of the bug.
-        let stats_cache = Arc::new(DefaultFileStatisticsCache::default());
+        let stats_cache = Arc::new(DefaultCache::new(DEFAULT_FILE_STATISTICS_MEMORY_LIMIT));
 
         // 1. NARROW read first: registers the table at the narrow (1-col) schema and, with
         //    collect_stat(true), seeds the shared cache with a 1-column Statistics for narrow.parquet.
         let ctx = SessionContext::new();
-        let narrow_opts = ListingOptions::new(Arc::new(ParquetFormat::default()))
-            .with_file_extension(".parquet")
-            .with_collect_stat(true);
+        let narrow_opts =
+            ListingOptions::new(Arc::new(ParquetFormat::default())).with_file_extension(".parquet");
         let narrow_cfg = ListingTableConfig::new(table_url.clone())
             .with_listing_options(narrow_opts)
             .with_schema(Arc::clone(&narrow));
@@ -1062,9 +1078,16 @@ mod tests {
         // 2. WIDENED read reusing the SAME cache. This is what create_session_context does after
         //    widen_schema_from_plan. The fix sets collect_stat(false) because the schema was widened;
         //    without it, merging the cached 1-col Statistics against a 2-col one fails planning.
-        let widened_opts = ListingOptions::new(Arc::new(ParquetFormat::default()))
-            .with_file_extension(".parquet")
-            .with_collect_stat(false); // mirrors the fix in create_session_context for widened tables
+        let widened_opts =
+            ListingOptions::new(Arc::new(ParquetFormat::default())).with_file_extension(".parquet");
+        // Disable stats collection on `ctx` before the widened scan (mirrors create_session_context's
+        // widened-table fix) so the cached 1-col Statistics isn't merged against the 2-col schema.
+        ctx.state_ref()
+            .write()
+            .config_mut()
+            .options_mut()
+            .execution
+            .collect_statistics = false;
         let widened_cfg = ListingTableConfig::new(table_url)
             .with_listing_options(widened_opts)
             .with_schema(Arc::clone(&wide));
@@ -1148,41 +1171,45 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_skip_partial_agg_disabled_when_has_topk() {
-        // skip_partial must be disabled (1.0) when TopK is active — if DF abandons partial
-        // agg midstream the partial state is incomplete and TopK sees wrong group counts.
-        let mut config = SessionConfig::new();
-        let has_topk = true;
-        if has_topk {
-            config
-                .options_mut()
-                .execution
-                .skip_partial_aggregation_probe_ratio_threshold = 1.0;
+    /// Asserts `needs_skip_partial_pin` over `(has_topk, target_partitions, expected)` cases.
+    fn assert_pin_cases(cases: &[(bool, usize, bool)]) {
+        for &(has_topk, partitions, expected) in cases {
+            assert_eq!(
+                needs_skip_partial_pin(has_topk, partitions),
+                expected,
+                "has_topk={has_topk}, target_partitions={partitions}"
+            );
         }
-        assert_eq!(
-            config
-                .options()
-                .execution
-                .skip_partial_aggregation_probe_ratio_threshold,
-            1.0,
-            "skip_partial must be disabled (1.0) when TopK is active"
-        );
+    }
+
+    // NOTE: these call the production predicate. The previous versions re-implemented the
+    // `if has_topk` branch inside the test body and asserted what they had just set, so they
+    // passed even with the production pin deleted.
+    #[test]
+    fn test_skip_partial_pin_only_at_single_partition_with_topk() {
+        assert_pin_cases(&[
+            // 1 partition: no hash repartition, so no PartialReduce merges state before TopK
+            // truncates — pin required (#22337).
+            (true, 1, true),
+            // >1: PartialReduce merges every group key, so the pin is redundant and, on DF55,
+            // costly (exactly 1.0 disables skip — datafusion#22752).
+            (true, 2, false),
+            (true, 4, false),
+            // No TopK means nothing truncates early, so skip is always safe.
+            (false, 1, false),
+            (false, 4, false),
+        ]);
     }
 
     #[test]
-    fn test_skip_partial_agg_default_when_no_topk() {
-        // When has_topk=false, skip_partial retains DF default (0.8) — no perf regression
-        // for non-TopK multi-shard queries.
-        let config = SessionConfig::new();
-        assert_eq!(
-            config
-                .options()
-                .execution
-                .skip_partial_aggregation_probe_ratio_threshold,
-            0.8,
-            "non-TopK queries must retain DF default threshold"
-        );
+    fn test_skip_partial_default_threshold_is_below_one() {
+        // The pin works by setting exactly 1.0, which DF55 treats as "disabled". If the DF
+        // default ever reached 1.0, the unpinned path would silently disable skip as well.
+        let threshold = SessionConfig::new()
+            .options()
+            .execution
+            .skip_partial_aggregation_probe_ratio_threshold;
+        assert!(threshold < 1.0, "DF default must stay below 1.0, got {threshold}");
     }
 
     #[test]

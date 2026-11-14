@@ -12,13 +12,13 @@ plans:
             OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
               OpenSearchProject(AdvEngineID=[$0], viableBackends=[[datafusion]])
                 OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($0, 0))], viableBackends=[[datafusion]])
-                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+                  OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
       OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
         OpenSearchProject(AdvEngineID=[$0], viableBackends=[[datafusion]])
           OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($0, 0))], viableBackends=[[datafusion]])
-            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+            OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
       [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
       OpenSearchProject(count()=[CAST($0):BIGINT NOT NULL], viableBackends=[[datafusion]])
         OpenSearchAggregate(group=[{}], count()=[SUM($0)], mode=[FINAL], viableBackends=[[datafusion]])
@@ -28,12 +28,12 @@ plans:
       AggregateExec: mode=Partial, gby=[], aggr=[count(1) as count()]
         FilterExec: AdvEngineID@0 != 0, projection=[]
           RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-            DataSourceExec: file_groups={<scrubbed>}, projection=[AdvEngineID], file_type=parquet, predicate=AdvEngineID@20 != 0, pruning_predicate=AdvEngineID_null_count@2 != row_count@3 AND (AdvEngineID_min@0 != 0 OR 0 != AdvEngineID_max@1), required_guarantees=[AdvEngineID not in (0)]
+            DataSourceExec: file_groups={scrub_S001}, projection=[AdvEngineID], file_type=parquet, predicate=AdvEngineID@20 != 0, pruning_predicate=AdvEngineID_null_count@2 != row_count@3 AND (AdvEngineID_min@0 != 0 OR 0 != AdvEngineID_max@1), required_guarantees=[AdvEngineID not in (0)]
     shard_physical_nseg: |
       AggregateExec: mode=Partial, gby=[], aggr=[count(1) as count()]
         FilterExec: AdvEngineID@0 != 0, projection=[]
           RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-            DataSourceExec: file_groups={<scrubbed>}, projection=[AdvEngineID], file_type=parquet, predicate=AdvEngineID@20 != 0, pruning_predicate=AdvEngineID_null_count@2 != row_count@3 AND (AdvEngineID_min@0 != 0 OR 0 != AdvEngineID_max@1), required_guarantees=[AdvEngineID not in (0)]
+            DataSourceExec: file_groups={scrub_S001}, projection=[AdvEngineID], file_type=parquet, predicate=AdvEngineID@20 != 0, pruning_predicate=AdvEngineID_null_count@2 != row_count@3 AND (AdvEngineID_min@0 != 0 OR 0 != AdvEngineID_max@1), required_guarantees=[AdvEngineID not in (0)]
     coord_physical: |
       ProjectionExec: expr=[sum(input-0.count())@0 as count()]
         AggregateExec: mode=Final, gby=[], aggr=[sum(input-0.count())]
@@ -46,24 +46,24 @@ plans:
       OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
         OpenSearchProject(AdvEngineID=[$0], viableBackends=[[datafusion]])
           OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($0, 0))], viableBackends=[[datafusion]])
-            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+            OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=datafusion tree_shape=NONE]
       OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[SINGLE], viableBackends=[[datafusion]])
         OpenSearchProject(AdvEngineID=[$0], viableBackends=[[datafusion]])
           OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[datafusion], <>($0, 0))], viableBackends=[[datafusion]])
-            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+            OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     shard_physical_1seg: |
       AggregateExec: mode=Final, gby=[], aggr=[count(1) as count()]
         CoalescePartitionsExec
           AggregateExec: mode=Partial, gby=[], aggr=[count(1) as count()]
             FilterExec: AdvEngineID@0 != 0, projection=[]
               RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
-                DataSourceExec: file_groups={<scrubbed>}, projection=[AdvEngineID], file_type=parquet, predicate=AdvEngineID@20 != 0, pruning_predicate=AdvEngineID_null_count@2 != row_count@3 AND (AdvEngineID_min@0 != 0 OR 0 != AdvEngineID_max@1), required_guarantees=[AdvEngineID not in (0)]
+                DataSourceExec: file_groups={scrub_S001}, projection=[AdvEngineID], file_type=parquet, predicate=AdvEngineID@20 != 0, pruning_predicate=AdvEngineID_null_count@2 != row_count@3 AND (AdvEngineID_min@0 != 0 OR 0 != AdvEngineID_max@1), required_guarantees=[AdvEngineID not in (0)]
     shard_physical_nseg: |
       AggregateExec: mode=Final, gby=[], aggr=[count(1) as count()]
         CoalescePartitionsExec
           AggregateExec: mode=Partial, gby=[], aggr=[count(1) as count()]
             FilterExec: AdvEngineID@0 != 0, projection=[]
               RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=2
-                DataSourceExec: file_groups={<scrubbed>}, projection=[AdvEngineID], file_type=parquet, predicate=AdvEngineID@20 != 0, pruning_predicate=AdvEngineID_null_count@2 != row_count@3 AND (AdvEngineID_min@0 != 0 OR 0 != AdvEngineID_max@1), required_guarantees=[AdvEngineID not in (0)]
+                DataSourceExec: file_groups={scrub_S001}, projection=[AdvEngineID], file_type=parquet, predicate=AdvEngineID@20 != 0, pruning_predicate=AdvEngineID_null_count@2 != row_count@3 AND (AdvEngineID_min@0 != 0 OR 0 != AdvEngineID_max@1), required_guarantees=[AdvEngineID not in (0)]

@@ -1,0 +1,12 @@
+diff --git a/datafusion-datasource-parquet/src/file_format.rs b/datafusion-datasource-parquet/src/file_format.rs
+--- a/datafusion-datasource-parquet/src/file_format.rs
++++ b/datafusion-datasource-parquet/src/file_format.rs
+@@ -363,6 +363,8 @@
+                     .with_file_metadata_cache(Some(Arc::clone(&file_metadata_cache)))
+                     .with_coerce_int96(coerce_int96)
+                     .with_coerce_int96_tz(coerce_int96_tz.clone())
++                    // df55-infer-skip-pageindex: schema inference never uses the page index; force Skip
++                    .with_page_index_policy(Some(parquet::file::metadata::PageIndexPolicy::Skip))
+                     .fetch_schema_with_location()
+                     .await?;
+                 Ok::<_, DataFusionError>(result)

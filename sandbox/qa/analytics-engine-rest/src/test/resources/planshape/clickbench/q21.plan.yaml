@@ -12,13 +12,13 @@ plans:
             OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[lucene, datafusion]])
               OpenSearchProject(URL=[$85], viableBackends=[[lucene, datafusion]])
                 OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], ILIKE($85, '%google%', '\'))], viableBackends=[[lucene, datafusion]])
-                  OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+                  OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=lucene tree_shape=NONE]
       OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[PARTIAL], viableBackends=[[lucene, datafusion]])
         OpenSearchProject(URL=[$85], viableBackends=[[lucene, datafusion]])
           OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], ILIKE($85, '%google%', '\'))], viableBackends=[[lucene, datafusion]])
-            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+            OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
       [COORDINATOR_REDUCE chosen_backend=datafusion tree_shape=NONE]
       OpenSearchProject(count()=[CAST($0):BIGINT NOT NULL], viableBackends=[[lucene, datafusion]])
         OpenSearchAggregate(group=[{}], count()=[SUM($0)], mode=[FINAL], viableBackends=[[lucene, datafusion]])
@@ -36,10 +36,10 @@ plans:
       OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[SINGLE], viableBackends=[[lucene, datafusion]])
         OpenSearchProject(URL=[$85], viableBackends=[[lucene, datafusion]])
           OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], ILIKE($85, '%google%', '\'))], viableBackends=[[lucene, datafusion]])
-            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+            OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
     fragment: |
       [SHARD_FRAGMENT chosen_backend=lucene tree_shape=NONE]
       OpenSearchAggregate(group=[{}], count()=[COUNT()], mode=[SINGLE], viableBackends=[[lucene, datafusion]])
         OpenSearchProject(URL=[$85], viableBackends=[[lucene, datafusion]])
           OpenSearchFilter(condition=[ANNOTATED_PREDICATE(id=0, backends=[lucene, datafusion], ILIKE($85, '%google%', '\'))], viableBackends=[[lucene, datafusion]])
-            OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
+            OpenSearchTableScan(table=[[scrub_S004]], viableBackends=[[lucene, datafusion]])
