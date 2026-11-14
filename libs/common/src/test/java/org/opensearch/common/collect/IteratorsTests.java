@@ -138,6 +138,7 @@ public class IteratorsTests extends OpenSearchTestCase {
         return Collections.singleton(value).iterator();
     }
 
+    @SafeVarargs
     private <T> void assertSingleton(T value, Iterator<T>... iterators) {
         Iterator<T> concat = Iterators.concat(iterators);
         assertContainsInOrder(concat, value);
