@@ -60,7 +60,7 @@ public class DiskThresholdSettings {
         true,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
-    );
+    ).withDescription("Enables disk-watermark checks when allocating shards and deciding whether shards can remain on a node.");
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_WARM_DISK_THRESHOLD_ENABLED_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.disk.warm_threshold_enabled",
         true,
@@ -71,7 +71,7 @@ public class DiskThresholdSettings {
         "cluster.routing.allocation.disk.watermark.enable_for_single_data_node",
         false,
         Setting.Property.NodeScope
-    );
+    ).withDescription("Applies disk-watermark allocation checks even when the cluster has only one data node.");
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING = new Setting<>(
         "cluster.routing.allocation.disk.watermark.low",
         "85%",
@@ -79,6 +79,8 @@ public class DiskThresholdSettings {
         new LowDiskWatermarkValidator(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
+    ).withDescription(
+        "Prevents allocating shards to nodes above this disk-usage threshold, except never-allocated empty primary shards. Percentages and ratios express used space; byte values express minimum free space."
     );
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING = new Setting<>(
         "cluster.routing.allocation.disk.watermark.high",
@@ -87,6 +89,8 @@ public class DiskThresholdSettings {
         new HighDiskWatermarkValidator(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
+    ).withDescription(
+        "Triggers relocation away from nodes above this disk-usage threshold and prevents allocations that would exceed it. Percentages and ratios express used space; byte values express minimum free space."
     );
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING = new Setting<>(
         "cluster.routing.allocation.disk.watermark.flood_stage",
@@ -95,6 +99,8 @@ public class DiskThresholdSettings {
         new FloodStageValidator(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
+    ).withDescription(
+        "Applies index.blocks.read_only_allow_delete to indices with shards on nodes above this disk-usage threshold. Disk-based blocks are automatically released once affected nodes fall below the high watermark. Percentages and ratios express used space; byte values express minimum free space."
     );
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.disk.include_relocations",
@@ -108,7 +114,7 @@ public class DiskThresholdSettings {
         TimeValue.timeValueSeconds(60),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
-    );
+    ).withDescription("Minimum interval between automatic shard reroutes triggered by the disk threshold monitor.");
     public static final Setting<Boolean> CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE = Setting.boolSetting(
         "cluster.blocks.create_index.auto_release",
         true,
