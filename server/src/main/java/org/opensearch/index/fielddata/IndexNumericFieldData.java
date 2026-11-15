@@ -245,8 +245,10 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
                 assert !targetNumericType.isFloatingPoint();
                 source = new IntValuesComparatorSource(this, missingValue, sortMode, nested);
         }
-        if (targetNumericType != getNumericType()) {
-            source.disableSkipping(); // disable skipping logic for cast of sort field
+        if (nested != null || targetNumericType != getNumericType()) {
+            // Nested sort values are reduced from child documents to root documents, so numeric point
+            // skipping cannot safely use the child-document points to prune root-document sort values.
+            source.disableSkipping();
         }
         return source;
     }
