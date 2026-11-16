@@ -91,6 +91,8 @@ import org.opensearch.action.bulk.TransportShardBulkAction;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.resync.TransportResyncReplicationAction;
 import org.opensearch.action.search.SearchAction;
+import org.opensearch.action.search.SearchCancelAfterTimeIntervalResolver;
+import org.opensearch.action.search.SearchExecutionGate;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
 import org.opensearch.action.search.SearchPhaseController;
 import org.opensearch.action.search.SearchRequest;
@@ -251,7 +253,6 @@ import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.AdminClient;
 import org.opensearch.transport.client.node.NodeClient;
-import org.opensearch.wlm.WorkloadGroupService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -2414,7 +2415,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         NoopTracer.INSTANCE,
                         new TaskResourceTrackingService(settings, clusterSettings, threadPool),
                         mockIndicesService,
-                        mock(WorkloadGroupService.class)
+                        SearchExecutionGate.NOOP,
+                        SearchCancelAfterTimeIntervalResolver.NOOP
                     )
                 );
                 actions.put(

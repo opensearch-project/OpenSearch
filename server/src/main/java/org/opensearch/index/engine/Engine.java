@@ -882,10 +882,17 @@ public abstract class Engine implements LifecycleAware, Closeable {
     }
 
     public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {
-        SearcherSupplier releasable = null;
+        return acquireSearcher(source, acquireSearcherSupplier(wrapper, scope));
+    }
+
+    /**
+     * Acquires one searcher from {@code supplier} and ties the supplier's lifetime to it. Takes ownership of
+     * {@code supplier}: it is closed with the returned searcher, or immediately if acquisition fails.
+     */
+    public static Searcher acquireSearcher(String source, SearcherSupplier supplier) {
+        SearcherSupplier releasable = supplier;
         try {
-            SearcherSupplier reader = releasable = acquireSearcherSupplier(wrapper, scope);
-            Searcher searcher = reader.acquireSearcher(source);
+            Searcher searcher = supplier.acquireSearcher(source);
             releasable = null;
             return new Searcher(
                 source,
@@ -893,7 +900,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 searcher.getSimilarity(),
                 searcher.getQueryCache(),
                 searcher.getQueryCachingPolicy(),
-                () -> Releasables.close(searcher, reader)
+                () -> Releasables.close(searcher, supplier)
             );
         } finally {
             Releasables.close(releasable);
@@ -1397,13 +1404,18 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * regardless of retention policy. Default wraps {@link #acquireLastIndexCommit(boolean)}.
      * Propagates {@link IOException} as-is so callers (e.g. shard-store fetch on corrupted
      * indices) can treat read failures uniformly with the legacy commit path.
+     * <p>
+     * The commit is read through {@link Store#toCatalogSnapshot(IndexCommit)} rather than
+     * {@link Lucene#readSegmentInfos(IndexCommit)} so that a commit which cannot be parsed is classified as
+     * corruption and marks the store. Reading via Lucene directly would bypass that bookkeeping, leaving a
+     * shard with damaged segment metadata to fail every snapshot attempt without ever being failed and
+     * reallocated.
      */
     @ExperimentalApi
     public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException, IOException {
         final GatedCloseable<IndexCommit> commitRef = acquireLastIndexCommit(flushFirst);
         try {
-            final SegmentInfos infos = Lucene.readSegmentInfos(commitRef.get());
-            final CatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(infos);
+            final CatalogSnapshot snapshot = store.toCatalogSnapshot(commitRef.get());
             return new GatedCloseable<>(snapshot, commitRef::close);
         } catch (IOException | RuntimeException e) {
             try {

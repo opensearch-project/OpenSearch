@@ -43,9 +43,11 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocAndFloatFeatureBuffer;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.opensearch.core.common.Strings;
@@ -444,7 +446,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
     }
 
-    private static class ExitableIntersectVisitor implements PointValues.IntersectVisitor {
+    static class ExitableIntersectVisitor implements PointValues.IntersectVisitor {
 
         private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 13) - 1; // 8191
 
@@ -452,7 +454,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         private final QueryCancellation queryCancellation;
         private int calls;
 
-        private ExitableIntersectVisitor(QueryCancellation queryCancellation) {
+        ExitableIntersectVisitor(QueryCancellation queryCancellation) {
             this.queryCancellation = queryCancellation;
         }
 
@@ -462,7 +464,16 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             }
         }
 
-        private void setVisitor(PointValues.IntersectVisitor in) {
+        // Charges a bulk visit of `count` docs to the sampling budget, so bulk visits can be forwarded.
+        private void checkAndThrowWithSampling(long count) {
+            final int remaining = MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK + 1 - (calls & MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK);
+            if (remaining == MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK + 1) {
+                queryCancellation.checkCancelled();
+            }
+            calls = count >= remaining ? 0 : calls + (int) count;
+        }
+
+        void setVisitor(PointValues.IntersectVisitor in) {
             this.in = in;
         }
 
@@ -473,9 +484,27 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
+        public void visit(DocIdSetIterator iterator) throws IOException {
+            checkAndThrowWithSampling(iterator.cost());
+            in.visit(iterator);
+        }
+
+        @Override
+        public void visit(IntsRef ref) throws IOException {
+            checkAndThrowWithSampling(ref.length);
+            in.visit(ref);
+        }
+
+        @Override
         public void visit(int docID, byte[] packedValue) throws IOException {
             checkAndThrowWithSampling();
             in.visit(docID, packedValue);
+        }
+
+        @Override
+        public void visit(DocIdSetIterator iterator, byte[] packedValue) throws IOException {
+            checkAndThrowWithSampling(iterator.cost());
+            in.visit(iterator, packedValue);
         }
 
         @Override

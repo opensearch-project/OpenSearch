@@ -48,7 +48,9 @@ public class LuceneDocValuesProducerFactory {
                     metaCodec,
                     metaExtension,
                     Composite912DocValuesFormat.SKIP_INDEX_DOC_VALUES_CODEC,
-                    Composite912DocValuesFormat.SKIP_INDEX_DOC_VALUES_EXTENSION
+                    Composite912DocValuesFormat.SKIP_INDEX_DOC_VALUES_EXTENSION,
+                    Composite912DocValuesFormat.DISI_DOC_VALUES_CODEC,
+                    Composite912DocValuesFormat.DISI_DOC_VALUES_EXTENSION
                 );
                 return lucene90DocValuesProducerWrapper.getLucene90DocValuesProducer();
             default:

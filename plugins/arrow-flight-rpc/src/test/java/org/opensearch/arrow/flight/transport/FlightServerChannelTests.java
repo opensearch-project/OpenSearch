@@ -27,7 +27,11 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.stream.StreamErrorCode;
 import org.opensearch.transport.stream.StreamException;
 
+import javax.net.ssl.SSLSession;
+
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -110,6 +114,24 @@ public class FlightServerChannelTests extends OpenSearchTestCase {
      */
     private void drainExecutor() throws Exception {
         executor.submit(() -> {}).get(5, TimeUnit.SECONDS);
+    }
+
+    public void testExposesPeerSslSessionAndRemoteAddress() {
+        SSLSession sslSession = mock(SSLSession.class);
+        InetSocketAddress peer = new InetSocketAddress(InetAddress.getLoopbackAddress(), 41234);
+        FlightServerChannel ch = new FlightServerChannel(listener, allocator, middleware, callTracker, executor, 5_000, sslSession, peer);
+
+        assertSame(sslSession, ch.get(FlightServerChannel.SSL_SESSION, SSLSession.class).orElseThrow());
+        assertTrue(ch.get("ssl_server", SSLSession.class).isEmpty());
+        assertTrue(ch.get(FlightServerChannel.SSL_SESSION, String.class).isEmpty());
+        assertEquals(peer, ch.getRemoteAddress());
+    }
+
+    public void testNoSslSessionWhenTlsDisabled() {
+        FlightServerChannel ch = new FlightServerChannel(listener, allocator, middleware, callTracker, executor, 5_000, null, null);
+
+        assertTrue(ch.get(FlightServerChannel.SSL_SESSION, SSLSession.class).isEmpty());
+        assertEquals(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), ch.getRemoteAddress());
     }
 
     public void testAwaitReadyFastPath() {

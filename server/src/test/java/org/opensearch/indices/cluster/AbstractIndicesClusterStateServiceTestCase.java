@@ -45,6 +45,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
@@ -283,8 +284,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
         }
 
         @Override
-        public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeValue) throws IOException,
-            InterruptedException {
+        public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue lockTimeout, TimeValue deletionRetryTimeout)
+            throws IOException, InterruptedException, ShardLockObtainFailedException {
 
         }
 

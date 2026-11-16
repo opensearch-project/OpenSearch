@@ -9,11 +9,14 @@
 package org.opensearch.plugin.kafka;
 
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.config.SaslConfigs;
+import org.apache.kafka.common.config.SslConfigs;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -24,6 +27,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -131,6 +135,32 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
 
         assertNotNull(consumer);
         assertEquals(KafkaConsumer.class, consumer.getClass());
+    }
+
+    public void testToRedactedString() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("topic", "test-topic");
+        params.put("bootstrap_servers", "localhost:9092");
+        params.put(SaslConfigs.SASL_JAAS_CONFIG, "PlainLoginModule required username=\"user\" password=\"secret\";");
+        params.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, "truststore-secret");
+        params.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, "keystore-secret");
+        params.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, "key-secret");
+        params.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, "/path/to/truststore.jks");
+        params.put("custom.setting", "value");
+        Properties consumerProp = KafkaPartitionConsumer.createConsumerProperties("client1", new KafkaSourceConfig(1000, params));
+
+        String loggable = KafkaPartitionConsumer.toRedactedString(consumerProp);
+
+        assertTrue(loggable.contains(SaslConfigs.SASL_JAAS_CONFIG + "=(redacted)"));
+        assertTrue(loggable.contains(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG + "=(redacted)"));
+        assertTrue(loggable.contains(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG + "=(redacted)"));
+        assertTrue(loggable.contains(SslConfigs.SSL_KEY_PASSWORD_CONFIG + "=(redacted)"));
+        assertTrue(loggable.contains(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG + "=\"/path/to/truststore.jks\""));
+        assertTrue(loggable.contains(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG + "=localhost:9092"));
+        assertTrue(loggable.contains("custom.setting=(redacted)"));
+        assertFalse(loggable.contains("secret"));
+        // the consumer still gets the real values
+        assertEquals("key-secret", consumerProp.get(SslConfigs.SSL_KEY_PASSWORD_CONFIG));
     }
 
     public void testGetPointerBasedLagBeforeAnyFetch() {

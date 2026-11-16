@@ -50,6 +50,7 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.opensearch.OpenSearchException;
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -94,6 +95,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -117,6 +119,7 @@ import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.IndexerFactory;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
@@ -175,6 +178,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.nio.charset.Charset;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -4094,6 +4099,37 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(sourceShard, targetShard);
     }
 
+    /** A shard whose indexer has no searcher capability rejects {@code _search} with a 400 instead of a 500. */
+    public void testSearchOnIndexerWithoutSearcherIsBadRequest() throws IOException {
+        final IndexerFactory engineBacked = new EngineBackedIndexerFactory(new InternalEngineFactory());
+        // Forwards every Indexer call to an engine-backed indexer but does not implement SearcherSupplierProvider.
+        final IndexerFactory searchless = config -> {
+            final Indexer delegate = engineBacked.createIndexer(config);
+            return (Indexer) Proxy.newProxyInstance(
+                Indexer.class.getClassLoader(),
+                new Class<?>[] { Indexer.class },
+                (proxy, method, args) -> {
+                    try {
+                        return method.invoke(delegate, args);
+                    } catch (InvocationTargetException e) {
+                        throw e.getCause();
+                    }
+                }
+            );
+        };
+        final IndexShard shard = newStartedShard(true, Settings.EMPTY, searchless);
+        try {
+            OpenSearchStatusException e = expectThrows(OpenSearchStatusException.class, () -> shard.acquireSearcher("test"));
+            assertEquals(RestStatus.BAD_REQUEST, e.status());
+            assertThat(e.getMessage(), containsString("does not support _search"));
+
+            e = expectThrows(OpenSearchStatusException.class, () -> shard.acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL));
+            assertEquals(RestStatus.BAD_REQUEST, e.status());
+        } finally {
+            closeShards(shard);
+        }
+    }
+
     public void testCompletionStatsMarksSearcherAccessed() throws Exception {
         IndexShard indexShard = null;
         try {
@@ -6194,5 +6230,66 @@ public class IndexShardTests extends IndexShardTestCase {
             IndexShard.isTranslogBackedByRemoteStore(docrepIndex, IndexShard.ShardMigrationState.DOCREP_NON_MIGRATING)
         );
         assertFalse(IndexShard.isTranslogBackedByRemoteStore(docrepIndex, IndexShard.ShardMigrationState.REMOTE_NON_MIGRATING));
+    }
+
+    /**
+     * The catalog-based commit accessors are the format-neutral entry point the snapshot path uses. Unlike
+     * {@link IndexShard#acquireLastIndexCommit(boolean)} they reach the indexer directly rather than via
+     * {@code applyOnEngine}, which is what allows a data-format-aware engine to be snapshotted at all.
+     */
+    public void testAcquireLastCommittedSnapshot() throws Exception {
+        final IndexShard shard = newStartedShard(true);
+        try {
+            indexDoc(shard, "_doc", "1");
+            flushShard(shard);
+
+            try (GatedCloseable<CatalogSnapshot> wrapped = shard.acquireLastCommittedSnapshot(false)) {
+                final CatalogSnapshot catalogSnapshot = wrapped.get();
+                assertNotNull(catalogSnapshot);
+                assertEquals(
+                    "catalog generation must match the shard's last committed Lucene commit",
+                    shard.store().readLastCommittedSegmentsInfo().getGeneration(),
+                    catalogSnapshot.getGeneration()
+                );
+            }
+
+            // flushFirst=true must still produce a usable commit point.
+            indexDoc(shard, "_doc", "2");
+            try (GatedCloseable<CatalogSnapshot> wrapped = shard.acquireLastCommittedSnapshot(true)) {
+                assertNotNull(wrapped.get());
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    public void testAcquireLastCommittedSnapshotAndRefresh() throws Exception {
+        final IndexShard shard = newStartedShard(true);
+        try {
+            indexDoc(shard, "_doc", "1");
+            flushShard(shard);
+
+            try (GatedCloseable<CatalogSnapshot> wrapped = shard.acquireLastCommittedSnapshotAndRefresh(false)) {
+                assertNotNull(wrapped.get());
+                assertEquals(shard.store().readLastCommittedSegmentsInfo().getGeneration(), wrapped.get().getGeneration());
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /** A shard that has not finished recovery must refuse to hand out a commit point. */
+    public void testAcquireLastCommittedSnapshotRejectedWhenShardNotStarted() throws Exception {
+        final IndexShard shard = newShard(false);
+        try {
+            assertEquals(IndexShardState.CREATED, shard.state());
+            final IllegalIndexShardStateException e = expectThrows(
+                IllegalIndexShardStateException.class,
+                () -> shard.acquireLastCommittedSnapshot(randomBoolean())
+            );
+            assertThat(e.getMessage(), containsString("snapshot is not allowed"));
+        } finally {
+            closeShards(shard);
+        }
     }
 }

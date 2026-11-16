@@ -8,21 +8,15 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
-import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsResponse.SettingMetadata;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.SecureSetting;
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsDescriber;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
-
-import java.util.HashMap;
 
 /** Resolves definitions using the setting registry. The registry is identical on every node of the same version and
  * never depends on cluster state, so the request is answered locally by whichever node receives it: no cluster-manager
@@ -52,46 +46,10 @@ public class TransportClusterDescribeSettingsAction extends HandledTransportActi
 
     @Override
     protected void doExecute(Task task, ClusterDescribeSettingsRequest request, ActionListener<ClusterDescribeSettingsResponse> listener) {
-        listener.onResponse(describe(request, clusterService.getClusterSettings(), settingsFilter));
-    }
-
-    static ClusterDescribeSettingsResponse describe(
-        ClusterDescribeSettingsRequest request,
-        ClusterSettings registry,
-        SettingsFilter filter
-    ) {
-        // Filter names using placeholders; the configured value is never read or serialized.
-        Settings.Builder names = Settings.builder();
-        for (String name : request.names())
-            names.put(name, "");
-        var result = new HashMap<String, SettingMetadata>();
-        for (String name : filter.filter(names.build()).keySet()) {
-            Setting<?> setting = registry.get(name);
-            // Omission deliberately makes an unknown name indistinguishable from a filtered one.
-            if (setting != null && setting.isFiltered() == false) {
-                result.put(name, metadataOf(setting));
-            }
-        }
-        return new ClusterDescribeSettingsResponse(result);
-    }
-
-    /**
-     * Describes a single registered setting. The declared default is resolved against {@link Settings#EMPTY} so that
-     * settings whose default depends on another setting report their declared default rather than a value derived
-     * from this cluster's configuration.
-     */
-    private static SettingMetadata metadataOf(Setting<?> setting) {
-        boolean dynamic = setting.isDynamic();
-        // SecureSetting overrides getDefaultRaw to throw UnsupportedOperationException; never call it.
-        if (setting instanceof SecureSetting) {
-            return SettingMetadata.withoutDefault(dynamic);
-        }
-        String defaultValue = setting.getDefaultRaw(Settings.EMPTY);
-        // The Setting constructor asserts a non-null default for every non-secure setting, so only emptiness is
-        // checked here. Group settings declare an empty default; an empty string carries no information for any setting.
-        if (defaultValue.isEmpty()) {
-            return SettingMetadata.withoutDefault(dynamic);
-        }
-        return SettingMetadata.withDefault(dynamic, defaultValue);
+        listener.onResponse(
+            new ClusterDescribeSettingsResponse(
+                SettingsDescriber.describe(request.names(), clusterService.getClusterSettings(), settingsFilter)
+            )
+        );
     }
 }

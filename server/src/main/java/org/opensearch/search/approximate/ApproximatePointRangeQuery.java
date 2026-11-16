@@ -181,6 +181,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     @Override
                     public void visit(DocIdSetIterator iterator) throws IOException {
                         adder.add(iterator);
+                        docCount[0] += iterator.cost();
                     }
 
                     @Override
@@ -200,6 +201,7 @@ public class ApproximatePointRangeQuery extends ApproximateQuery {
                     public void visit(DocIdSetIterator iterator, byte[] packedValue) throws IOException {
                         if (matches(packedValue)) {
                             adder.add(iterator);
+                            docCount[0] += iterator.cost();
                         }
                     }
 
