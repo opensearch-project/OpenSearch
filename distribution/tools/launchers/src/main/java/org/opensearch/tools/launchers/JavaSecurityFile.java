@@ -45,9 +45,10 @@ import java.util.TreeSet;
  * Replacing the whole file, rather than appending to it, is what removes the JDK's providers in FIPS mode. JCA has no way to
  * unregister a provider declaratively, and an appended file can only add or overwrite entries.
  * <p>
- * The file is written to a directory that only the current user can access, and is named after a hash of its content. Each
- * combination of JDK, mode and config therefore produces one file, which later starts reuse. Nothing is generated when
- * {@code OPENSEARCH_JAVA_OPTS} already sets {@code java.security.properties}.
+ * The file is written to a directory under {@code OPENSEARCH_TMPDIR} (or {@code java.io.tmpdir}) that only the current user can
+ * access. It is named after a hash of its content, so each combination of JDK, mode and config produces one file, which later
+ * starts reuse. The config directory is only read. Nothing is generated when {@code OPENSEARCH_JAVA_OPTS} already sets
+ * {@code java.security.properties}.
  */
 final class JavaSecurityFile {
 
@@ -79,13 +80,13 @@ final class JavaSecurityFile {
      */
     public static void main(final String[] args) throws IOException {
         if (args.length != 2) {
-            throw new IllegalArgumentException("expected two arguments [config directory, mode] but was " + Arrays.toString(args));
+            throw new IllegalArgumentException("expected two arguments [config directory, mode] but was " + Arrays.toString(args) + ".");
         }
+        final Path configDirectory = configDirectory(args[0]);
+        final String mode = args[1];
         if (isConfiguredByUser(System.getenv("OPENSEARCH_JAVA_OPTS"))) {
             return;
         }
-        final Path configDirectory = Paths.get(args[0]);
-        final String mode = args[1];
         final Path jdkFile = Paths.get(System.getProperty("java.home"), "conf", "security", "java.security");
         final Properties jdkProperties = load(jdkFile);
 
@@ -94,7 +95,7 @@ final class JavaSecurityFile {
         if (FIPS_MODE.equals(mode)) {
             final Path fipsFile = configDirectory.resolve(FIPS_SECURITY_FILE_NAME);
             if (Files.isRegularFile(fipsFile) == false) {
-                throw new IllegalStateException("FIPS mode requires the provider list in [" + fipsFile + "], but the file does not exist");
+                throw new IllegalStateException("FIPS mode requires the provider list in [" + fipsFile + "], but the file does not exist.");
             }
             properties = forFipsMode(jdkProperties, load(fipsFile));
             sources = jdkFile + " (without its providers) and " + fipsFile;
@@ -102,12 +103,45 @@ final class JavaSecurityFile {
             properties = forDefaultMode(jdkProperties, isClassAvailable(BC_FIPS_PROVIDER_CLASS));
             sources = jdkFile.toString();
         } else {
-            throw new IllegalArgumentException("unknown mode [" + mode + "], expected [" + FIPS_MODE + "] or [" + DEFAULT_MODE + "]");
+            throw new IllegalArgumentException("unknown mode [" + mode + "], expected [" + FIPS_MODE + "] or [" + DEFAULT_MODE + "].");
         }
 
         final byte[] content = render(properties, sources);
-        final Path file = writeIfChanged(privateDirectory(temporaryDirectory()), content);
+        final Path base = temporaryDirectory(System.getenv("OPENSEARCH_TMPDIR"), System.getProperty("java.io.tmpdir"));
+        final Path file = write(base, content);
         Launchers.outPrintln(file.toString());
+    }
+
+    /**
+     * The config directory must be an absolute path to an existing directory, as {@code opensearch-env} passes
+     * {@code OPENSEARCH_PATH_CONF}. It is only read from, never written to.
+     */
+    static Path configDirectory(final String argument) {
+        if (isBlank(argument)) {
+            throw new IllegalArgumentException("the config directory (OPENSEARCH_PATH_CONF) must be set.");
+        }
+        final Path directory = Paths.get(argument);
+        if (directory.isAbsolute() == false || Files.isDirectory(directory) == false) {
+            throw new IllegalArgumentException(
+                "the config directory (OPENSEARCH_PATH_CONF) must be an absolute path to an existing directory, but was [" + argument + "]."
+            );
+        }
+        return directory;
+    }
+
+    /**
+     * Writes the file into the private directory under {@code base}. Both modes need it, because both declare BouncyCastle FIPS,
+     * so a failure stops the launch, like a temporary directory that {@code TempDirectory} cannot create.
+     */
+    static Path write(final Path base, final byte[] content) throws IOException {
+        try {
+            return writeIfChanged(privateDirectory(base), content);
+        } catch (final IOException e) {
+            throw new IOException(
+                "cannot write the generated java.security to [" + base + "]. Point OPENSEARCH_TMPDIR to a writable directory.",
+                e
+            );
+        }
     }
 
     static boolean isConfiguredByUser(final String javaOpts) {
@@ -133,7 +167,9 @@ final class JavaSecurityFile {
         }
         final int providerCount = verifiedProviderCount(result);
         if (providerCount == 0) {
-            throw new IllegalStateException("FIPS mode requires at least [" + PROVIDER_KEY_PREFIX + "1] in " + FIPS_SECURITY_FILE_NAME);
+            throw new IllegalStateException(
+                "FIPS mode requires at least [" + PROVIDER_KEY_PREFIX + "1] in " + FIPS_SECURITY_FILE_NAME + "."
+            );
         }
         return result;
     }
@@ -179,7 +215,7 @@ final class JavaSecurityFile {
                         + key
                         + "] would be ignored, because providers must be numbered consecutively from 1, but only 1 to "
                         + count
-                        + " are"
+                        + " are."
                 );
             }
         }
@@ -230,7 +266,7 @@ final class JavaSecurityFile {
         try {
             single.store(bytes, null);
         } catch (final IOException e) {
-            throw new IllegalStateException("writing to memory failed", e);
+            throw new IllegalStateException("writing to memory failed.", e);
         }
         final String stored = new String(bytes.toByteArray(), StandardCharsets.ISO_8859_1);
         // store() always starts with a comment line holding the current date
@@ -238,12 +274,15 @@ final class JavaSecurityFile {
         return withoutDateLine.replace("\r\n", "\n");
     }
 
-    private static Path temporaryDirectory() {
-        final String tmpdir = System.getenv("TMPDIR");
-        if (isBlank(tmpdir) == false) {
-            return Paths.get(tmpdir);
+    /**
+     * The base of the private directory: {@code OPENSEARCH_TMPDIR} if the user set it, otherwise the JDK's {@code java.io.tmpdir},
+     * which is also where {@code TempDirectory} creates the node's temporary directory.
+     */
+    static Path temporaryDirectory(final String opensearchTmpdir, final String javaIoTmpdir) {
+        if (isBlank(opensearchTmpdir)) {
+            return Paths.get(javaIoTmpdir);
         }
-        return Paths.get(System.getProperty("java.io.tmpdir"));
+        return Paths.get(opensearchTmpdir);
     }
 
     /**
@@ -289,12 +328,12 @@ final class JavaSecurityFile {
     private static void verifyPrivate(final Path directory, final UserPrincipal currentUser, final boolean hasPosixPermissions)
         throws IOException {
         if (Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS) == false) {
-            throw new IOException("[" + directory + "] must be a directory, but is a file or a symbolic link; remove it");
+            throw new IOException("[" + directory + "] must be a directory, but is a file or a symbolic link. Remove it.");
         }
         final UserPrincipal owner = Files.getOwner(directory, LinkOption.NOFOLLOW_LINKS);
         if (owner.equals(currentUser) == false) {
             throw new IOException(
-                "[" + directory + "] must belong to [" + currentUser.getName() + "], but belongs to [" + owner.getName() + "]"
+                "[" + directory + "] must belong to [" + currentUser.getName() + "], but belongs to [" + owner.getName() + "]."
             );
         }
         if (hasPosixPermissions) {
@@ -305,7 +344,7 @@ final class JavaSecurityFile {
                         + directory
                         + "] must only be accessible by its owner, but has permissions ["
                         + PosixFilePermissions.toString(permissions)
-                        + "]; restrict it with chmod 700"
+                        + "]. Restrict it with chmod 700."
                 );
             }
         }
@@ -353,7 +392,7 @@ final class JavaSecurityFile {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
         } catch (final NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is not available", e);
+            throw new IllegalStateException("SHA-256 is not available.", e);
         }
     }
 

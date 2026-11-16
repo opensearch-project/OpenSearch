@@ -14,10 +14,16 @@ package org.opensearch.common.crypto;
  * The answer comes from BouncyCastle itself rather than from an environment variable or from a registered provider: the launcher
  * may declare the BCFIPS provider without FIPS mode, and only the JVM knows whether the FIPS settings were actually applied.
  * BouncyCastle is accessed through reflection because it is not on every module's compile classpath.
+ * <p>
+ * The answer is determined once. OpenSearch enables approved-only mode for the whole JVM at launch
+ * ({@code -Dorg.bouncycastle.fips.approved_only=true}), which cannot change afterwards; the per-thread switch of
+ * {@code CryptoServicesRegistrar.setApprovedOnlyMode} is not used.
  *
  * @opensearch.internal
  */
 public final class FipsApprovedOnlyMode {
+
+    private static final boolean ACTIVE = detect();
 
     private FipsApprovedOnlyMode() {}
 
@@ -25,6 +31,10 @@ public final class FipsApprovedOnlyMode {
      * @return true if BouncyCastle FIPS is on the classpath and runs in approved-only mode
      */
     public static boolean isActive() {
+        return ACTIVE;
+    }
+
+    private static boolean detect() {
         try {
             // Equivalent to: CryptoServicesRegistrar.isInApprovedOnlyMode()
             final Class<?> registrarClass = Class.forName("org.bouncycastle.crypto.CryptoServicesRegistrar");

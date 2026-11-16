@@ -222,6 +222,58 @@ public class JavaSecurityFileTests extends LaunchersTestCase {
         assertThat(e.getMessage(), containsString("must be a directory"));
     }
 
+    public void testConfigDirectoryMustBeSet() {
+        final IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> JavaSecurityFile.configDirectory(" "));
+
+        assertThat(e.getMessage(), containsString("must be set"));
+    }
+
+    public void testConfigDirectoryMustBeAbsolute() {
+        final IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> JavaSecurityFile.configDirectory("config"));
+
+        assertThat(e.getMessage(), containsString("must be an absolute path to an existing directory"));
+    }
+
+    public void testConfigDirectoryMustExist() throws IOException {
+        final String missing = newTempDir().resolve("missing").toString();
+
+        final IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> JavaSecurityFile.configDirectory(missing));
+
+        assertThat(e.getMessage(), containsString("must be an absolute path to an existing directory"));
+    }
+
+    public void testConfigDirectoryAcceptsAnExistingAbsoluteDirectory() throws IOException {
+        final Path config = newTempDir().toAbsolutePath();
+
+        assertThat(JavaSecurityFile.configDirectory(config.toString()), equalTo(config));
+    }
+
+    public void testTemporaryDirectoryPrefersOpenSearchTmpdir() {
+        assertThat(JavaSecurityFile.temporaryDirectory("/os-tmp", "/java-tmp"), equalTo(Path.of("/os-tmp")));
+        assertThat(JavaSecurityFile.temporaryDirectory(null, "/java-tmp"), equalTo(Path.of("/java-tmp")));
+        assertThat(JavaSecurityFile.temporaryDirectory(" ", "/java-tmp"), equalTo(Path.of("/java-tmp")));
+    }
+
+    public void testWriteReturnsTheFileInThePrivateDirectory() throws IOException {
+        final Path base = newTempDir();
+        final byte[] content = JavaSecurityFile.render(linuxJdk(), "test");
+
+        final Path file = JavaSecurityFile.write(base, content);
+
+        assertThat(file.getParent().getParent(), equalTo(base));
+        assertArrayEquals(content, Files.readAllBytes(file));
+    }
+
+    public void testWriteFailureNamesTheDirectoryAndTheFix() throws IOException {
+        final Path missing = newTempDir().resolve("missing");
+        final byte[] content = JavaSecurityFile.render(linuxJdk(), "test");
+
+        final IOException e = assertThrows(IOException.class, () -> JavaSecurityFile.write(missing, content));
+
+        assertThat(e.getMessage(), containsString("[" + missing + "]"));
+        assertThat(e.getMessage(), containsString("Point OPENSEARCH_TMPDIR to a writable directory"));
+    }
+
     private static void assumePosix() {
         assumeTrue("needs POSIX file permissions", FileSystems.getDefault().supportedFileAttributeViews().contains("posix"));
     }
