@@ -34,6 +34,7 @@ package org.opensearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.common.Rounding;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -178,9 +179,10 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     /**
      * Information about an empty bucket
      *
-     * @opensearch.internal
+     * @opensearch.experimental
      */
-    static class EmptyBucketInfo {
+    @ExperimentalApi
+    public static class EmptyBucketInfo {
 
         final Rounding rounding;
         final InternalAggregations subAggregations;
@@ -190,7 +192,23 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             this(rounding, subAggregations, null);
         }
 
-        EmptyBucketInfo(Rounding rounding, InternalAggregations subAggregations, LongBounds bounds) {
+        /**
+         * Constructs the information the reduce phase needs to fill gaps with
+         * empty buckets, for producers that build date histogram results with a
+         * {@code min_doc_count} of 0 outside the shard-level aggregation path.
+         *
+         * @param rounding the rounding that places bucket keys, without its offset
+         *        (see {@link Rounding#withoutOffset()}); the offset is passed to the
+         *        {@link InternalDateHistogram} constructor instead
+         * @param subAggregations the empty sub-aggregation results each filled-in bucket carries
+         * @param bounds the extended bounds to fill out to, with numeric minimum and maximum
+         *        in epoch milliseconds (as built by {@link LongBounds#LongBounds(Long, Long)}),
+         *        or {@code null} for none
+         *
+         * @opensearch.experimental
+         */
+        @ExperimentalApi
+        public EmptyBucketInfo(Rounding rounding, InternalAggregations subAggregations, LongBounds bounds) {
             this.rounding = rounding;
             this.subAggregations = subAggregations;
             this.bounds = bounds;
@@ -233,7 +251,22 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     private final long offset;
     final EmptyBucketInfo emptyBucketInfo;
 
-    InternalDateHistogram(
+    /**
+     * Constructs an instance directly from already-computed buckets and
+     * result metadata, for producers that build date histogram results
+     * outside the shard-level aggregation path.
+     *
+     * <p>The reduce phase merges the bucket lists of all shards, which requires:
+     * <ul>
+     *   <li>{@code buckets} sorted by key in ascending order, whatever {@code order}
+     *   the request asks for; {@code order} is applied after the reduce.</li>
+     *   <li>{@code emptyBucketInfo} non-null exactly when {@code minDocCount} is 0.</li>
+     * </ul>
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public InternalDateHistogram(
         String name,
         List<Bucket> buckets,
         BucketOrder order,
