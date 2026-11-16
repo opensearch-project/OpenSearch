@@ -431,7 +431,8 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
             // test valueWithPathField
             MappedFieldType ft = mapperService.fieldType("field.name");
             DocValueFormat format = ft.docValueFormat(null, null);
-            String storedValue = "field.field.name=1234";
+            // Fielddata now filters the path and removes the storage prefix before formatting.
+            String storedValue = "1234";
 
             Object object = format.format(new BytesRef(storedValue));
             assertEquals("1234", object);
