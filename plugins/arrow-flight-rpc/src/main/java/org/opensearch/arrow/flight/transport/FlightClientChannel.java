@@ -178,16 +178,12 @@ class FlightClientChannel implements TcpChannel {
         // A node connection closes its channels one at a time and each close waits for its own
         // streams. In a group, the first close cancels the streams of every channel and sets one
         // deadline that all of them wait against, so the whole connection closes in about one
-        // timeout instead of one per channel.
+        // timeout instead of one per channel. The other channels can still take new streams until
+        // their own close, so every close also cancels its own streams.
         final long timeoutNanos = config.getStreamCloseTimeout().nanos();
         final Group group = this.group;
-        final long deadlineNanos;
-        if (group == null) {
-            cancelActiveStreams();
-            deadlineNanos = System.nanoTime() + timeoutNanos;
-        } else {
-            deadlineNanos = group.startClose(timeoutNanos);
-        }
+        cancelActiveStreams();
+        final long deadlineNanos = group == null ? System.nanoTime() + timeoutNanos : group.startClose(timeoutNanos);
         awaitActiveStreamsClosed(deadlineNanos);
 
         closeFuture.complete(null);

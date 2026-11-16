@@ -438,6 +438,49 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
      * Correlation ids must be unique across channels, not only within one. Response headers are matched to
      * their stream by correlation id, so this must hold even when channels share one header context.
      */
+    /**
+     * After one channel of a group starts closing, the others can still take new streams until the node
+     * connection stops sending requests. Each channel's own close must cancel those streams too.
+     */
+    public void testGroupedChannelCancelsStreamsOpenedAfterTheGroupStartedClosing() throws Exception {
+        FlightTransportConfig config = new FlightTransportConfig();
+        config.setStreamCloseTimeout(TimeValue.timeValueSeconds(30));
+        FlightClient laterClient = mock(FlightClient.class);
+        FlightStream stream = mock(FlightStream.class);
+        when(stream.next()).thenReturn(true);
+        when(laterClient.getStream(any(Ticket.class), any())).thenReturn(stream);
+        FlightClientChannel first = createChannel(mock(FlightClient.class), stubHeaderContext(), config);
+        FlightClientChannel later = createChannel(laterClient, stubHeaderContext(), config);
+        FlightClientChannel.Group group = new FlightClientChannel.Group(List.of(first, later));
+        first.setGroup(group);
+        later.setGroup(group);
+
+        CountDownLatch consumerHoldingStream = new CountDownLatch(1);
+        CountDownLatch releaseConsumer = new CountDownLatch(1);
+        Thread closer = null;
+        try {
+            // The group starts closing while no stream is active.
+            first.close();
+
+            sendStreamRequest(later, streamingHandler(ThreadPool.Names.GENERIC, streamResponse -> {
+                consumerHoldingStream.countDown();
+                assertTrue("test must release the consumer", releaseConsumer.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+                streamResponse.close();
+            }));
+            assertTrue("consumer must take the stream", consumerHoldingStream.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+
+            closer = new Thread(later::close, "later-channel-closer");
+            closer.start();
+            verify(stream, timeout(TimeUnit.SECONDS.toMillis(TIMEOUT_SEC))).cancel(anyString(), isNull());
+        } finally {
+            releaseConsumer.countDown();
+            if (closer != null) {
+                closer.join(TimeUnit.SECONDS.toMillis(TIMEOUT_SEC));
+            }
+            later.close();
+        }
+    }
+
     public void testCorrelationIdsAreUniqueAcrossChannels() throws Exception {
         final int numChannels = 3;
         final int streamsPerChannel = 4;
