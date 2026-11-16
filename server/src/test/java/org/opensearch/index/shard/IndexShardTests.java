@@ -80,6 +80,7 @@ import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
@@ -103,6 +104,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.SegmentReplicationShardStats;
+import org.opensearch.index.VersionType;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
@@ -149,7 +151,9 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.store.StoreUtils;
 import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
+import org.opensearch.index.translog.RemoteFsTranslog;
 import org.opensearch.index.translog.RemoteTranslogStats;
 import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.Translog;
@@ -3000,6 +3004,75 @@ public class IndexShardTests extends IndexShardTestCase {
         assertFalse(indexShard.isSyncNeeded());
         assertFalse(indexShard.getReplicationTracker().isPrimaryMode());
         closeShards(indexShard);
+    }
+
+    /**
+     * Remote-store shard with REQUEST durability. Under REQUEST a write whose translog sync ran while another upload held the
+     * single sync permit is acknowledged although {@code RemoteFsTranslog.ensureSynced} returned {@code false} and nothing was
+     * uploaded (the race itself is exercised in {@code RemoteFsTranslogTests#testDrainSyncUploadsOperationsWhoseSyncWasSkipped});
+     * the operation then sits in the local writer, neither uploaded nor persisted. The relocation hand-off must upload it before
+     * handing the shard over, otherwise the relocation target, which rebuilds from the remote store, never sees it.
+     */
+    public void testRelocatedUploadsPendingOperationsForRequestDurability() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "seg-test")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "txlog-test")
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+            .build();
+        final IndexShard shard = newStartedShard(true, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
+        final RemoteFsTranslog translog = (RemoteFsTranslog) ((InternalTranslogManager) ((InternalEngine) IndexShardTestCase.getEngine(
+            shard
+        )).translogManager()).getTranslog();
+
+        // Doc 0 through the regular path: uploaded, and installs the mapping so doc 1 needs no mapping update.
+        indexDoc(shard, "_doc", "0");
+        shard.sync();
+        assertTrue(translog.allUploaded().size() > 0);
+
+        // Doc 1: appended to the local translog only, the state left behind by a sync that was skipped because the permit was busy.
+        Engine.IndexResult doc1 = shard.applyIndexOperationOnPrimary(
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            new SourceToParse(shard.shardId().getIndexName(), "1", new BytesArray("{}"), MediaTypeRegistry.JSON, null),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            0,
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            false
+        );
+        assertEquals(Engine.Result.Type.SUCCESS, doc1.getResultType());
+        assertEquals(1L, doc1.getSeqNo());
+        final long gen1 = doc1.getTranslogLocation().generation;
+        assertFalse(translog.allUploaded().contains(Translog.getFilename(gen1)));
+        assertEquals(1L, shard.getProcessedLocalCheckpoint());
+        assertEquals("doc 1 not persisted before hand-off", 0L, shard.getLocalCheckpoint());
+        assertTrue(shard.isSyncNeeded());
+
+        // Hand-off: relocated() must upload doc 1's generation before completing.
+        ShardRouting routing = shard.routingEntry();
+        routing = newShardRouting(
+            routing.shardId(),
+            routing.currentNodeId(),
+            "otherNode",
+            true,
+            ShardRoutingState.RELOCATING,
+            AllocationId.newRelocation(routing.allocationId())
+        );
+        IndexShardTestCase.updateRoutingEntry(shard, routing);
+        shard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {}, () -> {});
+        assertTrue(shard.isRelocatedPrimary());
+        assertFalse(shard.getReplicationTracker().isPrimaryMode());
+
+        assertTrue("doc 1's generation uploaded at hand-off", translog.allUploaded().contains(Translog.getFilename(gen1)));
+        assertEquals("doc 1 persisted by the hand-off upload", 1L, shard.getLocalCheckpoint());
+        assertEquals(shard.seqNoStats().getMaxSeqNo(), shard.getLocalCheckpoint());
+        // isSyncNeeded() is not asserted: after the upload the tracker's global checkpoint advances past the one recorded
+        // in the uploaded generation, which flags a (global-checkpoint-only) sync as needed on a shard that is now relocated.
+        closeShards(shard);
     }
 
     public void testRestoreShard() throws IOException {
