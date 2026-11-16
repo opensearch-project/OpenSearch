@@ -211,9 +211,10 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
+        MappedFieldType unwrappedFieldType = fieldType == null ? null : fieldType.unwrap();
         if (checkIfSortedDocsIsApplicable(reader, fieldType) == false
-            || (fieldType == null || fieldType.unwrap() instanceof StringFieldType == false)
-            || fieldType.unwrap() instanceof FlatObjectFieldType
+            || unwrappedFieldType instanceof StringFieldType == false
+            || unwrappedFieldType instanceof FlatObjectFieldType
             || (query != null && query.getClass() != MatchAllDocsQuery.class)) {
             return null;
         }
