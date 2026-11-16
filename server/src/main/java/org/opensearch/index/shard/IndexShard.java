@@ -2142,6 +2142,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Returns whether the remote segment store contains the supplied catalog snapshot or a later snapshot uploaded by
+     * this primary term.
+     */
+    public boolean isRemoteSegmentStoreAtOrAheadOf(CatalogSnapshot catalogSnapshot) throws IOException {
+        if (!indexSettings.isAssignedOnRemoteNode()) {
+            throw new IllegalStateException("Index is not assigned on Remote Node");
+        }
+        final RemoteSegmentMetadata remoteMetadata = getRemoteDirectory().readLatestMetadataFile();
+        if (remoteMetadata == null) {
+            return false;
+        }
+        final ReplicationCheckpoint requiredCheckpoint = computeReplicationCheckpoint(catalogSnapshot);
+        final ReplicationCheckpoint remoteCheckpoint = remoteMetadata.getReplicationCheckpoint();
+        return remoteCheckpoint.getPrimaryTerm() == requiredCheckpoint.getPrimaryTerm()
+            && requiredCheckpoint.isAheadOf(remoteCheckpoint) == false;
+    }
+
+    /**
      * Creates a new {@link IndexCommit} snapshot from the currently running engine. All resources referenced by this
      * commit won't be freed until the commit / snapshot is closed.
      *
