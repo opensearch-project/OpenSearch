@@ -19,6 +19,7 @@ import org.opensearch.index.shard.IndexShard;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * PIT reader context containing PIT specific information such as pit id, create time etc.
@@ -38,6 +39,9 @@ public class PitReaderContext extends ReaderContext {
      * Encapsulates segments constituting the shard at the time of creation of PIT Reader Context.
      */
     private final List<Segment> segments;
+
+    private final AtomicLong searchRequests = new AtomicLong();
+    private final AtomicLong hitsReturned = new AtomicLong();
 
     public PitReaderContext(
         ShardSearchContextId id,
@@ -90,5 +94,21 @@ public class PitReaderContext extends ReaderContext {
 
     public List<Segment> getSegments() {
         return Collections.unmodifiableList(segments);
+    }
+
+    public void incrementSearchRequests() {
+        searchRequests.incrementAndGet();
+    }
+
+    public void addHitsReturned(long hits) {
+        hitsReturned.addAndGet(hits);
+    }
+
+    public long getSearchRequests() {
+        return searchRequests.get();
+    }
+
+    public long getHitsReturned() {
+        return hitsReturned.get();
     }
 }

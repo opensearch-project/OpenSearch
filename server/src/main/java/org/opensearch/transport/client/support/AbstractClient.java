@@ -396,6 +396,9 @@ import org.opensearch.action.search.MultiSearchAction;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchRequestBuilder;
 import org.opensearch.action.search.MultiSearchResponse;
+import org.opensearch.action.search.PitUsageAction;
+import org.opensearch.action.search.PitUsageRequest;
+import org.opensearch.action.search.PitUsageResponse;
 import org.opensearch.action.search.PutSearchPipelineAction;
 import org.opensearch.action.search.PutSearchPipelineRequest;
 import org.opensearch.action.search.SearchAction;
@@ -672,6 +675,11 @@ public abstract class AbstractClient implements Client {
     @Override
     public void pitSegments(final PitSegmentsRequest request, final ActionListener<IndicesSegmentResponse> listener) {
         execute(PitSegmentsAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public void pitUsage(final PitUsageRequest request, final ActionListener<PitUsageResponse> listener) {
+        execute(PitUsageAction.INSTANCE, request, listener);
     }
 
     @Override

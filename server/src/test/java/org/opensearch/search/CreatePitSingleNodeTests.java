@@ -8,6 +8,7 @@
 
 package org.opensearch.search;
 
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitController;
@@ -18,13 +19,19 @@ import org.opensearch.action.search.DeletePitInfo;
 import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.action.search.PitTestsUtil;
+import org.opensearch.action.search.PitUsageAction;
+import org.opensearch.action.search.PitUsageRequest;
+import org.opensearch.action.search.PitUsageResponse;
 import org.opensearch.action.search.SearchContextId;
 import org.opensearch.action.search.SearchPhaseExecutionException;
+import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchType;
 import org.opensearch.common.Priority;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
@@ -41,6 +48,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
+import static org.opensearch.action.search.PitTestsUtil.assertPitUsage;
 import static org.opensearch.action.search.PitTestsUtil.assertSegments;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -613,6 +621,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
         SearchService service = getInstanceFromNode(SearchService.class);
         assertEquals(2, service.getActiveContexts());
+        assertPitUsage(client(), pitResponse.getId(), 250, 250);
         validatePitStats("index", 1, 0, 0);
         validatePitStats("index", 1, 0, 1);
         service.doClose();
@@ -620,6 +629,116 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         validatePitStats("index", 0, 1, 0);
         validatePitStats("index", 0, 1, 1);
         PitTestsUtil.assertGetAllPitsEmpty(client());
+    }
+
+    public void testPitUsage() throws ExecutionException, InterruptedException {
+        createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
+        for (int i = 0; i < 4; i++) {
+            client().prepareIndex("index").setId(String.valueOf(i)).setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        }
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        request.setIndices(new String[] { "index" });
+        CreatePitResponse pitResponse = client().execute(CreatePitAction.INSTANCE, request).get();
+        assertPitUsage(client(), pitResponse.getId(), 0, 0);
+
+        PointInTimeBuilder pit = new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1));
+        assertHitCount(client().prepareSearch().setSize(3).setPointInTime(pit).get(), 4);
+        assertPitUsage(client(), pitResponse.getId(), 1, 3);
+        assertHitCount(client().prepareSearch().setSize(0).setPointInTime(pit).get(), 4);
+        assertPitUsage(client(), pitResponse.getId(), 2, 3);
+        assertHitCount(client().prepareSearch("index").setSize(4).get(), 4);
+        assertPitUsage(client(), pitResponse.getId(), 2, 3);
+    }
+
+    public void testPitUsageWithSearchAfter() throws ExecutionException, InterruptedException {
+        createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
+        for (int i = 0; i < 10; i++) {
+            client().prepareIndex("index").setId(String.valueOf(i)).setSource("field", i).setRefreshPolicy(IMMEDIATE).get();
+        }
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        request.setIndices(new String[] { "index" });
+        CreatePitResponse pitResponse = client().execute(CreatePitAction.INSTANCE, request).get();
+        PointInTimeBuilder pit = new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1));
+
+        long searchRequests = 0;
+        long hitsReturned = 0;
+        Object[] searchAfter = null;
+        do {
+            SearchRequestBuilder search = client().prepareSearch()
+                .setSize(3)
+                .setTrackTotalHits(false)
+                .addSort("field", SortOrder.ASC)
+                .setPointInTime(pit);
+            if (searchAfter != null) {
+                search.searchAfter(searchAfter);
+            }
+            SearchHit[] hits = search.get().getHits().getHits();
+            searchRequests++;
+            hitsReturned += hits.length;
+            searchAfter = hits.length == 0 ? null : hits[hits.length - 1].getSortValues();
+        } while (searchAfter != null);
+
+        assertEquals(5, searchRequests);
+        assertEquals(10, hitsReturned);
+        assertPitUsage(client(), pitResponse.getId(), searchRequests, hitsReturned);
+    }
+
+    public void testPitUsageWithDfsSearchType() throws ExecutionException, InterruptedException {
+        createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
+        for (int i = 0; i < 4; i++) {
+            client().prepareIndex("index").setId(String.valueOf(i)).setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        }
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        request.setIndices(new String[] { "index" });
+        CreatePitResponse pitResponse = client().execute(CreatePitAction.INSTANCE, request).get();
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+            .setSize(2)
+            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
+            .get();
+        assertHitCount(searchResponse, 4);
+        assertPitUsage(client(), pitResponse.getId(), 1, 2);
+    }
+
+    public void testPitUsageWithMultipleIndices() throws ExecutionException, InterruptedException {
+        createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
+        createIndex("index1", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        for (int i = 0; i < 2; i++) {
+            client().prepareIndex("index").setId(String.valueOf(i)).setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+            client().prepareIndex("index1").setId(String.valueOf(i)).setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        }
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        request.setIndices(new String[] { "index", "index1" });
+        CreatePitResponse pitResponse = client().execute(CreatePitAction.INSTANCE, request).get();
+
+        assertHitCount(
+            client().prepareSearch()
+                .setSize(10)
+                .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
+                .get(),
+            4
+        );
+        PitUsageResponse usageResponse = client().execute(PitUsageAction.INSTANCE, new PitUsageRequest(pitResponse.getId())).get();
+        assertEquals(3, usageResponse.getTotalShards());
+        assertPitUsage(client(), pitResponse.getId(), 1, 4);
+    }
+
+    public void testPitUsageAfterPitDeleted() throws ExecutionException, InterruptedException {
+        createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        request.setIndices(new String[] { "index" });
+        CreatePitResponse pitResponse = client().execute(CreatePitAction.INSTANCE, request).get();
+        client().execute(DeletePitAction.INSTANCE, new DeletePitRequest(pitResponse.getId())).get();
+
+        PitUsageResponse usageResponse = client().execute(PitUsageAction.INSTANCE, new PitUsageRequest(pitResponse.getId())).get();
+        assertEquals(2, usageResponse.getTotalShards());
+        assertEquals(2, usageResponse.getFailedShards());
+        assertTrue(usageResponse.getPitUsages().isEmpty());
+        for (DefaultShardOperationFailedException failure : usageResponse.getShardFailures()) {
+            assertThat(ExceptionsHelper.unwrapCause(failure.getCause()), Matchers.instanceOf(SearchContextMissingException.class));
+        }
     }
 
     public void validatePitStats(String index, long expectedPitCurrent, long expectedPitCount, int shardId) throws ExecutionException,
