@@ -244,7 +244,7 @@ public class ForceMergeRequestTests extends OpenSearchTestCase {
         }
     }
 
-    public void testBwcSerializationPreV3100DefaultsUpgrade() throws Exception {
+    public void testBwcSerializationPreV3110DefaultsUpgrade() throws Exception {
         final ForceMergeRequest sample = randomRequest();
         sample.upgrade(true);
         final Version version = VersionUtils.randomVersionBetween(
