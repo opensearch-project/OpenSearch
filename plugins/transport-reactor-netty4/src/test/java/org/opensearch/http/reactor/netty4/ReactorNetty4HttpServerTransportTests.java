@@ -59,24 +59,33 @@ import org.opensearch.transport.reactor.SharedGroupFactory;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.zip.GZIPOutputStream;
 
 import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.PoolArenaMetric;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocatorMetric;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerAdapter;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.MultiThreadIoEventLoopGroup;
+import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
@@ -99,6 +108,7 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.opensearch.http.TestDispatcherBuilder.dispatcherBuilderWithDefaults;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests for the {@link ReactorNetty4HttpServerTransport} class.
@@ -546,6 +556,238 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
         } finally {
             group.shutdownGracefully().await();
         }
+    }
+
+    /**
+     * Test that a request body larger than {@code http.max_content_length} is rejected with a 413 status
+     * and never reaches the dispatcher.
+     */
+    public void testRequestExceedingMaxContentLengthIsRejected() throws InterruptedException {
+        final int maxContentLength = randomIntBetween(1024, 64 * 1024);
+        final byte[] body = new byte[maxContentLength + randomIntBetween(1, 1024)];
+        Arrays.fill(body, (byte) 'a');
+        runMaxContentLengthTest(maxContentLength, body, false, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE);
+    }
+
+    /**
+     * Test that a compressed request body that decompresses to more than {@code http.max_content_length}
+     * is rejected with a 413 status and never reaches the dispatcher: the limit applies to the decoded body.
+     */
+    public void testCompressedRequestExceedingMaxContentLengthIsRejected() throws Exception {
+        final int maxContentLength = randomIntBetween(1024, 64 * 1024);
+        final byte[] body = new byte[randomIntBetween(maxContentLength + 1, 64 * maxContentLength)];
+        Arrays.fill(body, (byte) 'a');
+        final byte[] compressed = gzip(body);
+        assertThat("the compressed body must be within the limit for this test", compressed.length < maxContentLength, is(true));
+        runMaxContentLengthTest(maxContentLength, compressed, true, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE);
+    }
+
+    /**
+     * Test that a compressed request body that decompresses to no more than {@code http.max_content_length}
+     * is decompressed and dispatched.
+     */
+    public void testCompressedRequestWithinMaxContentLengthIsDispatched() throws Exception {
+        final int maxContentLength = randomIntBetween(1024, 64 * 1024);
+        final byte[] body = randomAlphaOfLength(randomIntBetween(1, maxContentLength)).getBytes(StandardCharsets.UTF_8);
+        runMaxContentLengthTest(maxContentLength, gzip(body), true, HttpResponseStatus.OK, body.length);
+    }
+
+    /**
+     * Test that a compressed request whose decoded body exceeds {@code http.max_content_length} is rejected with
+     * a 413 status and the connection is closed as soon as the limit is exceeded, before the request completes.
+     */
+    public void testCompressedRequestExceedingMaxContentLengthIsRejectedBeforeCompletion() throws Exception {
+        final int maxContentLength = randomIntBetween(1024, 64 * 1024);
+        final byte[] body = new byte[64 * maxContentLength];
+        Arrays.fill(body, (byte) 'a');
+        final byte[] compressed = gzip(body);
+        assertThat("the compressed body must be within the limit for this test", compressed.length < maxContentLength, is(true));
+
+        final String head = "POST / HTTP/1.1\r\n"
+            + "Host: localhost\r\n"
+            + "Content-Type: application/json\r\n"
+            + "Content-Encoding: gzip\r\n"
+            + "Content-Length: "
+            + compressed.length
+            + "\r\n\r\n";
+        // Send only part of the body so that the request is not complete
+        final byte[] partialBody = Arrays.copyOf(compressed, compressed.length - 8);
+
+        final String response = runRawMaxContentLengthTest(maxContentLength, head, partialBody);
+        assertThat(response, startsWith("HTTP/1.1 413"));
+    }
+
+    /**
+     * Test that a request with a 100-continue expectation and a declared content length larger than
+     * {@code http.max_content_length} is rejected with a 413 status instead of being asked for its body.
+     */
+    public void testExpectContinueWithContentLengthExceedingMaxContentLengthIsRejected() throws Exception {
+        final int maxContentLength = randomIntBetween(1, 64 * 1024);
+        final long contentLength = randomLongBetween(maxContentLength + 1L, Long.MAX_VALUE);
+        final String head = "POST / HTTP/1.1\r\n"
+            + "Host: localhost\r\n"
+            + "Content-Type: application/json\r\n"
+            + "Expect: 100-continue\r\n"
+            + "Content-Length: "
+            + contentLength
+            + "\r\n\r\n";
+
+        final String response = runRawMaxContentLengthTest(maxContentLength, head, new byte[0]);
+        assertThat(response, startsWith("HTTP/1.1 413"));
+        assertThat(response.contains("100 Continue"), is(false));
+    }
+
+    /**
+     * Sends the given raw HTTP/1.1 request head and body over a plain socket and returns everything the server
+     * responds with until it closes the connection; fails if the server keeps the connection open instead.
+     */
+    private String runRawMaxContentLengthTest(int maxContentLength, String head, byte[] body) throws InterruptedException {
+        final Settings settings = createBuilderWithPort().put(
+            HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(),
+            maxContentLength + "b"
+        ).build();
+        final AtomicInteger dispatched = new AtomicInteger();
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
+            (request, channel, threadContext) -> {
+                dispatched.incrementAndGet();
+                channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
+            }
+        ).build();
+
+        final String response;
+        try (
+            ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                clusterSettings,
+                new SharedGroupFactory(settings),
+                NoopTracer.INSTANCE
+            )
+        ) {
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+
+            final ByteArrayOutputStream received = new ByteArrayOutputStream();
+            final EventLoopGroup group = new MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory());
+            try {
+                final Bootstrap clientBootstrap = new Bootstrap().option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
+                    .channel(NioSocketChannel.class)
+                    .handler(new ChannelInitializer<SocketChannel>() {
+                        @Override
+                        protected void initChannel(SocketChannel ch) {
+                            ch.pipeline().addLast(new SimpleChannelInboundHandler<ByteBuf>() {
+                                @Override
+                                protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) {
+                                    synchronized (received) {
+                                        received.writeBytes(ByteBufUtil.getBytes(msg));
+                                    }
+                                }
+                            });
+                        }
+                    })
+                    .group(group);
+
+                final Channel channel = clientBootstrap.connect(remoteAddress.address()).sync().channel();
+                channel.writeAndFlush(Unpooled.wrappedBuffer(head.getBytes(StandardCharsets.US_ASCII), body)).sync();
+
+                // The server is expected to respond and close the connection without waiting for the rest of the request
+                assertTrue("the connection should have been closed by the server", channel.closeFuture().await(30, TimeUnit.SECONDS));
+            } finally {
+                group.shutdownGracefully().await();
+            }
+
+            synchronized (received) {
+                response = received.toString(StandardCharsets.US_ASCII);
+            }
+        }
+
+        assertThat(dispatched.get(), equalTo(0));
+        return response;
+    }
+
+    private void runMaxContentLengthTest(int maxContentLength, byte[] content, boolean gzip, HttpResponseStatus expectedStatus)
+        throws InterruptedException {
+        runMaxContentLengthTest(maxContentLength, content, gzip, expectedStatus, -1);
+    }
+
+    private void runMaxContentLengthTest(
+        int maxContentLength,
+        byte[] content,
+        boolean gzip,
+        HttpResponseStatus expectedStatus,
+        int expectedDispatchedContentLength
+    ) throws InterruptedException {
+        final Settings settings = createBuilderWithPort().put(
+            HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(),
+            maxContentLength + "b"
+        ).build();
+        final AtomicInteger dispatched = new AtomicInteger();
+        final AtomicInteger dispatchedContentLength = new AtomicInteger(-1);
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
+            (request, channel, threadContext) -> {
+                dispatched.incrementAndGet();
+                dispatchedContentLength.set(request.content().length());
+                channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
+            }
+        ).build();
+
+        try (
+            ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                clusterSettings,
+                new SharedGroupFactory(settings),
+                NoopTracer.INSTANCE
+            )
+        ) {
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+
+            try (ReactorHttpClient client = ReactorHttpClient.create(false, settings)) {
+                final FullHttpRequest request = new DefaultFullHttpRequest(
+                    HttpVersion.HTTP_1_1,
+                    HttpMethod.POST,
+                    "/",
+                    Unpooled.wrappedBuffer(content)
+                );
+                request.headers().set(HttpHeaderNames.HOST, "localhost");
+                request.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json");
+                if (gzip) {
+                    request.headers().set(HttpHeaderNames.CONTENT_ENCODING, HttpHeaderValues.GZIP);
+                }
+                HttpUtil.setContentLength(request, content.length);
+
+                final FullHttpResponse response = client.send(remoteAddress.address(), request);
+                try {
+                    assertThat(response.status(), equalTo(expectedStatus));
+                } finally {
+                    response.release();
+                }
+            }
+        }
+
+        if (expectedStatus == HttpResponseStatus.OK) {
+            assertThat(dispatched.get(), equalTo(1));
+            assertThat(dispatchedContentLength.get(), equalTo(expectedDispatchedContentLength));
+        } else {
+            assertThat(dispatched.get(), equalTo(0));
+        }
+    }
+
+    private static byte[] gzip(byte[] content) throws IOException {
+        final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (GZIPOutputStream out = new GZIPOutputStream(bytes)) {
+            out.write(content);
+        }
+        return bytes.toByteArray();
     }
 
     private Settings createSettings() {
