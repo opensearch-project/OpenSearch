@@ -5783,6 +5783,29 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(primary.getPeriodicFlushTask().isClosed());
     }
 
+    public void testSearchIdleNotSupportedForIngestionIndex() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+            .build();
+
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+
+        assertFalse(primary.isSearchIdleSupported());
+        assertFalse(primary.indexSettings().isExplicitRefresh());
+
+        closeShards(primary);
+    }
+
     public void testPeriodicFlushTaskExecutesFlush() throws Exception {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)

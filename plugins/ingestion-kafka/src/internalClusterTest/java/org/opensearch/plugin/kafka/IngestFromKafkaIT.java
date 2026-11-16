@@ -882,7 +882,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         waitForSearchableDocs(1, List.of(nodeA));
 
         IndexShard shard = internalCluster().getInstance(IndicesService.class, nodeA).indexServiceSafe(resolveIndex(indexName)).getShard(0);
-        assertTrue(shard.indexSettings().isExplicitRefresh());
+        assertFalse(shard.isSearchIdleSupported());
         assertBusy(() -> assertTrue(shard.isSearchIdle()));
         final long externalRefreshesBefore = shard.refreshStats().getExternalTotal();
 

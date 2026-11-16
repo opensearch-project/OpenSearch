@@ -2343,15 +2343,10 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns true if the refresh setting exists or in other words is explicitly set, or if the index uses pull-based ingestion.
-     * <p>
-     * Pull-based ingestion indices are always treated as explicit, so they refresh every {@code index.refresh_interval}
-     * (1s unless set) instead of skipping scheduled refreshes while search idle. A search-idle shard relies on the first
-     * search waiting for the skipped refresh, and that wait is keyed on the translog location, which the ingestion engine
-     * does not track, so the first search after an idle period would otherwise run on a stale searcher.
+     * Returns true iff the refresh setting exists or in other words is explicitly set.
      */
     public boolean isExplicitRefresh() {
-        return INDEX_REFRESH_INTERVAL_SETTING.exists(settings) || indexMetadata.useIngestionSource();
+        return INDEX_REFRESH_INTERVAL_SETTING.exists(settings);
     }
 
     /**
