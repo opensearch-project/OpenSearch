@@ -49,6 +49,7 @@ import org.opensearch.secure_sm.AccessController;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -72,6 +73,7 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
         assertThat(defaultSettings.proxySettings, is(ProxySettings.NO_PROXY_SETTINGS));
         assertThat(defaultSettings.readTimeoutMillis, is(50 * 1000));
         assertThat(defaultSettings.requestTimeoutMillis, is(5 * 60 * 1000));
+        assertThat(defaultSettings.apiCallTimeoutMillis, is(0));
         assertThat(defaultSettings.connectionTimeoutMillis, is(10 * 1000));
         assertThat(defaultSettings.connectionTTLMillis, is(5 * 1000));
         assertThat(defaultSettings.maxConnections, is(500));
@@ -432,5 +434,71 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
         );
         assertTrue(customConfig.apiCallAttemptTimeout().isPresent());
         assertThat(customConfig.apiCallAttemptTimeout().get().toMillis(), is(120_000L));
+    }
+
+    public void testApiCallTimeoutDisabledByDefault() {
+        assertApiCallTimeout(S3ClientSettings.load(Settings.EMPTY, configPath()).get("default"), 0);
+    }
+
+    public void testApiCallTimeoutAppliedToBothClients() {
+        final S3ClientSettings settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.default.api_call_timeout", "3m").put("s3.client.default.request_timeout", "2m").build(),
+            configPath()
+        ).get("default");
+        assertApiCallTimeout(settings, 180_000L);
+    }
+
+    public void testApiCallTimeoutForNamedClient() {
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.other.api_call_timeout", "1m").build(),
+            configPath()
+        );
+        assertApiCallTimeout(settings.get("default"), 0);
+        assertApiCallTimeout(settings.get("other"), 60_000L);
+    }
+
+    public void testApiCallTimeoutRepositoryOverrides() {
+        final S3ClientSettings base = S3ClientSettings.load(
+            Settings.builder().put("s3.client.default.api_call_timeout", "3m").build(),
+            configPath()
+        ).get("default");
+        assertSame(base, base.refine(Settings.EMPTY));
+        assertApiCallTimeout(base, 180_000L);
+        final S3ClientSettings overridden = base.refine(Settings.builder().put("api_call_timeout", "30s").build());
+        assertApiCallTimeout(overridden, 30_000L);
+        assertNotEquals(base, overridden);
+        final S3ClientSettings expected = S3ClientSettings.load(
+            Settings.builder().put("s3.client.default.api_call_timeout", "30s").build(),
+            configPath()
+        ).get("default");
+        assertEquals(expected, overridden);
+        assertEquals(expected.hashCode(), overridden.hashCode());
+        assertApiCallTimeout(base.refine(Settings.builder().put("api_call_timeout", "0").build()), 0);
+    }
+
+    public void testApiCallTimeoutRejectsNegativeValues() {
+        final IllegalArgumentException failure = expectThrows(
+            IllegalArgumentException.class,
+            () -> S3ClientSettings.load(Settings.builder().put("s3.client.default.api_call_timeout", "-1").build(), configPath())
+        );
+        assertThat(failure.getMessage(), org.hamcrest.Matchers.containsString("api_call_timeout"));
+        final S3ClientSettings settings = S3ClientSettings.load(Settings.EMPTY, configPath()).get("default");
+        expectThrows(IllegalArgumentException.class, () -> settings.refine(Settings.builder().put("api_call_timeout", "-1").build()));
+    }
+
+    private void assertApiCallTimeout(S3ClientSettings settings, long expectedMillis) {
+        assertEquals(expectedMillis, settings.apiCallTimeoutMillis);
+        final List<ClientOverrideConfiguration> configurations = List.of(
+            AccessController.doPrivileged(() -> S3Service.buildOverrideConfiguration(settings, null)),
+            AccessController.doPrivileged(() -> S3AsyncService.buildOverrideConfiguration(settings, null))
+        );
+        for (ClientOverrideConfiguration configuration : configurations) {
+            if (expectedMillis == 0) {
+                assertTrue(configuration.apiCallTimeout().isEmpty());
+            } else {
+                assertEquals(expectedMillis, configuration.apiCallTimeout().orElseThrow().toMillis());
+            }
+            assertEquals(settings.requestTimeoutMillis, configuration.apiCallAttemptTimeout().orElseThrow().toMillis());
+        }
     }
 }

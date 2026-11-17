@@ -51,6 +51,8 @@ import org.gradle.api.provider.Provider;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A plugin to manage getting and extracting distributions of OpenSearch.
@@ -76,6 +78,8 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         "/ci/dbc/distribution-build-opensearch/[revision]/latest/linux/x64/tar/dist/opensearch/[module]-[revision](-[classifier]).[ext]";
 
     private NamedDomainObjectContainer<OpenSearchDistribution> distributionsContainer;
+    /** The distributions whose dependencies have been added, since that is done once, by whichever comes first. */
+    private final Set<String> setUp = ConcurrentHashMap.newKeySet();
     private NamedDomainObjectContainer<DistributionResolution> distributionsResolutionStrategiesContainer;
 
     @Override
@@ -108,7 +112,20 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             Configuration fileConfiguration = project.getConfigurations().create("opensearch_distro_file_" + name);
             Configuration extractedConfiguration = project.getConfigurations().create(DISTRO_EXTRACTED_CONFIG_PREFIX + name);
             extractedConfiguration.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
-            return new OpenSearchDistribution(name, project.getObjects(), dockerSupport, fileConfiguration, extractedConfiguration);
+            OpenSearchDistribution distribution = new OpenSearchDistribution(
+                name,
+                project.getObjects(),
+                dockerSupport,
+                fileConfiguration,
+                extractedConfiguration
+            );
+            // Also wired when either configuration's dependencies are first needed, not only when the project finishes
+            // evaluating. A distribution created after that would otherwise depend on nothing, and its cluster would start
+            // without one. Test clusters create their nodes, and so their distributions, at the end of configuration too,
+            // and which runs first depends on the order in which the plugins were applied.
+            fileConfiguration.withDependencies(dependencies -> setupDistribution(project, distribution));
+            extractedConfiguration.withDependencies(dependencies -> setupDistribution(project, distribution));
+            return distribution;
         });
         project.getExtensions().add(CONTAINER_NAME, distributionsContainer);
     }
@@ -135,17 +152,24 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     // pkg private for tests
     void setupDistributions(Project project) {
         for (OpenSearchDistribution distribution : distributionsContainer) {
-            distribution.finalizeValues();
-            DependencyHandler dependencies = project.getDependencies();
-            // for the distribution as a file, just depend on the artifact directly
-            DistributionDependency distributionDependency = resolveDependencyNotation(project, distribution);
-            dependencies.add(distribution.configuration.getName(), distributionDependency.getDefaultNotation());
-            // no extraction allowed for rpm, deb or docker
-            if (distribution.getType().shouldExtract()) {
-                // The extracted configuration depends on the artifact directly but has
-                // an artifact transform registered to resolve it as an unpacked folder.
-                dependencies.add(distribution.getExtracted().getName(), distributionDependency.getExtractedNotation());
-            }
+            setupDistribution(project, distribution);
+        }
+    }
+
+    private void setupDistribution(Project project, OpenSearchDistribution distribution) {
+        if (setUp.add(distribution.getName()) == false) {
+            return;
+        }
+        distribution.finalizeValues();
+        DependencyHandler dependencies = project.getDependencies();
+        // for the distribution as a file, just depend on the artifact directly
+        DistributionDependency distributionDependency = resolveDependencyNotation(project, distribution);
+        dependencies.add(distribution.configuration.getName(), distributionDependency.getDefaultNotation());
+        // no extraction allowed for rpm, deb or docker
+        if (distribution.getType().shouldExtract()) {
+            // The extracted configuration depends on the artifact directly but has
+            // an artifact transform registered to resolve it as an unpacked folder.
+            dependencies.add(distribution.getExtracted().getName(), distributionDependency.getExtractedNotation());
         }
     }
 

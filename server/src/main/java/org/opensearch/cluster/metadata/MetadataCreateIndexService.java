@@ -114,6 +114,7 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -232,9 +233,8 @@ public class MetadataCreateIndexService {
         createIndexTaskKey = clusterService.registerClusterManagerTask(CREATE_INDEX, true);
         Supplier<Version> minNodeVersionSupplier = () -> clusterService.state().nodes().getMinNodeVersion();
         remoteStoreCustomMetadataResolver = RemoteStoreNodeAttribute.isSegmentRepoConfigured(settings)
-            && RemoteStoreNodeAttribute.isTranslogRepoConfigured(settings)
-                ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
-                : null;
+            ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
+            : null;
     }
 
     public IndexScopedSettings getIndexScopedSettings() {
@@ -663,8 +663,48 @@ public class MetadataCreateIndexService {
         // Set up everything, now locally create the index to see that things are ok, and apply
         IndexMetadata tempMetadata = tmpImdBuilder.build();
         validateActiveShardCount(request.waitForActiveShards(), tempMetadata);
+        // checked on the settings after templates, which can also set ingestion params
+        validateIngestionWriteSettingsVersion(aggregatedIndexSettings, clusterState);
+        validateIngestionWriteParams(aggregatedIndexSettings);
 
         return tempMetadata;
+    }
+
+    /**
+     * Ingestion write settings were introduced in V_3_11_0. Reject them on mixed clusters, where older nodes do not
+     * recognise the keys and would fail to create the index.
+     */
+    static void validateIngestionWriteSettingsVersion(Settings settings, ClusterState state) {
+        boolean hasWriteSettings = settings.keySet()
+            .stream()
+            .anyMatch(
+                key -> IndexMetadata.INGESTION_SOURCE_WRITE_ENABLED_SETTING.match(key)
+                    || IndexMetadata.INGESTION_SOURCE_WRITE_PARAMS_SETTING.match(key)
+            );
+        if (hasWriteSettings == false) {
+            return;
+        }
+        Version minNodeVersion = state.nodes().getMinNodeVersion();
+        if (minNodeVersion.before(Version.V_3_11_0)) {
+            throw new IllegalArgumentException(
+                "index.ingestion_source.write.* settings require all nodes in the cluster to be on version ["
+                    + Version.V_3_11_0
+                    + "] or later, but the minimum node version is ["
+                    + minNodeVersion
+                    + "]"
+            );
+        }
+    }
+
+    /**
+     * Rejects ingestion write params that repeat a param, so that writes go to the stream the index reads.
+     * See {@link IngestionSource#getWriterParams()}.
+     */
+    static void validateIngestionWriteParams(Settings settings) {
+        IngestionSource.validateWriteParams(
+            IndexMetadata.INGESTION_SOURCE_PARAMS_SETTING.getAsMap(settings),
+            IndexMetadata.INGESTION_SOURCE_WRITE_PARAMS_SETTING.getAsMap(settings)
+        );
     }
 
     /**
@@ -694,7 +734,7 @@ public class MetadataCreateIndexService {
             .getNodes()
             .values()
             .stream()
-            .filter(DiscoveryNode::isRemoteStoreNode)
+            .filter(DiscoveryNode::isRemoteSegmentStoreNode)
             .findFirst();
 
         String sseEnabledIndex = existingCustomData == null
@@ -1206,6 +1246,7 @@ public class MetadataCreateIndexService {
      * Also validates that mapper_settings keys are recognized for the configured mapper_type.
      */
     static void validateIngestionSourceSettings(Settings settings, ClusterState state) {
+        validateIngestionWriteSettingsVersion(settings, state);
         // Partition strategy validation. The setting key itself was introduced in V_3_7_0; reject any explicit
         // value (including [simple], the default) on mixed clusters where some nodes don't recognize the key.
         // And in that case the index metadata replicated to older nodes would carry unknown settings.
@@ -1336,7 +1377,7 @@ public class MetadataCreateIndexService {
                 .getNodes()
                 .values()
                 .stream()
-                .filter(DiscoveryNode::isRemoteStoreNode)
+                .filter(DiscoveryNode::isRemoteSegmentStoreNode)
                 .findFirst();
 
             if (remoteNode.isPresent()) {
@@ -1364,7 +1405,7 @@ public class MetadataCreateIndexService {
                 }
             }
         }
-        updateRemoteStoreFencingSetting(settingsBuilder, clusterSettings);
+        updateRemoteStoreFencingSetting(settingsBuilder, clusterSettings, indexName);
     }
 
     /**
@@ -1374,22 +1415,52 @@ public class MetadataCreateIndexService {
      * window in which a stale primary is checked against neither the fence nor the replicas. Baking the cluster value
      * in here means flipping the cluster setting only affects indices created afterwards.
      */
-    private static void updateRemoteStoreFencingSetting(Settings.Builder settingsBuilder, ClusterSettings clusterSettings) {
+    private static void updateRemoteStoreFencingSetting(
+        Settings.Builder settingsBuilder,
+        ClusterSettings clusterSettings,
+        String indexName
+    ) {
         final Settings current = settingsBuilder.build();
-        // Read the raw value rather than going through INDEX_REMOTE_STORE_ENABLED_SETTING.get(). That setting carries a
-        // validator which cross-checks index.replication.type, and this helper also runs from snapshot restore's
-        // override-settings step - where restoring a remote-store snapshot onto a document-replication index is a
-        // combination the restore path itself must reject, with a SnapshotRestoreException. Validating it here instead
-        // would pre-empt that with an IllegalArgumentException from a read that only ever wanted a boolean. Deciding
-        // whether to stamp a default is not this method's place to validate the settings it is handed.
+        // Read raw: this helper also runs from snapshot restore's override-settings step, where the typed setting's
+        // validator would pre-empt the restore path's own SnapshotRestoreException.
         final boolean remoteStoreEnabled = current.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
-        // Only materialized when the cluster default is enabled: an absent key already resolves to false forever
-        // (the index setting is final), so stamping an explicit false would add metadata without changing semantics.
+        final String translogRepository = current.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
+        final boolean hasRemoteTranslogRepository = translogRepository != null && translogRepository.isEmpty() == false;
+
         if (remoteStoreEnabled
+            && hasRemoteTranslogRepository == false
+            && current.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, false)) {
+            throw fencingRequiresRemoteTranslog(indexName);
+        }
+
+        // Stamping an explicit false would add metadata without changing semantics, since the index setting is final
+        // and an absent key already resolves to false forever.
+        if (remoteStoreEnabled
+            && hasRemoteTranslogRepository
             && IndexMetadata.INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING.exists(current) == false
             && clusterSettings.get(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED)) {
             settingsBuilder.put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true);
         }
+    }
+
+    /**
+     * The fence is a blob written by the translog upload, so an index that keeps its translog locally - which is how
+     * a {@code segments_only} index is configured - could never have one. Refused rather than ignored, because the
+     * flag is all {@code INDEX_REMOTE_STORE_AUTO_RESTORE_ENABLED_SETTING} checks before allowing a restore whose
+     * safety rests on the fence existing.
+     */
+    private static IndexCreationException fencingRequiresRemoteTranslog(String indexName) {
+        ValidationException validationException = new ValidationException();
+        validationException.addValidationErrors(
+            Collections.singletonList(
+                IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED
+                    + " requires a remote translog repository, because the fence is a blob in that"
+                    + " repository written by the translog upload, and this index keeps its translog"
+                    + " locally. When restoring a snapshot of a fencing-enabled index into such a cluster,"
+                    + " drop the setting with ignore_index_settings on the restore request"
+            )
+        );
+        return new IndexCreationException(indexName, validationException);
     }
 
     /**
@@ -1494,6 +1565,7 @@ public class MetadataCreateIndexService {
                 .searchRouting(alias.searchRouting())
                 .writeIndex(alias.writeIndex())
                 .isHidden(alias.isHidden())
+                .scoringMode(alias.scoringMode())
                 .build();
             resolvedAliases.add(aliasMetadata);
         }
@@ -1701,6 +1773,9 @@ public class MetadataCreateIndexService {
         validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
         validateContext(request);
         validateIngestionSourceSettings(request.settings(), state);
+        for (Alias alias : request.aliases()) {
+            AliasFilter.ensureScoringModeSupported(alias.name(), alias.scoringMode(), () -> state.nodes().getMinNodeVersion());
+        }
     }
 
     public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)

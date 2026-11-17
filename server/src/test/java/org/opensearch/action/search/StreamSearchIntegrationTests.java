@@ -78,6 +78,13 @@ public class StreamSearchIntegrationTests extends OpenSearchSingleNodeTestCase {
         return Collections.singletonList(MockStreamTransportPlugin.class);
     }
 
+    // Opt out of the sandbox stack: this test registers its own mock stream transport named "FLIGHT", which collides
+    // with the real FlightStreamPlugin the stack would inject.
+    @Override
+    protected boolean installSandboxPlugins() {
+        return false;
+    }
+
     @Override
     protected Settings nodeSettings() {
         // Keep the low-cardinality test data eligible for streaming aggregation.

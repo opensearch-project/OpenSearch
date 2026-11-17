@@ -14,17 +14,15 @@
 //! - `df_create_local_session` / `df_close_local_session` lifecycle
 //! - `df_register_partition_stream` exposes the input as a DataFusion table
 //! - `df_sender_send` → execute → `df_stream_next` drains a `SUM` aggregate
-//! - Error path: `df_sender_send` on a sender whose receiver is gone returns
-//!   a negative rc and the heap-allocated error string decodes cleanly
+//! - `df_sender_send` on a sender whose receiver is gone reports the
+//!   `SENDER_SEND_RECEIVER_DROPPED` sentinel rather than failing
 //! - `df_close_local_session` drops registered senders (receiver side of the
-//!   mpsc closes), so a subsequent `df_sender_send` fails
+//!   mpsc closes), so a subsequent `df_sender_send` reports that sentinel
 //!
 //! The runtime manager (`df_init_runtime_manager`) is a process-global
 //! singleton, so we initialize it exactly once across all tests via a
 //! `OnceLock` guard.
 
-use std::ffi::CString;
-use std::os::raw::c_char;
 use std::sync::{Arc, OnceLock};
 use std::thread;
 use std::time::Duration;
@@ -167,19 +165,16 @@ fn export_batch_ptrs(batch: RecordBatch) -> (i64, i64) {
     (array_ptr, schema_ptr)
 }
 
-/// Decode (and free) the heap-allocated error string referenced by a
-/// negative FFM return code. Convention is defined in
-/// `sandbox/libs/dataformat-native/rust/common/src/error.rs`: the error
-/// pointer is the positive value of the negated return code, and the
-/// string is a `CString` that must be freed via `CString::from_raw`.
-fn decode_error(rc: i64) -> String {
-    assert!(rc < 0, "expected negative rc, got {}", rc);
-    let ptr = (-rc) as *mut c_char;
-    // SAFETY: the FFM layer produces this string via `CString::into_raw`;
-    // taking ownership back via `from_raw` both reads and frees it.
-    let cstring = unsafe { CString::from_raw(ptr) };
-    cstring.to_string_lossy().into_owned()
-}
+/// Return code from `df_sender_send` when the consumer already dropped or
+/// gracefully terminated the receiver. This is a benign outcome, not a
+/// failure, so it rides the success half of the FFM contract (`>= 0` success,
+/// `< 0` negated error pointer) and the Java side latches it as
+/// early-termination instead of throwing.
+///
+/// Mirrors the private `SENDER_SEND_RECEIVER_DROPPED` in `src/ffm.rs` and
+/// `NativeBridge.SENDER_SEND_RECEIVER_DROPPED` on the Java side; all three
+/// must agree.
+const SENDER_SEND_RECEIVER_DROPPED: i64 = 1;
 
 /// Build a Substrait plan for `SELECT SUM(x) AS total FROM "input-0"` using a
 /// throwaway session that only knows the schema — the plan is portable onto
@@ -363,7 +358,7 @@ fn test_execute_sum_substrait() {
 }
 
 #[test]
-fn test_sender_send_error_path() {
+fn test_sender_send_reports_receiver_dropped() {
     let runtime = RuntimeGuard::new();
     let session_ptr = unsafe { df_create_local_session(runtime.ptr) };
     assert!(session_ptr > 0);
@@ -376,18 +371,16 @@ fn test_sender_send_error_path() {
     // channel is now closed.
     unsafe { df_close_local_session(session_ptr) };
 
-    // Attempting to send now fails — `send_blocking` reports "receiver
-    // dropped before send".
+    // Sending now reports the receiver-dropped sentinel. This is deliberately
+    // not an error: the consumer finishing first is benign, so the sentinel
+    // rides the success half of the contract.
     let batch = i64_batch(&schema, &[1, 2, 3]);
     let (arr_ptr, sch_ptr) = export_batch_ptrs(batch);
     let rc = unsafe { df_sender_send(sender_ptr, arr_ptr, sch_ptr) };
-    assert!(rc < 0, "expected error, got rc={}", rc);
-
-    let msg = decode_error(rc);
-    assert!(
-        msg.contains("receiver dropped") || msg.contains("receiver"),
-        "unexpected error message: {}",
-        msg
+    assert_eq!(
+        rc, SENDER_SEND_RECEIVER_DROPPED,
+        "expected receiver-dropped sentinel, got rc={}",
+        rc
     );
 
     unsafe { df_sender_close(sender_ptr) };
@@ -412,16 +405,15 @@ fn test_close_session_drops_registered_senders() {
     // Close the session. The surviving sender's mpsc is now orphaned.
     unsafe { df_close_local_session(session_ptr) };
 
-    // Subsequent `df_sender_send` on the still-live sender pointer fails.
-    let batch_fail = i64_batch(&schema, &[20]);
-    let (a1, s1) = export_batch_ptrs(batch_fail);
-    let rc_err = unsafe { df_sender_send(sender_ptr, a1, s1) };
-    assert!(rc_err < 0, "post-close send should fail, got rc={}", rc_err);
-    let msg = decode_error(rc_err);
-    assert!(
-        msg.contains("receiver"),
-        "expected receiver-dropped error, got: {}",
-        msg
+    // Subsequent `df_sender_send` on the still-live sender pointer reports the
+    // receiver-dropped sentinel rather than a negative error code.
+    let batch_dropped = i64_batch(&schema, &[20]);
+    let (a1, s1) = export_batch_ptrs(batch_dropped);
+    let rc_dropped = unsafe { df_sender_send(sender_ptr, a1, s1) };
+    assert_eq!(
+        rc_dropped, SENDER_SEND_RECEIVER_DROPPED,
+        "post-close send should report the receiver-dropped sentinel, got rc={}",
+        rc_dropped
     );
 
     unsafe { df_sender_close(sender_ptr) };

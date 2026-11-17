@@ -54,6 +54,17 @@ public class RemoteStoreBackpressureAndResiliencyIT extends AbstractRemoteStoreM
         validateBackpressure(ByteSizeUnit.BYTES.toIntBytes(2), 30, ByteSizeUnit.KB.toIntBytes(1), "bytes_lag");
     }
 
+    /**
+     * Segment upload backpressure measures the lag between a local refresh and the remote one, so it depends on the
+     * segments being remote backed and never on the translog. A {@code segments_only} node uploads segments like any
+     * other remote node, so the same breach has to reject writes there too, and the stats behind it have to be
+     * tracked for a shard whose translog stays local.
+     */
+    public void testWritesRejectedDueToConsecutiveFailureBreachInSegmentsOnlyMode() throws Exception {
+        segmentsOnly = true;
+        validateBackpressure(ByteSizeUnit.KB.toIntBytes(1), 10, ByteSizeUnit.KB.toIntBytes(1), "failure_streak_count");
+    }
+
     public void testWritesRejectedDueToTimeLagBreach() throws Exception {
         // Initially indexing happens with doc size of 1KB, then all remote store interactions start failing. Now, the
         // indexing happens with doc size of 1 byte leading to time lag limit getting exceeded and leading to rejections.

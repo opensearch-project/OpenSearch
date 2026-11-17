@@ -51,6 +51,7 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ScalingExecutorBuilder;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -144,6 +145,10 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
             AzureStorageSettings.WRITE_TIMEOUT_SETTING,
             AzureStorageSettings.READ_TIMEOUT_SETTING,
             AzureStorageSettings.RESPONSE_TIMEOUT_SETTING,
+            AzureStorageSettings.READ_BLOCK_SIZE_SETTING,
+            AzureStorageSettings.WRITE_BLOCK_SIZE_SETTING,
+            AzureStorageSettings.MAX_SINGLE_UPLOAD_SIZE_SETTING,
+            AzureStorageSettings.WRITE_CONCURRENCY_SETTING,
             AzureStorageSettings.PROXY_TYPE_SETTING,
             AzureStorageSettings.PROXY_HOST_SETTING,
             AzureStorageSettings.PROXY_PORT_SETTING,
@@ -169,5 +174,10 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
             throw new SettingsException("If you want to use an azure repository, you need to define a client configuration.");
         }
         azureStoreService.refreshAndClearCache(clientsSettings);
+    }
+
+    @Override
+    public void close() throws IOException {
+        azureStoreService.close();
     }
 }

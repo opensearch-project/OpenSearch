@@ -132,12 +132,12 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     /**
      * The type of S3 Server Side Encryption to use.
-     * Defaults to AES256.
+     * Defaults to bucket_default (no SSE header sent, lets bucket decide).
      * Supports: AES256, aws:kms
      */
     static final Setting<String> SERVER_SIDE_ENCRYPTION_TYPE_SETTING = Setting.simpleString(
         "server_side_encryption_type",
-        ServerSideEncryption.AES256.toString(),
+        BUCKET_DEFAULT_ENCRYPTION_TYPE,
         value -> {
             if (!(value.equals(ServerSideEncryption.AES256.toString())
                 || value.equals(ServerSideEncryption.AWS_KMS.toString())

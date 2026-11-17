@@ -35,12 +35,15 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.rest.action.admin.indices.AliasesNotFoundException;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
@@ -88,6 +91,14 @@ public class MetadataIndexAliasesServiceTests extends OpenSearchTestCase {
             }
             return ClusterState.builder(state).metadata(meta).build();
         });
+    }
+
+    public void testAddRejectsScoringModeWithoutAFilter() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AliasAction.Add(randomAlphaOfLength(5), "scoped", null, null, null, null, null, "no_stats")
+        );
+        assertThat(e.getMessage(), containsString("[scoring_mode] requires a [filter] on alias [scoped]"));
     }
 
     public void testAddAndRemove() {
@@ -653,4 +664,36 @@ public class MetadataIndexAliasesServiceTests extends OpenSearchTestCase {
         }
     }
 
+    public void testAddRejectsTheScoringModeWhileANodePredatesIt() {
+        String index = randomAlphaOfLength(5);
+        ClusterState before = ClusterState.builder(createIndex(ClusterState.builder(ClusterName.DEFAULT).build(), index))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(new DiscoveryNode("new", buildNewFakeTransportAddress(), Version.CURRENT))
+                    .add(
+                        new DiscoveryNode(
+                            "old",
+                            buildNewFakeTransportAddress(),
+                            VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION)
+                        )
+                    )
+                    .build()
+            )
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.applyAliasActions(
+                before,
+                singletonList(new AliasAction.Add(index, "scoped", "{\"match_all\":{}}", null, null, null, null, "no_stats"))
+            )
+        );
+        assertThat(e.getMessage(), containsString("[scoring_mode] on alias [scoped]"));
+
+        // Without a mode the same cluster takes the alias.
+        ClusterState after = service.applyAliasActions(
+            before,
+            singletonList(new AliasAction.Add(index, "plain", null, null, null, null, null))
+        );
+        assertNotNull(after.metadata().getIndicesLookup().get("plain"));
+    }
 }

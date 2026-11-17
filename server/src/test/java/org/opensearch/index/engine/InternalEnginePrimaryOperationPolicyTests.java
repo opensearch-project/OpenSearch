@@ -17,6 +17,7 @@ import org.opensearch.index.store.Store;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class InternalEnginePrimaryOperationPolicyTests extends EngineTestCase {
 
@@ -142,6 +143,88 @@ public class InternalEnginePrimaryOperationPolicyTests extends EngineTestCase {
             InternalEngine engineUnderTest = createEngine(preAssignedSeqNoConfig(store, createTempDir()));
             engineUnderTest.close();
             expectThrows(AlreadyClosedException.class, () -> engineUnderTest.fillSeqNoGaps(primaryTerm.get()));
+        }
+    }
+
+    /**
+     * A plugin may change its answer over the lifetime of one engine, for example when the setting its
+     * policy is keyed off is updated. A single operation reads the policy at more than one point, so the
+     * engine must serve a snapshot and pick the change up only when the shard refreshes it with
+     * operations blocked, rather than resolving the policy per read.
+     */
+    public void testPolicyChangeIsObservedOnlyOnRefresh() throws IOException {
+        final AtomicReference<PrimaryOperationPolicy> pluginPolicy = new AtomicReference<>(DefaultPrimaryOperationPolicy.INSTANCE);
+        try (Store store = createStore()) {
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null).toBuilder()
+                .primaryOperationPolicySupplier(pluginPolicy::get)
+                .build();
+            try (InternalEngine engineUnderTest = createEngine(config)) {
+                // leaves a gap at seq no. 0
+                engineUnderTest.index(replicaIndexForDoc(createParsedDoc("1", null), 1L, 1L, false));
+
+                pluginPolicy.set(FakePreAssignedSeqNoPrimaryOperationPolicy.INSTANCE);
+                assertSame(
+                    "the config resolves the plugin's new answer immediately",
+                    FakePreAssignedSeqNoPrimaryOperationPolicy.INSTANCE,
+                    config.getPrimaryOperationPolicy()
+                );
+                assertSame(
+                    "the engine must keep serving the policy it snapshotted until it is refreshed",
+                    DefaultPrimaryOperationPolicy.INSTANCE,
+                    engineUnderTest.getPrimaryOperationPolicy()
+                );
+                assertEquals(
+                    "the engine must keep using the policy it snapshotted until it is refreshed",
+                    1,
+                    engineUnderTest.fillSeqNoGaps(primaryTerm.get())
+                );
+
+                engineUnderTest.refreshPrimaryOperationPolicy();
+                assertSame(
+                    "the refresh must install the plugin's new answer",
+                    FakePreAssignedSeqNoPrimaryOperationPolicy.INSTANCE,
+                    engineUnderTest.getPrimaryOperationPolicy()
+                );
+
+                // leaves gaps at seq nos. 2 and 3
+                engineUnderTest.index(replicaIndexForDoc(createParsedDoc("2", null), 1L, 4L, false));
+                assertEquals(
+                    "the refreshed policy owns its seq no. space upstream, so gaps must not be filled",
+                    0,
+                    engineUnderTest.fillSeqNoGaps(primaryTerm.get())
+                );
+            }
+        }
+    }
+
+    /**
+     * The whole point of refreshing is that the primary path changes behavior: an operation carrying an
+     * upstream-assigned sequence number is only accepted once the refreshed policy is in effect.
+     */
+    public void testRefreshLetsPrimaryAcceptPreAssignedSeqNos() throws IOException {
+        final AtomicReference<PrimaryOperationPolicy> pluginPolicy = new AtomicReference<>(DefaultPrimaryOperationPolicy.INSTANCE);
+        try (Store store = createStore()) {
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null).toBuilder()
+                .primaryOperationPolicySupplier(pluginPolicy::get)
+                .build();
+            try (InternalEngine engineUnderTest = createEngine(config)) {
+                pluginPolicy.set(FakePreAssignedSeqNoPrimaryOperationPolicy.INSTANCE);
+                engineUnderTest.refreshPrimaryOperationPolicy();
+
+                Engine.IndexResult result = engineUnderTest.index(
+                    upstreamIndexForDoc(createParsedDoc("1", null), 7L, 3L, SequenceNumbers.UNASSIGNED_SEQ_NO, 0L)
+                );
+                assertEquals(Engine.Result.Type.SUCCESS, result.getResultType());
+                assertEquals("the upstream seq no. must be applied verbatim after the refresh", 7L, result.getSeqNo());
+            }
+        }
+    }
+
+    public void testRefreshOnClosedEngineThrows() throws IOException {
+        try (Store store = createStore()) {
+            InternalEngine engineUnderTest = createEngine(preAssignedSeqNoConfig(store, createTempDir()));
+            engineUnderTest.close();
+            expectThrows(AlreadyClosedException.class, engineUnderTest::refreshPrimaryOperationPolicy);
         }
     }
 }

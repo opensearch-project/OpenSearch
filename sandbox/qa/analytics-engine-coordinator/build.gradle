@@ -69,9 +69,9 @@ dependencies {
   // be on the test runtime classpath here. Calcite's FrameworkConfig also
   // references ImmutableList in its compile-time API (SqlPlanRunner imports
   // it), so include Guava on the IT compile classpath too.
-  internalClusterTestCompileOnly "com.google.guava:guava:33.3.1-jre"
-  internalClusterTestRuntimeOnly "com.google.guava:guava:33.3.1-jre"
-  internalClusterTestRuntimeOnly "com.google.guava:failureaccess:1.0.1"
+  internalClusterTestCompileOnly "com.google.guava:guava:${versions.guava}"
+  internalClusterTestRuntimeOnly "com.google.guava:guava:${versions.guava}"
+  internalClusterTestRuntimeOnly "com.google.guava:failureaccess:1.0.3"
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -82,8 +82,8 @@ tasks.withType(JavaCompile).configureEach {
 // plugins). Calcite's SqlKind clinit pulls com.google.common.collect.Sets, so Guava MUST
 // be present. Hard-attach via a detached configuration that bypasses any inherited excludes.
 def guavaRuntimeJars = configurations.detachedConfiguration(
-  dependencies.create('com.google.guava:guava:33.3.1-jre') { transitive = false },
-  dependencies.create('com.google.guava:failureaccess:1.0.1') { transitive = false },
+  dependencies.create("com.google.guava:guava:${versions.guava}") { transitive = false },
+  dependencies.create('com.google.guava:failureaccess:1.0.3') { transitive = false },
   dependencies.create("org.slf4j:slf4j-api:${versions.slf4j}") { transitive = false },
   dependencies.create("commons-codec:commons-codec:${versions.commonscodec}") { transitive = false },
   dependencies.create("com.fasterxml.jackson.core:jackson-core:${versions.jackson}") { transitive = false },
@@ -102,10 +102,11 @@ configurations.all {
   exclude group: 'com.github.babbel', module: 'okhttp-aws-signer'
 
   resolutionStrategy {
-    force 'com.google.guava:guava:33.3.1-jre'
-    force 'com.google.guava:failureaccess:1.0.1'
+    force "com.google.guava:guava:${versions.guava}"
+    force 'com.google.guava:failureaccess:1.0.3'
     force 'com.google.errorprone:error_prone_annotations:2.36.0'
     force 'org.checkerframework:checker-qual:3.43.0'
+    force 'org.jspecify:jspecify:1.0.1'
     force "com.fasterxml.jackson:jackson-bom:${versions.jackson}"
     force "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
     force "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"

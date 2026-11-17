@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException;
@@ -212,28 +213,30 @@ public final class FingerprintProcessor extends AbstractProcessor {
      * The supported hash methods used to generate hash value
      */
     enum HashMethod {
-        MD5(MessageDigests.md5()),
-        SHA1(MessageDigests.sha1()),
-        SHA256(MessageDigests.sha256()),
-        SHA3256(MessageDigests.sha3256());
+        MD5(MessageDigests::md5),
+        SHA1(MessageDigests::sha1),
+        SHA256(MessageDigests::sha256),
+        SHA3256(MessageDigests::sha3256);
 
-        private final MessageDigest messageDigest;
+        // MessageDigest is not thread-safe, so resolve a fresh per-call (ThreadLocal-backed) instance
+        // via the supplier instead of caching one that would be shared across all ingest threads.
+        private final Supplier<MessageDigest> messageDigestSupplier;
 
-        HashMethod(MessageDigest messageDigest) {
-            this.messageDigest = messageDigest;
+        HashMethod(Supplier<MessageDigest> messageDigestSupplier) {
+            this.messageDigestSupplier = messageDigestSupplier;
         }
 
         public static MessageDigest fromMethodName(String methodName) {
             String name = methodName.toUpperCase(Locale.ROOT);
             switch (name) {
                 case "MD5@2.16.0":
-                    return MD5.messageDigest;
+                    return MD5.messageDigestSupplier.get();
                 case "SHA-1@2.16.0":
-                    return SHA1.messageDigest;
+                    return SHA1.messageDigestSupplier.get();
                 case "SHA-256@2.16.0":
-                    return SHA256.messageDigest;
+                    return SHA256.messageDigestSupplier.get();
                 case "SHA3-256@2.16.0":
-                    return SHA3256.messageDigest;
+                    return SHA3256.messageDigestSupplier.get();
                 default:
                     return null;
             }

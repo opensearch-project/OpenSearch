@@ -39,10 +39,14 @@ import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.decommission.NodeDecommissionedException;
+import org.opensearch.cluster.metadata.ComponentTemplate;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.metadata.ViewMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RerouteService;
@@ -53,6 +57,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.persistent.PersistentTasksCustomMetadata;
+import org.opensearch.search.internal.AliasFilter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -66,6 +71,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
@@ -90,6 +97,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     private final RerouteService rerouteService;
 
     private final RemoteStoreNodeService remoteStoreNodeService;
+
+    // Whether this node still has a connection to a node whose join is being processed
+    private final Predicate<DiscoveryNode> isJoiningNodeConnected;
 
     /**
      * Task for the join task executor.
@@ -136,12 +146,14 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         AllocationService allocationService,
         Logger logger,
         RerouteService rerouteService,
-        RemoteStoreNodeService remoteStoreNodeService
+        RemoteStoreNodeService remoteStoreNodeService,
+        Predicate<DiscoveryNode> isJoiningNodeConnected
     ) {
         this.allocationService = allocationService;
         JoinTaskExecutor.logger = logger;
         this.rerouteService = rerouteService;
         this.remoteStoreNodeService = remoteStoreNodeService;
+        this.isJoiningNodeConnected = isJoiningNodeConnected;
     }
 
     @Override
@@ -177,7 +189,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // An optimization can be done as this will get invoked
         // for every set of node join task which we can optimize to not compute if cluster state already has
         // repository information.
-        Optional<DiscoveryNode> remoteDN = currentNodes.getNodes().values().stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
+        Optional<DiscoveryNode> remoteDN = currentNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DiscoveryNode::isRemoteSegmentStoreNode)
+            .findFirst();
         Optional<DiscoveryNode> remotePublicationDN = currentNodes.getNodes()
             .values()
             .stream()
@@ -219,6 +235,15 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                 logger.debug("received a join request for an existing node [{}]", node);
             } else {
                 try {
+                    // The join was validated over a connection from this node to the joining node. If that connection
+                    // has closed since then, for example because a node-left task that was queued ahead of this join
+                    // disconnected the node, adding the node now would fail its first follower check at once and
+                    // remove it again. Reject the join instead, so the node retries and reconnects first.
+                    if (isJoiningNodeConnected.test(node) == false) {
+                        throw new IllegalStateException(
+                            "cluster-manager is no longer connected to joining node [" + node + "], node must retry the join"
+                        );
+                    }
                     if (enforceMajorVersion) {
                         ensureMajorVersionBarrier(node.getVersion(), minClusterNodeVersion);
                     }
@@ -226,12 +251,13 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                     // we have to reject nodes that don't support all indices we have in this cluster
                     ensureIndexCompatibility(node.getVersion(), currentState.getMetadata());
+                    ensureScoringModeCompatibility(node.getVersion(), currentState.getMetadata());
                     // we have added the same check in handleJoinRequest method and adding it here as this method
                     // would guarantee that a decommissioned node would never be able to join the cluster and ensures correctness
                     ensureNodeCommissioned(node, currentState.metadata());
                     nodesBuilder.add(node);
 
-                    if ((remoteDN.isEmpty() && node.isRemoteStoreNode())
+                    if ((remoteDN.isEmpty() && node.isRemoteSegmentStoreNode())
                         || (remotePublicationDN.isEmpty() && node.isRemoteStatePublicationEnabled())) {
                         // This is hit only on cases where we encounter first remote node
                         logger.info("Updating system repository now for remote store");
@@ -287,7 +313,12 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     return results.build(
                         allocationService.adaptAutoExpandReplicas(
                             newState.nodes(nodesBuilder)
-                                .metadata(updateMetadataWithRepositoriesMetadata(newMetadata, repositoriesMetadata))
+                                .metadata(
+                                    dropViewMetadata(
+                                        updateMetadataWithRepositoriesMetadata(newMetadata, repositoriesMetadata),
+                                        minClusterNodeVersion
+                                    )
+                                )
                                 .build()
                         )
                     );
@@ -297,7 +328,12 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             return results.build(
                 allocationService.adaptAutoExpandReplicas(
                     newState.nodes(nodesBuilder)
-                        .metadata(updateMetadataWithRepositoriesMetadata(currentState.metadata(), repositoriesMetadata))
+                        .metadata(
+                            dropViewMetadata(
+                                updateMetadataWithRepositoriesMetadata(currentState.metadata(), repositoriesMetadata),
+                                minClusterNodeVersion
+                            )
+                        )
                         .build()
                 )
             );
@@ -305,7 +341,12 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             // we must return a new cluster state instance to force publishing. This is important
             // for the joining node to finalize its join and set us as a cluster-manager
             return results.build(
-                newState.metadata(updateMetadataWithRepositoriesMetadata(currentState.metadata(), repositoriesMetadata)).build()
+                newState.metadata(
+                    dropViewMetadata(
+                        updateMetadataWithRepositoriesMetadata(currentState.metadata(), repositoriesMetadata),
+                        minClusterNodeVersion
+                    )
+                ).build()
             );
         }
     }
@@ -316,6 +357,20 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         } else {
             return Metadata.builder(currentMetadata).putCustom(RepositoriesMetadata.TYPE, repositoriesMetadata.get()).build();
         }
+    }
+
+    /**
+     * The experimental Views feature was removed in 3.10.0. A {@code view} custom left behind by an earlier 3.x node is
+     * carried along untouched while older nodes are still in the cluster, because they read it from every published
+     * state. Once every node is on 3.10.0 or later nothing can read or write it, so it is dropped here.
+     */
+    @SuppressWarnings("removal")
+    static Metadata dropViewMetadata(Metadata metadata, Version minClusterNodeVersion) {
+        if (metadata.custom(ViewMetadata.TYPE) == null || minClusterNodeVersion.before(Version.V_3_10_0)) {
+            return metadata;
+        }
+        logger.info("all nodes are on [{}] or later, removing the [{}] metadata custom", Version.V_3_10_0, ViewMetadata.TYPE);
+        return Metadata.builder(metadata).removeCustom(ViewMetadata.TYPE).build();
     }
 
     protected ClusterState.Builder becomeClusterManagerAndTrimConflictingNodes(ClusterState currentState, List<Task> joiningNodes) {
@@ -381,6 +436,37 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
      */
     public static Task newFinishElectionTask() {
         return new Task(null, Task.FINISH_ELECTION_TASK_REASON);
+    }
+
+    /**
+     * Rejects a node that cannot read the scoring mode of an alias stored in the cluster, because it would drop the
+     * mode from every state it receives or publishes.
+     *
+     * @param nodeVersion the version of the joining node
+     * @param metadata the cluster metadata
+     * @throws IllegalStateException if an index alias or template sets a scoring mode and the node predates it
+     */
+    public static void ensureScoringModeCompatibility(final Version nodeVersion, Metadata metadata) {
+        if (nodeVersion.onOrAfter(AliasFilter.SCORING_MODE_VERSION)) {
+            return;
+        }
+        final Supplier<Version> version = () -> nodeVersion;
+        try {
+            for (IndexMetadata index : metadata) {
+                AliasFilter.ensureScoringModesSupported(index.getAliases(), version);
+            }
+            for (IndexTemplateMetadata template : metadata.templates().values()) {
+                AliasFilter.ensureScoringModesSupported(template.aliases(), version);
+            }
+            for (ComponentTemplate template : metadata.componentTemplates().values()) {
+                AliasFilter.ensureScoringModesSupported(template.template(), version);
+            }
+            for (ComposableIndexTemplate template : metadata.templatesV2().values()) {
+                AliasFilter.ensureScoringModesSupported(template.template(), version);
+            }
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("node version [" + nodeVersion + "] cannot join: " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -503,8 +589,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     public static void ensureRemoteRepositoryCompatibility(DiscoveryNode joiningNode, DiscoveryNodes currentNodes, Metadata metadata) {
         List<DiscoveryNode> existingNodes = new ArrayList<>(currentNodes.getNodes().values());
 
-        boolean isClusterRemoteStoreEnabled = existingNodes.stream().anyMatch(DiscoveryNode::isRemoteStoreNode);
-        if (isClusterRemoteStoreEnabled || joiningNode.isRemoteStoreNode()) {
+        // Not isRemoteStoreNode(): it also requires a cluster state repository, which segments_only has none of.
+        boolean isClusterRemoteSegmentStoreEnabled = existingNodes.stream().anyMatch(DiscoveryNode::isRemoteSegmentStoreNode);
+        if (isClusterRemoteSegmentStoreEnabled || joiningNode.isRemoteSegmentStoreNode()) {
             ensureRemoteStoreNodesCompatibility(joiningNode, currentNodes, metadata);
         } else {
             ensureRemoteClusterStateNodesCompatibility(joiningNode, currentNodes);
@@ -567,10 +654,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         if (STRICT.equals(remoteStoreCompatibilityMode)) {
             DiscoveryNode existingNode = remoteRoutingTableNode.orElseGet(() -> existingNodes.get(0));
-            if (joiningNode.isRemoteStoreNode()) {
+            if (joiningNode.isRemoteSegmentStoreNode()) {
                 ensureRemoteStoreNodesCompatibility(joiningNode, existingNode, reposToSkip);
             } else {
-                if (existingNode.isRemoteStoreNode()) {
+                if (existingNode.isRemoteSegmentStoreNode()) {
                     throw new IllegalStateException(
                         "a non remote store node [" + joiningNode + "] is trying to join a remote store cluster"
                     );
@@ -589,10 +676,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     logger.warn(reason);
                     throw new IllegalStateException(reason);
                 }
-                if (joiningNode.isRemoteStoreNode()) {
+                if (joiningNode.isRemoteSegmentStoreNode()) {
                     Optional<DiscoveryNode> remoteDN = remoteRoutingTableNode.isPresent()
                         ? remoteRoutingTableNode
-                        : existingNodes.stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
+                        : existingNodes.stream().filter(DiscoveryNode::isRemoteSegmentStoreNode).findFirst();
                     remoteDN.ifPresent(discoveryNode -> ensureRemoteStoreNodesCompatibility(joiningNode, discoveryNode, reposToSkip));
                 }
             }
@@ -604,8 +691,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         DiscoveryNode existingNode,
         List<String> reposToSkip
     ) {
-        if (joiningNode.isRemoteStoreNode()) {
-            if (existingNode.isRemoteStoreNode()) {
+        if (joiningNode.isRemoteSegmentStoreNode()) {
+            if (existingNode.isRemoteSegmentStoreNode()) {
                 RemoteStoreNodeAttribute joiningRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(joiningNode);
                 RemoteStoreNodeAttribute existingRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(existingNode);
                 if (existingRemoteStoreNodeAttribute.equalsWithRepoSkip(joiningRemoteStoreNodeAttribute, reposToSkip) == false) {

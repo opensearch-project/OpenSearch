@@ -82,6 +82,7 @@ pub fn create_writer_and_assert_success(filename: &str) -> (Arc<Schema>, i64) {
         vec![],
         vec![],
         vec![],
+        vec![],
         0,
     );
     assert!(result.is_ok());
@@ -93,6 +94,18 @@ pub fn create_sorted_writer_and_assert_success(
     sort_column: &str,
     reverse: bool,
 ) -> (Arc<Schema>, i64) {
+    // Default reduction mode mirrors OpenSearch: MAX for DESC, MIN for ASC.
+    create_sorted_writer_with_mode(filename, sort_column, reverse, reverse)
+}
+
+/// Like [`create_sorted_writer_and_assert_success`] but with an explicit
+/// multi-value reduction mode (`max_mode == true` selects MAX, else MIN).
+pub fn create_sorted_writer_with_mode(
+    filename: &str,
+    sort_column: &str,
+    reverse: bool,
+    max_mode: bool,
+) -> (Arc<Schema>, i64) {
     let (schema, schema_ptr) = create_test_ffi_schema();
     let result = NativeParquetWriter::create_writer(
         filename.to_string(),
@@ -101,6 +114,7 @@ pub fn create_sorted_writer_and_assert_success(
         vec![sort_column.to_string()],
         vec![reverse],
         vec![false],
+        vec![max_mode],
         0,
     );
     assert!(result.is_ok());

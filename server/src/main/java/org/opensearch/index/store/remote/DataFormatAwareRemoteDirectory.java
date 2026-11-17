@@ -144,6 +144,15 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
     }
 
     /**
+     * Routes a plain blob key to the container of its data format so that format-agnostic
+     * readers in the base class (e.g. multi-part parallel downloads) hit the right store.
+     */
+    @Override
+    protected BlobContainer getBlobContainerForBlob(String name) {
+        return getBlobContainerForFormat(resolveFormat(name));
+    }
+
+    /**
      * Returns the {@link FormatBlobRouter} for direct access by callers that need
      * format-aware blob operations (e.g., listing all blobs across formats).
      *
@@ -289,11 +298,7 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
             throw new NoSuchFileException(String.format(java.util.Locale.ROOT, "No container for format %s, file %s", format, name));
         }
 
-        List<BlobMetadata> metadata = container.listBlobsByPrefixInSortedOrder(name, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
-        if (metadata.size() == 1 && metadata.get(0).name().equals(name)) {
-            return metadata.get(0).length();
-        }
-        throw new NoSuchFileException(name);
+        return container.getBlobMetadata(name).length();
     }
 
     /**

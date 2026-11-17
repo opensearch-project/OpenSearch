@@ -34,6 +34,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -184,6 +185,11 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     @Override
     public WriterState state() {
         return state;
+    }
+
+    @Override
+    public Optional<Writer<?>> getWriterForFormat(String formatName) {
+        return dataFormat.name().equals(formatName) ? Optional.of(this) : Optional.empty();
     }
 
     @Override

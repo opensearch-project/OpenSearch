@@ -76,6 +76,13 @@ public class ShardScanWithDelegationHandler implements FragmentInstructionHandle
                 treeShape.ordinal(),
                 delegatedPredicateCount,
                 node.requestsRowIds(),
+                // Per-shard hasDeletions signal from AnalyticsSearchService (Lucene backend's
+                // directoryReader().hasDeletions()). When true, the native indexed executor ANDs a
+                // synthetic match-all Collector (reserved annotation id, resolved by the Lucene
+                // handle to the segment's liveDocs) into the decoded filter tree where needed;
+                // trees that already carry a correctness Collector are covered by the Lucene-side
+                // liveDocs application in collectDocs. When false, zero extra work.
+                context.hasDeletedDocs(),
                 context.hasPartialAggregate(),
                 segment.address(),
                 context.getFragmentBytes()

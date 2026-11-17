@@ -51,6 +51,24 @@ public class IndexShardTestUtils {
         );
     }
 
+    /**
+     * A node running with {@code node.attr.remote_store.mode: segments_only}: a segment repository and neither a
+     * translog nor a cluster state repository.
+     */
+    public static DiscoveryNode getFakeSegmentsOnlyNode(String id) {
+        Map<String, String> remoteNodeAttributes = new HashMap<String, String>();
+        remoteNodeAttributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_MODE_KEY, "segments_only");
+        remoteNodeAttributes.put(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, MOCK_SEGMENT_REPO_NAME);
+        return new DiscoveryNode(
+            id,
+            id,
+            IndexShardTestCase.buildNewFakeTransportAddress(),
+            remoteNodeAttributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+    }
+
     public static DiscoveryNodes getFakeDiscoveryNodes(List<ShardRouting> shardRoutings) {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         for (ShardRouting routing : shardRoutings) {

@@ -52,6 +52,7 @@ import org.apache.lucene.tests.analysis.MockLowerCaseFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -387,6 +388,18 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         fieldType = fields[1].fieldType();
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
+    }
+
+    public void testDefaultNormalizerSkipsTokenStream() throws IOException {
+        for (String value : new String[] { "", "AbC", " leading and trailing ", "multi\nline", randomUnicodeOfLength(between(1, 512)) }) {
+            assertSame(value, normalizeValue(Lucene.KEYWORD_ANALYZER, FIELD_NAME, value));
+        }
+
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword")));
+        IndexableField[] fields = mapper.parse(source(b -> b.field("field", "AbC"))).rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        assertEquals(new BytesRef("AbC"), fields[0].binaryValue());
+        assertEquals(new BytesRef("AbC"), fields[1].binaryValue());
     }
 
     public void testParsesKeywordNestedEmptyObjectStrict() throws IOException {

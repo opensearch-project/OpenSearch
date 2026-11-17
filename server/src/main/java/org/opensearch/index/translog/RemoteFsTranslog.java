@@ -279,20 +279,62 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
                 Files.createDirectories(location);
             }
 
-            // Delete translog files on local before downloading from remote
-            for (Path file : FileSystemUtils.files(location)) {
-                Files.delete(file);
+            Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
+            Map<String, String> generationToChecksumMapper = translogMetadata.getGenerationToChecksumMapper() != null
+                ? translogMetadata.getGenerationToChecksumMapper()
+                : Map.of();
+            long maxGeneration = translogMetadata.getGeneration();
+            long minGeneration = translogMetadata.getMinTranslogGeneration();
+            if (minGeneration > maxGeneration) {
+                // The reconciliation loop below would silently do nothing and the translog.ckp copy at the end would
+                // fail with an opaque NoSuchFileException after the download retries; name the actual problem.
+                throw new IllegalStateException(
+                    "remote translog metadata has min generation ["
+                        + minGeneration
+                        + "] greater than max generation ["
+                        + maxGeneration
+                        + "]"
+                );
             }
 
-            Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
-            for (long i = translogMetadata.getGeneration(); i >= translogMetadata.getMinTranslogGeneration(); i--) {
+            // Only generations inside the remote range can be reused; everything else is removed, as the unconditional
+            // wipe this replaces did for every file. That includes the top-level translog.ckp, which is recreated from
+            // the latest generation's checkpoint once every generation is in place; a download that fails before then
+            // leaves the directory without one, and with it the engine open fails, exactly as before.
+            for (Path file : FileSystemUtils.files(location)) {
+                String fileName = file.getFileName().toString();
+                try {
+                    long generation = parseIdFromFileName(fileName, STRICT_TLOG_OR_CKP_PATTERN);
+                    if (generation < minGeneration || generation > maxGeneration) {
+                        Files.delete(file);
+                    }
+                } catch (IllegalStateException | IllegalArgumentException e) {
+                    logger.debug("deleting non-generation file [{}] from translog directory before download", fileName);
+                    Files.delete(file);
+                }
+            }
+
+            int skipped = 0;
+            for (long i = maxGeneration; i >= minGeneration; i--) {
                 String generation = Long.toString(i);
-                translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location);
+                // The manager decides whether the local copy can be reused (footer checksum equals the advertised one)
+                // and registers a reused copy with its transfer tracker itself; there is no way to mark a generation
+                // as present without that check.
+                boolean downloaded = translogTransferManager.downloadTranslogIfChanged(
+                    generationToPrimaryTermMapper.get(generation),
+                    generation,
+                    location,
+                    generationToChecksumMapper.get(generation)
+                );
+                if (downloaded == false) {
+                    skipped++;
+                }
             }
             logger.info(
-                "Downloaded translog and checkpoint files from={} to={}",
+                "Downloaded translog and checkpoint files from={} to={}, generations already present locally={}",
                 translogMetadata.getMinTranslogGeneration(),
-                translogMetadata.getGeneration()
+                translogMetadata.getGeneration(),
+                skipped
             );
 
             statsTracker.recordDownloadStats(prevDownloadBytesSucceeded, prevDownloadTimeInMillis);

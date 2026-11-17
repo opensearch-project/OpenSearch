@@ -68,6 +68,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
@@ -492,20 +493,41 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             @Override
             protected void doRun() throws Exception {
                 long startTime = System.nanoTime();
-                while (context.hasMoreOperationsToExecute()) {
-                    if (executeBulkItemRequest(
-                        context,
-                        updateHelper,
-                        nowInMillisSupplier,
-                        mappingUpdater,
-                        waitForMappingUpdate,
-                        ActionListener.wrap(v -> executor.execute(this), this::onRejection)
-                    ) == false) {
-                        // We are waiting for a mapping update on another thread, that will invoke this action again once its done
-                        // so we just break out here.
-                        return;
+                // Batch successful primary index operations for eligible remote-backed segment-replication engines. A
+                // realtime GET or the size cap may flush a chunk from another thread while this scope remains open;
+                // updates/deletes flush the current chunk for ordering, and finally always appends and closes it.
+                Engine.TranslogBatch beginResult = primary.beginTranslogBatch();
+                final Engine.TranslogBatch translogBatch = beginResult != null ? beginResult : Engine.NO_OP_TRANSLOG_BATCH;
+                context.setTranslogBatch(translogBatch);
+                Exception bodyFailure = null;
+                try {
+                    while (context.hasMoreOperationsToExecute()) {
+                        final DocWriteRequest<?> current = context.getCurrent();
+                        if (current != null
+                            && (current.opType() == DocWriteRequest.OpType.UPDATE || current.opType() == DocWriteRequest.OpType.DELETE)) {
+                            context.mergeLocationToSync(translogBatch.flush());
+                        }
+                        if (executeBulkItemRequest(
+                            context,
+                            updateHelper,
+                            nowInMillisSupplier,
+                            mappingUpdater,
+                            waitForMappingUpdate,
+                            ActionListener.wrap(v -> executor.execute(this), this::onRejection)
+                        ) == false) {
+                            // We are waiting for a mapping update on another thread, that will invoke this action again
+                            // once its done so we just break out here. executeBulkItemRequest finished the batch before
+                            // requesting the mapping update, so the scope is closed and its location merged before any
+                            // continuation can run; the finally below is then a no-op.
+                            return;
+                        }
+                        assert context.isInitial(); // either completed and moved to next or reset
                     }
-                    assert context.isInitial(); // either completed and moved to next or reset
+                } catch (Exception e) {
+                    bodyFailure = e;
+                    throw e;
+                } finally {
+                    finishTranslogBatch(bodyFailure);
                 }
                 // We're done, there's no more operations to execute so we resolve the wrapped listener
                 long serviceTimeNanos = System.nanoTime() - startTime;
@@ -513,6 +535,39 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     finishRequest(serviceTimeNanos, ((OpenSearchThreadPoolExecutor) executor).getQueue().size());
                 } else {
                     finishRequest(serviceTimeNanos, 0);
+                }
+            }
+
+            /**
+             * Appends the final chunk and detaches the scope, folding the greatest appended location into the
+             * request's sync location. A no-op once the batch has been finished, which {@link #executeBulkItemRequest}
+             * does before requesting a mapping update so the scope never outlives this thread's execution.
+             * <p>
+             * Failure handling mirrors the per-operation path, where a {@code Translog#add} failure propagates out of
+             * {@link #executeBulkItemRequest} and fails the whole shard-bulk request: the translog has recorded its own
+             * tragic event and the sync that would acknowledge any item never runs. If the body already threw, that
+             * exception stays the one the client sees (per-operation, the first failing append is what propagates) and
+             * the finish failure is attached as suppressed; otherwise the finish failure propagates.
+             * <p>
+             * On the common failure path both are the <em>same</em> instance: a failed {@code TranslogBatchScope} stores
+             * the append exception and rethrows it from every later call, so the body's exception (thrown out of
+             * {@code batch.add} or an ordering {@code flush()}) is exactly what {@code finish()} throws again. Attaching
+             * an exception to itself is rejected by the JDK ({@code IllegalArgumentException: Self-suppression not
+             * permitted}), which would replace an {@code AlreadyClosedException} with an exception
+             * {@code TransportActions#isShardNotAvailableException} does not recognise and defeat the coordinator's
+             * retry on the re-promoted primary. The same instance is therefore never attached to itself.
+             */
+            private void finishTranslogBatch(@Nullable Exception bodyFailure) {
+                try {
+                    context.finishTranslogBatch();
+                } catch (RuntimeException finishFailure) {
+                    if (bodyFailure != null) {
+                        if (finishFailure != bodyFailure) {
+                            bodyFailure.addSuppressed(finishFailure);
+                        }
+                        return;
+                    }
+                    throw finishFailure;
                 }
             }
 
@@ -704,6 +759,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);
                 return true;
             }
+
+            // Close this thread's translog batch before the mapping update is requested. Its completion re-executes
+            // the caller on another thread (possibly before this one returns), so the scope must be finished, and any
+            // append failure thrown, here on the owning thread rather than in the caller's finally block.
+            context.finishTranslogBatch();
 
             mappingUpdater.updateMappings(result.getRequiredMappingUpdate(), primary.shardId(), new ActionListener<Void>() {
                 @Override

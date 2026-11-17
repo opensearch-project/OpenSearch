@@ -41,6 +41,7 @@ import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
@@ -399,9 +400,24 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      * Assigns capabilities by delegating to primary format first, then secondaries in order.
      * Each sub-format plugin claims the capabilities it supports; unclaimed capabilities are
      * passed to the next format.
+     *
+     * <p>Overrides the scope-aware variant because {@link DataFormatRegistry} dispatches through
+     * it; the parameterless-scope overload inherits the interface default, which delegates here
+     * with {@link FieldScope#ROOT}. Fields inside a nested scope are rejected until the composite
+     * formats implement nested storage.
      */
     @Override
-    public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+    public void assignCapabilities(
+        MappedFieldType fieldType,
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry,
+        FieldScope fieldScope
+    ) {
+        if (fieldScope == FieldScope.NESTED) {
+            throw new MapperParsingException(
+                "Field [" + fieldType.name() + "] is inside a nested object, which is not supported by the [composite] data format"
+            );
+        }
         Set<FieldTypeCapabilities.Capability> requested = fieldType.requestedCapabilities();
         if (requested.isEmpty()) {
             fieldType.setCapabilityMap(Map.of());

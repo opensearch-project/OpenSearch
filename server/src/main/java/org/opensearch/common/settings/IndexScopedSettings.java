@@ -150,6 +150,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
                 IndexSettings.INDEX_TRANSLOG_READ_FORWARD_SETTING,
                 IndexSettings.INDEX_WARMER_ENABLED_SETTING,
+                IndexSettings.INDEX_TRANSLOG_BATCH_APPEND_ENABLED_SETTING,
+                IndexSettings.INDEX_TRANSLOG_BATCH_APPEND_MAX_OPERATIONS_SETTING,
+                IndexSettings.INDEX_TRANSLOG_BATCH_APPEND_MAX_SIZE_SETTING,
                 IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
                 IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING,
                 IndexSettings.MAX_RESULT_WINDOW_SETTING,
@@ -300,6 +303,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INGESTION_SOURCE_DECODER_SETTINGS,
                 IndexMetadata.INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING,
                 IndexMetadata.INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING,
+                IndexMetadata.INGESTION_SOURCE_WRITE_ENABLED_SETTING,
+                IndexMetadata.INGESTION_SOURCE_WRITE_PARAMS_SETTING,
 
                 // Settings for search replica
                 IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING,

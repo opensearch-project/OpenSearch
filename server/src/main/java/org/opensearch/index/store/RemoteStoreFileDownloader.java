@@ -10,7 +10,9 @@ package org.opensearch.index.store;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.Nullable;
@@ -27,6 +29,7 @@ import java.util.Collection;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 
 /**
  * Helper class to downloads files from a {@link RemoteSegmentStoreDirectory}
@@ -124,10 +127,42 @@ public final class RemoteStoreFileDownloader {
             Math.min(threadPool.info(ThreadPool.Names.REMOTE_RECOVERY).getMax(), recoverySettings.getMaxConcurrentRemoteStoreStreams())
         );
         logger.trace("Starting download of {} files with {} threads", queue.size(), threads);
+        final Directory parallelSource = wrapForParallelPartDownload(source);
         final ActionListener<Void> allFilesListener = new GroupedActionListener<>(ActionListener.map(listener, r -> null), threads);
         for (int i = 0; i < threads; i++) {
-            copyOneFile(cancellableThreads, source, destination, secondDestination, queue, onFileCompletion, allFilesListener);
+            copyOneFile(cancellableThreads, parallelSource, destination, secondDestination, queue, onFileCompletion, allFilesListener);
         }
+    }
+
+    /**
+     * Wraps a {@link RemoteSegmentStoreDirectory} source so that files larger than one part are opened as
+     * {@link ParallelPartInputStream}s: the bytes are fetched as multiple concurrent byte-range requests but are
+     * still presented sequentially, so the regular {@link Directory#copyFrom} path (and every stats, checksum and
+     * encryption wrapper layered on it) is left untouched. Small files, non remote-store sources and a disabled
+     * budget fall through to the plain single-stream {@link Directory#openInput}.
+     */
+    private Directory wrapForParallelPartDownload(Directory source) {
+        if (source instanceof RemoteSegmentStoreDirectory == false) {
+            return source;
+        }
+        final ParallelDownloadPermits permits = recoverySettings.getRemoteStoreParallelDownloadPermits();
+        if (permits.getMaxPermits() <= 0) {
+            return source;
+        }
+        final RemoteSegmentStoreDirectory remoteSource = (RemoteSegmentStoreDirectory) source;
+        final long partSize = recoverySettings.getRemoteStoreParallelDownloadPartSize().getBytes();
+        final Executor executor = threadPool.executor(ThreadPool.Names.REMOTE_RECOVERY);
+        return new FilterDirectory(source) {
+            @Override
+            public IndexInput openInput(String name, IOContext context) throws IOException {
+                final long fileLength = in.fileLength(name);
+                if (fileLength <= partSize) {
+                    return in.openInput(name, context);
+                }
+                logger.trace("Downloading file {} of size {} in parts of {} bytes", name, fileLength, partSize);
+                return remoteSource.openParallelInput(name, fileLength, context, partSize, executor, permits);
+            }
+        };
     }
 
     private void copyOneFile(

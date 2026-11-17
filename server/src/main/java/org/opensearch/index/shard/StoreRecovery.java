@@ -669,18 +669,26 @@ final class StoreRecovery {
         try {
             // Download segments from remote segment store
             indexShard.syncSegmentsFromRemoteSegmentStore(true);
-            indexShard.syncTranslogFilesFromRemoteTranslog();
 
-            // On index creation, the only segment file that is created is segments_N. We can safely discard this file
-            // as there is no data associated with this shard as part of segments.
-            if (store.directory().listAll().length <= 1) {
-                Path location = indexShard.shardPath().resolveTranslog();
-                Checkpoint checkpoint = Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
-                final Path translogFile = location.resolve(Translog.getFilename(checkpoint.getGeneration()));
-                try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
-                    TranslogHeader translogHeader = TranslogHeader.read(translogFile, channel);
-                    store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion, translogHeader.getTranslogUUID());
+            if (indexShard.indexSettings().isTranslogDurableInRemoteStore()) {
+                indexShard.syncTranslogFilesFromRemoteTranslog();
+
+                // On index creation, the only segment file that is created is segments_N. We can safely discard this file
+                // as there is no data associated with this shard as part of segments.
+                if (store.directory().listAll().length <= 1) {
+                    Path location = indexShard.shardPath().resolveTranslog();
+                    Checkpoint checkpoint = Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
+                    final Path translogFile = location.resolve(Translog.getFilename(checkpoint.getGeneration()));
+                    try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
+                        TranslogHeader translogHeader = TranslogHeader.read(translogFile, channel);
+                        store.createEmpty(
+                            indexShard.indexSettings().getIndexVersionCreated().luceneVersion,
+                            translogHeader.getTranslogUUID()
+                        );
+                    }
                 }
+            } else {
+                recoverSegmentsOnlyShardFromRemoteStore(indexShard, store);
             }
 
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
@@ -962,6 +970,26 @@ final class StoreRecovery {
         } catch (Exception e) {
             restoreListener.onFailure(e);
         }
+    }
+
+    /**
+     * Finishes a remote store recovery for a shard whose translog is local. Only segments were uploaded, so the shard
+     * comes up at the last uploaded segment with an empty translog, where a shallow snapshot restore also leaves it.
+     */
+    private void recoverSegmentsOnlyShardFromRemoteStore(final IndexShard indexShard, final Store store) throws IOException {
+        logger.warn(
+            "{} recovering from the remote store without a remote translog, so the shard is restored to its last"
+                + " uploaded segment and any operation acknowledged after that is not recoverable",
+            indexShard.shardId()
+        );
+        // A shard that never refreshed uploaded nothing, so the download left only the segments_N written here.
+        if (store.directory().listAll().length <= 1) {
+            store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
+            bootstrap(indexShard, store);
+        } else {
+            bootstrapForSnapshot(indexShard, store);
+        }
+        writeEmptyRetentionLeasesFile(indexShard);
     }
 
     private void bootstrapForSnapshot(final IndexShard indexShard, final Store store) throws IOException {

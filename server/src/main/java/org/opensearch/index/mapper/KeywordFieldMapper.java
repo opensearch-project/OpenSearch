@@ -1033,6 +1033,10 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     }
 
     static String normalizeValue(NamedAnalyzer normalizer, String field, String value) throws IOException {
+        if (normalizer == Lucene.KEYWORD_ANALYZER) {
+            // the default normalizer is a single KeywordTokenizer with no filters, so it always returns the input unchanged
+            return value;
+        }
         try (TokenStream ts = normalizer.tokenStream(field, value)) {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();

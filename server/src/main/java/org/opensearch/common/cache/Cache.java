@@ -32,6 +32,9 @@
 
 package org.opensearch.common.cache;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.concurrent.ReleasableLock;
@@ -87,6 +90,8 @@ import java.util.function.ToLongBiFunction;
  */
 @PublicApi(since = "1.0.0")
 public class Cache<K, V> {
+
+    private static final Logger logger = LogManager.getLogger(Cache.class);
 
     // positive if entries have an expiration
     private long expireAfterAccessNanos = -1;
@@ -557,35 +562,81 @@ public class Cache<K, V> {
         }
     }
 
-    private final Consumer<CompletableFuture<Entry<K, V>>> invalidationConsumer = f -> {
-        try {
-            Entry<K, V> entry = f.get();
-            try (ReleasableLock ignored = lruLock.acquire()) {
-                delete(entry, RemovalReason.INVALIDATED);
-            }
-        } catch (ExecutionException e) {
-            // ok
-        } catch (InterruptedException e) {
-            throw new IllegalStateException(e);
-        }
-    };
+    private final Consumer<CompletableFuture<Entry<K, V>>> invalidationConsumer = f -> deleteWhenLoaded(f, RemovalReason.INVALIDATED);
 
-    private final Consumer<CompletableFuture<Entry<K, V>>> removalConsumer = f -> {
+    private final Consumer<CompletableFuture<Entry<K, V>>> removalConsumer = f -> deleteWhenLoaded(f, RemovalReason.EXPLICIT);
+
+    /**
+     * Delete an entry whose key has already been removed from its segment map, once its value is available.
+     * <p>
+     * A value that is still being loaded has to be waited for, because the entry that has to be unlinked from the
+     * LRU list and reported to the removal listener does not exist until the load completes. That wait must not
+     * happen on the calling thread: keyed removal is called from paths that cannot afford to block for the length
+     * of a load, such as a reader close listener or a cache cleaner sweep, and a load can take arbitrarily long.
+     * So the deletion is handed to whichever thread completes the load instead.
+     * <p>
+     * Either order is safe. If the deletion runs first the entry is still {@code NEW}, so {@link #detach} claims it
+     * by marking it {@code DELETED} and the pending {@code promote()} becomes a no-op; if the promotion runs first
+     * the entry is {@code EXISTING} and gets unlinked in the usual way.
+     *
+     * @param future the future for the entry whose key was removed from the segment map
+     * @param removalReason the reason to report to the removal listener
+     */
+    private void deleteWhenLoaded(CompletableFuture<Entry<K, V>> future, RemovalReason removalReason) {
+        if (future.isDone() == false) {
+            future.whenComplete((entry, throwable) -> {
+                if (entry == null) {
+                    // the load failed, so there is no value to delete
+                    return;
+                }
+                try {
+                    deleteAndNotify(entry, removalReason);
+                } catch (RuntimeException e) {
+                    // whenComplete() discards whatever this callback throws, so a failed removal notification has to
+                    // be reported here or it is lost. The deletion itself is already done at this point.
+                    logger.warn(() -> new ParameterizedMessage("failed to notify the removal of key [{}]", entry.key), e);
+                }
+            });
+            return;
+        }
+        // the value is already loaded, which is every case except a removal that races a load: delete on the calling
+        // thread, so that the removal notification is issued before the caller returns as it always has been
         try {
-            Entry<K, V> entry = f.get();
-            try (ReleasableLock ignored = lruLock.acquire()) {
-                delete(entry, RemovalReason.EXPLICIT);
-            }
+            deleteAndNotify(future.get(), removalReason);
         } catch (ExecutionException e) {
-            // ok
+            // the load failed, so there is no value to delete
         } catch (InterruptedException e) {
             throw new IllegalStateException(e);
         }
-    };
+    }
+
+    /**
+     * Delete an entry and notify the removal listener after the LRU lock is released, as the eviction path in
+     * {@link #promote} does.
+     * <p>
+     * The removal listener is caller-supplied code of unknown cost, and the LRU lock is a single lock that every
+     * mutation of the cache has to take. To hold that lock across the listener blocks every other thread that
+     * mutates the cache, including the threads that load values.
+     *
+     * @param entry the entry to delete
+     * @param removalReason the reason to report to the removal listener
+     */
+    private void deleteAndNotify(Entry<K, V> entry, RemovalReason removalReason) {
+        final RemovalNotification<K, V> removalNotification;
+        try (ReleasableLock ignored = lruLock.acquire()) {
+            removalNotification = detach(entry, removalReason);
+        }
+        if (removalNotification != null) {
+            removalListener.onRemoval(removalNotification);
+        }
+    }
 
     /**
      * Invalidate the association for the specified key. A removal notification will be issued for invalidated
      * entries with {@link RemovalReason} INVALIDATED.
+     * <p>
+     * If a load for the key is still in flight, this method does not wait for it: the key is removed before
+     * returning, but the removal notification is issued once the load completes.
      *
      * @param key the key whose mapping is to be invalidated from the cache
      */
@@ -597,6 +648,9 @@ public class Cache<K, V> {
     /**
      * Removes the association for the specified key. A removal notification will be issued for removed
      * entry with {@link RemovalReason} EXPLICIT.
+     * <p>
+     * If a load for the key is still in flight, this method does not wait for it: the key is removed before
+     * returning, but the removal notification is issued once the load completes.
      *
      * @param key the key whose mapping is to be removed from the cache
      */
@@ -956,6 +1010,22 @@ public class Cache<K, V> {
     private void delete(Entry<K, V> entry, RemovalReason removalReason) {
         assert lruLock.isHeldByCurrentThread();
 
+        RemovalNotification<K, V> removalNotification = detach(entry, removalReason);
+        if (removalNotification != null) {
+            removalListener.onRemoval(removalNotification);
+        }
+    }
+
+    /**
+     * Take an entry out of the LRU list, or claim it if it is not linked into that list yet.
+     *
+     * @param entry the entry to detach
+     * @param removalReason the reason to report to the removal listener
+     * @return the notification to issue for the entry, or null if another thread already removed it
+     */
+    private RemovalNotification<K, V> detach(Entry<K, V> entry, RemovalReason removalReason) {
+        assert lruLock.isHeldByCurrentThread();
+
         final boolean removed;
         if (entry.state == State.NEW) {
             // The entry was removed from the segment map before the thread that loaded it acquired the LRU lock to
@@ -969,9 +1039,7 @@ public class Cache<K, V> {
         } else {
             removed = unlink(entry);
         }
-        if (removed) {
-            removalListener.onRemoval(new RemovalNotification<>(entry.key, entry.value, removalReason));
-        }
+        return removed ? new RemovalNotification<>(entry.key, entry.value, removalReason) : null;
     }
 
     private boolean shouldPrune(Entry<K, V> entry, long now) {

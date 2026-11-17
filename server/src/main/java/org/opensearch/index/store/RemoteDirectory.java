@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -282,6 +283,48 @@ public class RemoteDirectory extends Directory {
     }
 
     /**
+     * Opens a stream that reads the existing file as multiple byte-range parts in parallel while presenting the
+     * bytes sequentially, and returns a {@link RemoteIndexInput} enclosing it. Parts ahead of the reader are
+     * prefetched on {@code executor} subject to the node-wide {@code permits} budget; see
+     * {@link ParallelPartInputStream} for the exact semantics.
+     *
+     * @param name       the name of an existing file
+     * @param fileLength file length
+     * @param context    desired {@link IOContext} context
+     * @param partSize   size of each byte-range part
+     * @param executor   executor on which prefetch tasks run
+     * @param permits    node-wide budget bounding the number of prefetched parts in flight
+     * @return the {@link RemoteIndexInput} enclosing the multi-part stream
+     */
+    public IndexInput openParallelInput(
+        String name,
+        long fileLength,
+        IOContext context,
+        long partSize,
+        Executor executor,
+        ParallelDownloadPermits permits
+    ) {
+        final InputStream inputStream = new ParallelPartInputStream(
+            getBlobContainerForBlob(name),
+            name,
+            fileLength,
+            partSize,
+            executor,
+            permits,
+            downloadRateLimiterProvider.get(name)
+        );
+        return new RemoteIndexInput(name, inputStream, fileLength);
+    }
+
+    /**
+     * Resolves the {@link BlobContainer} that holds the given blob. Subclasses that spread blobs across several
+     * containers override this.
+     */
+    protected BlobContainer getBlobContainerForBlob(String name) {
+        return blobContainer;
+    }
+
+    /**
      * Closes the remote directory. Currently, it is a no-op.
      * If remote directory maintains a state in future, we need to clean it before closing the directory
      */
@@ -299,12 +342,7 @@ public class RemoteDirectory extends Directory {
      */
     @Override
     public long fileLength(String name) throws IOException {
-        // ToDo: Instead of calling remote store each time, keep a cache with segment metadata
-        List<BlobMetadata> metadata = blobContainer.listBlobsByPrefixInSortedOrder(name, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
-        if (metadata.size() == 1 && metadata.get(0).name().equals(name)) {
-            return metadata.get(0).length();
-        }
-        throw new NoSuchFileException(name);
+        return blobContainer.getBlobMetadata(name).length();
     }
 
     /**

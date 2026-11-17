@@ -1,7 +1,7 @@
 {
   "put_script":{
     "documentation":{
-      "url":"https://opensearch.org/docs/latest/api-reference/nodes-apis/nodes-usage/",
+      "url":"https://docs.opensearch.org/latest/api-reference/script-apis/create-stored-script/",
       "description":"Creates or updates a script."
     },
     "stability":"stable",

@@ -33,6 +33,7 @@
 package org.opensearch.common.xcontent.yaml;
 
 import org.opensearch.common.xcontent.XContentConstraints;
+import org.opensearch.common.xcontent.XContentRecyclerPools;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.XObjectReadContext;
 import org.opensearch.common.xcontent.XObjectWriteContext;
@@ -108,6 +109,7 @@ public class YamlXContent implements XContent, XContentConstraints {
                 .build()
         );
         builder.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER, true);
+        builder.recyclerPool(XContentRecyclerPools.recyclerPool());
 
         yamlFactory = new YAMLFactory(builder) {
             @Override
@@ -119,7 +121,8 @@ public class YamlXContent implements XContent, XContentConstraints {
                     readCtxt.getStreamReadFeatures(_streamReadFeatures),
                     readCtxt.getFormatReadFeatures(_formatReadFeatures),
                     _loadSettings,
-                    r
+                    r,
+                    false
                 ) {
                     @Override
                     protected Boolean _matchYAMLBoolean(String value, int len) {
@@ -140,7 +143,11 @@ public class YamlXContent implements XContent, XContentConstraints {
 
             @Override
             protected YAMLParser _createParser(ObjectReadContext readCtxt, IOContext ioCtxt, InputStream is) {
-                return _createParser(readCtxt, ioCtxt, _createReader(is, null, ioCtxt));
+                return _createParser(
+                    readCtxt,
+                    ioCtxt,
+                    _createReader(is, null, ioCtxt, readCtxt.getStreamReadFeatures(_streamReadFeatures))
+                );
             }
         };
         yamlXContent = new YamlXContent();

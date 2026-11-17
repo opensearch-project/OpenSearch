@@ -32,6 +32,7 @@ apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.standalone-rest-test'
 apply plugin: 'opensearch.rest-test'
 apply plugin: 'opensearch.rest-resources'
+apply from: "$rootDir/gradle/sandbox-testclusters.gradle"
 
 dependencies {
   testImplementation project(':modules:ingest-common')
@@ -39,4 +40,5 @@ dependencies {
 
 testClusters.integTest {
   setting 'node.roles', '[data,cluster_manager,remote_cluster_client]'
+  installSandboxStack(delegate)
 }

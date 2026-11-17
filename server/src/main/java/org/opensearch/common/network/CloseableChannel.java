@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.function.BiConsumer;
 
 /**
  * Channel that can be closed
@@ -69,6 +70,31 @@ public interface CloseableChannel extends Closeable {
      * @param listener to be executed
      */
     void addCloseListener(ActionListener<Void> listener);
+
+    /**
+     * Adds a close listener that can be removed again with {@link #removeCloseListener(BiConsumer)}. The listener
+     * follows the same contract as {@link #addCloseListener(ActionListener)}: it is notified when the channel is
+     * closed, or straight away if the channel is closed already.
+     *
+     * The default implementation registers the listener through {@link #addCloseListener(ActionListener)}, so the
+     * listener is notified as usual on a channel that does not support removal.
+     *
+     * @param listener to be executed
+     */
+    default void addCloseListener(BiConsumer<Void, ? super Exception> listener) {
+        addCloseListener(ActionListener.wrap(v -> listener.accept(v, null), e -> listener.accept(null, e)));
+    }
+
+    /**
+     * Removes a listener added with {@link #addCloseListener(BiConsumer)} that has not been notified yet, so that it
+     * is no longer retained by the channel. Callers that add a listener per request should remove it once the request
+     * is done, because a channel can outlive a very large number of requests.
+     *
+     * The default implementation does nothing, which leaves the listener registered until the channel is closed.
+     *
+     * @param listener to remove
+     */
+    default void removeCloseListener(BiConsumer<Void, ? super Exception> listener) {}
 
     /**
      * Indicates whether a channel is currently open

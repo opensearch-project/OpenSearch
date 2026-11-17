@@ -57,6 +57,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
@@ -112,6 +113,28 @@ public class IndexMetadataTests extends OpenSearchTestCase {
             .version(version)
             .system(isSystem)
             .build();
+    }
+
+    public void testIsAppendOnlyIndexSettingPrecedence() {
+        // Composite (pluggable-dataformat) with no explicit setting -> append-only by default.
+        assertTrue(buildIsAppendOnly(true, null));
+        // Composite with an explicit false -> NOT append-only (opts in to updates/deletes).
+        assertFalse(buildIsAppendOnly(true, false));
+        // Non-composite with an explicit true -> append-only.
+        assertTrue(buildIsAppendOnly(false, true));
+        // Neither set -> default (not append-only).
+        assertFalse(buildIsAppendOnly(false, null));
+    }
+
+    private static boolean buildIsAppendOnly(boolean pluggableDataformat, Boolean explicitAppendOnly) {
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), pluggableDataformat);
+        if (explicitAppendOnly != null) {
+            settings.put(IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey(), explicitAppendOnly);
+        }
+        return IndexMetadata.builder("idx").settings(settings.build()).numberOfShards(1).numberOfReplicas(0).build().isAppendOnlyIndex();
     }
 
     public void testIndexMetadataSerialization() throws IOException {
@@ -754,6 +777,54 @@ public class IndexMetadataTests extends OpenSearchTestCase {
 
         isAllActiveIngestionEnabled = IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings6);
         assertFalse(isAllActiveIngestionEnabled);
+    }
+
+    public void testIngestionSourceWriteSettings() {
+        Settings.Builder base = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.INGESTION_SOURCE_TYPE_SETTING.getKey(), "kafka")
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+            .put("index.ingestion_source.param.topic", "orders");
+
+        // read-only by default
+        IngestionSource readOnly = IndexMetadata.builder("idx")
+            .settings(Settings.builder().put(base.build()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build()
+            .getIngestionSource();
+        assertFalse(readOnly.isWriteEnabled());
+        assertEquals(Map.of(), readOnly.getWriteParams());
+
+        // write settings are read, and producer-only params stay apart from the shared ones
+        IngestionSource writeEnabled = IndexMetadata.builder("idx")
+            .settings(
+                Settings.builder()
+                    .put(base.build())
+                    .put(IndexMetadata.INGESTION_SOURCE_WRITE_ENABLED_SETTING.getKey(), true)
+                    .put("index.ingestion_source.write.param.linger.ms", "5")
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build()
+            .getIngestionSource();
+        assertTrue(writeEnabled.isWriteEnabled());
+        assertEquals(Map.of("linger.ms", "5"), writeEnabled.getWriteParams());
+        assertEquals(Map.of("topic", "orders"), writeEnabled.params());
+
+        // both are dynamic, so they can change on a live index
+        assertTrue(IndexMetadata.INGESTION_SOURCE_WRITE_ENABLED_SETTING.isDynamic());
+        assertTrue(
+            IndexMetadata.INGESTION_SOURCE_WRITE_PARAMS_SETTING.getConcreteSetting("index.ingestion_source.write.param.x").isDynamic()
+        );
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INGESTION_SOURCE_WRITE_ENABLED_SETTING.get(
+                Settings.builder().put(IndexMetadata.INGESTION_SOURCE_WRITE_ENABLED_SETTING.getKey(), "maybe").build()
+            )
+        );
+        assertTrue(e.getMessage().contains("only [true] or [false] are allowed"));
     }
 
     public void testPrimaryTermsMapXContentRoundTrip() throws IOException {

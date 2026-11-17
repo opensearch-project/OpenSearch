@@ -115,7 +115,7 @@
       },
       "snapshots":{
         "type":"number",
-        "description":"Number of samples of thread stacktrace (default: 10)"
+        "description":"Number of samples of thread stacktrace (default: 10). Must be between 1 and the value of the cluster setting `monitor.jvm.hot_threads.max_snapshots` (default: 500)"
       },
       "threads":{
         "type":"number",

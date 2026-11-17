@@ -442,6 +442,91 @@ public class ShardPaginationStrategyTests extends OpenSearchTestCase {
         }
     }
 
+    public void testRetrieveShardsFromPartialRoutingTable() {
+        ClusterState clusterState = getPartialRoutingClusterState();
+        ShardPaginationStrategy strategy = new ShardPaginationStrategy(new PageParams(null, PARAM_ASC_SORT_VALUE, 10), clusterState);
+
+        List<Integer> shardIds = strategy.getRequestedEntities().stream().map(ShardRouting::id).collect(Collectors.toList());
+        assertEquals(List.of(1, 2), shardIds);
+        assertEquals(List.of(TEST_INDEX_PREFIX + 1), strategy.getRequestedIndices());
+        assertNull(strategy.getResponseToken().getNextToken());
+    }
+
+    public void testPaginateAcrossGapsInPartialRoutingTable() {
+        ClusterState clusterState = getPartialRoutingClusterState();
+
+        ShardPaginationStrategy firstPage = new ShardPaginationStrategy(new PageParams(null, PARAM_ASC_SORT_VALUE, 1), clusterState);
+        assertEquals(List.of(1), firstPage.getRequestedEntities().stream().map(ShardRouting::id).collect(Collectors.toList()));
+        String nextToken = firstPage.getResponseToken().getNextToken();
+        assertNotNull(nextToken);
+
+        ShardPaginationStrategy secondPage = new ShardPaginationStrategy(new PageParams(nextToken, PARAM_ASC_SORT_VALUE, 1), clusterState);
+        assertEquals(List.of(2), secondPage.getRequestedEntities().stream().map(ShardRouting::id).collect(Collectors.toList()));
+        assertNull(secondPage.getResponseToken().getNextToken());
+    }
+
+    public void testFilterShardIdsInPartialRoutingTable() {
+        ClusterState clusterState = getPartialRoutingClusterState();
+
+        // Shard 0 is requested but has no routing here, so only shard 2 comes back.
+        ShardPaginationStrategy filtered = new ShardPaginationStrategy(
+            new PageParams(null, PARAM_ASC_SORT_VALUE, 10),
+            clusterState,
+            new int[] { 0, 2 }
+        );
+        assertEquals(List.of(2), filtered.getRequestedEntities().stream().map(ShardRouting::id).collect(Collectors.toList()));
+        assertNull(filtered.getResponseToken().getNextToken());
+
+        int[] requestedShards = new int[] { 1, 2 };
+        ShardPaginationStrategy firstPage = new ShardPaginationStrategy(
+            new PageParams(null, PARAM_ASC_SORT_VALUE, 1),
+            clusterState,
+            requestedShards
+        );
+        assertEquals(List.of(1), firstPage.getRequestedEntities().stream().map(ShardRouting::id).collect(Collectors.toList()));
+        String nextToken = firstPage.getResponseToken().getNextToken();
+        assertNotNull(nextToken);
+
+        ShardPaginationStrategy secondPage = new ShardPaginationStrategy(
+            new PageParams(nextToken, PARAM_ASC_SORT_VALUE, 1),
+            clusterState,
+            requestedShards
+        );
+        assertEquals(List.of(2), secondPage.getRequestedEntities().stream().map(ShardRouting::id).collect(Collectors.toList()));
+        assertNull(secondPage.getResponseToken().getNextToken());
+    }
+
+    /**
+     * A state whose metadata names two indices but whose routing table holds only shards 1 and 2 of the first one and
+     * nothing for the second, as a node that only knows some of the shards would have.
+     */
+    private ClusterState getPartialRoutingClusterState() {
+        long now = Instant.now().toEpochMilli();
+        IndexMetadata routed = IndexMetadata.builder(TEST_INDEX_PREFIX + 1)
+            .settings(settings(Version.CURRENT).put(SETTING_CREATION_DATE, now))
+            .numberOfShards(3)
+            .numberOfReplicas(0)
+            .build();
+        IndexMetadata unrouted = IndexMetadata.builder(TEST_INDEX_PREFIX + 2)
+            .settings(settings(Version.CURRENT).put(SETTING_CREATION_DATE, now + 1000))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        IndexRoutingTable fullRouting = new IndexRoutingTable.Builder(routed.getIndex()).initializeAsNew(routed).build();
+        IndexRoutingTable.Builder partialRouting = new IndexRoutingTable.Builder(routed.getIndex());
+        fullRouting.getShards().forEach((shardId, shardRoutingTable) -> {
+            if (shardId != 0) {
+                partialRouting.addIndexShard(shardRoutingTable);
+            }
+        });
+
+        return ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().put(routed, true).put(unrouted, true).build())
+            .routingTable(RoutingTable.builder().add(partialRouting).build())
+            .build();
+    }
+
     /**
      * @param indexNumbers would be used to create indices having names with integer appended after foo, like foo1, foo2.
      * @return random clusterState consisting of indices having their creation times set to the integer used to name them.

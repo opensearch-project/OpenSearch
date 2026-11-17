@@ -244,10 +244,11 @@ public class TransportRemoteStoreMetadataAction extends TransportAction<RemoteSt
         ShardId shardId,
         IndexSettings indexSettings
     ) throws IOException {
-        String repository = IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(indexMetadata.getSettings());
-        if (repository == null) {
+        // The setting's validator rejects an unset value, which a segments_only index always has.
+        if (IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.exists(indexMetadata.getSettings()) == false) {
             return Collections.emptyMap();
         }
+        String repository = IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(indexMetadata.getSettings());
 
         RemoteTranslogTransferTracker tracker = new RemoteTranslogTransferTracker(shardId, 1000);
         FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, tracker);

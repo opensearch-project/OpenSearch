@@ -368,9 +368,12 @@ class S3Service implements Closeable {
         } else {
             retryPolicy.throttlingBackoffStrategy(BackoffStrategy.defaultThrottlingStrategy(RetryMode.STANDARD));
         }
-        return clientOverrideConfiguration.retryPolicy(retryPolicy.build())
-            .apiCallAttemptTimeout(Duration.ofMillis(clientSettings.requestTimeoutMillis))
-            .build();
+        clientOverrideConfiguration.retryPolicy(retryPolicy.build())
+            .apiCallAttemptTimeout(Duration.ofMillis(clientSettings.requestTimeoutMillis));
+        if (clientSettings.apiCallTimeoutMillis > 0) {
+            clientOverrideConfiguration.apiCallTimeout(Duration.ofMillis(clientSettings.apiCallTimeoutMillis));
+        }
+        return clientOverrideConfiguration.build();
     }
 
     private static SSLConnectionSocketFactory createSocksSslConnectionSocketFactory(final InetSocketAddress address) {

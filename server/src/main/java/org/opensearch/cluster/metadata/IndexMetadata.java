@@ -456,6 +456,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * every writer acknowledges through the remote translog upload path, and a docrep-backed writer during
      * migration never touches the fence, so it could not be fenced by it. Enable only on indices that are
      * remote-store-backed end to end.
+     * <p>
+     * Not expressible as a validator: the translog repository is derived from node attributes after validation runs,
+     * so {@code MetadataCreateIndexService#updateRemoteStoreFencingSetting} enforces it instead.
      */
     public static final Setting<Boolean> INDEX_REMOTE_STORE_FENCING_ENABLED_SETTING = Setting.boolSetting(
         SETTING_REMOTE_STORE_FENCING_ENABLED,
@@ -1141,6 +1144,26 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
+     * Whether the pull-based index accepts document writes, which are produced to its stream.
+     */
+    public static final String SETTING_INGESTION_SOURCE_WRITE_ENABLED = "index.ingestion_source.write.enabled";
+    public static final Setting<Boolean> INGESTION_SOURCE_WRITE_ENABLED_SETTING = Setting.boolSetting(
+        SETTING_INGESTION_SOURCE_WRITE_ENABLED,
+        false,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    /**
+     * Prefix setting for producer-only options, added to the {@code index.ingestion_source.param.*} values when
+     * writing to the stream. A key that is also set as a param is rejected when the writer is created.
+     */
+    public static final Setting.AffixSetting<Object> INGESTION_SOURCE_WRITE_PARAMS_SETTING = Setting.prefixKeySetting(
+        "index.ingestion_source.write.param.",
+        key -> new Setting<>(key, "", (value) -> value, Property.IndexScope, Property.Dynamic)
+    );
+
+    /**
      * Defines the maximum time to wait for lag to catch up during warmup phase.
      * A value of -1 means warmup is disabled (the default). A value >= 0 enables warmup with that timeout.
      */
@@ -1441,6 +1464,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final IngestionSource.SourcePartitionStrategy sourcePartitionStrategy = INGESTION_SOURCE_PARTITION_STRATEGY_SETTING.get(
                 settings
             );
+            final boolean writeEnabled = INGESTION_SOURCE_WRITE_ENABLED_SETTING.get(settings);
+            final Map<String, Object> writeParams = INGESTION_SOURCE_WRITE_PARAMS_SETTING.getAsMap(settings);
 
             // Warmup settings
             final IngestionSource.WarmupConfig warmupConfig = new IngestionSource.WarmupConfig(
@@ -1463,6 +1488,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 .setDecoderSettings(decoderSettings)
                 .setSourcePartitionStrategy(sourcePartitionStrategy)
                 .setWarmupConfig(warmupConfig)
+                .setWriteEnabled(writeEnabled)
+                .setWriteParams(writeParams)
                 .build();
         }
         return null;
@@ -2589,8 +2616,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING.get(settings);
             final int indexTotalRemoteCapablePrimaryShardsPerNodeLimit =
                 ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING.get(settings);
-            final boolean isAppendOnlyIndex = INDEX_APPEND_ONLY_ENABLED_SETTING.get(settings)
-                || IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(settings);
+            final boolean isAppendOnlyIndex = INDEX_APPEND_ONLY_ENABLED_SETTING.exists(settings)
+                ? INDEX_APPEND_ONLY_ENABLED_SETTING.get(settings)
+                : IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(settings);
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 

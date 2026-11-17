@@ -615,20 +615,26 @@ final class DocumentParser {
             context = nestedContext(context, mapper);
         }
 
-        // if we are at the end of the previous object, advance
-        if (token == XContentParser.Token.END_OBJECT) {
-            token = parser.nextToken();
-        }
-        if (token == XContentParser.Token.START_OBJECT) {
-            // if we are just starting an OBJECT, advance, this is the object we are parsing, we need the name first
-            token = parser.nextToken();
-        }
-
-        innerParseObject(context, mapper, parser, currentFieldName, token);
-
-        // restore the enable path flag
-        if (nested.isNested()) {
-            nested(context, nested);
+        try {
+            // if we are at the end of the previous object, advance
+            if (token == XContentParser.Token.END_OBJECT) {
+                token = parser.nextToken();
+            }
+            if (token == XContentParser.Token.START_OBJECT) {
+                // if we are just starting an OBJECT, advance, this is the object we are parsing, we need the name first
+                token = parser.nextToken();
+            }
+            innerParseObject(context, mapper, parser, currentFieldName, token);
+            if (nested.isNested()) {
+                // Success path only, so a failure here cannot mask the original parse exception.
+                nested(context, nested);
+            }
+        } finally {
+            if (nested.isNested() && context.indexSettings().isPluggableDataFormatEnabled()) {
+                // Close the element opened by startNestedElement in nestedContext. Emitted from a
+                // finally so the pairing holds even when parsing the element fails midway.
+                context.documentInput().endNestedElement();
+            }
         }
     }
 
@@ -857,7 +863,8 @@ final class DocumentParser {
             // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
             // delete it when the root document is deleted too.
             nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-        } else {
+        } else if (context.indexSettings().isPluggableDataFormatEnabled() == false) {
+            // Pluggable data formats write _id to the DocumentInput, so it is only required here on vanilla indices.
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }
 
@@ -865,6 +872,13 @@ final class DocumentParser {
         // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
         // across types (for example, with similar nested objects)
         nestedDoc.add(NestedPathFieldMapper.field(context.indexSettings().getIndexVersionCreated(), mapper.nestedTypePath()));
+        if (context.indexSettings().isPluggableDataFormatEnabled()) {
+            // Pluggable data format: signal the per-element boundary explicitly on the DocumentInput.
+            // The matching endNestedElement() is emitted by parseObjectOrNested's finally, so the pair
+            // brackets exactly the element's fields. fullPath() (not nestedTypePath(), "__"-prefixed
+            // on pre-2.0 indices) keeps the signalled path a clean dotted path.
+            context.documentInput().startNestedElement(mapper.fullPath());
+        }
         return context;
     }
 
@@ -872,7 +886,11 @@ final class DocumentParser {
      * Handles ObjectMapper parsing with disable_objects logic.
      */
     private static void parseObjectMapper(ParseContext context, ObjectMapper objectMapper) throws IOException {
-        if (objectMapper.disableObjects()) {
+        if (objectMapper.nested().isNested() && context.indexSettings().isPluggableDataFormatEnabled()) {
+            // Pluggable formats need the per-element scope even with disable_objects set; vanilla keeps
+            // the original ordering, where disable_objects flattens the array.
+            parseObjectOrNested(context, objectMapper);
+        } else if (objectMapper.disableObjects()) {
             parseDisableObjectsFields(context, objectMapper);
         } else {
             parseObjectOrNested(context, objectMapper);

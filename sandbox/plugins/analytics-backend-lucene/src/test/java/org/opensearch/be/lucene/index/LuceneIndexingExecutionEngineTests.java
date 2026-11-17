@@ -161,7 +161,13 @@ public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
      */
     public void testRefreshIncorporatesLuceneSegments() throws IOException {
         LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            luceneDataFormat,
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
         IndexWriter writer = committer.getIndexWriter();
         assertEquals(0, writer.getDocStats().numDocs);
 
@@ -220,7 +226,13 @@ public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
      * Refresh skips WriterFileSets whose directory does not match the Lucene data format name.
      */
     public void testRefreshSkipsNonLuceneDirectories() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(new LuceneDataFormat(), committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            new LuceneDataFormat(),
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
         IndexWriter writer = committer.getIndexWriter();
 
         // Create a segment directory that looks like it has files but is keyed under "parquet"
@@ -239,7 +251,13 @@ public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
      * Refresh with no files skips addIndexes.
      */
     public void testRefreshWithNoLuceneFilesSkipsAddIndexes() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(new LuceneDataFormat(), committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            new LuceneDataFormat(),
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
 
         RefreshInput emptyInput = RefreshInput.builder().build();
         RefreshResult result = engine.refresh(emptyInput);
@@ -251,18 +269,95 @@ public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
      * Constructor with null committer throws IllegalArgumentException.
      */
     public void testConstructorWithNullCommitterThrows() {
-        expectThrows(IllegalArgumentException.class, () -> new LuceneIndexingExecutionEngine(null, null, null, null));
+        expectThrows(IllegalArgumentException.class, () -> new LuceneIndexingExecutionEngine(null, null, null, null, null));
     }
 
     /**
      * Refresh with null input returns empty result.
      */
     public void testRefreshWithNullInputReturnsEmpty() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(new LuceneDataFormat(), committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            new LuceneDataFormat(),
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
 
         RefreshResult result = engine.refresh(null);
         assertNotNull(result);
         assertTrue(result.refreshedSegments().isEmpty());
+    }
+
+    /**
+     * The delete gate: with no delete applied, an already-published generation's catalog entry is
+     * carried through untouched and no dropped generation is computed. With a delete applied, every
+     * live generation's file set is rebuilt from the reader so new {@code .liv} files are cataloged.
+     */
+    public void testRefreshRebuildsExistingSegmentsOnlyWhenDeletesApplied() throws IOException {
+        LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            luceneDataFormat,
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
+
+        long generation = 1L;
+        Segment published;
+        try (
+            LuceneWriter luceneWriter = new LuceneWriter(
+                generation,
+                0L,
+                luceneDataFormat,
+                createTempDir(),
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet(),
+                new LuceneShardStatsTracker()
+            )
+        ) {
+            MappedFieldType textField = mockTextField("content");
+            for (int i = 0; i < 3; i++) {
+                LuceneDocumentInput input = new LuceneDocumentInput();
+                input.addField(textField, "doc_" + i);
+                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
+                luceneWriter.addDoc(input);
+            }
+            WriterFileSet flushed = luceneWriter.flush(FlushInput.EMPTY).getWriterFileSet(luceneDataFormat).get();
+            RefreshResult initial = engine.refresh(
+                RefreshInput.builder().addSegment(Segment.builder(generation).addSearchableFiles(luceneDataFormat, flushed).build()).build()
+            );
+            published = initial.refreshedSegments().get(0);
+        }
+
+        // Tag the published entry with a name the reader can never produce, so a carried-through
+        // entry is distinguishable from one rebuilt out of the reader's leaves.
+        WriterFileSet publishedFiles = published.dfGroupedSearchableFiles().get(LuceneDataFormat.LUCENE_FORMAT_NAME);
+        WriterFileSet tagged = WriterFileSet.builder()
+            .directory(Path.of(publishedFiles.directory()))
+            .writerGeneration(publishedFiles.writerGeneration())
+            .addNumRows(publishedFiles.numRows())
+            .addFiles(publishedFiles.files())
+            .addFile("carried-through.marker")
+            .build();
+        Segment existing = Segment.builder(generation).addSearchableFiles(luceneDataFormat, tagged).build();
+
+        RefreshResult withoutDeletes = engine.refresh(RefreshInput.builder().existingSegments(List.of(existing)).build());
+        WriterFileSet carried = withoutDeletes.refreshedSegments()
+            .get(0)
+            .dfGroupedSearchableFiles()
+            .get(LuceneDataFormat.LUCENE_FORMAT_NAME);
+        assertTrue("no-delete refresh must carry the existing entry verbatim", carried.files().contains("carried-through.marker"));
+        assertTrue("no-delete refresh must not compute dropped generations", withoutDeletes.droppedGenerations().isEmpty());
+
+        RefreshResult withDeletes = engine.refresh(RefreshInput.builder().existingSegments(List.of(existing)).deletesApplied(true).build());
+        WriterFileSet rebuilt = withDeletes.refreshedSegments().get(0).dfGroupedSearchableFiles().get(LuceneDataFormat.LUCENE_FORMAT_NAME);
+        assertFalse("delete refresh must rebuild the entry from the reader", rebuilt.files().contains("carried-through.marker"));
+        assertEquals(generation, rebuilt.writerGeneration());
+        assertTrue("nothing was actually deleted, so no generation is dropped", withDeletes.droppedGenerations().isEmpty());
     }
 
     /**
@@ -272,7 +367,13 @@ public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
      */
     public void testWriterCreationAndFlushThroughEngine() throws IOException {
         LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            luceneDataFormat,
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
         IndexWriter sharedWriter = committer.getIndexWriter();
         assertEquals(0, sharedWriter.getDocStats().numDocs);
 
@@ -325,7 +426,13 @@ public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
      */
     public void testMultipleWriterRefreshAccumulatesInSharedWriter() throws IOException {
         LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            luceneDataFormat,
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
         IndexWriter sharedWriter = committer.getIndexWriter();
 
         MappedFieldType textField = mockTextField("content");
@@ -407,7 +514,13 @@ public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
      */
     public void testDeleteFilesIsNoOpForLuceneFormat() throws IOException {
         LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            luceneDataFormat,
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
         org.apache.lucene.store.Directory directory = store.directory();
 
         directory.createOutput("_0.cfs", org.apache.lucene.store.IOContext.DEFAULT).close();
@@ -425,13 +538,25 @@ public class LuceneIndexingExecutionEngineTests extends LucenePluginBaseTests {
      */
     public void testDeleteFilesIgnoresNonLuceneFormat() throws IOException {
         LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            luceneDataFormat,
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
         engine.deleteFiles(java.util.Map.of("parquet", java.util.List.of("_0.parquet")));
     }
 
     public void testGetHeapBytesUsedSumsActiveWriters() throws IOException {
         LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
+            luceneDataFormat,
+            committer,
+            mapperService,
+            mapperService.getIndexSettings(),
+            store
+        );
 
         assertEquals("No writers yet, heap should be 0", 0L, engine.getHeapBytesUsed());
 

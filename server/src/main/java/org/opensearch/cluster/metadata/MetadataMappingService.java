@@ -53,6 +53,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.Index;
+import org.opensearch.index.IndexCreationValidator;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.compositeindex.CompositeIndexValidator;
 import org.opensearch.index.mapper.DocumentMapper;
@@ -82,6 +83,9 @@ public class MetadataMappingService {
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final ClusterManagerTaskThrottler.ThrottlingKey putMappingTaskKey;
+    // Plugin-provided validators, also run at index creation by MetadataCreateIndexService, so a
+    // mapping rejected at creation cannot be introduced later through a mapping update.
+    private final List<IndexCreationValidator> indexCreationValidators = new ArrayList<>();
 
     final RefreshTaskExecutor refreshExecutor = new RefreshTaskExecutor();
     final PutMappingExecutor putMappingExecutor = new PutMappingExecutor();
@@ -94,6 +98,18 @@ public class MetadataMappingService {
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         putMappingTaskKey = clusterService.registerClusterManagerTask(PUT_MAPPING, true);
 
+    }
+
+    /**
+     * Registers a validator to run against the merged mappings of every mapping update.
+     *
+     * @param validator the validator to add
+     */
+    public void addIndexCreationValidator(IndexCreationValidator validator) {
+        if (validator == null) {
+            throw new IllegalArgumentException("validator must not be null");
+        }
+        indexCreationValidators.add(validator);
     }
 
     static class RefreshTask {
@@ -311,6 +327,12 @@ public class MetadataMappingService {
                     mapperService.getIndexSettings(),
                     isCompositeFieldPresent
                 );
+
+                // Same validators that gate index creation. Throwing fails the update before any
+                // cluster-state change is published.
+                for (IndexCreationValidator validator : indexCreationValidators) {
+                    validator.validate(mapperService, mapperService.getIndexSettings());
+                }
 
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 
