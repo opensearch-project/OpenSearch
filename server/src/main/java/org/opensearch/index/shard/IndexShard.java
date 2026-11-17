@@ -5936,9 +5936,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * after a refresh, so we don't want to wait for a search to trigger that cycle. Replicas will only refresh after receiving
      * a new set of segments.
      * <p>
-     * Pull-based ingestion indices ignore search idle. A search-idle shard skips scheduled refreshes and relies on the
-     * next search waiting for a refresh up to the last translog write location, but the ingestion engine does not
-     * track translog locations, so that search would run on a stale searcher.
+     * Pull-based ingestion indices ignore search idle: they don't track translog locations, so the first search after
+     * an idle period can't wait for a pending refresh and would return stale results.
      */
     // TODO: Should we disable this as data will never get in sync if we use search idle for context aware segments.
     public final boolean isSearchIdleSupported() {
