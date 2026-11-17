@@ -33,9 +33,13 @@ public final class NettyEventLoopStats {
         }
         List<EventLoopStats.Worker> workers = new ArrayList<>();
         int index = 0;
-        for (EventExecutor executor : group) {
-            workers.add(workerStats(executor, index));
-            index++;
+        try {
+            for (EventExecutor executor : group) {
+                workers.add(workerStats(executor, index));
+                index++;
+            }
+        } catch (RuntimeException e) {
+            return null;
         }
         return new EventLoopStats(sharedGroup, workers);
     }
