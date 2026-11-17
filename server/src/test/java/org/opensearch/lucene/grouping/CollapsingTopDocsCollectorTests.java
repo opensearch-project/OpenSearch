@@ -72,8 +72,14 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.CheckHits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.MockBigArrays;
+import org.opensearch.common.util.MockPageCacheRecycler;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MockFieldMapper;
+import org.opensearch.search.collapse.CollapseContext;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -711,6 +717,36 @@ public class CollapsingTopDocsCollectorTests extends OpenSearchTestCase {
         assertEquals("lookupOrd once per unique segment ordinal, not per hit", uniqueGroups * segments, lookupOrdCalls.get());
 
         countingReader.close();
+        dir.close();
+    }
+
+    public void testKeywordCollapseReleasesOrdCache() throws IOException {
+        final Directory dir = newDirectory();
+        try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            for (int i = 0; i < 20; i++) {
+                Document doc = new Document();
+                doc.add(new SortedDocValuesField("group", new BytesRef("g" + (i % 4))));
+                doc.add(new NumericDocValuesField("sort", i));
+                w.addDocument(doc);
+            }
+        }
+
+        try (DirectoryReader reader = DirectoryReader.open(dir)) {
+            IndexSearcher searcher = newSearcher(reader);
+            Sort sort = new Sort(new SortField("sort", SortField.Type.INT));
+            MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("group");
+            CollapseContext collapseContext = new CollapseContext("group", fieldType, Collections.emptyList());
+
+            collapseContext.createTopDocs(sort, 5).close();
+            collapseContext.createTopDocs(sort, 5, null).close();
+
+            MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+            try (CollapsingTopDocsCollector<?> collector = collapseContext.createTopDocs(sort, 5, null, bigArrays)) {
+                searcher.search(new MatchAllDocsQuery(), collector);
+                CollapseTopFieldDocs topDocs = collector.getTopDocs();
+                assertEquals(4, topDocs.scoreDocs.length);
+            }
+        }
         dir.close();
     }
 
