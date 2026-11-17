@@ -675,8 +675,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
      */
     public static class Builder {
         private Map<String, PersistentTask<?>> tasks = new HashMap<>();
-        // Per task name and node counts kept in step with tasks, or null when the source metadata had not computed them.
-        @Nullable
+        // Per task name and node counts kept in step with tasks.
         private Map<String, Map<String, Long>> taskCounts = new HashMap<>();
         // Set by build(): the next mutation copies tasks and counts so built instances stay immutable.
         private boolean shared;
@@ -720,9 +719,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         private void beforeMutation() {
             if (shared) {
                 tasks = new HashMap<>(tasks);
-                if (taskCounts != null) {
-                    taskCounts = mutableCopy(taskCounts);
-                }
+                // taskCounts needs no copy: build() hands out its own immutable copy of them
                 shared = false;
             }
         }
@@ -731,19 +728,17 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         private PersistentTask<?> put(PersistentTask<?> task) {
             beforeMutation();
             PersistentTask<?> previous = tasks.put(task.getId(), task);
-            if (taskCounts != null) {
-                if (previous != null) {
-                    adjustCount(taskCounts, previous, -1);
-                }
-                adjustCount(taskCounts, task, 1);
+            if (previous != null) {
+                adjustCount(taskCounts, previous, -1);
             }
+            adjustCount(taskCounts, task, 1);
             return previous;
         }
 
         private PersistentTask<?> remove(String taskId) {
             beforeMutation();
             PersistentTask<?> removed = tasks.remove(taskId);
-            if (removed != null && taskCounts != null) {
+            if (removed != null) {
                 adjustCount(taskCounts, removed, -1);
             }
             return removed;
@@ -834,11 +829,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
         public PersistentTasksCustomMetadata build() {
             shared = true;
-            return new PersistentTasksCustomMetadata(
-                lastAllocationId,
-                Collections.unmodifiableMap(tasks),
-                taskCounts == null ? null : immutableCopy(taskCounts)
-            );
+            return new PersistentTasksCustomMetadata(lastAllocationId, Collections.unmodifiableMap(tasks), immutableCopy(taskCounts));
         }
     }
 }

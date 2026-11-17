@@ -437,6 +437,27 @@ public class PersistentTasksCustomMetadataTests extends AbstractDiffableSerializ
         }
     }
 
+    public void testBuiltInstanceCountsUnchangedByLaterBuilderMutations() {
+        String name = "task_a";
+        Builder builder = PersistentTasksCustomMetadata.builder(PersistentTasksCustomMetadata.builder().build());
+        builder.addTask("t1", name, emptyTaskParams(name), new Assignment("node_1", ""));
+        PersistentTasksCustomMetadata built = builder.build();
+        assertEquals(1, built.getNumberOfTasksOnNode("node_1", name));
+
+        builder.addTask("t2", name, emptyTaskParams(name), new Assignment("node_1", ""));
+        builder.addTask("t3", name, emptyTaskParams(name), new Assignment("node_2", ""));
+        builder.removeTask("t1");
+        assertEquals(1, built.getNumberOfTasksOnNode("node_1", name));
+        assertEquals(0, built.getNumberOfTasksOnNode("node_2", name));
+        assertEquals(1, built.tasks().size());
+
+        PersistentTasksCustomMetadata later = builder.build();
+        assertEquals(1, later.getNumberOfTasksOnNode("node_1", name));
+        assertEquals(1, later.getNumberOfTasksOnNode("node_2", name));
+        builder.removeTask("t2");
+        assertEquals(1, later.getNumberOfTasksOnNode("node_1", name));
+    }
+
     public void testTaskCountsDoNotAffectEqualsOrSerialization() throws IOException {
         Builder builder = PersistentTasksCustomMetadata.builder();
         for (int i = 0; i < 20; i++) {
