@@ -18,6 +18,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.tasks.TaskId;
 
 import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -35,6 +37,11 @@ public class AnalyticsQueryTask extends SearchTask {
     private final String queryId;
     private final TimeValue cancelAfterTimeInterval;
     private final AtomicReference<Runnable> onCancelCallback = new AtomicReference<>();
+    /**
+     * Additive cancel listeners, kept separate from the single-slot {@link #onCancelCallback} the query
+     * driver owns. See {@link #addCancellationListener}.
+     */
+    private final Queue<Runnable> cancellationListeners = new ConcurrentLinkedQueue<>();
     /**
      * JVM-unique id keying this query's native tracking contexts. {@link #getId()} must
      * not be used for that: task ids are per-node counters and collide in the
@@ -109,19 +116,71 @@ public class AnalyticsQueryTask extends SearchTask {
         }
     }
 
+    /**
+     * Registers an ADDITIVE cancellation listener that runs (exactly once) when this task is cancelled,
+     * ALONGSIDE {@link #setOnCancelCallback} and any other additive listeners — it does not replace
+     * them. If the task is already cancelled at registration time, the listener fires immediately on
+     * the caller's thread.
+     *
+     * <p>Use this, never {@code setOnCancelCallback}, for a concern that is independent of the query
+     * driver. The single slot belongs to the driver and is deliberately replaced as dispatch moves
+     * between phases, so registering there would silently drop whichever concern installed first.
+     *
+     * <p>The motivating concern is cancelling in-flight analytics streams. A drain parks in
+     * {@code FlightStream.next()} with no deadline, and the drain loop's own {@code stream.cancel(...)}
+     * sits in a {@code finally} that the blocked thread never reaches; stage cancellation only flips
+     * state flags. So unless cancellation is delivered to the stream from another thread, the read
+     * never returns and the query leaks a live task plus a parked thread until the node restarts.
+     *
+     * <p>Listeners must be non-blocking and safe to run from any thread — cancel is delivered on
+     * whichever thread invokes it (transport thread, timeout scheduler, or parent cascade).
+     */
+    public void addCancellationListener(Runnable listener) {
+        if (listener == null) {
+            return;
+        }
+        cancellationListeners.add(listener);
+        // Cancel may already have happened; remove-then-run so this listener cannot also be run by a
+        // concurrent onCancelled() drain.
+        if (isCancelled() && cancellationListeners.remove(listener)) {
+            runQuietly(listener);
+        }
+    }
+
+    /** Deregisters a listener, e.g. once its stream has finished normally and no longer needs cancelling. */
+    public void removeCancellationListener(Runnable listener) {
+        if (listener != null) {
+            cancellationListeners.remove(listener);
+        }
+    }
+
     @Override
     protected void onCancelled() {
         runCallbackOnce();
+        // Drain rather than iterate: poll() guarantees each listener runs at most once even if
+        // onCancelled races a late addCancellationListener (which fires inline on its own).
+        Runnable additive;
+        while ((additive = cancellationListeners.poll()) != null) {
+            runQuietly(additive);
+        }
     }
 
     private void runCallbackOnce() {
         Runnable cb = onCancelCallback.getAndSet(null);
         if (cb != null) {
-            try {
-                cb.run();
-            } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("[AnalyticsQueryTask] onCancelled callback failed for queryId={}", queryId), e);
-            }
+            runQuietly(cb);
+        }
+    }
+
+    /**
+     * One listener throwing must not strand the others — a half-delivered cancel is what leaves streams
+     * parked forever.
+     */
+    private void runQuietly(Runnable r) {
+        try {
+            r.run();
+        } catch (Exception e) {
+            logger.warn(new ParameterizedMessage("[AnalyticsQueryTask] onCancelled callback failed for queryId={}", queryId), e);
         }
     }
 }

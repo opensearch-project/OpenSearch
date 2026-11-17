@@ -66,6 +66,14 @@ class MetricsTrackingResponseHandler<T extends TransportResponse> implements Tra
     }
 
     @Override
+    public void onStreamCreated(StreamTransportResponse<T> response) {
+        // Forwarded unwrapped: the metrics wrapper exists to time and count batches, and this callback
+        // reads none — it only lets the delegate arrange cancellation. Recording a call end from a
+        // cancellation delivered here would also double-count against the delegate's terminal callback.
+        delegate.onStreamCreated(response);
+    }
+
+    @Override
     public void handleStreamResponse(StreamTransportResponse<T> response) {
 
         FlightTransportResponse<T> flightResponse = (FlightTransportResponse<T>) response;
@@ -137,6 +145,15 @@ class MetricsTrackingResponseHandler<T extends TransportResponse> implements Tra
             } finally {
                 delegate.cancel(reason, cause);
             }
+        }
+
+        @Override
+        public void cancelStreamOnly(String reason) {
+            // Must not fall back to the interface default (which cancels AND closes): the caller may be
+            // a thread other than the consumer, and closing would free the batch the consumer is
+            // reading. The call is not terminal — the consumer still reaches cancel() or close() and
+            // records the end there — so nothing is recorded here.
+            delegate.cancelStreamOnly(reason);
         }
 
         @Override
