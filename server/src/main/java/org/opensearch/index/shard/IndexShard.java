@@ -5946,6 +5946,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Primary shards push out new segments only
      * after a refresh, so we don't want to wait for a search to trigger that cycle. Replicas will only refresh after receiving
      * a new set of segments.
+     * <p>
+     * Pull-based ingestion indices ignore search idle: they don't track translog locations, so the first search after
+     * an idle period can't wait for a pending refresh and would return stale results.
      */
     // TODO: Should we disable this as data will never get in sync if we use search idle for context aware segments.
     public final boolean isSearchIdleSupported() {
@@ -5954,6 +5957,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // between child and parent IndexWriter.
         // task continues to upload to remote store periodically.
         if (isRemoteTranslogEnabled() || indexSettings.isAssignedOnRemoteNode() || indexSettings.isContextAwareEnabled()) {
+            return false;
+        }
+        if (indexSettings.getIndexMetadata().useIngestionSource()) {
             return false;
         }
         return indexSettings.isSegRepEnabledOrRemoteNode() == false || indexSettings.getNumberOfReplicas() == 0;
