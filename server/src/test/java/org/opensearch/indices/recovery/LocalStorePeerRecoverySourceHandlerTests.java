@@ -246,6 +246,69 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
         IOUtils.close(reader, store, multiFileWriter, targetStore);
     }
 
+    public void testFileBasedRecoveryWaitsForSegmentsOnlyRemoteStore() throws IOException {
+        final IndexShard shard = mock(IndexShard.class);
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT")
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "segment-repo")
+                .build()
+        );
+        final CatalogSnapshot safeCommit = mock(CatalogSnapshot.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.isRemoteSegmentStoreAtOrAheadOf(safeCommit)).thenReturn(false, true);
+
+        final LocalStorePeerRecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
+            shard,
+            mock(RecoveryTargetHandler.class),
+            threadPool,
+            getStartRecoveryRequest(),
+            1024,
+            1,
+            1
+        );
+
+        DelayRecoveryException exception = expectThrows(
+            DelayRecoveryException.class,
+            () -> handler.ensureRemoteStoreContainsSafeCommit(safeCommit)
+        );
+        assertThat(exception.getMessage(), containsString("remote segment store is behind the safe commit"));
+        handler.ensureRemoteStoreContainsSafeCommit(safeCommit);
+        verify(shard, times(2)).isRemoteSegmentStoreAtOrAheadOf(safeCommit);
+    }
+
+    public void testFileBasedRecoveryDoesNotWaitForRemoteTranslog() throws IOException {
+        final IndexShard shard = mock(IndexShard.class);
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT")
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "segment-repo")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
+                .build()
+        );
+        final CatalogSnapshot safeCommit = mock(CatalogSnapshot.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+
+        final LocalStorePeerRecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
+            shard,
+            mock(RecoveryTargetHandler.class),
+            threadPool,
+            getStartRecoveryRequest(),
+            1024,
+            1,
+            1
+        );
+
+        handler.ensureRemoteStoreContainsSafeCommit(safeCommit);
+        verify(shard, times(0)).isRemoteSegmentStoreAtOrAheadOf(safeCommit);
+    }
+
     public StartRecoveryRequest getStartRecoveryRequest() throws IOException {
         Store.MetadataSnapshot metadataSnapshot = randomBoolean()
             ? Store.MetadataSnapshot.EMPTY

@@ -24,6 +24,9 @@ import org.opensearch.transport.InboundPipeline;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.stream.StreamException;
 
+import javax.net.ssl.SSLSession;
+
+import java.net.SocketAddress;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -62,6 +65,9 @@ class ArrowFlightProducer extends NoOpFlightProducer {
     @Override
     public void getStream(CallContext context, Ticket ticket, ServerStreamListener listener) {
         ServerHeaderMiddleware middleware = context.getMiddleware(middlewareKey);
+        // capture peer info on the gRPC thread; the gRPC Context is not propagated across the executor switch below
+        SSLSession sslSession = PeerInfoServerInterceptor.SSL_SESSION.get();
+        SocketAddress remoteAddress = PeerInfoServerInterceptor.REMOTE_ADDRESS.get();
         // thread switch is needed to free up grpc thread without delegating it to request handler to do the thread switch.
         // It is also necessary for the cancellation from client to work correctly, the grpc thread which started it must be released
         // https://github.com/apache/arrow/issues/38668
@@ -73,7 +79,9 @@ class ArrowFlightProducer extends NoOpFlightProducer {
                 middleware,
                 callTracker,
                 flightTransport.getNextFlightExecutor(),
-                readyTimeoutMillis
+                readyTimeoutMillis,
+                sslSession,
+                remoteAddress
             );
             try {
                 BytesArray buf = new BytesArray(ticket.getBytes());

@@ -291,7 +291,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             }
 
             @Override
-            public StoredFieldsReader getMergeInstance() {
+            public StoredFieldsReader getMergeInstance() throws IOException {
                 return new RecoverySourcePruningStoredFieldsReader(in.getMergeInstance(), recoverySourceToKeep, recoverySourceField);
             }
 

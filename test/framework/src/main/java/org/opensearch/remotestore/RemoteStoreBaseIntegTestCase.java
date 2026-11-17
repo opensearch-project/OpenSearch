@@ -62,8 +62,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_MODE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.repositories.fs.ReloadableFsRepository.REPOSITORIES_FAILRATE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -85,6 +87,12 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected boolean asyncUploadMockFsRepo = randomBoolean();
     private boolean metadataSupportedType = randomBoolean();
     protected boolean remoteStoreFencing = randomFencingMode();
+
+    /**
+     * Whether the nodes run in {@code segments_only} mode, which configures a segment repository and deliberately no
+     * translog repository. Set before the nodes start so that the attributes are built for it.
+     */
+    protected boolean segmentsOnly = false;
     private final List<String> documentKeys = List.of(
         randomAlphaOfLength(5),
         randomAlphaOfLength(5),
@@ -197,6 +205,9 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
     protected Settings remoteStoreRepoSettings() {
         Settings remoteStoreRepoSettings;
+        if (segmentsOnly) {
+            return segmentsOnlyNodeAttributes(REPOSITORY_NAME, segmentRepoPath);
+        }
         if (asyncUploadMockFsRepo) {
             String repoType = metadataSupportedType ? MockFsMetadataSupportedRepositoryPlugin.TYPE_MD : MockFsRepositoryPlugin.TYPE;
             remoteStoreRepoSettings = remoteStoreClusterSettings(
@@ -211,6 +222,26 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
             remoteStoreRepoSettings = remoteStoreClusterSettings(REPOSITORY_NAME, segmentRepoPath, REPOSITORY_2_NAME, translogRepoPath);
         }
         return remoteStoreRepoSettings;
+    }
+
+    /** A segment repository and deliberately no translog repository, which is what puts a node in segments_only mode. */
+    public static Settings segmentsOnlyNodeAttributes(String repositoryName, Path repositoryPath) {
+        String typeKey = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            repositoryName
+        );
+        String settingsPrefix = String.format(
+            Locale.getDefault(),
+            "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            repositoryName
+        );
+        return Settings.builder()
+            .put("node.attr." + REMOTE_STORE_MODE_KEY, "segments_only")
+            .put("node.attr." + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, repositoryName)
+            .put(typeKey, ReloadableFsRepository.TYPE)
+            .put(settingsPrefix + "location", repositoryPath)
+            .build();
     }
 
     protected void setFailRate(String repoName, int value) throws ExecutionException, InterruptedException {
@@ -291,8 +322,11 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         metadataSupportedType = randomBoolean();
         remoteStoreFencing = randomFencingMode();
         assertRemoteStoreRepositoryOnAllNodes(REPOSITORY_NAME);
-        assertRemoteStoreRepositoryOnAllNodes(REPOSITORY_2_NAME);
         clusterAdmin().prepareCleanupRepository(REPOSITORY_NAME).get();
+        if (segmentsOnly) {
+            return;
+        }
+        assertRemoteStoreRepositoryOnAllNodes(REPOSITORY_2_NAME);
         clusterAdmin().prepareCleanupRepository(REPOSITORY_2_NAME).get();
     }
 

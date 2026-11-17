@@ -32,6 +32,7 @@
 
 package org.opensearch.rest.action.cat;
 
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Table;
 import org.opensearch.common.io.Streams;
@@ -175,6 +176,25 @@ public class RestTable {
         return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
     }
 
+    /**
+     * Parses and validates the {@code limit} request parameter.
+     *
+     * @return the limit, or {@code null} if the parameter was not supplied
+     * @throws IllegalArgumentException if the value is not an integer
+     * @throws OpenSearchParseException if the value is an integer that is not a natural number (zero or negative)
+     */
+    static Integer parseLimit(RestRequest request) {
+        if (request.param("limit") == null) {
+            return null;
+        }
+        // paramAsInt throws IllegalArgumentException for a value that is not an integer; the default is never used
+        int limit = request.paramAsInt("limit", 0);
+        if (limit <= 0) {
+            throw new OpenSearchParseException("Invalid value for 'limit' [" + limit + "]. Must be a positive integer");
+        }
+        return limit;
+    }
+
     static List<Integer> getRowOrder(Table table, RestRequest request) {
         String[] columnOrdering = request.paramAsStringArray("s", null);
 
@@ -204,6 +224,20 @@ public class RestTable {
                 }
             }
             Collections.sort(rowOrder, new TableIndexComparator(table, ordering));
+        }
+
+        // Apply the limit parameter, if present. It is validated for every request (see parseLimit), but only
+        // applied after the sort so `?s=field:desc&limit=N` yields the top-N rows by the sort key.
+        //
+        // Scope: only for NON-paginated responses. On paginated _list/* endpoints the response is a
+        // single page and carries a next_token cursor that already advances by the full page size;
+        // truncating the rendered rows here would silently drop the rows between `limit` and the page
+        // boundary while the cursor skips right over them (unrecoverable data loss across pages), and
+        // the sort would only be a within-page sort rather than a true global top-N. So when the table
+        // is paginated we leave `limit` unapplied and let pagination (size / next_token) govern.
+        Integer limit = parseLimit(request);
+        if (limit != null && table.getPageToken() == null && rowOrder.size() > limit) {
+            rowOrder = new ArrayList<>(rowOrder.subList(0, limit));
         }
         return rowOrder;
     }

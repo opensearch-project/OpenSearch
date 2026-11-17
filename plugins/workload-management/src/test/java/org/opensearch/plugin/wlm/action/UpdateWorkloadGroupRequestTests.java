@@ -8,11 +8,11 @@
 
 package org.opensearch.plugin.wlm.action;
 
-import org.opensearch.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.MutableWorkloadGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.ResourceType;
@@ -78,16 +78,16 @@ public class UpdateWorkloadGroupRequestTests extends OpenSearchTestCase {
             new MutableWorkloadGroupFragment(null, Map.of(), Settings.EMPTY, Settings.builder().put("node_limit", 5).build())
         );
         BytesStreamOutput oldOutput = new BytesStreamOutput();
-        oldOutput.setVersion(Version.V_3_9_0);
+        oldOutput.setVersion(VersionUtils.getPreviousVersion(WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION));
 
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> request.writeTo(oldOutput));
-        assertTrue(error.getMessage(), error.getMessage().contains(Version.V_3_10_0.toString()));
+        assertTrue(error.getMessage(), error.getMessage().contains(WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION.toString()));
 
         BytesStreamOutput currentOutput = new BytesStreamOutput();
-        currentOutput.setVersion(Version.V_3_10_0);
+        currentOutput.setVersion(WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION);
         request.writeTo(currentOutput);
         StreamInput currentInput = currentOutput.bytes().streamInput();
-        currentInput.setVersion(Version.V_3_10_0);
+        currentInput.setVersion(WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION);
         UpdateWorkloadGroupRequest restored = new UpdateWorkloadGroupRequest(currentInput);
         assertEquals(
             Integer.valueOf(5),
@@ -95,7 +95,7 @@ public class UpdateWorkloadGroupRequestTests extends OpenSearchTestCase {
         );
 
         BytesStreamOutput legacyOutput = new BytesStreamOutput();
-        legacyOutput.setVersion(Version.V_3_9_0);
+        legacyOutput.setVersion(VersionUtils.getPreviousVersion(WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION));
         new UpdateWorkloadGroupRequest(NAME_ONE, new MutableWorkloadGroupFragment(null, Map.of())).writeTo(legacyOutput);
     }
 

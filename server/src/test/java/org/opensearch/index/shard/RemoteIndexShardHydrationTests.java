@@ -9,7 +9,12 @@
 package org.opensearch.index.shard;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.RecoverySource;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.InputStreamWithMetadata;
@@ -17,6 +22,7 @@ import org.opensearch.common.blobstore.support.FilterBlobContainer;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.InternalEngineFactory;
+import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -26,10 +32,14 @@ import org.opensearch.snapshots.mockstore.BlobStoreWrapper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.ClosedByInterruptException;
+import java.nio.file.Path;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -65,30 +75,59 @@ public class RemoteIndexShardHydrationTests extends IndexShardTestCase {
     }
 
     private final DownloadGate gate = new DownloadGate();
+    private final AtomicInteger remoteAccesses = new AtomicInteger();
 
     @Override
     protected BlobStore wrapRemoteStoreBlobStore(BlobStore blobStore) {
         return new BlobStoreWrapper(blobStore) {
             @Override
             public BlobContainer blobContainer(BlobPath path) {
-                return new FilterBlobContainer(super.blobContainer(path)) {
-                    @Override
-                    protected BlobContainer wrapChild(BlobContainer child) {
-                        return child;
-                    }
+                return instrument(super.blobContainer(path));
+            }
+        };
+    }
 
-                    @Override
-                    public InputStream readBlob(String blobName) throws IOException {
-                        gate.pass(blobName);
-                        return super.readBlob(blobName);
-                    }
+    /**
+     * The remote segment store is built straight from a blob container rather than from the repository's blob store,
+     * so it has to be instrumented separately for a read of it to be visible here.
+     */
+    @Override
+    protected BlobContainer getBlobContainer(Path f) throws IOException {
+        return instrument(super.getBlobContainer(f));
+    }
 
-                    @Override
-                    public InputStreamWithMetadata readBlobWithMetadata(String blobName) throws IOException {
-                        gate.pass(blobName);
-                        return super.readBlobWithMetadata(blobName);
-                    }
-                };
+    /** Counts every read of the remote store, and holds translog downloads when the gate is armed. */
+    private BlobContainer instrument(BlobContainer delegate) {
+        return new FilterBlobContainer(delegate) {
+            @Override
+            protected BlobContainer wrapChild(BlobContainer child) {
+                return instrument(child);
+            }
+
+            @Override
+            public Map<String, BlobMetadata> listBlobs() throws IOException {
+                remoteAccesses.incrementAndGet();
+                return super.listBlobs();
+            }
+
+            @Override
+            public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+                remoteAccesses.incrementAndGet();
+                return super.listBlobsByPrefix(blobNamePrefix);
+            }
+
+            @Override
+            public InputStream readBlob(String blobName) throws IOException {
+                remoteAccesses.incrementAndGet();
+                gate.pass(blobName);
+                return super.readBlob(blobName);
+            }
+
+            @Override
+            public InputStreamWithMetadata readBlobWithMetadata(String blobName) throws IOException {
+                remoteAccesses.incrementAndGet();
+                gate.pass(blobName);
+                return super.readBlobWithMetadata(blobName);
             }
         };
     }
@@ -201,5 +240,99 @@ public class RemoteIndexShardHydrationTests extends IndexShardTestCase {
         recoverShardFromStore(recovered);
         assertDocCount(recovered, numDocs);
         closeShards(recovered);
+    }
+
+    /**
+     * In segments_only mode the remote store holds segments and never the operation stream, so operations that have
+     * been acknowledged but not yet flushed exist only in the local translog. Hydrating such a primary would rewrite
+     * its Lucene commit from the infos held remotely and drop the reference to them, and unlike a fully remote backed
+     * primary there is no remote translog to bring them back. It must therefore recover from its own translog. That
+     * those operations really do survive a restart is covered by
+     * {@code SegmentsOnlyRemoteStoreIT#testUnflushedWritesSurviveAFullClusterRestart}, which needs a real cluster
+     * because nothing in this harness uploads segments to the remote store.
+     */
+    public void testSegmentsOnlyPrimaryRecoversFromItsLocalTranslog() throws Exception {
+        String remoteStorePath = createTempDir().toString();
+        IndexShard shard = newStartedShard(
+            true,
+            segmentsOnlySettings(remoteStorePath),
+            new EngineBackedIndexerFactory(new InternalEngineFactory())
+        );
+        int numDocs = between(1, 5);
+        for (int i = 0; i < numDocs; i++) {
+            indexDoc(shard, "_doc", Integer.toString(i));
+        }
+        assertFalse("the translog must stay local in segments_only mode", shard.indexSettings().isTranslogDurableInRemoteStore());
+        assertTrue("the segments must still be remote backed", shard.indexSettings().isRemoteStoreEnabled());
+        // No flush, so the operations are in the translog and not in any Lucene commit.
+        IOUtils.close(() -> shard.close("test", false, false), shard.store());
+
+        IndexShard recovered = reinitShard(shard);
+        recoverShardFromStore(recovered);
+        assertDocCount(recovered, numDocs);
+        closeShards(recovered);
+    }
+
+    /**
+     * A segments_only replica is fed by node-to-node replication, so the remote store never holds the operations it
+     * has acknowledged. Opening it must therefore take the peer recovery path a document replication replica takes
+     * and leave the remote store alone, rather than hydrating from it and rewriting the local Lucene commit.
+     */
+    public void testSegmentsOnlyReplicaIsNotHydratedFromTheRemoteStore() throws Exception {
+        String remoteStorePath = createTempDir().toString();
+        IndexShard shard = newStartedShard(
+            true,
+            segmentsOnlySettings(remoteStorePath),
+            new EngineBackedIndexerFactory(new InternalEngineFactory())
+        );
+        int numDocs = between(1, 5);
+        for (int i = 0; i < numDocs; i++) {
+            indexDoc(shard, "_doc", Integer.toString(i));
+        }
+        shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(), shard.getLocalCheckpoint());
+        shard.sync();
+        final long globalCheckpoint = shard.getLastSyncedGlobalCheckpoint();
+        assertThat(globalCheckpoint, equalTo((long) numDocs - 1));
+        IOUtils.close(() -> shard.close("test", false, false), shard.store());
+
+        // A segment replication replica runs an NRT engine, which is what decides that a replayed operation goes to
+        // the translog and not into Lucene, so the shard has to be reopened with one for the replay below to behave
+        // the way it does on a real replica.
+        IndexShard replica = reinitShard(
+            shard,
+            TestShardRouting.newShardRouting(
+                shard.shardId(),
+                shard.routingEntry().currentNodeId(),
+                false,
+                ShardRoutingState.INITIALIZING,
+                RecoverySource.PeerRecoverySource.INSTANCE
+            ),
+            shard.indexSettings().getIndexMetadata(),
+            new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()),
+            shard.engineConfigFactory,
+            null
+        );
+        assertFalse("the translog must stay local in segments_only mode", replica.indexSettings().isTranslogDurableInRemoteStore());
+        assertTrue("the segments must still be remote backed", replica.indexSettings().isRemoteStoreEnabled());
+
+        DiscoveryNode node = IndexShardTestUtils.getFakeSegmentsOnlyNode(replica.routingEntry().currentNodeId());
+        replica.markAsRecovering("peer recovery", new RecoveryState(replica.routingEntry(), node, node));
+        replica.prepareForIndexRecovery();
+        remoteAccesses.set(0);
+        // This is the step of a peer recovery that opens the engine on whatever the replica already has on disk. An
+        // NRT engine has no IndexWriter to replay a translog into, so the operations below the global checkpoint are
+        // left to the peer, which is what the unassigned starting sequence number says.
+        assertThat(replica.recoverLocallyAndFetchStartSeqNo(true), equalTo(UNASSIGNED_SEQ_NO));
+        assertThat("a segments_only replica must not touch the remote store while opening its engine", remoteAccesses.get(), equalTo(0));
+        closeShards(replica);
+    }
+
+    /** A remote segment repository and deliberately no translog repository, which is what segments_only mode is. */
+    private static Settings segmentsOnlySettings(String remoteStorePath) {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStorePath + "__test")
+            .build();
     }
 }

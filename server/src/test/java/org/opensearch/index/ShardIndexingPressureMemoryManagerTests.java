@@ -533,4 +533,56 @@ public class ShardIndexingPressureMemoryManagerTests extends OpenSearchTestCase 
         assertTrue(tracker1.getReplicaLimits() < limit1);
         assertEquals((long) (512 / 0.85), tracker1.getReplicaLimits());
     }
+
+    public void testRequestSizeWindowUpdateChangesThroughputDegradationEvaluation() {
+        ShardIndexingPressureTracker tracker1 = memoryManager.getShardIndexingPressureTracker(shardId1);
+        ShardIndexingPressureTracker tracker2 = memoryManager.getShardIndexingPressureTracker(shardId2);
+        tracker1.getCommonOperationTracker().incrementCurrentCombinedCoordinatingAndPrimaryBytes(1 * 1024);
+        tracker2.compareAndSetPrimaryAndCoordinatingLimits(tracker2.getPrimaryAndCoordinatingLimits(), 6 * 1024);
+        long limit1 = tracker1.getPrimaryAndCoordinatingLimits();
+        long requestStartTime = System.nanoTime();
+
+        // Two samples in the moving window (window size 2) with degraded throughput compared to the historical average
+        tracker1.getCoordinatingOperationTracker().getPerformanceTracker().updateThroughputMovingAverage(Double.doubleToLongBits(1d));
+        tracker1.getCoordinatingOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
+        tracker1.getCoordinatingOperationTracker().getPerformanceTracker().incrementTotalOutstandingRequests();
+        tracker1.getCoordinatingOperationTracker().getStatsTracker().incrementTotalBytes(60);
+        tracker1.getCoordinatingOperationTracker().getPerformanceTracker().addLatencyInMillis(10);
+        tracker1.getCoordinatingOperationTracker().getPerformanceTracker().addNewThroughout(1d);
+        tracker1.getCoordinatingOperationTracker().getPerformanceTracker().addNewThroughout(2d);
+        assertEquals(2, tracker1.getCoordinatingOperationTracker().getPerformanceTracker().getThroughputMovingQueueSize());
+
+        // With a window of 2, the queue is full and the degradation is evaluated, so the request is rejected
+        assertTrue(memoryManager.isCoordinatingShardLimitBreached(tracker1, 8 * 1024, requestStartTime));
+        assertEquals(
+            1,
+            tracker1.getCoordinatingOperationTracker().getRejectionTracker().getThroughputDegradationLimitsBreachedRejections()
+        );
+        assertEquals(limit1, tracker1.getPrimaryAndCoordinatingLimits());
+
+        // Widen the window dynamically; the same two samples no longer fill it, so degradation is not evaluated
+        Settings.Builder updated = Settings.builder();
+        clusterSettings.updateDynamicSettings(
+            Settings.builder().put(ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.getKey(), 10).build(),
+            Settings.builder().put(settings),
+            updated,
+            getTestClass().getName()
+        );
+        clusterSettings.applySettings(updated.build());
+        assertEquals(10, shardIndexingPressureSettings.getRequestSizeWindow());
+
+        assertFalse(memoryManager.isCoordinatingShardLimitBreached(tracker1, 8 * 1024, requestStartTime));
+        assertEquals(
+            1,
+            tracker1.getCoordinatingOperationTracker().getRejectionTracker().getThroughputDegradationLimitsBreachedRejections()
+        );
+        assertEquals(0, tracker1.getCoordinatingOperationTracker().getRejectionTracker().getNodeLimitsBreachedRejections());
+        // Instead of rejecting, the shard limit is increased to accommodate the request
+        assertTrue(tracker1.getPrimaryAndCoordinatingLimits() > limit1);
+        assertEquals((long) (1 * 1024 / 0.85), tracker1.getPrimaryAndCoordinatingLimits());
+        assertEquals(
+            0,
+            tracker2.getCoordinatingOperationTracker().getRejectionTracker().getThroughputDegradationLimitsBreachedRejections()
+        );
+    }
 }

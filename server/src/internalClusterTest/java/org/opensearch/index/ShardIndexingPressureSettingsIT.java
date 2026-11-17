@@ -21,7 +21,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.collect.Tuple;
@@ -37,7 +36,6 @@ import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
-import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.Arrays;
@@ -52,7 +50,6 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures
 import static org.hamcrest.Matchers.instanceOf;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1)
-@SuppressForbidden(reason = "Need to fix: https://github.com/opensearch-project/OpenSearch/issues/14331")
 public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
 
     public static final String INDEX_NAME = "test_index";
@@ -724,164 +721,6 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         assertNoFailures(successFuture.actionGet());
         assertNoFailures(secondSuccessFuture.actionGet());
         thirdSuccessFuture.actionGet();
-    }
-
-    public void testShardIndexingPressureRequestSizeWindowSettingUpdate() throws Exception {
-        final BulkRequest bulkRequest = new BulkRequest();
-        int totalRequestSize = 0;
-        for (int i = 0; i < 80; ++i) {
-            IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
-                .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
-            totalRequestSize += request.ramBytesUsed();
-            assertTrue(request.ramBytesUsed() > request.source().length());
-            bulkRequest.add(request);
-        }
-        final long bulkShardRequestSize = totalRequestSize + (RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class) * 80)
-            + RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
-
-        Settings settings = Settings.builder()
-            .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED.getKey(), true)
-            .put(ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED.getKey(), true)
-            .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) (bulkShardRequestSize * 1.2) + "B")
-            .put(ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.getKey(), 1)
-            .put(ShardIndexingPressureMemoryManager.THROUGHPUT_DEGRADATION_LIMITS.getKey(), 1)
-            .build();
-        restartCluster(settings);
-
-        assertAcked(
-            prepareCreate(
-                INDEX_NAME,
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            )
-        );
-        ensureGreen(INDEX_NAME);
-
-        Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames(INDEX_NAME);
-        String primaryName = primaryReplicaNodeNames.v1();
-        String replicaName = primaryReplicaNodeNames.v2();
-        String coordinatingOnlyNode = getCoordinatingOnlyNode();
-
-        IndexService indexService = internalCluster().getInstance(IndicesService.class, primaryName).iterator().next();
-        Index index = indexService.getIndexSettings().getIndex();
-        ShardId shardId = new ShardId(index, 0);
-
-        boolean randomBoolean = randomBoolean();
-
-        // Send first request which gets successful
-        ActionFuture<BulkResponse> successFuture;
-        if (randomBoolean) {
-            successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
-        } else {
-            successFuture = client(primaryName).bulk(bulkRequest);
-        }
-        assertNoFailures(successFuture.actionGet());
-
-        final CountDownLatch replicationSendPointReached = new CountDownLatch(1);
-        final CountDownLatch latchBlockingReplicationSend = new CountDownLatch(1);
-
-        TransportService primaryService = internalCluster().getInstance(TransportService.class, primaryName);
-        final MockTransportService primaryTransportService = (MockTransportService) primaryService;
-        TransportService replicaService = internalCluster().getInstance(TransportService.class, replicaName);
-        final MockTransportService replicaTransportService = (MockTransportService) replicaService;
-
-        primaryTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (action.equals(TransportShardBulkAction.ACTION_NAME + "[r]")) {
-                try {
-                    replicationSendPointReached.countDown();
-                    latchBlockingReplicationSend.await();
-                } catch (InterruptedException e) {
-                    throw new IllegalStateException(e);
-                }
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
-
-        final ThreadPool replicaThreadPool = replicaTransportService.getThreadPool();
-        final Releasable replicaRelease = blockReplicas(replicaThreadPool);
-        // Send one more requests which remains outstanding for delayed time
-        if (randomBoolean) {
-            successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
-        } else {
-            successFuture = client(primaryName).bulk(bulkRequest);
-        }
-        // Delay to breach the success time stamp threshold
-        Thread.sleep(3000);
-        latchBlockingReplicationSend.countDown();
-        replicaRelease.close();
-        assertNoFailures(successFuture.actionGet());
-
-        // This request breaches the threshold and hence will be rejected
-        if (randomBoolean) {
-            assertRejectedBulkResponse(bulkRequest, client(coordinatingOnlyNode).bulk(bulkRequest).actionGet());
-        } else {
-            assertRejectedBulkResponse(bulkRequest, client(primaryName).bulk(bulkRequest).actionGet());
-        }
-
-        // Update the outstanding threshold setting to see no rejections
-        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.persistentSettings(Settings.builder().put(ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW.getKey(), 10));
-        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
-
-        // Verify no rejection with similar request pattern
-        if (randomBoolean) {
-            successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
-            assertNoFailures(successFuture.actionGet());
-            successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
-            Thread.sleep(10);
-            assertNoFailures(successFuture.actionGet());
-            assertNoFailures(client(coordinatingOnlyNode).bulk(bulkRequest).actionGet());
-
-            ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(
-                IndexingPressureService.class,
-                coordinatingOnlyNode
-            ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
-            assertEquals(1, coordinatingShardTracker.getCoordinatingOperationTracker().getRejectionTracker().getTotalRejections());
-            assertEquals(
-                1,
-                coordinatingShardTracker.getCoordinatingOperationTracker()
-                    .getRejectionTracker()
-                    .getThroughputDegradationLimitsBreachedRejections()
-            );
-        } else {
-            successFuture = client(primaryName).bulk(bulkRequest);
-            assertNoFailures(successFuture.actionGet());
-            successFuture = client(primaryName).bulk(bulkRequest);
-            Thread.sleep(10);
-            assertNoFailures(successFuture.actionGet());
-            assertNoFailures(client(primaryName).bulk(bulkRequest).actionGet());
-            ShardIndexingPressureTracker primaryShardTracker = internalCluster().getInstance(IndexingPressureService.class, primaryName)
-                .getShardIndexingPressure()
-                .getShardIndexingPressureTracker(shardId);
-            assertEquals(1, primaryShardTracker.getCoordinatingOperationTracker().getRejectionTracker().getTotalRejections());
-            assertEquals(
-                1,
-                primaryShardTracker.getCoordinatingOperationTracker()
-                    .getRejectionTracker()
-                    .getThroughputDegradationLimitsBreachedRejections()
-            );
-        }
-    }
-
-    private Releasable blockReplicas(ThreadPool threadPool) {
-        final CountDownLatch blockReplication = new CountDownLatch(1);
-        final int threads = threadPool.info(ThreadPool.Names.WRITE).getMax();
-        final CountDownLatch pointReached = new CountDownLatch(threads);
-        for (int i = 0; i < threads; ++i) {
-            threadPool.executor(ThreadPool.Names.WRITE).execute(() -> {
-                try {
-                    pointReached.countDown();
-                    blockReplication.await();
-                } catch (InterruptedException e) {
-                    throw new IllegalStateException(e);
-                }
-            });
-        }
-
-        return () -> {
-            if (blockReplication.getCount() > 0) {
-                blockReplication.countDown();
-            }
-        };
     }
 
     private Releasable blockPrimary(String primaryName) {

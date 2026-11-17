@@ -19,6 +19,7 @@ import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadGroupThrottleSettings;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -70,15 +71,21 @@ public class WorkloadGroupStatsTests extends AbstractWireSerializingTestCase<Wor
             )
         );
 
-        // A 3.10 peer exchanges total_throttled and total_would_throttle, and everything after them on the wire stays aligned.
-        WorkloadGroupStats.WorkloadGroupStatsHolder current = copyInstance(original, Version.V_3_10_0).getStats().get("group-1");
+        // A peer that supports throttling exchanges total_throttled and total_would_throttle, and everything after them on the wire stays
+        // aligned.
+        WorkloadGroupStats.WorkloadGroupStatsHolder current = copyInstance(original, WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION)
+            .getStats()
+            .get("group-1");
         assertEquals(5, current.getThrottled());
         assertEquals(9, current.getWouldThrottle());
         assertEquals(100, current.getCompletions());
         assertEquals(0.3, current.getResourceStats().get(ResourceType.CPU).getCurrentUsage(), 0.0);
 
         // A pre-throttling peer writes neither counter: they read as 0 and the following resourceStats map still decodes.
-        WorkloadGroupStats.WorkloadGroupStatsHolder legacy = copyInstance(original, Version.V_3_9_0).getStats().get("group-1");
+        WorkloadGroupStats.WorkloadGroupStatsHolder legacy = copyInstance(
+            original,
+            VersionUtils.getPreviousVersion(WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION)
+        ).getStats().get("group-1");
         assertEquals(0, legacy.getThrottled());
         assertEquals(0, legacy.getWouldThrottle());
         assertEquals(100, legacy.getCompletions());

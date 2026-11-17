@@ -148,6 +148,7 @@ import org.opensearch.index.engine.PrimaryOperationPolicy;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.engine.SearcherSupplierProvider;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
@@ -231,7 +232,6 @@ import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationTimer;
-import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -502,7 +502,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger,
             threadPool,
             this::getIndexer,
-            indexSettings.isAssignedOnRemoteNode(),
+            indexSettings.isTranslogDurableInRemoteStore(),
             () -> getRemoteTranslogUploadBufferInterval(remoteStoreSettings::getClusterRemoteTranslogBufferInterval)
         );
         this.mergedSegmentTransferTracker = new MergedSegmentTransferTracker();
@@ -2142,6 +2142,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Returns whether the remote segment store contains the supplied catalog snapshot or a later snapshot uploaded by
+     * this primary term.
+     */
+    public boolean isRemoteSegmentStoreAtOrAheadOf(CatalogSnapshot catalogSnapshot) throws IOException {
+        if (!indexSettings.isAssignedOnRemoteNode()) {
+            throw new IllegalStateException("Index is not assigned on Remote Node");
+        }
+        final RemoteSegmentMetadata remoteMetadata = getRemoteDirectory().readLatestMetadataFile();
+        if (remoteMetadata == null) {
+            return false;
+        }
+        final ReplicationCheckpoint requiredCheckpoint = computeReplicationCheckpoint(catalogSnapshot);
+        final ReplicationCheckpoint remoteCheckpoint = remoteMetadata.getReplicationCheckpoint();
+        return remoteCheckpoint.getPrimaryTerm() == requiredCheckpoint.getPrimaryTerm()
+            && requiredCheckpoint.isAheadOf(remoteCheckpoint) == false;
+    }
+
+    /**
      * Creates a new {@link IndexCommit} snapshot from the currently running engine. All resources referenced by this
      * commit won't be freed until the commit / snapshot is closed.
      *
@@ -2163,6 +2181,39 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         GatedCloseable<IndexCommit> indexCommit = acquireLastIndexCommit(flushFirst);
         getIndexer().refresh("Snapshot for Remote Store based Shard");
         return indexCommit;
+    }
+
+    /**
+     * Creates a new {@link CatalogSnapshot} pinned to the most recent commit of the currently running indexer.
+     * All files referenced by this snapshot won't be freed until the returned handle is closed.
+     * <p>
+     * This is the format-neutral replacement for {@link #acquireLastIndexCommit(boolean)}: it goes through the
+     * {@link Indexer} contract rather than {@link #applyOnEngine}, so it works for multi-format
+     * (catalog-based) indexers as well as Lucene-backed ones.
+     *
+     * @param flushFirst {@code true} if the shard should be flushed before the snapshot is taken
+     */
+    @ExperimentalApi
+    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException, IOException {
+        final IndexShardState state = this.state; // one time volatile read
+        // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
+        if (state == IndexShardState.STARTED || state == IndexShardState.CLOSED) {
+            return getIndexer().acquireLastCommittedSnapshot(flushFirst);
+        } else {
+            throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
+        }
+    }
+
+    /**
+     * Same as {@link #acquireLastCommittedSnapshot(boolean)} but additionally triggers a refresh so that the
+     * remote store upload of the pinned commit is kicked off. Format-neutral replacement for
+     * {@link #acquireLastIndexCommitAndRefresh(boolean)}.
+     */
+    @ExperimentalApi
+    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshotAndRefresh(boolean flushFirst) throws EngineException, IOException {
+        GatedCloseable<CatalogSnapshot> catalogSnapshot = acquireLastCommittedSnapshot(flushFirst);
+        getIndexer().refresh("Snapshot for Remote Store based Shard");
+        return catalogSnapshot;
     }
 
     /**
@@ -2753,8 +2804,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope) {
         readAllowed();
         markSearcherAccessed();
-        final Indexer engine = getIndexer();
-        return applyOnEngine(engine, eng -> eng.acquireSearcherSupplier(this::wrapSearcher, scope));
+        return searcherSupplierProvider().acquireSearcherSupplier(this::wrapSearcher, scope);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
@@ -2771,8 +2821,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope) {
         readAllowed();
         markSearcherAccessed();
+        return Engine.acquireSearcher(source, searcherSupplierProvider().acquireSearcherSupplier(this::wrapSearcher, scope));
+    }
+
+    /** The indexer's searcher capability; an indexer without one cannot serve {@code _search}. */
+    private SearcherSupplierProvider searcherSupplierProvider() {
         final Indexer indexer = getIndexer();
-        return applyOnEngine(indexer, engine -> engine.acquireSearcher(source, scope, this::wrapSearcher));
+        if (indexer instanceof SearcherSupplierProvider provider) {
+            return provider;
+        }
+        throw SearcherSupplierProvider.searchNotSupported(shardId, indexer.getClass().getSimpleName() + " has no searcher");
     }
 
     /**
@@ -3518,8 +3576,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private boolean recoversTranslogFromPeer() {
         return shardRouting.primary() == false
             && shardRouting.isSearchOnly() == false
-            && indexSettings.isRemoteTranslogStoreEnabled() == false
-            && RemoteStoreNodeAttribute.isTranslogRepoConfigured(indexSettings.getNodeSettings()) == false;
+            && indexSettings.isTranslogDurableInRemoteStore() == false;
     }
 
     private void innerOpenEngineAndTranslog(LongSupplier globalCheckpointSupplier, boolean syncFromRemote) throws IOException {
@@ -3539,8 +3596,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 + recoveryState.getRecoverySource()
                 + "] but got "
                 + getRetentionLeases();
-        final boolean hydrateFromRemote = (indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded())
-            && recoversTranslogFromPeer() == false;
+        // Hydrating rewrites the Lucene commit from the remote segment infos, which drops operations that were
+        // acknowledged but not yet flushed. A remote translog replays them afterwards; a local translog is their only
+        // durable copy, so a primary that owns one keeps its commit instead.
+        final boolean hasRemoteSegments = indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded();
+        final boolean wouldLoseAcknowledgedOperations = shardRouting.primary() && indexSettings.isTranslogDurableInRemoteStore() == false;
+        final boolean hydrateFromRemote = hasRemoteSegments
+            && recoversTranslogFromPeer() == false
+            && wouldLoseAcknowledgedOperations == false;
         if (hydrateFromRemote) {
             hydrateFromRemoteStore(syncFromRemote);
         }

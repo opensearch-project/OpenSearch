@@ -2,7 +2,7 @@
   "cluster.describe_settings": {
     "documentation": {
       "url": "https://opensearch.org/docs/latest/api-reference/cluster-api/cluster-settings/",
-      "description": "Describes exact registered cluster setting names using the elected cluster-manager's registry. Reports metadata (whether a setting is dynamic), not values or defaults. Unknown and filtered names are omitted."
+      "description": "Describes registered cluster settings using the receiving node's setting registry. Reports definition metadata, not configured values. Unknown and filtered names are omitted. The whole result is returned in one response, sorted by setting name."
     },
     "stability": "experimental",
     "url": {
@@ -14,11 +14,7 @@
       "settings": {
         "type": "list",
         "required": true,
-        "description": "Exact setting names, including concrete affix keys. Wildcards are not supported."
-      },
-      "cluster_manager_timeout": {
-        "type": "time",
-        "description": "Timeout for connecting to the elected cluster-manager"
+        "description": "Setting names to describe. Each entry is either an exact name (including a concrete affix key such as cluster.remote.alpha.seeds) or a prefix ending in .* such as cluster.routing.allocation.*, which expands to every setting registered under it. Concrete affix keys are not registered settings and are reachable only by exact name. Group settings and prefix-only affix settings have open membership, so any key under their prefix is described with the group's or template's metadata. Keystore settings are described by exact name but never under a prefix. Exact names and prefixes may be mixed."
       }
     }
   }

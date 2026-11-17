@@ -128,6 +128,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.opensearch.index.engine.Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -151,7 +152,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class DataFormatAwareEngine implements Indexer {
+public class DataFormatAwareEngine implements Indexer, SearcherSupplierProvider {
 
     private final Logger logger;
     private final EngineConfig engineConfig;
@@ -167,6 +168,7 @@ public class DataFormatAwareEngine implements Indexer {
     private final AtomicLong writerGenerationCounter;
 
     private final Map<DataFormat, EngineReaderManager<?>> readerManagers;
+    private final DataFormatAwareSearcherSupport searcherSupport;
 
     private final CatalogSnapshotManager catalogSnapshotManager;
     private final Committer committer;
@@ -411,6 +413,7 @@ public class DataFormatAwareEngine implements Indexer {
                     engineConfig.getIndexSettings()
                 )
             );
+            this.searcherSupport = new DataFormatAwareSearcherSupport(shardId, engineConfig, readerManagers.keySet());
 
             // 6. Create CombinedCatalogSnapshotDeletionPolicy
             CombinedCatalogSnapshotDeletionPolicy combinedPolicy = new CombinedCatalogSnapshotDeletionPolicy(
@@ -2469,6 +2472,24 @@ public class DataFormatAwareEngine implements Indexer {
             snapshotRef.close();
             throw e;
         }
+    }
+
+    /**
+     * Builds a point-in-time {@link Engine.SearcherSupplier} over the searchable reader of this shard's
+     * data formats. Shared with {@link DataFormatAwareReadOnlyEngine} so a warm shard behaves identically.
+     */
+    @Override
+    public Engine.SearcherSupplier acquireSearcherSupplier(Function<Engine.Searcher, Engine.Searcher> wrapper, Engine.SearcherScope scope) {
+        // One point-in-time view per catalog snapshot, so there is no separate INTERNAL reader; IndexShard only asks for EXTERNAL.
+        assert scope == Engine.SearcherScope.EXTERNAL : "unexpected searcher scope " + scope;
+        ensureOpen();
+        final GatedCloseable<Reader> readerRef;
+        try {
+            readerRef = acquireReader();
+        } catch (IOException e) {
+            throw new EngineException(shardId, "failed to acquire reader for searcher", e);
+        }
+        return searcherSupport.acquireSearcherSupplier(readerRef, wrapper);
     }
 
     @Override

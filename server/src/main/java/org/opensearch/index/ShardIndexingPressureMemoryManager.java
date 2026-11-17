@@ -447,7 +447,7 @@ public class ShardIndexingPressureMemoryManager {
                 long totalShardLimitsExceptCurrentShard = this.shardIndexingPressureStore.getShardIndexingPressureHotStore()
                     .entrySet()
                     .stream()
-                    .filter(entry -> (shardId != entry.getKey()))
+                    .filter(entry -> shardId.equals(entry.getKey()) == false)
                     .map(Map.Entry::getValue)
                     .mapToLong(getShardLimitFunction)
                     .sum();

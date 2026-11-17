@@ -65,15 +65,14 @@ public class StreamCardinalityAggregator extends CardinalityAggregator {
             throw new IllegalStateException("StreamCardinalityAggregator only supports ordinal value sources");
         }
 
-        // Handle ordinal value sources - always use OrdinalsCollector
-        final SortedSetDocValues ordinalValues = ((ValuesSource.Bytes.WithOrdinals) valuesSource).ordinalsValues(ctx);
-        final long maxOrd = ordinalValues.getValueCount();
-        if (maxOrd == 0) {
+        // Every collector hashes into counts, which is recreated for each batch
+        final ValuesSource.Bytes.WithOrdinals source = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+        final SortedSetDocValues ordinalValues = source.ordinalsValues(ctx);
+        if (ordinalValues.getValueCount() == 0) {
             emptyCollectorsUsed++;
             streamCollector = new EmptyCollector();
         } else {
-            ordinalsCollectorsUsed++;
-            streamCollector = new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
+            streamCollector = ordinalsCollector(source, ordinalValues, ctx);
         }
         return streamCollector;
     }

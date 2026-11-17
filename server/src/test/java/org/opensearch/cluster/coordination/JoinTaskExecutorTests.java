@@ -39,10 +39,13 @@ import org.opensearch.cluster.decommission.DecommissionAttribute;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.cluster.decommission.DecommissionStatus;
 import org.opensearch.cluster.decommission.NodeDecommissionedException;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.cluster.metadata.Template;
 import org.opensearch.cluster.metadata.View;
 import org.opensearch.cluster.metadata.ViewMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -57,6 +60,7 @@ import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
@@ -72,6 +76,7 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_MODE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -669,6 +674,75 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
         );
         assertTrue(e.getMessage().equals("a non remote store node [" + joiningNode + "] is trying to join a remote " + "store cluster"));
+    }
+
+    public void testJoinClusterWithSegmentsOnlyNodeJoiningSegmentsOnlyCluster() {
+        ClusterState currentState = clusterStateWithSingleNode(segmentsOnlyNodeAttributes(SEGMENT_REPO));
+        DiscoveryNode joiningNode = newDiscoveryNode(segmentsOnlyNodeAttributes(SEGMENT_REPO));
+        JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata());
+    }
+
+    /**
+     * A segments_only node has no cluster state repository, so it is not a {@code DiscoveryNode#isRemoteStoreNode()}.
+     * The checks below are the ones that predicate used to gate, which left a segments_only cluster accepting any
+     * node at all.
+     */
+    public void testPreventJoinClusterWithSegmentsOnlyNodeWithDifferentRepositoryJoining() {
+        ClusterState currentState = clusterStateWithSingleNode(segmentsOnlyNodeAttributes(SEGMENT_REPO));
+        DiscoveryNode joiningNode = newDiscoveryNode(segmentsOnlyNodeAttributes("a-different-segment-repo"));
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
+        );
+        assertTrue(e.getMessage().contains("incompatible node attributes"));
+    }
+
+    public void testPreventJoinClusterWithNonRemoteStoreNodeJoiningSegmentsOnlyCluster() {
+        ClusterState currentState = clusterStateWithSingleNode(segmentsOnlyNodeAttributes(SEGMENT_REPO));
+        DiscoveryNode joiningNode = newDiscoveryNode(Collections.emptyMap());
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
+        );
+        assertEquals("a non remote store node [" + joiningNode + "] is trying to join a remote store cluster", e.getMessage());
+    }
+
+    /**
+     * The two kinds of remote store node have different durability semantics, and {@code IndexSettings#isTranslogDurableInRemoteStore}
+     * reads the node attribute, so a shard that moved between them would change which copy of its operations is the
+     * durable one.
+     */
+    public void testPreventJoinClusterWithRemoteStoreNodeJoiningSegmentsOnlyCluster() {
+        ClusterState currentState = clusterStateWithSingleNode(segmentsOnlyNodeAttributes(SEGMENT_REPO));
+        DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
+        );
+        assertTrue(e.getMessage().contains("incompatible node attributes"));
+    }
+
+    public void testPreventJoinClusterWithSegmentsOnlyNodeJoiningRemoteStoreCluster() {
+        ClusterState currentState = clusterStateWithSingleNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
+        DiscoveryNode joiningNode = newDiscoveryNode(segmentsOnlyNodeAttributes(SEGMENT_REPO));
+        Exception e = assertThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata())
+        );
+        assertTrue(e.getMessage().contains("incompatible node attributes"));
+    }
+
+    private ClusterState clusterStateWithSingleNode(Map<String, String> attributes) {
+        final DiscoveryNode existingNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            attributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(existingNode).localNodeId(existingNode.getId()).build())
+            .build();
     }
 
     public void testPreventJoinClusterWithRemoteStoreNodeWithPartialAttributesJoiningRemoteStoreCluster() {
@@ -1648,6 +1722,30 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         return remoteStoreNodeAttributes(segmentRepoName, translogRepoName, CLUSTER_STATE_REPO);
     }
 
+    /** A segment repository and deliberately no translog or cluster state repository, which is what segments_only is. */
+    private Map<String, String> segmentsOnlyNodeAttributes(String segmentRepoName) {
+        String segmentRepositoryTypeAttributeKey = String.format(
+            Locale.getDefault(),
+            REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+            segmentRepoName
+        );
+        String segmentRepositorySettingsAttributeKeyPrefix = String.format(
+            Locale.getDefault(),
+            REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+            segmentRepoName
+        );
+
+        return new HashMap<>() {
+            {
+                put(REMOTE_STORE_MODE_KEY, "segments_only");
+                put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName);
+                put(segmentRepositoryTypeAttributeKey, "s3");
+                put(segmentRepositorySettingsAttributeKeyPrefix + "bucket", "segment_bucket");
+                put(segmentRepositorySettingsAttributeKeyPrefix + "base_path", "/segment/path");
+            }
+        };
+    }
+
     private Map<String, String> remoteStoreNodeAttributes(String segmentRepoName, String translogRepoName, String clusterStateRepo) {
         String segmentRepositoryTypeAttributeKey = String.format(
             Locale.getDefault(),
@@ -1770,5 +1868,78 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         settings.put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true);
 
         return new RepositoryMetadata(name, type, settings.build());
+    }
+
+    private static IndexMetadata indexWithAlias(Version created, String scoringMode) {
+        return IndexMetadata.builder("scoped_idx")
+            .settings(settings(created))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetadata.builder("scoped").filter("{\"match_all\":{}}").scoringMode(scoringMode))
+            .build();
+    }
+
+    public void testNodeThatCannotReadAStoredScoringModeIsRejected() {
+        final Version older = VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION);
+        Metadata withIndexMode = Metadata.builder().put(indexWithAlias(older, "no_stats"), false).build();
+        Template template = new Template(
+            null,
+            null,
+            Map.of("scoped", AliasMetadata.builder("scoped").filter("{\"match_all\":{}}").scoringMode("no_stats").build())
+        );
+        Metadata withTemplateMode = Metadata.builder()
+            .put("composable", new ComposableIndexTemplate(List.of("scoped-*"), template, null, null, null, null, null))
+            .build();
+        for (Metadata metadata : List.of(withIndexMode, withTemplateMode)) {
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> JoinTaskExecutor.ensureScoringModeCompatibility(older, metadata)
+            );
+            assertThat(e.getMessage(), containsString("[scoring_mode] on alias [scoped]"));
+            JoinTaskExecutor.ensureScoringModeCompatibility(AliasFilter.SCORING_MODE_VERSION, metadata);
+        }
+        JoinTaskExecutor.ensureScoringModeCompatibility(older, Metadata.builder().put(indexWithAlias(older, null), false).build());
+    }
+
+    public void testJoinOfANodeThatCannotReadAStoredScoringModeFails() throws Exception {
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RemoteStoreNodeService remoteStoreNodeService = mock(RemoteStoreNodeService.class);
+        when(remoteStoreNodeService.updateRepositoriesMetadata(any(), any())).thenReturn(new RepositoriesMetadata(Collections.emptyList()));
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
+            Settings.EMPTY,
+            allocationService,
+            logger,
+            (reason, priority, listener) -> listener.onResponse(null),
+            remoteStoreNodeService,
+            node -> true
+        );
+        final Version older = VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION);
+        final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(clusterManagerNode)
+                    .localNodeId(clusterManagerNode.getId())
+                    .clusterManagerNodeId(clusterManagerNode.getId())
+            )
+            .metadata(Metadata.builder().put(indexWithAlias(older, "no_stats"), false))
+            .build();
+
+        final DiscoveryNode oldNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), older);
+        ClusterStateTaskExecutor.TaskResult rejected = joinTaskExecutor.execute(
+            clusterState,
+            List.of(new JoinTaskExecutor.Task(oldNode, "test"))
+        ).executionResults.values().iterator().next();
+        assertFalse(rejected.isSuccess());
+        assertThat(rejected.getFailure().getMessage(), containsString("[scoring_mode] on alias [scoped]"));
+
+        final DiscoveryNode newNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        assertTrue(
+            joinTaskExecutor.execute(clusterState, List.of(new JoinTaskExecutor.Task(newNode, "test"))).executionResults.values()
+                .iterator()
+                .next()
+                .isSuccess()
+        );
     }
 }

@@ -50,6 +50,7 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.opensearch.OpenSearchException;
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -85,6 +86,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.Assertions;
@@ -93,6 +95,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -116,6 +119,7 @@ import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.IndexerFactory;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
@@ -161,6 +165,7 @@ import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpoin
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
@@ -173,6 +178,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.nio.charset.Charset;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -1476,6 +1483,45 @@ public class IndexShardTests extends IndexShardTestCase {
         );
         expectThrows(AssertionError.class, () -> primaryShard.getHistoryOperationsFromTranslog(0, 1));
         closeShard(primaryShard, false);
+    }
+
+    /**
+     * A translog that is uploaded to a remote store must keep the buffered processor so that the uploads are batched.
+     * This covers the window during a migration where the node is already configured with a translog repository but
+     * the index has not been stamped with one, which is why the node attribute is consulted and not just the setting.
+     */
+    public void testRemoteTranslogConfiguredOnNodeUsesBufferedSyncProcessor() throws IOException {
+        IndexShard shard = newShard(
+            true,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .build()
+        );
+        try {
+            assertFalse("the index has no translog repository yet", shard.indexSettings().isRemoteTranslogStoreEnabled());
+            assertTrue(
+                "the node does have one, so the translog is already remote",
+                RemoteStoreNodeAttribute.isTranslogRepoConfigured(shard.indexSettings().getNodeSettings())
+            );
+            assertTrue(shard.getTranslogSyncProcessor() instanceof BufferedAsyncIOProcessor);
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /**
+     * Without a remote translog there is nothing to batch, so the fsync is issued inline on the calling thread.
+     */
+    public void testLocalTranslogUsesInlineSyncProcessor() throws IOException {
+        IndexShard shard = newShard(true);
+        try {
+            assertFalse(shard.indexSettings().isRemoteTranslogStoreEnabled());
+            assertFalse(RemoteStoreNodeAttribute.isTranslogRepoConfigured(shard.indexSettings().getNodeSettings()));
+            assertFalse(shard.getTranslogSyncProcessor() instanceof BufferedAsyncIOProcessor);
+        } finally {
+            closeShards(shard);
+        }
     }
 
     public void testGlobalCheckpointSync() throws IOException {
@@ -3117,25 +3163,55 @@ public class IndexShardTests extends IndexShardTestCase {
         testRestoreShardFromRemoteStore(true);
     }
 
+    /**
+     * The same restore against a segments_only shard, which has a segment repository and no translog repository. Only
+     * segments were uploaded, so the shard comes back at its last uploaded segment with an empty translog rather than
+     * replaying a remote one, and the restore has to succeed without a translog repository to read.
+     */
+    public void testCommitLevelRestoreSegmentsOnlyShardFromRemoteStore() throws IOException {
+        testRestoreShardFromRemoteStore(true, true, true);
+    }
+
+    /**
+     * A shard that never refreshed uploaded nothing, so the download leaves only the segments_N written locally and
+     * the restore has to bootstrap an empty shard rather than open one from segments that are not there.
+     */
+    public void testRestoreShardThatUploadedNothingFromRemoteStore() throws IOException {
+        testRestoreShardFromRemoteStore(false, false, false);
+    }
+
+    public void testRestoreSegmentsOnlyShardThatUploadedNothingFromRemoteStore() throws IOException {
+        testRestoreShardFromRemoteStore(false, true, false);
+    }
+
     public void testRestoreShardFromRemoteStore(boolean performFlush) throws IOException {
+        testRestoreShardFromRemoteStore(performFlush, false, true);
+    }
+
+    public void testRestoreShardFromRemoteStore(boolean performFlush, boolean segmentsOnly, boolean uploadSegments) throws IOException {
         String remoteStorePath = createTempDir().toString();
-        IndexShard target = newStartedShard(
-            true,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
-                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStorePath + "__test")
-                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStorePath + "__test")
-                .build(),
-            new EngineBackedIndexerFactory(new InternalEngineFactory())
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, remoteStorePath + "__test");
+        if (segmentsOnly == false) {
+            settings.put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, remoteStorePath + "__test");
+        }
+        IndexShard target = newStartedShard(true, settings.build(), new EngineBackedIndexerFactory(new InternalEngineFactory()));
+        assertEquals(
+            "the translog is remote exactly when a translog repository is configured",
+            segmentsOnly == false,
+            target.indexSettings().isTranslogDurableInRemoteStore()
         );
 
-        indexDoc(target, "_doc", "1");
-        indexDoc(target, "_doc", "2");
-        target.refresh("test");
-        assertDocs(target, "1", "2");
-        if (performFlush) {
-            flushShard(target);
+        if (uploadSegments) {
+            indexDoc(target, "_doc", "1");
+            indexDoc(target, "_doc", "2");
+            target.refresh("test");
+            assertDocs(target, "1", "2");
+            if (performFlush) {
+                flushShard(target);
+            }
         }
 
         ShardRouting routing = ShardRoutingHelper.initWithSameId(
@@ -3180,13 +3256,18 @@ public class IndexShardTests extends IndexShardTestCase {
 
         assertEquals(0, storeDirectory.listAll().length);
 
-        Directory remoteDirectory = ((FilterDirectory) ((FilterDirectory) target.remoteStore().directory()).getDelegate()).getDelegate();
+        // A shard that never refreshed wrote no metadata file, and listing a remote directory without one fails.
+        if (uploadSegments) {
+            Directory remoteDirectory = ((FilterDirectory) ((FilterDirectory) target.remoteStore().directory()).getDelegate())
+                .getDelegate();
 
-        // extra0 file is added as a part of https://lucene.apache.org/core/7_2_1/test-framework/org/apache/lucene/mockfile/ExtrasFS.html
-        // Safe to remove without impacting the test
-        for (String file : remoteDirectory.listAll()) {
-            if (ExtrasFS.isExtra(file)) {
-                remoteDirectory.deleteFile(file);
+            // extra0 file is added as a part of
+            // https://lucene.apache.org/core/7_2_1/test-framework/org/apache/lucene/mockfile/ExtrasFS.html
+            // Safe to remove without impacting the test
+            for (String file : remoteDirectory.listAll()) {
+                if (ExtrasFS.isExtra(file)) {
+                    remoteDirectory.deleteFile(file);
+                }
             }
         }
 
@@ -3199,7 +3280,11 @@ public class IndexShardTests extends IndexShardTestCase {
         target.restoreFromRemoteStore(future);
         target.remoteStore().decRef();
         assertTrue(future.actionGet());
-        assertDocs(target, "1", "2");
+        if (uploadSegments) {
+            assertDocs(target, "1", "2");
+        } else {
+            assertDocCount(target, 0);
+        }
 
         storeDirectory = ((FilterDirectory) ((FilterDirectory) target.store().directory()).getDelegate()).getDelegate();
         ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
@@ -4012,6 +4097,37 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(requestedMappingUpdates.get("_doc").source().string(), equalTo("{\"properties\":{\"foo\":{\"type\":\"text\"}}}"));
 
         closeShards(sourceShard, targetShard);
+    }
+
+    /** A shard whose indexer has no searcher capability rejects {@code _search} with a 400 instead of a 500. */
+    public void testSearchOnIndexerWithoutSearcherIsBadRequest() throws IOException {
+        final IndexerFactory engineBacked = new EngineBackedIndexerFactory(new InternalEngineFactory());
+        // Forwards every Indexer call to an engine-backed indexer but does not implement SearcherSupplierProvider.
+        final IndexerFactory searchless = config -> {
+            final Indexer delegate = engineBacked.createIndexer(config);
+            return (Indexer) Proxy.newProxyInstance(
+                Indexer.class.getClassLoader(),
+                new Class<?>[] { Indexer.class },
+                (proxy, method, args) -> {
+                    try {
+                        return method.invoke(delegate, args);
+                    } catch (InvocationTargetException e) {
+                        throw e.getCause();
+                    }
+                }
+            );
+        };
+        final IndexShard shard = newStartedShard(true, Settings.EMPTY, searchless);
+        try {
+            OpenSearchStatusException e = expectThrows(OpenSearchStatusException.class, () -> shard.acquireSearcher("test"));
+            assertEquals(RestStatus.BAD_REQUEST, e.status());
+            assertThat(e.getMessage(), containsString("does not support _search"));
+
+            e = expectThrows(OpenSearchStatusException.class, () -> shard.acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL));
+            assertEquals(RestStatus.BAD_REQUEST, e.status());
+        } finally {
+            closeShards(shard);
+        }
     }
 
     public void testCompletionStatsMarksSearcherAccessed() throws Exception {
@@ -6114,5 +6230,66 @@ public class IndexShardTests extends IndexShardTestCase {
             IndexShard.isTranslogBackedByRemoteStore(docrepIndex, IndexShard.ShardMigrationState.DOCREP_NON_MIGRATING)
         );
         assertFalse(IndexShard.isTranslogBackedByRemoteStore(docrepIndex, IndexShard.ShardMigrationState.REMOTE_NON_MIGRATING));
+    }
+
+    /**
+     * The catalog-based commit accessors are the format-neutral entry point the snapshot path uses. Unlike
+     * {@link IndexShard#acquireLastIndexCommit(boolean)} they reach the indexer directly rather than via
+     * {@code applyOnEngine}, which is what allows a data-format-aware engine to be snapshotted at all.
+     */
+    public void testAcquireLastCommittedSnapshot() throws Exception {
+        final IndexShard shard = newStartedShard(true);
+        try {
+            indexDoc(shard, "_doc", "1");
+            flushShard(shard);
+
+            try (GatedCloseable<CatalogSnapshot> wrapped = shard.acquireLastCommittedSnapshot(false)) {
+                final CatalogSnapshot catalogSnapshot = wrapped.get();
+                assertNotNull(catalogSnapshot);
+                assertEquals(
+                    "catalog generation must match the shard's last committed Lucene commit",
+                    shard.store().readLastCommittedSegmentsInfo().getGeneration(),
+                    catalogSnapshot.getGeneration()
+                );
+            }
+
+            // flushFirst=true must still produce a usable commit point.
+            indexDoc(shard, "_doc", "2");
+            try (GatedCloseable<CatalogSnapshot> wrapped = shard.acquireLastCommittedSnapshot(true)) {
+                assertNotNull(wrapped.get());
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    public void testAcquireLastCommittedSnapshotAndRefresh() throws Exception {
+        final IndexShard shard = newStartedShard(true);
+        try {
+            indexDoc(shard, "_doc", "1");
+            flushShard(shard);
+
+            try (GatedCloseable<CatalogSnapshot> wrapped = shard.acquireLastCommittedSnapshotAndRefresh(false)) {
+                assertNotNull(wrapped.get());
+                assertEquals(shard.store().readLastCommittedSegmentsInfo().getGeneration(), wrapped.get().getGeneration());
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /** A shard that has not finished recovery must refuse to hand out a commit point. */
+    public void testAcquireLastCommittedSnapshotRejectedWhenShardNotStarted() throws Exception {
+        final IndexShard shard = newShard(false);
+        try {
+            assertEquals(IndexShardState.CREATED, shard.state());
+            final IllegalIndexShardStateException e = expectThrows(
+                IllegalIndexShardStateException.class,
+                () -> shard.acquireLastCommittedSnapshot(randomBoolean())
+            );
+            assertThat(e.getMessage(), containsString("snapshot is not allowed"));
+        } finally {
+            closeShards(shard);
+        }
     }
 }

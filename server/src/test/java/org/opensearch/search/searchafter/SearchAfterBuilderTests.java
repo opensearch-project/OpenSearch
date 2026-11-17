@@ -35,10 +35,12 @@ package org.opensearch.search.searchafter;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Pruning;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
@@ -50,14 +52,17 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.mapper.DateFieldMapper.Resolution;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.sort.BucketedSort;
+import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.ZoneOffset;
 import java.util.Collections;
 
 import static org.opensearch.search.searchafter.SearchAfterBuilder.extractSortType;
@@ -67,6 +72,24 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SearchAfterBuilderTests extends OpenSearchTestCase {
     private static final int NUMBER_OF_TESTBUILDERS = 20;
+
+    public void testDateSearchAfterLongMinValue() {
+        DocValueFormat format = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("strict_date_optional_time||epoch_millis"),
+            ZoneOffset.UTC,
+            Resolution.MILLISECONDS
+        );
+        for (boolean reverse : new boolean[] { false, true }) {
+            SortAndFormats sort = new SortAndFormats(
+                new Sort(new SortField("date", SortField.Type.LONG, reverse)),
+                new DocValueFormat[] { format }
+            );
+            Object[] numeric = SearchAfterBuilder.buildFieldDoc(sort, new Object[] { Long.MIN_VALUE }).fields;
+            Object[] string = SearchAfterBuilder.buildFieldDoc(sort, new Object[] { Long.toString(Long.MIN_VALUE) }).fields;
+            assertEquals(Long.MIN_VALUE, string[0]);
+            assertArrayEquals(numeric, string);
+        }
+    }
 
     private static SearchAfterBuilder randomSearchAfterBuilder() throws IOException {
         int numSearchFrom = randomIntBetween(1, 10);

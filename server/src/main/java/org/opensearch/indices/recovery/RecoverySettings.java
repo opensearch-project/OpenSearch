@@ -64,7 +64,7 @@ public class RecoverySettings {
         new ByteSizeValue(40, ByteSizeUnit.MB),
         Property.Dynamic,
         Property.NodeScope
-    );
+    ).withDescription("Limits the total inbound and outbound recovery traffic for each node, for peer and snapshot recoveries.");
 
     /**
      * Individual speed setting for segment replication, default -1B to reuse the setting of recovery.
