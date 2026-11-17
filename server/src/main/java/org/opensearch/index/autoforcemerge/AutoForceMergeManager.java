@@ -64,13 +64,15 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
     private final ClusterService clusterService;
     private AsyncForceMergeTask task;
     private ConfigurationValidator configurationValidator;
-    private NodeValidator nodeValidator;
+    // nodeValidator, resourceTrackers and forceMergeManagerSettings are published in doStart() and read by the
+    // _forcemerge duress check on force merge threads, so they must be visible across threads
+    private volatile NodeValidator nodeValidator;
     private ShardValidator shardValidator;
     private Integer allocatedProcessors;
     private String nodeId;
     private final AutoForceMergeMetrics autoForceMergeMetrics;
-    private ResourceTrackerProvider.ResourceTrackers resourceTrackers;
-    private ForceMergeManagerSettings forceMergeManagerSettings;
+    private volatile ResourceTrackerProvider.ResourceTrackers resourceTrackers;
+    private volatile ForceMergeManagerSettings forceMergeManagerSettings;
     private final CommonStatsFlags flags = new CommonStatsFlags(CommonStatsFlags.Flag.Segments, CommonStatsFlags.Flag.Translog);
     private final Set<Integer> mergingShards;
 
@@ -96,19 +98,34 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
     @Override
     protected void doStart() {
         this.forceMergeManagerSettings = new ForceMergeManagerSettings(clusterService, this::modifySchedulerInterval);
+        // Created before the validators are published so that a force merge thread that sees the node validator also sees
+        // the trackers it reads from. The trackers feed both auto force merge and the node-duress check of the _forcemerge
+        // API, so on nodes that can hold shards they run for the whole lifecycle of this component, independently of
+        // whether auto force merge is enabled. Other nodes (e.g. dedicated cluster-manager or coordinating nodes) never run
+        // a force merge, so they do not pay for the periodic sampling.
+        this.resourceTrackers = ResourceTrackerProvider.create(threadPool);
+        if (canHoldShards(clusterService.localNode())) {
+            this.resourceTrackers.start();
+        }
+        this.allocatedProcessors = OpenSearchExecutors.allocatedProcessors(clusterService.getSettings());
+        this.nodeId = clusterService.localNode().getId();
         this.task = new AsyncForceMergeTask();
         this.configurationValidator = new ConfigurationValidator();
-        this.nodeValidator = new NodeValidator();
         this.shardValidator = new ShardValidator();
-        this.allocatedProcessors = OpenSearchExecutors.allocatedProcessors(clusterService.getSettings());
-        this.resourceTrackers = ResourceTrackerProvider.create(threadPool);
-        this.nodeId = clusterService.localNode().getId();
+        this.nodeValidator = new NodeValidator();
+    }
+
+    private static boolean canHoldShards(DiscoveryNode node) {
+        return node.isDataNode() || node.isWarmNode() || node.isSearchNode();
     }
 
     @Override
     protected void doStop() {
         if (task != null) {
             this.task.close();
+        }
+        if (resourceTrackers != null) {
+            resourceTrackers.stop();
         }
     }
 
@@ -117,10 +134,32 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
         if (task != null) {
             this.task.close();
         }
+        if (resourceTrackers != null) {
+            resourceTrackers.stop();
+        }
     }
 
     private void modifySchedulerInterval(TimeValue schedulerInterval) {
         this.task.setInterval(schedulerInterval);
+    }
+
+    /**
+     * Decides whether a user-triggered force merge should be rejected on this node right now.
+     * <p>
+     * Returns {@code true} when the node is in duress, i.e. the 1-minute or 5-minute CPU or JVM heap average, or the
+     * disk usage, is over the configured auto force merge thresholds. Unlike auto force merge, instantaneous CPU and
+     * heap readings are not considered, so that short spikes (e.g. before a GC) do not reject user requests. Callers are
+     * expected to honor an explicit per-request override ({@code ignore_duress}) before consulting this.
+     *
+     * @return {@code true} if the force merge should be rejected due to node duress, {@code false} otherwise
+     */
+    public boolean shouldRejectForceMerge() {
+        // nodeValidator and forceMergeManagerSettings are initialized together in doStart(); guard against
+        // being called before the component has started (e.g. in tests) by not rejecting in that case.
+        if (forceMergeManagerSettings == null || nodeValidator == null || resourceTrackers == null) {
+            return false;
+        }
+        return nodeValidator.isNodeResourceAverageOverThreshold();
     }
 
     private void triggerForceMerge() {
@@ -141,7 +180,6 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
 
     private boolean isValidForForceMerge() {
         if (configurationValidator.hasWarmNodes() == false) {
-            resourceTrackers.stop();
             logger.debug("No warm nodes found. Skipping Auto Force merge.");
             autoForceMergeMetrics.incrementCounter(
                 autoForceMergeMetrics.skipsFromConfigValidator,
@@ -344,14 +382,7 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
 
         @Override
         public ValidationResult validate() {
-            resourceTrackers.start();
-            if (isCpuUsageOverThreshold()) {
-                return new ValidationResult(false);
-            }
-            if (isDiskUsageOverThreshold()) {
-                return new ValidationResult(false);
-            }
-            if (isJvmUsageOverThreshold()) {
+            if (isNodeResourceUsageOverThreshold()) {
                 return new ValidationResult(false);
             }
             if (areForceMergeThreadsAvailable() == false) {
@@ -359,6 +390,23 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
                 return new ValidationResult(false);
             }
             return new ValidationResult(true);
+        }
+
+        /**
+         * Returns {@code true} if any monitored node resource (CPU, JVM heap, or disk) is currently over
+         * its configured threshold, considering both the 1m/5m averages and the instantaneous CPU and heap usage.
+         */
+        boolean isNodeResourceUsageOverThreshold() {
+            return isCpuUsageOverThreshold() || isDiskUsageOverThreshold() || isJvmUsageOverThreshold();
+        }
+
+        /**
+         * Returns {@code true} if the 1m/5m CPU or JVM heap average, or the disk usage, is over its configured threshold.
+         * Used to gate user-triggered force merges through the {@code _forcemerge} API, where rejecting on a momentary
+         * spike would be too aggressive.
+         */
+        boolean isNodeResourceAverageOverThreshold() {
+            return isCpuAverageOverThreshold() || isDiskUsageOverThreshold() || isJvmAverageOverThreshold();
         }
 
         private boolean areForceMergeThreadsAvailable() {
@@ -371,14 +419,7 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
         }
 
         private boolean isJvmUsageOverThreshold() {
-            double jvmAverage = resourceTrackers.jvmFiveMinute.getAverage();
-            if (jvmAverage >= forceMergeManagerSettings.getJvmThreshold()) {
-                logger.debug("JVM Average: 5m({}%) breached the threshold: {}", jvmAverage, forceMergeManagerSettings.getJvmThreshold());
-                return true;
-            }
-            jvmAverage = resourceTrackers.jvmOneMinute.getAverage();
-            if (jvmAverage >= forceMergeManagerSettings.getJvmThreshold()) {
-                logger.debug("JVM Average: 1m({}%) breached the threshold: {}", jvmAverage, forceMergeManagerSettings.getJvmThreshold());
+            if (isJvmAverageOverThreshold()) {
                 return true;
             }
             double jvmUsedPercent = jvmService.stats().getMem().getHeapUsedPercent();
@@ -389,7 +430,33 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
             return false;
         }
 
+        private boolean isJvmAverageOverThreshold() {
+            double jvmAverage = resourceTrackers.jvmFiveMinute.getAverage();
+            if (jvmAverage >= forceMergeManagerSettings.getJvmThreshold()) {
+                logger.debug("JVM Average: 5m({}%) breached the threshold: {}", jvmAverage, forceMergeManagerSettings.getJvmThreshold());
+                return true;
+            }
+            jvmAverage = resourceTrackers.jvmOneMinute.getAverage();
+            if (jvmAverage >= forceMergeManagerSettings.getJvmThreshold()) {
+                logger.debug("JVM Average: 1m({}%) breached the threshold: {}", jvmAverage, forceMergeManagerSettings.getJvmThreshold());
+                return true;
+            }
+            return false;
+        }
+
         private boolean isCpuUsageOverThreshold() {
+            if (isCpuAverageOverThreshold()) {
+                return true;
+            }
+            double cpuPercent = osService.stats().getCpu().getPercent();
+            if (cpuPercent >= forceMergeManagerSettings.getCpuThreshold()) {
+                logger.debug("CPU usage: {} breached the threshold: {}", cpuPercent, forceMergeManagerSettings.getCpuThreshold());
+                return true;
+            }
+            return false;
+        }
+
+        private boolean isCpuAverageOverThreshold() {
             double cpuAverage = resourceTrackers.cpuFiveMinute.getAverage();
             if (cpuAverage >= forceMergeManagerSettings.getCpuThreshold()) {
                 logger.debug("CPU Average: 5m({}%) breached the threshold: {}", cpuAverage, forceMergeManagerSettings.getCpuThreshold());
@@ -398,11 +465,6 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
             cpuAverage = resourceTrackers.cpuOneMinute.getAverage();
             if (cpuAverage >= forceMergeManagerSettings.getCpuThreshold()) {
                 logger.debug("CPU Average: 1m({}%) breached the threshold: {}", cpuAverage, forceMergeManagerSettings.getCpuThreshold());
-                return true;
-            }
-            double cpuPercent = osService.stats().getCpu().getPercent();
-            if (cpuPercent >= forceMergeManagerSettings.getCpuThreshold()) {
-                logger.debug("CPU usage: {} breached the threshold: {}", cpuPercent, forceMergeManagerSettings.getCpuThreshold());
                 return true;
             }
             return false;
@@ -534,7 +596,6 @@ public class AutoForceMergeManager extends AbstractLifecycleComponent {
         @Override
         protected void runInternal() {
             if (configurationValidator.validate().isAllowed() == false) {
-                resourceTrackers.stop();
                 return;
             }
             triggerForceMerge();

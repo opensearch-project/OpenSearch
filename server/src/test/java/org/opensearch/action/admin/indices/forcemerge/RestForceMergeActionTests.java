@@ -41,6 +41,7 @@ import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class RestForceMergeActionTests extends RestActionTestCase {
 
@@ -67,5 +68,31 @@ public class RestForceMergeActionTests extends RestActionTestCase {
         assertWarnings(
             "setting only_expunge_deletes and max_num_segments at the same time is deprecated " + "and will be rejected in a future version"
         );
+    }
+
+    public void testIgnoreDuressDefaultsToFalse() {
+        assertFalse(dispatchAndCapture(new HashMap<>()).ignoreDuress());
+    }
+
+    public void testIgnoreDuressParsedFromRequest() {
+        final boolean ignoreDuress = randomBoolean();
+        final Map<String, String> params = new HashMap<>();
+        params.put("ignore_duress", Boolean.toString(ignoreDuress));
+        assertEquals(ignoreDuress, dispatchAndCapture(params).ignoreDuress());
+    }
+
+    private ForceMergeRequest dispatchAndCapture(Map<String, String> params) {
+        final RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/_forcemerge")
+            .withMethod(RestRequest.Method.POST)
+            .withParams(params)
+            .build();
+        final AtomicReference<ForceMergeRequest> captured = new AtomicReference<>();
+        verifyingClient.setExecuteVerifier((action, actionRequest) -> {
+            captured.set((ForceMergeRequest) actionRequest);
+            return null;
+        });
+        dispatchRequest(request);
+        assertNotNull("force merge request was not executed", captured.get());
+        return captured.get();
     }
 }

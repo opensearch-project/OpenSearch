@@ -311,17 +311,75 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
             getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
         );
         autoForceMergeManager.start();
+        // the resource trackers run even though auto force merge is disabled, as they also back the _forcemerge duress check
         assertFalse(autoForceMergeManager.getConfigurationValidator().validate().isAllowed());
-        assertNotEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
-        assertNotEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
-        assertNotEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
-        assertNotEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
+        assertResourceTrackersState(Lifecycle.State.STARTED);
         assertTrue(autoForceMergeManager.getNodeValidator().validate().isAllowed());
-        assertEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
-        assertEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
-        assertEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
-        assertEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
+        assertResourceTrackersState(Lifecycle.State.STARTED);
+        autoForceMergeManager.stop();
+        assertResourceTrackersState(Lifecycle.State.STOPPED);
         autoForceMergeManager.close();
+    }
+
+    public void testResourceTrackersKeepRunningWhenAutoForceMergeTaskSkips() {
+        // auto force merge disabled: the scheduled task bails out on the configuration check, but the trackers must keep
+        // collecting averages because the _forcemerge duress check depends on them
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(false, false, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
+        autoForceMergeManager.start();
+        autoForceMergeManager.getTask().runInternal();
+        autoForceMergeManager.getTask().runInternal();
+        assertResourceTrackersState(Lifecycle.State.STARTED);
+        autoForceMergeManager.close();
+        assertResourceTrackersState(Lifecycle.State.STOPPED);
+    }
+
+    public void testResourceTrackersNotStartedOnNodeThatCannotHoldShards() {
+        // a dedicated cluster-manager node never runs a force merge, so it does not sample CPU/JVM usage
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(false, false, Collections.emptyMap()),
+            getNodeWithRoles("CLUSTER_MANAGER_NODE_1", Set.of(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE))
+        );
+        autoForceMergeManager.start();
+        assertResourceTrackersState(Lifecycle.State.INITIALIZED);
+        autoForceMergeManager.close();
+    }
+
+    public void testResourceTrackersStartedOnWarmNode() {
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(false, false, Collections.emptyMap()),
+            getNodeWithRoles(WARM_NODE_1, Set.of(DiscoveryNodeRole.WARM_ROLE))
+        );
+        autoForceMergeManager.start();
+        assertResourceTrackersState(Lifecycle.State.STARTED);
+        autoForceMergeManager.close();
+    }
+
+    public void testResourceTrackersKeepRunningWithoutWarmNodes() {
+        // auto force merge enabled but no warm nodes in the cluster: previously this path stopped the trackers
+        DiscoveryNode dataNode1 = getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE));
+        ClusterState clusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
+            .nodes(DiscoveryNodes.builder().add(dataNode1).localNodeId(dataNode1.getId()).clusterManagerNodeId(dataNode1.getId()))
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .build();
+        when(clusterService.state()).thenReturn(clusterState);
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            dataNode1
+        );
+        autoForceMergeManager.start();
+        autoForceMergeManager.getTask().runInternal();
+        assertResourceTrackersState(Lifecycle.State.STARTED);
+        autoForceMergeManager.close();
+    }
+
+    private void assertResourceTrackersState(Lifecycle.State expected) {
+        assertEquals(expected, ResourceTrackerProvider.resourceTrackers.cpuOneMinute.lifecycleState());
+        assertEquals(expected, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
+        assertEquals(expected, ResourceTrackerProvider.resourceTrackers.jvmOneMinute.lifecycleState());
+        assertEquals(expected, ResourceTrackerProvider.resourceTrackers.jvmFiveMinute.lifecycleState());
     }
 
     public void testNodeValidatorWithHighCPU() {
@@ -412,6 +470,94 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(threadPool.stats()).thenReturn(emptyStats);
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
         autoForceMergeManager.close();
+    }
+
+    // Force merge duress check Tests
+    public void testShouldRejectForceMergeWhenAutoForceMergeDisabled() {
+        setupHealthySystemResources();
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(false, false, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
+        autoForceMergeManager.start();
+        // the averages keep being collected although auto force merge is disabled
+        for (int i = 0; i < 10; i++)
+            ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.recordUsage(90);
+        assertTrue(autoForceMergeManager.shouldRejectForceMerge());
+        autoForceMergeManager.close();
+    }
+
+    public void testShouldRejectForceMergeWithHealthyResources() {
+        setupHealthySystemResources();
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getAutoForceMergeDisabledClusterSettings(),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
+        autoForceMergeManager.start();
+        assertFalse(autoForceMergeManager.shouldRejectForceMerge());
+        autoForceMergeManager.close();
+    }
+
+    public void testShouldRejectForceMergeWithHighCPU() {
+        setupHealthySystemResources();
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getAutoForceMergeDisabledClusterSettings(),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
+        autoForceMergeManager.start();
+        for (int i = 0; i < 10; i++)
+            ResourceTrackerProvider.resourceTrackers.cpuOneMinute.recordUsage(90);
+        assertTrue(autoForceMergeManager.shouldRejectForceMerge());
+        autoForceMergeManager.close();
+    }
+
+    public void testShouldRejectForceMergeIgnoresInstantaneousSpikes() {
+        setupHealthySystemResources();
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getAutoForceMergeDisabledClusterSettings(),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
+        autoForceMergeManager.start();
+        // momentary CPU and heap spikes alone reject auto force merge but not a user-triggered force merge
+        when(cpu.getPercent()).thenReturn((short) 95);
+        when(jvm.getHeapUsedPercent()).thenReturn((short) 90);
+        assertTrue(autoForceMergeManager.getNodeValidator().isNodeResourceUsageOverThreshold());
+        assertFalse(autoForceMergeManager.shouldRejectForceMerge());
+        autoForceMergeManager.close();
+    }
+
+    public void testShouldRejectForceMergeWithHighJVMUsage() {
+        setupHealthySystemResources();
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getAutoForceMergeDisabledClusterSettings(),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
+        autoForceMergeManager.start();
+        for (int i = 0; i < 10; i++)
+            ResourceTrackerProvider.resourceTrackers.jvmFiveMinute.recordUsage(90);
+        assertTrue(autoForceMergeManager.shouldRejectForceMerge());
+        autoForceMergeManager.close();
+    }
+
+    public void testShouldRejectForceMergeWithHighDiskUsage() {
+        setupHealthySystemResources();
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getAutoForceMergeDisabledClusterSettings(),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
+        autoForceMergeManager.start();
+        when(disk.getAvailable()).thenReturn(new ByteSizeValue(5));
+        assertTrue(autoForceMergeManager.shouldRejectForceMerge());
+        autoForceMergeManager.close();
+    }
+
+    public void testShouldRejectForceMergeBeforeStart() {
+        when(cpu.getPercent()).thenReturn((short) 95);
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getAutoForceMergeDisabledClusterSettings(),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
+        assertFalse(autoForceMergeManager.shouldRejectForceMerge());
     }
 
     // ShardValidator Tests
@@ -1009,6 +1155,11 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
             ),
             Settings.EMPTY
         );
+    }
+
+    // Duress check is independent of auto force merge, so leave auto force merge off to cover the common _forcemerge-only case.
+    private Settings getAutoForceMergeDisabledClusterSettings() {
+        return getConfiguredClusterSettings(false, false, Collections.emptyMap());
     }
 
     private Settings getConfiguredClusterSettings(Boolean featureEnabled, Boolean remoteEnabled, Map<String, Object> additionalSettings) {
