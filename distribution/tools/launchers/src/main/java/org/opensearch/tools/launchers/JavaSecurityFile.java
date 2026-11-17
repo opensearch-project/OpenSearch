@@ -46,9 +46,10 @@ import java.util.TreeSet;
  * Replacing the whole file, rather than appending to it, is what removes the JDK's providers in FIPS mode. JCA has no way to
  * unregister a provider declaratively, and an appended file can only add or overwrite entries.
  * <p>
- * The file is written to a directory under {@code OPENSEARCH_TMPDIR} (or {@code java.io.tmpdir}) that only the current user can
- * access. It is named after a hash of its content, so each combination of JDK, mode and config produces one file, which later
- * starts reuse. The config directory is only read. Nothing is generated when {@code OPENSEARCH_JAVA_OPTS} already sets
+ * The file is written to {@value #CONFIG_FILE_NAME} in the config directory, next to the configuration it is generated from, where
+ * temporary-directory cleanups do not reach it. If the config directory is not writable, for example a read-only mount, the file
+ * goes to a directory under {@code OPENSEARCH_TMPDIR} (or {@code java.io.tmpdir}) that only the current user can access, named
+ * after a hash of its content. Nothing is generated when {@code OPENSEARCH_JAVA_OPTS} already sets
  * {@code java.security.properties}.
  */
 final class JavaSecurityFile {
@@ -56,6 +57,7 @@ final class JavaSecurityFile {
     static final String FIPS_MODE = "fips";
     static final String DEFAULT_MODE = "default";
     static final String FIPS_SECURITY_FILE_NAME = "fips_java.security";
+    static final String CONFIG_FILE_NAME = "java.security.generated";
     static final String PROVIDER_KEY_PREFIX = "security.provider.";
     static final String BC_FIPS_PROVIDER_NAME = "BCFIPS";
     static final String BC_FIPS_PROVIDER_CLASS = "org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider";
@@ -115,13 +117,13 @@ final class JavaSecurityFile {
 
         final byte[] content = render(properties, sources);
         final Path base = temporaryDirectory(System.getenv("OPENSEARCH_TMPDIR"), System.getProperty("java.io.tmpdir"));
-        final Path file = write(base, content);
+        final Path file = write(configDirectory, base, content);
         Launchers.outPrintln(file.toString());
     }
 
     /**
      * The config directory must be an absolute path to an existing directory, as {@code opensearch-env} passes
-     * {@code OPENSEARCH_PATH_CONF}. It is only read from, never written to.
+     * {@code OPENSEARCH_PATH_CONF}.
      */
     static Path configDirectory(final String argument) {
         if (isBlank(argument)) {
@@ -141,22 +143,48 @@ final class JavaSecurityFile {
     }
 
     /**
-     * Writes the file into the private directory under {@code base}. Both modes need it, because both declare BouncyCastle FIPS,
-     * so a failure stops the launch, like a temporary directory that {@code TempDirectory} cannot create.
+     * Writes the file to {@value #CONFIG_FILE_NAME} in the config directory or, if that fails, into the private directory under
+     * {@code base}. Both modes need the file, because both declare BouncyCastle FIPS, so if neither location is writable the launch
+     * stops, like a temporary directory that {@code TempDirectory} cannot create.
+     * <p>
+     * The config directory needs no ownership check: whoever can write to it controls the node through {@code jvm.options} anyway.
      */
-    static Path write(final Path base, final byte[] content) throws IOException {
+    static Path write(final Path configDirectory, final Path base, final byte[] content) throws IOException {
+        final Path configFile = configDirectory.resolve(CONFIG_FILE_NAME);
         try {
-            return writeIfChanged(privateDirectory(base), content);
-        } catch (final IOException e) {
-            throw new IOException(
-                String.format(
-                    Locale.ROOT,
-                    "cannot write the generated java.security to [%s]. Point OPENSEARCH_TMPDIR to a writable directory.",
-                    base
-                ),
-                e
+            return writeIfChanged(configFile, content);
+        } catch (final IOException configFailure) {
+            final Path temporaryFile;
+            try {
+                temporaryFile = writeIfChanged(privateDirectory(base).resolve(hashedFileName(content)), content);
+            } catch (final IOException temporaryFailure) {
+                final IOException e = new IOException(
+                    String.format(
+                        Locale.ROOT,
+                        "cannot write the generated java.security to [%s] or to [%s]. Make the config directory writable, "
+                            + "point OPENSEARCH_TMPDIR to a writable directory, "
+                            + "or pass your own file with -Djava.security.properties==<file> in OPENSEARCH_JAVA_OPTS.",
+                        configFile,
+                        base
+                    ),
+                    temporaryFailure
+                );
+                e.addSuppressed(configFailure);
+                throw e;
+            }
+            Launchers.errPrintln(
+                String.format(Locale.ROOT, "cannot write [%s] (%s), using [%s] instead.", configFile, configFailure, temporaryFile)
             );
+            return temporaryFile;
         }
+    }
+
+    /**
+     * The name of the file in the temporary directory, derived from its content, so that processes with different content never
+     * share a file there.
+     */
+    static String hashedFileName(final byte[] content) {
+        return FILE_PREFIX + sha256Hex(content).substring(0, 32);
     }
 
     static boolean isConfiguredByUser(final String javaOpts) {
@@ -376,23 +404,45 @@ final class JavaSecurityFile {
     }
 
     /**
-     * Writes the content to a file named after its hash, unless that file already holds exactly this content.
+     * Writes the content to the file, unless the file already holds exactly this content. A file that cannot be read, for example
+     * one that a CLI tool run as another user created, is replaced.
+     * <p>
+     * Several OpenSearch processes on one host may share the file. Each process writes its own temporary file and moves it into
+     * place atomically, so a reader never sees a partial file. With the same JDK, mode and config, concurrent writers only ever
+     * replace the file with identical bytes. Windows refuses to replace a file that another process has open, so a failed move is
+     * accepted when the file already holds this content.
      */
-    static Path writeIfChanged(final Path directory, final byte[] content) throws IOException {
-        final String name = FILE_PREFIX + sha256Hex(content).substring(0, 32);
-        final Path file = directory.resolve(name);
-        final boolean isUpToDate = Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) && Arrays.equals(Files.readAllBytes(file), content);
-        if (isUpToDate) {
+    static Path writeIfChanged(final Path file, final byte[] content) throws IOException {
+        if (holdsContent(file, content)) {
             return file;
         }
-        final Path temporaryFile = Files.createTempFile(directory, name, ".tmp");
+        final Path temporaryFile = Files.createTempFile(file.getParent(), file.getFileName().toString(), ".tmp");
         try {
             Files.write(temporaryFile, content);
             Files.move(temporaryFile, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } catch (final IOException e) {
+            if (holdsContent(file, content)) {
+                return file;
+            }
+            throw e;
         } finally {
             Files.deleteIfExists(temporaryFile);
         }
         return file;
+    }
+
+    /**
+     * Whether the file is a regular file with exactly this content. A file that cannot be read does not hold it.
+     */
+    private static boolean holdsContent(final Path file, final byte[] content) {
+        if (Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+            try {
+                return Arrays.equals(Files.readAllBytes(file), content);
+            } catch (final IOException e) {
+                return false;
+            }
+        }
+        return false;
     }
 
     private static Properties load(final Path file) throws IOException {

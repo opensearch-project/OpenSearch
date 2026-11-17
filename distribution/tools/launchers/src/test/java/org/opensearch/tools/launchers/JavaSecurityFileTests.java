@@ -15,9 +15,17 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -25,7 +33,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -147,40 +154,93 @@ public class JavaSecurityFileTests extends LaunchersTestCase {
     }
 
     public void testWriteReusesAFileWithTheSameContent() throws IOException {
-        final Path directory = newTempDir();
+        final Path file = newTempDir().resolve("java.security");
         final byte[] content = JavaSecurityFile.render(linuxJdk(), "test");
 
-        final Path first = JavaSecurityFile.writeIfChanged(directory, content);
-        final long modified = Files.getLastModifiedTime(first).toMillis();
-        final Path second = JavaSecurityFile.writeIfChanged(directory, content);
+        JavaSecurityFile.writeIfChanged(file, content);
+        final long modified = Files.getLastModifiedTime(file).toMillis();
+        final Path second = JavaSecurityFile.writeIfChanged(file, content);
 
-        assertThat(second, equalTo(first));
-        assertThat(Files.getLastModifiedTime(second).toMillis(), equalTo(modified));
-        assertArrayEquals(content, Files.readAllBytes(first));
+        assertThat(second, equalTo(file));
+        assertThat(Files.getLastModifiedTime(file).toMillis(), equalTo(modified));
+        assertArrayEquals(content, Files.readAllBytes(file));
     }
 
-    public void testWriteUsesADifferentFileForDifferentContent() throws IOException {
-        final Path directory = newTempDir();
-
-        final Path linux = JavaSecurityFile.writeIfChanged(directory, JavaSecurityFile.render(linuxJdk(), "test"));
-        final Path withBcFips = JavaSecurityFile.writeIfChanged(
-            directory,
+    public void testHashedFileNamesDifferOnlyForDifferentContent() {
+        final String linux = JavaSecurityFile.hashedFileName(JavaSecurityFile.render(linuxJdk(), "test"));
+        final String withBcFips = JavaSecurityFile.hashedFileName(
             JavaSecurityFile.render(JavaSecurityFile.forDefaultMode(linuxJdk(), true), "test")
         );
 
         assertNotEquals(linux, withBcFips);
+        assertThat(JavaSecurityFile.hashedFileName(JavaSecurityFile.render(linuxJdk(), "test")), equalTo(linux));
     }
 
     public void testWriteReplacesATamperedFile() throws IOException {
-        final Path directory = newTempDir();
+        final Path file = newTempDir().resolve("java.security");
         final byte[] content = JavaSecurityFile.render(linuxJdk(), "test");
-        final Path file = JavaSecurityFile.writeIfChanged(directory, content);
-        Files.write(file, "security.provider.1=Evil".getBytes(StandardCharsets.ISO_8859_1));
+        JavaSecurityFile.writeIfChanged(file, content);
+        Files.writeString(file, "security.provider.1=Evil", StandardCharsets.ISO_8859_1);
 
-        final Path rewritten = JavaSecurityFile.writeIfChanged(directory, content);
+        final Path rewritten = JavaSecurityFile.writeIfChanged(file, content);
 
         assertThat(rewritten, equalTo(file));
         assertArrayEquals(content, Files.readAllBytes(file));
+    }
+
+    public void testWriteReplacesAnUnreadableFile() throws IOException {
+        assumePosix();
+        final Path file = newTempDir().resolve("java.security");
+        Files.writeString(file, "security.provider.1=Other", StandardCharsets.ISO_8859_1);
+        Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("---------"));
+        assumeTrue("needs a user that file permissions apply to", Files.isReadable(file) == false);
+        final byte[] content = JavaSecurityFile.render(linuxJdk(), "test");
+
+        JavaSecurityFile.writeIfChanged(file, content);
+
+        assertArrayEquals(content, Files.readAllBytes(file));
+    }
+
+    public void testConcurrentWritesOfTheSameContentShareOneFile() throws Exception {
+        final Path config = newTempDir();
+        final Path base = newTempDir();
+        final byte[] content = JavaSecurityFile.render(linuxJdk(), "test");
+        final int writers = 8;
+        final CyclicBarrier start = new CyclicBarrier(writers);
+        final ExecutorService executor = Executors.newFixedThreadPool(writers);
+        final List<Future<Path>> results = new ArrayList<>();
+        try {
+            for (int i = 0; i < writers; i++) {
+                results.add(executor.submit(() -> {
+                    start.await();
+                    return JavaSecurityFile.write(config, base, content);
+                }));
+            }
+            for (final Future<Path> result : results) {
+                assertThat(result.get(30, TimeUnit.SECONDS), equalTo(config.resolve(JavaSecurityFile.CONFIG_FILE_NAME)));
+            }
+            assertArrayEquals(content, Files.readAllBytes(config.resolve(JavaSecurityFile.CONFIG_FILE_NAME)));
+            try (Stream<Path> entries = Files.list(config)) {
+                assertThat("temporary files must be removed", entries.count(), equalTo(1L));
+            }
+        } finally {
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testWriteFailsWhenTheFileCannotBeReplaced() throws IOException {
+        final Path directory = newTempDir();
+        final byte[] content = JavaSecurityFile.render(linuxJdk(), "test");
+        final Path file = directory.resolve("java.security");
+        Files.createDirectory(file);
+        Files.createFile(file.resolve("blocker"));
+
+        assertThrows(IOException.class, () -> JavaSecurityFile.writeIfChanged(file, content));
+
+        try (Stream<Path> entries = Files.list(directory)) {
+            assertThat("the temporary file must be removed", entries.count(), equalTo(1L));
+        }
     }
 
     public void testPrivateDirectoryIsCreatedForTheOwnerOnly() throws IOException {
@@ -254,24 +314,90 @@ public class JavaSecurityFileTests extends LaunchersTestCase {
         assertThat(JavaSecurityFile.temporaryDirectory(" ", "/java-tmp"), equalTo(Path.of("/java-tmp")));
     }
 
-    public void testWriteReturnsTheFileInThePrivateDirectory() throws IOException {
+    public void testWritePrefersTheConfigDirectory() throws IOException {
+        final Path config = newTempDir();
         final Path base = newTempDir();
         final byte[] content = JavaSecurityFile.render(linuxJdk(), "test");
 
-        final Path file = JavaSecurityFile.write(base, content);
+        final Path file = JavaSecurityFile.write(config, base, content);
+
+        assertThat(file, equalTo(config.resolve(JavaSecurityFile.CONFIG_FILE_NAME)));
+        assertArrayEquals(content, Files.readAllBytes(file));
+        try (Stream<Path> entries = Files.list(base)) {
+            assertThat("nothing must be written to the temporary directory", entries.count(), equalTo(0L));
+        }
+    }
+
+    public void testWriteReplacesTheConfigFileWhenTheContentChanges() throws IOException {
+        final Path config = newTempDir();
+        final Path base = newTempDir();
+        JavaSecurityFile.write(config, base, JavaSecurityFile.render(linuxJdk(), "test"));
+        final byte[] withBcFips = JavaSecurityFile.render(JavaSecurityFile.forDefaultMode(linuxJdk(), true), "test");
+
+        final Path file = JavaSecurityFile.write(config, base, withBcFips);
+
+        assertThat(file, equalTo(config.resolve(JavaSecurityFile.CONFIG_FILE_NAME)));
+        assertArrayEquals(withBcFips, Files.readAllBytes(file));
+    }
+
+    public void testWriteFallsBackToThePrivateDirectoryWhenTheConfigFileCannotBeWritten() throws IOException {
+        final Path config = newTempDir();
+        final Path base = newTempDir();
+        blockConfigFile(config);
+        final byte[] content = JavaSecurityFile.render(linuxJdk(), "test");
+
+        final Path file = JavaSecurityFile.write(config, base, content);
 
         assertThat(file.getParent().getParent(), equalTo(base));
+        assertThat(file.getFileName().toString(), equalTo(JavaSecurityFile.hashedFileName(content)));
         assertArrayEquals(content, Files.readAllBytes(file));
     }
 
-    public void testWriteFailureNamesTheDirectoryAndTheFix() throws IOException {
+    public void testWriteFallsBackToThePrivateDirectoryWhenTheConfigDirectoryIsReadOnly() throws IOException {
+        assumePosix();
+        final Path config = newTempDir();
+        final Path base = newTempDir();
+        final byte[] content = JavaSecurityFile.render(linuxJdk(), "test");
+        Files.setPosixFilePermissions(config, PosixFilePermissions.fromString("r-xr-xr-x"));
+        try {
+            assumeTrue("needs a user that file permissions apply to", Files.isWritable(config) == false);
+
+            final Path file = JavaSecurityFile.write(config, base, content);
+
+            assertThat(file.getParent().getParent(), equalTo(base));
+            assertArrayEquals(content, Files.readAllBytes(file));
+        } finally {
+            // lets the test framework delete the directory
+            Files.setPosixFilePermissions(config, PosixFilePermissions.fromString("rwxr-xr-x"));
+        }
+    }
+
+    public void testWriteFailureNamesBothLocationsAndTheFix() throws IOException {
+        final Path config = newTempDir();
+        blockConfigFile(config);
         final Path missing = newTempDir().resolve("missing");
         final byte[] content = JavaSecurityFile.render(linuxJdk(), "test");
 
-        final IOException e = assertThrows(IOException.class, () -> JavaSecurityFile.write(missing, content));
+        final IOException e = assertThrows(IOException.class, () -> JavaSecurityFile.write(config, missing, content));
 
+        assertThat(e.getMessage(), containsString("[" + config.resolve(JavaSecurityFile.CONFIG_FILE_NAME) + "]"));
         assertThat(e.getMessage(), containsString("[" + missing + "]"));
-        assertThat(e.getMessage(), containsString("Point OPENSEARCH_TMPDIR to a writable directory"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Make the config directory writable, point OPENSEARCH_TMPDIR to a writable directory, "
+                    + "or pass your own file with -Djava.security.properties==<file> in OPENSEARCH_JAVA_OPTS."
+            )
+        );
+        assertThat("the config directory failure must be kept", e.getSuppressed().length, equalTo(1));
+    }
+
+    /**
+     * Puts a non-empty directory where the generated file belongs, so that writing the file fails on every platform.
+     */
+    private static void blockConfigFile(final Path config) throws IOException {
+        final Path blocker = Files.createDirectory(config.resolve(JavaSecurityFile.CONFIG_FILE_NAME));
+        Files.createFile(blocker.resolve("blocker"));
     }
 
     private static void assumePosix() {
