@@ -26,6 +26,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HexFormat;
+import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
@@ -80,7 +81,9 @@ final class JavaSecurityFile {
      */
     public static void main(final String[] args) throws IOException {
         if (args.length != 2) {
-            throw new IllegalArgumentException("expected two arguments [config directory, mode] but was " + Arrays.toString(args) + ".");
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "expected two arguments [config directory, mode] but was %s.", Arrays.toString(args))
+            );
         }
         final Path configDirectory = configDirectory(args[0]);
         final String mode = args[1];
@@ -95,7 +98,9 @@ final class JavaSecurityFile {
         if (FIPS_MODE.equals(mode)) {
             final Path fipsFile = configDirectory.resolve(FIPS_SECURITY_FILE_NAME);
             if (Files.isRegularFile(fipsFile) == false) {
-                throw new IllegalStateException("FIPS mode requires the provider list in [" + fipsFile + "], but the file does not exist.");
+                throw new IllegalStateException(
+                    String.format(Locale.ROOT, "FIPS mode requires the provider list in [%s], but the file does not exist.", fipsFile)
+                );
             }
             properties = forFipsMode(jdkProperties, load(fipsFile));
             sources = jdkFile + " (without its providers) and " + fipsFile;
@@ -103,7 +108,9 @@ final class JavaSecurityFile {
             properties = forDefaultMode(jdkProperties, isClassAvailable(BC_FIPS_PROVIDER_CLASS));
             sources = jdkFile.toString();
         } else {
-            throw new IllegalArgumentException("unknown mode [" + mode + "], expected [" + FIPS_MODE + "] or [" + DEFAULT_MODE + "].");
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "unknown mode [%s], expected [%s] or [%s].", mode, FIPS_MODE, DEFAULT_MODE)
+            );
         }
 
         final byte[] content = render(properties, sources);
@@ -123,7 +130,11 @@ final class JavaSecurityFile {
         final Path directory = Paths.get(argument);
         if (directory.isAbsolute() == false || Files.isDirectory(directory) == false) {
             throw new IllegalArgumentException(
-                "the config directory (OPENSEARCH_PATH_CONF) must be an absolute path to an existing directory, but was [" + argument + "]."
+                String.format(
+                    Locale.ROOT,
+                    "the config directory (OPENSEARCH_PATH_CONF) must be an absolute path to an existing directory, but was [%s].",
+                    argument
+                )
             );
         }
         return directory;
@@ -138,7 +149,11 @@ final class JavaSecurityFile {
             return writeIfChanged(privateDirectory(base), content);
         } catch (final IOException e) {
             throw new IOException(
-                "cannot write the generated java.security to [" + base + "]. Point OPENSEARCH_TMPDIR to a writable directory.",
+                String.format(
+                    Locale.ROOT,
+                    "cannot write the generated java.security to [%s]. Point OPENSEARCH_TMPDIR to a writable directory.",
+                    base
+                ),
                 e
             );
         }
@@ -168,7 +183,7 @@ final class JavaSecurityFile {
         final int providerCount = verifiedProviderCount(result);
         if (providerCount == 0) {
             throw new IllegalStateException(
-                "FIPS mode requires at least [" + PROVIDER_KEY_PREFIX + "1] in " + FIPS_SECURITY_FILE_NAME + "."
+                String.format(Locale.ROOT, "FIPS mode requires at least [%s1] in %s.", PROVIDER_KEY_PREFIX, FIPS_SECURITY_FILE_NAME)
             );
         }
         return result;
@@ -211,11 +226,12 @@ final class JavaSecurityFile {
             final boolean isLoaded = isSlotNumber(slot) && Integer.parseInt(slot) <= count;
             if (isLoaded == false && isBlank(properties.getProperty(key)) == false) {
                 throw new IllegalStateException(
-                    "["
-                        + key
-                        + "] would be ignored, because providers must be numbered consecutively from 1, but only 1 to "
-                        + count
-                        + " are."
+                    String.format(
+                        Locale.ROOT,
+                        "[%s] would be ignored, because providers must be numbered consecutively from 1, but only 1 to %d are.",
+                        key,
+                        count
+                    )
                 );
             }
         }
@@ -328,23 +344,32 @@ final class JavaSecurityFile {
     private static void verifyPrivate(final Path directory, final UserPrincipal currentUser, final boolean hasPosixPermissions)
         throws IOException {
         if (Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS) == false) {
-            throw new IOException("[" + directory + "] must be a directory, but is a file or a symbolic link. Remove it.");
+            throw new IOException(
+                String.format(Locale.ROOT, "[%s] must be a directory, but is a file or a symbolic link. Remove it.", directory)
+            );
         }
         final UserPrincipal owner = Files.getOwner(directory, LinkOption.NOFOLLOW_LINKS);
         if (owner.equals(currentUser) == false) {
             throw new IOException(
-                "[" + directory + "] must belong to [" + currentUser.getName() + "], but belongs to [" + owner.getName() + "]."
+                String.format(
+                    Locale.ROOT,
+                    "[%s] must belong to [%s], but belongs to [%s].",
+                    directory,
+                    currentUser.getName(),
+                    owner.getName()
+                )
             );
         }
         if (hasPosixPermissions) {
             final Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(directory, LinkOption.NOFOLLOW_LINKS);
             if (OWNER_ONLY.containsAll(permissions) == false) {
                 throw new IOException(
-                    "["
-                        + directory
-                        + "] must only be accessible by its owner, but has permissions ["
-                        + PosixFilePermissions.toString(permissions)
-                        + "]. Restrict it with chmod 700."
+                    String.format(
+                        Locale.ROOT,
+                        "[%s] must only be accessible by its owner, but has permissions [%s]. Restrict it with chmod 700.",
+                        directory,
+                        PosixFilePermissions.toString(permissions)
+                    )
                 );
             }
         }
