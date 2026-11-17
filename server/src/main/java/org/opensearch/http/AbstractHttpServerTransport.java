@@ -62,6 +62,7 @@ import org.opensearch.telemetry.tracing.channels.TraceableHttpChannel;
 import org.opensearch.telemetry.tracing.channels.TraceableRestChannel;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.BindTransportException;
+import org.opensearch.transport.EventLoopStats;
 import org.opensearch.transport.Transport;
 
 import java.io.IOException;
@@ -168,7 +169,19 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     @Override
     public HttpStats stats() {
-        return new HttpStats.Builder().serverOpen(httpChannels.size()).totalOpen(totalChannelsAccepted.get()).build();
+        HttpStats.Builder builder = new HttpStats.Builder().serverOpen(httpChannels.size()).totalOpen(totalChannelsAccepted.get());
+        EventLoopStats eventLoopStats = eventLoopStats();
+        if (eventLoopStats != null) {
+            builder.eventLoopStats(eventLoopStats);
+        }
+        return builder.build();
+    }
+
+    /**
+     * Netty event-loop queue stats for this HTTP transport. Transports that do not use Netty event loops return {@code null}.
+     */
+    protected EventLoopStats eventLoopStats() {
+        return null;
     }
 
     protected void bindServer() {
