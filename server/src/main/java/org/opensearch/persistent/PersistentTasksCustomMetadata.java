@@ -688,8 +688,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         private Builder(PersistentTasksCustomMetadata tasksInProgress) {
             if (tasksInProgress != null) {
                 tasks.putAll(tasksInProgress.tasks);
-                Map<String, Map<String, Long>> sourceCounts = tasksInProgress.taskCounts;
-                taskCounts = sourceCounts == null ? null : mutableCopy(sourceCounts);
+                taskCounts = mutableCopy(tasksInProgress.taskCounts());
                 lastAllocationId = tasksInProgress.lastAllocationId;
             } else {
                 lastAllocationId = 0;
