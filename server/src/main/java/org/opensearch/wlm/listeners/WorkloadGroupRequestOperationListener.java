@@ -49,6 +49,15 @@ public class WorkloadGroupRequestOperationListener extends SearchRequestOperatio
 
     @Override
     protected void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+        recordFailure();
+    }
+
+    @Override
+    protected void onRequestFailureWithoutPhase(SearchRequestContext searchRequestContext) {
+        recordFailure();
+    }
+
+    private void recordFailure() {
         final String workloadGroupId = threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER);
         workloadGroupService.incrementFailuresFor(workloadGroupId);
     }

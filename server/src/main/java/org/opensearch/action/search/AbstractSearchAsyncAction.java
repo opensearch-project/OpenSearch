@@ -215,21 +215,21 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 : request.source().trackTotalHitsUpTo();
             // total hits is null in the response if the tracking of total hits is disabled
             boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
-            listener.onResponse(
-                new SearchResponse(
-                    InternalSearchResponse.empty(withTotalHits),
-                    null,
-                    0,
-                    0,
-                    0,
-                    buildTookInMillis(),
-                    searchRequestContext.getPhaseTook(),
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    clusters,
-                    null
-                )
+            final SearchResponse response = new SearchResponse(
+                InternalSearchResponse.empty(withTotalHits),
+                null,
+                0,
+                0,
+                0,
+                buildTookInMillis(),
+                searchRequestContext.getPhaseTook(),
+                ShardSearchFailure.EMPTY_ARRAY,
+                clusters,
+                null
             );
+            // End the request before responding, as sendSearchResponse does, so it is not ended without its phase context.
             onRequestEnd(searchRequestContext);
+            listener.onResponse(response);
             return;
         }
         executePhase(this);
@@ -500,11 +500,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void onRequestEnd(SearchRequestContext searchRequestContext) {
-        this.searchRequestContext.getSearchRequestOperationsListener().onRequestEnd(this, searchRequestContext);
+        if (searchRequestContext.claimRequestEnd()) {
+            this.searchRequestContext.getSearchRequestOperationsListener().onRequestEnd(this, searchRequestContext);
+        }
     }
 
     private void onRequestFailure(SearchRequestContext searchRequestContext) {
-        this.searchRequestContext.getSearchRequestOperationsListener().onRequestFailure(this, searchRequestContext);
+        if (searchRequestContext.claimRequestEnd()) {
+            this.searchRequestContext.getSearchRequestOperationsListener().onRequestFailure(this, searchRequestContext);
+        }
     }
 
     private void executePhase(SearchPhase phase) {
@@ -871,6 +875,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final void onFailure(Exception e) {
+        onRequestFailure(searchRequestContext);
         listener.onFailure(e);
     }
 

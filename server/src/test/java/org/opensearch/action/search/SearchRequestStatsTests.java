@@ -61,6 +61,35 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         assertThat(testRequestStats.getTookMetric(), greaterThanOrEqualTo(tookTimeInMillis));
     }
 
+    public void testSearchRequestStats_OnRequestEndWithoutPhase() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
+        SearchRequestContext mockSearchRequestContext = mock(SearchRequestContext.class);
+        long tookTimeInMillis = randomIntBetween(1, 10);
+        when(mockSearchRequestContext.getAbsoluteStartNanos()).thenReturn(
+            System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(tookTimeInMillis)
+        );
+
+        testRequestStats.onRequestStart(mockSearchRequestContext);
+        assertEquals(1, testRequestStats.getTookCurrent());
+        testRequestStats.onRequestEndWithoutPhase(mockSearchRequestContext);
+        assertEquals(0, testRequestStats.getTookCurrent());
+        assertEquals(1, testRequestStats.getTookTotal());
+        assertThat(testRequestStats.getTookMetric(), greaterThanOrEqualTo(tookTimeInMillis));
+    }
+
+    public void testSearchRequestStats_OnRequestFailureWithoutPhase() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
+        SearchRequestContext mockSearchRequestContext = mock(SearchRequestContext.class);
+
+        testRequestStats.onRequestStart(mockSearchRequestContext);
+        assertEquals(1, testRequestStats.getTookCurrent());
+        testRequestStats.onRequestFailureWithoutPhase(mockSearchRequestContext);
+        assertEquals(0, testRequestStats.getTookCurrent());
+        assertEquals(0, testRequestStats.getTookTotal());
+    }
+
     public void testSearchRequestPhaseFailure() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);

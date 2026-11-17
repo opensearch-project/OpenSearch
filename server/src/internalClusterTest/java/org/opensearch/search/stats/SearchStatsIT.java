@@ -39,6 +39,8 @@ import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.search.SearchPhaseName;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.GroupShardsIterator;
@@ -46,8 +48,10 @@ import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.search.stats.SearchStats.Stats;
+import org.opensearch.indices.TermsLookup;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
@@ -248,6 +252,38 @@ public class SearchStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTes
             }
         }
         return nodes;
+    }
+
+    public void testTookCurrentReturnsWhenSearchFailsBeforeFirstPhase() {
+        createIndex("test");
+        ensureGreen("test");
+        String coordinator = randomFrom(internalCluster().getNodeNames());
+        SearchRequestStats searchRequestStats = internalCluster().getInstance(SearchRequestStats.class, coordinator);
+        long tookCurrent = searchRequestStats.getTookCurrent();
+        long tookTotal = searchRequestStats.getTookTotal();
+
+        // Fails while resolving its indices.
+        expectThrows(IndexNotFoundException.class, () -> client(coordinator).prepareSearch("does_not_exist").get());
+        // Fails while resolving its search pipeline.
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> client(coordinator).search(new SearchRequest("test").pipeline("does_not_exist")).actionGet()
+        );
+        // Fails while rewriting its query.
+        expectThrows(
+            IndexNotFoundException.class,
+            () -> client(coordinator).prepareSearch("test")
+                .setQuery(QueryBuilders.termsLookupQuery("field", new TermsLookup("does_not_exist", "1", "field")))
+                .get()
+        );
+
+        assertEquals(tookCurrent, searchRequestStats.getTookCurrent());
+        assertEquals(tookTotal, searchRequestStats.getTookTotal());
+
+        // Resolves to no shards, so it succeeds without running a phase on any shard.
+        client(coordinator).prepareSearch("does_not_exist_*").get();
+        assertEquals(tookCurrent, searchRequestStats.getTookCurrent());
+        assertEquals(tookTotal + 1, searchRequestStats.getTookTotal());
     }
 
     public void testOpenContexts() {

@@ -2077,12 +2077,23 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         doThrow(new OpenSearchRejectedExecutionException("WorkloadGroup is already contended.")).when(workloadGroupService)
             .rejectIfNeeded(any());
 
-        // onRequestStart must not run on rejection, else the in-flight gauge leaks.
+        // onRequestStart must not run on rejection, else the in-flight gauge leaks. Nor may the request end, else it goes negative.
         AtomicBoolean requestStarted = new AtomicBoolean(false);
+        AtomicBoolean requestEnded = new AtomicBoolean(false);
         SearchRequestOperationsListener requestStartTracker = new SearchRequestOperationsListener() {
             @Override
             protected void onRequestStart(SearchRequestContext searchRequestContext) {
                 requestStarted.set(true);
+            }
+
+            @Override
+            protected void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+                requestEnded.set(true);
+            }
+
+            @Override
+            protected void onRequestFailureWithoutPhase(SearchRequestContext searchRequestContext) {
+                requestEnded.set(true);
             }
         };
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
@@ -2117,6 +2128,55 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
 
         assertThat(failure.get(), instanceOf(OpenSearchRejectedExecutionException.class));
         assertFalse("onRequestStart must not run for a rejected request", requestStarted.get());
+        assertFalse("a rejected request must not end", requestEnded.get());
         verify(workloadGroupService).rejectIfNeeded(eq("test-workload-group"));
+    }
+
+    public void testRequestFailingBeforeItsFirstPhaseEndsWithoutPhase() throws Exception {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        SearchPipelineService searchPipelineService = mock(SearchPipelineService.class);
+        when(searchPipelineService.resolvePipeline(any(), any(), any())).thenThrow(
+            new IllegalArgumentException("Pipeline does_not_exist is not defined")
+        );
+        SearchRequestStats searchRequestStats = new SearchRequestStats(clusterSettings);
+        AtomicInteger failuresWithoutPhase = new AtomicInteger();
+        SearchRequestOperationsListener failureTracker = new SearchRequestOperationsListener() {
+            @Override
+            protected void onRequestFailureWithoutPhase(SearchRequestContext searchRequestContext) {
+                failuresWithoutPhase.incrementAndGet();
+            }
+        };
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+        TransportSearchAction action = new TransportSearchAction(
+            mock(NodeClient.class),
+            threadPool,
+            mock(CircuitBreakerService.class),
+            mock(TransportService.class),
+            mock(SearchService.class),
+            mock(SearchTransportService.class),
+            new SearchPhaseController(namedWriteableRegistry, (searchSourceBuilder) -> null),
+            clusterService,
+            mock(ActionFilters.class),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            namedWriteableRegistry,
+            searchPipelineService,
+            mock(MetricsRegistry.class),
+            new SearchRequestOperationsCompositeListenerFactory(searchRequestStats, failureTracker),
+            NoopTracer.INSTANCE,
+            mock(TaskResourceTrackingService.class),
+            mock(IndicesService.class),
+            SearchExecutionGate.NOOP,
+            SearchCancelAfterTimeIntervalResolver.NOOP
+        );
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        action.executeRequest(newSearchTask(), new SearchRequest(), null, ActionListener.wrap(r -> fail("expected failure"), failure::set));
+
+        assertThat(failure.get(), instanceOf(IllegalArgumentException.class));
+        assertEquals(1, failuresWithoutPhase.get());
+        assertEquals(0, searchRequestStats.getTookCurrent());
+        assertEquals(0, searchRequestStats.getTookTotal());
     }
 }

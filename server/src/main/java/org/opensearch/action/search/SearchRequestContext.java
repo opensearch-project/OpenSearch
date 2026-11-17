@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**
@@ -44,6 +45,7 @@ public class SearchRequestContext {
     private final LinkedBlockingQueue<TaskResourceInfo> phaseResourceUsage;
     private final Supplier<TaskResourceInfo> taskResourceUsageSupplier;
     private boolean streamingRequest;
+    private final AtomicBoolean requestEndClaimed = new AtomicBoolean();
 
     SearchRequestContext(
         final SearchRequestOperationsListener searchRequestOperationsListener,
@@ -61,6 +63,17 @@ public class SearchRequestContext {
 
     SearchRequestOperationsListener getSearchRequestOperationsListener() {
         return searchRequestOperationsListener;
+    }
+
+    /**
+     * Claims the right to report the end of the request, so listeners see exactly one of {@code onRequestEnd},
+     * {@code onRequestFailure}, {@code onRequestEndWithoutPhase} or {@code onRequestFailureWithoutPhase}. Returns {@code true}
+     * for the first caller only. A search phase must claim it before it completes the request's listener, otherwise the
+     * listener reports the request as ending without a phase. In a cross-cluster search that also targets local indices, the
+     * local search claims it for the whole request.
+     */
+    boolean claimRequestEnd() {
+        return requestEndClaimed.compareAndSet(false, true);
     }
 
     void updatePhaseTookMap(String phaseName, Long tookTime) {

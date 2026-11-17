@@ -33,6 +33,7 @@
 package org.opensearch.search.ccs;
 
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -107,6 +108,50 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             configureAndConnectsToRemoteClusters();
         } finally {
             SearchListenerPlugin.allowQueryPhase();
+        }
+    }
+
+    public void testTookCurrentReturnsForRemoteOnlySearch() {
+        assertAcked(client("cluster_a").admin().indices().prepareCreate("prod"));
+        indexDocs(client("cluster_a"), "prod");
+        String coordinator = randomFrom(cluster(LOCAL_CLUSTER).getNodeNames());
+        SearchRequestStats searchRequestStats = cluster(LOCAL_CLUSTER).getInstance(SearchRequestStats.class, coordinator);
+        Client client = cluster(LOCAL_CLUSTER).client(coordinator);
+        long tookCurrent = searchRequestStats.getTookCurrent();
+        long tookTotal = searchRequestStats.getTookTotal();
+
+        // Minimizing roundtrips runs no search phase on the coordinator when every index is remote.
+        SearchRequest searchRequest = new SearchRequest("cluster_a:prod");
+        searchRequest.setCcsMinimizeRoundtrips(true);
+        client.search(searchRequest).actionGet();
+        assertEquals(tookCurrent, searchRequestStats.getTookCurrent());
+        assertEquals(tookTotal + 1, searchRequestStats.getTookTotal());
+
+        SearchRequest failingRequest = new SearchRequest("cluster_a:does_not_exist");
+        failingRequest.setCcsMinimizeRoundtrips(true);
+        expectThrows(Exception.class, () -> client.search(failingRequest).actionGet());
+        assertEquals(tookCurrent, searchRequestStats.getTookCurrent());
+        assertEquals(tookTotal + 1, searchRequestStats.getTookTotal());
+
+        // A skipped cluster turns the same failure into an empty response.
+        String skipUnavailable = "cluster.remote.cluster_a.skip_unavailable";
+        assertAcked(
+            client(LOCAL_CLUSTER).admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(skipUnavailable, true))
+        );
+        try {
+            client.search(failingRequest).actionGet();
+            assertEquals(tookCurrent, searchRequestStats.getTookCurrent());
+            assertEquals(tookTotal + 2, searchRequestStats.getTookTotal());
+        } finally {
+            assertAcked(
+                client(LOCAL_CLUSTER).admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().putNull(skipUnavailable))
+            );
         }
     }
 

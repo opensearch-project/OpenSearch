@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -66,5 +67,44 @@ public class SearchRequestOperationsListenerTests extends OpenSearchTestCase {
             compositeListener.onPhaseStart(ctx);
             assertEquals(totalListeners, searchPhaseMap.get(searchPhaseName).current.count());
         }
+    }
+
+    public void testRequestEndsWithoutPhaseReachEveryListener() {
+        AtomicInteger ends = new AtomicInteger();
+        AtomicInteger failures = new AtomicInteger();
+        SearchRequestOperationsListener countingListener = new SearchRequestOperationsListener() {
+            @Override
+            protected void onRequestEndWithoutPhase(SearchRequestContext searchRequestContext) {
+                ends.incrementAndGet();
+            }
+
+            @Override
+            protected void onRequestFailureWithoutPhase(SearchRequestContext searchRequestContext) {
+                failures.incrementAndGet();
+            }
+        };
+        SearchRequestOperationsListener failingListener = new SearchRequestOperationsListener() {
+            @Override
+            protected void onRequestEndWithoutPhase(SearchRequestContext searchRequestContext) {
+                throw new IllegalStateException("end");
+            }
+
+            @Override
+            protected void onRequestFailureWithoutPhase(SearchRequestContext searchRequestContext) {
+                throw new IllegalStateException("failure");
+            }
+        };
+        SearchRequestOperationsListener compositeListener = new SearchRequestOperationsListener.CompositeListener(
+            List.of(failingListener, countingListener),
+            logger
+        );
+        SearchRequestContext searchRequestContext = mock(SearchRequestContext.class);
+
+        compositeListener.onRequestEndWithoutPhase(searchRequestContext);
+        compositeListener.onRequestFailureWithoutPhase(searchRequestContext);
+
+        // A listener that throws must not stop the listeners after it.
+        assertEquals(1, ends.get());
+        assertEquals(1, failures.get());
     }
 }
