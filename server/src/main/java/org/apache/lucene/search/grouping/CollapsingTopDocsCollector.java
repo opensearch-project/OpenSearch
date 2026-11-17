@@ -42,6 +42,9 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -59,7 +62,7 @@ import static org.apache.lucene.search.SortField.Type.SCORE;
  * TODO: If the sort is based on score we should propagate the mininum competitive score when <code>orderedGroups</code> is full.
  * This is safe for collapsing since the group <code>sort</code> is the same as the query sort.
  */
-public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollector<T> {
+public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollector<T> implements Releasable {
     protected final String collapseField;
 
     protected final Sort sort;
@@ -190,6 +193,13 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
         }
     }
 
+    @Override
+    public void close() {
+        if (getGroupSelector() instanceof Releasable releasable) {
+            Releasables.close(releasable);
+        }
+    }
+
     /**
      * Create a collapsing top docs collector on a {@link org.apache.lucene.index.NumericDocValues} field.
      * It accepts also {@link org.apache.lucene.index.SortedNumericDocValues} field but
@@ -257,7 +267,7 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
         Sort sort,
         int topN
     ) {
-        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseFieldType), collapseField, sort, topN);
+        return createKeyword(collapseField, collapseFieldType, sort, topN, null, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
     /**
@@ -281,6 +291,38 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
         int topN,
         FieldDoc after
     ) {
-        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseFieldType), collapseField, sort, topN, after);
+        return createKeyword(collapseField, collapseFieldType, sort, topN, after, BigArrays.NON_RECYCLING_INSTANCE);
+    }
+
+    /**
+     * Create a collapsing top docs collector on a {@link org.apache.lucene.index.SortedDocValues} field.
+     * It accepts also {@link org.apache.lucene.index.SortedSetDocValues} field but
+     * the collect will fail with an {@link IllegalStateException} if a document contains more than one value for the
+     * field.
+     *
+     * @param collapseField     The sort field used to group documents.
+     * @param collapseFieldType The {@link MappedFieldType} for this sort field.
+     * @param sort              The {@link Sort} used to sort the collapsed hits. The collapsing keeps only the top sorted
+     *                          document per collapsed key.
+     *                          This must be non-null, ie, if you want to groupSort by relevance use Sort.RELEVANCE.
+     * @param topN              How many top groups to keep.
+     * @param after             The last sort value of the previous page. Pass null if this is the first page.
+     * @param bigArrays         Accounts keyword ord-cache memory against the request circuit breaker.
+     */
+    public static CollapsingTopDocsCollector<?> createKeyword(
+        String collapseField,
+        MappedFieldType collapseFieldType,
+        Sort sort,
+        int topN,
+        FieldDoc after,
+        BigArrays bigArrays
+    ) {
+        return new CollapsingTopDocsCollector<>(
+            new CollapsingDocValuesSource.Keyword(collapseFieldType, bigArrays),
+            collapseField,
+            sort,
+            topN,
+            after
+        );
     }
 }

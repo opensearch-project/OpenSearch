@@ -42,13 +42,17 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.LongObjectPagedHashMap;
 import org.opensearch.index.fielddata.AbstractNumericDocValues;
 import org.opensearch.index.fielddata.AbstractSortedDocValues;
 import org.opensearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.Objects;
 
 /**
  * Utility class that ensures that a single collapse key is extracted per document.
@@ -163,17 +167,19 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
      * Implementation for {@link SortedDocValues} and {@link SortedSetDocValues}.
      * Fails with an {@link IllegalStateException} if a document contains multiple values for the specified field.
      */
-    static class Keyword extends CollapsingDocValuesSource<BytesRef> {
+    static class Keyword extends CollapsingDocValuesSource<BytesRef> implements Releasable {
+        private static final int INITIAL_ORD_CACHE_SIZE = 16;
+
         private SortedDocValues values;
         private int ord;
-        // Segment ordinals are leaf-local. lookupOrd decompresses the terms dictionary (LZ4), so
-        // resolve each ord at most once per leaf and keep T = BytesRef for reduce/search_after.
-        // HashMap (not a dense BytesRef[getValueCount()]) so memory is O(unique ords seen on
-        // this leaf), not O(dictionary size). Collapse fields are typically low cardinality.
-        private final HashMap<Integer, BytesRef> ordToValue = new HashMap<>();
+        private final BigArrays bigArrays;
+        // lookupOrd is leaf-local and decompresses the terms dict; cache each ord once per leaf.
+        // Sparse BigArrays map: O(unique ords seen), accounted by the request circuit breaker.
+        private LongObjectPagedHashMap<BytesRef> ordToValue;
 
-        Keyword(MappedFieldType fieldType) {
+        Keyword(MappedFieldType fieldType, BigArrays bigArrays) {
             super(fieldType.name());
+            this.bigArrays = Objects.requireNonNull(bigArrays, "bigArrays");
         }
 
         @Override
@@ -217,7 +223,7 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
 
         @Override
         public void setNextReader(LeafReaderContext readerContext) throws IOException {
-            ordToValue.clear();
+            resetOrdCache();
             LeafReader reader = readerContext.reader();
             DocValuesType type = getDocValuesType(reader, field);
             if (type == null || type == DocValuesType.NONE) {
@@ -282,6 +288,17 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
 
         @Override
         public void setScorer(Scorable scorer) throws IOException {}
+
+        @Override
+        public void close() {
+            Releasables.close(ordToValue);
+            ordToValue = null;
+        }
+
+        private void resetOrdCache() {
+            Releasables.close(ordToValue);
+            ordToValue = new LongObjectPagedHashMap<>(INITIAL_ORD_CACHE_SIZE, bigArrays);
+        }
     }
 
     private static DocValuesType getDocValuesType(LeafReader in, String field) {
