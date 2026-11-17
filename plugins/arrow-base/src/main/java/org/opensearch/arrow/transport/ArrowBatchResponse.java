@@ -15,6 +15,7 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
+import java.io.Closeable;
 import java.io.IOException;
 
 /**
@@ -76,7 +77,7 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public abstract class ArrowBatchResponse extends ActionResponse {
+public abstract class ArrowBatchResponse extends ActionResponse implements Closeable {
 
     private final VectorSchemaRoot batchRoot;
     private final byte[] metadata;
@@ -134,6 +135,19 @@ public abstract class ArrowBatchResponse extends ActionResponse {
     /** Returns the application metadata attached to this batch, or {@code null} if none. */
     public byte[] getMetadata() {
         return metadata;
+    }
+
+    /**
+     * Releases the off-heap buffers backing this batch by closing its root. Lets a transport release
+     * a batch it never delivered (e.g. an in-process local stream that was cancelled) without knowing
+     * the concrete Arrow type — the generic counterpart to the wire path's {@code releaseUnsentSource}.
+     * Consumers that take ownership normally close the root themselves; this is for the undelivered case.
+     */
+    @Override
+    public void close() {
+        if (batchRoot != null) {
+            batchRoot.close();
+        }
     }
 
     @Override
