@@ -142,7 +142,9 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 .setPersistentSettings(Settings.builder().put(skipUnavailable, true))
         );
         try {
-            client.search(failingRequest).actionGet();
+            SearchRequest skippedRequest = new SearchRequest("cluster_a:does_not_exist");
+            skippedRequest.setCcsMinimizeRoundtrips(true);
+            client.search(skippedRequest).actionGet();
             assertEquals(tookCurrent, searchRequestStats.getTookCurrent());
             assertEquals(tookTotal + 2, searchRequestStats.getTookTotal());
         } finally {

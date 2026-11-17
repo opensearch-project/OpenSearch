@@ -50,7 +50,8 @@ public abstract class SearchRequestOperationsListener {
     /**
      * Invoked once the request is admitted. Exactly one of {@link #onRequestEnd}, {@link #onRequestFailure},
      * {@link #onRequestEndWithoutPhase} or {@link #onRequestFailureWithoutPhase} follows, so a listener that pairs state with
-     * this call must handle all four.
+     * this call must handle all four. For a cross-cluster search that minimizes roundtrips and also targets local indices, it
+     * follows when the local search ends, which can be before the remote clusters respond.
      */
     protected void onRequestStart(SearchRequestContext searchRequestContext) {}
 

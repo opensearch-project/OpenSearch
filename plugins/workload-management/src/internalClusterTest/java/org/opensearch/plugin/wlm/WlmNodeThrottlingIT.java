@@ -499,7 +499,7 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
     /**
      * Sums the current in-flight search gauge ({@link SearchRequestStats#getTookCurrent()})
      * across all data nodes. This is the counter incremented in {@code onRequestStart} and decremented when the request ends,
-     * with or without a search phase; a throttle rejection must never touch it.
+     * with or without a search phase. A throttle rejection must never touch it.
      */
     private long currentInFlightSearches() {
         long total = 0;

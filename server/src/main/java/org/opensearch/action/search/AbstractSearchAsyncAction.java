@@ -125,6 +125,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private SearchPhase currentPhase;
     private boolean currentPhaseHasLifecycle;
+    // Whether the current phase reported its end, so each phase start is followed by exactly one onPhaseEnd or onPhaseFailure.
+    private final AtomicBoolean currentPhaseEnded = new AtomicBoolean(true);
 
     private final List<Releasable> releasables = new ArrayList<>();
 
@@ -228,7 +230,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 null
             );
             // End the request before responding, as sendSearchResponse does, so it is not ended without its phase context.
-            onRequestEnd(searchRequestContext);
+            searchRequestContext.endRequest(this);
             listener.onResponse(response);
             return;
         }
@@ -487,7 +489,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             long tookInNanos = System.nanoTime() - getCurrentPhase().getStartTimeInNanos();
             searchRequestContext.updatePhaseTookMap(getCurrentPhase().getName(), TimeUnit.NANOSECONDS.toMillis(tookInNanos));
         }
-        if (currentPhaseHasLifecycle) {
+        if (currentPhaseHasLifecycle && currentPhaseEnded.compareAndSet(false, true)) {
             this.searchRequestContext.getSearchRequestOperationsListener().onPhaseEnd(this, searchRequestContext);
         }
     }
@@ -495,19 +497,18 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private void onPhaseStart(SearchPhase phase) {
         setCurrentPhase(phase);
         if (currentPhaseHasLifecycle) {
+            currentPhaseEnded.set(false);
             this.searchRequestContext.getSearchRequestOperationsListener().onPhaseStart(this);
         }
     }
 
-    private void onRequestEnd(SearchRequestContext searchRequestContext) {
-        if (searchRequestContext.claimRequestEnd()) {
-            this.searchRequestContext.getSearchRequestOperationsListener().onRequestEnd(this, searchRequestContext);
-        }
-    }
-
-    private void onRequestFailure(SearchRequestContext searchRequestContext) {
-        if (searchRequestContext.claimRequestEnd()) {
-            this.searchRequestContext.getSearchRequestOperationsListener().onRequestFailure(this, searchRequestContext);
+    /**
+     * Reports the current phase as failed, unless it already ended. A response listener that throws after the phase ended
+     * reaches the failure paths too, and must not end the phase a second time.
+     */
+    private void onCurrentPhaseFailure(Throwable cause) {
+        if (currentPhaseHasLifecycle && currentPhaseEnded.compareAndSet(false, true)) {
+            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseFailure(this, cause);
         }
     }
 
@@ -803,7 +804,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     .collect(Collectors.toSet())
             );
             onPhaseEnd(searchRequestContext);
-            onRequestEnd(searchRequestContext);
+            searchRequestContext.endRequest(this);
             listener.onResponse(buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
         }
         setCurrentPhase(null);
@@ -812,9 +813,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
         setPhaseResourceUsages();
-        if (currentPhaseHasLifecycle) {
-            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseFailure(this, cause);
-        }
+        onCurrentPhaseFailure(cause);
         raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
     }
 
@@ -841,7 +840,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             });
         }
         Releasables.close(releasables);
-        onRequestFailure(searchRequestContext);
+        // sendSearchResponse fails the request here without failing its phase first.
+        onCurrentPhaseFailure(exception);
+        searchRequestContext.failRequest(this);
         listener.onFailure(exception);
     }
 
@@ -875,7 +876,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final void onFailure(Exception e) {
-        onRequestFailure(searchRequestContext);
+        onCurrentPhaseFailure(e);
+        searchRequestContext.failRequest(this);
         listener.onFailure(e);
     }
 

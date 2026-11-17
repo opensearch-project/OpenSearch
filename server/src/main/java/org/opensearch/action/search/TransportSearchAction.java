@@ -636,17 +636,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse response) {
-                if (searchRequestContext.claimRequestEnd()) {
-                    searchRequestContext.getSearchRequestOperationsListener().onRequestEndWithoutPhase(searchRequestContext);
-                }
+                searchRequestContext.endRequest(null);
                 listener.onResponse(response);
             }
 
             @Override
             public void onFailure(Exception e) {
-                if (searchRequestContext.claimRequestEnd()) {
-                    searchRequestContext.getSearchRequestOperationsListener().onRequestFailureWithoutPhase(searchRequestContext);
-                }
+                searchRequestContext.failRequest(null);
                 listener.onFailure(e);
             }
         };
