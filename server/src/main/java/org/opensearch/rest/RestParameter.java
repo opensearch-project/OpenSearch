@@ -27,7 +27,8 @@ import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
  * declares a parameter once, and {@link RestRequest#param(RestParameter)} consumes and parses it.
  * <p>
  * An optional path segment is expressed by registering another route. A path parameter absent from
- * some of the handler's routes must be declared without {@link Property#Required}. Query parameters
+ * some of the handler's routes can be declared separately in {@link RestHandler#parameters(RestHandler.Route)}.
+ * Query parameters
  * without {@link Property#Required} are optional and return {@code null} when absent. A handler can
  * pass an action request's default to {@link RestRequest#param(RestParameter, Object)}.
  * <pre>{@code
@@ -57,7 +58,7 @@ public final class RestParameter<T> {
     @ExperimentalApi
     public enum Property {
         /**
-         * The parameter must be present on every route of this handler.
+         * The parameter must be present on each route whose declarations include it.
          */
         Required,
 

@@ -94,6 +94,16 @@ public class RestRequest implements ToXContent.Params {
     private final HttpChannel httpChannel;
 
     private HttpRequest httpRequest;
+    private RestHandler.Route matchedRoute;
+
+    // Set by the router; the registered template distinguishes routes sharing a handler or HTTP method.
+    void setMatchedRoute(RestHandler.Route route) {
+        matchedRoute = route;
+    }
+
+    RestHandler.Route matchedRoute() {
+        return matchedRoute;
+    }
 
     private boolean contentConsumed = false;
 
@@ -151,6 +161,7 @@ public class RestRequest implements ToXContent.Params {
             restRequest.getHttpChannel(),
             restRequest.getRequestId()
         );
+        this.matchedRoute = restRequest.matchedRoute;
     }
 
     /**

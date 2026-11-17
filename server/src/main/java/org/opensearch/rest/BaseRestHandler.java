@@ -109,7 +109,9 @@ public abstract class BaseRestHandler implements RestHandler {
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        final List<RestParameter<?>> declaredParameters = parameters();
+        final List<RestParameter<?>> declaredParameters = request.matchedRoute() == null
+            ? parameters()
+            : parameters(request.matchedRoute());
         validateDeclaredParameters(request, declaredParameters);
 
         // prepare the request for execution; has the side effect of touching the request parameters
@@ -153,11 +155,6 @@ public abstract class BaseRestHandler implements RestHandler {
             }
         }
         if (missing.isEmpty() == false) {
-            if (missing.size() == 1) {
-                throw new IllegalArgumentException(
-                    "request [" + request.path() + "] is missing required parameter [" + missing.first() + "]"
-                );
-            }
             final StringBuilder message = new StringBuilder("request [").append(request.path())
                 .append("] is missing required parameters: ");
             boolean first = true;
@@ -356,6 +353,11 @@ public abstract class BaseRestHandler implements RestHandler {
         @Override
         public List<RestParameter<?>> parameters() {
             return delegate.parameters();
+        }
+
+        @Override
+        public List<RestParameter<?>> parameters(Route route) {
+            return delegate.parameters(route);
         }
 
         @Override

@@ -34,8 +34,6 @@ package org.opensearch.rest;
 
 import org.opensearch.common.Table;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.RestHandler.ReplacedRoute;
 import org.opensearch.rest.RestHandler.Route;
 import org.opensearch.rest.RestRequest.Method;
@@ -60,7 +58,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -298,13 +296,7 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
     }
 
     public void testRestHandlerWrapper() throws Exception {
-        RestHandler rh = new RestHandler() {
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
-            }
-        };
-        RestHandler handlerSpy = spy(rh);
+        RestHandler handlerSpy = mock(RestHandler.class);
         RestHandler.Wrapper rhWrapper = new RestHandler.Wrapper(handlerSpy);
 
         List<java.lang.reflect.Method> overridableMethods = Arrays.stream(RestHandler.class.getMethods())

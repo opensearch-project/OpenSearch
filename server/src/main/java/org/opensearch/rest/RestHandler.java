@@ -109,12 +109,24 @@ public interface RestHandler {
      * supplement the existing consumption-based validation; they are not an exhaustive allow-list.
      * Declared parameters must still be consumed, and legacy accessors remain supported.
      * {@link BaseRestHandler} rejects a missing {@link RestParameter.Property#Required} parameter
-     * before the handler runs. Requiredness applies to every route of this handler: a path parameter
-     * absent from some routes must be declared without {@code Required}.
+     * before the handler runs. These declarations apply to every route unless
+     * {@link #parameters(Route)} is overridden.
      */
     @ExperimentalApi
     default List<RestParameter<?>> parameters() {
         return Collections.emptyList();
+    }
+
+    /**
+     * Parameter metadata for a registered route, identified by its HTTP method and path template.
+     * Returns the complete declaration list for that route; it is not merged with {@link #parameters()}.
+     * The default implementation uses the handler-wide declarations. Override this method when
+     * requiredness or accepted parameters differ between routes, including deprecated routes.
+     * This method must not depend on a live request, so API specification checks can also call it.
+     */
+    @ExperimentalApi
+    default List<RestParameter<?>> parameters(Route route) {
+        return parameters();
     }
 
     /**
@@ -199,6 +211,11 @@ public interface RestHandler {
         @Override
         public List<RestParameter<?>> parameters() {
             return delegate.parameters();
+        }
+
+        @Override
+        public List<RestParameter<?>> parameters(Route route) {
+            return delegate.parameters(route);
         }
 
         @Override

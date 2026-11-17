@@ -478,6 +478,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
+                    request.setMatchedRoute(new RestHandler.Route(requestMethod, handlers.getPath()));
                     dispatchRequest(request, channel, handler);
                     return;
                 }
