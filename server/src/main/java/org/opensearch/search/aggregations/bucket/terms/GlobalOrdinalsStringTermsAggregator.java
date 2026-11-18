@@ -136,7 +136,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         this.valuesSource = valuesSource;
         final IndexReader reader = context.searcher().getIndexReader();
         final SortedSetDocValues values = !reader.leaves().isEmpty()
-            ? valuesSource.globalOrdinalsValues(context.searcher().getIndexReader().leaves().get(0))
+            ? valuesSource.globalOrdinalsValues(context.searcher().getIndexReader().leaves().get(0), this::checkCancelled)
             : DocValues.emptySortedSet();
         this.valueCount = values.getValueCount();
         this.acceptedGlobalOrdinals = includeExclude == null ? ALWAYS_TRUE : includeExclude.acceptedGlobalOrdinals(values)::get;
@@ -1366,7 +1366,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         if (dvs.get() == null) {
             dvs.set(
                 !context.searcher().getIndexReader().leaves().isEmpty()
-                    ? valuesSource.globalOrdinalsValues(context.searcher().getIndexReader().leaves().get(0))
+                    ? valuesSource.globalOrdinalsValues(context.searcher().getIndexReader().leaves().get(0), this::checkCancelled)
                     : DocValues.emptySortedSet()
             );
         }

@@ -326,5 +326,14 @@ public interface IndexFieldData<FD extends LeafFieldData> {
 
         IndexFieldData<FD> loadGlobalDirect(DirectoryReader indexReader) throws Exception;
 
+        /**
+         * Loads global field data directly, running {@code cancellationCheck} periodically while the global
+         * ordinals are built. The default implementation ignores the check and delegates to
+         * {@link #loadGlobalDirect(DirectoryReader)}.
+         */
+        default IndexFieldData<FD> loadGlobalDirect(DirectoryReader indexReader, Runnable cancellationCheck) throws Exception {
+            return loadGlobalDirect(indexReader);
+        }
+
     }
 }
