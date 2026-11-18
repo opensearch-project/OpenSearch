@@ -81,7 +81,7 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
     private final AtomicInteger dispatched = new AtomicInteger();
 
     @Before
-    public void setup() throws IOException {
+    public void setup() throws Exception {
         networkService = new NetworkService(Collections.emptyList());
         bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         threadPool = new TestThreadPool("test");
@@ -297,8 +297,15 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
 
     public void testStoppingTheTransportClosesDrainingConnections() throws Exception {
         startDraining();
-        transport.stop();
-        assertBusy(() -> assertFalse(transport.hold.channel.isOpen()), 5, TimeUnit.SECONDS);
+        final CompletableFuture<Void> stopping = CompletableFuture.runAsync(transport::stop);
+        try {
+            assertTrue(
+                "Transport stop must not wait for the drain deadline",
+                transport.hold.channel.closeFuture().await(2, TimeUnit.SECONDS)
+            );
+        } finally {
+            stopping.get(10, TimeUnit.SECONDS);
+        }
     }
 
     private void startDraining() throws IOException {
@@ -347,7 +354,7 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
     }
 
     /** Starts a transport and connects the client to it, replacing the ones {@link #setup()} started. */
-    private void start(Settings settings) throws IOException {
+    private void start(Settings settings) throws Exception {
         IOUtils.close(client, transport);
         final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest((request, channel, ctx) -> {
             dispatched.incrementAndGet();
@@ -360,9 +367,12 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
     }
 
     /** Replaces the client with one on a new connection. */
-    private void reconnect() throws IOException {
+    private void reconnect() throws Exception {
         IOUtils.close(client);
+        final Channel previous = transport.hold.channel;
         client = Netty4HttpRawClient.connect(transport.boundAddress().boundAddresses());
+        // Finish server initialization before another reconnect can register a channel on a different event loop.
+        assertBusy(() -> assertNotSame(previous, transport.hold.channel));
     }
 
     private class TestTransport extends Netty4HttpServerTransport {

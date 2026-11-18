@@ -27,10 +27,16 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.channel.socket.ChannelInputShutdownEvent;
 import io.netty.channel.socket.DuplexChannel;
 import io.netty.handler.codec.DecoderException;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpServerCodec;
+import io.netty.handler.codec.http.HttpServerUpgradeHandler;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.ssl.SslHandler;
@@ -40,7 +46,6 @@ import io.netty.util.concurrent.EventExecutor;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -174,16 +179,55 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
         assertFalse(channel.isOpen());
     }
 
-    public void testHeaderRejectionResumesReads() {
-        for (boolean upgrade : new boolean[] { false, true }) {
-            for (boolean autoRead : new boolean[] { false, true }) {
-                rejectRequest(autoRead, upgrade);
-                assertNotNull(channel.pipeline().get(Netty4HttpRejectionHandler.class));
-                assertTrue("Draining must resume reads", channel.config().isAutoRead());
-                assertTrue("The rejected request body must still be draining", channel.isOpen());
-                assertTrue(channel.isOutputShutdown());
+    public void testOtherResponsesPassThrough() {
+        channel = new EmbeddedDuplexChannel(null);
+        channel.pipeline().addLast(new Netty4HttpRejectionHandler(() -> true).newHttpHandler());
+        final HttpResponse[] responses = {
+            new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK),
+            new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE),
+            new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE) };
+        HttpUtil.setKeepAlive(responses[0], false);
+        HttpUtil.setKeepAlive(responses[2], false); // a streamed response's headers do not complete its body
+        for (HttpResponse message : responses) {
+            assertTrue(channel.writeOutbound(message));
+            final Object written = channel.readOutbound();
+            try {
+                assertSame(message, written);
+                assertNull(channel.pipeline().get(Netty4HttpRejectionHandler.class));
+            } finally {
+                ReferenceCountUtil.release(written);
             }
         }
+    }
+
+    public void testHeaderRejectionResumesReads() {
+        rejectRequest();
+        assertNotNull(channel.pipeline().get(Netty4HttpRejectionHandler.class));
+        assertTrue("Draining must resume reads", channel.config().isAutoRead());
+        assertTrue("The rejected request body must still be draining", channel.isOpen());
+        assertTrue(channel.isOutputShutdown());
+    }
+
+    public void testHttpGuardDiscardsAlreadyDecodedRequests() {
+        channel = new EmbeddedDuplexChannel(null);
+        channel.freezeTime();
+        channel.pipeline().addLast(new Netty4HttpRejectionHandler(() -> true).newHttpHandler());
+        final DefaultFullHttpResponse rejection = new DefaultFullHttpResponse(
+            HttpVersion.HTTP_1_1,
+            HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE
+        );
+        HttpUtil.setKeepAlive(rejection, false);
+        assertTrue(channel.writeOutbound(rejection));
+        final DefaultFullHttpRequest request = new DefaultFullHttpRequest(
+            HttpVersion.HTTP_1_1,
+            HttpMethod.POST,
+            "/",
+            Unpooled.buffer(1).writeByte(1)
+        );
+        // Bypass raw-input draining to exercise the sole HTTP guard, as on the TLS/default pipeline.
+        channel.pipeline().context(Netty4HttpRejectionHandler.NAME).fireChannelRead(request);
+        assertTrue(channel.inboundMessages().isEmpty());
+        assertEquals(0, request.refCnt());
     }
 
     public void testInactiveChannelCancelsDeadlineAndIgnoresLateCompletion() {
@@ -197,9 +241,7 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
     }
 
     public void testFatalErrorsAreRethrownAfterRejection() throws Exception {
-        for (boolean upgrade : new boolean[] { false, true }) {
-            assertFatalErrorRethrown(rejectRequest(true, upgrade));
-        }
+        assertFatalErrorRethrown(rejectRequest());
         reject(null);
         assertFatalErrorRethrown(channel.pipeline().context(Netty4HttpRejectionHandler.class));
     }
@@ -226,21 +268,19 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
         assertFalse(thread.isAlive());
     }
 
-    /** Rejects from headers through the real aggregator: either auto-read is off or the client requests closure. */
-    private ChannelHandlerContext rejectRequest(boolean autoRead, boolean upgrade) {
+    /** Netty chooses a terminal rejection because auto-read is off; observing its response must resume reads. */
+    private ChannelHandlerContext rejectRequest() {
         closeChannel();
         channel = new EmbeddedDuplexChannel(null);
         channel.freezeTime();
-        channel.config().setAutoRead(autoRead);
-        final Netty4HttpObjectAggregator aggregator = new Netty4HttpObjectAggregator(1, 1024, () -> true);
-        channel.pipeline()
-            .addLast("aggregator", upgrade ? aggregator.newUpgradeHandler(new HttpServerCodec(), protocol -> null) : aggregator);
+        channel.config().setAutoRead(false);
+        final Netty4HttpRejectionHandler rejection = new Netty4HttpRejectionHandler(() -> true);
+        channel.pipeline().addLast("upgrade_rejection", rejection.newHttpHandler());
+        channel.pipeline().addLast("aggregator", new HttpServerUpgradeHandler(new HttpServerCodec(), protocol -> null, 1));
+        channel.pipeline().addLast("http_rejection_guard", rejection.newHttpHandler());
         final DefaultHttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
         HttpUtil.setContentLength(request, 2);
-        HttpUtil.setKeepAlive(request, autoRead == false);
-        if (upgrade) {
-            request.headers().set(HttpHeaderNames.UPGRADE, "h2c");
-        }
+        request.headers().set(HttpHeaderNames.UPGRADE, "h2c");
         assertFalse(channel.writeInbound(request));
         return channel.pipeline().context("aggregator");
     }
@@ -277,15 +317,7 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
             when(ssl.closeOutbound()).thenReturn(tlsShutdown);
             channel.pipeline().addLast(ssl);
         }
-        // Capture the aggregator's write so completion and notification can be controlled independently.
-        final ChannelHandlerContext aggregator = mock(ChannelHandlerContext.class);
-        when(aggregator.pipeline()).thenReturn(channel.pipeline());
-        when(aggregator.newPromise()).thenReturn(response);
-        doAnswer(invocation -> {
-            ReferenceCountUtil.release(invocation.getArgument(0));
-            return response;
-        }).when(aggregator).writeAndFlush(any(), same(response));
-        Netty4HttpRejectionHandler.reject(aggregator, () -> transportRunning);
+        new Netty4HttpRejectionHandler(() -> transportRunning).reject(channel, response);
     }
 
     @After
