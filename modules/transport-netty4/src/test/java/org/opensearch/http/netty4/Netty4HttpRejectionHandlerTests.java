@@ -14,16 +14,25 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.DefaultChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.channel.socket.ChannelInputShutdownEvent;
 import io.netty.channel.socket.DuplexChannel;
+import io.netty.handler.codec.DecoderException;
+import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpServerCodec;
+import io.netty.handler.codec.http.HttpUtil;
+import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.EventExecutor;
@@ -120,7 +129,7 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
         assertTrue(close.isSuccess());
     }
 
-    public void testInputShutdownWaitsOnlyForResponse() {
+    public void testInputShutdownWaitsForPendingWrites() {
         for (boolean responseWritten : new boolean[] { false, true }) {
             reject(null);
             if (responseWritten) {
@@ -131,6 +140,18 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
             assertEquals("Input EOF must not overtake the response", responseWritten == false, channel.isOpen());
             response.trySuccess();
             assertFalse(channel.isOpen());
+        }
+        for (Stage stage : new Stage[] { Stage.TLS, Stage.FIN }) {
+            reject(stage);
+            response.setSuccess();
+            channel.inputShutdown = true;
+            channel.pipeline().fireUserEventTriggered(ChannelInputShutdownEvent.INSTANCE);
+            assertTrue("Input EOF must wait for pending shutdown work", channel.isOpen());
+            if (stage == Stage.TLS) {
+                tlsShutdown.setSuccess();
+            }
+            notifications.forEach(Runnable::run);
+            assertFalse(stage + ": completed shutdown must not wait to drain input that already reached EOF", channel.isOpen());
         }
     }
 
@@ -151,6 +172,77 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
         reject(null);
         response.setFailure(new IOException("write failed"));
         assertFalse(channel.isOpen());
+    }
+
+    public void testHeaderRejectionResumesReads() {
+        for (boolean upgrade : new boolean[] { false, true }) {
+            for (boolean autoRead : new boolean[] { false, true }) {
+                rejectRequest(autoRead, upgrade);
+                assertNotNull(channel.pipeline().get(Netty4HttpRejectionHandler.class));
+                assertTrue("Draining must resume reads", channel.config().isAutoRead());
+                assertTrue("The rejected request body must still be draining", channel.isOpen());
+                assertTrue(channel.isOutputShutdown());
+            }
+        }
+    }
+
+    public void testInactiveChannelCancelsDeadlineAndIgnoresLateCompletion() {
+        reject(Stage.WRITE);
+        channel.unsafe().close(channel.newPromise());
+        assertEquals(-1, channel.runScheduledPendingTasks());
+        response.setSuccess();
+        notifications.forEach(Runnable::run);
+        assertEquals(0, channel.outputShutdowns);
+        assertEquals(-1, channel.runScheduledPendingTasks());
+    }
+
+    public void testFatalErrorsAreRethrownAfterRejection() throws Exception {
+        for (boolean upgrade : new boolean[] { false, true }) {
+            assertFatalErrorRethrown(rejectRequest(true, upgrade));
+        }
+        reject(null);
+        assertFatalErrorRethrown(channel.pipeline().context(Netty4HttpRejectionHandler.class));
+    }
+
+    private void assertFatalErrorRethrown(ChannelHandlerContext ctx) throws Exception {
+        final Error error = new OutOfMemoryError("simulated fatal error");
+        final CompletableFuture<Throwable> uncaught = new CompletableFuture<>();
+        final ThreadGroup group = new ThreadGroup(getTestName()) {
+            @Override
+            public void uncaughtException(Thread thread, Throwable cause) {
+                uncaught.complete(cause);
+            }
+        };
+        ctx.pipeline().addBefore(ctx.name(), "exception_source", new ChannelInboundHandlerAdapter());
+        final ChannelHandlerContext source = ctx.pipeline().context("exception_source");
+        // The fatal-error helper's child thread inherits this group, leaving the test runner's handler untouched.
+        final Thread thread = new Thread(group, () -> source.fireExceptionCaught(new DecoderException(error)));
+        thread.start();
+        try {
+            assertSame(error, uncaught.get(10, SECONDS));
+        } finally {
+            thread.join(10000);
+        }
+        assertFalse(thread.isAlive());
+    }
+
+    /** Rejects from headers through the real aggregator: either auto-read is off or the client requests closure. */
+    private ChannelHandlerContext rejectRequest(boolean autoRead, boolean upgrade) {
+        closeChannel();
+        channel = new EmbeddedDuplexChannel(null);
+        channel.freezeTime();
+        channel.config().setAutoRead(autoRead);
+        final Netty4HttpObjectAggregator aggregator = new Netty4HttpObjectAggregator(1, 1024, () -> true);
+        channel.pipeline()
+            .addLast("aggregator", upgrade ? aggregator.newUpgradeHandler(new HttpServerCodec(), protocol -> null) : aggregator);
+        final DefaultHttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
+        HttpUtil.setContentLength(request, 2);
+        HttpUtil.setKeepAlive(request, autoRead == false);
+        if (upgrade) {
+            request.headers().set(HttpHeaderNames.UPGRADE, "h2c");
+        }
+        assertFalse(channel.writeInbound(request));
+        return channel.pipeline().context("aggregator");
     }
 
     private void advanceTime(long nanos) {
@@ -201,9 +293,13 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
         if (channel != null) {
             channel.unsafe().close(channel.newPromise());
             channel.finishAndReleaseAll();
-            response.tryFailure(new IOException("test complete"));
+            if (response != null) {
+                response.tryFailure(new IOException("test complete"));
+                response = null;
+            }
             if (tlsShutdown != null) {
                 tlsShutdown.tryFailure(new IOException("test complete"));
+                tlsShutdown = null;
             }
             channel = null;
         }

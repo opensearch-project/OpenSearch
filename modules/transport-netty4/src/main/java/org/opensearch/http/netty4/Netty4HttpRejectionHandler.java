@@ -8,6 +8,9 @@
 
 package org.opensearch.http.netty4;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.util.concurrent.FutureUtils;
 
 import java.util.concurrent.TimeUnit;
@@ -46,6 +49,7 @@ import io.netty.util.concurrent.ScheduledFuture;
 final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
 
     static final String NAME = "http_rejection";
+    private static final Logger logger = LogManager.getLogger(Netty4HttpRejectionHandler.class);
 
     private static final long WRITE_TIMEOUT_NANOS = TimeUnit.SECONDS.toNanos(30);
     // Match the defaults of NGINX's lingering_timeout and lingering_time.
@@ -102,12 +106,6 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
         ctx.channel().config().setAutoRead(true);
     }
 
-    @Override
-    public void handlerRemoved(ChannelHandlerContext ctx) {
-        assert ctx.executor().inEventLoop();
-        finish();
-    }
-
     private void writeTimedOut() {
         assert context.executor().inEventLoop();
         // Netty may defer promise listeners to avoid excessive listener recursion. Process completed
@@ -115,7 +113,8 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
         while (pendingOperation != null && pendingOperation.isDone()) {
             operationCompleted(pendingOperation);
         }
-        if (phase != Phase.DRAINING) {
+        if (phase != Phase.DRAINING && phase != Phase.CLOSED) {
+            logger.debug("closing {} after the 413 write deadline expired during {}", context.channel(), phase);
             closeNow();
         }
     }
@@ -137,6 +136,7 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
         }
         pendingOperation = null;
         if (future.isSuccess() == false || context.channel().isActive() == false) {
+            logger.debug("closing {} during {} after a 413", context.channel(), phase, future.cause());
             closeNow();
             return;
         }
@@ -162,21 +162,22 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
     }
 
     private void shutdownOutput() {
-        final DuplexChannel channel = (DuplexChannel) context.channel();
-        if (channel.isInputShutdown()) {
-            // the client already finished sending, nothing is left to drain
-            closeNow();
-        } else {
-            await(Phase.OUTPUT_SHUTDOWN, channel.shutdownOutput());
-        }
+        await(Phase.OUTPUT_SHUTDOWN, ((DuplexChannel) context.channel()).shutdownOutput());
     }
 
-    /** One timer covers both drain bounds; reads only record a timestamp so discarding a buffer stays cheap. */
+    /** Completes on input EOF or expiry; one timer covers both drain bounds and reads only update a timestamp. */
     private void checkDrain() {
         assert context.executor().inEventLoop();
         final long now = context.executor().ticker().nanoTime();
         final long remaining = Math.min(drainDeadlineNanos - now, lastReadNanos + DRAIN_IDLE_NANOS - now);
-        if (remaining <= 0) {
+        if (remaining <= 0 || ((DuplexChannel) context.channel()).isInputShutdown()) {
+            if (remaining <= 0) {
+                logger.debug(
+                    "closing {} after the 413 drain {} timeout",
+                    context.channel(),
+                    drainDeadlineNanos - now <= 0 ? "total" : "idle"
+                );
+            }
             closeNow();
         } else {
             timer = context.executor().schedule(this::checkDrain, remaining, TimeUnit.NANOSECONDS);
@@ -226,7 +227,9 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        ExceptionsHelper.maybeDieOnAnotherThread(cause);
         // Only the socket itself reports here (this handler is first); a peer may reset once it read the response.
+        logger.debug("closing {} after a socket exception during a 413 rejection", ctx.channel(), cause);
         closeNow();
     }
 

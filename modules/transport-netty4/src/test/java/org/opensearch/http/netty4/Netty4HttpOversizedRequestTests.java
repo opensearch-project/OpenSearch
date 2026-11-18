@@ -111,6 +111,28 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
         }
     }
 
+    public void testPartialOversizedUploadDrainsAfterResponse() throws Exception {
+        for (boolean upgrade : new boolean[] { false, true }) {
+            for (boolean chunked : new boolean[] { false, true }) {
+                reconnect();
+                final RequestBuilder request = (upgrade ? h2cUpgrade(post()) : post()).body(Encoding.IDENTITY, incompressible(2 * LIMIT))
+                    .chunked(chunked);
+                if (chunked == false) {
+                    request.header("Connection", "close");
+                }
+                final byte[] wire = request.bytes();
+                client.write(wire, 0, wire.length * 3 / 4);
+                assertTerminalRejection();
+                assertTrue("The unfinished upload must still be draining", transport.hold.channel.isOpen());
+                assertNotNull(transport.hold.channel.pipeline().get(Netty4HttpRejectionHandler.class));
+            }
+        }
+    }
+
+    public void testOversizedUpgradeUploadGetsResponseThenCleanEndOfStream() throws Exception {
+        assertUploadRejected(h2cUpgrade(post().body(Encoding.IDENTITY, incompressible(8 * LIMIT)).chunked(true)).bytes());
+    }
+
     public void testDecodedSizeIsLimitedWhenEncodedSizeIsWithinLimit() throws Exception {
         for (Encoding encoding : new Encoding[] { Encoding.GZIP, Encoding.DEFLATE }) {
             for (boolean chunked : new boolean[] { false, true }) {
@@ -166,11 +188,14 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
     }
 
     public void testRecoverableRejectionsReuseConnection() throws Exception {
-        final RequestBuilder request = post().header("Expect", "100-continue").body(Encoding.IDENTITY, incompressible(2 * LIMIT));
-        assertRecoverableRejection(request.head());
-        // Preserve Netty's expectation handling even when the client asks to close.
-        assertRecoverableRejection(request.header("Connection", "close").head());
-        assertRecoverableRejection(post().body(Encoding.IDENTITY, incompressible(LIMIT + 1)).bytes());
+        for (boolean upgrade : new boolean[] { false, true }) {
+            final RequestBuilder request = upgrade ? h2cUpgrade(post()) : post();
+            request.header("Expect", "100-continue").body(Encoding.IDENTITY, incompressible(2 * LIMIT));
+            assertRecoverableRejection(request.head());
+            // Preserve Netty's expectation handling even when the client asks to close.
+            assertRecoverableRejection(request.header("Connection", "close").head());
+            assertRecoverableRejection((upgrade ? h2cUpgrade(post()) : post()).body(Encoding.IDENTITY, incompressible(LIMIT + 1)).bytes());
+        }
     }
 
     private void assertRecoverableRejection(byte[] request) throws Exception {
@@ -203,14 +228,17 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
     public void testRequestsPipelinedAfterTerminalRejectionAreNotProcessed() throws Exception {
         // Small enough to arrive in one read, so the server decodes the pipelined request along with the rejected one.
         start(Settings.builder().put(settings()).put(HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(), "1kb").build());
-        final ByteArrayOutputStream wire = new ByteArrayOutputStream();
-        wire.writeBytes(post().body(Encoding.IDENTITY, incompressible(2048)).chunked(true).bytes());
-        wire.writeBytes(post().body(Encoding.IDENTITY, "small".getBytes(StandardCharsets.UTF_8)).bytes());
-        client.write(wire.toByteArray());
-        assertTerminalRejection();
-        // The response is on the wire before the server handles the rest of that read: wait for it to finish.
-        transport.hold.channel.eventLoop().submit(() -> {}).get(10, TimeUnit.SECONDS);
-        assertThat(dispatched.get(), equalTo(0));
+        for (boolean upgrade : new boolean[] { false, true }) {
+            reconnect();
+            final ByteArrayOutputStream wire = new ByteArrayOutputStream();
+            wire.writeBytes((upgrade ? h2cUpgrade(post()) : post()).body(Encoding.IDENTITY, incompressible(2048)).chunked(true).bytes());
+            wire.writeBytes(post().body(Encoding.IDENTITY, "small".getBytes(StandardCharsets.UTF_8)).bytes());
+            client.write(wire.toByteArray());
+            assertTerminalRejection();
+            // The response is on the wire before the server handles the rest of that read: wait for it to finish.
+            transport.hold.channel.eventLoop().submit(() -> {}).get(10, TimeUnit.SECONDS);
+            assertThat(dispatched.get(), equalTo(0));
+        }
     }
 
     public void testClientFinWhileResponseIsPending() throws Exception {
@@ -231,7 +259,7 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
     }
 
     public void testDecoderFailureWhileResponseIsPending() throws Exception {
-        // the first chunk alone exceeds the limit once decoded, the second is not valid gzip
+        // One compressed chunk exceeds the limit before the decoder encounters its invalid remainder.
         final ByteArrayOutputStream encoded = new ByteArrayOutputStream();
         final byte[] valid;
         try (GZIPOutputStream gzip = new GZIPOutputStream(encoded, true)) {
@@ -239,15 +267,16 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
             gzip.flush();
             valid = encoded.toByteArray();
         }
-        final byte[] invalid = new byte[64];
-        Arrays.fill(invalid, (byte) 0xff);
+        final byte[] invalid = Arrays.copyOf(valid, valid.length + 64);
+        Arrays.fill(invalid, valid.length, invalid.length, (byte) 0xff);
         final ByteArrayOutputStream wire = new ByteArrayOutputStream();
         wire.writeBytes(post().header("Content-Encoding", "gzip").chunked(true).head());
-        for (byte[] chunk : new byte[][] { valid, invalid }) {
-            RequestBuilder.writeChunk(wire, chunk, 0, chunk.length);
-        }
-        // One write makes the decoder encounter the invalid chunk immediately after rejecting the valid one.
-        assertDeliveredDespite(wire.toByteArray(), () -> assertTrue(transport.decoderFailure.await(10, TimeUnit.SECONDS)));
+        RequestBuilder.writeChunk(wire, invalid, 0, invalid.length);
+        assertDeliveredDespite(wire.toByteArray(), () -> {
+            assertTrue(transport.decoderFailure.await(10, TimeUnit.SECONDS));
+            transport.hold.channel.eventLoop().submit(() -> {}).get(10, TimeUnit.SECONDS);
+            assertEquals("The rejected body's decoder failure must not reach the transport", 1, transport.hold.closeRequested.getCount());
+        });
     }
 
     /** Holds the 413 on the server until {@code trigger} has made the competing event happen there. */
@@ -289,6 +318,12 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
 
     private static RequestBuilder post() {
         return new RequestBuilder("POST", "/");
+    }
+
+    private static RequestBuilder h2cUpgrade(RequestBuilder request) {
+        return request.header("Connection", "Upgrade, HTTP2-Settings")
+            .header("Upgrade", "h2c")
+            .header("HTTP2-Settings", "AAMAAABkAARAAAAAAAIAAAAA");
     }
 
     /** Twice the limit, chunked: rejected while the body is arriving, so the connection must close. */

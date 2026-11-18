@@ -35,7 +35,6 @@ package org.opensearch.http.netty4;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -448,11 +447,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             config.setMaxChunkSize(handlingSettings.getMaxChunkSize());
 
             final HttpServerCodec sourceCodec = new HttpServerCodec(config, transport.pipelineMaxDepth);
-            final HttpServerUpgradeHandler upgradeHandler = new HttpServerUpgradeHandler(
-                sourceCodec,
-                upgradeCodecFactory,
-                handlingSettings.getMaxContentLength()
-            );
+            final Netty4HttpObjectAggregator aggregator = transport.createHttpObjectAggregator(handlingSettings);
+            final HttpServerUpgradeHandler upgradeHandler = aggregator.newUpgradeHandler(sourceCodec, upgradeCodecFactory);
             final CleartextHttp2ServerUpgradeHandler cleartextUpgradeHandler = new CleartextHttp2ServerUpgradeHandler(
                 sourceCodec,
                 upgradeHandler,
@@ -462,8 +458,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline().addLast(cleartextUpgradeHandler).addLast(new SimpleChannelInboundHandler<HttpMessage>() {
                 @Override
                 protected void channelRead0(ChannelHandlerContext ctx, HttpMessage msg) throws Exception {
-                    final Netty4HttpObjectAggregator aggregator = transport.createHttpObjectAggregator(handlingSettings);
-
                     // If this handler is hit then no upgrade has been attempted and the client is just talking HTTP
                     final ChannelPipeline pipeline = ctx.pipeline();
                     pipeline.addAfter(ctx.name(), "handler", getRequestHandler());
@@ -499,9 +493,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             pipeline.addLast("decoder", decoder);
             pipeline.addLast("header_verifier", transport.createHeaderVerifier());
-            final Netty4HttpObjectAggregator aggregator = transport.createHttpObjectAggregator(handlingSettings);
             pipeline.addLast("decoder_compress", transport.createDecompressor());
             pipeline.addLast("encoder", new HttpResponseEncoder());
+            final Netty4HttpObjectAggregator aggregator = transport.createHttpObjectAggregator(handlingSettings);
             pipeline.addLast("aggregator", aggregator);
             if (handlingSettings.isCompression()) {
                 pipeline.addLast(
@@ -611,7 +605,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         return new Netty4HttpObjectAggregator(
             handlingSettings.getMaxContentLength(),
             maxCompositeBufferComponents,
-            () -> lifecycleState() == Lifecycle.State.STARTED
+            () -> lifecycle.stoppedOrClosed() == false
         );
     }
 
