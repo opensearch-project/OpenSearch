@@ -166,7 +166,7 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
         upload.get(Netty4HttpRawClient.IO_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
     }
 
-    public void testEncodingOverheadDoesNotChangeDecodedSizeLimit() throws Exception {
+    public void testEncodedContentLengthIsLimitedWhenDecodedSizeIsWithinLimit() throws Exception {
         // stored deflate blocks: the body as sent is a little larger than the decoded body, which is exactly at the limit
         final byte[] decoded = incompressible(LIMIT);
         final ByteArrayOutputStream encoded = new ByteArrayOutputStream();
@@ -178,13 +178,27 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
         }
         final RequestBuilder request = post().header("Content-Encoding", "deflate").rawBody(encoded.toByteArray());
         assertThat(request.encodedBodyLength(), greaterThan(LIMIT));
-        for (boolean chunked : new boolean[] { false, true }) {
-            reconnect();
-            client.writeInPieces(request.chunked(chunked).bytes(), between(1, 16 * 1024));
-            final Response response = client.readResponse();
-            assertThat(response.status(), equalTo(200));
-            assertThat(new String(response.body(), StandardCharsets.UTF_8), equalTo(Integer.toString(LIMIT)));
-        }
+        client.write(request.head());
+        // Reject from the headers, then drain the upload without decompressing it.
+        final Response rejection = client.readResponse();
+        assertThat(rejection.status(), equalTo(413));
+        assertTrue(rejection.connectionClose());
+        client.write(request.wireBody());
+        client.readEndOfStream();
+        assertThat(dispatched.get(), equalTo(0));
+
+        assertRecoverableRejection(request.header("Expect", "100-continue").head());
+        assertRecoverableRejection(request.header("Connection", "close").head());
+
+        // Unknown encoded lengths retain the decoded-size limit.
+        reconnect();
+        client.writeInPieces(
+            post().header("Content-Encoding", "deflate").rawBody(encoded.toByteArray()).chunked(true).bytes(),
+            between(1, 16 * 1024)
+        );
+        final Response response = client.readResponse();
+        assertThat(response.status(), equalTo(200));
+        assertThat(new String(response.body(), StandardCharsets.UTF_8), equalTo(Integer.toString(LIMIT)));
     }
 
     public void testRecoverableRejectionsReuseConnection() throws Exception {
@@ -198,6 +212,15 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
         }
     }
 
+    public void testCompressedExpectRejectionsReuseConnection() throws Exception {
+        for (Encoding encoding : new Encoding[] { Encoding.GZIP, Encoding.DEFLATE }) {
+            final RequestBuilder request = post().header("Expect", "100-continue").body(encoding, incompressible(2 * LIMIT));
+            assertThat(request.encodedBodyLength(), greaterThan(LIMIT));
+            assertRecoverableRejection(request.head());
+            assertRecoverableRejection(request.header("Connection", "close").head());
+        }
+    }
+
     private void assertRecoverableRejection(byte[] request) throws Exception {
         reconnect();
         client.write(request);
@@ -205,7 +228,8 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
         assertThat(rejection.status(), equalTo(413)); // no preceding 100 Continue
         assertFalse(rejection.connectionClose());
         // the connection remains usable
-        client.write(post().body(Encoding.IDENTITY, "small".getBytes(StandardCharsets.UTF_8)).bytes());
+        // Missing Content-Length on the next request must replace the rejected request's recorded length.
+        client.write(post().body(Encoding.IDENTITY, "small".getBytes(StandardCharsets.UTF_8)).chunked(true).bytes());
         final Response response = client.readResponse();
         assertThat(response.status(), equalTo(200));
         assertThat(new String(response.body(), StandardCharsets.UTF_8), equalTo("5"));

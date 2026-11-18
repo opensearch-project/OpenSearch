@@ -468,8 +468,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     final ChannelPipeline pipeline = ctx.pipeline();
                     pipeline.addAfter("http_rejection_guard", "handler", getRequestHandler());
                     pipeline.replace(this, "header_verifier", transport.createHeaderVerifier());
-                    pipeline.addAfter("header_verifier", "decoder_compress", transport.createDecompressor());
-                    pipeline.addAfter("http_rejection_guard", "aggregator", transport.createHttpObjectAggregator(handlingSettings));
+                    final Netty4HttpObjectAggregator aggregator = transport.createHttpObjectAggregator(handlingSettings);
+                    pipeline.addAfter("header_verifier", "encoded_length", aggregator.encodedLengthRecorder());
+                    pipeline.addAfter("encoded_length", "decoder_compress", transport.createDecompressor());
+                    pipeline.addAfter("http_rejection_guard", "aggregator", aggregator);
                     if (handlingSettings.isCompression()) {
                         pipeline.addAfter(
                             "aggregator",
@@ -499,10 +501,12 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             pipeline.addLast("decoder", decoder);
             pipeline.addLast("header_verifier", transport.createHeaderVerifier());
+            final Netty4HttpObjectAggregator aggregator = transport.createHttpObjectAggregator(handlingSettings);
+            pipeline.addLast("encoded_length", aggregator.encodedLengthRecorder());
             pipeline.addLast("decoder_compress", transport.createDecompressor());
             pipeline.addLast("encoder", new HttpResponseEncoder());
             pipeline.addLast("http_rejection_guard", transport.createRejectionHandler().newHttpHandler());
-            pipeline.addLast("aggregator", transport.createHttpObjectAggregator(handlingSettings));
+            pipeline.addLast("aggregator", aggregator);
             if (handlingSettings.isCompression()) {
                 pipeline.addLast(
                     "encoder_compress",
@@ -607,8 +611,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         }
     }
 
-    private HttpObjectAggregator createHttpObjectAggregator(HttpHandlingSettings handlingSettings) {
-        final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
+    private Netty4HttpObjectAggregator createHttpObjectAggregator(HttpHandlingSettings handlingSettings) {
+        final Netty4HttpObjectAggregator aggregator = new Netty4HttpObjectAggregator(handlingSettings.getMaxContentLength());
         aggregator.setMaxCumulationBufferComponents(maxCompositeBufferComponents);
         return aggregator;
     }
