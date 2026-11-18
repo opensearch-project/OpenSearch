@@ -371,6 +371,12 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
          * {@link String} for a terms source on a keyword field, since the reduce
          * phase compares keys from different shards directly.
          *
+         * <p>A {@link BytesRef} value must own its bytes, such as a copy made with
+         * {@link BytesRef#deepCopyOf(BytesRef)}, rather than point into a buffer that is
+         * reused, such as the one a terms dictionary or doc values lookup returns. The
+         * bucket keeps the reference and is read after the search context that produced
+         * it is closed, which is why the shard-level sources copy the values they look up.
+         *
          * @opensearch.experimental
          */
         @ExperimentalApi
