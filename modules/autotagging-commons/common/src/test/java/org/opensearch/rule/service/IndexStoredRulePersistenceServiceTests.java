@@ -44,8 +44,12 @@ import org.opensearch.rule.action.UpdateRuleRequest;
 import org.opensearch.rule.action.UpdateRuleResponse;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.utils.RuleTestUtils;
+import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.SortBuilder;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
@@ -66,6 +70,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatcher;
 
 import static org.opensearch.rule.XContentRuleParserTests.VALID_JSON;
 import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_MAP;
@@ -82,6 +87,7 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -344,6 +350,81 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         assertTrue(responseCaptor.getValue().getRules().isEmpty());
     }
 
+    // Sort on the rule id keyword ascending that tolerates a rules index with no mapping yet.
+    private static final ArgumentMatcher<SortBuilder<?>> ID_ASC_SORT = sort -> sort instanceof FieldSortBuilder f
+        && IndexStoredRulePersistenceService.RULE_ID_SORT_FIELD.equals(f.getFieldName())
+        && f.order() == SortOrder.ASC
+        && "keyword".equals(f.unmappedType());
+
+    public void testGetRuleSortsEveryPageByRuleId() {
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(new SearchHits(new SearchHit[] {}, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f));
+        when(searchRequestBuilder.get()).thenReturn(searchResponse);
+        ActionListener<GetRuleResponse> listener = mock(ActionListener.class);
+
+        // First page: no search_after, must still be sorted so its last sort value is a valid cursor for the next page.
+        rulePersistenceService.getRule(
+            new GetRuleRequest(null, new HashMap<>(), null, RuleTestUtils.MockRuleFeatureType.INSTANCE),
+            listener
+        );
+        verify(searchRequestBuilder, times(1)).addSort(argThat(ID_ASC_SORT));
+        verify(searchRequestBuilder, never()).searchAfter(any());
+
+        // Next page: same sort, starting after the cursor.
+        rulePersistenceService.getRule(
+            new GetRuleRequest(null, new HashMap<>(), _ID_ONE, RuleTestUtils.MockRuleFeatureType.INSTANCE),
+            listener
+        );
+        verify(searchRequestBuilder, times(2)).addSort(argThat(ID_ASC_SORT));
+        verify(searchRequestBuilder, times(1)).searchAfter(new Object[] { _ID_ONE });
+    }
+
+    public void testGetRuleReturnsSearchAfterOnlyForAFullPage() {
+        ActionListener<GetRuleResponse> listener = mock(ActionListener.class);
+        ArgumentCaptor<GetRuleResponse> captor = ArgumentCaptor.forClass(GetRuleResponse.class);
+        IndexStoredRulePersistenceService service = (IndexStoredRulePersistenceService) rulePersistenceService;
+
+        // A full page returns the last hit's id as the cursor for the next page.
+        service.handleGetRuleResponse(hitsWithIds(MAX_VALUES_PER_PAGE), listener);
+        // A partial page means there are no more rules, so no cursor.
+        service.handleGetRuleResponse(hitsWithIds(MAX_VALUES_PER_PAGE - 1), listener);
+        // No hits, no cursor.
+        service.handleGetRuleResponse(new ArrayList<>(), listener);
+
+        verify(listener, times(3)).onResponse(captor.capture());
+        assertEquals("id-" + (MAX_VALUES_PER_PAGE - 1), captor.getAllValues().get(0).getSearchAfter());
+        assertNull(captor.getAllValues().get(1).getSearchAfter());
+        assertNull(captor.getAllValues().get(2).getSearchAfter());
+    }
+
+    public void testGetRuleFailsWhenLastHitHasNoSortValue() {
+        ActionListener<GetRuleResponse> listener = mock(ActionListener.class);
+        IndexStoredRulePersistenceService service = (IndexStoredRulePersistenceService) rulePersistenceService;
+
+        // A full page whose last rule has no id.keyword value (only possible with a hand-made mapping): the rules after it
+        // can't be paged, so fail rather than return a page that looks like the last one.
+        List<SearchHit> hits = hitsWithIds(MAX_VALUES_PER_PAGE);
+        hits.get(hits.size() - 1).sortValues(new Object[] { null }, new DocValueFormat[] { DocValueFormat.RAW });
+        service.handleGetRuleResponse(hits, listener);
+
+        ArgumentCaptor<Exception> failure = ArgumentCaptor.forClass(Exception.class);
+        verify(listener).onFailure(failure.capture());
+        verify(listener, never()).onResponse(any());
+        assertTrue(failure.getValue() instanceof IllegalStateException);
+    }
+
+    private static List<SearchHit> hitsWithIds(int count) {
+        List<SearchHit> hits = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            SearchHit hit = new SearchHit(i, "doc-" + i, null, null);
+            hit.sourceRef(new BytesArray(VALID_JSON));
+            // The cursor must come from the sort value, not the hit's _id.
+            hit.sortValues(new Object[] { "id-" + i }, new DocValueFormat[] { DocValueFormat.RAW });
+            hits.add(hit);
+        }
+        return hits;
+    }
+
     private Client setUpMockClient(SearchRequestBuilder searchRequestBuilder) {
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
@@ -360,6 +441,7 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         when(client.prepareSearch(TEST_INDEX_NAME)).thenReturn(searchRequestBuilder);
         when(searchRequestBuilder.setQuery(any(QueryBuilder.class))).thenReturn(searchRequestBuilder);
         when(searchRequestBuilder.setSize(anyInt())).thenReturn(searchRequestBuilder);
+        when(searchRequestBuilder.addSort(any(SortBuilder.class))).thenReturn(searchRequestBuilder);
 
         return client;
     }

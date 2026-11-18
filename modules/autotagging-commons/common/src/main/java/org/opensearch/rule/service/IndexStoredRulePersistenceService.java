@@ -43,6 +43,7 @@ import org.opensearch.rule.action.UpdateRuleResponse;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.search.SearchHit;
+import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.transport.client.Client;
 
@@ -80,6 +81,11 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    /**
+     * Field rules are sorted on for pagination: the keyword subfield of each rule document's "id" field.
+     */
+    static final String RULE_ID_SORT_FIELD = Rule.ID_STRING + ".keyword";
 
     private int maxAllowedRulesCount;
     private final String indexName;
@@ -226,9 +232,14 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
             return;
         }
         try {
-            SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setQuery(queryBuilder).setSize(maxRulesPerPage);
+            // Always sort on id.keyword (not _id, which needs _id fielddata) so every page's last sort value is a valid
+            // search_after for the next one. unmappedType covers a rules index with no documents (and so no mapping) yet.
+            SearchRequestBuilder searchRequest = client.prepareSearch(indexName)
+                .setQuery(queryBuilder)
+                .setSize(maxRulesPerPage)
+                .addSort(SortBuilders.fieldSort(RULE_ID_SORT_FIELD).order(SortOrder.ASC).unmappedType("keyword"));
             if (searchAfter != null) {
-                searchRequest.addSort("_id", SortOrder.ASC).searchAfter(new Object[] { searchAfter });
+                searchRequest.searchAfter(new Object[] { searchAfter });
             }
 
             SearchResponse searchResponse = searchRequest.get();
@@ -262,8 +273,41 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      */
     void handleGetRuleResponse(List<SearchHit> hits, ActionListener<GetRuleResponse> listener) {
         List<Rule> ruleList = hits.stream().map(hit -> parser.parse(hit.getSourceAsString())).toList();
-        String nextSearchAfter = hits.isEmpty() || hits.size() < maxRulesPerPage ? null : hits.get(hits.size() - 1).getId();
+        final String nextSearchAfter;
+        try {
+            nextSearchAfter = nextSearchAfter(hits);
+        } catch (IllegalStateException e) {
+            // The caller logs the failure.
+            listener.onFailure(e);
+            return;
+        }
         listener.onResponse(new GetRuleResponse(ruleList, nextSearchAfter));
+    }
+
+    /**
+     * Returns the cursor for the page after {@code hits}: the last hit's sort value if the page is full, since more rules
+     * may follow, otherwise null.
+     * @throws IllegalStateException if the last hit has no sort value (its rule has no "id.keyword", which only a
+     *         hand-made rules index could cause), since the rules after it can't be paged
+     */
+    private String nextSearchAfter(List<SearchHit> hits) {
+        if (hits.isEmpty() || hits.size() < maxRulesPerPage) {
+            return null;
+        }
+        SearchHit last = hits.get(hits.size() - 1);
+        Object[] sortValues = last.getSortValues();
+        if (sortValues.length == 0 || sortValues[0] == null) {
+            throw new IllegalStateException(
+                "Rule ["
+                    + last.getId()
+                    + "] in index ["
+                    + indexName
+                    + "] has no ["
+                    + RULE_ID_SORT_FIELD
+                    + "] value, so rules after it can't be paged; check the index mapping"
+            );
+        }
+        return sortValues[0].toString();
     }
 
     @Override
