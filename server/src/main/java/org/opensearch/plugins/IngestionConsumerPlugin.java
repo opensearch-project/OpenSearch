@@ -8,9 +8,11 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.IngestionPayloadDecoderFactory;
+import org.opensearch.index.IngestionWriterFactory;
 
 import java.util.Map;
 
@@ -44,6 +46,16 @@ public interface IngestionConsumerPlugin {
      * @return map of decoder names to their factories; empty map if this plugin provides no decoders
      */
     default Map<String, IngestionPayloadDecoderFactory> getIngestionPayloadDecoderFactories() {
+        return Map.of();
+    }
+
+    /**
+     * Returns a map of source type → writer factory, for the source types this plugin also accepts writes for.
+     *
+     * @return map of source types to their writer factories; empty map if this plugin's sources are read-only
+     */
+    @ExperimentalApi
+    default Map<String, IngestionWriterFactory> getIngestionWriterFactories() {
         return Map.of();
     }
 }
