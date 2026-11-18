@@ -38,6 +38,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.mockito.ArgumentCaptor;
 
 import static org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifierTests.getRandomRule;
 import static org.mockito.ArgumentMatchers.any;
@@ -260,5 +263,81 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
         verify(rulePersistenceService, times(1)).getRule(any(GetRuleRequest.class), any(ActionListener.class));
         verify(ruleProcessingService, times(0)).add(any(Rule.class));
         verify(ruleProcessingService, times(0)).remove(any(Rule.class));
+    }
+
+    /**
+     * Tests that doRun follows search_after pagination and applies the rules from all pages,
+     * not just the first page.
+     */
+    @SuppressWarnings("unchecked")
+    public void test_doRun_FollowsPaginationAndAppliesAllPages() {
+        List<Rule> firstPageRules = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            firstPageRules.add(ruleWithId("rule-" + i));
+        }
+        List<Rule> secondPageRules = new ArrayList<>();
+        for (int i = 50; i < 60; i++) {
+            secondPageRules.add(ruleWithId("rule-" + i));
+        }
+
+        AtomicInteger callCount = new AtomicInteger();
+        doAnswer(invocation -> {
+            ActionListener<GetRuleResponse> listener = invocation.getArgument(1);
+            if (callCount.getAndIncrement() == 0) {
+                listener.onResponse(new GetRuleResponse(firstPageRules, "rule-49"));
+            } else {
+                listener.onResponse(new GetRuleResponse(secondPageRules, null));
+            }
+            return null;
+        }).when(rulePersistenceService).getRule(any(GetRuleRequest.class), any(ActionListener.class));
+
+        sut.doRun();
+
+        ArgumentCaptor<GetRuleRequest> requestCaptor = ArgumentCaptor.forClass(GetRuleRequest.class);
+        verify(rulePersistenceService, times(2)).getRule(requestCaptor.capture(), any(ActionListener.class));
+        assertNull(requestCaptor.getAllValues().get(0).getSearchAfter());
+        assertEquals("rule-49", requestCaptor.getAllValues().get(1).getSearchAfter());
+        verify(ruleProcessingService, times(60)).add(any(Rule.class));
+        verify(ruleProcessingService, times(0)).remove(any(Rule.class));
+    }
+
+    /**
+     * Tests that doRun applies nothing when a later page fails, instead of applying
+     * the partial rule set from the earlier pages.
+     */
+    @SuppressWarnings("unchecked")
+    public void test_doRun_SkipsRunWhenLaterPageFails() {
+        List<Rule> firstPageRules = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            firstPageRules.add(ruleWithId("rule-" + i));
+        }
+
+        AtomicInteger callCount = new AtomicInteger();
+        doAnswer(invocation -> {
+            ActionListener<GetRuleResponse> listener = invocation.getArgument(1);
+            if (callCount.getAndIncrement() == 0) {
+                listener.onResponse(new GetRuleResponse(firstPageRules, "rule-49"));
+            } else {
+                listener.onFailure(new RuntimeException("Search failed"));
+            }
+            return null;
+        }).when(rulePersistenceService).getRule(any(GetRuleRequest.class), any(ActionListener.class));
+
+        sut.doRun();
+
+        verify(rulePersistenceService, times(2)).getRule(any(GetRuleRequest.class), any(ActionListener.class));
+        verify(ruleProcessingService, times(0)).add(any(Rule.class));
+        verify(ruleProcessingService, times(0)).remove(any(Rule.class));
+    }
+
+    private static Rule ruleWithId(String id) {
+        return Rule.builder()
+            .id(id)
+            .description("description for " + id)
+            .attributeMap(Map.of(AutoTaggingActionFilterTests.TestAttribute.TEST_ATTRIBUTE, Set.of("value for " + id)))
+            .featureType(AutoTaggingActionFilterTests.WLMFeatureType.WLM)
+            .featureValue("feature value for " + id)
+            .updatedAt("2025-05-27T08:58:57.558Z")
+            .build();
     }
 }

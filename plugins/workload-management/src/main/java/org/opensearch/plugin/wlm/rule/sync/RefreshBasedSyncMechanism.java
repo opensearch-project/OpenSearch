@@ -107,17 +107,35 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
             return;
         }
 
+        fetchAllRules(null, new HashSet<>());
+    }
+
+    /**
+     * Fetches all rules page by page, following the {@code search_after} token until no more pages remain,
+     * and only then applies the complete rule set to the in-memory view. If any page fails, the whole sync
+     * run is skipped: applying a partial set would look like deletions of the rules on the missing pages.
+     *
+     * @param searchAfter the {@code search_after} token of the page to fetch, or null for the first page
+     * @param accumulatedRules the rules collected from the pages fetched so far
+     */
+    private void fetchAllRules(String searchAfter, Set<Rule> accumulatedRules) {
         rulePersistenceService.getRule(
-            new GetRuleRequest(null, Collections.emptyMap(), null, featureType),
+            new GetRuleRequest(null, Collections.emptyMap(), searchAfter, featureType),
             new ActionListener<GetRuleResponse>() {
                 @Override
                 public void onResponse(GetRuleResponse response) {
-                    final Set<Rule> newRules = new HashSet<>(response.getRules());
+                    accumulatedRules.addAll(response.getRules());
+                    String nextSearchAfter = response.getSearchAfter();
+                    if (nextSearchAfter != null) {
+                        fetchAllRules(nextSearchAfter, accumulatedRules);
+                        return;
+                    }
+
                     ruleEventClassifier.setPreviousRules(lastRunIndexedRules);
 
-                    ruleEventClassifier.getRuleEvents(newRules).forEach(RuleEvent::process);
+                    ruleEventClassifier.getRuleEvents(accumulatedRules).forEach(RuleEvent::process);
 
-                    lastRunIndexedRules = newRules;
+                    lastRunIndexedRules = accumulatedRules;
                 }
 
                 @Override
@@ -126,7 +144,7 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
                         logger.debug("Rule index not found, skipping rule processing.");
                         return;
                     }
-                    logger.warn("Failed to get rules from persistence service", e);
+                    logger.warn("Failed to get rules from persistence service, skipping this sync run", e);
                 }
             }
         );

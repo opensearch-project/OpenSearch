@@ -43,6 +43,7 @@ import org.opensearch.rule.action.UpdateRuleResponse;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.search.SearchHit;
+import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.transport.client.Client;
 
@@ -227,8 +228,16 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         }
         try {
             SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setQuery(queryBuilder).setSize(maxRulesPerPage);
+            // Sort every page, including the first, so that search_after always continues from a page in the same order.
+            // The sort uses the rule document's id field, which holds the same value as the document _id, instead of _id
+            // itself: sorting on _id requires _id fielddata and fails when indices.id_field_data.enabled is false. The
+            // unmapped_type keeps the sort valid while the index has no documents yet (id is dynamically mapped as text
+            // with a keyword subfield).
+            searchRequest.addSort(
+                new FieldSortBuilder(Rule.ID_STRING + ".keyword").order(SortOrder.ASC).unmappedType("keyword")
+            );
             if (searchAfter != null) {
-                searchRequest.addSort("_id", SortOrder.ASC).searchAfter(new Object[] { searchAfter });
+                searchRequest.searchAfter(new Object[] { searchAfter });
             }
 
             SearchResponse searchResponse = searchRequest.get();

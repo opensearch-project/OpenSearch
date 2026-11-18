@@ -88,4 +88,11 @@ public class GetRuleResponse extends ActionResponse implements ToXContent, ToXCo
     public List<Rule> getRules() {
         return rules;
     }
+
+    /**
+     * searchAfter getter
+     */
+    public String getSearchAfter() {
+        return searchAfter;
+    }
 }
