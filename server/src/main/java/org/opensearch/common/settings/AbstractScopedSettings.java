@@ -1135,4 +1135,13 @@ public abstract class AbstractScopedSettings {
         return false;
     }
 
+    /**
+     * Returns every setting registered in this scope, including plugin settings, with affix and group
+     * templates under their template key. Use {@link Setting#getRawKey()} to tell how a key matches.
+     */
+    public Set<Setting<?>> getRegisteredSettings() {
+        Set<Setting<?>> registered = new HashSet<>(keySettings.values());
+        registered.addAll(complexMatchers.values());
+        return Collections.unmodifiableSet(registered);
+    }
 }
