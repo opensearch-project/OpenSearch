@@ -1080,7 +1080,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         runAsync(getExecutor(executorName, readerContext.indexShard()), () -> {
-            try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false)) {
+            try (SearchContext searchContext = createFetchContext(readerContext, shardSearchRequest, task)) {
                 if (request.lastEmittedDoc() != null) {
                     searchContext.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
                 }
@@ -1310,7 +1310,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         SearchShardTask task,
         boolean includeAggregations
     ) throws IOException {
-        return createContext(readerContext, request, task, includeAggregations, false);
+        return createContext(readerContext, request, task, includeAggregations, false, true);
     }
 
     private SearchContext createContext(
@@ -1319,6 +1319,23 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         SearchShardTask task,
         boolean includeAggregations,
         boolean isStreamSearch
+    ) throws IOException {
+        return createContext(readerContext, request, task, includeAggregations, isStreamSearch, true);
+    }
+
+    private SearchContext createFetchContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTask task)
+        throws IOException {
+        // Query-dependent fetch subphases rewrite the query when they need it.
+        return createContext(readerContext, request, task, false, false, false);
+    }
+
+    private SearchContext createContext(
+        ReaderContext readerContext,
+        ShardSearchRequest request,
+        SearchShardTask task,
+        boolean includeAggregations,
+        boolean isStreamSearch,
+        boolean rewriteQuery
     ) throws IOException {
         final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, false, isStreamSearch);
         try {
@@ -1337,7 +1354,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.setTask(task);
 
             // pre process
-            queryPhase.preProcess(context);
+            if (rewriteQuery) {
+                queryPhase.preProcess(context);
+            } else {
+                context.preProcess(false);
+            }
         } catch (Exception e) {
             context.close();
             throw e;
