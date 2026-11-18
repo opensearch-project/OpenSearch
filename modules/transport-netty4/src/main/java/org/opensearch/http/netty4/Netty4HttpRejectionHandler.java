@@ -34,24 +34,14 @@ import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.ScheduledFuture;
 
 /**
- * Makes sure a {@code 413} written before closing an oversized HTTP/1 request's connection reaches the client.
+ * Delivers a terminal HTTP/1 {@code 413} before closing the connection.
  * <p>
- * The handler is only added to a connection while a rejection is in progress, and it is added in front of every other
- * handler (including TLS), so the regular request path pays nothing for it. While it is installed:
- * <ul>
- *     <li>{@code close()} requests from the rest of the pipeline (a decoder failure on the remainder of the rejected body,
- *     a read timeout, the request handler) are held back until the response is out, so they cannot discard it;</li>
- *     <li>input half-closure is enabled, so a client FIN no longer makes Netty close the connection on its own.</li>
- * </ul>
- * The connection closes the way RFC 9112 section 9.6 describes: everything the client still sends is discarded before
- * it is decrypted or decoded; once the response is written the handler sends TLS
- * {@code close_notify} (if any) and a TCP FIN, then keeps reading until the client closes its side, the client stops
- * sending for {@link #DRAIN_IDLE_NANOS}, or {@link #DRAIN_MAX_NANOS} have elapsed. Closing a socket that
- * still has unread input makes the kernel send a TCP RST, and a RST makes the client's kernel drop a response it has not
- * read yet, which is why the connection is drained rather than closed.
+ * Installed only for a terminal rejection, before TLS and HTTP decoding. It discards remaining input, defers pipeline
+ * close requests, and enables input half-closure so a client FIN cannot interrupt the response.
  * <p>
- * The write of the response itself, TLS shutdown and FIN share a deadline of {@link #WRITE_TIMEOUT_NANOS}, so a client that
- * never reads cannot pin the connection.
+ * Response write, TLS {@code close_notify}, and TCP output shutdown run in order under one {@link #WRITE_TIMEOUT_NANOS}
+ * deadline. The connection then drains until peer EOF, {@link #DRAIN_IDLE_NANOS} of inactivity, or {@link #DRAIN_MAX_NANOS}
+ * total. Draining avoids a TCP reset from unread input discarding the response, as described in RFC 9112 section 9.6.
  */
 final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
 
@@ -62,13 +52,18 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
     private static final long DRAIN_IDLE_NANOS = TimeUnit.SECONDS.toNanos(5);
     private static final long DRAIN_MAX_NANOS = TimeUnit.SECONDS.toNanos(30);
 
+    private enum Phase {
+        RESPONSE,
+        TLS_SHUTDOWN,
+        OUTPUT_SHUTDOWN,
+        DRAINING,
+        CLOSED
+    }
+
     private final BooleanSupplier transportRunning;
     private ChannelHandlerContext context;
-    private boolean draining;
-    private boolean closed;
-    private boolean outputShutdownInitiated;
-    private ChannelFuture responseFuture;
-    private ChannelFuture shutdownFuture;
+    private Phase phase = Phase.RESPONSE;
+    private ChannelFuture pendingOperation;
     private long lastReadNanos;
     private long drainDeadlineNanos;
     private ScheduledFuture<?> timer;
@@ -84,9 +79,8 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
         final Netty4HttpRejectionHandler handler = new Netty4HttpRejectionHandler(transportRunning);
         pipeline.addFirst(NAME, handler);
         final ChannelPromise promise = aggregatorContext.newPromise();
-        handler.responseFuture = promise;
         handler.timer = handler.context.executor().schedule(handler::writeTimedOut, WRITE_TIMEOUT_NANOS, TimeUnit.NANOSECONDS);
-        promise.addListener(handler::responseWritten);
+        handler.await(Phase.RESPONSE, promise);
         final FullHttpResponse response = new DefaultFullHttpResponse(
             HttpVersion.HTTP_1_1,
             HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE,
@@ -111,84 +105,70 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
     @Override
     public void handlerRemoved(ChannelHandlerContext ctx) {
         assert ctx.executor().inEventLoop();
-        closed = true;
-        cancelTimeouts();
+        finish();
     }
 
     private void writeTimedOut() {
         assert context.executor().inEventLoop();
         // Netty may defer promise listeners to avoid excessive listener recursion. Process completed
         // operations before deciding whether the write, TLS shutdown or FIN has timed out.
-        if (responseFuture != null && responseFuture.isDone()) {
-            responseWritten(responseFuture);
+        while (pendingOperation != null && pendingOperation.isDone()) {
+            operationCompleted(pendingOperation);
         }
-        while (shutdownFuture != null && shutdownFuture.isDone()) {
-            shutdownCompleted(shutdownFuture);
-        }
-        if (draining == false) {
+        if (phase != Phase.DRAINING) {
             closeNow();
         }
     }
 
-    /** Starts shutdown once the rejection response has been written. */
-    private void responseWritten(Future<?> future) {
-        assert context.executor().inEventLoop();
-        if (closed || future != responseFuture) {
+    private void await(Phase nextPhase, ChannelFuture future) {
+        // Starting an operation can synchronously close the channel.
+        if (phase == Phase.CLOSED) {
             return;
         }
-        responseFuture = null;
+        phase = nextPhase;
+        pendingOperation = future;
+        future.addListener(this::operationCompleted);
+    }
+
+    private void operationCompleted(Future<?> future) {
+        assert context.executor().inEventLoop();
+        if (future != pendingOperation) {
+            return; // already processed by the deadline, or the connection closed
+        }
+        pendingOperation = null;
         if (future.isSuccess() == false || context.channel().isActive() == false) {
             closeNow();
             return;
         }
-        final SslHandler sslHandler = context.pipeline().get(SslHandler.class);
-        if (sslHandler == null) {
-            shutdownOutput();
-        } else {
-            // close_notify after the response, so a TLS client sees a complete stream before the FIN
-            shutdownFuture = sslHandler.closeOutbound();
-            shutdownFuture.addListener(this::shutdownCompleted);
+        switch (phase) {
+            case RESPONSE -> {
+                final SslHandler ssl = context.pipeline().get(SslHandler.class);
+                if (ssl == null) {
+                    shutdownOutput();
+                } else {
+                    await(Phase.TLS_SHUTDOWN, ssl.closeOutbound());
+                }
+            }
+            case TLS_SHUTDOWN -> shutdownOutput();
+            case OUTPUT_SHUTDOWN -> {
+                phase = Phase.DRAINING;
+                lastReadNanos = context.executor().ticker().nanoTime();
+                drainDeadlineNanos = lastReadNanos + DRAIN_MAX_NANOS;
+                cancelTimer();
+                checkDrain();
+            }
+            default -> throw new IllegalStateException("Unexpected rejection phase: " + phase);
         }
     }
 
     private void shutdownOutput() {
-        assert context.executor().inEventLoop();
-        if (closed || context.channel().isActive() == false) {
-            return;
-        }
         final DuplexChannel channel = (DuplexChannel) context.channel();
         if (channel.isInputShutdown()) {
             // the client already finished sending, nothing is left to drain
             closeNow();
-            return;
-        }
-        outputShutdownInitiated = true;
-        shutdownFuture = channel.shutdownOutput();
-        shutdownFuture.addListener(this::shutdownCompleted);
-    }
-
-    private void shutdownCompleted(Future<?> future) {
-        assert context.executor().inEventLoop();
-        if (closed || future != shutdownFuture) {
-            return;
-        }
-        shutdownFuture = null;
-        if (future.isSuccess() == false || context.channel().isActive() == false) {
-            closeNow();
-        } else if (outputShutdownInitiated) {
-            startDraining();
         } else {
-            shutdownOutput();
+            await(Phase.OUTPUT_SHUTDOWN, channel.shutdownOutput());
         }
-    }
-
-    private void startDraining() {
-        assert context.executor().inEventLoop();
-        draining = true;
-        lastReadNanos = context.executor().ticker().nanoTime();
-        drainDeadlineNanos = lastReadNanos + DRAIN_MAX_NANOS;
-        cancelTimer();
-        checkDrain();
     }
 
     /** One timer covers both drain bounds; reads only record a timestamp so discarding a buffer stays cheap. */
@@ -205,32 +185,29 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
 
     private void closeNow() {
         assert context.executor().inEventLoop();
-        if (closed) {
+        if (phase == Phase.CLOSED) {
             return;
         }
-        closed = true;
-        cancelTimeouts();
+        finish();
         // starts in front of this handler: bypasses both the deferral below and SslHandler's own close handling
         context.close();
     }
 
-    private void cancelTimeouts() {
+    private void finish() {
+        phase = Phase.CLOSED;
+        pendingOperation = null;
         cancelTimer();
-        responseFuture = null;
-        shutdownFuture = null;
     }
 
     private void cancelTimer() {
-        if (timer != null) {
-            FutureUtils.cancel(timer);
-            timer = null;
-        }
+        FutureUtils.cancel(timer);
+        timer = null;
     }
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         ReferenceCountUtil.release(msg);
-        if (draining) {
+        if (phase == Phase.DRAINING) {
             lastReadNanos = ctx.executor().ticker().nanoTime();
         }
     }
@@ -239,7 +216,7 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
         if (evt instanceof ChannelInputShutdownEvent) {
             // without this handler Netty would have closed the connection: it can only end once the response is out
-            if (draining) {
+            if (phase == Phase.DRAINING) {
                 closeNow();
             }
             return;
@@ -265,8 +242,7 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
-        closed = true;
-        cancelTimeouts();
+        finish();
         ctx.fireChannelInactive();
     }
 }

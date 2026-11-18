@@ -35,11 +35,8 @@ import org.junit.Before;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Map;
-import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -55,9 +52,9 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
+import io.netty.channel.PendingWriteQueue;
 import io.netty.channel.socket.DuplexChannel;
 import io.netty.handler.codec.http.HttpContentDecompressor;
-import io.netty.util.ReferenceCountUtil;
 
 import static org.opensearch.http.TestDispatcherBuilder.dispatcherBuilderWithDefaults;
 import static org.hamcrest.Matchers.equalTo;
@@ -383,7 +380,7 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
     private static final class ResponseHold extends ChannelDuplexHandler {
         private final CountDownLatch held = new CountDownLatch(1);
         final CountDownLatch closeRequested = new CountDownLatch(1);
-        private final Queue<Map.Entry<Object, ChannelPromise>> heldWrites = new ArrayDeque<>();
+        private PendingWriteQueue heldWrites;
         private volatile boolean enabled;
         private boolean holding;
         volatile Channel channel;
@@ -398,19 +395,15 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
         }
 
         void release() {
-            channel.eventLoop().execute(() -> {
+            context.executor().execute(() -> {
                 holding = false;
-                Map.Entry<Object, ChannelPromise> write;
-                while ((write = heldWrites.poll()) != null) {
-                    context.write(write.getKey(), write.getValue());
-                }
+                heldWrites.removeAndWriteAll();
                 context.flush();
             });
         }
 
         @Override
         public void handlerAdded(ChannelHandlerContext ctx) {
-            context = ctx;
             channel = ctx.channel();
         }
 
@@ -420,11 +413,13 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
                 && enabled
                 && msg instanceof ByteBuf buf
                 && buf.toString(StandardCharsets.ISO_8859_1).startsWith("HTTP/1.1 413")) {
+                context = ctx;
+                heldWrites = new PendingWriteQueue(ctx);
                 holding = true;
                 held.countDown();
             }
-            if (holding) {
-                heldWrites.add(Map.entry(msg, promise));
+            if (holding && ctx == context) {
+                heldWrites.add(msg, promise);
             } else {
                 ctx.write(msg, promise);
             }
@@ -438,10 +433,8 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
 
         @Override
         public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-            Map.Entry<Object, ChannelPromise> write;
-            while ((write = heldWrites.poll()) != null) {
-                ReferenceCountUtil.release(write.getKey());
-                write.getValue().tryFailure(new IOException("connection closed while the write was held"));
+            if (ctx == context) {
+                heldWrites.removeAndFailAll(new IOException("connection closed while the write was held"));
             }
             super.channelInactive(ctx);
         }

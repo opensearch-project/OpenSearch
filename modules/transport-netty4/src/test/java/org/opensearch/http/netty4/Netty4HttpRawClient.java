@@ -25,7 +25,6 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -55,7 +54,7 @@ public final class Netty4HttpRawClient implements Closeable {
                 return decoded;
             }
             final ByteArrayOutputStream out = new ByteArrayOutputStream();
-            try (OutputStream encoder = this == GZIP ? new GZIPOutputStream(out) : new DeflaterOutputStream(out, new Deflater())) {
+            try (OutputStream encoder = this == GZIP ? new GZIPOutputStream(out) : new DeflaterOutputStream(out)) {
                 encoder.write(decoded);
             } catch (IOException e) {
                 throw new AssertionError(e);
