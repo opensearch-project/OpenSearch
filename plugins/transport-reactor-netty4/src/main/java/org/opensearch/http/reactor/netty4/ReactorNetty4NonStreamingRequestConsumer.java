@@ -93,7 +93,11 @@ class ReactorNetty4NonStreamingRequestConsumer<T extends HttpContent> implements
         final ByteBuf chunk = in.content();
 
         // Enforce http.max_content_length on the received content (already decompressed if the request
-        // body is compressed) before retaining it, the same way the netty4 transport does.
+        // body is compressed) before retaining it, the same way the netty4 transport does. As with the netty4
+        // transport, the decoded chunk that crosses the limit has already been allocated by the decompressor
+        // and is released right away: Netty's decoders emit at most 64 KiB per chunk with the default
+        // http.max_chunk_size and HTTP/2 frame size, but a gzip/deflate chunk can reach about twice the
+        // compressed body for a cleartext h2c upgrade request, which is aggregated before it is decoded.
         if ((long) content.readableBytes() + chunk.readableBytes() > maxContentLength) {
             rejectContentTooLarge(emitter);
             return;

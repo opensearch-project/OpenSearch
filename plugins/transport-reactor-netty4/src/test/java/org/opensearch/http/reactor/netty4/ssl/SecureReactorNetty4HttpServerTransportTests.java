@@ -24,6 +24,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.http.BindHttpException;
 import org.opensearch.http.CorsHandler;
+import org.opensearch.http.HttpRequest;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.http.NullDispatcher;
@@ -48,6 +49,8 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManagerFactory;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
@@ -55,6 +58,9 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.zip.GZIPOutputStream;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBufAllocator;
@@ -87,6 +93,7 @@ import io.netty.handler.codec.http2.Http2SecurityUtil;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.pkitesting.CertificateBuilder.Algorithm;
+import reactor.netty.http.HttpProtocol;
 
 import static org.opensearch.core.rest.RestStatus.OK;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
@@ -553,6 +560,131 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
         } finally {
             group.shutdownGracefully().await();
         }
+    }
+
+    /**
+     * Test that a request body larger than {@code http.max_content_length} is rejected with a 413 status
+     * and never reaches the dispatcher.
+     */
+    public void testRequestExceedingMaxContentLengthIsRejected() throws InterruptedException {
+        final int maxContentLength = randomIntBetween(1024, 64 * 1024);
+        final byte[] body = new byte[maxContentLength + randomIntBetween(1, 1024)];
+        Arrays.fill(body, (byte) 'a');
+        runMaxContentLengthTest(maxContentLength, body, false, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, -1);
+    }
+
+    /**
+     * Test that a compressed request body that decompresses to more than {@code http.max_content_length}
+     * is rejected with a 413 status and never reaches the dispatcher: the limit applies to the decoded body.
+     */
+    public void testCompressedRequestExceedingMaxContentLengthIsRejected() throws Exception {
+        final int maxContentLength = randomIntBetween(1024, 64 * 1024);
+        final byte[] body = new byte[randomIntBetween(maxContentLength + 1, 64 * maxContentLength)];
+        Arrays.fill(body, (byte) 'a');
+        final byte[] compressed = gzip(body);
+        assertThat("the compressed body must be within the limit for this test", compressed.length < maxContentLength, is(true));
+        runMaxContentLengthTest(maxContentLength, compressed, true, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, -1);
+    }
+
+    /**
+     * Test that a compressed request body that decompresses to no more than {@code http.max_content_length}
+     * is decompressed and dispatched.
+     */
+    public void testCompressedRequestWithinMaxContentLengthIsDispatched() throws Exception {
+        final int maxContentLength = randomIntBetween(1024, 64 * 1024);
+        final byte[] body = randomAlphaOfLength(randomIntBetween(1, maxContentLength)).getBytes(StandardCharsets.UTF_8);
+        runMaxContentLengthTest(maxContentLength, gzip(body), true, HttpResponseStatus.OK, body.length);
+    }
+
+    private void runMaxContentLengthTest(
+        int maxContentLength,
+        byte[] content,
+        boolean gzip,
+        HttpResponseStatus expectedStatus,
+        int expectedDispatchedContentLength
+    ) throws InterruptedException {
+        final Settings settings = createBuilderWithPort().put(
+            HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(),
+            maxContentLength + "b"
+        ).build();
+        final AtomicInteger dispatched = new AtomicInteger();
+        final AtomicInteger dispatchedContentLength = new AtomicInteger(-1);
+        final AtomicReference<HttpRequest.HttpVersion> dispatchedProtocol = new AtomicReference<>();
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
+            (request, channel, threadContext) -> {
+                dispatched.incrementAndGet();
+                dispatchedContentLength.set(request.content().length());
+                dispatchedProtocol.set(request.getHttpRequest().protocolVersion());
+                channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
+            }
+        ).build();
+
+        try (
+            ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                clusterSettings,
+                new SharedGroupFactory(settings),
+                secureHttpTransportSettingsProvider,
+                NoopTracer.INSTANCE
+            )
+        ) {
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+
+            // Cover both HTTP/1.1 and HTTP/2 over TLS explicitly instead of relying on a random protocol choice
+            for (HttpProtocol protocol : new HttpProtocol[] { HttpProtocol.HTTP11, HttpProtocol.H2 }) {
+                dispatched.set(0);
+                dispatchedContentLength.set(-1);
+                dispatchedProtocol.set(null);
+
+                try (ReactorHttpClient client = ReactorHttpClient.https(settings, protocol)) {
+                    final FullHttpRequest request = new DefaultFullHttpRequest(
+                        HttpVersion.HTTP_1_1,
+                        HttpMethod.POST,
+                        "/",
+                        Unpooled.wrappedBuffer(content)
+                    );
+                    request.headers().set(HttpHeaderNames.HOST, "localhost");
+                    request.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json");
+                    if (gzip) {
+                        request.headers().set(HttpHeaderNames.CONTENT_ENCODING, HttpHeaderValues.GZIP);
+                    }
+                    HttpUtil.setContentLength(request, content.length);
+
+                    final FullHttpResponse response = client.send(remoteAddress.address(), request);
+                    try {
+                        assertThat("protocol " + protocol, response.status(), equalTo(expectedStatus));
+                    } finally {
+                        response.release();
+                    }
+                }
+
+                if (expectedStatus == HttpResponseStatus.OK) {
+                    assertThat("protocol " + protocol, dispatched.get(), equalTo(1));
+                    assertThat("protocol " + protocol, dispatchedContentLength.get(), equalTo(expectedDispatchedContentLength));
+                    assertThat(
+                        "protocol " + protocol,
+                        dispatchedProtocol.get(),
+                        equalTo(protocol == HttpProtocol.HTTP11 ? HttpRequest.HttpVersion.HTTP_1_1 : HttpRequest.HttpVersion.HTTP_2_0)
+                    );
+                } else {
+                    assertThat("protocol " + protocol, dispatched.get(), equalTo(0));
+                }
+            }
+        }
+    }
+
+    private static byte[] gzip(byte[] content) throws IOException {
+        final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (GZIPOutputStream out = new GZIPOutputStream(bytes)) {
+            out.write(content);
+        }
+        return bytes.toByteArray();
     }
 
     private Settings createSettings() {

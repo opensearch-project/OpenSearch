@@ -99,9 +99,13 @@ public class ReactorHttpClient implements Closeable {
     }
 
     public ReactorHttpClient(boolean compression, boolean secure, Settings settings) {
+        this(compression, secure, settings, randomProtocol(secure, settings));
+    }
+
+    public ReactorHttpClient(boolean compression, boolean secure, Settings settings, HttpProtocol protocol) {
         this.compression = compression;
         this.secure = secure;
-        this.protocol = randomProtocol(secure, settings);
+        this.protocol = protocol;
         this.settings = settings;
     }
 
@@ -115,6 +119,14 @@ public class ReactorHttpClient implements Closeable {
 
     public static ReactorHttpClient https(Settings settings) {
         return new ReactorHttpClient(true, true, settings);
+    }
+
+    public static ReactorHttpClient create(boolean compression, Settings settings, HttpProtocol protocol) {
+        return new ReactorHttpClient(compression, false, settings, protocol);
+    }
+
+    public static ReactorHttpClient https(Settings settings, HttpProtocol protocol) {
+        return new ReactorHttpClient(true, true, settings, protocol);
     }
 
     public List<FullHttpResponse> get(InetSocketAddress remoteAddress, String... uris) throws InterruptedException {

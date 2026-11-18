@@ -46,6 +46,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.http.BindHttpException;
 import org.opensearch.http.CorsHandler;
+import org.opensearch.http.HttpRequest;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.http.NullDispatcher;
@@ -67,6 +68,7 @@ import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.GZIPOutputStream;
 
 import io.netty.bootstrap.Bootstrap;
@@ -727,10 +729,12 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
         ).build();
         final AtomicInteger dispatched = new AtomicInteger();
         final AtomicInteger dispatchedContentLength = new AtomicInteger(-1);
+        final AtomicReference<HttpRequest.HttpVersion> dispatchedProtocol = new AtomicReference<>();
         final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
             (request, channel, threadContext) -> {
                 dispatched.incrementAndGet();
                 dispatchedContentLength.set(request.content().length());
+                dispatchedProtocol.set(request.getHttpRequest().protocolVersion());
                 channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
             }
         ).build();
@@ -751,34 +755,46 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (ReactorHttpClient client = ReactorHttpClient.create(false, settings)) {
-                final FullHttpRequest request = new DefaultFullHttpRequest(
-                    HttpVersion.HTTP_1_1,
-                    HttpMethod.POST,
-                    "/",
-                    Unpooled.wrappedBuffer(content)
-                );
-                request.headers().set(HttpHeaderNames.HOST, "localhost");
-                request.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json");
-                if (gzip) {
-                    request.headers().set(HttpHeaderNames.CONTENT_ENCODING, HttpHeaderValues.GZIP);
-                }
-                HttpUtil.setContentLength(request, content.length);
+            // Cover both HTTP/1.1 and HTTP/2 (h2c) explicitly instead of relying on a random protocol choice
+            for (HttpProtocol protocol : new HttpProtocol[] { HttpProtocol.HTTP11, HttpProtocol.H2C }) {
+                dispatched.set(0);
+                dispatchedContentLength.set(-1);
+                dispatchedProtocol.set(null);
 
-                final FullHttpResponse response = client.send(remoteAddress.address(), request);
-                try {
-                    assertThat(response.status(), equalTo(expectedStatus));
-                } finally {
-                    response.release();
+                try (ReactorHttpClient client = ReactorHttpClient.create(false, settings, protocol)) {
+                    final FullHttpRequest request = new DefaultFullHttpRequest(
+                        HttpVersion.HTTP_1_1,
+                        HttpMethod.POST,
+                        "/",
+                        Unpooled.wrappedBuffer(content)
+                    );
+                    request.headers().set(HttpHeaderNames.HOST, "localhost");
+                    request.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json");
+                    if (gzip) {
+                        request.headers().set(HttpHeaderNames.CONTENT_ENCODING, HttpHeaderValues.GZIP);
+                    }
+                    HttpUtil.setContentLength(request, content.length);
+
+                    final FullHttpResponse response = client.send(remoteAddress.address(), request);
+                    try {
+                        assertThat("protocol " + protocol, response.status(), equalTo(expectedStatus));
+                    } finally {
+                        response.release();
+                    }
+                }
+
+                if (expectedStatus == HttpResponseStatus.OK) {
+                    assertThat("protocol " + protocol, dispatched.get(), equalTo(1));
+                    assertThat("protocol " + protocol, dispatchedContentLength.get(), equalTo(expectedDispatchedContentLength));
+                    assertThat(
+                        "protocol " + protocol,
+                        dispatchedProtocol.get(),
+                        equalTo(protocol == HttpProtocol.HTTP11 ? HttpRequest.HttpVersion.HTTP_1_1 : HttpRequest.HttpVersion.HTTP_2_0)
+                    );
+                } else {
+                    assertThat("protocol " + protocol, dispatched.get(), equalTo(0));
                 }
             }
-        }
-
-        if (expectedStatus == HttpResponseStatus.OK) {
-            assertThat(dispatched.get(), equalTo(1));
-            assertThat(dispatchedContentLength.get(), equalTo(expectedDispatchedContentLength));
-        } else {
-            assertThat(dispatched.get(), equalTo(0));
         }
     }
 
