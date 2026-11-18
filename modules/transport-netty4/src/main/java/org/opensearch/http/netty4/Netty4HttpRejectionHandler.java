@@ -16,7 +16,6 @@ import org.opensearch.common.util.concurrent.FutureUtils;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 
-import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandler;
@@ -38,8 +37,9 @@ import io.netty.util.concurrent.ScheduledFuture;
 /**
  * Delivers a terminal HTTP/1 {@code 413} before closing the connection.
  * <p>
- * The HTTP handlers from {@link #newHttpHandler()} observe full {@code 413} responses with {@code Connection: close},
- * leaving rejection decisions to Netty. On a terminal rejection, this handler is installed before TLS and HTTP decoding.
+ * The HTTP handlers from {@link #newHttpHandler()} observe full {@code 413} responses without keep-alive.
+ * This includes closing application responses, such as HTTP/1.0 errors, without changing Netty's size-limit decisions.
+ * On a terminal rejection, this handler is installed before TLS and HTTP decoding.
  * It discards remaining input, defers pipeline closes, and enables input half-closure so a client FIN cannot interrupt delivery.
  * <p>
  * Response write, TLS {@code close_notify}, and TCP output shutdown run in order under one {@link #WRITE_TIMEOUT_NANOS}
@@ -82,10 +82,9 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
                 if (context == null
                     && msg instanceof FullHttpResponse response
                     && response.status().equals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE)
-                    && HttpUtil.isKeepAlive(response) == false
-                    && ctx.channel() instanceof DuplexChannel) {
+                    && HttpUtil.isKeepAlive(response) == false) {
                     promise = promise.unvoid();
-                    reject(ctx.channel(), promise);
+                    reject((DuplexChannel) ctx.channel(), promise);
                 }
                 ctx.write(msg, promise);
             }
@@ -113,7 +112,7 @@ final class Netty4HttpRejectionHandler extends ChannelDuplexHandler {
     }
 
     /** Installs close protection before the terminal response is written. Its promise bounds the delivery lifecycle. */
-    void reject(Channel channel, ChannelPromise response) {
+    void reject(DuplexChannel channel, ChannelPromise response) {
         assert channel.eventLoop().inEventLoop();
         channel.pipeline().addFirst(NAME, this);
         timer = context.executor().schedule(this::writeTimedOut, WRITE_TIMEOUT_NANOS, TimeUnit.NANOSECONDS);

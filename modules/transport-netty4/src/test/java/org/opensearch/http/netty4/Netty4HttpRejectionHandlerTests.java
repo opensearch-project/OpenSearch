@@ -179,8 +179,9 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
         assertFalse(channel.isOpen());
     }
 
-    public void testOtherResponsesPassThrough() {
+    public void testOnlyClosingFull413ResponsesStartRejection() {
         channel = new EmbeddedDuplexChannel(null);
+        channel.freezeTime();
         channel.pipeline().addLast(new Netty4HttpRejectionHandler(() -> true).newHttpHandler());
         final HttpResponse[] responses = {
             new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK),
@@ -198,6 +199,22 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
                 ReferenceCountUtil.release(written);
             }
         }
+        final DefaultFullHttpResponse applicationResponse = new DefaultFullHttpResponse(
+            HttpVersion.HTTP_1_0,
+            HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE,
+            Unpooled.buffer(1).writeByte(42)
+        );
+        HttpUtil.setContentLength(applicationResponse, 1);
+        assertTrue(channel.writeOutbound(applicationResponse));
+        final DefaultFullHttpResponse written = channel.readOutbound();
+        try {
+            assertSame(applicationResponse, written);
+            assertEquals(42, written.content().readByte());
+        } finally {
+            ReferenceCountUtil.release(written);
+        }
+        assertTrue(channel.isOutputShutdown());
+        assertClosesAfter(SECONDS.toNanos(5), "Closing application responses use the same bounded drain");
     }
 
     public void testHeaderRejectionResumesReads() {
