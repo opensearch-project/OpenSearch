@@ -93,7 +93,7 @@ dependencies {
 
   // Guava at runtime — arrow-base does NOT provide guava; bundle it here so Calcite-generated
   // bytecode can resolve com.google.common references.
-  runtimeOnly "com.google.guava:failureaccess:1.0.2"
+  runtimeOnly "com.google.guava:failureaccess:1.0.3"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
 
   // Calcite code generation (optional in calcite-core POM, needed at runtime for Enumerable pipeline)
@@ -176,19 +176,11 @@ tasks.named('thirdPartyAudit').configure {
   )
   // Guava's internal Unsafe-using classes — bundled here since arrow-base does not provide guava.
   ignoreViolations(
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.hash.Striped64',
-    'com.google.common.hash.Striped64$1',
-    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
     // lz4-java's UnsafeUtils touches sun.misc.Unsafe for its fast off-heap path (same pattern the
     // netty / grpc modules whitelist). Bundled for the fast LZ4_FRAME shuffle codec (see
     // exec/shuffle/FastLz4CompressionCodec); the Unsafe use is internal to the library.
@@ -212,8 +204,8 @@ configurations.all {
 
   resolutionStrategy {
     // Align transitive versions with OpenSearch's managed versions.
-    force 'com.google.guava:guava:33.3.1-jre'
-    force 'com.google.guava:failureaccess:1.0.2'
+    force "com.google.guava:guava:${versions.guava}"
+    force 'com.google.guava:failureaccess:1.0.3'
     force 'com.google.errorprone:error_prone_annotations:2.36.0'
     force 'org.checkerframework:checker-qual:3.43.0'
     force "com.fasterxml.jackson:jackson-bom:${versions.jackson}"

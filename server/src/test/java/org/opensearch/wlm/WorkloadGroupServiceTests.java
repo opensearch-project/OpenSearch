@@ -106,6 +106,23 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         mockThreadPool.shutdown();
     }
 
+    public void testInitialGroupsSetTheAdmissionFlags() {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        WorkloadGroupService service = new WorkloadGroupService(
+            mockCancellationService,
+            mockClusterService,
+            mockThreadPool,
+            mockWorkloadManagementSettings,
+            mockNodeDuressTrackers,
+            mockWorkloadGroupsStateAccessor,
+            new HashSet<>(Set.of(throttledGroup("wg-1", Settings.builder().put("node_limit", 1).build()))),
+            new HashSet<>()
+        );
+        // Without waiting for a cluster state to be applied.
+        assertTrue(service.isThrottlingActive());
+        assertTrue(service.isResourceLimitCheckActive());
+    }
+
     public void testIsThrottlingActiveFollowsGroupThrottlingAndWlmMode() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         assertFalse("no cluster state applied yet", workloadGroupService.isThrottlingActive());
@@ -126,6 +143,24 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
 
         applyWorkloadGroups(Map.of("wg-1", throttled), Map.of());
         assertFalse("the throttled group was deleted", workloadGroupService.isThrottlingActive());
+    }
+
+    public void testIsResourceLimitCheckActiveFollowsWorkloadGroupsAndWlmMode() {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        assertFalse("no cluster state applied yet", workloadGroupService.isResourceLimitCheckActive());
+
+        WorkloadGroup unthrottled = throttledGroup("wg-1", Settings.EMPTY);
+        applyWorkloadGroups(Map.of(), Map.of("wg-1", unthrottled));
+        assertTrue("a group without throttling can still reject on resource limits", workloadGroupService.isResourceLimitCheckActive());
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.MONITOR_ONLY);
+        assertFalse("rejection only applies in enabled mode", workloadGroupService.isResourceLimitCheckActive());
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.DISABLED);
+        assertFalse(workloadGroupService.isResourceLimitCheckActive());
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        assertTrue(workloadGroupService.isResourceLimitCheckActive());
+
+        applyWorkloadGroups(Map.of("wg-1", unthrottled), Map.of());
+        assertFalse("the last group was deleted", workloadGroupService.isResourceLimitCheckActive());
     }
 
     private void applyWorkloadGroups(Map<String, WorkloadGroup> previous, Map<String, WorkloadGroup> current) {
@@ -550,6 +585,13 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
 
         assertEquals(1, workloadGroupState.totalCompletions.count());
 
+        // A task refused by search admission never ran, so it is not a completion.
+        WorkloadGroupTask rejected = new SearchTask(13, "", "", () -> "", null, null);
+        rejected.setWorkloadGroupId(mockThreadPool.getThreadContext());
+        rejected.markAdmissionRejected();
+        workloadGroupService.onTaskCompleted(rejected);
+        assertEquals(1, workloadGroupState.totalCompletions.count());
+
         // test non WorkloadGroupTask
         task = new Task(1, "simple", "test", "mock task", null, null);
         workloadGroupService.onTaskCompleted(task);
@@ -867,7 +909,10 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     public void testSearchGateReleasesPermitBeforeNotifying() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
-        stubClusterStateWithGroup(throttledGroup("wg-1", Settings.builder().put("node_limit", 1).build()));
+        WorkloadGroup throttled = throttledGroup("wg-1", Settings.builder().put("node_limit", 1).build());
+        stubClusterStateWithGroup(throttled);
+        // Apply the group so the throttle policy is active.
+        applyWorkloadGroups(Map.of(), Map.of("wg-1", throttled));
 
         AtomicReference<ActionListener<String>> admittedListener = new AtomicReference<>();
         AtomicReference<Releasable> admittedFromCompletion = new AtomicReference<>();
@@ -889,10 +934,60 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         admittedFromCompletion.get().close();
     }
 
+    public void testSearchGateRejectsAGroupOverItsResourceLimit() {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        when(mockWorkloadManagementSettings.getNodeLevelMemoryRejectionThreshold()).thenReturn(0.8);
+        mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
+        WorkloadGroup group = throttledGroup("wg-1", Settings.EMPTY); // memory limit 0.5, no throttling
+        stubClusterStateWithGroup(group);
+        applyWorkloadGroups(Map.of(), Map.of("wg-1", group));
+        WorkloadGroupState state = mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1");
+        // Above the normalised threshold of 0.5 * 0.8 = 0.4.
+        state.getResourceState().get(ResourceType.MEMORY).setLastRecordedUsage(0.9);
+
+        WorkloadGroupTask task = throttleTask("wg-1");
+        AtomicBoolean ran = new AtomicBoolean();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        activeSearchGate().execute(
+            task,
+            new SearchRequest(),
+            ActionListener.<String>wrap(response -> fail("must not succeed"), e -> assertTrue(failure.compareAndSet(null, e))),
+            listener -> ran.set(true)
+        );
+        workloadGroupService.onTaskCompleted(task);
+
+        assertFalse("a rejected request must not run", ran.get());
+        assertTrue(failure.get() instanceof OpenSearchRejectedExecutionException);
+        assertEquals(1, state.getTotalRejections());
+        assertEquals("a rejected task is not a completion", 0, state.getTotalCompletions());
+    }
+
+    public void testEnforcesResourceLimitsAndConfiguresThrottling() {
+        WorkloadGroup throttled = throttledGroup("wg-1", Settings.builder().put("node_limit", 1).build());
+        stubClusterStateWithGroup(throttled);
+        assertTrue(workloadGroupService.enforcesResourceLimits("wg-1"));
+        assertTrue(workloadGroupService.configuresThrottling("wg-1"));
+        assertFalse("no such group", workloadGroupService.enforcesResourceLimits("missing"));
+        assertFalse(workloadGroupService.configuresThrottling("missing"));
+        assertFalse(workloadGroupService.enforcesResourceLimits(null));
+        assertFalse(workloadGroupService.configuresThrottling(WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get()));
+
+        stubClusterStateWithGroup(throttledGroup("wg-1", Settings.EMPTY, MutableWorkloadGroupFragment.ResiliencyMode.SOFT));
+        assertTrue("a SOFT group can reject under node duress", workloadGroupService.enforcesResourceLimits("wg-1"));
+        assertFalse(workloadGroupService.configuresThrottling("wg-1"));
+
+        stubClusterStateWithGroup(throttledGroup("wg-1", Settings.EMPTY, MutableWorkloadGroupFragment.ResiliencyMode.MONITOR));
+        assertFalse("a MONITOR group never rejects", workloadGroupService.enforcesResourceLimits("wg-1"));
+        assertFalse(workloadGroupService.configuresThrottling("wg-1"));
+    }
+
     public void testSearchGateRejectsWithoutRunningTheRequest() {
         when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
         mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
-        stubClusterStateWithGroup(throttledGroup("wg-1", Settings.builder().put("node_limit", 1).build()));
+        WorkloadGroup throttled = throttledGroup("wg-1", Settings.builder().put("node_limit", 1).build());
+        stubClusterStateWithGroup(throttled);
+        // Apply the group so the throttle policy is active.
+        applyWorkloadGroups(Map.of(), Map.of("wg-1", throttled));
         Releasable held = acquireThrottle("wg-1", null);
 
         AtomicBoolean ran = new AtomicBoolean();
@@ -913,19 +1008,41 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     }
 
     public void testSearchGateRunsWithoutAChargeWhenNotThrottled() {
-        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.DISABLED);
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
+        WorkloadGroup unthrottled = throttledGroup("wg-1", Settings.EMPTY);
+        stubClusterStateWithGroup(unthrottled);
+        // The resource-limit policy runs; the throttle is skipped because no group configures throttling.
+        applyWorkloadGroups(Map.of(), Map.of("wg-1", unthrottled));
+        assertFalse(workloadGroupService.isThrottlingActive());
         AtomicReference<String> response = new AtomicReference<>();
         activeSearchGate().execute(throttleTask("wg-1"), new SearchRequest(), ActionListener.<String>wrap(response::set, e -> {
             throw new AssertionError("unexpected failure", e);
         }), listener -> listener.onResponse("done"));
         assertEquals("done", response.get());
+        assertEquals(0, mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getTotalThrottled());
     }
 
-    // A gate over this service's admission, consulted even though the fixture never applies cluster state (so
-    // isThrottlingActive() stays false).
+    public void testSearchGateRunsTheRequestDirectlyWhileWlmIsDisabled() {
+        when(mockWorkloadManagementSettings.getWlmMode()).thenReturn(WlmMode.DISABLED);
+        mockWorkloadGroupsStateAccessor.addNewWorkloadGroup("wg-1");
+        WorkloadGroup group = throttledGroup("wg-1", Settings.builder().put("node_limit", 1).build());
+        stubClusterStateWithGroup(group);
+        applyWorkloadGroups(Map.of(), Map.of("wg-1", group));
+        mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1").getResourceState().get(ResourceType.MEMORY).setLastRecordedUsage(0.9);
+        AtomicReference<String> response = new AtomicReference<>();
+        activeSearchGate().execute(throttleTask("wg-1"), new SearchRequest(), ActionListener.<String>wrap(response::set, e -> {
+            throw new AssertionError("unexpected failure", e);
+        }), listener -> listener.onResponse("done"));
+        assertEquals("done", response.get());
+        WorkloadGroupState state = mockWorkloadGroupsStateAccessor.getWorkloadGroupState("wg-1");
+        assertEquals("over its limit, but WLM is disabled", 0, state.getTotalRejections());
+        assertEquals(0, state.getTotalThrottled());
+    }
+
     private SearchExecutionGate activeSearchGate() {
         return new SearchExecutionGate(
-            new WorkloadGroupSearchAdmission(workloadGroupService, mockClusterService, Mockito.mock(TaskManager.class))::admit
+            new WorkloadGroupSearchAdmission(workloadGroupService, mockClusterService, Mockito.mock(TaskManager.class))
         );
     }
 

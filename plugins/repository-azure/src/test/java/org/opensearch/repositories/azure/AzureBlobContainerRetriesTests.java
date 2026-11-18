@@ -762,6 +762,89 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("404"));
     }
 
+    public void testGetBlobMetadata() throws Exception {
+        final AtomicInteger requests = new AtomicInteger();
+        httpServer.createContext("/container/blob_properties", exchange -> {
+            try {
+                assertEquals("HEAD", exchange.getRequestMethod());
+                requests.incrementAndGet();
+                exchange.getResponseHeaders().add("Content-Length", "123");
+                exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                exchange.getResponseHeaders().add("ETag", "\"etag\"");
+                exchange.getResponseHeaders().add("Last-Modified", "Wed, 23 Oct 2024 10:00:00 GMT");
+                exchange.getResponseHeaders().add("x-ms-blob-type", "BlockBlob");
+                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(between(1, 5));
+        final BlobMetadata metadata = blobContainer.getBlobMetadata("blob_properties");
+        assertThat(metadata.name(), equalTo("blob_properties"));
+        assertThat(metadata.length(), equalTo(123L));
+        assertThat(requests.get(), equalTo(1));
+    }
+
+    public void testGetBlobMetadataForMissingBlob() {
+        final BlobContainer blobContainer = createBlobContainer(between(1, 5));
+        expectThrows(NoSuchFileException.class, () -> blobContainer.getBlobMetadata("missing_blob"));
+    }
+
+    public void testGetBlobMetadataWithRetries() throws Exception {
+        final AtomicInteger requests = new AtomicInteger();
+        httpServer.createContext("/container/blob_properties_retries", exchange -> {
+            try {
+                assertEquals("HEAD", exchange.getRequestMethod());
+                final int request = requests.incrementAndGet();
+                if (request == 1) {
+                    AzureHttpHandler.sendError(exchange, RestStatus.INTERNAL_SERVER_ERROR);
+                } else if (request == 2) {
+                    AzureHttpHandler.sendError(exchange, RestStatus.SERVICE_UNAVAILABLE);
+                } else {
+                    sendBlobProperties(exchange);
+                }
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(3);
+        final BlobMetadata metadata = blobContainer.getBlobMetadata("blob_properties_retries");
+        assertThat(metadata.name(), equalTo("blob_properties_retries"));
+        assertThat(metadata.length(), equalTo(1L));
+        assertEquals(3, requests.get());
+    }
+
+    public void testGetBlobMetadataWithInternalServerError() throws Exception {
+        assertGetBlobMetadataPropagatesServerError(RestStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    public void testGetBlobMetadataWithServiceUnavailable() throws Exception {
+        assertGetBlobMetadataPropagatesServerError(RestStatus.SERVICE_UNAVAILABLE);
+    }
+
+    private void assertGetBlobMetadataPropagatesServerError(RestStatus status) throws Exception {
+        final int maxAttempts = between(2, 5);
+        final AtomicInteger requests = new AtomicInteger();
+        httpServer.createContext("/container/blob_properties_error", exchange -> {
+            try {
+                assertEquals("HEAD", exchange.getRequestMethod());
+                requests.incrementAndGet();
+                AzureHttpHandler.sendError(exchange, status);
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(maxAttempts);
+        final IOException exception = expectThrows(IOException.class, () -> blobContainer.getBlobMetadata("blob_properties_error"));
+        assertFalse(exception instanceof NoSuchFileException);
+        assertThat(exception.getCause(), instanceOf(BlobStorageException.class));
+        assertEquals(status.getStatus(), ((BlobStorageException) exception.getCause()).getStatusCode());
+        assertEquals(maxAttempts, requests.get());
+    }
+
     public void testReadBlobWithRetries() throws Exception {
         // The request retry policy counts the first attempt as retry, so we need to
         // account for that and increase the max retry count by one.

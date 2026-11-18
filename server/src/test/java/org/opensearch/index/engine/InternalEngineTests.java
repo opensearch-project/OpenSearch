@@ -46,6 +46,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -82,6 +83,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.tests.index.ForceMergePolicy;
 import org.apache.lucene.tests.mockfile.ExtrasFS;
@@ -980,6 +983,26 @@ public class InternalEngineTests extends EngineTestCase {
                 // we should have had just 1 merge, so last generation should be exact
                 assertEquals(gen2, store.readLastCommittedSegmentsInfo().getLastGeneration());
             }
+        }
+    }
+
+    public void testForceMergeUpgradeComposesWithMaxNumSegments() throws Exception {
+        try (Store store = createStore(); Engine engine = createEngine(defaultSettings, store, createTempDir(), new TieredMergePolicy())) {
+            // Create three separate segments by flushing after each document.
+            for (int i = 0; i < 3; i++) {
+                engine.index(indexForDoc(testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null)));
+                engine.flush();
+            }
+            assertThat(engine.segments(false).size(), equalTo(3));
+
+            // upgrade=true without an explicit max_num_segments (Integer.MAX_VALUE) upgrades segments in
+            // place without consolidating: the segment topology is preserved.
+            engine.forceMerge(true, Integer.MAX_VALUE, false, true, false, UUIDs.randomBase64UUID());
+            assertThat(engine.segments(false).size(), equalTo(3));
+
+            // upgrade=true composed with max_num_segments=1 consolidates down to a single segment.
+            engine.forceMerge(true, 1, false, true, false, UUIDs.randomBase64UUID());
+            assertThat(engine.segments(false).size(), equalTo(1));
         }
     }
 
@@ -10356,6 +10379,49 @@ public class InternalEngineTests extends EngineTestCase {
             0
         );
         assertNull(fromShardDeprecated.routing());
+    }
+
+    /**
+     * The snapshot path acquires its commit point through {@link Engine#acquireLastCommittedSnapshot(boolean)}, so
+     * that method must read the commit through {@link Store#toCatalogSnapshot(IndexCommit)} rather than Lucene
+     * directly. Reading via Lucene bypasses the store's corruption bookkeeping, which leaves a shard with damaged
+     * segment metadata failing every snapshot attempt without ever being failed and reallocated.
+     */
+    public void testAcquireLastCommittedSnapshotMarksStoreCorruptedOnUnreadableCommit() throws Exception {
+        final Store corruptStore = createStore(INDEX_SETTINGS, newDirectory());
+        InternalEngine corruptEngine = null;
+        try {
+            corruptEngine = createEngine(corruptStore, createTempDir());
+            corruptEngine.index(indexForDoc(createParsedDoc("1", null)));
+            corruptEngine.flush();
+
+            // Truncate the committed segment's .si so that the commit can no longer be parsed. A deleted file
+            // would surface as NoSuchFileException, which is deliberately not treated as corruption.
+            final String siFile = Arrays.stream(corruptStore.directory().listAll())
+                .filter(f -> f.endsWith(".si"))
+                .findAny()
+                .orElseThrow(() -> new AssertionError("expected a .si file in the committed index"));
+            corruptStore.directory().deleteFile(siFile);
+            try (IndexOutput out = corruptStore.directory().createOutput(siFile, IOContext.DEFAULT)) {
+                assertNotNull(out); // left empty on purpose: reading the commit now hits EOF
+            }
+
+            final InternalEngine engineRef = corruptEngine;
+            expectThrows(CorruptIndexException.class, () -> engineRef.acquireLastCommittedSnapshot(false));
+            assertTrue(
+                "an unreadable commit must mark the store corrupted so the shard is failed and reallocated",
+                corruptStore.isMarkedCorrupted()
+            );
+        } finally {
+            IOUtils.closeWhileHandlingException(corruptEngine);
+            // The index is corrupt on purpose; remove it so the directory's close-time check does not trip.
+            try {
+                Lucene.cleanLuceneIndex(corruptStore.directory());
+            } catch (Exception e) {
+                logger.debug("could not clean the deliberately corrupted index", e);
+            }
+            IOUtils.closeWhileHandlingException(corruptStore);
+        }
     }
 
 }

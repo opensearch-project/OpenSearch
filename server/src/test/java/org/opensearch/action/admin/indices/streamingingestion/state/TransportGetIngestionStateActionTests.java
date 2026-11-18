@@ -11,14 +11,19 @@ package org.opensearch.action.admin.indices.streamingingestion.state;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.Version;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
@@ -104,6 +109,47 @@ public class TransportGetIngestionStateActionTests extends OpenSearchTestCase {
 
         ShardsIterator result = action.shards(clusterState, request, new String[] { "test-index" });
         assertThat(result, equalTo(shardsIterator));
+    }
+
+    public void testShardsResolvesAlias() {
+        ClusterState clusterState = clusterStateWithIndex("logs-000001", "logs", 3);
+        GetIngestionStateRequest request = new GetIngestionStateRequest(new String[] { "logs" });
+
+        ShardsIterator result = action.shards(clusterState, request, new String[] { "logs-000001" });
+        assertThat(result.size(), equalTo(3));
+    }
+
+    public void testShardsResolvesWildcard() {
+        ClusterState clusterState = clusterStateWithIndex("logs-000001", "logs", 3);
+        GetIngestionStateRequest request = new GetIngestionStateRequest(new String[] { "logs-*" });
+
+        ShardsIterator result = action.shards(clusterState, request, new String[] { "logs-000001" });
+        assertThat(result.size(), equalTo(3));
+    }
+
+    public void testCheckRequestBlockOnIndexReachedThroughAlias() {
+        ClusterState clusterState = ClusterState.builder(clusterStateWithIndex("logs-000001", "logs", 1))
+            .blocks(ClusterBlocks.builder().addIndexBlock("logs-000001", IndexMetadata.INDEX_METADATA_BLOCK))
+            .build();
+        GetIngestionStateRequest request = new GetIngestionStateRequest(new String[] { "logs" });
+
+        ClusterBlockException result = action.checkRequestBlock(clusterState, request, new String[] { "logs-000001" });
+        assertNotNull(result);
+    }
+
+    private static ClusterState clusterStateWithIndex(String index, String alias, int numberOfShards) {
+        IndexMetadata indexMetadata = IndexMetadata.builder(index)
+            .settings(settings(Version.CURRENT).put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT.toString()))
+            .numberOfShards(numberOfShards)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetadata.builder(alias))
+            .build();
+        return ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(
+                RoutingTable.builder().add(IndexRoutingTable.builder(indexMetadata.getIndex()).initializeAsNew(indexMetadata)).build()
+            )
+            .build();
     }
 
     public void testCheckGlobalBlock() {

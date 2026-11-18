@@ -225,6 +225,7 @@ thirdPartyAudit {
   )
 
   ignoreViolations(
+    'io.netty.buffer.JfrEventRegistration',
     'io.netty.buffer.AbstractAllocatorEvent',
     'io.netty.buffer.AbstractBufferEvent',
     'io.netty.buffer.AbstractChunkEvent',

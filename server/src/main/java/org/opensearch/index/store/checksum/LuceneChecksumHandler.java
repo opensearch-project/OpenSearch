@@ -18,6 +18,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.index.store.VerifyingIndexInput;
 import org.opensearch.index.store.VerifyingIndexOutput;
 
 import java.io.IOException;
@@ -44,5 +45,15 @@ public class LuceneChecksumHandler implements FormatChecksumStrategy {
     @Override
     public VerifyingIndexOutput createVerifyingOutput(StoreFileMetadata metadata, IndexOutput output) {
         return new Store.LuceneVerifyingIndexOutput(metadata, output);
+    }
+
+    /**
+     * Lucene files carry their checksum in the codec footer, so verification compares the digest of the file
+     * body against that trailer rather than against the store metadata.
+     */
+    @ExperimentalApi
+    @Override
+    public VerifyingIndexInput createVerifyingInput(StoreFileMetadata metadata, IndexInput input) {
+        return new Store.LuceneVerifyingIndexInput(input);
     }
 }

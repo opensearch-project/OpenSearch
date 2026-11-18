@@ -11,6 +11,7 @@ package org.opensearch.repositories.azure;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -20,8 +21,11 @@ import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -42,6 +46,34 @@ public class AzureRepositoryPluginTests extends OpenSearchTestCase {
 
         plugin.close();
         verify(storageService).close();
+    }
+
+    public void testClosingOneBlobStoreDoesNotCloseSharedStorageService() throws Exception {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("azure.client.azure1.account", "myaccount1");
+        secureSettings.setString("azure.client.azure1.key", Base64.getEncoder().encodeToString("mykey1".getBytes(StandardCharsets.UTF_8)));
+        final Settings repositorySettings = Settings.builder()
+            .put(AzureRepository.Repository.CONTAINER_SETTING.getKey(), "container")
+            .put(AzureRepository.Repository.CLIENT_NAME.getKey(), "azure1")
+            .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_ONLY)
+            .build();
+        final ThreadPool threadPool = mock(ThreadPool.class);
+
+        try (AzureStorageService storageService = new AzureStorageService(Settings.builder().setSecureSettings(secureSettings).build())) {
+            final AzureBlobStore firstStore = new AzureBlobStore(
+                new RepositoryMetadata("first", AzureRepository.TYPE, repositorySettings),
+                storageService,
+                threadPool
+            );
+            final AzureBlobStore secondStore = new AzureBlobStore(
+                new RepositoryMetadata("second", AzureRepository.TYPE, repositorySettings),
+                storageService,
+                threadPool
+            );
+
+            firstStore.close();
+            assertNotNull(secondStore.getService().client("azure1").v1());
+        }
     }
 
     public void testLoadExtensionsMultipleProvidersUsesFirst() throws Exception {
