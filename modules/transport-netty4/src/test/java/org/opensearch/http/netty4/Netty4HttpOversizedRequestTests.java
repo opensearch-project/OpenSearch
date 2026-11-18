@@ -101,27 +101,40 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
     }
 
     public void testOversizedUploadGetsResponseThenCleanEndOfStream() throws Exception {
-        final Encoding encoding = randomFrom(Encoding.values());
-        final boolean chunked = randomBoolean();
-        // a keep-alive request with a too large Content-Length that is not compressed is rejected without closing
-        final boolean connectionClose = chunked == false && encoding == Encoding.IDENTITY || randomBoolean();
-        final RequestBuilder request = post().body(encoding, incompressible(4 * LIMIT)).chunked(chunked);
-        if (connectionClose) {
-            request.header("Connection", "close");
+        for (Encoding encoding : Encoding.values()) {
+            for (boolean chunked : new boolean[] { false, true }) {
+                reconnect();
+                final RequestBuilder request = post().body(encoding, incompressible(4 * LIMIT)).chunked(chunked);
+                // An identity request with an oversized Content-Length is otherwise recoverable.
+                if (chunked == false && encoding == Encoding.IDENTITY) {
+                    request.header("Connection", "close");
+                }
+                assertUploadRejected(request.bytes());
+            }
         }
-        assertUploadRejected(request);
     }
 
     public void testDecodedSizeIsLimitedWhenEncodedSizeIsWithinLimit() throws Exception {
-        final Encoding encoding = randomFrom(Encoding.GZIP, Encoding.DEFLATE);
-        final RequestBuilder request = post().body(encoding, compressible(8 * LIMIT)).chunked(randomBoolean());
-        assertThat(request.encodedBodyLength(), lessThan(LIMIT));
-        assertUploadRejected(request);
+        for (Encoding encoding : new Encoding[] { Encoding.GZIP, Encoding.DEFLATE }) {
+            for (boolean chunked : new boolean[] { false, true }) {
+                for (boolean expectContinue : new boolean[] { false, true }) {
+                    reconnect();
+                    final RequestBuilder request = post().body(encoding, compressible(8 * LIMIT)).chunked(chunked);
+                    assertThat(request.encodedBodyLength(), lessThan(LIMIT));
+                    if (expectContinue) {
+                        client.write(request.header("Expect", "100-continue").head());
+                        assertThat(client.readResponse().status(), equalTo(100));
+                        assertUploadRejected(request.wireBody());
+                    } else {
+                        assertUploadRejected(request.bytes());
+                    }
+                }
+            }
+        }
     }
 
     /** Uploads in the background while reading the rejection: all of the upload must be accepted, without a reset. */
-    private void assertUploadRejected(RequestBuilder request) throws Exception {
-        final byte[] bytes = request.bytes();
+    private void assertUploadRejected(byte[] bytes) throws Exception {
         final int writeSize = between(1, 16 * 1024);
         final CompletableFuture<Void> upload = CompletableFuture.runAsync(() -> {
             try {
@@ -134,32 +147,32 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
         upload.get(Netty4HttpRawClient.IO_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
     }
 
-    public void testEncodedContentLengthIsLimitedWhenDecodedSizeIsWithinLimit() throws Exception {
+    public void testEncodingOverheadDoesNotChangeDecodedSizeLimit() throws Exception {
         // stored deflate blocks: the body as sent is a little larger than the decoded body, which is exactly at the limit
         final byte[] decoded = incompressible(LIMIT);
         final ByteArrayOutputStream encoded = new ByteArrayOutputStream();
-        try (DeflaterOutputStream out = new DeflaterOutputStream(encoded, new Deflater(Deflater.NO_COMPRESSION))) {
+        final Deflater deflater = new Deflater(Deflater.NO_COMPRESSION);
+        try (DeflaterOutputStream out = new DeflaterOutputStream(encoded, deflater)) {
             out.write(decoded);
+        } finally {
+            deflater.end();
         }
         final RequestBuilder request = post().header("Content-Encoding", "deflate").rawBody(encoded.toByteArray());
         assertThat(request.encodedBodyLength(), greaterThan(LIMIT));
-        client.write(request.head());
-        // rejected on the headers alone, before any of the body is sent
-        final Response response = client.readResponse();
-        assertThat(response.status(), equalTo(413));
-        assertTrue(response.connectionClose());
-        client.write(request.wireBody());
-        client.readEndOfStream();
-        assertThat(dispatched.get(), equalTo(0));
+        for (boolean chunked : new boolean[] { false, true }) {
+            reconnect();
+            client.writeInPieces(request.chunked(chunked).bytes(), between(1, 16 * 1024));
+            final Response response = client.readResponse();
+            assertThat(response.status(), equalTo(200));
+            assertThat(new String(response.body(), StandardCharsets.UTF_8), equalTo(Integer.toString(LIMIT)));
+        }
     }
 
     public void testRecoverableRejectionsReuseConnection() throws Exception {
-        for (Encoding encoding : Encoding.values()) {
-            final RequestBuilder request = post().header("Expect", "100-continue").body(encoding, incompressible(2 * LIMIT));
-            assertRecoverableRejection(request.head());
-            // Preserve Netty's expectation handling even when the client asks to close.
-            assertRecoverableRejection(request.header("Connection", "close").head());
-        }
+        final RequestBuilder request = post().header("Expect", "100-continue").body(Encoding.IDENTITY, incompressible(2 * LIMIT));
+        assertRecoverableRejection(request.head());
+        // Preserve Netty's expectation handling even when the client asks to close.
+        assertRecoverableRejection(request.header("Connection", "close").head());
         assertRecoverableRejection(post().body(Encoding.IDENTITY, incompressible(LIMIT + 1)).bytes());
     }
 
@@ -180,8 +193,7 @@ public class Netty4HttpOversizedRequestTests extends OpenSearchTestCase {
     public void testRequestsAtTheLimitSucceed() throws Exception {
         for (Encoding encoding : Encoding.values()) {
             for (boolean chunked : new boolean[] { false, true }) {
-                // A compressed Content-Length must also fit; incompressible input can grow during encoding.
-                final byte[] body = encoding == Encoding.IDENTITY || chunked ? incompressible(LIMIT) : compressible(LIMIT);
+                final byte[] body = encoding == Encoding.IDENTITY ? incompressible(LIMIT) : compressible(LIMIT);
                 reconnect();
                 client.writeInPieces(post().body(encoding, body).chunked(chunked).bytes(), between(1, 16 * 1024));
                 final Response response = client.readResponse();

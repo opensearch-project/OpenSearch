@@ -468,8 +468,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     final ChannelPipeline pipeline = ctx.pipeline();
                     pipeline.addAfter(ctx.name(), "handler", getRequestHandler());
                     pipeline.replace(this, "header_verifier", transport.createHeaderVerifier());
-                    pipeline.addAfter("header_verifier", "encoded_length", aggregator.encodedLengthRecorder());
-                    pipeline.addAfter("encoded_length", "decoder_compress", transport.createDecompressor());
+                    pipeline.addAfter("header_verifier", "decoder_compress", transport.createDecompressor());
                     pipeline.addAfter("decoder_compress", "aggregator", aggregator);
                     if (handlingSettings.isCompression()) {
                         pipeline.addAfter(
@@ -501,7 +500,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             pipeline.addLast("decoder", decoder);
             pipeline.addLast("header_verifier", transport.createHeaderVerifier());
             final Netty4HttpObjectAggregator aggregator = transport.createHttpObjectAggregator(handlingSettings);
-            pipeline.addLast("encoded_length", aggregator.encodedLengthRecorder());
             pipeline.addLast("decoder_compress", transport.createDecompressor());
             pipeline.addLast("encoder", new HttpResponseEncoder());
             pipeline.addLast("aggregator", aggregator);
