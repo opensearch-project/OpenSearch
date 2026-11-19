@@ -16,9 +16,11 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.regex.Pattern;
 
 /**
  * Connector-private Azure metadata wire format. Keys use a case-insensitive owned prefix followed by lowercase hex of strict UTF-8,
@@ -32,7 +34,8 @@ final class AzureBlobMetadataCodec {
     private static final String OWNED_KEY_PREFIX = "opensearch_metadata_";
     private static final String VALUE_PREFIX = "v1_";
     private static final String HEADER_PREFIX = "x-ms-meta-";
-    private static final char[] HEX = "0123456789abcdef".toCharArray();
+    private static final HexFormat HEX = HexFormat.of();
+    private static final Pattern LOWERCASE_HEX = Pattern.compile("[0-9a-f]*");
 
     private AzureBlobMetadataCodec() {}
 
@@ -50,7 +53,7 @@ final class AzureBlobMetadataCodec {
                 throw new IllegalArgumentException("Azure blob metadata values must not be null");
             }
 
-            final String wireKey = KEY_PREFIX + toLowerHex(encodeUtf8(entry.getKey(), "key"));
+            final String wireKey = KEY_PREFIX + HEX.formatHex(encodeUtf8(entry.getKey(), "key"));
             final String wireValue = VALUE_PREFIX + Base64.getEncoder().encodeToString(encodeUtf8(entry.getValue(), "value"));
             final String previous = encoded.put(wireKey, wireValue);
             if (previous != null) {
@@ -156,40 +159,14 @@ final class AzureBlobMetadataCodec {
         }
     }
 
-    private static String toLowerHex(byte[] value) {
-        final char[] encoded = new char[value.length * 2];
-        for (int i = 0; i < value.length; i++) {
-            final int unsigned = value[i] & 0xff;
-            encoded[i * 2] = HEX[unsigned >>> 4];
-            encoded[i * 2 + 1] = HEX[unsigned & 0x0f];
-        }
-        return new String(encoded);
-    }
-
     private static byte[] fromLowerHex(String value, String wireKey) throws IOException {
         if ((value.length() & 1) != 0) {
             throw new IOException("OpenSearch Azure metadata key has an odd-length hex suffix: [" + wireKey + "]");
         }
-        final byte[] decoded = new byte[value.length() / 2];
-        for (int i = 0; i < value.length(); i += 2) {
-            final int high = lowerHexValue(value.charAt(i));
-            final int low = lowerHexValue(value.charAt(i + 1));
-            if (high < 0 || low < 0) {
-                throw new IOException("OpenSearch Azure metadata key has a non-lowercase-hex suffix: [" + wireKey + "]");
-            }
-            decoded[i / 2] = (byte) ((high << 4) | low);
+        if (LOWERCASE_HEX.matcher(value).matches() == false) {
+            throw new IOException("OpenSearch Azure metadata key has a non-lowercase-hex suffix: [" + wireKey + "]");
         }
-        return decoded;
-    }
-
-    private static int lowerHexValue(char value) {
-        if (value >= '0' && value <= '9') {
-            return value - '0';
-        }
-        if (value >= 'a' && value <= 'f') {
-            return value - 'a' + 10;
-        }
-        return -1;
+        return HEX.parseHex(value);
     }
 
     private static int asciiLength(String value) {

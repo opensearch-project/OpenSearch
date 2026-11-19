@@ -11,7 +11,6 @@ package org.opensearch.repositories.azure;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -127,23 +126,14 @@ public class AzureBlobMetadataCodecTests extends OpenSearchTestCase {
         );
     }
 
-    public void testPrefixRecognitionIsCaseInsensitive() throws Exception {
-        final String wireKey = AzureBlobMetadataCodec.KEY_PREFIX.toUpperCase(java.util.Locale.ROOT) + bytesToHex(
-            "ключ".getBytes(StandardCharsets.UTF_8)
-        );
-        assertThat(AzureBlobMetadataCodec.decode(Map.of(wireKey, "v1_dmFsdWU=")), equalTo(Map.of("ключ", "value")));
+    public void testV1WireFormatAndCaseInsensitivePrefix() throws Exception {
+        final Map<String, String> metadata = Map.of("ключ", "value");
+        assertEquals(Map.of("opensearch_metadata_v1_d0bad0bbd18ed187", "v1_dmFsdWU="), AzureBlobMetadataCodec.encode(metadata));
+        assertEquals(metadata, AzureBlobMetadataCodec.decode(Map.of("OPENSEARCH_METADATA_V1_d0bad0bbd18ed187", "v1_dmFsdWU=")));
     }
 
     private static void assertDecodeFails(Map<String, String> metadata, String message) {
         final IOException exception = expectThrows(IOException.class, () -> AzureBlobMetadataCodec.decode(metadata));
         assertThat(exception.getMessage(), containsString(message));
-    }
-
-    private static String bytesToHex(byte[] value) {
-        final StringBuilder builder = new StringBuilder(value.length * 2);
-        for (byte b : value) {
-            builder.append(String.format(java.util.Locale.ROOT, "%02x", b & 0xff));
-        }
-        return builder.toString();
     }
 }
