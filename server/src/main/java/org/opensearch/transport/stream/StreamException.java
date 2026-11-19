@@ -11,6 +11,7 @@ package org.opensearch.transport.stream;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.transport.TransportException;
 
 import java.io.IOException;
@@ -60,6 +61,11 @@ public class StreamException extends TransportException {
      */
     public StreamErrorCode getErrorCode() {
         return errorCode;
+    }
+
+    @Override
+    public RestStatus status() {
+        return errorCode.restStatus();
     }
 
     @Override

@@ -8,6 +8,7 @@
 
 package org.opensearch.arrow.flight.transport;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.arrow.transport.ArrowBatchResponse;
@@ -61,18 +62,21 @@ abstract class VectorStreamInput extends StreamInput {
     }
 
     /**
-     * Transfers the stream root's vectors into a consumer root so the returned response
-     * outlives the next Flight batch. Released by {@link NativeArrow#close()} unless the
-     * response takes ownership via {@link NativeArrow#claimOwnership()}.
+     * Transfers the stream root's vectors into a consumer root on {@code allocator}. The
+     * returned response outlives the next Flight batch, and also the stream when
+     * {@code allocator} outlives the stream's allocator. Released by {@link NativeArrow#close()}
+     * unless the response takes ownership via {@link NativeArrow#claimOwnership()}.
      */
-    static VectorStreamInput forNativeArrow(VectorSchemaRoot streamRoot, NamedWriteableRegistry registry, byte[] metadata) {
+    static VectorStreamInput forNativeArrow(
+        VectorSchemaRoot streamRoot,
+        BufferAllocator allocator,
+        NamedWriteableRegistry registry,
+        byte[] metadata
+    ) {
         if (streamRoot.getFieldVectors().isEmpty()) {
             throw new IllegalStateException("Native Arrow batch has no field vectors");
         }
-        VectorSchemaRoot consumerRoot = VectorSchemaRoot.create(
-            streamRoot.getSchema(),
-            streamRoot.getFieldVectors().getFirst().getAllocator()
-        );
+        VectorSchemaRoot consumerRoot = VectorSchemaRoot.create(streamRoot.getSchema(), allocator);
         try {
             VectorTransfer.transferRoot(streamRoot, consumerRoot);
         } catch (Throwable t) {
@@ -82,8 +86,8 @@ abstract class VectorStreamInput extends StreamInput {
         return new NativeArrow(consumerRoot, registry, metadata);
     }
 
-    static VectorStreamInput forNativeArrow(VectorSchemaRoot streamRoot, NamedWriteableRegistry registry) {
-        return forNativeArrow(streamRoot, registry, null);
+    static VectorStreamInput forNativeArrow(VectorSchemaRoot streamRoot, BufferAllocator allocator, NamedWriteableRegistry registry) {
+        return forNativeArrow(streamRoot, allocator, registry, null);
     }
 
     /**

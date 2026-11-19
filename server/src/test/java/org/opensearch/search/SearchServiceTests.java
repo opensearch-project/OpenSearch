@@ -35,7 +35,9 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.OriginalIndices;
@@ -106,6 +108,7 @@ import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.fetch.ShardFetchRequest;
 import org.opensearch.search.internal.AliasFilter;
+import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchContextId;
@@ -130,6 +133,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -147,6 +151,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -274,6 +279,110 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         assertEquals(1, service.getActiveContexts());
         assertAcked(client().admin().indices().prepareDelete("index"));
         assertEquals(0, service.getActiveContexts());
+    }
+
+    public void testSearchExtCanCollectSlicesOnItsOwnExecutor() throws Exception {
+        createIndex("index", Settings.builder().put("index.refresh_interval", -1).build());
+        for (int i = 0; i < 2; i++) {
+            client().prepareIndex("index").setId(Integer.toString(i)).setSource("field", "value").get();
+            client().admin().indices().prepareRefresh("index").get();
+        }
+        setConcurrentSearch(null, 2);
+        try {
+            final SearchService service = getInstanceFromNode(SearchService.class);
+            final IndexShard shard = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex("index")).getShard(0);
+            final AtomicInteger forked = new AtomicInteger();
+            final SliceExecutorExt ext = new SliceExecutorExt(task -> {
+                forked.incrementAndGet();
+                task.run();
+            });
+
+            // In the default auto mode a search without aggregations stays sequential, unless an extension names an executor.
+            try (DefaultSearchContext context = service.createSearchContext(shardRequest(shard, null), new TimeValue(1000))) {
+                context.evaluateRequestShouldUseConcurrentSearch();
+                assertFalse(context.shouldUseConcurrentSearch());
+            }
+            try (DefaultSearchContext context = service.createSearchContext(shardRequest(shard, ext), new TimeValue(1000))) {
+                context.addSearchExt(ext);
+                context.evaluateRequestShouldUseConcurrentSearch();
+                assertTrue(context.shouldUseConcurrentSearch());
+                final ContextIndexSearcher searcher = context.searcher();
+                assertEquals(2, searcher.getSlices().length);
+                assertEquals(2, (int) searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices())));
+                assertThat("slices beyond the first run on the extension's executor", forked.get(), greaterThan(0));
+            }
+
+            // Disabling concurrent segment search overrides the extension.
+            setConcurrentSearch("none", 2);
+            try (DefaultSearchContext context = service.createSearchContext(shardRequest(shard, ext), new TimeValue(1000))) {
+                context.addSearchExt(ext);
+                context.evaluateRequestShouldUseConcurrentSearch();
+                assertFalse(context.shouldUseConcurrentSearch());
+            }
+        } finally {
+            setConcurrentSearch(null, null);
+        }
+    }
+
+    private void setConcurrentSearch(String mode, Integer maxSliceCount) {
+        final Settings.Builder settings = Settings.builder();
+        if (mode == null) {
+            settings.putNull(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey());
+        } else {
+            settings.put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), mode);
+        }
+        if (maxSliceCount == null) {
+            settings.putNull(SearchService.CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_KEY);
+        } else {
+            settings.put(SearchService.CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_KEY, maxSliceCount);
+        }
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get();
+    }
+
+    private static ShardSearchRequest shardRequest(IndexShard shard, SearchExtBuilder ext) {
+        final SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        if (ext != null) {
+            searchRequest.source(new SearchSourceBuilder().ext(List.of(ext)));
+        }
+        return new ShardSearchRequest(OriginalIndices.NONE, searchRequest, shard.shardId(), 1, AliasFilter.EMPTY, 1.0f, -1, null, null);
+    }
+
+    private static final class SliceExecutorExt extends SearchExtBuilder {
+        private final Executor executor;
+
+        SliceExecutorExt(Executor executor) {
+            this.executor = executor;
+        }
+
+        @Override
+        public Executor sliceExecutor() {
+            return executor;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "slice_executor_test";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) {
+            return builder;
+        }
+
+        @Override
+        public int hashCode() {
+            return System.identityHashCode(executor);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof SliceExecutorExt other && other.executor == executor;
+        }
     }
 
     public void testCloseSearchContextOnRewriteException() {

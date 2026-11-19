@@ -8,7 +8,10 @@
 
 package org.opensearch.transport.stream;
 
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.tasks.TaskCancelledException;
 
 /**
  * Error codes for streaming transport operations, inspired by gRPC and Arrow Flight error codes.
@@ -117,5 +120,57 @@ public enum StreamErrorCode {
             }
         }
         return UNKNOWN;
+    }
+
+    /**
+     * Returns the REST status that a failure with this code maps to. {@link #CANCELLED} maps to
+     * {@link RestStatus#INTERNAL_SERVER_ERROR}, the status of a {@link TaskCancelledException}, because the producer side can
+     * cancel a stream, for example when a shard closes, which says nothing about the request.
+     */
+    public RestStatus restStatus() {
+        return switch (this) {
+            case OK -> RestStatus.OK;
+            case INVALID_ARGUMENT -> RestStatus.BAD_REQUEST;
+            case TIMED_OUT -> RestStatus.GATEWAY_TIMEOUT;
+            case NOT_FOUND -> RestStatus.NOT_FOUND;
+            case ALREADY_EXISTS -> RestStatus.CONFLICT;
+            case UNAUTHENTICATED -> RestStatus.UNAUTHORIZED;
+            case UNAUTHORIZED -> RestStatus.FORBIDDEN;
+            case RESOURCE_EXHAUSTED -> RestStatus.TOO_MANY_REQUESTS;
+            case UNIMPLEMENTED -> RestStatus.NOT_IMPLEMENTED;
+            case UNAVAILABLE -> RestStatus.SERVICE_UNAVAILABLE;
+            case CANCELLED, UNKNOWN, INTERNAL -> RestStatus.INTERNAL_SERVER_ERROR;
+        };
+    }
+
+    /**
+     * Returns the code that carries the meaning of {@code failure} across a stream, so the consumer can map it back to the
+     * same {@link RestStatus}. The first {@link StreamException} or {@link TaskCancelledException} in the cause chain decides,
+     * because a wrapper such as the query phase's exception says nothing about the failure. Otherwise the REST status of
+     * {@code failure} decides.
+     *
+     * @param failure the failure of a stream producer
+     * @return the code for the failure
+     */
+    public static StreamErrorCode forFailure(Throwable failure) {
+        final Throwable cause = ExceptionsHelper.unwrap(failure, StreamException.class, TaskCancelledException.class);
+        if (cause instanceof StreamException streamException) {
+            return streamException.getErrorCode();
+        }
+        if (cause != null) {
+            return CANCELLED;
+        }
+        final RestStatus status = ExceptionsHelper.status(failure);
+        return switch (status) {
+            case UNAUTHORIZED -> UNAUTHENTICATED;
+            case FORBIDDEN -> UNAUTHORIZED;
+            case NOT_FOUND -> NOT_FOUND;
+            case REQUEST_TIMEOUT, GATEWAY_TIMEOUT -> TIMED_OUT;
+            case CONFLICT -> ALREADY_EXISTS;
+            case TOO_MANY_REQUESTS -> RESOURCE_EXHAUSTED;
+            case NOT_IMPLEMENTED -> UNIMPLEMENTED;
+            case SERVICE_UNAVAILABLE -> UNAVAILABLE;
+            default -> status.getStatus() >= 400 && status.getStatus() < 500 ? INVALID_ARGUMENT : INTERNAL;
+        };
     }
 }

@@ -245,7 +245,10 @@ public class SearchSourceBuilderProtoUtils {
                 /**
                  * Similar to {@link org.opensearch.search.fetch.subphase.FieldAndFormat#fromXContent(XContentParser)}
                  */
-                searchSourceBuilder.docValueField(fieldAndFormatProto.getField(), fieldAndFormatProto.getFormat());
+                searchSourceBuilder.docValueField(
+                    fieldAndFormatProto.getField(),
+                    fieldAndFormatProto.hasFormat() ? fieldAndFormatProto.getFormat() : null
+                );
             }
 
         }

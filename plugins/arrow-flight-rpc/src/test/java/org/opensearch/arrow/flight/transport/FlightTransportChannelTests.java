@@ -8,9 +8,12 @@
 package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.Version;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
+import org.opensearch.arrow.transport.ArrowBatchResponse;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TcpChannel;
@@ -157,6 +160,17 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
         assertTrue(exception.getMessage().contains("Stream is closed for requestId [123]"));
     }
 
+    public void testSendResponseBatchAfterStreamClosedFreesTheBatch() {
+        ArrowBatchResponse response = mock(ArrowBatchResponse.class);
+        VectorSchemaRoot root = mock(VectorSchemaRoot.class);
+        when(response.getRoot()).thenReturn(root);
+
+        channel.completeStream();
+
+        assertThrows(StreamException.class, () -> channel.sendResponseBatch(response, true));
+        verify(root).close();
+    }
+
     public void testSendResponseBatchWithCancellationException() throws IOException {
         TransportResponse response = mock(TransportResponse.class);
         StreamException cancellationException = new StreamException(StreamErrorCode.CANCELLED, "cancelled");
@@ -288,5 +302,25 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
         );
 
         assertSame(mockAllocator, ch.getAllocator());
+    }
+
+    public void testBatchReadyTimeoutReachesTheServerChannel() {
+        FlightServerChannel mockServerChannel = mock(FlightServerChannel.class);
+        FlightTransportChannel ch = new FlightTransportChannel(
+            mockOutboundHandler,
+            mockServerChannel,
+            "test-action",
+            1L,
+            Version.CURRENT,
+            Collections.emptySet(),
+            false,
+            false,
+            mockReleasable
+        );
+
+        ch.setBatchReadyTimeout(null);
+        verify(mockServerChannel).setReadyTimeout(null);
+        ch.setBatchReadyTimeout(TimeValue.timeValueSeconds(1));
+        verify(mockServerChannel).setReadyTimeout(TimeValue.timeValueSeconds(1));
     }
 }

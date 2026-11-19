@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.transport.TcpChannel;
@@ -91,6 +92,8 @@ class FlightTransportChannel extends TcpTransportChannel implements ArrowFlightC
     @Override
     public void sendResponseBatch(TransportResponse response, boolean sync) {
         if (!streamOpen.get()) {
+            // The channel owns the batch's buffers once it is passed in and the caller does not free them, so free them here.
+            FlightServerChannel.releaseUnsentSource(response);
             throw new StreamException(StreamErrorCode.UNAVAILABLE, "Stream is closed for requestId [" + requestId + "]");
         }
         if (response instanceof QuerySearchResult && ((QuerySearchResult) response).getShardSearchRequest() != null) {
@@ -165,5 +168,12 @@ class FlightTransportChannel extends TcpTransportChannel implements ArrowFlightC
     @Override
     public boolean isCancelled() {
         return getChannel() instanceof FlightServerChannel fsc && fsc.isCancelled();
+    }
+
+    @Override
+    public void setBatchReadyTimeout(TimeValue timeout) {
+        if (getChannel() instanceof FlightServerChannel fsc) {
+            fsc.setReadyTimeout(timeout);
+        }
     }
 }

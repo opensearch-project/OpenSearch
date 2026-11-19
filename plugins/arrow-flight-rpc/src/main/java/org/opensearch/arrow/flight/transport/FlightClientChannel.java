@@ -11,6 +11,7 @@ package org.opensearch.arrow.flight.transport;
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.Ticket;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -55,6 +56,7 @@ class FlightClientChannel implements TcpChannel {
     private static final AtomicLong GLOBAL_CHANNEL_COUNTER = new AtomicLong();
     private final AtomicLong correlationIdGenerator = new AtomicLong();
     private final FlightClient client;
+    private final BufferAllocator responseAllocator;
     private final DiscoveryNode node;
     private final BoundTransportAddress boundAddress;
     private final Location location;
@@ -89,6 +91,7 @@ class FlightClientChannel implements TcpChannel {
      * Constructs a new FlightClientChannel for handling Arrow Flight streams.
      *
      * @param client                 the Arrow Flight client
+     * @param responseAllocator      receives the native batches handed to consumers; must outlive the client
      * @param node                   the discovery node for this channel
      * @param location               the flight server location
      * @param headerContext          the context for header management
@@ -103,6 +106,7 @@ class FlightClientChannel implements TcpChannel {
     public FlightClientChannel(
         BoundTransportAddress boundTransportAddress,
         FlightClient client,
+        BufferAllocator responseAllocator,
         DiscoveryNode node,
         Location location,
         HeaderContext headerContext,
@@ -116,6 +120,7 @@ class FlightClientChannel implements TcpChannel {
     ) {
         this.boundAddress = boundTransportAddress;
         this.client = client;
+        this.responseAllocator = responseAllocator;
         this.node = node;
         this.location = location;
         this.headerContext = headerContext;
@@ -171,11 +176,14 @@ class FlightClientChannel implements TcpChannel {
 
         // The FlightClient's allocator close treats any outstanding buffer as a leak, and live
         // streams legitimately hold buffers (current batch root, retained heartbeat metadata)
-        // until their consumer closes them. So: cancel every active stream — FlightStream.cancel
-        // is safe from this thread and unblocks consumers parked in nextResponse()
+        // until they are closed. So: cancel every active stream. A stream nobody is reading is
+        // closed at once, since its consumer may not return to it for a long time (e.g. a relay
+        // waiting for its own client). A consumer parked in nextResponse() wakes and closes its
+        // stream itself. Batches a consumer already holds live on responseAllocator, not on the
+        // client's allocator, so they outlive the stream and the client.
         for (FlightTransportResponse<?> streamResponse : activeStreams) {
             try {
-                streamResponse.cancelStreamOnly("channel to node [" + node.getId() + "] closed");
+                streamResponse.cancelForChannelClose("channel to node [" + node.getId() + "] closed");
             } catch (Exception e) {
                 logger.warn(
                     () -> new ParameterizedMessage("Error cancelling active stream while closing channel to node [{}]", node.getId()),
@@ -305,6 +313,11 @@ class FlightClientChannel implements TcpChannel {
         return stats;
     }
 
+    /** The headers the middleware stored for this channel's streams. Package-private for tests. */
+    HeaderContext getHeaderContext() {
+        return headerContext;
+    }
+
     @Override
     public boolean isOpen() {
         return !isClosed;
@@ -351,6 +364,7 @@ class FlightClientChannel implements TcpChannel {
                 handler,
                 correlationId,
                 client,
+                responseAllocator,
                 headerContext,
                 ticket,
                 namedWriteableRegistry,
@@ -372,7 +386,7 @@ class FlightClientChannel implements TcpChannel {
                 // handler was already removed from responseHandlers above, so notify it directly
                 // rather than leaving the request without a terminal callback.
                 StreamException exception = new StreamException(StreamErrorCode.UNAVAILABLE, "FlightClientChannel is closed");
-                streamResponse.cancelStreamOnly("channel to node [" + node.getId() + "] closed");
+                streamResponse.cancelForChannelClose("channel to node [" + node.getId() + "] closed");
                 notifyHandlerOfException(handler, exception);
                 listener.onFailure(exception);
                 return;

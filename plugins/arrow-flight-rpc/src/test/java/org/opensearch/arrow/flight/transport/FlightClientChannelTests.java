@@ -31,6 +31,8 @@ import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Header;
 import org.opensearch.transport.StreamTransportResponseHandler;
+import org.opensearch.transport.TcpChannel;
+import org.opensearch.transport.TcpTransport;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportMessageListener;
@@ -59,6 +61,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -185,6 +188,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         channel = new FlightClientChannel(
             boundAddress,
             mockFlightClient,
+            clientAllocator(),
             remoteNode,
             serverLocation,
             headerContext,
@@ -260,17 +264,22 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
     // ── channel close vs. active streams ───────────────────────────────────────
 
     /**
-     * Close must cancel an active stream and then wait for its consumer — running on another
-     * thread — to release it, so the FlightClient's allocator is not closed while buffers are out.
+     * Close must cancel an active stream and wait for a consumer reading it — on another thread — to
+     * release it, so the FlightClient's allocator is not closed while buffers are out or being loaded.
      */
-    public void testCloseWaitsForStreamHeldByAnotherThread() throws Exception {
+    public void testCloseWaitsForConsumerReadingTheStream() throws Exception {
         FlightStream stream = mock(FlightStream.class);
         when(stream.next()).thenReturn(true);
         when(mockFlightClient.getStream(any(Ticket.class), any())).thenReturn(stream);
 
-        CountDownLatch consumerHoldingStream = new CountDownLatch(1);
+        CountDownLatch consumerReading = new CountDownLatch(1);
         CountDownLatch releaseConsumer = new CountDownLatch(1);
         CountDownLatch consumerDone = new CountDownLatch(1);
+        when(stream.getRoot()).thenAnswer(inv -> {
+            consumerReading.countDown();
+            assertTrue("test must release the consumer", releaseConsumer.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+            throw new IllegalStateException("stream cancelled");
+        });
 
         // A long timeout: if the wait ever expires, that is a failure rather than a slow pass.
         FlightTransportConfig config = new FlightTransportConfig();
@@ -278,13 +287,12 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         channel = createChannel(mockFlightClient, stubHeaderContext(), config);
 
         sendStreamRequest(streamingHandler(ThreadPool.Names.GENERIC, streamResponse -> {
-            consumerHoldingStream.countDown();
-            assertTrue("test must release the consumer", releaseConsumer.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+            expectThrows(IllegalStateException.class, streamResponse::nextResponse);
             streamResponse.close();
             consumerDone.countDown();
         }));
 
-        assertTrue("consumer must take the stream", consumerHoldingStream.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+        assertTrue("consumer must be reading the stream", consumerReading.await(TIMEOUT_SEC, TimeUnit.SECONDS));
 
         Thread closer = new Thread(channel::close, "channel-closer");
         closer.start();
@@ -293,11 +301,58 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
 
         closer.join(500);
         assertTrue("close must wait for the consumer to release the stream", closer.isAlive());
+        verify(stream, never()).close();
 
         releaseConsumer.countDown();
         closer.join(TimeUnit.SECONDS.toMillis(TIMEOUT_SEC));
         assertFalse("close must return once the stream is released", closer.isAlive());
         assertTrue("consumer must finish", consumerDone.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+        verify(stream, times(1)).close();
+    }
+
+    /**
+     * A consumer holding a stream without reading it may be waiting elsewhere for a long time, e.g. a
+     * relay waiting for its own client. Close must not wait for it: it closes the stream itself, so the
+     * FlightClient closes without leaking, and the consumer finds the stream closed when it comes back.
+     */
+    public void testCloseClosesStreamItsConsumerIsNotReading() throws Exception {
+        FlightStream stream = mock(FlightStream.class);
+        when(stream.next()).thenReturn(true);
+        when(mockFlightClient.getStream(any(Ticket.class), any())).thenReturn(stream);
+
+        CountDownLatch consumerHoldingStream = new CountDownLatch(1);
+        CountDownLatch releaseConsumer = new CountDownLatch(1);
+        CountDownLatch consumerDone = new CountDownLatch(1);
+        AtomicReference<Exception> readAfterClose = new AtomicReference<>();
+
+        // A long timeout: waiting for the consumer shows up as the closer still running below.
+        FlightTransportConfig config = new FlightTransportConfig();
+        config.setStreamCloseTimeout(TimeValue.timeValueSeconds(30));
+        channel = createChannel(mockFlightClient, stubHeaderContext(), config);
+
+        sendStreamRequest(streamingHandler(ThreadPool.Names.GENERIC, streamResponse -> {
+            consumerHoldingStream.countDown();
+            assertTrue("test must release the consumer", releaseConsumer.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+            readAfterClose.set(expectThrows(StreamException.class, streamResponse::nextResponse));
+            streamResponse.close();
+            consumerDone.countDown();
+        }));
+
+        assertTrue("consumer must take the stream", consumerHoldingStream.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+
+        Thread closer = new Thread(channel::close, "channel-closer");
+        closer.start();
+        try {
+            closer.join(TimeUnit.SECONDS.toMillis(TIMEOUT_SEC));
+            assertFalse("close must not wait for a consumer that is not reading", closer.isAlive());
+            verify(stream).cancel(anyString(), isNull());
+            verify(stream, times(1)).close();
+            verify(mockFlightClient).close();
+        } finally {
+            releaseConsumer.countDown();
+        }
+        assertTrue("consumer must finish", consumerDone.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+        assertEquals(StreamErrorCode.UNAVAILABLE, ((StreamException) readAfterClose.get()).getErrorCode());
         verify(stream, times(1)).close();
     }
 
@@ -523,6 +578,7 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         return new FlightClientChannel(
             boundAddress,
             flightClient,
+            clientAllocator(),
             remoteNode,
             serverLocation,
             context,
@@ -780,6 +836,83 @@ public class FlightClientChannelTests extends FlightTransportTestBase {
         assertTrue(handlerLatch.await(TIMEOUT_SEC, TimeUnit.SECONDS));
         assertNotNull(handlerException.get());
         assertEquals("Simulated handler exception", handlerException.get().getMessage());
+    }
+
+    /**
+     * A server that fails a stream before its first batch sends its header with the error, and the client's middleware
+     * stores it in the connection's header context, which lives as long as the connection. No consumer takes the header,
+     * so the stream must remove it.
+     */
+    public void testStreamFailedBeforeFirstBatchLeavesNoHeaderOnTheConnection() throws Exception {
+        String action = "internal:test/stream/fail-before-first-batch";
+        streamTransportService.registerRequestHandler(
+            action,
+            ThreadPool.Names.SAME,
+            in -> new TestRequest(in),
+            (request, channel, task) -> {
+                try {
+                    channel.sendResponse(new StreamException(StreamErrorCode.CANCELLED, "scan cancelled"));
+                } catch (IOException ignored) {}
+            }
+        );
+        TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build();
+
+        int streams = randomIntBetween(1, 5);
+        for (int i = 0; i < streams; i++) {
+            AtomicReference<Exception> failure = new AtomicReference<>();
+            CountDownLatch failed = new CountDownLatch(1);
+            streamTransportService.sendRequest(
+                remoteNode,
+                action,
+                new TestRequest(),
+                options,
+                new TransportResponseHandler<TestResponse>() {
+                    @Override
+                    public void handleStreamResponse(StreamTransportResponse<TestResponse> streamResponse) {
+                        try {
+                            while (streamResponse.nextResponse() != null) {
+                            }
+                        } catch (Exception e) {
+                            failure.set(e);
+                        } finally {
+                            try {
+                                streamResponse.close();
+                            } catch (IOException ignored) {}
+                            failed.countDown();
+                        }
+                    }
+
+                    @Override
+                    public void handleResponse(TestResponse response) {
+                        failed.countDown();
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        failure.set(exp);
+                        failed.countDown();
+                    }
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.SAME;
+                    }
+
+                    @Override
+                    public TestResponse read(StreamInput in) throws IOException {
+                        return new TestResponse(in);
+                    }
+                }
+            );
+            assertTrue(failed.await(TIMEOUT_SEC, TimeUnit.SECONDS));
+            assertNotNull("the stream must fail", failure.get());
+        }
+
+        TcpTransport.NodeChannels connection = (TcpTransport.NodeChannels) streamTransportService.getConnection(remoteNode);
+        for (TcpChannel channel : connection.getChannels()) {
+            HeaderContext context = ((FlightClientChannel) channel).getHeaderContext();
+            assertBusy(() -> assertEquals("headers left on the connection", 0, context.size()));
+        }
     }
 
     /**

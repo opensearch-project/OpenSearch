@@ -9,6 +9,8 @@
 package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.flight.FlightProducer.ServerStreamListener;
+import org.apache.arrow.flight.FlightRuntimeException;
+import org.apache.arrow.flight.FlightStatusCode;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
@@ -18,10 +20,14 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.arrow.flight.stats.FlightCallTracker;
 import org.opensearch.arrow.transport.ArrowBatchResponse;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.stream.StreamErrorCode;
@@ -36,6 +42,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -44,11 +51,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -169,6 +179,32 @@ public class FlightServerChannelTests extends OpenSearchTestCase {
         waiter.join(2_000);
         assertFalse("Waiter must have exited", waiter.isAlive());
         assertNull("awaitReadyOrThrow must return normally on READY", waiterError.get());
+    }
+
+    public void testReadyTimeoutOverride() throws Exception {
+        ready.set(false);
+        FlightServerChannel ch = newChannel(60_000);
+
+        ch.setReadyTimeout(TimeValue.timeValueMillis(50));
+        StreamException ex = expectThrows(StreamException.class, ch::awaitReadyOrThrow);
+        assertEquals(StreamErrorCode.TIMED_OUT, ex.getErrorCode());
+
+        ch.setReadyTimeout(null);
+        AtomicReference<Throwable> waiterError = new AtomicReference<>();
+        Thread waiter = new Thread(() -> {
+            try {
+                ch.awaitReadyOrThrow();
+            } catch (Throwable t) {
+                waiterError.set(t);
+            }
+        });
+        waiter.start();
+        assertFalse("an unbounded wait must not time out", waitUntil(() -> waiter.isAlive() == false, 300, TimeUnit.MILLISECONDS));
+        listenerCancelled.set(true);
+        capturedCancelHandler.get().run();
+        waiter.join(5_000);
+        assertFalse(waiter.isAlive());
+        assertEquals(StreamErrorCode.CANCELLED, ((StreamException) waiterError.get()).getErrorCode());
     }
 
     public void testAwaitReadyTimeoutThrowsTimedOut() {
@@ -302,6 +338,50 @@ public class FlightServerChannelTests extends OpenSearchTestCase {
 
         StreamException ex = expectThrows(StreamException.class, ch::awaitReadyOrThrow);
         assertEquals(StreamErrorCode.CANCELLED, ex.getErrorCode());
+    }
+
+    /**
+     * A call this side ended, e.g. after a failed send, is never ready again and gRPC reports no cancel for it. Closing the
+     * channel must wake every producer parked in {@code awaitReadyOrThrow}, even with an unbounded ready timeout, and a later
+     * wait must fail at once.
+     */
+    public void testCloseWakesParkedProducers() throws Exception {
+        ready.set(false);
+        FlightServerChannel ch = newChannel(30_000);
+        ch.setReadyTimeout(null);
+
+        int n = 3;
+        List<AtomicReference<Throwable>> errors = new ArrayList<>(n);
+        List<Thread> waiters = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            AtomicReference<Throwable> err = new AtomicReference<>();
+            errors.add(err);
+            Thread w = new Thread(() -> {
+                try {
+                    ch.awaitReadyOrThrow();
+                } catch (Throwable t) {
+                    err.set(t);
+                }
+            }, "producer-waiter-" + i);
+            waiters.add(w);
+            w.start();
+        }
+        for (Thread w : waiters) {
+            assertBusy(() -> assertEquals(Thread.State.WAITING, w.getState()), 2, TimeUnit.SECONDS);
+        }
+
+        ch.close();
+
+        for (Thread w : waiters) {
+            w.join(2_000);
+            assertFalse("Waiter " + w.getName() + " must have exited", w.isAlive());
+        }
+        for (AtomicReference<Throwable> err : errors) {
+            assertTrue("must be StreamException, got " + err.get(), err.get() instanceof StreamException);
+            assertEquals(StreamErrorCode.UNAVAILABLE, ((StreamException) err.get()).getErrorCode());
+        }
+        StreamException ex = expectThrows(StreamException.class, ch::awaitReadyOrThrow);
+        assertEquals(StreamErrorCode.UNAVAILABLE, ex.getErrorCode());
     }
 
     // ── Native send: metadata framing ──
@@ -505,6 +585,32 @@ public class FlightServerChannelTests extends OpenSearchTestCase {
 
         ch.completeStream(emptyHeader());
         verify(listener, never()).completed();
+    }
+
+    /** A failure's status survives as the Flight call status, so consumers do not see every error as INTERNAL. */
+    public void testSendErrorCarriesFailureStatus() {
+        Map<Exception, FlightStatusCode> cases = Map.of(
+            new IllegalArgumentException("bad field"),
+            FlightStatusCode.INVALID_ARGUMENT,
+            new OpenSearchRejectedExecutionException("pool full"),
+            FlightStatusCode.RESOURCE_EXHAUSTED,
+            new TaskCancelledException("cancelled"),
+            FlightStatusCode.CANCELLED,
+            new ResourceNotFoundException("gone"),
+            FlightStatusCode.NOT_FOUND,
+            new IllegalStateException("bug"),
+            FlightStatusCode.INTERNAL
+        );
+        for (Map.Entry<Exception, FlightStatusCode> entry : cases.entrySet()) {
+            reset(listener);
+            FlightServerChannel ch = newChannel(5_000);
+            ch.sendError(emptyHeader(), entry.getKey());
+            ArgumentCaptor<Throwable> sent = ArgumentCaptor.forClass(Throwable.class);
+            verify(listener).error(sent.capture());
+            FlightRuntimeException flight = (FlightRuntimeException) sent.getValue();
+            assertEquals(entry.getKey().getClass().getSimpleName(), entry.getValue(), flight.status().code());
+            assertEquals(entry.getKey().getMessage(), flight.getMessage());
+        }
     }
 
     /** sendError is a no-op after the channel was cancelled. */

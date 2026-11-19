@@ -99,6 +99,14 @@ The framework creates the shared Flight root from the **producer's allocator** (
 allocator of the first batch's vectors), ensuring same-allocator transfer which avoids
 this bug. All subsequent batches should use the same allocator.
 
+### Receive side
+
+Each native batch a consumer reads is transferred out of the Flight stream into the
+transport's long-lived client allocator, not the per-connection allocator of the
+`FlightClient` that received it. A consumer may therefore keep a batch after the stream
+closes, even when the connection closes and takes its `FlightClient` with it. The consumer
+must close the batch's root itself.
+
 ## Ownership Contract
 
 | Resource | Created by | Closed by |

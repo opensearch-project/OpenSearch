@@ -8,20 +8,31 @@
 
 package org.opensearch.arrow.flight.transport;
 
+import org.apache.arrow.flight.CallStatus;
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.FieldType;
+import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.Version;
 import org.opensearch.arrow.transport.ArrowBatchResponse;
 import org.opensearch.arrow.transport.ArrowBatchResponseHandler;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Header;
 import org.opensearch.transport.StreamTransportResponseHandler;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.stream.StreamErrorCode;
 import org.opensearch.transport.stream.StreamException;
 
 import java.io.IOException;
@@ -29,11 +40,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -74,15 +87,93 @@ public class FlightTransportResponseTests extends OpenSearchTestCase {
      * directly (the test lives in the same package).
      */
     private FlightTransportResponse<TestArrowResponse> newResponse(FlightClient client, HeaderContext headerContext) {
+        return newResponse(client, headerContext, mock(BufferAllocator.class));
+    }
+
+    private FlightTransportResponse<TestArrowResponse> newResponse(
+        FlightClient client,
+        HeaderContext headerContext,
+        BufferAllocator responseAllocator
+    ) {
         return new FlightTransportResponse<>(
             new TestArrowHandler(),
             1L,
             client,
+            responseAllocator,
             headerContext,
             new Ticket(new byte[0]),
             new NamedWriteableRegistry(List.of()),
             new FlightTransportConfig()
         );
+    }
+
+    /** A producer that completes without sending a batch must yield no responses instead of waiting for a schema. */
+    public void testStreamCompletedWithoutBatchesHasNoResponses() throws Exception {
+        FlightClient client = mock(FlightClient.class);
+        FlightStream stream = mock(FlightStream.class);
+        when(client.getStream(any(Ticket.class), any())).thenReturn(stream);
+        when(stream.next()).thenReturn(false);
+
+        FlightTransportResponse<TestArrowResponse> response = newResponse(client, new HeaderContext());
+        CompletableFuture<Header> future = new CompletableFuture<>();
+        response.openAndPrefetchAsync(future);
+        future.get(5, TimeUnit.SECONDS);
+
+        assertNull(response.nextResponse());
+        verify(stream, never()).getRoot();
+        response.close();
+    }
+
+    /**
+     * cancel() from another thread while the consumer is inside nextResponse() must wake the stream but leave closing to
+     * the consumer: closing under a reader frees buffers it is loading.
+     */
+    public void testCancelWhileReadingDefersCloseToTheReader() throws Exception {
+        FlightClient client = mock(FlightClient.class);
+        FlightStream stream = mock(FlightStream.class);
+        when(client.getStream(any(Ticket.class), any())).thenReturn(stream);
+        when(stream.next()).thenReturn(true);
+        CountDownLatch reading = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        when(stream.getRoot()).thenAnswer(inv -> {
+            reading.countDown();
+            release.await();
+            throw new IllegalStateException("stream cancelled");
+        });
+
+        FlightTransportResponse<TestArrowResponse> response = newResponse(client, new HeaderContext());
+        CompletableFuture<Header> future = new CompletableFuture<>();
+        response.openAndPrefetchAsync(future);
+        future.get(5, TimeUnit.SECONDS);
+
+        Thread reader = new Thread(() -> expectThrows(IllegalStateException.class, response::nextResponse));
+        reader.start();
+        assertTrue(reading.await(5, TimeUnit.SECONDS));
+
+        response.cancel("stop", null);
+        verify(stream).cancel(eq("stop"), any());
+        verify(stream, never()).close();
+
+        release.countDown();
+        reader.join(5_000);
+        verify(stream, timeout(5_000).times(1)).close();
+        expectThrows(StreamException.class, response::nextResponse);
+    }
+
+    /** cancel() with no reader closes the stream immediately. */
+    public void testCancelWithoutReaderClosesImmediately() throws Exception {
+        FlightClient client = mock(FlightClient.class);
+        FlightStream stream = mock(FlightStream.class);
+        when(client.getStream(any(Ticket.class), any())).thenReturn(stream);
+        when(stream.next()).thenReturn(true);
+
+        FlightTransportResponse<TestArrowResponse> response = newResponse(client, new HeaderContext());
+        CompletableFuture<Header> future = new CompletableFuture<>();
+        response.openAndPrefetchAsync(future);
+        future.get(5, TimeUnit.SECONDS);
+
+        response.cancel("stop", null);
+        verify(stream).close();
     }
 
     /** Normal path: once the stream is published, close() closes it. */
@@ -133,6 +224,58 @@ public class FlightTransportResponseTests extends OpenSearchTestCase {
         // Let the prefetch publish the stream; its closed-check must self-close it.
         proceed.countDown();
         verify(stream, timeout(5_000)).close();
+    }
+
+    /**
+     * A server that fails a stream before its first batch still sends its header, which the middleware stores in the
+     * connection's context before next() fails. The prefetch must remove it, since no consumer will.
+     */
+    public void testStreamFailedBeforeFirstBatchLeavesNoHeader() throws Exception {
+        HeaderContext headerContext = new HeaderContext();
+        FlightClient client = mock(FlightClient.class);
+        FlightStream stream = mock(FlightStream.class);
+        when(client.getStream(any(Ticket.class), any())).thenReturn(stream);
+        when(stream.next()).thenAnswer(inv -> {
+            headerContext.setHeader(1L, mock(Header.class));
+            throw CallStatus.CANCELLED.withDescription("scan cancelled").toRuntimeException();
+        });
+
+        FlightTransportResponse<TestArrowResponse> response = newResponse(client, headerContext);
+        CompletableFuture<Header> future = new CompletableFuture<>();
+        response.openAndPrefetchAsync(future);
+        ExecutionException e = expectThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
+        assertEquals(StreamErrorCode.CANCELLED, ((StreamException) e.getCause()).getErrorCode());
+        assertBusy(() -> assertEquals(0, headerContext.size()));
+        response.close();
+    }
+
+    /** The same holds for a stream closed while it opens: closing drains it, which stores any header the server sent. */
+    public void testStreamClosedWhileOpeningLeavesNoHeader() throws Exception {
+        HeaderContext headerContext = new HeaderContext();
+        FlightStream stream = mock(FlightStream.class);
+        doAnswer(inv -> {
+            headerContext.setHeader(1L, mock(Header.class));
+            return null;
+        }).when(stream).close();
+        CountDownLatch enteredGetStream = new CountDownLatch(1);
+        CountDownLatch proceed = new CountDownLatch(1);
+        FlightClient client = mock(FlightClient.class);
+        when(client.getStream(any(Ticket.class), any())).thenAnswer(inv -> {
+            enteredGetStream.countDown();
+            assertTrue("test must release getStream", proceed.await(5, TimeUnit.SECONDS));
+            return stream;
+        });
+
+        FlightTransportResponse<TestArrowResponse> response = newResponse(client, headerContext);
+        CompletableFuture<Header> future = new CompletableFuture<>();
+        response.openAndPrefetchAsync(future);
+        assertTrue(enteredGetStream.await(5, TimeUnit.SECONDS));
+        response.close();
+        proceed.countDown();
+
+        expectThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
+        verify(stream).close();
+        assertBusy(() -> assertEquals(0, headerContext.size()));
     }
 
     /** close() before any prefetch has a null stream — must be a no-op, no NPE. */
@@ -221,31 +364,176 @@ public class FlightTransportResponseTests extends OpenSearchTestCase {
         }
     }
 
-    // ── cancelStreamOnly() / onClosed notification (channel-close support) ──────
+    // ── cancelForChannelClose() / onClosed notification (channel-close support) ──────
 
-    /** cancelStreamOnly on a published stream cancels it but must NOT close it: the consumer owns close. */
-    public void testCancelStreamOnlyCancelsWithoutClosing() throws Exception {
+    /**
+     * A channel close cancels and closes a stream nobody is reading: its consumer may be waiting elsewhere, e.g. for its own
+     * client, and the channel cannot wait for it to come back. The consumer then finds the stream closed.
+     */
+    public void testCancelForChannelCloseClosesStreamNobodyReads() throws Exception {
         FlightClient client = mock(FlightClient.class);
         FlightStream stream = mock(FlightStream.class);
         when(client.getStream(any(Ticket.class), any())).thenReturn(stream);
         when(stream.next()).thenReturn(true);
 
         FlightTransportResponse<TestArrowResponse> response = newResponse(client, new HeaderContext());
+        AtomicInteger notifications = new AtomicInteger();
+        response.setOnClosed(notifications::incrementAndGet);
         CompletableFuture<Header> future = new CompletableFuture<>();
         response.openAndPrefetchAsync(future);
         future.get(5, TimeUnit.SECONDS);
 
-        response.cancelStreamOnly("channel closed");
+        response.cancelForChannelClose("channel closed");
         verify(stream, times(1)).cancel("channel closed", null);
-        verify(stream, never()).close();
+        verify(stream, times(1)).close();
+        assertEquals("the channel must learn that the stream was released", 1, notifications.get());
 
-        // The consumer's close still runs and releases the stream.
+        expectThrows(StreamException.class, response::nextResponse);
         response.close();
         verify(stream, times(1)).close();
     }
 
-    /** cancelStreamOnly before the stream is published falls back to close() so the prefetch self-closes. */
-    public void testCancelStreamOnlyBeforePublishClosesResponse() throws Exception {
+    /** A channel close while the consumer is inside nextResponse() wakes it and leaves the close to it. */
+    public void testCancelForChannelCloseLeavesCloseToTheReader() throws Exception {
+        FlightClient client = mock(FlightClient.class);
+        FlightStream stream = mock(FlightStream.class);
+        when(client.getStream(any(Ticket.class), any())).thenReturn(stream);
+        when(stream.next()).thenReturn(true);
+        CountDownLatch reading = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        when(stream.getRoot()).thenAnswer(inv -> {
+            reading.countDown();
+            release.await();
+            throw new IllegalStateException("stream cancelled");
+        });
+
+        FlightTransportResponse<TestArrowResponse> response = newResponse(client, new HeaderContext());
+        CompletableFuture<Header> future = new CompletableFuture<>();
+        response.openAndPrefetchAsync(future);
+        future.get(5, TimeUnit.SECONDS);
+
+        Thread reader = new Thread(() -> expectThrows(IllegalStateException.class, response::nextResponse));
+        reader.start();
+        assertTrue(reading.await(5, TimeUnit.SECONDS));
+
+        response.cancelForChannelClose("channel closed");
+        verify(stream).cancel("channel closed", null);
+        verify(stream, never()).close();
+
+        release.countDown();
+        reader.join(5_000);
+        verify(stream, timeout(5_000).times(1)).close();
+    }
+
+    /** A channel close while the prefetch reads the first batch cancels it, but must not close the stream under it. */
+    public void testCancelForChannelCloseDuringPrefetchDoesNotCloseUnderIt() throws Exception {
+        FlightClient client = mock(FlightClient.class);
+        FlightStream stream = mock(FlightStream.class);
+        when(client.getStream(any(Ticket.class), any())).thenReturn(stream);
+        CountDownLatch prefetching = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        when(stream.next()).thenAnswer(inv -> {
+            prefetching.countDown();
+            assertTrue("test must release the prefetch", release.await(5, TimeUnit.SECONDS));
+            throw CallStatus.CANCELLED.toRuntimeException();
+        });
+
+        FlightTransportResponse<TestArrowResponse> response = newResponse(client, new HeaderContext());
+        CompletableFuture<Header> future = new CompletableFuture<>();
+        response.openAndPrefetchAsync(future);
+        assertTrue(prefetching.await(5, TimeUnit.SECONDS));
+
+        response.cancelForChannelClose("channel closed");
+        verify(stream).cancel("channel closed", null);
+        verify(stream, never()).close();
+
+        release.countDown();
+        expectThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
+        verify(stream, never()).close();
+    }
+
+    /**
+     * A channel close can land while the prefetch's next() returns a batch that had already arrived, too late to fail that
+     * read. The prefetch must then close the stream itself, rather than hand its consumer a cancelled stream nobody closes.
+     */
+    public void testCancelForChannelCloseAsPrefetchReadCompletesClosesStream() throws Exception {
+        FlightClient client = mock(FlightClient.class);
+        FlightStream stream = mock(FlightStream.class);
+        when(client.getStream(any(Ticket.class), any())).thenReturn(stream);
+        CountDownLatch prefetching = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        when(stream.next()).thenAnswer(inv -> {
+            prefetching.countDown();
+            assertTrue("test must release the prefetch", release.await(5, TimeUnit.SECONDS));
+            return true;
+        });
+
+        FlightTransportResponse<TestArrowResponse> response = newResponse(client, new HeaderContext());
+        AtomicInteger notifications = new AtomicInteger();
+        response.setOnClosed(notifications::incrementAndGet);
+        CompletableFuture<Header> future = new CompletableFuture<>();
+        response.openAndPrefetchAsync(future);
+        assertTrue(prefetching.await(5, TimeUnit.SECONDS));
+
+        response.cancelForChannelClose("channel closed");
+        verify(stream).cancel("channel closed", null);
+        verify(stream, never()).close();
+
+        release.countDown();
+        ExecutionException e = expectThrows(ExecutionException.class, () -> future.get(5, TimeUnit.SECONDS));
+        assertEquals(StreamErrorCode.UNAVAILABLE, ((StreamException) e.getCause()).getErrorCode());
+        verify(stream, times(1)).close();
+        assertEquals("the channel must learn that the stream was released", 1, notifications.get());
+    }
+
+    /**
+     * A channel close closes the stream under a consumer still holding a batch from it, then the FlightClient, which closes
+     * the allocator the stream's buffers are on. The batch must not be on that allocator: closing it would report the batch
+     * leaked, and the consumer's later release would go to a closed allocator.
+     */
+    public void testBatchHeldByConsumerOutlivesTheStreamAllocator() throws Exception {
+        try (RootAllocator responseAllocator = new RootAllocator()) {
+            BufferAllocator streamAllocator = responseAllocator.newChildAllocator("flight-client", 0, Long.MAX_VALUE);
+            Schema schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
+            VectorSchemaRoot streamRoot = VectorSchemaRoot.create(schema, streamAllocator);
+            IntVector values = (IntVector) streamRoot.getVector("val");
+            values.allocateNew();
+            values.setSafe(0, 42);
+            values.setValueCount(1);
+            streamRoot.setRowCount(1);
+
+            FlightClient client = mock(FlightClient.class);
+            FlightStream stream = mock(FlightStream.class);
+            when(client.getStream(any(Ticket.class), any())).thenReturn(stream);
+            when(stream.next()).thenReturn(true);
+            when(stream.getRoot()).thenReturn(streamRoot);
+            doAnswer(inv -> {
+                streamRoot.close();
+                return null;
+            }).when(stream).close();
+            Header header = mock(Header.class);
+            when(header.getVersion()).thenReturn(Version.CURRENT);
+            HeaderContext headerContext = new HeaderContext();
+            headerContext.setHeader(1L, header);
+
+            FlightTransportResponse<TestArrowResponse> response = newResponse(client, headerContext, responseAllocator);
+            CompletableFuture<Header> future = new CompletableFuture<>();
+            response.openAndPrefetchAsync(future);
+            future.get(5, TimeUnit.SECONDS);
+
+            TestArrowResponse batch = response.nextResponse();
+            response.cancelForChannelClose("channel closed");
+            verify(stream).close();
+            // What FlightClient#close does once the channel has released the client's streams.
+            streamAllocator.close();
+
+            assertEquals(42, ((IntVector) batch.getRoot().getVector("val")).get(0));
+            batch.getRoot().close();
+        }
+    }
+
+    /** cancelForChannelClose before the stream is published falls back to close() so the prefetch self-closes. */
+    public void testCancelForChannelCloseBeforePublishClosesResponse() throws Exception {
         FlightStream stream = mock(FlightStream.class);
         when(stream.next()).thenReturn(true);
 
@@ -263,7 +551,7 @@ public class FlightTransportResponseTests extends OpenSearchTestCase {
         response.openAndPrefetchAsync(future);
         assertTrue(enteredGetStream.await(5, TimeUnit.SECONDS));
 
-        response.cancelStreamOnly("channel closed"); // stream not yet published → close()
+        response.cancelForChannelClose("channel closed"); // stream not yet published → close()
         proceed.countDown();
         verify(stream, timeout(5_000)).close(); // prefetch closed re-check self-closes
     }
@@ -391,6 +679,7 @@ public class FlightTransportResponseTests extends OpenSearchTestCase {
             new TestArrowHandler(),
             1L,
             client,
+            mock(BufferAllocator.class),
             new HeaderContext(),
             new Ticket(new byte[0]),
             new NamedWriteableRegistry(List.of()),
@@ -474,8 +763,8 @@ public class FlightTransportResponseTests extends OpenSearchTestCase {
 
     private static final class TestArrowHandler extends ArrowBatchResponseHandler<TestArrowResponse> {
         @Override
-        public TestArrowResponse read(org.opensearch.core.common.io.stream.StreamInput in) {
-            throw new UnsupportedOperationException();
+        public TestArrowResponse read(StreamInput in) throws IOException {
+            return new TestArrowResponse(in);
         }
 
         @Override
@@ -542,8 +831,8 @@ public class FlightTransportResponseTests extends OpenSearchTestCase {
     }
 
     private static final class TestArrowResponse extends ArrowBatchResponse {
-        TestArrowResponse() {
-            super((org.apache.arrow.vector.VectorSchemaRoot) null);
+        TestArrowResponse(StreamInput in) throws IOException {
+            super(in);
         }
     }
 }

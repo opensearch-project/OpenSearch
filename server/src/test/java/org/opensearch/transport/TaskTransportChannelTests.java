@@ -8,6 +8,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -49,5 +50,12 @@ public class TaskTransportChannelTests extends OpenSearchTestCase {
         when(delegate.isCancelled()).thenReturn(true);
         assertTrue(channel.isCancelled());
         verify(delegate).isCancelled();
+    }
+
+    public void testBatchReadyTimeoutIsForwarded() {
+        channel.setBatchReadyTimeout(TimeValue.timeValueSeconds(3));
+        verify(delegate).setBatchReadyTimeout(TimeValue.timeValueSeconds(3));
+        channel.setBatchReadyTimeout(null);
+        verify(delegate).setBatchReadyTimeout(null);
     }
 }

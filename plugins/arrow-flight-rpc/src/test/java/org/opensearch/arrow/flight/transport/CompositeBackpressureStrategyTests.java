@@ -45,7 +45,7 @@ public class CompositeBackpressureStrategyTests extends OpenSearchTestCase {
             return null;
         }).when(listener).setOnCancelHandler(any(Runnable.class));
 
-        CompositeBackpressureStrategy bp = new CompositeBackpressureStrategy(() -> {});
+        CompositeBackpressureStrategy bp = new CompositeBackpressureStrategy(() -> {}, () -> false);
         bp.register(listener);
 
         assertNotNull("onReadyHandler must be installed", capturedReadyHandler.get());
@@ -60,7 +60,7 @@ public class CompositeBackpressureStrategyTests extends OpenSearchTestCase {
         when(listener.isReady()).thenReturn(true);
         when(listener.isCancelled()).thenReturn(false);
 
-        CompositeBackpressureStrategy bp = new CompositeBackpressureStrategy(() -> {});
+        CompositeBackpressureStrategy bp = new CompositeBackpressureStrategy(() -> {}, () -> false);
         bp.register(listener);
 
         long start = System.nanoTime();
@@ -87,7 +87,7 @@ public class CompositeBackpressureStrategyTests extends OpenSearchTestCase {
             return null;
         }).when(listener).setOnReadyHandler(any(Runnable.class));
 
-        CompositeBackpressureStrategy bp = new CompositeBackpressureStrategy(() -> {});
+        CompositeBackpressureStrategy bp = new CompositeBackpressureStrategy(() -> {}, () -> false);
         bp.register(listener);
 
         CountDownLatch waiterEntered = new CountDownLatch(1);
@@ -133,7 +133,7 @@ public class CompositeBackpressureStrategyTests extends OpenSearchTestCase {
             // Channel cleanup flips the cancelled flag the strategy will observe on wake.
             cancelled.set(true);
             cleanupRanWhileWaiterStillSleeping.set(true);
-        });
+        }, () -> false);
         bp.register(listener);
 
         CountDownLatch waiterEntered = new CountDownLatch(1);
@@ -166,7 +166,7 @@ public class CompositeBackpressureStrategyTests extends OpenSearchTestCase {
         when(listener.isReady()).thenReturn(true);
         when(listener.isCancelled()).thenReturn(false);
 
-        CompositeBackpressureStrategy bp = new CompositeBackpressureStrategy(() -> {});
+        CompositeBackpressureStrategy bp = new CompositeBackpressureStrategy(() -> {}, () -> false);
         bp.register(listener);
 
         for (int i = 0; i < 5; i++) {
@@ -182,7 +182,7 @@ public class CompositeBackpressureStrategyTests extends OpenSearchTestCase {
         when(listener.isReady()).thenReturn(false);
         when(listener.isCancelled()).thenReturn(false);
 
-        CompositeBackpressureStrategy bp = new CompositeBackpressureStrategy(() -> {});
+        CompositeBackpressureStrategy bp = new CompositeBackpressureStrategy(() -> {}, () -> false);
         bp.register(listener);
 
         long start = System.nanoTime();
@@ -191,5 +191,77 @@ public class CompositeBackpressureStrategyTests extends OpenSearchTestCase {
 
         assertEquals(BackpressureStrategy.WaitResult.TIMEOUT, result);
         assertTrue("Should wait approximately the timeout (elapsed=" + elapsedMillis + "ms)", elapsedMillis >= 90);
+    }
+
+    /**
+     * An unbounded wait must not time out: it returns only when the ready or cancel callback fires.
+     */
+    public void testUnboundedWaitReturnsOnlyOnReadyOrCancel() throws Exception {
+        ServerStreamListener listener = mock(ServerStreamListener.class);
+        AtomicBoolean ready = new AtomicBoolean(false);
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        when(listener.isReady()).thenAnswer(inv -> ready.get());
+        when(listener.isCancelled()).thenAnswer(inv -> cancelled.get());
+        AtomicReference<Runnable> readyHandler = new AtomicReference<>();
+        AtomicReference<Runnable> cancelHandler = new AtomicReference<>();
+        doAnswer(inv -> {
+            readyHandler.set(inv.getArgument(0));
+            return null;
+        }).when(listener).setOnReadyHandler(any(Runnable.class));
+        doAnswer(inv -> {
+            cancelHandler.set(inv.getArgument(0));
+            return null;
+        }).when(listener).setOnCancelHandler(any(Runnable.class));
+        CompositeBackpressureStrategy bp = new CompositeBackpressureStrategy(() -> {}, () -> false);
+        bp.register(listener);
+
+        for (boolean viaCancel : new boolean[] { false, true }) {
+            AtomicReference<BackpressureStrategy.WaitResult> result = new AtomicReference<>();
+            Thread waiter = new Thread(() -> result.set(bp.waitForListener(Long.MAX_VALUE)), "waiter");
+            waiter.start();
+            assertBusy(() -> assertEquals(Thread.State.WAITING, waiter.getState()), 2, TimeUnit.SECONDS);
+            assertFalse("an unbounded wait must keep waiting", waitUntil(() -> waiter.isAlive() == false, 200, TimeUnit.MILLISECONDS));
+            if (viaCancel) {
+                cancelled.set(true);
+                cancelHandler.get().run();
+            } else {
+                ready.set(true);
+                readyHandler.get().run();
+            }
+            waiter.join(2_000);
+            assertFalse(waiter.isAlive());
+            assertEquals(viaCancel ? BackpressureStrategy.WaitResult.CANCELLED : BackpressureStrategy.WaitResult.READY, result.get());
+            ready.set(false);
+        }
+    }
+
+    /**
+     * A call the server ended itself is never ready again and gRPC fires no callback for it, so a wait, even an unbounded
+     * one, must end once the channel reports itself closed and signals the strategy.
+     */
+    public void testChannelCloseEndsWait() throws Exception {
+        ServerStreamListener listener = mock(ServerStreamListener.class);
+        when(listener.isReady()).thenReturn(false);
+        when(listener.isCancelled()).thenReturn(false);
+        AtomicBoolean closed = new AtomicBoolean(false);
+        CompositeBackpressureStrategy bp = new CompositeBackpressureStrategy(() -> {}, closed::get);
+        bp.register(listener);
+
+        for (long timeout : new long[] { Long.MAX_VALUE, 60_000 }) {
+            closed.set(false);
+            AtomicReference<BackpressureStrategy.WaitResult> result = new AtomicReference<>();
+            Thread waiter = new Thread(() -> result.set(bp.waitForListener(timeout)), "waiter");
+            waiter.start();
+            Thread.State parked = timeout == Long.MAX_VALUE ? Thread.State.WAITING : Thread.State.TIMED_WAITING;
+            assertBusy(() -> assertEquals(parked, waiter.getState()), 2, TimeUnit.SECONDS);
+
+            closed.set(true);
+            bp.signal();
+
+            waiter.join(2_000);
+            assertFalse("the wait must end once the channel is closed", waiter.isAlive());
+            assertEquals(BackpressureStrategy.WaitResult.OTHER, result.get());
+            assertEquals("a closed channel ends the wait at once", BackpressureStrategy.WaitResult.OTHER, bp.waitForListener(timeout));
+        }
     }
 }

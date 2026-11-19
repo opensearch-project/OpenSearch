@@ -113,7 +113,7 @@ sendResponseBatch(response, ...):                      // T_caller
   handedOff = false
   try:
     if (!(channel instanceof FlightServerChannel)) { relay error; return; }   // handedOff stays false
-    flightChannel.awaitReadyOrThrow()                  // may throw CANCELLED/TIMED_OUT
+    flightChannel.awaitReadyOrThrow()                  // may throw CANCELLED/TIMED_OUT/UNAVAILABLE
     flightChannel.getExecutor().execute(task)          // may throw RejectedExecutionException
     handedOff = true                                   // sendBatch now owns it; its finally frees it
   finally:

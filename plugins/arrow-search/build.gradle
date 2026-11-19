@@ -1,0 +1,52 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+apply plugin: 'opensearch.internal-cluster-test'
+
+opensearchplugin {
+  description = 'Streams search hits as Apache Arrow record batches read from doc values, over the gRPC ServerStreamSearch API.'
+  classname = 'org.opensearch.arrow.search.ArrowSearchPlugin'
+  extendedPlugins = ['arrow-base', 'transport-grpc']
+  hasClientJar = false
+}
+
+dependencies {
+  compileOnly project(':plugins:arrow-base')
+  compileOnly project(':modules:transport-grpc:spi')
+  // Arrow's class files reference checker annotations that javac must resolve under -Werror.
+  compileOnly 'org.checkerframework:checker-qual:3.44.0'
+  testCompileOnly 'org.checkerframework:checker-qual:3.44.0'
+  internalClusterTestCompileOnly 'org.checkerframework:checker-qual:3.44.0'
+
+  testImplementation project(':plugins:arrow-base')
+  testImplementation project(':modules:transport-grpc:spi')
+  testImplementation project(':modules:mapper-extras')
+
+  internalClusterTestImplementation project(':plugins:arrow-base')
+  internalClusterTestImplementation project(':plugins:arrow-flight-rpc')
+  // arrow-flight-rpc and transport-grpc pin different Guava releases; the test JVM runs both and needs only one copy.
+  internalClusterTestImplementation(project(':modules:transport-grpc')) {
+    exclude group: 'com.google.guava', module: 'guava'
+  }
+  internalClusterTestImplementation project(':modules:transport-grpc:spi')
+  internalClusterTestImplementation project(':modules:mapper-extras')
+  internalClusterTestImplementation("org.opensearch:protobufs:${versions.opensearchprotobufs}") { transitive = false }
+  internalClusterTestImplementation("io.grpc:grpc-api:${versions.grpc}") { transitive = false }
+  internalClusterTestImplementation("io.grpc:grpc-stub:${versions.grpc}") { transitive = false }
+  internalClusterTestImplementation("io.grpc:grpc-netty-shaded:${versions.grpc}") { transitive = false }
+  internalClusterTestImplementation("com.google.protobuf:protobuf-java:${versions.protobuf}") { transitive = false }
+}
+
+// Arrow memory access needs reflective access to java.nio and Netty's unsafe allocator, as in arrow-flight-rpc.
+tasks.withType(Test).configureEach {
+  jvmArgs += ["--add-opens", "java.base/java.nio=ALL-UNNAMED"]
+  systemProperty 'io.netty.allocator.numDirectArenas', '1'
+  systemProperty 'io.netty.noUnsafe', 'false'
+  systemProperty 'io.netty.tryUnsafe', 'true'
+  systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+}

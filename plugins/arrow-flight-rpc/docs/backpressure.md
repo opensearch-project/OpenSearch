@@ -29,10 +29,11 @@ queue grow.
 | Setting | Default | Property |
 |---|---|---|
 | `arrow.flight.channel.ready_timeout` | `60s` | node-scope |
-| `arrow.flight.channel.outbound_buffer_threshold` | `64mb` | node-scope |
+| `arrow.flight.channel.outbound_buffer_threshold` | `512kb` | node-scope |
 
 - `ready_timeout` caps how long the producer thread parks before failing the
-  batch with `StreamErrorCode.TIMED_OUT`. `100ms` minimum.
+  batch with `StreamErrorCode.TIMED_OUT`. `100ms` minimum. A stream may override
+  it, or wait without a bound, through `setBatchReadyTimeout`.
 - `outbound_buffer_threshold` is the per-stream gRPC buffered-bytes watermark.
   `isReady()` flips false once the per-stream outbound queue crosses this size.
   **Must be strictly smaller than `native.allocator.pool.flight.max`** so the
@@ -57,6 +58,18 @@ below threshold.
 Client-cancel propagates via gRPC's `OnCancelHandler` into the strategy's cancel
 callback. Any thread parked on `waitForListener` wakes promptly with
 `StreamErrorCode.CANCELLED`.
+
+A call the server ended itself, e.g. because a batch failed on the send executor
+and failed the stream, is never ready again, and gRPC fires neither handler for
+it. Closing the channel wakes every parked producer, even one with an unbounded
+ready timeout, and its wait fails with `StreamErrorCode.UNAVAILABLE`. A later
+wait on the closed channel fails at once.
+
+A consumer that vanishes without closing its connection, e.g. on a host failure
+or a network partition, cancels nothing. Its parked producers wake when their
+ready timeout ends, or earlier with `StreamErrorCode.CANCELLED` if the server's
+keepalive (`flight.keepalive.time` plus `flight.keepalive.timeout`) finds the
+connection dead first.
 
 ## Tuning and operational concerns
 
@@ -129,7 +142,9 @@ async path uses), but the calling thread **blocks until the batch has been
 pushed to gRPC's per-stream outbound buffer**, so it cannot queue the next batch
 ahead of this one — outstanding batches are bounded to one, with no eventloop
 queue to grow. When that outbound buffer is full, the `isReady()` back-pressure
-gate (above) throttles the producer.
+gate (above) throttles the producer. A send that fails on the executor fails the
+stream, and the caller's `sendResponseBatch` throws that failure, so the producer
+stops instead of computing batches that nobody can receive.
 
 A caller that opts in **must drive a single stream from a single thread** and must
 not call from the send-executor thread itself. The default

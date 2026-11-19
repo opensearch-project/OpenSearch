@@ -33,6 +33,8 @@
 package org.opensearch.search;
 
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -41,6 +43,8 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.plugins.SearchPlugin.SearchExtSpec;
+
+import java.util.concurrent.Executor;
 
 /**
  * Intermediate serializable representation of a search ext section. To be subclassed by plugins that support
@@ -65,4 +69,17 @@ public abstract class SearchExtBuilder implements NamedWriteable, ToXContentFrag
     public abstract int hashCode();
 
     public abstract boolean equals(Object obj);
+
+    /**
+     * Returns the executor that collects the segment slices of a search that carries this extension, in place of the index
+     * searcher pool. Such a search collects in slices whenever concurrent segment search is enabled for its index, with or
+     * without aggregations.
+     *
+     * @return the executor, or {@code null} for the index searcher pool and the usual concurrent search decision
+     */
+    @ExperimentalApi
+    @Nullable
+    public Executor sliceExecutor() {
+        return null;
+    }
 }
