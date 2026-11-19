@@ -49,6 +49,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
+import org.apache.lucene.search.similarities.Similarity;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
@@ -479,6 +480,12 @@ final class DefaultSearchContext extends SearchContext {
         if (queryBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
             parsedQuery(new ParsedQuery(new BoostQuery(query(), queryBoost), parsedQuery()));
         }
+        // preProcess can run again after a restriction is declared, so start from the similarity the request had.
+        if (scoringSimilarity == null) {
+            scoringSimilarity = searcher.getSimilarity();
+        } else {
+            searcher.setSimilarity(scoringSimilarity);
+        }
         this.query = buildFilteredQuery(query);
         if (rewrite) {
             try {
@@ -880,16 +887,17 @@ final class DefaultSearchContext extends SearchContext {
 
     /** {@link #filteredStatisticsFilter()} for this request, built once and cleared when a restriction is declared. */
     private volatile Query filteredStatisticsFilterMemo;
+    private Similarity scoringSimilarity;
 
     /** Whether {@link #preProcess} has built {@link #query} yet. */
     private boolean queryBuilt;
 
     @Override
     public void visibleSubsetFilter(Query filter) {
-        if (searcher.filteredStatisticsComputed()) {
+        if (searcher.statisticsServed()) {
             // The statistics already in use were scoped without this restriction, and narrowing them now would leave
             // the request scored against two different views.
-            throw new IllegalStateException("a visible-subset filter must be declared before filtered statistics are computed");
+            throw new IllegalStateException("a visible-subset filter must be declared before the request reads any statistics");
         }
         // A second declaration narrows the first rather than replacing it, so neither restriction is lost.
         this.pluginVisibleSubsetFilter = intersect(pluginVisibleSubsetFilter, filter);

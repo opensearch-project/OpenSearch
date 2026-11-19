@@ -78,6 +78,10 @@ public class DfsPhase {
                         : super.termStatistics(term, docFreq, totalTermFreq);
                     if (ts != null) {
                         stats.put(term, ts);
+                    } else if (filteredStatistics) {
+                        // Contribute nothing, but give Lucene non-null statistics: phrase and synonym weights
+                        // dereference them. This weight is discarded once the statistics are collected.
+                        return new TermStatistics(term.bytes(), 1, 1);
                     }
                     return ts;
                 }
@@ -96,6 +100,9 @@ public class DfsPhase {
                         : super.collectionStatistics(field);
                     if (cs != null) {
                         fieldStatistics.put(field, cs);
+                    } else if (filteredStatistics && getIndexReader().maxDoc() > 0) {
+                        // As for terms: nothing for the coordinator, and non-null statistics for this weight.
+                        return new CollectionStatistics(field, getIndexReader().maxDoc(), 1, 1, 1);
                     }
                     return cs;
                 }

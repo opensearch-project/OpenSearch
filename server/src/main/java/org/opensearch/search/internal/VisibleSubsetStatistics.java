@@ -149,7 +149,8 @@ public final class VisibleSubsetStatistics {
         long doubledLength = 0;
         final BitSetIterator visibleDocs = new BitSetIterator(visible, visible.approximateCardinality());
         for (int doc = visibleDocs.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = visibleDocs.nextDoc()) {
-            if (norms.advanceExact(doc)) {
+            // A norm of 0 is a field value with no tokens, which Lucene does not count in docCount either.
+            if (norms.advanceExact(doc) && norms.longValue() != 0) {
                 docCount++;
                 doubledLength += normLengthTimesTwo((byte) norms.longValue());
             }
