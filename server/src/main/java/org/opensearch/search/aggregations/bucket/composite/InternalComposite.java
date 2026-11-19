@@ -88,6 +88,11 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
      * built with the same {@code sourceNames}, {@code formats},
      * {@code reverseMuls} and {@code missingOrders} as this instance.
      *
+     * <p>{@code buckets} must also be this producer's first {@code size} buckets
+     * after the request's {@code after} key, with none skipped: the reduce merges
+     * the shard lists and stops at {@code size}, and the next page starts after
+     * the last key returned, so a skipped bucket is never returned on any page.
+     *
      * @opensearch.experimental
      */
     @ExperimentalApi

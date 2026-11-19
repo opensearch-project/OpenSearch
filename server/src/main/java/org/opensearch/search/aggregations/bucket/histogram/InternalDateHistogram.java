@@ -199,11 +199,15 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
          *
          * @param rounding the rounding that places bucket keys, without its offset
          *        (see {@link Rounding#withoutOffset()}); the offset is passed to the
-         *        {@link InternalDateHistogram} constructor instead
+         *        {@link InternalDateHistogram} constructor instead. The reduce computes
+         *        each next key as {@code rounding.nextRoundingValue(key - offset) + offset},
+         *        so a rounding that still carries the offset applies it twice
          * @param subAggregations the empty sub-aggregation results each filled-in bucket carries
-         * @param bounds the extended bounds to fill out to, with numeric minimum and maximum
-         *        in epoch milliseconds (as built by {@link LongBounds#LongBounds(Long, Long)}),
-         *        or {@code null} for none
+         * @param bounds the extended bounds, or {@code null} for none. Pass each bound as
+         *        {@code rounding.round(bound)}: the start of its bucket without the offset,
+         *        which the reduce adds itself. For example, with daily buckets and a 6h
+         *        offset, a bound of 03:17 is passed as 00:00 and the first empty bucket
+         *        starts at 06:00.
          *
          * @opensearch.experimental
          */
