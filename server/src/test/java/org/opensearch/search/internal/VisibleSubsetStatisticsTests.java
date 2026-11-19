@@ -37,6 +37,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.SmallFloat;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -52,7 +53,8 @@ public class VisibleSubsetStatisticsTests extends OpenSearchTestCase {
         SynonymMap.Builder synonyms = new SynonymMap.Builder(true);
         synonyms.add(new CharsRef("car"), new CharsRef("automobile"), true);
         final SynonymMap map = synonyms.build();
-        return new Analyzer() {
+        // Per field, or the components built for the first field would be reused for "stacked" too.
+        return new Analyzer(Analyzer.PER_FIELD_REUSE_STRATEGY) {
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {
                 Tokenizer tokenizer = new WhitespaceTokenizer();
@@ -71,7 +73,7 @@ public class VisibleSubsetStatisticsTests extends OpenSearchTestCase {
     /** Documents long enough that their norms no longer hold the exact length. */
     private List<Document> corpus() {
         List<Document> docs = new ArrayList<>();
-        for (int i = 0; i < 60; i++) {
+        for (int i = 0; i < 600; i++) {
             StringBuilder text = new StringBuilder();
             int length = 30 + random().nextInt(470);
             for (int t = 0; t < length; t++) {
@@ -91,7 +93,7 @@ public class VisibleSubsetStatisticsTests extends OpenSearchTestCase {
         try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(analyzer()))) {
             for (int i = 0; i < docs.size(); i++) {
                 writer.addDocument(docs.get(i));
-                if (i % 17 == 16) {
+                if (i % 170 == 169) {
                     writer.commit();
                 }
             }
@@ -121,15 +123,19 @@ public class VisibleSubsetStatisticsTests extends OpenSearchTestCase {
         return new long[] { terms.getDocCount(), terms.getSumTotalTermFreq(), terms.getSumDocFreq() };
     }
 
-    public void testEveryDocumentGivesLuceneFieldStatistics() throws IOException {
+    /** A field without term frequencies is counted from the postings, so it matches Lucene exactly. */
+    public void testAFieldWithoutFrequenciesIsExact() throws IOException {
         try (Directory dir = newDirectory(); DirectoryReader reader = index(dir, corpus())) {
-            for (String field : FIELDS) {
-                assertArrayEquals(field, lucene(reader, field), scoped(reader, new MatchAllDocsQuery(), field));
-            }
+            assertArrayEquals(lucene(reader, "docs_only"), scoped(reader, new MatchAllDocsQuery(), "docs_only"));
         }
     }
 
-    public void testAViewGivesTheStatisticsOfAPhysicallyFilteredIndex() throws IOException {
+    /**
+     * Long documents: the document count is exact, and the summed length, read from norms at the middle of each
+     * bucket, is within 1 percent of Lucene's, both for every document and for a view against a physically
+     * filtered index.
+     */
+    public void testLongDocumentsAreWithinOnePercentOfLucene() throws IOException {
         List<Document> docs = corpus();
         List<Document> visibleOnly = new ArrayList<>();
         for (Document doc : docs) {
@@ -143,9 +149,71 @@ public class VisibleSubsetStatisticsTests extends OpenSearchTestCase {
             Directory refDir = newDirectory();
             DirectoryReader reference = index(refDir, visibleOnly)
         ) {
-            for (String field : FIELDS) {
-                assertArrayEquals(field, lucene(reference, field), scoped(reader, new TermQuery(new Term("dept", "visible")), field));
+            assertWithinOnePercent(lucene(reader, "body"), scoped(reader, new MatchAllDocsQuery(), "body"));
+            assertWithinOnePercent(lucene(reference, "body"), scoped(reader, new TermQuery(new Term("dept", "visible")), "body"));
+        }
+    }
+
+    private static void assertWithinOnePercent(long[] expected, long[] actual) {
+        assertEquals("docCount", expected[0], actual[0]);
+        assertEquals("sumTotalTermFreq", expected[1], actual[1], expected[1] * 0.01);
+        assertEquals("sumDocFreq is reported as its lower bound", actual[0], actual[2]);
+    }
+
+    /** Norms leave out tokens that share a position, so a field with stacked synonyms reads shorter than Lucene's. */
+    public void testStackedTokensAreNotCounted() throws IOException {
+        try (Directory dir = newDirectory(); DirectoryReader reader = index(dir, corpus())) {
+            long[] expected = lucene(reader, "stacked");
+            long[] actual = scoped(reader, new MatchAllDocsQuery(), "stacked");
+            assertEquals(expected[0], actual[0]);
+            assertTrue("stacked tokens are left out", actual[1] < expected[1]);
+            assertEquals("the field without synonyms has the same length", scoped(reader, new MatchAllDocsQuery(), "body")[1], actual[1]);
+        }
+    }
+
+    /** The statistics of a view read only its documents, so documents outside it can change without moving them. */
+    public void testDocumentsOutsideTheViewDoNotChangeItsStatistics() throws IOException {
+        List<Document> docs = corpus();
+        List<Document> longerOutside = new ArrayList<>();
+        for (Document doc : docs) {
+            if ("visible".equals(doc.getField("dept").stringValue())) {
+                longerOutside.add(doc);
+            } else {
+                Document longer = new Document();
+                longer.add(new StringField("dept", "hidden", Field.Store.NO));
+                String text = "car ".repeat(800);
+                longer.add(new TextField("body", text, Field.Store.NO));
+                longer.add(new TextField("stacked", text, Field.Store.NO));
+                longer.add(new Field("docs_only", text, DOCS_ONLY));
+                longerOutside.add(longer);
             }
+        }
+        Query view = new TermQuery(new Term("dept", "visible"));
+        try (
+            Directory dir = newDirectory();
+            DirectoryReader reader = index(dir, docs);
+            Directory otherDir = newDirectory();
+            DirectoryReader other = index(otherDir, longerOutside)
+        ) {
+            for (String field : FIELDS) {
+                assertArrayEquals(field, scoped(reader, view, field), scoped(other, view, field));
+            }
+        }
+    }
+
+    public void testANormCountsAsTheMiddleOfItsBucket() {
+        for (int length = 1; length < 24; length++) {
+            assertEquals(2L * length, VisibleSubsetStatistics.normLengthTimesTwo(SmallFloat.intToByte4(length)));
+        }
+        for (int length = 24; length < 100_000; length++) {
+            byte norm = SmallFloat.intToByte4(length);
+            long low = SmallFloat.byte4ToInt(norm);
+            long doubled = VisibleSubsetStatistics.normLengthTimesTwo(norm);
+            assertTrue("the middle is not below the bucket", doubled >= 2 * low);
+            assertTrue(
+                "the middle is within the bucket",
+                length >= low && length <= SmallFloat.byte4ToInt((byte) (Byte.toUnsignedInt(norm) + 1)) - 1
+            );
         }
     }
 

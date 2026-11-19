@@ -8,7 +8,10 @@
 
 package org.opensearch.search.internal;
 
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
@@ -23,6 +26,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.SmallFloat;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.settings.Setting;
 
@@ -107,15 +111,65 @@ public final class VisibleSubsetStatistics {
 
     /**
      * Computes a single segment's {@code [docCount, sumTotalTermFreq, sumDocFreq]} contribution for a field over the
-     * visible subset. The values are exact, the same ones Lucene would report for an index that held only the
-     * visible documents, because they are counted from the postings rather than derived from lossy norms.
-     * Each term's postings are intersected with the visible set, so a small view skips most of them.
+     * visible subset, reading only the visible documents. With norms and term frequencies, the field length comes
+     * from norms in one pass over the visible documents: a norm stores a length of 24 tokens or more as a bucket, so
+     * each norm counts as the middle of its bucket, and tokens that share a position are not in it. Otherwise the
+     * values are counted exactly from the postings.
      */
     public static long[] computeFieldContribution(LeafReaderContext ctx, BitSet visible, String field) throws IOException {
         final Terms terms = ctx.reader().terms(field);
         if (terms == null) {
             return new long[] { 0, 0, 0 };
         }
+        final NumericDocValues norms = ctx.reader().getNormValues(field);
+        final FieldInfo info = ctx.reader().getFieldInfos().fieldInfo(field);
+        if (norms == null || info == null || info.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) < 0) {
+            // Without norms there is no length to read, and without frequencies Lucene's sumTotalTermFreq is the
+            // number of postings, which norms do not hold.
+            return countFromPostings(ctx, visible, terms);
+        }
+        long docCount = 0;
+        long doubledLength = 0;
+        final BitSetIterator visibleDocs = new BitSetIterator(visible, visible.approximateCardinality());
+        for (int doc = visibleDocs.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = visibleDocs.nextDoc()) {
+            if (norms.advanceExact(doc)) {
+                docCount++;
+                doubledLength += normLengthTimesTwo((byte) norms.longValue());
+            }
+        }
+        if (docCount == 0) {
+            return new long[] { 0, 0, 0 };
+        }
+        final long sumTotalTermFreq = Math.max((doubledLength + 1) / 2, docCount);
+        // BM25 does not read sumDocFreq, and counting it needs the postings, so report the smallest value that
+        // CollectionStatistics allows, from the visible documents alone.
+        return new long[] { docCount, sumTotalTermFreq, docCount };
+    }
+
+    /**
+     * Returns twice the middle of the field lengths a BM25 norm stands for, so that a sum stays an integer.
+     *
+     * @param norm the norm as Lucene stores it
+     * @return twice the middle length of the norm's bucket; twice the length itself below 24 tokens
+     */
+    static long normLengthTimesTwo(byte norm) {
+        final int low = SmallFloat.byte4ToInt(norm);
+        final int unsigned = Byte.toUnsignedInt(norm);
+        if (unsigned < EXACT_NORM_LENGTHS || unsigned == 255) {
+            return 2L * low;
+        }
+        final int nextBucket = SmallFloat.byte4ToInt((byte) (unsigned + 1));
+        return (long) low + nextBucket - 1;
+    }
+
+    /** Lengths below this value are stored exactly in a norm; longer ones are rounded down to a bucket. */
+    private static final int EXACT_NORM_LENGTHS = 24;
+
+    /**
+     * Counts a segment's {@code [docCount, sumTotalTermFreq, sumDocFreq]} for a field exactly, from each term's
+     * postings intersected with the visible documents.
+     */
+    private static long[] countFromPostings(LeafReaderContext ctx, BitSet visible, Terms terms) throws IOException {
         final FixedBitSet docsWithField = new FixedBitSet(ctx.reader().maxDoc());
         final long visibleCost = visible.approximateCardinality();
         final TermsEnum termsEnum = terms.iterator();
