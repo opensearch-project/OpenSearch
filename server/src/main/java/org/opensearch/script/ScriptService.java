@@ -176,8 +176,19 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Enables or disables an individual script language, e.g. {@code script.engines.painless.enabled: false}.
+     * All languages are enabled by default.
+     */
+    public static final Setting.AffixSetting<Boolean> SCRIPT_ENGINE_ENABLED_SETTING = Setting.affixKeySetting(
+        "script.engines.",
+        "enabled",
+        key -> Setting.boolSetting(key, true, Property.NodeScope)
+    );
+
     private final Set<String> typesAllowed;
     private final Set<String> contextsAllowed;
+    private final Set<String> languagesDisabled;
 
     private final Map<String, ScriptEngine> engines;
     private final Map<String, ScriptContext<?>> contexts;
@@ -192,6 +203,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
         this.engines = Objects.requireNonNull(engines);
         this.contexts = Objects.requireNonNull(contexts);
+        this.languagesDisabled = buildDisabledLanguages(settings, engines);
 
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
             throw new IllegalArgumentException(
@@ -400,6 +412,47 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         IOUtils.close(engines.values());
     }
 
+    private static Set<String> buildDisabledLanguages(Settings settings, Map<String, ScriptEngine> engines) {
+        Set<String> disabled = new HashSet<>();
+        for (String lang : SCRIPT_ENGINE_ENABLED_SETTING.getNamespaces(settings)) {
+            Setting<Boolean> setting = SCRIPT_ENGINE_ENABLED_SETTING.getConcreteSettingForNamespace(lang);
+            if (engines.containsKey(lang) == false) {
+                throw new IllegalArgumentException(
+                    "unknown script language ["
+                        + lang
+                        + "] in setting ["
+                        + setting.getKey()
+                        + "]; installed languages are "
+                        + engines.keySet()
+                );
+            }
+            if (setting.get(settings) == false) {
+                disabled.add(lang);
+            }
+        }
+        return Collections.unmodifiableSet(disabled);
+    }
+
+    /**
+     * Returns whether the given script language is enabled by {@link #SCRIPT_ENGINE_ENABLED_SETTING}. Unlike
+     * {@link #isLangSupported(String)}, this does not check whether the language is installed.
+     */
+    public boolean isLangEnabled(String lang) {
+        return languagesDisabled.contains(lang) == false;
+    }
+
+    private void checkLangEnabled(String lang) {
+        if (isLangEnabled(lang) == false) {
+            throw new IllegalArgumentException(
+                "script language ["
+                    + lang
+                    + "] is disabled by ["
+                    + SCRIPT_ENGINE_ENABLED_SETTING.getConcreteSettingForNamespace(lang).getKey()
+                    + "]"
+            );
+        }
+    }
+
     private ScriptEngine getEngine(String lang) {
         ScriptEngine scriptEngine = engines.get(lang);
         if (scriptEngine == null) {
@@ -489,6 +542,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         }
 
         ScriptEngine scriptEngine = getEngine(lang);
+        checkLangEnabled(lang);
 
         if (isTypeEnabled(type) == false) {
             throw new IllegalArgumentException("cannot execute [" + type + "] scripts");
@@ -596,6 +650,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         if (isLangSupported(source.getLang()) == false) {
             throw new IllegalArgumentException("unable to put stored script with unsupported lang [" + source.getLang() + "]");
         }
+        checkLangEnabled(source.getLang());
 
         try {
             ScriptEngine scriptEngine = getEngine(source.getLang());
