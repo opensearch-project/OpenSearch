@@ -69,8 +69,8 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
      * {@link #NO_STATS} scores without corpus statistics: every hit takes a constant score.
      * <p>
      * {@link #FILTERED_STATS} scores with BM25 over collection and term statistics computed only over the documents
-     * the alias admits, so relevance ordering is kept. It costs one pass over the admitted documents per segment the
-     * first time that segment is queried, and the result is cached.
+     * the alias admits, so relevance ordering is kept. The statistics are counted from each queried field's postings,
+     * intersected with the admitted documents, once per field for each request.
      *
      * @opensearch.experimental
      */

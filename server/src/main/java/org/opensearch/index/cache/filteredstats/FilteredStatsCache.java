@@ -14,6 +14,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.AbstractIndexComponent;
@@ -27,6 +28,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 /**
  * One index's view of the visible-subset statistics used when relevance statistics are scoped to a filter.
@@ -65,9 +67,24 @@ public final class FilteredStatsCache extends AbstractIndexComponent implements 
      * @param nodeCache the node-level cache entries are stored in
      */
     public FilteredStatsCache(IndexSettings indexSettings, IndicesFilteredStatsCache nodeCache) {
+        this(indexSettings, nodeCache, () -> null);
+    }
+
+    /**
+     * Creates the cache of an index that may have nested mappings.
+     *
+     * @param indexSettings the index settings
+     * @param nodeCache the node-level cache that holds the entries
+     * @param nestedParents the root documents of a nested mapping, or {@code null} from the supplier when there is none
+     */
+    public FilteredStatsCache(IndexSettings indexSettings, IndicesFilteredStatsCache nodeCache, Supplier<BitSetProducer> nestedParents) {
         super(indexSettings);
         this.nodeCache = Objects.requireNonNull(nodeCache);
+        this.nestedParents = Objects.requireNonNull(nestedParents);
     }
+
+    // The same visible documents as the query path builds, so a warmed entry serves a nested query correctly.
+    private final Supplier<BitSetProducer> nestedParents;
 
     /**
      * Returns the visible-subset statistics of a segment under a filter, building the visible bitset on a miss. Hold the
@@ -104,12 +121,13 @@ public final class FilteredStatsCache extends AbstractIndexComponent implements 
         return segment(ctx, filter, () -> computeVisibleBitSetFor(ctx, filter)).term(term, compute);
     }
 
-    private static BitSet computeVisibleBitSetFor(LeafReaderContext ctx, Query filter) throws IOException {
+    private BitSet computeVisibleBitSetFor(LeafReaderContext ctx, Query filter) throws IOException {
         final IndexSearcher searcher = new IndexSearcher(ctx.parent);
         searcher.setQueryCache(null);
-        return VisibleSubsetStatistics.computeVisibleBitSet(
+        return VisibleSubsetStatistics.computeVisibleDocs(
             searcher.createWeight(searcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f),
-            ctx
+            ctx,
+            nestedParents.get()
         );
     }
 
@@ -150,7 +168,11 @@ public final class FilteredStatsCache extends AbstractIndexComponent implements 
             final Query filter = entry.getKey();
             try {
                 final Weight weight = searcher.createWeight(searcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
-                final FilteredSegmentStats segment = segment(ctx, filter, () -> VisibleSubsetStatistics.computeVisibleBitSet(weight, ctx));
+                final FilteredSegmentStats segment = segment(
+                    ctx,
+                    filter,
+                    () -> VisibleSubsetStatistics.computeVisibleDocs(weight, ctx, nestedParents.get())
+                );
                 final BitSet visible = segment.visibleDocs();
                 if (visible == null) {
                     continue;

@@ -8,6 +8,8 @@
 
 package org.opensearch.search.internal;
 
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PostingsEnum;
@@ -19,12 +21,14 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SmallFloat;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.settings.Setting;
 
@@ -44,9 +48,9 @@ public final class VisibleSubsetStatistics {
      * Optional ceiling on how many admitted documents {@code filtered_stats} will compute statistics over, above which
      * a request falls back to the {@code no_stats} constant-score behaviour.
      * <p>
-     * Unlimited by default, and a negative value is also unlimited. The first query on a segment costs one pass over
-     * the documents the view admits, which is proportional to the view rather than to the index, so a ceiling is a
-     * capacity choice for an operator who would rather lose relevance ordering than pay that cost. Defaulting it to a
+     * Unlimited by default, and a negative value is also unlimited. Scoped statistics cost a bitset of the admitted
+     * documents per segment and a walk of each queried field's postings against it, so a ceiling is a capacity choice
+     * for an operator who would rather lose relevance ordering than pay that cost. Defaulting it to a
      * finite value would mean a large view quietly scoring without relevance ordering: the request succeeds, the
      * documents are right, and only the ordering is wrong, which is harder to notice than the cost it avoids.
      */
@@ -84,8 +88,50 @@ public final class VisibleSubsetStatistics {
     }
 
     /**
+     * Builds a segment's visible documents: those the filter admits and, under a nested mapping, the children of the
+     * admitted root documents.
+     *
+     * @param weight the filter's weight
+     * @param ctx the segment
+     * @param parents the root documents, or {@code null} when the index has no nested mapping
+     * @return the visible documents, or {@code null} when there are none
+     * @throws IOException if the segment cannot be read
+     */
+    public static BitSet computeVisibleDocs(Weight weight, LeafReaderContext ctx, @Nullable BitSetProducer parents) throws IOException {
+        final BitSet visible = computeVisibleBitSet(weight, ctx);
+        return parents == null || visible == null ? visible : withNestedChildren(visible, parents.getBitSet(ctx));
+    }
+
+    /**
+     * Makes a nested child visible exactly when its root document is, as in an index that held only the visible root
+     * documents and their children. A child that the filter matched on its own is dropped unless its root is visible.
+     *
+     * @param visible the documents the filter admits in this segment
+     * @param parents the root (non-nested) documents of this segment
+     * @return the visible root documents and their nested children, or {@code null} when there are none
+     */
+    public static BitSet withNestedChildren(BitSet visible, BitSet parents) {
+        if (parents == null) {
+            return null;
+        }
+        final FixedBitSet expanded = new FixedBitSet(visible.length());
+        final BitSetIterator roots = new BitSetIterator(visible, visible.approximateCardinality());
+        for (int doc = roots.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = roots.nextDoc()) {
+            if (parents.get(doc)) {
+                // A block is its children followed by the root, so the children run from just after the previous root.
+                final int firstChild = doc == 0 ? 0 : parents.prevSetBit(doc - 1) + 1;
+                expanded.set(firstChild, doc + 1);
+            }
+        }
+        return expanded.cardinality() > 0 ? expanded : null;
+    }
+
+    /**
      * Computes a single segment's {@code [docCount, sumTotalTermFreq, sumDocFreq]} contribution for a field over the
-     * visible subset. Costs one pass over the visible documents when the field has norms.
+     * visible subset, reading only the visible documents. With norms and term frequencies, the field length comes
+     * from norms in one pass over the visible documents: a norm stores a length of 24 tokens or more as a bucket, so
+     * each norm counts as the middle of its bucket, and tokens that share a position are not in it. Otherwise the
+     * values are counted exactly from the postings.
      */
     public static long[] computeFieldContribution(LeafReaderContext ctx, BitSet visible, String field) throws IOException {
         final Terms terms = ctx.reader().terms(field);
@@ -93,63 +139,70 @@ public final class VisibleSubsetStatistics {
             return new long[] { 0, 0, 0 };
         }
         final NumericDocValues norms = ctx.reader().getNormValues(field);
-        if (norms == null) {
-            // Field indexed without norms: there is no per-document length to read, so fall back to the exact
-            // (but O(all postings in the field)) walk below.
-            return computeFieldContributionByTermWalk(ctx, visible, terms);
+        final FieldInfo info = ctx.reader().getFieldInfos().fieldInfo(field);
+        if (norms == null || info == null || info.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) < 0) {
+            // Without norms there is no length to read, and without frequencies Lucene's sumTotalTermFreq is the
+            // number of postings, which norms do not hold.
+            return countFromPostings(ctx, visible, terms);
         }
-
-        // Fast path. BM25 reads exactly two values off CollectionStatistics -- docCount, and
-        // sumTotalTermFreq only to derive avgFieldLength = sumTotalTermFreq / docCount. Neither needs the
-        // term dictionary: norms carry one length value per document, so a single pass over the visible
-        // documents yields both in O(visible docs) instead of O(all postings in the field).
         long docCount = 0;
-        long sumTotalTermFreq = 0;
+        long doubledLength = 0;
         final BitSetIterator visibleDocs = new BitSetIterator(visible, visible.approximateCardinality());
         for (int doc = visibleDocs.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = visibleDocs.nextDoc()) {
             if (norms.advanceExact(doc)) {
                 docCount++;
-                // Norms encode field length the way the similarity wrote them; BM25 uses SmallFloat.intToByte4,
-                // and its own per-document length normalization decodes the same lossy value. A similarity that
-                // encodes something else would make avgFieldLength meaningless here -- see the class javadoc.
-                sumTotalTermFreq += SmallFloat.byte4ToInt((byte) norms.longValue());
+                doubledLength += normLengthTimesTwo((byte) norms.longValue());
             }
         }
         if (docCount == 0) {
             return new long[] { 0, 0, 0 };
         }
-
-        // sumDocFreq is never read by BM25, and computing it exactly is what forces a full term-dictionary
-        // walk. Estimate it by scaling the shard-wide value (free field metadata) by the visible fraction,
-        // then clamp to Lucene's CollectionStatistics invariants.
-        final long shardDocCount = terms.getDocCount();
-        long sumDocFreq = shardDocCount <= 0 ? docCount : (long) ((double) terms.getSumDocFreq() * docCount / shardDocCount);
-        sumDocFreq = Math.min(Math.max(sumDocFreq, docCount), Math.max(sumTotalTermFreq, docCount));
-        sumTotalTermFreq = Math.max(sumTotalTermFreq, sumDocFreq);
-        return new long[] { docCount, sumTotalTermFreq, sumDocFreq };
+        final long sumTotalTermFreq = Math.max((doubledLength + 1) / 2, docCount);
+        // BM25 does not read sumDocFreq, and counting it needs the postings, so report the smallest value that
+        // CollectionStatistics allows, from the visible documents alone.
+        return new long[] { docCount, sumTotalTermFreq, docCount };
     }
 
     /**
-     * Exact contribution via a full walk of the field's term dictionary. Correct for any similarity, but costs
-     * O(all postings in the field) -- retained only for fields indexed without norms.
+     * Returns twice the middle of the field lengths a BM25 norm stands for, so that a sum stays an integer.
+     *
+     * @param norm the norm as Lucene stores it
+     * @return twice the middle length of the norm's bucket; twice the length itself below 24 tokens
      */
-    private static long[] computeFieldContributionByTermWalk(LeafReaderContext ctx, BitSet visible, Terms terms) throws IOException {
-        final TermsEnum termsEnum = terms.iterator();
+    static long normLengthTimesTwo(byte norm) {
+        final int low = SmallFloat.byte4ToInt(norm);
+        final int unsigned = Byte.toUnsignedInt(norm);
+        if (unsigned < EXACT_NORM_LENGTHS || unsigned == 255) {
+            return 2L * low;
+        }
+        final int nextBucket = SmallFloat.byte4ToInt((byte) (unsigned + 1));
+        return (long) low + nextBucket - 1;
+    }
+
+    /** Lengths below this value are stored exactly in a norm; longer ones are rounded down to a bucket. */
+    private static final int EXACT_NORM_LENGTHS = 24;
+
+    /**
+     * Counts a segment's {@code [docCount, sumTotalTermFreq, sumDocFreq]} for a field exactly, from each term's
+     * postings intersected with the visible documents.
+     */
+    private static long[] countFromPostings(LeafReaderContext ctx, BitSet visible, Terms terms) throws IOException {
         final FixedBitSet docsWithField = new FixedBitSet(ctx.reader().maxDoc());
+        final long visibleCost = visible.approximateCardinality();
+        final TermsEnum termsEnum = terms.iterator();
         long sumTotalTermFreq = 0;
         long sumDocFreq = 0;
         PostingsEnum postings = null;
         while (termsEnum.next() != null) {
             postings = termsEnum.postings(postings, PostingsEnum.FREQS);
-            long termDocFreq = 0;
-            for (int doc = postings.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = postings.nextDoc()) {
-                if (visible.get(doc)) {
-                    termDocFreq++;
-                    sumTotalTermFreq += postings.freq();
-                    docsWithField.set(doc);
-                }
+            final DocIdSetIterator visibleAndTerm = ConjunctionUtils.intersectIterators(
+                Arrays.asList(new BitSetIterator(visible, visibleCost), postings)
+            );
+            for (int doc = visibleAndTerm.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = visibleAndTerm.nextDoc()) {
+                sumDocFreq++;
+                sumTotalTermFreq += postings.freq();
+                docsWithField.set(doc);
             }
-            sumDocFreq += termDocFreq;
         }
         return new long[] { docsWithField.cardinality(), sumTotalTermFreq, sumDocFreq };
     }

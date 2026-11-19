@@ -21,6 +21,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.Version;
@@ -67,6 +68,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
@@ -418,5 +420,47 @@ public class DefaultSearchContextFilteredStatisticsTests extends OpenSearchTestC
         );
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         return context;
+    }
+
+    public void testOverBudgetConstantScoreQueryScoresEveryClauseWithoutStatistics() throws IOException {
+        try (DefaultSearchContext context = context(null, 0)) {
+            context.parsedQuery(new ParsedQuery(new ConstantScoreQuery(new TermQuery(new Term("body", "alpha")))));
+            context.visibleSubsetFilter(RESTRICTION);
+            context.preProcess(false);
+            assertFalse(context.useFilteredStatistics());
+            // Rescore and inner hits score through the searcher's similarity, so it must read no statistics either.
+            assertThat(context.searcher().getSimilarity(), instanceOf(BooleanSimilarity.class));
+        }
+    }
+
+    public void testARestrictionDeclaredAfterStatisticsAreComputedIsRejected() throws IOException {
+        try (DefaultSearchContext context = context(null, -1)) {
+            context.visibleSubsetFilter(RESTRICTION);
+            context.preProcess(false);
+            context.searcher().collectionStatistics("body");
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> context.visibleSubsetFilter(new TermQuery(new Term("dept", "other")))
+            );
+            assertThat(e.getMessage(), containsString("before filtered statistics are computed"));
+        }
+    }
+
+    public void testTheCeilingAdmitsAViewOfExactlyItsSize() throws IOException {
+        // The ceiling compares against the filter's cost, which for a term is its document frequency.
+        long matching;
+        try (DefaultSearchContext probe = context(null, -1)) {
+            matching = probe.searcher().getIndexReader().docFreq(new Term("dept", "visible"));
+        }
+        try (DefaultSearchContext atCeiling = context(null, matching)) {
+            atCeiling.visibleSubsetFilter(RESTRICTION);
+            atCeiling.preProcess(false);
+            assertTrue(atCeiling.useFilteredStatistics());
+        }
+        try (DefaultSearchContext belowCeiling = context(null, matching - 1)) {
+            belowCeiling.visibleSubsetFilter(RESTRICTION);
+            belowCeiling.preProcess(false);
+            assertFalse(belowCeiling.useFilteredStatistics());
+        }
     }
 }

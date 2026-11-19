@@ -8,6 +8,7 @@
 
 package org.opensearch.aliases;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.opensearch.action.bulk.BulkRequestBuilder;
@@ -17,10 +18,14 @@ import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.search.profile.ProfileResult;
+import org.opensearch.search.profile.ProfileShardResult;
+import org.opensearch.search.profile.query.QueryProfileShardResult;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -33,10 +38,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
  * ({@code scoring_mode: unfiltered_stats}) the query is scored over every document in the
  * shard before the alias filter is applied, so a term's score reflects documents the alias excludes.
  * <p>
- * With {@code scoring_mode: no_stats} the alias filter is applied before scoring, so collection
- * statistics reflect only the documents the alias admits. A term confined to excluded documents then
- * scores the same as a term that appears nowhere. This test asserts exactly that difference, live:
- * no_stats makes relevance statistics a function of the visible subset alone.
+ * With {@code scoring_mode: no_stats} every hit takes a constant score, so no corpus statistics are read. With
+ * {@code scoring_mode: filtered_stats} the statistics are counted over only the documents the alias admits, so a
+ * term confined to excluded documents scores the same as a term that appears nowhere, and scores equal those of a
+ * physically filtered index.
  */
 public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
 
@@ -192,14 +197,9 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * A3/A4 correctness (filtered_stats mode): the BM25 score a no_stats alias produces with
-     * filtered statistics must equal the score of the SAME query against a physically-filtered index
-     * containing only the visible docs. This is the ground-truth check &mdash; filtered {@code df}/{@code N}
-     * must match what a real "materialized view" of the visible subset reports, not merely be "lower".
-     * <p>
-     * Uses {@code scoring_mode: filtered_stats} on the alias (the first-class scoring mode; the conservative
-     * gate that keeps constant_score the default). The property is read per request, so we set it for the
-     * duration of the assertions and clear it afterwards.
+     * The BM25 score through a {@code filtered_stats} alias must equal the score of the same query against a
+     * physically filtered index that holds only the visible documents: the same {@code N} and {@code df}, not
+     * merely lower ones.
      */
     public void testFilteredStatisticsMatchPhysicallyFilteredIndex() throws Exception {
         assertFilteredStatisticsMatchPhysicallyFilteredIndex(200);   // 21 visible of 221 documents
@@ -313,8 +313,8 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
      * have hits this, so it needs a test rather than only the equivalence assertions above.
      */
     public void testTermPresentInIndexButNotInViewReturnsNoHits() throws Exception {
-        // Own index, not the shared one: this test writes thousands of documents and toggles the same global
-        // filtered_stats property as its neighbours, so keeping its corpus separate stops it perturbing them.
+        // Own index, not the shared one: this test writes thousands of documents, so keeping its corpus separate
+        // stops it perturbing its neighbours.
         final String index = "patients_view_absent";
         assertAcked(
             prepareCreate(index).setMapping("dept", "type=keyword", "content", "type=text")
@@ -329,7 +329,7 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
                         .index(index)
                         .alias("fs_absent")
                         .filter(QueryBuilders.termQuery("dept", VISIBLE_DEPT))
-                        .scoringMode("no_stats")
+                        .scoringMode("filtered_stats")
                 )
         );
         // hidden_only_term is planted exclusively in filtered-out documents, so it is present in the index and
@@ -568,5 +568,97 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
         Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
         assertEquals("no_stats", metadata.index("created_scoped").getAliases().get("created_view").scoringMode());
         assertEquals("no_stats", metadata.index("templated_1").getAliases().get("templated_view").scoringMode());
+    }
+
+    /**
+     * A nested child is visible exactly when its root document is, so a nested query through a {@code filtered_stats}
+     * alias must score as it does on a physically filtered index holding the visible documents and their children.
+     */
+    public void testNestedQueryScoresLikeAPhysicallyFilteredIndex() throws Exception {
+        final String mapping = "{\"properties\":{\"dept\":{\"type\":\"keyword\"},"
+            + "\"notes\":{\"type\":\"nested\",\"properties\":{\"text\":{\"type\":\"text\"}}}}}";
+        for (String index : List.of("nested_all", "nested_visible_only")) {
+            assertAcked(
+                prepareCreate(index).setMapping(mapping)
+                    .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+            );
+        }
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 30; i++) {
+            boolean visible = i % 3 == 0;
+            String note = visible ? "routine check " + i : "rare_finding rare_finding note " + i;
+            for (String index : visible ? List.of("nested_all", "nested_visible_only") : List.of("nested_all")) {
+                bulk.add(
+                    client().prepareIndex(index)
+                        .setId("d" + i)
+                        .setSource(
+                            Map.of(
+                                "dept",
+                                visible ? VISIBLE_DEPT : RESTRICTED_DEPT,
+                                "notes",
+                                List.of(Map.of("text", note), Map.of("text", "rare_finding once " + i))
+                            )
+                        )
+                );
+            }
+        }
+        assertFalse(bulk.get().hasFailures());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareAliases()
+                .addAliasAction(
+                    AliasActions.add()
+                        .index("nested_all")
+                        .alias("nested_view")
+                        .filter(QueryBuilders.termQuery("dept", VISIBLE_DEPT))
+                        .scoringMode("filtered_stats")
+                )
+        );
+        for (SearchType searchType : List.of(SearchType.QUERY_THEN_FETCH, SearchType.DFS_QUERY_THEN_FETCH)) {
+            float alias = nestedTopScore("nested_view", searchType);
+            float physical = nestedTopScore("nested_visible_only", searchType);
+            assertTrue("real BM25, not a constant", alias != 1.0f);
+            assertEquals(searchType + ": nested scores must equal the physically filtered index", physical, alias, 0.0001f);
+        }
+    }
+
+    private float nestedTopScore(String target, SearchType searchType) {
+        SearchResponse resp = client().prepareSearch(target)
+            .setSearchType(searchType)
+            .setQuery(QueryBuilders.nestedQuery("notes", QueryBuilders.matchQuery("notes.text", "rare_finding"), ScoreMode.Max))
+            .setSize(1)
+            .get();
+        assertEquals(0, resp.getFailedShards());
+        return resp.getHits().getHits()[0].getScore();
+    }
+
+    /** Scoping the statistics must not add the visible-subset filter to the profile a caller gets back. */
+    public void testProfileShowsOnlyTheQueryTree() throws Exception {
+        buildCorpus();
+        addAlias("fs_profiled", "filtered_stats");
+        SearchResponse resp = client().prepareSearch("fs_profiled")
+            .setQuery(QueryBuilders.matchQuery("content", RESTRICTED_TERM))
+            .setProfile(true)
+            .get();
+        assertEquals(0, resp.getFailedShards());
+        for (ProfileShardResult shard : resp.getProfileResults().values()) {
+            for (QueryProfileShardResult search : shard.getQueryProfileResults()) {
+                assertEquals("one root: the query itself", 1, search.getQueryResults().size());
+                assertEquals(
+                    "the alias filter appears once, as a clause of the query",
+                    1,
+                    countDescriptions(search.getQueryResults().get(0), "dept:" + VISIBLE_DEPT)
+                );
+            }
+        }
+    }
+
+    private static int countDescriptions(ProfileResult result, String description) {
+        int count = description.equals(result.getLuceneDescription()) ? 1 : 0;
+        for (ProfileResult child : result.getProfiledChildren()) {
+            count += countDescriptions(child, description);
+        }
+        return count;
     }
 }

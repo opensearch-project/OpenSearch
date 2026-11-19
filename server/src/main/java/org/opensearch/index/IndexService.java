@@ -37,6 +37,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
@@ -50,6 +51,7 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -332,7 +334,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.bitsetFilterCache = new BitsetFilterCache(indexSettings, indicesBitsetFilterCache, new BitsetCacheListener(this));
             FilteredStatsCache filteredStatsCache = indicesFilteredStatsCache == null
                 ? null
-                : new FilteredStatsCache(indexSettings, indicesFilteredStatsCache);
+                : new FilteredStatsCache(indexSettings, indicesFilteredStatsCache, nestedParents(mapperService, bitsetFilterCache));
             this.warmer = new IndexWarmer(
                 threadPool,
                 indexFieldData,
@@ -543,6 +545,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public boolean hasShard(int shardId) {
         return shards.containsKey(shardId);
+    }
+
+    /** The root documents of the index's nested mapping, or {@code null} from the supplier when it has none. */
+    private static Supplier<BitSetProducer> nestedParents(MapperService mapperService, BitsetFilterCache bitsetFilterCache) {
+        return () -> mapperService.hasNested() ? bitsetFilterCache.getBitSetProducer(Queries.newNonNestedFilter()) : null;
     }
 
     /**

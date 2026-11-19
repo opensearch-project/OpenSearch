@@ -19,6 +19,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
@@ -289,5 +290,63 @@ public class FilteredStatsCacheTests extends OpenSearchTestCase {
         // Closing the reader closes the segment core, which fires the eviction listener.
         assertEquals("closing the segment must evict its cached entry and return its accounted bytes", 0L, cache.ramBytesUsed());
         dir.close();
+    }
+
+    /** The cache builds the same visible documents as the query path, nested children included, on a lookup and a warm. */
+    public void testBothBuildsIncludeTheNestedChildrenOfVisibleRoots() throws IOException {
+        final Query filter = new TermQuery(new Term("dept", "cardiology"));
+        final Query roots = new TermQuery(new Term("type", "root"));
+        try (Directory used = nestedSegment(); Directory refreshed = nestedSegment()) {
+            final FilteredStatsCache cache = nestedCache(roots);
+            try (DirectoryReader reader = DirectoryReader.open(used)) {
+                final LeafReaderContext leaf = reader.leaves().get(0);
+                // A lookup that builds the bitset itself, as a query records the filter as in use.
+                cache.getOrComputeFieldContribution(leaf, filter, "dept", () -> new long[] { 1, 1, 1 });
+                assertVisibleRootAndItsChild(
+                    cache.getOrComputeVisibleBitSet(leaf, filter, () -> { throw new AssertionError("the lookup above built it"); })
+                );
+            }
+            try (DirectoryReader reader = DirectoryReader.open(refreshed)) {
+                final LeafReaderContext leaf = reader.leaves().get(0);
+                final IndexSearcher searcher = new IndexSearcher(reader);
+                searcher.setQueryCache(null);
+                cache.warm(searcher, leaf);
+                assertVisibleRootAndItsChild(
+                    cache.getOrComputeVisibleBitSet(leaf, filter, () -> { throw new AssertionError("warming built it"); })
+                );
+            }
+        }
+    }
+
+    private static FilteredStatsCache nestedCache(Query roots) {
+        return new FilteredStatsCache(
+            IndexSettingsModule.newIndexSettings("idx", Settings.EMPTY),
+            new IndicesFilteredStatsCache(Settings.EMPTY, new NoopCircuitBreaker(CircuitBreaker.FIELDDATA)),
+            () -> new QueryBitSetProducer(roots)
+        );
+    }
+
+    /** One segment of two blocks: a child then its root, for a visible root and then a hidden one. */
+    private static Directory nestedSegment() throws IOException {
+        final Directory dir = newDirectory();
+        try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            for (String dept : List.of("cardiology", "oncology")) {
+                final Document child = new Document();
+                child.add(new StringField("type", "child", Field.Store.NO));
+                final Document root = new Document();
+                root.add(new StringField("type", "root", Field.Store.NO));
+                root.add(new StringField("dept", dept, Field.Store.NO));
+                writer.addDocuments(List.of(child, root));
+            }
+            writer.forceMerge(1);
+        }
+        return dir;
+    }
+
+    private static void assertVisibleRootAndItsChild(BitSet visible) {
+        assertTrue("the child of the visible root", visible.get(0));
+        assertTrue("the visible root", visible.get(1));
+        assertFalse("the child of the hidden root", visible.get(2));
+        assertFalse("the hidden root", visible.get(3));
     }
 }

@@ -320,4 +320,37 @@ public class ContextIndexSearcherFilteredStatisticsTests extends OpenSearchTestC
         doc.add(new TextField("body", body, Field.Store.NO));
         return doc;
     }
+
+    public void testAStatisticMissingFromTheDfsIsScopedNotWholeShard() throws IOException {
+        ContextIndexSearcher searcher = searcher(contextScopedTo(VISIBLE, null));
+        // A query phase whose dfs collected nothing, as for a must_not clause the dfs phase cannot extract.
+        searcher.setAggregatedDfs(new AggregatedDfs(Map.of(), Map.of(), scopedReader.maxDoc()));
+        IndexSearcher reference = new IndexSearcher(referenceReader);
+        assertEquals(reference.collectionStatistics("body").docCount(), searcher.collectionStatistics("body").docCount());
+        Term term = new Term("body", "alpha");
+        TermStatistics expected = reference.termStatistics(term, referenceReader.docFreq(term), referenceReader.totalTermFreq(term));
+        assertEquals(
+            expected.docFreq(),
+            searcher.termStatistics(term, scopedReader.docFreq(term), scopedReader.totalTermFreq(term)).docFreq()
+        );
+    }
+
+    public void testABuildRefusedOnALaterSegmentReleasesTheEarlierOnes() {
+        final long firstSegment = VisibleSubsetStatistics.visibleBitSetBytes(scopedReader.leaves().get(0).reader().maxDoc());
+        final CircuitBreakerService breakers = breakerService(
+            Settings.builder()
+                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), (firstSegment + 1) + "b")
+                .build()
+        );
+        final List<Releasable> releasables = new ArrayList<>();
+        final SearchContext context = chargedContext(breakers, releasables);
+        expectThrows(CircuitBreakingException.class, () -> searcher(context).collectionStatistics("body"));
+        assertEquals(
+            "the first segment was charged before the refusal",
+            firstSegment,
+            breakers.getBreaker(CircuitBreaker.REQUEST).getUsed()
+        );
+        Releasables.close(releasables);
+        assertEquals("closing the context releases what was charged", 0L, breakers.getBreaker(CircuitBreaker.REQUEST).getUsed());
+    }
 }
