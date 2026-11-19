@@ -43,6 +43,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.search.dfs.AggregatedDfs;
+import org.opensearch.search.profile.query.QueryProfiler;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -352,5 +353,17 @@ public class ContextIndexSearcherFilteredStatisticsTests extends OpenSearchTestC
         );
         Releasables.close(releasables);
         assertEquals("closing the context releases what was charged", 0L, breakers.getBreaker(CircuitBreaker.REQUEST).getUsed());
+    }
+
+    /** Building the visible documents rewrites and weighs the filter outside the profiler, so a profile shows neither. */
+    public void testScopingTheStatisticsRecordsNothingOnTheProfiler() throws IOException {
+        ContextIndexSearcher searcher = searcher(contextScopedTo(VISIBLE, null));
+        QueryProfiler profiler = new QueryProfiler();
+        searcher.setProfiler(profiler);
+        searcher.collectionStatistics("body");
+        Term term = new Term("body", "alpha");
+        searcher.termStatistics(term, scopedReader.docFreq(term), scopedReader.totalTermFreq(term));
+        assertEquals("no rewrite was profiled", 0L, profiler.getRewriteTime());
+        assertTrue("no weight was profiled", profiler.getTree().isEmpty());
     }
 }
