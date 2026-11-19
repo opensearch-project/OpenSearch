@@ -33,9 +33,14 @@ apply plugin: 'opensearch.build'
 
 dependencies {
   compileOnly project(':distribution:tools:java-version-checker')
+  testCompileOnly project(':distribution:tools:java-version-checker')
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testImplementation 'com.google.jimfs:jimfs:1.3.2'
+  testRuntimeOnly("com.google.guava:guava:${versions.guava}") {
+    transitive = false
+  }
 }
 
 base {

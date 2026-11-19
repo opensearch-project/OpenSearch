@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HexFormat;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
@@ -82,6 +83,34 @@ final class JavaSecurityFile {
      * @throws IOException if the JDK's file or the FIPS file cannot be read, or the file cannot be written
      */
     public static void main(final String[] args) throws IOException {
+        final Optional<Path> file = generate(
+            args,
+            System.getenv("OPENSEARCH_JAVA_OPTS"),
+            System.getenv("OPENSEARCH_TMPDIR"),
+            System.getProperty("java.home"),
+            System.getProperty("java.io.tmpdir")
+        );
+        file.ifPresent(path -> Launchers.outPrintln(path.toString()));
+    }
+
+    /**
+     * Generates the file from the {@code java.security} of the JDK in {@code javaHome} and writes it. Only {@link #main} reads the
+     * environment and the system properties, everything below depends on its arguments alone.
+     *
+     * @param args the config directory, and the mode ({@value #FIPS_MODE} or {@value #DEFAULT_MODE})
+     * @param javaOpts the value of {@code OPENSEARCH_JAVA_OPTS}, may be {@code null}
+     * @param opensearchTmpdir the value of {@code OPENSEARCH_TMPDIR}, may be {@code null}
+     * @param javaHome the value of {@code java.home}, the JDK that will run OpenSearch
+     * @param javaIoTmpdir the value of {@code java.io.tmpdir}, used when {@code opensearchTmpdir} is not set
+     * @return the written file, or nothing when {@code javaOpts} sets {@code java.security.properties}
+     */
+    static Optional<Path> generate(
+        final String[] args,
+        final String javaOpts,
+        final String opensearchTmpdir,
+        final String javaHome,
+        final String javaIoTmpdir
+    ) throws IOException {
         if (args.length != 2) {
             throw new IllegalArgumentException(
                 String.format(Locale.ROOT, "expected two arguments [config directory, mode] but was %s.", Arrays.toString(args))
@@ -89,10 +118,10 @@ final class JavaSecurityFile {
         }
         final Path configDirectory = configDirectory(args[0]);
         final String mode = args[1];
-        if (isConfiguredByUser(System.getenv("OPENSEARCH_JAVA_OPTS"))) {
-            return;
+        if (isConfiguredByUser(javaOpts)) {
+            return Optional.empty();
         }
-        final Path jdkFile = Paths.get(System.getProperty("java.home"), "conf", "security", "java.security");
+        final Path jdkFile = Paths.get(javaHome, "conf", "security", "java.security");
         final Properties jdkProperties = load(jdkFile);
 
         final Properties properties;
@@ -116,9 +145,8 @@ final class JavaSecurityFile {
         }
 
         final byte[] content = render(properties, sources);
-        final Path base = temporaryDirectory(System.getenv("OPENSEARCH_TMPDIR"), System.getProperty("java.io.tmpdir"));
-        final Path file = write(configDirectory, base, content);
-        Launchers.outPrintln(file.toString());
+        final Path base = temporaryDirectory(opensearchTmpdir, javaIoTmpdir);
+        return Optional.of(write(configDirectory, base, content));
     }
 
     /**
@@ -354,16 +382,14 @@ final class JavaSecurityFile {
         }
 
         final Path directory = base.resolve(DIRECTORY_PREFIX + userSuffix);
-        if (Files.notExists(directory, LinkOption.NOFOLLOW_LINKS)) {
-            try {
-                if (hasPosixPermissions) {
-                    Files.createDirectory(directory, PosixFilePermissions.asFileAttribute(OWNER_ONLY));
-                } else {
-                    Files.createDirectory(directory);
-                }
-            } catch (final FileAlreadyExistsException e) {
-                // another launcher created it concurrently; it is verified below like any existing directory
+        try {
+            if (hasPosixPermissions) {
+                Files.createDirectory(directory, PosixFilePermissions.asFileAttribute(OWNER_ONLY));
+            } else {
+                Files.createDirectory(directory);
             }
+        } catch (final FileAlreadyExistsException e) {
+            // an earlier start or a concurrent launcher created it, or something else is in its place; verified below
         }
         verifyPrivate(directory, currentUser, hasPosixPermissions);
         return directory;
