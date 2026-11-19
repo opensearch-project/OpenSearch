@@ -63,7 +63,7 @@ public class ContextAwareGroupingFieldMapper extends ParametrizedFieldMapper {
             final Script s = builder.script.getValue();
             if (s != null) {
                 ContextAwareGroupingScript.Factory factory = context.scriptService()
-                    .compile(builder.script.get(), ContextAwareGroupingScript.CONTEXT);
+                    .compileIndexLevelScript(builder.script.get(), ContextAwareGroupingScript.CONTEXT);
                 builder.compiledScript = factory.newInstance();
             }
             return builder;
@@ -178,6 +178,11 @@ public class ContextAwareGroupingFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
         throw new MapperParsingException("context_aware_grouping cannot be ingested in the document");
+    }
+
+    /** The grouping script as defined in the mapping, or {@code null} if none. */
+    public Script script() {
+        return script;
     }
 
     public ContextAwareGroupingFieldType fieldType() {

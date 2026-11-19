@@ -54,6 +54,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.INGEST;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -199,6 +200,70 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
         Map<String, Object> source = client().prepareGet("index", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
+    }
+
+    public void testScriptLanguageDisabledAndReEnabled() throws Exception {
+        String disabledSetting = "script.engines." + MockScriptEngine.NAME + ".enabled";
+        String pipelineWithScriptId = "with_script";
+        internalCluster().startNode();
+        client().admin().cluster().preparePutPipeline(pipelineWithScriptId, new BytesArray(String.format(Locale.ROOT, """
+            {
+              "processors" : [
+                  {"script" : {"lang": "%s", "source": "my_script"}}
+              ]
+            }""", MockScriptEngine.NAME)), MediaTypeRegistry.JSON).get();
+        client().admin().cluster().preparePutPipeline("without_script", new BytesArray("""
+            {
+              "processors" : [
+                  {"set" : {"field": "y", "value": 0}}
+              ]
+            }"""), MediaTypeRegistry.JSON).get();
+
+        // restart with the language disabled: the pipeline exists but fails with a clear message; other pipelines work
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return Settings.builder().put(disabledSetting, false).build();
+            }
+        });
+        ensureStableCluster(1);
+        assertBusy(
+            () -> client().prepareIndex("index")
+                .setId("1")
+                .setSource("x", 0)
+                .setPipeline("without_script")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get()
+        );
+        Exception e = expectThrows(
+            Exception.class,
+            () -> client().prepareIndex("index").setId("2").setSource("x", 0).setPipeline(pipelineWithScriptId).get()
+        );
+        assertThat(e.getMessage(), containsString("is disabled by [" + disabledSetting + "]"));
+
+        // creating a new pipeline that uses the disabled language is rejected
+        Exception putError = expectThrows(
+            Exception.class,
+            () -> client().admin()
+                .cluster()
+                .preparePutPipeline("new_with_script", new BytesArray(String.format(Locale.ROOT, """
+                    {"processors": [{"script": {"lang": "%s", "source": "my_script"}}]}""", MockScriptEngine.NAME)), MediaTypeRegistry.JSON)
+                .get()
+        );
+        assertThat(putError.toString(), containsString("is disabled by [" + disabledSetting + "]"));
+
+        // restart with the language enabled again: the existing pipeline works without being re-created
+        internalCluster().fullRestart();
+        ensureStableCluster(1);
+        assertBusy(
+            () -> client().prepareIndex("index")
+                .setId("3")
+                .setSource("x", 0)
+                .setPipeline(pipelineWithScriptId)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get()
+        );
+        assertThat(client().prepareGet("index", "3").get().getSource().get("z"), equalTo(0));
     }
 
     public void testPipelineWithScriptProcessorThatHasStoredScript() throws Exception {

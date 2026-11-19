@@ -70,7 +70,9 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.indices.InvalidTypeNameException;
 import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
+import org.opensearch.script.ScriptType;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -233,6 +235,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private final DocumentMapperParser documentParser;
     private final Version indexVersionCreated;
+    private final ScriptService scriptService;
 
     private final MapperAnalyzerWrapper indexAnalyzer;
     private final MapperAnalyzerWrapper searchAnalyzer;
@@ -290,6 +293,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     ) {
         super(indexSettings);
 
+        this.scriptService = scriptService;
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.documentParser = new DocumentMapperParser(
@@ -570,6 +574,41 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
+    /**
+     * Rejects a new or changed context-aware grouping script whose language is disabled. Existing scripts are left alone
+     * so that indices that already have them keep working.
+     */
+    private void validateContextAwareGroupingScriptLanguage(DocumentMapper oldMapper, DocumentMapper newMapper) {
+        if (scriptService == null) {
+            return;
+        }
+        Script newScript = contextAwareGroupingScript(newMapper);
+        if (newScript == null || newScript.getType() != ScriptType.INLINE || scriptService.isLangEnabled(newScript.getLang())) {
+            return;
+        }
+        if (newScript.equals(contextAwareGroupingScript(oldMapper)) == false) {
+            throw new IllegalArgumentException(
+                "["
+                    + ContextAwareGroupingFieldMapper.CONTENT_TYPE
+                    + ".script] uses script language ["
+                    + newScript.getLang()
+                    + "], which is disabled by ["
+                    + ScriptService.SCRIPT_ENGINE_ENABLED_SETTING.getConcreteSettingForNamespace(newScript.getLang()).getKey()
+                    + "]"
+            );
+        }
+    }
+
+    private static Script contextAwareGroupingScript(DocumentMapper mapper) {
+        if (mapper == null) {
+            return null;
+        }
+        Mapper groupingMapper = mapper.root().getMapper(ContextAwareGroupingFieldMapper.CONTENT_TYPE);
+        return groupingMapper instanceof ContextAwareGroupingFieldMapper
+            ? ((ContextAwareGroupingFieldMapper) groupingMapper).script()
+            : null;
+    }
+
     private synchronized Map<String, DocumentMapper> internalMerge(DocumentMapper mapper, MergeReason reason) {
         Map<String, DocumentMapper> results = new LinkedHashMap<>(2);
         DocumentMapper newMapper = null;
@@ -587,6 +626,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             newMapper.root().fixRedundantIncludes();
             newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
+            if (reason != MergeReason.MAPPING_RECOVERY) {
+                validateContextAwareGroupingScriptLanguage(oldMapper, newMapper);
+            }
             results.put(newMapper.type(), newMapper);
         }
 

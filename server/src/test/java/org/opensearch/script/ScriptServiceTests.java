@@ -862,6 +862,60 @@ public class ScriptServiceTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString("unknown script language [pianless] in setting [script.engines.pianless.enabled]"));
     }
 
+    public void testValidateIndexLevelScriptLanguages() throws IOException {
+        buildScriptService(Settings.builder().put("script.engines.painless.enabled", false).build());
+        Settings indexSettings = Settings.builder()
+            .put("index.similarity.sim1.type", "scripted")
+            .put("index.similarity.sim1.script.source", "return 1;") // no lang: defaults to painless
+            .put("index.similarity.sim1.weight_script.source", "return 1;")
+            .put("index.similarity.sim1.weight_script.lang", "test")
+            .put("index.analysis.filter.f1.type", "predicate_token_filter")
+            .put("index.analysis.filter.f1.script.source", "true")
+            .put("index.analysis.filter.f1.script.lang", "painless")
+            .put("index.analysis.filter.f2.type", "condition")
+            .put("index.analysis.filter.f2.script.id", "stored_script") // stored scripts are checked when compiled
+            .put("index.similarity.sim2.type", "BM25")
+            .build();
+        Map<String, String> errors = scriptService.validateIndexLevelScriptLanguages(indexSettings);
+        assertEquals(errors.toString(), 2, errors.size());
+        assertThat(errors.get("index.similarity.sim1.script"), containsString("uses script language [painless]"));
+        assertThat(errors.get("index.analysis.filter.f1.script"), containsString("uses script language [painless]"));
+    }
+
+    public void testValidateIndexLevelScriptLanguagesWithoutIndexPrefix() throws IOException {
+        buildScriptService(Settings.builder().put("script.engines.painless.enabled", false).build());
+        Settings templateSettings = Settings.builder()
+            .put("similarity.sim1.type", "scripted")
+            .put("similarity.sim1.script.source", "return 1;")
+            .build();
+        Map<String, String> errors = scriptService.validateIndexLevelScriptLanguages(templateSettings);
+        assertThat(errors.get("index.similarity.sim1.script"), containsString("uses script language [painless]"));
+    }
+
+    public void testValidateIndexLevelScriptLanguagesWhenAllEnabled() throws IOException {
+        buildScriptService(Settings.EMPTY);
+        Settings indexSettings = Settings.builder()
+            .put("index.similarity.sim1.type", "scripted")
+            .put("index.similarity.sim1.script.source", "return 1;")
+            .build();
+        assertTrue(scriptService.validateIndexLevelScriptLanguages(indexSettings).isEmpty());
+    }
+
+    public void testIndexLevelScriptCompilesWhenLanguageDisabled() throws IOException {
+        buildScriptService(Settings.builder().put("script.engines.painless.enabled", false).build());
+        Script script = new Script(ScriptType.INLINE, "painless", "script", Collections.emptyMap());
+        expectThrows(IllegalArgumentException.class, () -> scriptService.compile(script, FieldScript.CONTEXT));
+        assertThat(scriptService.compileIndexLevelScript(script, FieldScript.CONTEXT), notNullValue());
+    }
+
+    public void testStoredIndexLevelScriptCompilesWhenLanguageDisabled() throws IOException {
+        // stored scripts resolve to language [test], see buildScriptService
+        buildScriptService(Settings.builder().put("script.engines.test.enabled", false).build());
+        Script script = new Script(ScriptType.STORED, null, "id", Collections.emptyMap());
+        expectThrows(IllegalArgumentException.class, () -> scriptService.compile(script, FieldScript.CONTEXT));
+        assertThat(scriptService.compileIndexLevelScript(script, FieldScript.CONTEXT), notNullValue());
+    }
+
     private void assertCompileRejected(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
         try {
             scriptService.compile(new Script(scriptType, lang, script, Collections.emptyMap()), scriptContext);

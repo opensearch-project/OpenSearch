@@ -1510,6 +1510,10 @@ public class IndicesService extends AbstractLifecycleComponent
         return circuitBreakerService;
     }
 
+    public ScriptService getScriptService() {
+        return scriptService;
+    }
+
     public IndicesQueryCache getIndicesQueryCache() {
         return indicesQueryCache;
     }

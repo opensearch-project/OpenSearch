@@ -69,6 +69,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -453,6 +454,67 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         }
     }
 
+    /**
+     * Returns an error, keyed by the script's setting prefix, for every inline script in the given index settings (scripted
+     * similarities and scripted token filters) whose language is disabled by {@link #SCRIPT_ENGINE_ENABLED_SETTING}. Used to reject new index definitions
+     * (index creation, templates, restores and settings updates) while still allowing existing indices to open, see
+     * {@link #compileIndexLevelScript(Script, ScriptContext)}.
+     */
+    public Map<String, String> validateIndexLevelScriptLanguages(Settings indexSettings) {
+        if (languagesDisabled.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, String> errors = new TreeMap<>();
+        // templates may hold settings without the "index." prefix
+        indexSettings = Settings.builder().put(indexSettings).normalizePrefix("index.").build();
+        Map<String, Settings> similarities = indexSettings.getGroups("index.similarity", true);
+        for (Map.Entry<String, Settings> similarity : similarities.entrySet()) {
+            if ("scripted".equals(similarity.getValue().get("type"))) {
+                for (String scriptKey : List.of("script", "weight_script")) {
+                    checkIndexLevelScript(
+                        "index.similarity." + similarity.getKey() + "." + scriptKey,
+                        similarity.getValue(),
+                        scriptKey,
+                        errors
+                    );
+                }
+            }
+        }
+        Map<String, Settings> filters = indexSettings.getGroups("index.analysis.filter", true);
+        for (Map.Entry<String, Settings> filter : filters.entrySet()) {
+            String type = filter.getValue().get("type");
+            if ("condition".equals(type) || "predicate_token_filter".equals(type)) {
+                checkIndexLevelScript("index.analysis.filter." + filter.getKey() + ".script", filter.getValue(), "script", errors);
+            }
+        }
+        return errors;
+    }
+
+    private void checkIndexLevelScript(String fullKey, Settings group, String scriptKey, Map<String, String> errors) {
+        Settings scriptSettings = group.getAsSettings(scriptKey);
+        if (scriptSettings.isEmpty()) {
+            return;
+        }
+        Script script;
+        try {
+            script = Script.parse(scriptSettings);
+        } catch (Exception e) {
+            return; // malformed scripts are reported by the regular index validation
+        }
+        if (script.getType() == ScriptType.INLINE && isLangEnabled(script.getLang()) == false) {
+            errors.put(
+                fullKey,
+                "["
+                    + fullKey
+                    + "] uses script language ["
+                    + script.getLang()
+                    + "], which is disabled by ["
+                    + SCRIPT_ENGINE_ENABLED_SETTING.getConcreteSettingForNamespace(script.getLang()).getKey()
+                    + "]"
+            );
+        }
+    }
+
     private ScriptEngine getEngine(String lang) {
         ScriptEngine scriptEngine = engines.get(lang);
         if (scriptEngine == null) {
@@ -519,6 +581,23 @@ public class ScriptService implements Closeable, ClusterStateApplier {
      * @return a compiled script which may be used to construct instances of a script for the given context
      */
     public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+        return compile(script, context, true);
+    }
+
+    /**
+     * Compiles a script that is part of index metadata (index settings or mappings, e.g. a scripted similarity or a
+     * scripted token filter). Such scripts were accepted when the index was created, so they are compiled even if their
+     * language has since been disabled with {@link #SCRIPT_ENGINE_ENABLED_SETTING}; otherwise existing indices would fail
+     * to open. New definitions are checked when they are added, see {@link #validateIndexLevelScriptLanguages(Settings)}.
+     */
+    public <FactoryType> FactoryType compileIndexLevelScript(Script script, ScriptContext<FactoryType> context) {
+        if (languagesDisabled.isEmpty()) {
+            return compile(script, context);
+        }
+        return compile(script, context, false);
+    }
+
+    private <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context, boolean checkLanguage) {
         Objects.requireNonNull(script);
         Objects.requireNonNull(context);
 
@@ -542,7 +621,9 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         }
 
         ScriptEngine scriptEngine = getEngine(lang);
-        checkLangEnabled(lang);
+        if (checkLanguage) {
+            checkLangEnabled(lang);
+        }
 
         if (isTypeEnabled(type) == false) {
             throw new IllegalArgumentException("cannot execute [" + type + "] scripts");
