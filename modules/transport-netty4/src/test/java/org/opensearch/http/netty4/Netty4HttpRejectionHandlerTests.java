@@ -12,8 +12,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import io.netty.buffer.ByteBuf;
@@ -22,47 +20,34 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
-import io.netty.channel.DefaultChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.channel.socket.ChannelInputShutdownEvent;
 import io.netty.channel.socket.DuplexChannel;
 import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.DefaultHttpRequest;
-import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpResponse;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpServerCodec;
-import io.netty.handler.codec.http.HttpServerUpgradeHandler;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.ssl.SslHandler;
-import io.netty.util.ReferenceCountUtil;
-import io.netty.util.concurrent.EventExecutor;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
 
     private enum Stage {
-        WRITE,
         TLS,
         FIN
     }
 
     private EmbeddedDuplexChannel channel;
     private ChannelPromise response;
-    private ChannelPromise tlsShutdown;
-    private List<Runnable> notifications;
+    private ChannelPromise shutdown;
     private boolean transportRunning;
 
     public void testWriteClosesAtDeadline() {
@@ -70,30 +55,13 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
         assertClosesAfter(SECONDS.toNanos(30), "An unfinished response must be bounded by its write deadline");
     }
 
-    public void testTlsShutdownKeepsTheResponsesDeadline() {
-        reject(Stage.TLS);
-        advanceTime(SECONDS.toNanos(20));
-        response.setSuccess();
-        verify(channel.pipeline().get(SslHandler.class)).closeOutbound();
-        assertFalse(tlsShutdown.isDone());
-        assertClosesAfter(SECONDS.toNanos(10), "Completing the response must not extend the TLS shutdown deadline");
-    }
-
-    public void testCompletedOperationsDoNotTimeOutBeforeListenersRun() {
+    public void testShutdownKeepsTheResponsesDeadline() {
         for (Stage stage : Stage.values()) {
             reject(stage);
+            advanceTime(SECONDS.toNanos(20));
             response.setSuccess();
-            if (stage == Stage.TLS) {
-                tlsShutdown.setSuccess();
-            }
-            assertEquals(stage.toString(), 1, notifications.size());
-            advanceTime(SECONDS.toNanos(30));
-            assertTrue(stage + " completion must proceed to draining", channel.isOpen());
-            assertEquals(stage.toString(), 1, channel.outputShutdowns);
-            advanceTime(SECONDS.toNanos(1));
-            notifications.forEach(Runnable::run);
-            assertEquals(stage + " must not shut down output twice", 1, channel.outputShutdowns);
-            assertClosesAfter(SECONDS.toNanos(4), stage + " late notification must not restart draining");
+            assertFalse(shutdown.isDone());
+            assertClosesAfter(SECONDS.toNanos(10), "Completing the response must not extend the " + stage + " shutdown deadline");
         }
     }
 
@@ -152,10 +120,7 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
             channel.inputShutdown = true;
             channel.pipeline().fireUserEventTriggered(ChannelInputShutdownEvent.INSTANCE);
             assertTrue("Input EOF must wait for pending shutdown work", channel.isOpen());
-            if (stage == Stage.TLS) {
-                tlsShutdown.setSuccess();
-            }
-            notifications.forEach(Runnable::run);
+            shutdown.setSuccess();
             assertFalse(stage + ": completed shutdown must not wait to drain input that already reached EOF", channel.isOpen());
         }
     }
@@ -179,44 +144,6 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
         assertFalse(channel.isOpen());
     }
 
-    public void testOnlyClosingFull413ResponsesStartRejection() {
-        channel = new EmbeddedDuplexChannel(null);
-        channel.freezeTime();
-        channel.pipeline().addLast(new Netty4HttpRejectionHandler(() -> true).newHttpHandler());
-        final HttpResponse[] responses = {
-            new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK),
-            new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE),
-            new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE) };
-        HttpUtil.setKeepAlive(responses[0], false);
-        HttpUtil.setKeepAlive(responses[2], false); // a streamed response's headers do not complete its body
-        for (HttpResponse message : responses) {
-            assertTrue(channel.writeOutbound(message));
-            final Object written = channel.readOutbound();
-            try {
-                assertSame(message, written);
-                assertNull(channel.pipeline().get(Netty4HttpRejectionHandler.class));
-            } finally {
-                ReferenceCountUtil.release(written);
-            }
-        }
-        final DefaultFullHttpResponse applicationResponse = new DefaultFullHttpResponse(
-            HttpVersion.HTTP_1_0,
-            HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE,
-            Unpooled.buffer(1).writeByte(42)
-        );
-        HttpUtil.setContentLength(applicationResponse, 1);
-        assertTrue(channel.writeOutbound(applicationResponse));
-        final DefaultFullHttpResponse written = channel.readOutbound();
-        try {
-            assertSame(applicationResponse, written);
-            assertEquals(42, written.content().readByte());
-        } finally {
-            ReferenceCountUtil.release(written);
-        }
-        assertTrue(channel.isOutputShutdown());
-        assertClosesAfter(SECONDS.toNanos(5), "Closing application responses use the same bounded drain");
-    }
-
     public void testHeaderRejectionResumesReads() {
         rejectRequest();
         assertNotNull(channel.pipeline().get(Netty4HttpRejectionHandler.class));
@@ -226,15 +153,11 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
     }
 
     public void testHttpGuardDiscardsAlreadyDecodedRequests() {
-        channel = new EmbeddedDuplexChannel(null);
+        channel = new EmbeddedDuplexChannel();
         channel.freezeTime();
-        channel.pipeline().addLast(new Netty4HttpRejectionHandler(() -> true).newHttpHandler());
-        final DefaultFullHttpResponse rejection = new DefaultFullHttpResponse(
-            HttpVersion.HTTP_1_1,
-            HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE
-        );
-        HttpUtil.setKeepAlive(rejection, false);
-        assertTrue(channel.writeOutbound(rejection));
+        final Netty4HttpRejectionHandler rejection = new Netty4HttpRejectionHandler(() -> true);
+        channel.pipeline().addLast(rejection.newHttpHandler());
+        rejection.reject(channel, channel.newPromise().setSuccess());
         final DefaultFullHttpRequest request = new DefaultFullHttpRequest(
             HttpVersion.HTTP_1_1,
             HttpMethod.POST,
@@ -248,13 +171,18 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
     }
 
     public void testInactiveChannelCancelsDeadlineAndIgnoresLateCompletion() {
-        reject(Stage.WRITE);
-        channel.unsafe().close(channel.newPromise());
-        assertEquals(-1, channel.runScheduledPendingTasks());
-        response.setSuccess();
-        notifications.forEach(Runnable::run);
-        assertEquals(0, channel.outputShutdowns);
-        assertEquals(-1, channel.runScheduledPendingTasks());
+        for (Stage stage : new Stage[] { null, Stage.TLS, Stage.FIN }) {
+            reject(stage);
+            if (stage != null) {
+                response.setSuccess();
+            }
+            final int shutdowns = channel.outputShutdowns;
+            channel.unsafe().close(channel.newPromise());
+            assertEquals(-1, channel.runScheduledPendingTasks());
+            (stage == null ? response : shutdown).setSuccess();
+            assertEquals(shutdowns, channel.outputShutdowns);
+            assertEquals(-1, channel.runScheduledPendingTasks());
+        }
     }
 
     public void testFatalErrorsAreRethrownAfterRejection() throws Exception {
@@ -288,12 +216,13 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
     /** Netty chooses a terminal rejection because auto-read is off; observing its response must resume reads. */
     private ChannelHandlerContext rejectRequest() {
         closeChannel();
-        channel = new EmbeddedDuplexChannel(null);
+        channel = new EmbeddedDuplexChannel();
         channel.freezeTime();
         channel.config().setAutoRead(false);
         final Netty4HttpRejectionHandler rejection = new Netty4HttpRejectionHandler(() -> true);
         channel.pipeline().addLast("upgrade_rejection", rejection.newHttpHandler());
-        channel.pipeline().addLast("aggregator", new HttpServerUpgradeHandler(new HttpServerCodec(), protocol -> null, 1));
+        channel.pipeline()
+            .addLast("aggregator", Netty4HttpObjectAggregator.newUpgradeHandler(new HttpServerCodec(), protocol -> null, 1, rejection));
         channel.pipeline().addLast("http_rejection_guard", rejection.newHttpHandler());
         final DefaultHttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
         HttpUtil.setContentLength(request, 2);
@@ -314,25 +243,20 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
         assertFalse(message + " (at deadline)", channel.isOpen());
     }
 
-    /** Starts a fresh rejection, optionally withholding one operation's completion notification. */
-    private void reject(Stage deferredStage) {
+    /** Starts a fresh rejection, optionally leaving TLS or TCP output shutdown pending. */
+    private void reject(Stage pendingShutdown) {
         closeChannel();
-        notifications = new ArrayList<>();
-        final EventExecutor listenerExecutor = mock(EventExecutor.class);
-        doAnswer(invocation -> {
-            notifications.add(invocation.getArgument(0));
-            return null;
-        }).when(listenerExecutor).execute(any(Runnable.class));
-        channel = new EmbeddedDuplexChannel(deferredStage == Stage.FIN ? listenerExecutor : null);
+        channel = new EmbeddedDuplexChannel();
         channel.freezeTime();
         transportRunning = true;
-        response = deferredStage == Stage.WRITE ? new DefaultChannelPromise(channel, listenerExecutor) : channel.newPromise();
-        tlsShutdown = null;
-        if (deferredStage == Stage.TLS) {
+        response = channel.newPromise();
+        shutdown = channel.newPromise();
+        if (pendingShutdown == Stage.TLS) {
             final SslHandler ssl = mock(SslHandler.class);
-            tlsShutdown = new DefaultChannelPromise(channel, listenerExecutor);
-            when(ssl.closeOutbound()).thenReturn(tlsShutdown);
+            when(ssl.closeOutbound()).thenReturn(shutdown);
             channel.pipeline().addLast(ssl);
+        } else if (pendingShutdown == Stage.FIN) {
+            channel.outputShutdown = shutdown;
         }
         new Netty4HttpRejectionHandler(() -> transportRunning).reject(channel, response);
     }
@@ -346,22 +270,18 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
                 response.tryFailure(new IOException("test complete"));
                 response = null;
             }
-            if (tlsShutdown != null) {
-                tlsShutdown.tryFailure(new IOException("test complete"));
-                tlsShutdown = null;
+            if (shutdown != null) {
+                shutdown.tryFailure(new IOException("test complete"));
+                shutdown = null;
             }
             channel = null;
         }
     }
 
     private static final class EmbeddedDuplexChannel extends EmbeddedChannel implements DuplexChannel {
-        private final EventExecutor outputListenerExecutor;
+        private ChannelPromise outputShutdown;
         private int outputShutdowns;
         private boolean inputShutdown;
-
-        private EmbeddedDuplexChannel(EventExecutor outputListenerExecutor) {
-            this.outputListenerExecutor = outputListenerExecutor;
-        }
 
         @Override
         public boolean isInputShutdown() {
@@ -380,13 +300,13 @@ public class Netty4HttpRejectionHandlerTests extends OpenSearchTestCase {
 
         @Override
         public ChannelFuture shutdownOutput() {
-            return shutdownOutput(outputListenerExecutor == null ? newPromise() : new DefaultChannelPromise(this, outputListenerExecutor));
+            outputShutdowns++;
+            return outputShutdown == null ? newSucceededFuture() : outputShutdown;
         }
 
         @Override
         public ChannelFuture shutdownOutput(ChannelPromise promise) {
-            outputShutdowns++;
-            return promise.setSuccess();
+            throw new UnsupportedOperationException();
         }
 
         @Override
