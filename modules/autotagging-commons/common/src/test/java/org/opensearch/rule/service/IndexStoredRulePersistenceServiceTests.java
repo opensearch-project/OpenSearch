@@ -17,6 +17,8 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
+import org.opensearch.action.update.UpdateRequest;
+import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -54,6 +56,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -75,10 +78,12 @@ import org.mockito.ArgumentMatcher;
 import static org.opensearch.rule.XContentRuleParserTests.VALID_JSON;
 import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_MAP;
 import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_VALUE_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils.ATTRIBUTE_VALUE_TWO;
 import static org.opensearch.rule.utils.RuleTestUtils.DESCRIPTION_ONE;
 import static org.opensearch.rule.utils.RuleTestUtils.DESCRIPTION_TWO;
 import static org.opensearch.rule.utils.RuleTestUtils.FEATURE_VALUE_ONE;
 import static org.opensearch.rule.utils.RuleTestUtils.MockRuleAttributes.MOCK_RULE_ATTRIBUTE_ONE;
+import static org.opensearch.rule.utils.RuleTestUtils.MockRuleAttributes.MOCK_RULE_ATTRIBUTE_TWO;
 import static org.opensearch.rule.utils.RuleTestUtils.TEST_INDEX_NAME;
 import static org.opensearch.rule.utils.RuleTestUtils._ID_ONE;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -283,6 +288,214 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         rulePersistenceService.createRule(createRuleRequest, listener);
         ArgumentCaptor<Exception> failureCaptor = ArgumentCaptor.forClass(Exception.class);
         verify(listener).onFailure(failureCaptor.capture());
+    }
+
+    public void testCreateRuleRejectsDuplicateOnALaterPage() throws Exception {
+        // Page 1 is a full page of candidates that share a value but aren't duplicates; the duplicate is on page 2.
+        stubCandidateParser();
+        stubSearches(cardinalityResponse(), page(candidateHits(0, MAX_VALUES_PER_PAGE)), page(duplicateHit()));
+        stubIndexing();
+        ActionListener<CreateRuleResponse> listener = mock(ActionListener.class);
+
+        rulePersistenceService.createRule(createRequestFor(newRule()), listener);
+
+        assertFailure(listener, IllegalArgumentException.class, "Duplicate rule exists under id duplicate-id");
+        verify(searchRequestBuilder, times(1)).searchAfter(any());
+        verify(searchRequestBuilder, times(1)).searchAfter(new Object[] { "candidate-" + (MAX_VALUES_PER_PAGE - 1) });
+        verify(client, never()).index(any(IndexRequest.class));
+    }
+
+    public void testCreateRuleChecksEveryPageForDuplicates() throws Exception {
+        // Two pages of candidates and no duplicate: the rule is created after both pages are checked.
+        stubCandidateParser();
+        stubSearches(cardinalityResponse(), page(candidateHits(0, MAX_VALUES_PER_PAGE)), page(candidateHits(MAX_VALUES_PER_PAGE, 1)));
+        stubIndexing();
+        ActionListener<CreateRuleResponse> listener = mock(ActionListener.class);
+
+        rulePersistenceService.createRule(createRequestFor(newRule()), listener);
+
+        verify(listener).onResponse(any(CreateRuleResponse.class));
+        verify(listener, never()).onFailure(any());
+        verify(searchRequestBuilder, times(1)).searchAfter(new Object[] { "candidate-" + (MAX_VALUES_PER_PAGE - 1) });
+        verify(client, times(1)).index(any(IndexRequest.class));
+    }
+
+    public void testCreateRuleChecksAnExactlyFullLastPageForDuplicates() throws Exception {
+        // Exactly one full page of candidates and no duplicate: the full page returns a cursor, the next page is empty,
+        // and then the rule is created.
+        stubCandidateParser();
+        stubSearches(cardinalityResponse(), page(candidateHits(0, MAX_VALUES_PER_PAGE)), page());
+        stubIndexing();
+        ActionListener<CreateRuleResponse> listener = mock(ActionListener.class);
+
+        rulePersistenceService.createRule(createRequestFor(newRule()), listener);
+
+        verify(listener).onResponse(any(CreateRuleResponse.class));
+        verify(listener, never()).onFailure(any());
+        verify(searchRequestBuilder, times(1)).searchAfter(any());
+        verify(client, times(1)).index(any(IndexRequest.class));
+    }
+
+    public void testCreateRuleFailsWhenDuplicateCheckCursorDoesNotAdvance() throws Exception {
+        // The second page returns the same last sort value as the first, so the cursor would never move.
+        stubCandidateParser();
+        // Separate but equal pages, so the cursors are equal strings but different objects, as in a real cluster.
+        stubSearches(cardinalityResponse(), page(candidateHits(0, MAX_VALUES_PER_PAGE)), page(candidateHits(0, MAX_VALUES_PER_PAGE)));
+        stubIndexing();
+        ActionListener<CreateRuleResponse> listener = mock(ActionListener.class);
+
+        rulePersistenceService.createRule(createRequestFor(newRule()), listener);
+
+        assertFailure(
+            listener,
+            IllegalStateException.class,
+            "stopped making progress at search_after [candidate-" + (MAX_VALUES_PER_PAGE - 1) + "]"
+        );
+        // The cardinality search plus exactly two pages: paging stops as soon as the cursor repeats.
+        verify(searchRequestBuilder, times(3)).get();
+        verify(client, never()).index(any(IndexRequest.class));
+    }
+
+    public void testCreateRuleFailsWhenALaterDuplicateCheckPageFails() throws Exception {
+        stubCandidateParser();
+        SearchResponse cardinality = cardinalityResponse();
+        SearchResponse firstPage = page(candidateHits(0, MAX_VALUES_PER_PAGE));
+        when(searchRequestBuilder.get()).thenReturn(cardinality, firstPage).thenThrow(new RuntimeException("search failed"));
+        stubIndexing();
+        ActionListener<CreateRuleResponse> listener = mock(ActionListener.class);
+
+        rulePersistenceService.createRule(createRequestFor(newRule()), listener);
+
+        assertFailure(listener, RuntimeException.class, "search failed");
+        verify(client, never()).index(any(IndexRequest.class));
+    }
+
+    public void testUpdateRuleRejectsDuplicateOnALaterPage() throws Exception {
+        // The rule being updated is itself a candidate on page 1 and must be skipped; the real duplicate is on page 2.
+        stubCandidateParser();
+        SearchHit[] firstPage = candidateHits(0, MAX_VALUES_PER_PAGE);
+        firstPage[0].sourceRef(new BytesArray("{\"own\":true}"));
+        stubSearches(page(ownRuleHit()), page(firstPage), page(duplicateHit()));
+        UpdateRuleRequest request = mock(UpdateRuleRequest.class);
+        when(request.getId()).thenReturn("own-id");
+        when(request.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
+        // Make updating succeed, so an update that wrongly passed the duplicate check would reach client.update.
+        UpdateResponse updateResponse = mock(UpdateResponse.class);
+        ActionFuture<UpdateResponse> updateFuture = mock(ActionFuture.class);
+        when(updateFuture.get()).thenReturn(updateResponse);
+        when(client.update(any(UpdateRequest.class))).thenReturn(updateFuture);
+        ActionListener<UpdateRuleResponse> listener = mock(ActionListener.class);
+
+        rulePersistenceService.updateRule(request, listener);
+
+        assertFailure(listener, IllegalArgumentException.class, "Duplicate rule exists under id duplicate-id");
+        verify(searchRequestBuilder, times(1)).searchAfter(new Object[] { "candidate-" + (MAX_VALUES_PER_PAGE - 1) });
+        verify(client, never()).update(any(UpdateRequest.class));
+    }
+
+    private static <T> void assertFailure(ActionListener<T> listener, Class<? extends Exception> type, String message) {
+        ArgumentCaptor<Exception> failure = ArgumentCaptor.forClass(Exception.class);
+        verify(listener).onFailure(failure.capture());
+        verify(listener, never()).onResponse(any());
+        assertTrue(failure.getValue().toString(), type.isInstance(failure.getValue()));
+        assertTrue(failure.getValue().getMessage(), failure.getValue().getMessage().contains(message));
+    }
+
+    private static Rule newRule() {
+        Rule newRule = mock(Rule.class);
+        when(newRule.getId()).thenReturn("new-id");
+        when(newRule.getAttributeMap()).thenReturn(Map.of(MOCK_RULE_ATTRIBUTE_ONE, Set.of(ATTRIBUTE_VALUE_ONE)));
+        when(newRule.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
+        try {
+            when(newRule.toXContent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+        return newRule;
+    }
+
+    /**
+     * Makes indexing succeed, so a create that wrongly passed the duplicate check would reach client.index.
+     */
+    private void stubIndexing() throws Exception {
+        IndexResponse indexResponse = mock(IndexResponse.class);
+        ActionFuture<IndexResponse> future = mock(ActionFuture.class);
+        when(future.get()).thenReturn(indexResponse);
+        when(client.index(any(IndexRequest.class))).thenReturn(future);
+    }
+
+    private static CreateRuleRequest createRequestFor(Rule rule) {
+        CreateRuleRequest request = mock(CreateRuleRequest.class);
+        when(request.getRule()).thenReturn(rule);
+        return request;
+    }
+
+    /**
+     * Parses rule documents by their source: {"own":...} is the rule being updated, {"duplicate":...} has the same
+     * attributes as the new rule, and anything else is a candidate that shares the new rule's value but also sets another
+     * attribute, so isn't a duplicate.
+     */
+    private void stubCandidateParser() {
+        Rule own = mock(Rule.class);
+        when(own.getId()).thenReturn("own-id");
+        when(own.getDescription()).thenReturn("own rule");
+        when(own.getFeatureValue()).thenReturn(FEATURE_VALUE_ONE);
+        when(own.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
+        when(own.getAttributeMap()).thenReturn(Map.of(MOCK_RULE_ATTRIBUTE_ONE, Set.of(ATTRIBUTE_VALUE_ONE)));
+        Rule candidate = mock(Rule.class);
+        when(candidate.getId()).thenReturn("candidate-id");
+        when(candidate.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
+        when(candidate.getAttributeMap()).thenReturn(
+            Map.of(MOCK_RULE_ATTRIBUTE_ONE, Set.of(ATTRIBUTE_VALUE_ONE), MOCK_RULE_ATTRIBUTE_TWO, Set.of(ATTRIBUTE_VALUE_TWO))
+        );
+        Rule duplicate = mock(Rule.class);
+        when(duplicate.getId()).thenReturn("duplicate-id");
+        when(duplicate.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
+        when(duplicate.getAttributeMap()).thenReturn(Map.of(MOCK_RULE_ATTRIBUTE_ONE, Set.of(ATTRIBUTE_VALUE_ONE)));
+        when(ruleEntityParser.parse(anyString())).thenAnswer(invocation -> {
+            String source = invocation.getArgument(0);
+            return source.contains("own") ? own : source.contains("duplicate") ? duplicate : candidate;
+        });
+    }
+
+    /**
+     * Makes successive searches return the given responses in order. The responses are built before stubbing, since
+     * building them stubs other mocks.
+     */
+    private void stubSearches(SearchResponse first, SearchResponse... rest) {
+        when(searchRequestBuilder.get()).thenReturn(first, rest);
+    }
+
+    private static SearchResponse cardinalityResponse() {
+        return page();
+    }
+
+    private static SearchResponse page(SearchHit... hits) {
+        SearchResponse response = mock(SearchResponse.class);
+        when(response.getHits()).thenReturn(new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 1.0f));
+        return response;
+    }
+
+    private static SearchHit[] candidateHits(int from, int count) {
+        SearchHit[] hits = new SearchHit[count];
+        for (int i = 0; i < count; i++) {
+            hits[i] = new SearchHit(i, "candidate-" + (from + i), null, null);
+            hits[i].sourceRef(new BytesArray("{\"candidate\":" + (from + i) + "}"));
+            hits[i].sortValues(new Object[] { "candidate-" + (from + i) }, new DocValueFormat[] { DocValueFormat.RAW });
+        }
+        return hits;
+    }
+
+    private static SearchHit duplicateHit() {
+        SearchHit hit = new SearchHit(0, "duplicate-id", null, null);
+        hit.sourceRef(new BytesArray("{\"duplicate\":true}"));
+        return hit;
+    }
+
+    private static SearchHit ownRuleHit() {
+        SearchHit hit = new SearchHit(0, "own-id", null, null);
+        hit.sourceRef(new BytesArray("{\"own\":true}"));
+        return hit;
     }
 
     public void testGetRuleByIdSuccess() {

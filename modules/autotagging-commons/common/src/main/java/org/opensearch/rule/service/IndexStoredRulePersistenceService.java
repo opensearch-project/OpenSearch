@@ -163,21 +163,51 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
 
     /**
      * Validates that no existing rule has the same attribute map as the given rule.
-     * This validation must be performed one at a time to prevent writing duplicate rules.
+     * This validation must be performed one at a time to prevent writing duplicate rules. The rule routing service must
+     * send creates and updates to the node holding the rules index primary (the workload management one does), where they
+     * run on the rule framework's single-threaded executor; every page here is fetched synchronously, so the whole check
+     * and the write stay inside that one task.
      * @param rule - the rule we check duplicate against
      * @param listener - listener for validateNoDuplicateRule response
      */
     private void validateNoDuplicateRule(Rule rule, ActionListener<Void> listener) {
         Map<String, Set<String>> attributeFilters = RuleUtils.buildAttributeFilters(rule);
         QueryBuilder query = queryBuilder.from(new GetRuleRequest(null, attributeFilters, null, rule.getFeatureType()));
-        getRuleFromIndex(null, query, null, new ActionListener<>() {
+        validateNoDuplicateRule(rule, query, null, listener);
+    }
+
+    /**
+     * Checks one page of candidate rules for a duplicate, then the next page, until a duplicate is found, there are no
+     * more pages, a page fails, or the cursor stops advancing. A duplicate can be on any page, not just the first.
+     */
+    private void validateNoDuplicateRule(Rule rule, QueryBuilder query, String searchAfter, ActionListener<Void> listener) {
+        getRuleFromIndex(null, query, searchAfter, new ActionListener<>() {
             @Override
             public void onResponse(GetRuleResponse getRuleResponse) {
                 Optional<String> duplicateRuleId = RuleUtils.getDuplicateRuleId(rule, getRuleResponse.getRules());
-                duplicateRuleId.ifPresentOrElse(
-                    id -> listener.onFailure(new IllegalArgumentException("Duplicate rule exists under id " + id)),
-                    () -> listener.onResponse(null)
-                );
+                if (duplicateRuleId.isPresent()) {
+                    listener.onFailure(new IllegalArgumentException("Duplicate rule exists under id " + duplicateRuleId.get()));
+                    return;
+                }
+                String nextSearchAfter = getRuleResponse.getSearchAfter();
+                if (nextSearchAfter == null) {
+                    listener.onResponse(null);
+                    return;
+                }
+                if (nextSearchAfter.equals(searchAfter)) {
+                    // Fail rather than loop on the same page forever or report "no duplicate" without checking every candidate.
+                    listener.onFailure(
+                        new IllegalStateException(
+                            "Checking rules of feature type ["
+                                + rule.getFeatureType().getName()
+                                + "] for duplicates stopped making progress at search_after ["
+                                + searchAfter
+                                + "]"
+                        )
+                    );
+                    return;
+                }
+                validateNoDuplicateRule(rule, query, nextSearchAfter, listener);
             }
 
             @Override
