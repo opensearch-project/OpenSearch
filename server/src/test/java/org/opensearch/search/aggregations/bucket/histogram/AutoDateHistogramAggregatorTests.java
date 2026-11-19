@@ -40,6 +40,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
@@ -972,6 +973,81 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 assertThat(bucketCountsAsMap(histogram), equalTo(expectedDocCount));
             }
         }
+    }
+
+    /**
+     * The per-segment filter rewrite path calls {@code getRounding} for a segment whose documents all match the query.
+     * For a narrow segment it used to reset {@code roundingIdx} to a finer rounding than the one in {@code preparedRounding}.
+     * When a later segment, collected doc by doc, then created a new bucket, {@code increaseRoundingIfNeeded} re-rounded the
+     * existing (yearly) bucket keys with intermediate finer roundings. The monthly {@code ArrayRounding} prepared from the shard
+     * min (2022-03-15) cannot round the 2022-01-01 key and failed with an {@link ArrayIndexOutOfBoundsException} (assertion error
+     * when assertions are enabled).
+     */
+    public void testFilterRewriteOnSegmentDoesNotShrinkRoundingIndex() throws IOException {
+        final String publicField = "public";
+        // segment 1: not "match all" (contains a non matching doc), collected doc by doc, grows the rounding up to years
+        final List<ZonedDateTime> segment1 = Arrays.asList(
+            ZonedDateTime.of(2022, 3, 15, 12, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2022, 8, 15, 12, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2023, 2, 15, 12, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2023, 9, 15, 12, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2024, 4, 15, 12, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2024, 6, 15, 12, 0, 0, 0, ZoneOffset.UTC)
+        );
+        // segment 2: a single matching doc, "match all" for the segment, goes through the filter rewrite path
+        final List<ZonedDateTime> segment2 = Collections.singletonList(ZonedDateTime.of(2023, 7, 15, 12, 0, 0, 0, ZoneOffset.UTC));
+        // segment 3: not "match all", collected doc by doc, creates a new bucket (2025)
+        final List<ZonedDateTime> segment3 = Collections.singletonList(ZonedDateTime.of(2025, 3, 15, 12, 0, 0, 0, ZoneOffset.UTC));
+
+        try (Directory directory = newDirectory()) {
+            IndexWriterConfig config = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE);
+            try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
+                int numeric = 0;
+                for (List<ZonedDateTime> segment : Arrays.asList(segment1, segment2, segment3)) {
+                    for (ZonedDateTime date : segment) {
+                        indexWriter.addDocument(sampleDoc(date, numeric++, publicField, true));
+                    }
+                    if (segment != segment2) {
+                        indexWriter.addDocument(sampleDoc(segment.get(0), numeric++, publicField, false));
+                    }
+                    indexWriter.commit();
+                }
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                assertEquals(3, indexReader.leaves().size());
+                final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+                final AutoDateHistogramAggregationBuilder aggregationBuilder = new AutoDateHistogramAggregationBuilder("_name");
+                aggregationBuilder.setNumBuckets(5).field(DATE_FIELD).subAggregation(new MaxAggregationBuilder("max").field(NUMERIC_FIELD));
+
+                final InternalAutoDateHistogram histogram = searchAndReduce(
+                    indexSearcher,
+                    new TermQuery(new Term(publicField, "true")),
+                    aggregationBuilder,
+                    false,
+                    new DateFieldMapper.DateFieldType(aggregationBuilder.field()),
+                    new NumberFieldMapper.NumberFieldType(NUMERIC_FIELD, NumberFieldMapper.NumberType.LONG)
+                );
+
+                Map<String, Integer> expectedDocCount = new TreeMap<>();
+                expectedDocCount.put("2022-01-01T00:00:00.000Z", 2);
+                expectedDocCount.put("2023-01-01T00:00:00.000Z", 3);
+                expectedDocCount.put("2024-01-01T00:00:00.000Z", 2);
+                expectedDocCount.put("2025-01-01T00:00:00.000Z", 1);
+                assertThat(bucketCountsAsMap(histogram), equalTo(expectedDocCount));
+            }
+        }
+    }
+
+    private static Document sampleDoc(ZonedDateTime date, long numeric, String publicField, boolean isPublic) {
+        final long instant = date.toInstant().toEpochMilli();
+        final Document document = new Document();
+        document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
+        document.add(new LongPoint(DATE_FIELD, instant));
+        document.add(new SortedNumericDocValuesField(NUMERIC_FIELD, numeric));
+        document.add(new StringField(publicField, Boolean.toString(isPublic), Field.Store.NO));
+        return document;
     }
 
     @Override

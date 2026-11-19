@@ -197,21 +197,23 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 // so the right innerInterval should be an upper bound
                 long bestDuration = (high - low) / targetBuckets;
 
-                int prevRoundingIdx = roundingIdx;
-                roundingIdx = 0;
-                while (roundingIdx < roundingInfos.length - 1) {
-                    final RoundingInfo curRoundingInfo = roundingInfos[roundingIdx];
+                int newRoundingIdx = 0;
+                while (newRoundingIdx < roundingInfos.length - 1) {
+                    final RoundingInfo curRoundingInfo = roundingInfos[newRoundingIdx];
                     final int temp = curRoundingInfo.innerIntervals[curRoundingInfo.innerIntervals.length - 1];
                     // If the interval duration is covered by the maximum inner interval,
                     // we can start with this outer interval for creating the buckets
                     if (bestDuration <= temp * curRoundingInfo.roughEstimateDurationMillis) {
                         break;
                     }
-                    roundingIdx++;
+                    newRoundingIdx++;
                 }
 
-                // Ensure preparedRounding never shrinks
-                if (roundingIdx > prevRoundingIdx) {
+                // Ensure the rounding never shrinks. roundingIdx must stay in sync with preparedRounding: when a segment
+                // falls back to doc by doc collection, increaseRoundingIfNeeded() starts from roundingIdx and re-rounds
+                // the existing bucket keys with every rounding above it.
+                if (newRoundingIdx > roundingIdx) {
+                    roundingIdx = newRoundingIdx;
                     preparedRounding = prepareRounding(roundingIdx);
                 }
 
