@@ -17,6 +17,7 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.ProfileShardResult;
@@ -660,5 +661,51 @@ public class FilterAwareAliasIT extends OpenSearchIntegTestCase {
             count += countDescriptions(child, description);
         }
         return count;
+    }
+
+    /**
+     * Phrase weights dereference the statistics they are given, unlike a term weight, so under dfs a term or a field
+     * with no admitted document on a shard must not reach them as null. Two shards, because a search of one shard
+     * skips the dfs phase.
+     */
+    public void testDfsPhraseOnTermsAndFieldsOutsideTheViewReturnsNoHits() throws Exception {
+        final String index = "patients_dfs_phrase";
+        assertAcked(
+            prepareCreate(index).setMapping("dept", "type=keyword", "content", "type=text", "outside_only", "type=text")
+                .setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
+        );
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 40; i++) {
+            bulk.add(client().prepareIndex(index).setSource("dept", VISIBLE_DEPT, "content", "cardio note " + i));
+            bulk.add(
+                client().prepareIndex(index)
+                    .setSource("dept", RESTRICTED_DEPT, "content", "hidden_only_term phrase " + i, "outside_only", "alpha beta")
+            );
+        }
+        assertFalse(bulk.get().hasFailures());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareAliases()
+                .addAliasAction(
+                    AliasActions.add()
+                        .index(index)
+                        .alias("fs_dfs_phrase")
+                        .filter(QueryBuilders.termQuery("dept", VISIBLE_DEPT))
+                        .scoringMode("filtered_stats")
+                )
+        );
+        for (QueryBuilder query : List.of(
+            QueryBuilders.matchPhraseQuery("content", "hidden_only_term phrase"),
+            QueryBuilders.matchPhraseQuery("outside_only", "alpha beta")
+        )) {
+            SearchResponse resp = client().prepareSearch("fs_dfs_phrase")
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setQuery(query)
+                .setSize(10)
+                .get();
+            assertEquals(query + " must not fail a shard under dfs", 0, resp.getFailedShards());
+            assertEquals(query + " must match nothing", 0, resp.getHits().getHits().length);
+        }
     }
 }

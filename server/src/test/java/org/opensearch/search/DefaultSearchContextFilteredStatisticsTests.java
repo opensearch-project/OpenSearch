@@ -425,7 +425,7 @@ public class DefaultSearchContextFilteredStatisticsTests extends OpenSearchTestC
                 IllegalStateException.class,
                 () -> context.visibleSubsetFilter(new TermQuery(new Term("dept", "other")))
             );
-            assertThat(e.getMessage(), containsString("before filtered statistics are computed"));
+            assertThat(e.getMessage(), containsString("before the request reads any statistics"));
         }
     }
 
@@ -444,6 +444,29 @@ public class DefaultSearchContextFilteredStatisticsTests extends OpenSearchTestC
             belowCeiling.visibleSubsetFilter(RESTRICTION);
             belowCeiling.preProcess(false);
             assertFalse(belowCeiling.useFilteredStatistics());
+        }
+    }
+
+    /** A query that already read unscoped statistics must not be scored against a view declared after it. */
+    public void testARestrictionDeclaredAfterUnscopedStatisticsIsRejected() throws IOException {
+        try (DefaultSearchContext context = context(null, -1)) {
+            context.preProcess(false);
+            context.searcher().collectionStatistics("dept");
+            expectThrows(IllegalStateException.class, () -> context.visibleSubsetFilter(RESTRICTION));
+        }
+    }
+
+    /** A view narrowed under the ceiling after a fallback scores with BM25 again, not with the fallback similarity. */
+    public void testNarrowingUnderTheCeilingRestoresTheSimilarity() throws IOException {
+        // The alias admits 4 documents, over a ceiling of 3; with the restriction the view is 3, within it.
+        try (DefaultSearchContext context = context(AliasFilter.ScoringMode.FILTERED_STATS, 3)) {
+            context.preProcess(false);
+            assertFalse(context.useFilteredStatistics());
+            assertThat(context.searcher().getSimilarity(), instanceOf(BooleanSimilarity.class));
+            context.visibleSubsetFilter(RESTRICTION);
+            context.preProcess(true);
+            assertTrue(context.useFilteredStatistics());
+            assertThat(context.searcher().getSimilarity(), not(instanceOf(BooleanSimilarity.class)));
         }
     }
 }

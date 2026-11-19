@@ -573,6 +573,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
+        statisticsServed = true;
         // Filter-aware aliases (filtered_stats): when enabled, compute the statistics over only the documents that
         // match the statistics filter. This branch is checked BEFORE the aggregatedDfs branch on purpose so that it applies
         // in two of the three cases below (see collectionStatistics for the full reasoning):
@@ -629,6 +630,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public CollectionStatistics collectionStatistics(String field) throws IOException {
+        statisticsServed = true;
         // Filter-aware aliases (filtered_stats). Three cases, and the ordering of the checks matters:
         // 1. Non-dfs query path: aggregatedDfs == null and useFilteredStatistics() == true. We compute collection
         // statistics restricted to the visible (alias-filter) subset here, so BM25 N/df reflect only visible docs.
@@ -687,13 +689,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
-     * Whether this searcher has already built the visible documents that filtered statistics are counted over.
+     * Whether this searcher has already served term or collection statistics, scoped or not, for this request.
      *
-     * @return {@code true} once filtered statistics have been computed for this request
+     * @return {@code true} once a weight has read statistics through this searcher
      */
-    public synchronized boolean filteredStatisticsComputed() {
-        return visibleDocsInitialized;
+    public boolean statisticsServed() {
+        return statisticsServed;
     }
+
+    private volatile boolean statisticsServed;
 
     private boolean useFilteredStatistics() {
         return searchContext != null && searchContext.useFilteredStatistics() && searchContext.filteredStatisticsFilter() != null;

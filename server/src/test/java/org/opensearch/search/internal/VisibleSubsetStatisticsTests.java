@@ -240,4 +240,20 @@ public class VisibleSubsetStatisticsTests extends OpenSearchTestCase {
         onlyAChild.set(0);
         assertNull(VisibleSubsetStatistics.withNestedChildren(onlyAChild, parents));
     }
+
+    /** A field value with no tokens has a norm of 0, and Lucene does not count it in docCount, so neither must this. */
+    public void testAFieldValueWithNoTokensIsNotCounted() throws IOException {
+        List<Document> docs = new ArrayList<>();
+        for (String text : List.of("real words here", "", "   ")) {
+            Document doc = new Document();
+            doc.add(new TextField("body", text, Field.Store.NO));
+            docs.add(doc);
+        }
+        try (Directory dir = newDirectory(); DirectoryReader reader = index(dir, docs)) {
+            long[] expected = lucene(reader, "body");
+            long[] actual = scoped(reader, new MatchAllDocsQuery(), "body");
+            assertEquals("docCount", expected[0], actual[0]);
+            assertEquals("sumTotalTermFreq", expected[1], actual[1]);
+        }
+    }
 }
