@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 2.x]
 ### Added
+- Add RestoreListenerPlugin, called after a snapshot restore finishes ([#23295](https://github.com/opensearch-project/OpenSearch/pull/23295))
 
 ### Dependencies
 - Bump Jackson from 2.18.9 to 2.18.12 (CVE-2026-68495, CVE-2026-68496, CVE-2026-89425, CVE-2026-89407)

@@ -97,10 +97,12 @@ import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.plugins.RestoreListenerPlugin;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryData;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -111,6 +113,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -153,7 +156,8 @@ import static org.opensearch.node.Node.NODE_SEARCH_CACHE_SIZE_SETTING;
  * at the {@link ShardRouting#recoverySource()} property.
  * <p>
  * At the end of the successful restore process {@code RestoreService} calls {@link #cleanupRestoreState(ClusterChangedEvent)},
- * which removes {@link RestoreInProgress} when all shards are completed. In case of
+ * which removes {@link RestoreInProgress} when all shards are completed. Once that removal is published, every
+ * {@link RestoreListenerPlugin} is told about the restore. In case of
  * restore failure a normal recovery fail-over process kicks in.
  *
  * @opensearch.internal
@@ -210,7 +214,7 @@ public class RestoreService implements ClusterStateApplier {
 
     private final Supplier<Double> dataToFileCacheSizeRatioSupplier;
 
-    private static final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor();
+    private final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor;
 
     public RestoreService(
         ClusterService clusterService,
@@ -221,7 +225,9 @@ public class RestoreService implements ClusterStateApplier {
         ShardLimitValidator shardLimitValidator,
         IndicesService indicesService,
         Supplier<ClusterInfo> clusterInfoSupplier,
-        Supplier<Double> dataToFileCacheSizeRatioSupplier
+        Supplier<Double> dataToFileCacheSizeRatioSupplier,
+        ThreadPool threadPool,
+        List<RestoreListenerPlugin> restoreListenerPlugins
     ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -237,6 +243,9 @@ public class RestoreService implements ClusterStateApplier {
         this.indexScopedSettings = createIndexService.getIndexScopedSettings();
         this.clusterInfoSupplier = clusterInfoSupplier;
         this.dataToFileCacheSizeRatioSupplier = dataToFileCacheSizeRatioSupplier;
+        this.cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor(
+            new RestoreCompletionNotifier(threadPool, restoreListenerPlugins)::restoreCompleted
+        );
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         restoreSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.RESTORE_SNAPSHOT_KEY, true);
@@ -1192,6 +1201,12 @@ public class RestoreService implements ClusterStateApplier {
             }
         }
 
+        private final Consumer<RestoreInProgress.Entry> onRestoreCompleted;
+
+        CleanRestoreStateTaskExecutor(Consumer<RestoreInProgress.Entry> onRestoreCompleted) {
+            this.onRestoreCompleted = onRestoreCompleted;
+        }
+
         @Override
         public ClusterTasksResult<Task> execute(final ClusterState currentState, final List<Task> tasks) {
             final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.<Task>builder().successes(tasks);
@@ -1212,6 +1227,21 @@ public class RestoreService implements ClusterStateApplier {
             builder.put(RestoreInProgress.TYPE, restoreInProgressBuilder.build());
             final Map<String, ClusterState.Custom> customs = Collections.unmodifiableMap(builder);
             return resultBuilder.build(ClusterState.builder(currentState).customs(customs).build());
+        }
+
+        /**
+         * Reports each restore this publication removed. Core now considers it finished: this is the same point at which
+         * a restore request that waits for completion returns. Called once per published state, so a restore that several
+         * tasks in one batch asked to clean up is reported once.
+         */
+        @Override
+        public void clusterStatePublished(ClusterChangedEvent event) {
+            final RestoreInProgress current = event.state().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
+            for (RestoreInProgress.Entry entry : event.previousState().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
+                if (entry.state().completed() && current.get(entry.uuid()) == null) {
+                    onRestoreCompleted.accept(entry);
+                }
+            }
         }
 
         @Override
