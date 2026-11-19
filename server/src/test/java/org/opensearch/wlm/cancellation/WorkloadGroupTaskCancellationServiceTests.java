@@ -871,8 +871,30 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
 
         assertEquals(0.1, activeWorkloadGroupState.getResourceState().get(ResourceType.CPU).getLastRecordedUsage(), 0.0);
         assertEquals(0.2, activeWorkloadGroupState.getResourceState().get(ResourceType.MEMORY).getLastRecordedUsage(), 0.0);
-        assertEquals(0.05, defaultWorkloadGroupState.getResourceState().get(ResourceType.CPU).getLastRecordedUsage(), 0.0);
-        assertEquals(0.05, defaultWorkloadGroupState.getResourceState().get(ResourceType.MEMORY).getLastRecordedUsage(), 0.0);
+        // DEFAULT has no tasks of its own this run, so it drops to 0 rather than taking the deleted group's usage
+        assertEquals(0.0, defaultWorkloadGroupState.getResourceState().get(ResourceType.CPU).getLastRecordedUsage(), 0.0);
+        assertEquals(0.0, defaultWorkloadGroupState.getResourceState().get(ResourceType.MEMORY).getLastRecordedUsage(), 0.0);
+    }
+
+    public void testCancelTasks_resetsTheDefaultWorkloadGroupUsageOnceItsTasksFinish() {
+        final String defaultWorkloadGroupId = WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get();
+        WorkloadGroupState defaultWorkloadGroupState = new WorkloadGroupState();
+        when(stateAccessor.getWorkloadGroupStateMap()).thenReturn(Map.of(defaultWorkloadGroupId, defaultWorkloadGroupState));
+        when(resourceUsageTrackerService.constructWorkloadGroupLevelUsageViews()).thenReturn(workloadGroupLevelViews);
+
+        // First run, untagged tasks are running under DEFAULT
+        WorkloadGroupLevelResourceUsageView mockView = createResourceUsageViewMock();
+        when(mockView.getResourceUsageData()).thenReturn(Map.of(ResourceType.CPU, 0.3, ResourceType.MEMORY, 0.4));
+        workloadGroupLevelViews.put(defaultWorkloadGroupId, mockView);
+        taskCancellation.cancelTasks(() -> false, activeWorkloadGroups, deletedWorkloadGroups);
+        assertEquals(0.3, defaultWorkloadGroupState.getResourceState().get(ResourceType.CPU).getLastRecordedUsage(), 0.0);
+        assertEquals(0.4, defaultWorkloadGroupState.getResourceState().get(ResourceType.MEMORY).getLastRecordedUsage(), 0.0);
+
+        // Second run, those tasks have finished, so DEFAULT has no view
+        workloadGroupLevelViews.remove(defaultWorkloadGroupId);
+        taskCancellation.cancelTasks(() -> false, activeWorkloadGroups, deletedWorkloadGroups);
+        assertEquals(0.0, defaultWorkloadGroupState.getResourceState().get(ResourceType.CPU).getLastRecordedUsage(), 0.0);
+        assertEquals(0.0, defaultWorkloadGroupState.getResourceState().get(ResourceType.MEMORY).getLastRecordedUsage(), 0.0);
     }
 
     public void testGetAllCancellableTasks_ReturnsNoTasksWhenNotBreachingThresholds() {

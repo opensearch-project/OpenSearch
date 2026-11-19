@@ -97,10 +97,10 @@ public class WorkloadGroupTaskCancellationService {
         // if the node is in duress, cancel tasks accordingly.
         handleNodeDuress(isNodeInDuress, activeWorkloadGroups, deletedWorkloadGroups);
 
-        updateResourceUsageInWorkloadGroupState(activeWorkloadGroups);
+        updateResourceUsageInWorkloadGroupState();
     }
 
-    private void updateResourceUsageInWorkloadGroupState(Collection<WorkloadGroup> activeWorkloadGroups) {
+    private void updateResourceUsageInWorkloadGroupState() {
         // Read the raw state map, because getWorkloadGroupState falls back to DEFAULT once a deleted group's state is removed,
         // which would write the deleted group's usage into DEFAULT's. Groups with no state of their own are skipped
         final Map<String, WorkloadGroupState> workloadGroupStateMap = workloadGroupStateAccessor.getWorkloadGroupStateMap();
@@ -120,9 +120,10 @@ public class WorkloadGroupTaskCancellationService {
             });
         }
 
-        activeWorkloadGroups.forEach(workloadGroup -> {
-            final WorkloadGroupState workloadGroupState = workloadGroupStateMap.get(workloadGroup.get_id());
-            if (!isSearchWorkloadRunning.contains(workloadGroup.get_id()) && workloadGroupState != null) {
+        // Zero every group with no tasks this run. Walk the state map rather than the active groups, so DEFAULT, which is not
+        // in the cluster metadata, also drops back to 0 once its tasks finish
+        workloadGroupStateMap.forEach((workloadGroupId, workloadGroupState) -> {
+            if (isSearchWorkloadRunning.contains(workloadGroupId) == false) {
                 TRACKED_RESOURCES.forEach(
                     resourceType -> workloadGroupState.getResourceState().get(resourceType).setLastRecordedUsage(0.0)
                 );
