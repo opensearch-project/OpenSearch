@@ -332,6 +332,11 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         BootstrapForTesting.ensureInitialized();
         TransportService.ensureClassloaded(); // ensure server streamables are registered
 
+        // Create the BouncyCastle FIPS provider now, so that its background threads start before the first suite's thread leak check
+        // records the running threads. Otherwise they start inside whichever suite first needs the provider, and that suite fails
+        // unless its thread leak filters include BouncyCastleThreadFilter, which a suite with its own @ThreadLeakFilters replaces.
+        java.security.Security.getProvider("BCFIPS");
+
         // filter out joda timezones that are deprecated for the java time migration
         List<String> jodaTZIds = DateTimeZone.getAvailableIDs()
             .stream()
