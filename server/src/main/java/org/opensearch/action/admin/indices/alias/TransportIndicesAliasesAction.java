@@ -242,16 +242,14 @@ public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAc
                     case ADD:
                         for (String alias : concreteAliases(action, state.metadata(), index)) {
                             result.add(
-                                new AliasAction.Add(
-                                    index,
-                                    alias,
-                                    action.filter(),
-                                    action.indexRouting(),
-                                    action.searchRouting(),
-                                    action.writeIndex(),
-                                    action.isHidden(),
-                                    action.scoringMode()
-                                )
+                                AliasAction.Add.builder(index, alias)
+                                    .filter(action.filter())
+                                    .indexRouting(action.indexRouting())
+                                    .searchRouting(action.searchRouting())
+                                    .writeIndex(action.writeIndex())
+                                    .isHidden(action.isHidden())
+                                    .scoringMode(action.scoringMode())
+                                    .build()
                             );
                         }
                         break;

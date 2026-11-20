@@ -346,7 +346,7 @@ public class AliasActionsTests extends OpenSearchTestCase {
     }
 
     public void testParseScoringMode() throws IOException {
-        String scoringMode = randomFrom("unfiltered_stats", "no_stats");
+        String scoringMode = randomFrom("unfiltered_stats", "no_stats", "filtered_stats");
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
         b.startObject()
             .startObject("add")
@@ -398,13 +398,13 @@ public class AliasActionsTests extends OpenSearchTestCase {
     }
 
     public void testScoringModeRoundTripsAndIsRejectedForAnOlderNode() throws IOException {
-        AliasActions action = AliasActions.add().index("i").alias("a").scoringMode("no_stats");
+        AliasActions action = AliasActions.add().index("i").alias("a").scoringMode("filtered_stats");
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             action.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 AliasActions read = new AliasActions(in);
                 assertEquals(action, read);
-                assertEquals("no_stats", read.scoringMode());
+                assertEquals("filtered_stats", read.scoringMode());
             }
         }
         final Version older = VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION);
@@ -424,7 +424,7 @@ public class AliasActionsTests extends OpenSearchTestCase {
             }
         }
         assertNotEquals(action, plain);
-        assertThat(action.toString(), containsString("scoringMode=no_stats"));
+        assertThat(action.toString(), containsString("scoringMode=filtered_stats"));
     }
 
     public void testRoundTrip() throws IOException {

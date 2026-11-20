@@ -365,6 +365,62 @@ public abstract class SearchContext implements Releasable {
 
     public abstract Query aliasFilter();
 
+    /**
+     * Whether BM25 collection/term statistics should be computed over only the documents that match the
+     * {@link #aliasFilter()} (the "visible" subset) instead of the whole shard.
+     * <p>
+     * This backs the {@code filtered_stats} scoring mode of an alias: relevance ranking
+     * runs as if the shard contained only the visible documents, so a term that appears exclusively in
+     * filtered-out documents does not contribute its document frequency to the BM25 IDF of visible documents.
+     * It is distinct from
+     * the {@code no_stats} mode (which suppresses scoring entirely by wrapping the query in a
+     * {@link org.apache.lucene.search.ConstantScoreQuery}).
+     * <p>
+     * Defaults to {@code false} (whole-shard statistics, today's behavior). When {@code true},
+     * {@link ContextIndexSearcher} computes statistics restricted to the {@link #aliasFilter()} bitset. This is
+     * only meaningful when {@link #aliasFilter()} is non-null.
+     */
+    public boolean useFilteredStatistics() {
+        return false;
+    }
+
+    /**
+     * Whether scoring on this request must not use statistics from documents outside its alias filter or restriction.
+     * When this is true and {@link #useFilteredStatistics()} is false, the request scores without corpus statistics, and
+     * the dfs phase ships none.
+     *
+     * @return true when the alias mode or a declared restriction limits the statistics this request may use
+     */
+    public boolean restrictsStatistics() {
+        return false;
+    }
+
+    /**
+     * The query that defines the visible subset for statistics purposes, which is the alias filter for a
+     * {@code filtered_stats} alias and otherwise whatever a plugin has supplied through
+     * {@link #visibleSubsetFilter(Query)}.
+     * <p>
+     * {@link ContextIndexSearcher} reads this rather than {@link #aliasFilter()} directly, so it does not need to know
+     * which mechanism restricted the request. Returns null when statistics should cover the whole shard.
+     */
+    public Query filteredStatisticsFilter() {
+        return aliasFilter();
+    }
+
+    /**
+     * Declares the query that restricts this request, so BM25 statistics are computed over the documents it admits
+     * instead of the whole shard.
+     * <p>
+     * Calling this opts the request in. Pass the restriction alone, not combined with the user's query; it is subject
+     * to the visible-document budget.
+     *
+     * @param filter the restriction the caller applied to this request
+     */
+    public void visibleSubsetFilter(Query filter) {
+        // No-op by default. A plugin calls this on whatever context a request happens to carry, and a context that
+        // cannot scope statistics should ignore the hint rather than fail the request over it.
+    }
+
     public abstract SearchContext parsedQuery(ParsedQuery query);
 
     public abstract ParsedQuery parsedQuery();
