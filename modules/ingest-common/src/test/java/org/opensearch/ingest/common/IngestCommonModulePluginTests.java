@@ -77,7 +77,8 @@ public class IngestCommonModulePluginTests extends OpenSearchTestCase {
                 "split_to_fields",
                 "hierarchical_routing",
                 "temporal_routing",
-                "acl_routing"
+                "acl_routing",
+                "uri_parts"
             );
             assertEquals(expected, plugin.getProcessors(createParameters(settings)).keySet());
         }
