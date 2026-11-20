@@ -1,0 +1,232 @@
+setup:
+  - do:
+        indices.create:
+            index: test
+            body:
+              settings:
+                number_of_replicas: 0
+              mappings:
+                properties:
+                  int_field:
+                    type: integer
+                  double_field:
+                    type: double
+                  incomplete_field:
+                    type: integer
+  - do:
+        bulk:
+          refresh: true
+          body:
+            - index:
+                _index: test
+            - int_field: 100
+              double_field: 100.0
+              incomplete_field: 1000
+            - index:
+                _index: test
+            - int_field: 200
+              double_field: 200.0
+              incomplete_field: 2000
+            - index:
+                _index: test
+            - int_field: 300
+              double_field: 300.0
+
+---
+"basic test":
+  - skip:
+      version: " - 3.10.99"
+      reason: "boxplot aggregation added in 3.11.0"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            box_int:
+              boxplot:
+                field: int_field
+            box_double:
+              boxplot:
+                field: double_field
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 3 }
+
+  # the minimum, the maximum and the whiskers are exact, the quartiles are interpolated between the three values,
+  # so they are bounded, with floating point bounds as the response holds doubles
+  - match: { aggregations.box_int.min: 100 }
+  - match: { aggregations.box_int.max: 300 }
+  - match: { aggregations.box_int.lower: 100 }
+  - match: { aggregations.box_int.upper: 300 }
+  - gte: { aggregations.box_int.q1: 100.0 }
+  - lte: { aggregations.box_int.q1: 200.0 }
+  - gte: { aggregations.box_int.q2: 190.0 }
+  - lte: { aggregations.box_int.q2: 210.0 }
+  - gte: { aggregations.box_int.q3: 200.0 }
+  - lte: { aggregations.box_int.q3: 300.0 }
+
+  - match: { aggregations.box_double.min: 100 }
+  - match: { aggregations.box_double.max: 300 }
+  - match: { aggregations.box_double.lower: 100 }
+  - match: { aggregations.box_double.upper: 300 }
+  - gte: { aggregations.box_double.q1: 100.0 }
+  - lte: { aggregations.box_double.q1: 200.0 }
+  - gte: { aggregations.box_double.q2: 190.0 }
+  - lte: { aggregations.box_double.q2: 210.0 }
+  - gte: { aggregations.box_double.q3: 200.0 }
+  - lte: { aggregations.box_double.q3: 300.0 }
+
+---
+"with setting compression":
+  - skip:
+      version: " - 3.10.99"
+      reason: "boxplot aggregation added in 3.11.0"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            box_int:
+              boxplot:
+                field: int_field
+                compression: 500
+            box_double:
+              boxplot:
+                field: double_field
+                compression: 500
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 3 }
+
+  - match: { aggregations.box_int.min: 100 }
+  - match: { aggregations.box_int.max: 300 }
+  - match: { aggregations.box_int.lower: 100 }
+  - match: { aggregations.box_int.upper: 300 }
+  - gte: { aggregations.box_int.q1: 100.0 }
+  - lte: { aggregations.box_int.q1: 200.0 }
+  - gte: { aggregations.box_int.q2: 190.0 }
+  - lte: { aggregations.box_int.q2: 210.0 }
+  - gte: { aggregations.box_int.q3: 200.0 }
+  - lte: { aggregations.box_int.q3: 300.0 }
+
+  - match: { aggregations.box_double.min: 100 }
+  - match: { aggregations.box_double.max: 300 }
+  - match: { aggregations.box_double.lower: 100 }
+  - match: { aggregations.box_double.upper: 300 }
+  - gte: { aggregations.box_double.q1: 100.0 }
+  - lte: { aggregations.box_double.q1: 200.0 }
+  - gte: { aggregations.box_double.q2: 190.0 }
+  - lte: { aggregations.box_double.q2: 210.0 }
+  - gte: { aggregations.box_double.q3: 200.0 }
+  - lte: { aggregations.box_double.q3: 300.0 }
+
+---
+"no documents":
+  - skip:
+      version: " - 3.10.99"
+      reason: "boxplot aggregation added in 3.11.0"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            bool:
+              filter:
+                term:
+                  int_field: 12345
+          aggs:
+            box_no_docs:
+              boxplot:
+                field: int_field
+
+  - match: { hits.total: 0 }
+  - length: { hits.hits: 0 }
+
+  - match: { aggregations.box_no_docs.min: null }
+  - match: { aggregations.box_no_docs.max: null }
+  - match: { aggregations.box_no_docs.q1: null }
+  - match: { aggregations.box_no_docs.q2: null }
+  - match: { aggregations.box_no_docs.q3: null }
+  - match: { aggregations.box_no_docs.lower: null }
+  - match: { aggregations.box_no_docs.upper: null }
+
+---
+"missing value":
+  - skip:
+      version: " - 3.10.99"
+      reason: "boxplot aggregation added in 3.11.0"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            box_missing:
+              boxplot:
+                field: incomplete_field
+                missing: 0
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 3 }
+
+  - match: { aggregations.box_missing.min: 0 }
+  - match: { aggregations.box_missing.max: 2000 }
+
+---
+"with format":
+  - skip:
+      version: " - 3.10.99"
+      reason: "boxplot aggregation added in 3.11.0"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            box_format:
+              boxplot:
+                field: int_field
+                format: "0.0"
+
+  - match: { hits.total: 3 }
+
+  - match: { aggregations.box_format.min: 100 }
+  - match: { aggregations.box_format.min_as_string: "100.0" }
+  - match: { aggregations.box_format.max_as_string: "300.0" }
+
+---
+"bad arguments":
+  - skip:
+      version: " - 3.10.99"
+      reason: "boxplot aggregation added in 3.11.0"
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            box:
+              boxplot:
+                field: int_field
+                compression: 0
+
+  - match: { status: 400 }
+  - match: { error.caused_by.reason: '/must\s+be\s+greater\s+than\s+0/' }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            box:
+              boxplot:
+                field: int_field
+                compression: "Infinity"
+
+  - match: { status: 400 }
+  - match: { error.caused_by.reason: '/must\s+be\s+at\s+most/' }

@@ -70,6 +70,8 @@ import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.Boxplot;
+import org.opensearch.search.aggregations.metrics.BoxplotAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Cardinality;
 import org.opensearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ExtendedStats;
@@ -328,6 +330,13 @@ public class AggregationBuilders {
      */
     public static MedianAbsoluteDeviationAggregationBuilder medianAbsoluteDeviation(String name) {
         return new MedianAbsoluteDeviationAggregationBuilder(name);
+    }
+
+    /**
+     * Create a new {@link Boxplot} aggregation with the given name
+     */
+    public static BoxplotAggregationBuilder boxplot(String name) {
+        return new BoxplotAggregationBuilder(name);
     }
 
     /**
