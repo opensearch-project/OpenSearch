@@ -28,6 +28,8 @@ import java.util.Set;
  *
  * The metadata is stored as a flat {@code Map<String, String>} under {@link IndexMetadata#getCustomData(String)}.
  * This class is the single place that translates between that wire shape and typed {@link FieldDomain} objects.
+ * Index-wide domains can contain values hidden by document- or field-level security. They are retained in internal
+ * cluster state and persistence, but excluded from user-facing cluster-state responses and API serialization.
  *
  * @opensearch.experimental
  */

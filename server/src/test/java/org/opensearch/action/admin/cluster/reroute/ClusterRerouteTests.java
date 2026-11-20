@@ -54,12 +54,14 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.index.fielddomain.IndexFieldDomainMetadata;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -68,6 +70,64 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class ClusterRerouteTests extends OpenSearchAllocationTestCase {
+
+    public void testRerouteResponsesExcludePrivateIndexMetadata() throws IOException {
+        for (boolean dryRun : List.of(false, true)) {
+            for (boolean ackTimeout : List.of(false, true)) {
+                AllocationService allocationService = createAllocationService(Settings.EMPTY);
+                ClusterState initial = createInitialClusterState(allocationService);
+                Map<String, String> privateData = Map.of("field", "private-value");
+                Map<String, String> publicData = Map.of("key", "public-value");
+                IndexMetadata indexMetadata = IndexMetadata.builder(initial.metadata().index("idx"))
+                    .putCustom(IndexFieldDomainMetadata.CUSTOM_KEY, privateData)
+                    .putCustom("plugin_metadata", publicData)
+                    .build();
+                ClusterState state = ClusterState.builder(initial)
+                    .metadata(Metadata.builder(initial.metadata()).put(indexMetadata, false))
+                    .build();
+                AtomicReference<ClusterRerouteResponse> responseRef = new AtomicReference<>();
+                TransportClusterRerouteAction.ClusterRerouteResponseAckedClusterStateUpdateTask task =
+                    new TransportClusterRerouteAction.ClusterRerouteResponseAckedClusterStateUpdateTask(
+                        logger,
+                        allocationService,
+                        new ClusterRerouteRequest().dryRun(dryRun),
+                        ActionListener.wrap(responseRef::set, e -> {
+                            throw new AssertionError(e);
+                        })
+                    );
+                ClusterState applied = task.execute(state);
+                if (dryRun) {
+                    assertSame(state, applied);
+                }
+                if (ackTimeout) {
+                    task.onAckTimeout();
+                } else {
+                    task.onAllNodesAcked(null);
+                }
+                ClusterRerouteResponse response = responseRef.get();
+                assertEquals(ackTimeout == false, response.isAcknowledged());
+                assertNull(response.getState().metadata().index("idx").getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY));
+                assertEquals(publicData, response.getState().metadata().index("idx").getCustomData("plugin_metadata"));
+                assertEquals(indexMetadata.getVersion(), response.getState().metadata().index("idx").getVersion());
+                assertEquals(privateData, state.metadata().index("idx").getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY));
+                assertEquals(privateData, applied.metadata().index("idx").getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY));
+                try (BytesStreamOutput out = new BytesStreamOutput()) {
+                    response.writeTo(out);
+                    try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
+                        assertEquals(response.isAcknowledged(), in.readBoolean());
+                        ClusterState wireState = ClusterState.readFrom(in, null);
+                        assertNull(wireState.metadata().index("idx").getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY));
+                        assertEquals(publicData, wireState.metadata().index("idx").getCustomData("plugin_metadata"));
+                    }
+                    try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
+                        ClusterRerouteResponse restored = new ClusterRerouteResponse(in);
+                        assertNull(restored.getState().metadata().index("idx").getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY));
+                        assertEquals(publicData, restored.getState().metadata().index("idx").getCustomData("plugin_metadata"));
+                    }
+                }
+            }
+        }
+    }
 
     public void testSerializeRequest() throws IOException {
         ClusterRerouteRequest req = new ClusterRerouteRequest();
