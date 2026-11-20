@@ -433,6 +433,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             return CONTENT_TYPE;
         }
 
+        /** Still searchable from doc values when the index uses a pluggable data format. */
         @Override
         public boolean isSearchableViaDocValues(IndexSettings indexSettings) {
             return isSearchable() || (indexSettings != null && indexSettings.isPluggableDataFormatEnabled() && hasDocValues());
