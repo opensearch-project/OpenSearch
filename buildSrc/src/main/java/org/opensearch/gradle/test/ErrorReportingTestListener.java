@@ -52,6 +52,7 @@ import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.io.UncheckedIOException;
 import java.io.Writer;
+import java.nio.file.Files;
 import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -91,7 +92,7 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
             lines.add(outputEvent.getMessage());
         }
 
-        EventWriter eventWriter = eventWriters.computeIfAbsent(Descriptor.of(suite), EventWriter::new);
+        EventWriter eventWriter = eventWriters.computeIfAbsent(Descriptor.of(suite), ignored -> new EventWriter());
         eventWriter.write(outputEvent);
     }
 
@@ -180,7 +181,10 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
                 // include test failure exception stacktraces in test suite output log
                 if (result.getExceptions().size() > 0) {
                     String message = formatter.format(testDescriptor, result.getExceptions()).substring(4);
-                    EventWriter eventWriter = eventWriters.computeIfAbsent(Descriptor.of(testDescriptor.getParent()), EventWriter::new);
+                    EventWriter eventWriter = eventWriters.computeIfAbsent(
+                        Descriptor.of(testDescriptor.getParent()),
+                        ignored -> new EventWriter()
+                    );
 
                     eventWriter.write(new TestOutputEvent() {
                         @Override
@@ -257,11 +261,11 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
         private final File outputFile;
         private final Writer writer;
 
-        EventWriter(Descriptor descriptor) {
-            this.outputFile = new File(outputDirectory, descriptor.getClassName() + ".out");
-
+        EventWriter() {
             FileOutputStream fos;
             try {
+                // Class names may be null or shared by distinct suites; each writer needs its own file.
+                this.outputFile = Files.createTempFile(outputDirectory.toPath(), "test-output-", ".out").toFile();
                 fos = new FileOutputStream(this.outputFile);
             } catch (IOException e) {
                 throw new UncheckedIOException("Unable to create test suite output file", e);
