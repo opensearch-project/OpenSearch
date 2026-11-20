@@ -332,8 +332,8 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
             private final RestParameter<Boolean> local = RestParameter.boolParam("local");
 
             @Override
-            public List<RestParameter<?>> parameters() {
-                return List.of(index, local);
+            public List<Route> routes() {
+                return List.of(new Route(RestRequest.Method.GET, "/", List.of(index, local)));
             }
 
             @Override
@@ -353,6 +353,7 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
         for (String value : List.of("true", "garbage")) {
             params.put("local", value);
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
+            request.setMatchedRoute(handler.routes().get(0));
             RestChannel channel = new FakeRestChannel(request, false, 1);
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
@@ -369,8 +370,8 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
             private final RestParameter<Boolean> local = RestParameter.boolParam("local");
 
             @Override
-            public List<RestParameter<?>> parameters() {
-                return List.of(local);
+            public List<Route> routes() {
+                return List.of(new Route(RestRequest.Method.GET, "/", List.of(local)));
             }
 
             @Override
@@ -389,12 +390,14 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
         params.put("local", "true");
         params.put("legacy", "value");
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
+        request.setMatchedRoute(handler.routes().get(0));
         handler.handleRequest(request, new FakeRestChannel(request, false, 1), mockClient);
         assertTrue(executed.get());
 
         executed.set(false);
         params.put("local", "garbage");
         RestRequest invalid = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
+        invalid.setMatchedRoute(handler.routes().get(0));
         expectThrows(
             IllegalArgumentException.class,
             () -> handler.handleRequest(invalid, new FakeRestChannel(invalid, false, 1), mockClient)
@@ -405,10 +408,16 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
     public void testDeclaredParametersRejectMissingRequired() {
         BaseRestHandler handler = new BaseRestHandler() {
             @Override
-            public List<RestParameter<?>> parameters() {
+            public List<Route> routes() {
                 return List.of(
-                    RestParameter.simpleString("index", RestParameter.Property.Required, RestParameter.Property.Path),
-                    RestParameter.simpleString("id", RestParameter.Property.Required, RestParameter.Property.Path)
+                    new Route(
+                        RestRequest.Method.GET,
+                        "/",
+                        List.of(
+                            RestParameter.simpleString("index", RestParameter.Property.Required, RestParameter.Property.Path),
+                            RestParameter.simpleString("id", RestParameter.Property.Required, RestParameter.Property.Path)
+                        )
+                    )
                 );
             }
 
@@ -425,6 +434,7 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
         };
 
         RestRequest request = new FakeRestRequest();
+        request.setMatchedRoute(handler.routes().get(0));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> handler.handleRequest(request, new FakeRestChannel(request, false, 1), mockClient)
@@ -438,8 +448,8 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
             private final RestParameter<Boolean> local = RestParameter.boolParam("local");
 
             @Override
-            public List<RestParameter<?>> parameters() {
-                return List.of(index, local);
+            public List<Route> routes() {
+                return List.of(new Route(RestRequest.Method.GET, "/", List.of(index, local)));
             }
 
             @Override
@@ -458,6 +468,7 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
         params.put("index", "logs");
         params.put("locl", "true");
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
+        request.setMatchedRoute(handler.routes().get(0));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> handler.handleRequest(request, new FakeRestChannel(request, false, 1), mockClient)

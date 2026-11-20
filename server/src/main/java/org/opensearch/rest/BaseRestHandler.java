@@ -109,9 +109,7 @@ public abstract class BaseRestHandler implements RestHandler {
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        final List<RestParameter<?>> declaredParameters = request.matchedRoute() == null
-            ? parameters()
-            : parameters(request.matchedRoute());
+        final List<RestParameter<?>> declaredParameters = request.matchedRoute() == null ? List.of() : request.matchedRoute().parameters();
         validateDeclaredParameters(request, declaredParameters);
 
         // prepare the request for execution; has the side effect of touching the request parameters
@@ -348,16 +346,6 @@ public abstract class BaseRestHandler implements RestHandler {
         @Override
         protected Set<String> responseParams() {
             return delegate.responseParams();
-        }
-
-        @Override
-        public List<RestParameter<?>> parameters() {
-            return delegate.parameters();
-        }
-
-        @Override
-        public List<RestParameter<?>> parameters(Route route) {
-            return delegate.parameters(route);
         }
 
         @Override

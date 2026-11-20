@@ -14,8 +14,10 @@ import org.opensearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -25,6 +27,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RestParameterTests extends OpenSearchTestCase {
+
+    public void testRouteDeclarationsAreImmutable() {
+        var parameter = RestParameter.simpleString("name");
+        List<RestParameter<?>> parameters = new ArrayList<>(List.of(parameter));
+        var route = new RestHandler.Route(RestRequest.Method.GET, "/test", parameters);
+        parameters.clear();
+        assertEquals(List.of(parameter), route.parameters());
+        expectThrows(UnsupportedOperationException.class, () -> route.parameters().clear());
+    }
 
     public void testRequiredStringIsMetadataAndMissingValueIsNull() {
         RestParameter<String> index = RestParameter.simpleString("index", Property.Required, Property.Path);
@@ -107,7 +118,9 @@ public class RestParameterTests extends OpenSearchTestCase {
     }
 
     public void testDeleteRepositoryDeclaresRequiredAndOptionalParams() {
-        Map<String, RestParameter<?>> declared = new RestDeleteRepositoryAction().parameters()
+        Map<String, RestParameter<?>> declared = new RestDeleteRepositoryAction().routes()
+            .get(0)
+            .parameters()
             .stream()
             .collect(Collectors.toMap(RestParameter::getKey, parameter -> parameter));
 

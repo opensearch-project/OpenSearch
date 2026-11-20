@@ -67,12 +67,9 @@ public class RestDeleteRepositoryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(DELETE, "/_snapshot/{repository}"));
-    }
-
-    @Override
-    public List<RestParameter<?>> parameters() {
-        return List.of(REPOSITORY, TIMEOUT, CLUSTER_MANAGER_TIMEOUT, MASTER_TIMEOUT);
+        return singletonList(
+            new Route(DELETE, "/_snapshot/{repository}", List.of(REPOSITORY, TIMEOUT, CLUSTER_MANAGER_TIMEOUT, MASTER_TIMEOUT))
+        );
     }
 
     @Override

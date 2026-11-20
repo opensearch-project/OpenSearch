@@ -103,33 +103,6 @@ public interface RestHandler {
     }
 
     /**
-     * Parameter metadata exposed by this handler.
-     * <p>
-     * An empty list means the handler has not migrated to {@link RestParameter}. Declarations
-     * supplement the existing consumption-based validation; they are not an exhaustive allow-list.
-     * Declared parameters must still be consumed, and legacy accessors remain supported.
-     * {@link BaseRestHandler} rejects a missing {@link RestParameter.Property#Required} parameter
-     * before the handler runs. These declarations apply to every route unless
-     * {@link #parameters(Route)} is overridden.
-     */
-    @ExperimentalApi
-    default List<RestParameter<?>> parameters() {
-        return Collections.emptyList();
-    }
-
-    /**
-     * Parameter metadata for a registered route, identified by its HTTP method and path template.
-     * Returns the complete declaration list for that route; it is not merged with {@link #parameters()}.
-     * The default implementation uses the handler-wide declarations. Override this method when
-     * requiredness or accepted parameters differ between routes, including deprecated routes.
-     * This method must not depend on a live request, so API specification checks can also call it.
-     */
-    @ExperimentalApi
-    default List<RestParameter<?>> parameters(Route route) {
-        return parameters();
-    }
-
-    /**
      * A list of routes handled by this RestHandler that are deprecated and do not have a direct
      * replacement. If changing the {@code path} or {@code method} of a route,
      * use {@link #replacedRoutes()}.
@@ -209,16 +182,6 @@ public interface RestHandler {
         }
 
         @Override
-        public List<RestParameter<?>> parameters() {
-            return delegate.parameters();
-        }
-
-        @Override
-        public List<RestParameter<?>> parameters(Route route) {
-            return delegate.parameters(route);
-        }
-
-        @Override
         public List<DeprecatedRoute> deprecatedRoutes() {
             return delegate.deprecatedRoutes();
         }
@@ -255,6 +218,7 @@ public interface RestHandler {
         protected final String path;
         protected final Method method;
         private final Set<Property> properties;
+        private final List<RestParameter<?>> parameters;
 
         /**
          * Properties that describe how a route should be handled.
@@ -273,11 +237,34 @@ public interface RestHandler {
         }
 
         public Route(Method method, String path, Property... properties) {
+            this(method, path, List.of(), properties);
+        }
+
+        /**
+         * Creates a route with parameter declarations. Declarations supplement consumption-based validation;
+         * they are not an exhaustive allow-list. Declared parameters must still be consumed by the handler.
+         * @param method HTTP method
+         * @param path registered path template
+         * @param parameters parameter declarations for this route
+         * @param properties route properties
+         */
+        @ExperimentalApi
+        public Route(Method method, String path, List<RestParameter<?>> parameters, Property... properties) {
+            this.parameters = List.copyOf(parameters);
             this.path = path;
             this.method = method;
             EnumSet<Property> routeProperties = EnumSet.noneOf(Property.class);
             Collections.addAll(routeProperties, Objects.requireNonNull(properties, "Route properties must not be null"));
             this.properties = Collections.unmodifiableSet(routeProperties);
+        }
+
+        /**
+         * Returns this route's immutable parameter declarations, also available without a live request.
+         * @return parameter declarations
+         */
+        @ExperimentalApi
+        public List<RestParameter<?>> parameters() {
+            return parameters;
         }
 
         public String getPath() {
@@ -332,7 +319,13 @@ public interface RestHandler {
         private final String deprecationMessage;
 
         public DeprecatedRoute(Method method, String path, String deprecationMessage) {
-            super(method, path);
+            this(method, path, deprecationMessage, List.of());
+        }
+
+        /** Creates a deprecated route with its own parameter declarations. */
+        @ExperimentalApi
+        public DeprecatedRoute(Method method, String path, String deprecationMessage, List<RestParameter<?>> parameters) {
+            super(method, path, parameters);
             this.deprecationMessage = deprecationMessage;
         }
 
@@ -361,7 +354,19 @@ public interface RestHandler {
          * @param deprecatedPath deprecated path
          */
         public ReplacedRoute(Method method, String path, Method deprecatedMethod, String deprecatedPath) {
-            super(method, path);
+            this(method, path, deprecatedMethod, deprecatedPath, List.of());
+        }
+
+        /** Creates a replacement route whose parameter declarations also apply to its deprecated route. */
+        @ExperimentalApi
+        public ReplacedRoute(
+            Method method,
+            String path,
+            Method deprecatedMethod,
+            String deprecatedPath,
+            List<RestParameter<?>> parameters
+        ) {
+            super(method, path, parameters);
             this.deprecatedMethod = deprecatedMethod;
             this.deprecatedPath = deprecatedPath;
         }
@@ -384,7 +389,9 @@ public interface RestHandler {
          * @param deprecatedPrefix deprecated prefix
          */
         public ReplacedRoute(Route route, String prefix, String deprecatedPrefix) {
-            this(route.getMethod(), prefix + route.getPath(), deprecatedPrefix + route.getPath());
+            super(route.getMethod(), prefix + route.getPath(), route.parameters(), route.properties.toArray(new Property[0]));
+            this.deprecatedMethod = route.getMethod();
+            this.deprecatedPath = deprecatedPrefix + route.getPath();
         }
 
         public String getDeprecatedPath() {

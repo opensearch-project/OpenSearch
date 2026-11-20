@@ -27,7 +27,7 @@ import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
  * declares a parameter once, and {@link RestRequest#param(RestParameter)} consumes and parses it.
  * <p>
  * An optional path segment is expressed by registering another route. A path parameter absent from
- * some of the handler's routes can be declared separately in {@link RestHandler#parameters(RestHandler.Route)}.
+ * some of the handler's routes is declared only on the routes containing it, via {@link RestHandler.Route#parameters()}.
  * Query parameters
  * without {@link Property#Required} are optional and return {@code null} when absent. A handler can
  * pass an action request's default to {@link RestRequest#param(RestParameter, Object)}.
@@ -42,7 +42,7 @@ import static org.opensearch.core.common.unit.ByteSizeValue.parseBytesSizeValue;
  * }</pre>
  * {@link BaseRestHandler} validates all required declarations before it invokes
  * {@link BaseRestHandler#prepareRequest(RestRequest, org.opensearch.transport.client.node.NodeClient)}.
- * Handlers expose their declarations from {@link RestHandler#parameters()} so a coverage check can
+ * Routes expose their declarations from {@link RestHandler.Route#parameters()} so a coverage check can
  * diff them against the API specification without executing a request.
  *
  * @opensearch.experimental

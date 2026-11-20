@@ -253,12 +253,10 @@ public class RestControllerTests extends OpenSearchTestCase {
         restController.registerHandler(new BaseRestHandler() {
             @Override
             public List<Route> routes() {
-                return List.of(new Route(RestRequest.Method.GET, "/_search"), new Route(RestRequest.Method.GET, "/{index}/_search"));
-            }
-
-            @Override
-            public List<RestParameter<?>> parameters(Route route) {
-                return route.getPath().equals("/{index}/_search") ? List.of(index) : List.of();
+                return List.of(
+                    new Route(RestRequest.Method.GET, "/_search"),
+                    new Route(RestRequest.Method.GET, "/{index}/_search", List.of(index))
+                );
             }
 
             @Override
@@ -300,18 +298,10 @@ public class RestControllerTests extends OpenSearchTestCase {
             public List<Route> routes() {
                 return List.of(
                     new Route(RestRequest.Method.POST, "/detectors"),
-                    new Route(RestRequest.Method.PUT, "/detectors/{id}"),
-                    new Route(RestRequest.Method.POST, "/detectors/{id}/_update"),
-                    new Route(RestRequest.Method.PUT, "/detectors")
+                    new Route(RestRequest.Method.PUT, "/detectors/{id}", List.of(id, revision)),
+                    new Route(RestRequest.Method.POST, "/detectors/{id}/_update", List.of(id, revision)),
+                    new Route(RestRequest.Method.PUT, "/detectors", List.of(revision))
                 );
-            }
-
-            @Override
-            public List<RestParameter<?>> parameters(Route route) {
-                if (route.getPath().contains("{id}")) {
-                    return List.of(id, revision);
-                }
-                return route.getMethod() == RestRequest.Method.PUT ? List.of(revision) : List.of();
             }
 
             @Override
@@ -327,8 +317,8 @@ public class RestControllerTests extends OpenSearchTestCase {
             }
         };
         // The metadata is also available without a live request, for API specification checks.
-        assertEquals(List.of(), handler.parameters(handler.routes().get(0)));
-        assertEquals(List.of(id, revision), handler.parameters(handler.routes().get(1)));
+        assertEquals(List.of(), handler.routes().get(0).parameters());
+        assertEquals(List.of(id, revision), handler.routes().get(1).parameters());
         restController.registerHandler(new RestHandler.Wrapper(new BaseRestHandler.Wrapper(handler)));
         ThreadContext context = client.threadPool().getThreadContext();
         for (var route : handler.routes()) {
@@ -360,10 +350,8 @@ public class RestControllerTests extends OpenSearchTestCase {
         var revision = RestParameter.intParam("revision", RestParameter.Property.Required);
         BaseRestHandler handler = new BaseRestHandler() {
             @Override
-            public List<RestParameter<?>> parameters(Route route) {
-                assertEquals(RestRequest.Method.PUT, route.getMethod());
-                assertEquals("/legacy/{id}", route.getPath());
-                return List.of(revision);
+            public List<DeprecatedRoute> deprecatedRoutes() {
+                return List.of(new DeprecatedRoute(RestRequest.Method.PUT, "/legacy/{id}", "Use the new route", List.of(revision)));
             }
 
             @Override
@@ -377,7 +365,7 @@ public class RestControllerTests extends OpenSearchTestCase {
                 return "deprecated_route_parameters";
             }
         };
-        restController.registerAsDeprecatedHandler(RestRequest.Method.PUT, "/legacy/{id}", handler, "Use the new route");
+        restController.registerHandler(handler);
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/legacy/1")
             .build();
@@ -389,6 +377,54 @@ public class RestControllerTests extends OpenSearchTestCase {
         assertTrue(channel.getSendResponseCalled());
         assertThat(channel.getRestResponse().content().utf8ToString(), containsString("missing required parameters: [revision]"));
         assertWarnings("Use the new route");
+    }
+
+    public void testReplacedRoutesPreserveParameterDeclarations() {
+        var revision = RestParameter.intParam("revision", RestParameter.Property.Required);
+        BaseRestHandler handler = new BaseRestHandler() {
+            @Override
+            public List<ReplacedRoute> replacedRoutes() {
+                return RestHandler.replaceRoutes(
+                    List.of(new Route(RestRequest.Method.GET, "/item", List.of(revision), Route.Property.ADMINISTRATIVE)),
+                    "/new",
+                    "/old"
+                );
+            }
+
+            @Override
+            protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+                assertEquals(List.of(revision), request.matchedRoute().parameters());
+                assertEquals(Integer.valueOf(1), request.param(revision));
+                return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, ""));
+            }
+
+            @Override
+            public String getName() {
+                return "replaced_route_parameters";
+            }
+        };
+        assertTrue(handler.replacedRoutes().get(0).hasProperty(RestHandler.Route.Property.ADMINISTRATIVE));
+        restController.registerHandler(new RestHandler.Wrapper(new BaseRestHandler.Wrapper(handler)));
+        ThreadContext context = client.threadPool().getThreadContext();
+        for (String path : List.of("/new/item", "/old/item")) {
+            for (boolean supplied : List.of(false, true)) {
+                RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path)
+                    .withParams(new HashMap<>(supplied ? Map.of("revision", "1") : Map.of()))
+                    .build();
+                AssertingChannel channel = new AssertingChannel(request, true, supplied ? RestStatus.OK : RestStatus.BAD_REQUEST);
+                try (ThreadContext.StoredContext ignored = context.stashContext()) {
+                    restController.dispatchRequest(request, channel, context);
+                }
+                assertTrue(channel.getSendResponseCalled());
+                if (supplied == false) {
+                    assertThat(
+                        channel.getRestResponse().content().utf8ToString(),
+                        containsString("missing required parameters: [revision]")
+                    );
+                }
+            }
+        }
+        assertWarnings("[GET /old/item] is deprecated! Use [GET /new/item] instead.");
     }
 
     public void testRegisterAsDeprecatedHandler() {
@@ -404,7 +440,10 @@ public class RestControllerTests extends OpenSearchTestCase {
 
         controller.registerAsDeprecatedHandler(method, path, handler, deprecationMessage);
 
-        verify(controller).registerHandler(eq(method), eq(path), any(DeprecationRestHandler.class));
+        verify(controller).registerHandler(
+            eq(new RestHandler.DeprecatedRoute(method, path, deprecationMessage)),
+            any(DeprecationRestHandler.class)
+        );
     }
 
     public void testRegisterWithDeprecatedHandler() {
@@ -431,8 +470,11 @@ public class RestControllerTests extends OpenSearchTestCase {
 
         controller.registerWithDeprecatedHandler(method, path, handler, deprecatedMethod, deprecatedPath);
 
-        verify(controller).registerHandler(method, path, handler);
-        verify(controller).registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage);
+        verify(controller).registerHandler(eq(new RestHandler.ReplacedRoute(method, path, deprecatedMethod, deprecatedPath)), eq(handler));
+        verify(controller).registerHandler(
+            eq(new RestHandler.DeprecatedRoute(deprecatedMethod, deprecatedPath, deprecationMessage)),
+            any(DeprecationRestHandler.class)
+        );
     }
 
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {
