@@ -14,8 +14,15 @@ import org.opensearch.http.HttpRequest;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpUtil;
+import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
@@ -33,6 +40,7 @@ class ReactorNetty4NonStreamingRequestConsumer<T extends HttpContent> implements
     private final ReactorNetty4HttpServerTransport transport;
     private final HttpResponseHeadersFactory responseHeadersFactory;
     private final AtomicBoolean disposed = new AtomicBoolean(false);
+    private final long maxContentLength;
     private volatile FluxSink<HttpContent> emitter;
     private volatile boolean lastHttpContentEmitted = false;
     private volatile HttpChannel channel;
@@ -42,12 +50,14 @@ class ReactorNetty4NonStreamingRequestConsumer<T extends HttpContent> implements
         HttpResponseHeadersFactory responseHeadersFactory,
         HttpServerRequest request,
         HttpServerResponse response,
-        int maxCompositeBufferComponents
+        int maxCompositeBufferComponents,
+        long maxContentLength
     ) {
         this.transport = transport;
         this.responseHeadersFactory = responseHeadersFactory;
         this.request = request;
         this.response = response;
+        this.maxContentLength = maxContentLength;
         this.content = response.alloc().compositeBuffer(maxCompositeBufferComponents);
         this.publisher = Flux.create(emitter -> register(emitter));
     }
@@ -80,8 +90,21 @@ class ReactorNetty4NonStreamingRequestConsumer<T extends HttpContent> implements
     }
 
     void process(HttpContent in, FluxSink<HttpContent> emitter) {
+        final ByteBuf chunk = in.content();
+
+        // Enforce http.max_content_length on the received content (already decompressed if the request
+        // body is compressed) before retaining it, the same way the netty4 transport does. As with the netty4
+        // transport, the decoded chunk that crosses the limit has already been allocated by the decompressor
+        // and is released right away: Netty's decoders emit at most 64 KiB per chunk with the default
+        // http.max_chunk_size and HTTP/2 frame size, but a gzip/deflate chunk can reach about twice the
+        // compressed body for a cleartext h2c upgrade request, which is aggregated before it is decoded.
+        if ((long) content.readableBytes() + chunk.readableBytes() > maxContentLength) {
+            rejectContentTooLarge(emitter);
+            return;
+        }
+
         // Consume request body in full before dispatching it
-        content.addComponent(true, in.content().retain());
+        content.addComponent(true, chunk.retain());
 
         if (in instanceof LastHttpContent) {
             lastHttpContentEmitted = true;
@@ -102,6 +125,26 @@ class ReactorNetty4NonStreamingRequestConsumer<T extends HttpContent> implements
                 }
             }
         }
+    }
+
+    private void rejectContentTooLarge(FluxSink<HttpContent> emitter) {
+        // Ignore any further content of this request and release what has been buffered so far
+        lastHttpContentEmitted = true;
+        if (disposed.compareAndSet(false, true)) {
+            this.content.release();
+        }
+
+        // The rest of the request body is not going to be consumed, so the connection cannot be reused
+        response.keepAlive(false);
+
+        final FullHttpResponse tooLarge = new DefaultFullHttpResponse(
+            HttpVersion.HTTP_1_1,
+            HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE,
+            Unpooled.EMPTY_BUFFER
+        );
+        HttpUtil.setContentLength(tooLarge, 0);
+        emitter.next(tooLarge);
+        emitter.complete();
     }
 
     HttpRequest createRequest(HttpServerRequest request, CompositeByteBuf content) {
