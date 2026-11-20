@@ -39,6 +39,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.query.ParsedQuery;
+import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.rescore.RescoreContext;
 
@@ -58,15 +59,29 @@ public class DfsPhase {
         try {
             Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
             Map<Term, TermStatistics> stats = new HashMap<>();
+            // Ship visible-subset statistics when a restriction scopes them, so the coordinator aggregates those rather
+            // than whole-shard numbers. The searcher applies its filtered overrides while aggregatedDfs is still null.
+            final boolean filteredStatistics = context.useFilteredStatistics() && context.filteredStatisticsFilter() != null;
+            final ContextIndexSearcher contextSearcher = context.searcher();
             IndexSearcher searcher = new IndexSearcher(context.searcher().getIndexReader()) {
                 @Override
                 public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
                     if (context.isCancelled()) {
                         throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
                     }
-                    TermStatistics ts = super.termStatistics(term, docFreq, totalTermFreq);
+                    // Delegate to the ContextIndexSearcher so filtered (visible-subset) stats are used during dfs.
+                    // visibleSubsetTermStatistics, not termStatistics: a shard whose visible subset does not contain
+                    // the term must contribute nothing here, and the local-scoring override substitutes a floor for
+                    // that case which would inflate the coordinator's aggregated docFreq.
+                    TermStatistics ts = filteredStatistics
+                        ? contextSearcher.visibleSubsetTermStatistics(term, docFreq, totalTermFreq)
+                        : super.termStatistics(term, docFreq, totalTermFreq);
                     if (ts != null) {
                         stats.put(term, ts);
+                    } else if (filteredStatistics) {
+                        // Contribute nothing, but give Lucene non-null statistics: phrase and synonym weights
+                        // dereference them. This weight is discarded once the statistics are collected.
+                        return new TermStatistics(term.bytes(), 1, 1);
                     }
                     return ts;
                 }
@@ -76,9 +91,18 @@ public class DfsPhase {
                     if (context.isCancelled()) {
                         throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
                     }
-                    CollectionStatistics cs = super.collectionStatistics(field);
+                    // Delegate to the ContextIndexSearcher so filtered (visible-subset) stats are used during dfs.
+                    // visibleSubsetCollectionStatistics, not collectionStatistics: a shard whose visible subset has no
+                    // document with the field must contribute nothing, and the local-scoring override substitutes a
+                    // floor for that case.
+                    CollectionStatistics cs = filteredStatistics
+                        ? contextSearcher.visibleSubsetCollectionStatistics(field)
+                        : super.collectionStatistics(field);
                     if (cs != null) {
                         fieldStatistics.put(field, cs);
+                    } else if (filteredStatistics && getIndexReader().maxDoc() > 0) {
+                        // As for terms: nothing for the coordinator, and non-null statistics for this weight.
+                        return new CollectionStatistics(field, getIndexReader().maxDoc(), 1, 1, 1);
                     }
                     return cs;
                 }
@@ -91,6 +115,13 @@ public class DfsPhase {
                 }
             }
 
+            if (context.restrictsStatistics() && filteredStatistics == false) {
+                // This shard scores without corpus statistics (no_stats, filtered_stats over its ceiling, or a plugin
+                // restriction over its ceiling). Its whole-shard numbers must not reach the coordinator, where they
+                // would change the scores of other shards that do scope their statistics.
+                stats.clear();
+                fieldStatistics.clear();
+            }
             Term[] terms = stats.keySet().toArray(new Term[0]);
             TermStatistics[] termStatistics = new TermStatistics[terms.length];
             for (int i = 0; i < terms.length; i++) {
