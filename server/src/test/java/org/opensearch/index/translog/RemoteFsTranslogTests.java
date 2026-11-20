@@ -2249,7 +2249,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             .add(METADATA_DIR);
     }
 
-    public void testFencingEnabledTranslogUploadCreatesAndAdvancesFence() throws Exception {
+    public void testFencingEnabledTranslogUploadCreatesFenceAndLaterUploadsOnlyReadIt() throws Exception {
         BlobStoreRepository fencedRepository = createIsolatedRepository();
         BlobPath fenceDirectory = fenceDirectory(fencedRepository);
         try (RemoteFsTranslog fenced = createFencedTranslog("node-1", fencedRepository)) {
@@ -2268,9 +2268,9 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             fenced.add(new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 1 }));
             fenced.sync();
             VersionedBlob afterSecond = fenceContainer.readBlobWithVersion(RemoteStoreFence.fenceBlobName(primaryTerm.get()));
-            // The CAS chain advanced: a new version token over new content
-            assertNotEquals(afterFirst.versionToken(), afterSecond.versionToken());
-            assertNotEquals(afterFirstContent, new String(afterSecond.content(), StandardCharsets.UTF_8));
+            // The second upload checked ownership by reading the chain: the object is exactly as the first left it
+            assertEquals(afterFirst.versionToken(), afterSecond.versionToken());
+            assertEquals(afterFirstContent, new String(afterSecond.content(), StandardCharsets.UTF_8));
         }
     }
 
