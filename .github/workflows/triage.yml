@@ -18,31 +18,69 @@ jobs:
             const { issue, repository } = context.payload;
             const { number, body, user } = issue;
             const { owner, name } = repository;
-            const regex = /###\sRelated\scomponent\n\n(\w.*)\n/gm;
-            let match;
 
-            while ( ( match = regex.exec( body ) ) ) {
-              const [ , component_label ] = match;
+            // Must match the "Related component" options in .github/ISSUE_TEMPLATE/*.yml.
+            const components = [
+              'Build',
+              'Clients',
+              'Cluster Manager',
+              'Extensions',
+              'Indexing:Performance',
+              'Indexing:Replication',
+              'Indexing',
+              'Libraries',
+              'Other',
+              'Plugins',
+              'Search:Aggregations',
+              'Search:Performance',
+              'Search:Query Capabilities',
+              'Search:Query Insights',
+              'Search:Relevance',
+              'Search:Remote Search',
+              'Search:Resiliency',
+              'Search:Searchable Snapshots',
+              'Search',
+              'Storage:Durability',
+              'Storage:Performance',
+              'Storage:Remote',
+              'Storage:Snapshots',
+              'Storage',
+              'ShardManagement:Placement',
+              'ShardManagement:Performance',
+              'ShardManagement:Resiliency',
+              'ShardManagement:Insights',
+            ];
+            const canonical = (value) =>
+              components.find((c) => c.toLowerCase() === value.trim().toLowerCase());
 
-              let label
-              // Check if the component label is "_No response_"
-              if (component_label.trim() === "_No response_") {
-                // Add a comment tagging the user
-                await github.rest.issues.createComment({
-                  owner: owner.login,
-                  repo: name,
-                  issue_number: number,
-                  body: `@${user.login} Please reply to this comment with the relevant component to ensure it gets properly triaged:\n\n- Build\n- Clients\n- Cluster Manager\n- Extensions\n- Indexing:Performance\n- Indexing:Replication\n- Indexing\n- Libraries\n- Other\n- Plugins\n- Search:Aggregations\n- Search:Performance\n- Search:Query Capabilities\n- Search:Query Insights\n- Search:Relevance\n- Search:Remote Search\n- Search:Resiliency\n- Search:Searchable Snapshots\n- Search\n- Storage:Durability\n- Storage:Performance\n- Storage:Remote\n- Storage:Snapshots\n- Storage\n\nReply with the component name, and we'll label this issue appropriately.`
-                });
-                label = 'missing-component'
-              } else {
-                label = component_label
-              }
+            const match = /###\s*Related\s+component[ \t]*\r?\n\s*([^\r\n]*)/i.exec(body || '');
+            // An empty section is followed directly by the next heading.
+            const provided = match && match[1].startsWith('#') === false ? match[1].trim() : '';
+            const component = canonical(provided);
+            const alreadyLabeled = (issue.labels || []).some((l) => canonical(l.name));
+
+            if (component) {
               await github.rest.issues.addLabels({
                 owner: owner.login,
                 repo: name,
                 issue_number: number,
-                labels: [label]
+                labels: [component]
+              });
+            } else if (alreadyLabeled === false) {
+              const reason = provided && provided !== '_No response_'
+                ? `\`${provided}\` is not a recognized component. `
+                : '';
+              await github.rest.issues.createComment({
+                owner: owner.login,
+                repo: name,
+                issue_number: number,
+                body: `@${user.login} ${reason}Please reply to this comment with the relevant component to ensure it gets properly triaged:\n\n${components.map((c) => `- ${c}`).join('\n')}\n\nReply with the component name, and we'll label this issue appropriately.`
+              });
+              await github.rest.issues.addLabels({
+                owner: owner.login,
+                repo: name,
+                issue_number: number,
+                labels: ['missing-component']
               });
             }
 
