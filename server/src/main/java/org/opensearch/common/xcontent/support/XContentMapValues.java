@@ -50,6 +50,7 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -676,7 +677,8 @@ public class XContentMapValues {
     /**
      * Performs a depth first traversal of a map and applies a transformation for each field matched along the way. For
      * duplicated paths with transformers (i.e. "test.nested" and "test.nested.field"), only the transformer for
-     * the shorter path is applied.
+     * the shorter path is applied. A source key that contains dots, such as "test.nested", matches
+     * the same transformers as the object path it stands for.
      *
      * @param source Source map to perform transformation on
      * @param transformers Map from path to transformer to apply to each path. Each transformer is a function that takes
@@ -695,7 +697,8 @@ public class XContentMapValues {
     /**
      * Returns function that performs a depth first traversal of a map and applies a transformation for each field
      * matched along the way. For duplicated paths with transformers (i.e. "test.nested" and "test.nested.field"), only
-     * the transformer for the shorter path is applied.
+     * the transformer for the shorter path is applied. A source key that contains dots, such as "test.nested", matches the same
+     * transformers as the object path it stands for.
      *
      * @param transformers Map from path to transformer to apply to each path. Each transformer is a function that takes
      *                     the current value and returns a transformed value
@@ -709,7 +712,7 @@ public class XContentMapValues {
         Map<String, Object> transformerTrie = buildTransformerTrie(transformers);
         return source -> {
             Deque<TransformContext> stack = new ArrayDeque<>();
-            Map<String, Object> result = inPlace ? source : new HashMap<>(source);
+            Map<String, Object> result = inPlace ? source : new LinkedHashMap<>(source);
             stack.push(new TransformContext(result, transformerTrie));
 
             processStack(stack, inPlace);
@@ -734,40 +737,51 @@ public class XContentMapValues {
     private static void processStack(Deque<TransformContext> stack, boolean inPlace) {
         while (!stack.isEmpty()) {
             TransformContext ctx = stack.pop();
-            processMap(ctx.map, ctx.trie, stack, inPlace);
+            if (ctx.transformer != null) {
+                ctx.entry.setValue(ctx.transformer.apply(ctx.entry.getValue()));
+            } else {
+                processMap(ctx.map, ctx.trie, stack, inPlace);
+            }
         }
     }
 
+    /**
+     * Schedules the work for a map's entries so that the stack pops it in document order. Transformers are therefore applied
+     * in the order their values appear in the source, which is also the order in which nested documents are created from it.
+     */
     private static void processMap(
         Map<String, Object> currentMap,
         Map<String, Object> currentTrie,
         Deque<TransformContext> stack,
         boolean inPlace
     ) {
+        List<TransformContext> children = new ArrayList<>();
         for (Map.Entry<String, Object> entry : currentMap.entrySet()) {
-            processEntry(entry, currentTrie, stack, inPlace);
+            processEntry(entry, currentTrie, children, inPlace);
+        }
+        for (int i = children.size() - 1; i >= 0; i--) {
+            stack.push(children.get(i));
         }
     }
 
     private static void processEntry(
         Map.Entry<String, Object> entry,
         Map<String, Object> currentTrie,
-        Deque<TransformContext> stack,
+        List<TransformContext> children,
         boolean inPlace
     ) {
         String key = entry.getKey();
         Object value = entry.getValue();
 
-        Object subTrieObj = currentTrie.get(key);
-        if (subTrieObj instanceof Map == false) {
+        Map<String, Object> subTrie = resolveSubTrie(currentTrie, key);
+        if (subTrie == null) {
             return;
         }
-        Map<String, Object> subTrie = nodeMapValue(subTrieObj, "transform");
 
         // Apply transformation if available
         Function<Object, Object> transformer = (Function<Object, Object>) subTrie.get(TRANSFORMER_TRIE_LEAF_KEY);
         if (transformer != null) {
-            entry.setValue(transformer.apply(value));
+            children.add(new TransformContext(entry, transformer));
             return;
         }
 
@@ -775,46 +789,79 @@ public class XContentMapValues {
         if (value instanceof Map) {
             Map<String, Object> subMap = nodeMapValue(value, "transform");
             if (inPlace == false) {
-                subMap = new HashMap<>(subMap);
+                subMap = new LinkedHashMap<>(subMap);
                 entry.setValue(subMap);
             }
-            stack.push(new TransformContext(subMap, subTrie));
+            children.add(new TransformContext(subMap, subTrie));
         } else if (value instanceof List<?> list) {
             List<Object> subList = (List<Object>) list;
             if (inPlace == false) {
                 subList = new ArrayList<>(list);
                 entry.setValue(subList);
             }
-            processList(subList, subTrie, stack, inPlace);
+            processList(subList, subTrie, children, inPlace);
         }
+    }
+
+    /**
+     * Returns the trie node for a source key, or {@code null} if no transformer path goes through it. A key with dots, such
+     * as {@code "a.b"}, is the same field as the object path {@code a -> b}, so it is resolved one part at a time. If a part
+     * before the last one already has a transformer, that shorter path owns the field and the key is not resolved.
+     */
+    private static Map<String, Object> resolveSubTrie(Map<String, Object> currentTrie, String key) {
+        if (key.indexOf('.') < 0) {
+            Object subTrieObj = currentTrie.get(key);
+            return subTrieObj instanceof Map ? nodeMapValue(subTrieObj, "transform") : null;
+        }
+        String[] parts = key.split("\\.", -1);
+        Map<String, Object> subTrie = currentTrie;
+        for (int i = 0; i < parts.length; i++) {
+            Object subTrieObj = subTrie.get(parts[i]);
+            if (subTrieObj instanceof Map == false) {
+                return null;
+            }
+            subTrie = nodeMapValue(subTrieObj, "transform");
+            if (i < parts.length - 1 && subTrie.containsKey(TRANSFORMER_TRIE_LEAF_KEY)) {
+                return null;
+            }
+        }
+        return subTrie;
     }
 
     private static void processList(
         List<Object> list,
         Map<String, Object> transformerTrie,
-        Deque<TransformContext> stack,
+        List<TransformContext> children,
         boolean inPlace
     ) {
-        for (int i = list.size() - 1; i >= 0; i--) {
+        for (int i = 0; i < list.size(); i++) {
             Object value = list.get(i);
             if (value instanceof Map) {
                 Map<String, Object> subMap = nodeMapValue(value, "transform");
                 if (inPlace == false) {
-                    subMap = new HashMap<>(subMap);
+                    subMap = new LinkedHashMap<>(subMap);
                     list.set(i, subMap);
                 }
-                stack.push(new TransformContext(subMap, transformerTrie));
+                children.add(new TransformContext(subMap, transformerTrie));
             }
         }
     }
 
+    /** A map to walk with its trie node, or an entry whose value a transformer replaces. */
     private static class TransformContext {
         Map<String, Object> map;
         Map<String, Object> trie;
+        Map.Entry<String, Object> entry;
+        Function<Object, Object> transformer;
 
         TransformContext(Map<String, Object> map, Map<String, Object> trie) {
             this.map = map;
             this.trie = trie;
+        }
+
+        TransformContext(Map.Entry<String, Object> entry, Function<Object, Object> transformer) {
+            this.entry = entry;
+            this.transformer = transformer;
         }
     }
 }
