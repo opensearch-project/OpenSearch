@@ -32,12 +32,15 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.sort.SortOrder;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -64,6 +67,9 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
         }
         if (randomBoolean()) {
             histo.timeZone(randomZone());
+        }
+        if (randomBoolean()) {
+            histo.offset(randomLongBetween(-1_000_000, 1_000_000));
         }
         if (randomBoolean()) {
             histo.missingBucket(true);
@@ -123,5 +129,28 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
             }
         }
         return new CompositeAggregationBuilder(randomAlphaOfLength(10), sources);
+    }
+
+    public void testDateHistogramSourceOffsetSurvivesXContentRoundTrip() throws IOException {
+        DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date").field("timestamp")
+            .calendarInterval(DateHistogramInterval.days(1))
+            .offset(4 * 60 * 60 * 1000L);
+        CompositeAggregationBuilder agg = new CompositeAggregationBuilder("composite", List.of(histo));
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, agg.toString())) {
+            CompositeAggregationBuilder parsed = (CompositeAggregationBuilder) parse(parser);
+            DateHistogramValuesSourceBuilder parsedHisto = (DateHistogramValuesSourceBuilder) parsed.sources().get(0);
+            assertEquals(4 * 60 * 60 * 1000L, parsedHisto.offset());
+            assertEquals(agg, parsed);
+        }
+    }
+
+    public void testDateHistogramSourceEqualityConsidersOffset() {
+        DateHistogramValuesSourceBuilder first = new DateHistogramValuesSourceBuilder("date").field("timestamp")
+            .calendarInterval(DateHistogramInterval.days(1));
+        DateHistogramValuesSourceBuilder second = new DateHistogramValuesSourceBuilder("date").field("timestamp")
+            .calendarInterval(DateHistogramInterval.days(1))
+            .offset(1000L);
+        assertNotEquals(first, second);
     }
 }
