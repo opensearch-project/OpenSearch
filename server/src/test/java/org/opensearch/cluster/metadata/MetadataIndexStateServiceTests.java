@@ -39,14 +39,20 @@ import org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
 import org.opensearch.action.admin.indices.datastream.DeleteDataStreamRequestTests;
 import org.opensearch.action.admin.indices.readonly.AddIndexBlockClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.readonly.AddIndexBlockResponse;
+import org.opensearch.action.admin.indices.readonly.AddIndexBlockResponse.AddBlockResult;
+import org.opensearch.action.admin.indices.readonly.RemoveIndexBlockClusterStateUpdateRequest;
+import org.opensearch.action.admin.indices.readonly.RemoveIndexBlockResponse;
+import org.opensearch.action.admin.indices.readonly.RemoveIndexBlockResponse.RemoveBlockResult;
 import org.opensearch.action.admin.indices.readonly.TransportVerifyShardIndexBlockAction;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.block.ClusterBlock;
+import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.opensearch.cluster.routing.IndexRoutingTable;
@@ -57,8 +63,10 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.Priority;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.Index;
@@ -73,6 +81,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
 import org.hamcrest.CoreMatchers;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -96,9 +105,11 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREA
 import static org.opensearch.cluster.metadata.MetadataIndexStateService.INDEX_CLOSED_BLOCK;
 import static org.opensearch.cluster.metadata.MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID;
 import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -109,6 +120,13 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
+
+    @BeforeClass
+    public static void initializeIndexMetadataFirst() {
+        // IndexMetadata and its nested APIBlock enum initialize each other and only work when IndexMetadata is initialized first, as it
+        // always is on a running node. Do not let the first test that mentions APIBlock in this JVM decide.
+        assertNotNull(IndexMetadata.INDEX_READ_ONLY_BLOCK);
+    }
 
     public void testCloseRoutingTable() {
         final Set<Index> nonBlockedIndices = new HashSet<>();
@@ -438,6 +456,421 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
         assertFalse(response.getIndices().get(0).hasFailures());
         assertTrue(currentState.get().blocks().hasIndexBlockWithId(indexName, APIBlock.WRITE.getBlock().id()));
         verifyNoInteractions(verifyShardIndexBlockAction);
+    }
+
+    /** The API blocks that can be removed with the remove index block API. */
+    private static List<APIBlock> removableBlocks() {
+        return List.of(APIBlock.READ_ONLY, APIBlock.READ, APIBlock.WRITE, APIBlock.METADATA);
+    }
+
+    public void testRemoveIndexBlockClearsBlockAndSetting() {
+        for (APIBlock block : removableBlocks()) {
+            final ClusterState state = addIndexWithApiBlocks(emptyClusterState(), "test", IndexMetadata.State.OPEN, block);
+            final IndexMetadata before = state.metadata().index("test");
+            assertTrue(state.blocks().hasIndexBlock("test", block.getBlock()));
+
+            final Tuple<ClusterState, List<RemoveBlockResult>> result = MetadataIndexStateService.removeIndexBlock(
+                new Index[] { before.getIndex() },
+                state,
+                block
+            );
+
+            final ClusterState updated = result.v1();
+            final IndexMetadata after = updated.metadata().index("test");
+            assertFalse(block.name(), updated.blocks().hasIndexBlockWithId("test", block.getBlock().id()));
+            assertTrue(block.name(), after.getSettings().hasValue(block.settingName()));
+            assertFalse(block.name(), after.getSettings().getAsBoolean(block.settingName(), true));
+            assertThat(block.name(), after.getSettingsVersion(), equalTo(before.getSettingsVersion() + 1));
+            assertSame("routing must not be touched", state.routingTable(), updated.routingTable());
+            assertThat(result.v2(), hasSize(1));
+            assertThat(result.v2().get(0).getIndex(), equalTo(before.getIndex()));
+            assertTrue(result.v2().get(0).isUnblocked());
+        }
+    }
+
+    public void testRemoveIndexBlockIsNoOpWhenBlockIsAbsent() {
+        // an index without any API block, and an index that has only other blocks
+        final ClusterState plain = addOpenedIndex("test", 1, 0, emptyClusterState());
+        final ClusterState withOther = addIndexWithApiBlocks(emptyClusterState(), "test", IndexMetadata.State.OPEN, APIBlock.READ);
+        for (ClusterState state : List.of(plain, withOther)) {
+            final Index index = state.metadata().index("test").getIndex();
+            final Tuple<ClusterState, List<RemoveBlockResult>> result = MetadataIndexStateService.removeIndexBlock(
+                new Index[] { index },
+                state,
+                APIBlock.WRITE
+            );
+            assertSame("a no-op must return the very same cluster state", state, result.v1());
+            assertThat(result.v2(), hasSize(1));
+            assertTrue(result.v2().get(0).isUnblocked());
+            assertNull(result.v2().get(0).getException());
+        }
+    }
+
+    public void testRemoveIndexBlockTwiceIsNoOpTheSecondTime() {
+        final APIBlock block = randomFrom(removableBlocks());
+        final ClusterState state = addIndexWithApiBlocks(emptyClusterState(), "test", IndexMetadata.State.OPEN, block);
+        final Index[] indices = new Index[] { state.metadata().index("test").getIndex() };
+
+        final ClusterState first = MetadataIndexStateService.removeIndexBlock(indices, state, block).v1();
+        assertNotSame(state, first);
+        final Tuple<ClusterState, List<RemoveBlockResult>> second = MetadataIndexStateService.removeIndexBlock(indices, first, block);
+        assertSame(first, second.v1());
+        assertTrue(second.v2().get(0).isUnblocked());
+    }
+
+    public void testRemoveIndexBlockRepairsSettingWhenBlockIsAlreadyGone() {
+        final APIBlock block = randomFrom(removableBlocks());
+        final ClusterState blocked = addIndexWithApiBlocks(emptyClusterState(), "test", IndexMetadata.State.OPEN, block);
+        // settings still say true while the cluster block has been lost
+        final ClusterState state = ClusterState.builder(blocked)
+            .blocks(ClusterBlocks.builder().blocks(blocked.blocks()).removeIndexBlock("test", block.getBlock()))
+            .build();
+        assertFalse(state.blocks().hasIndexBlockWithId("test", block.getBlock().id()));
+        final IndexMetadata before = state.metadata().index("test");
+
+        final ClusterState updated = MetadataIndexStateService.removeIndexBlock(new Index[] { before.getIndex() }, state, block).v1();
+
+        final IndexMetadata after = updated.metadata().index("test");
+        assertFalse(after.getSettings().getAsBoolean(block.settingName(), true));
+        assertThat(after.getSettingsVersion(), equalTo(before.getSettingsVersion() + 1));
+        assertFalse(updated.blocks().hasIndexBlockWithId("test", block.getBlock().id()));
+    }
+
+    public void testCombinedReadOnlyAndWriteBlocksCanBeClearedInEitherOrder() {
+        // https://github.com/opensearch-project/OpenSearch/issues/20293: the settings API cannot clear both and leaves the index stuck
+        final List<APIBlock> order = randomBoolean()
+            ? List.of(APIBlock.READ_ONLY, APIBlock.WRITE)
+            : List.of(APIBlock.WRITE, APIBlock.READ_ONLY);
+        final APIBlock first = order.get(0);
+        final APIBlock second = order.get(1);
+        ClusterState state = addIndexWithApiBlocks(
+            emptyClusterState(),
+            "test",
+            IndexMetadata.State.OPEN,
+            APIBlock.READ_ONLY,
+            APIBlock.WRITE
+        );
+        final Index[] indices = new Index[] { state.metadata().index("test").getIndex() };
+        assertTrue(state.blocks().hasIndexBlock("test", APIBlock.READ_ONLY.getBlock()));
+        assertTrue(state.blocks().hasIndexBlock("test", APIBlock.WRITE.getBlock()));
+
+        state = MetadataIndexStateService.removeIndexBlock(indices, state, first).v1();
+
+        assertFalse(state.blocks().hasIndexBlockWithId("test", first.getBlock().id()));
+        assertFalse(state.metadata().index("test").getSettings().getAsBoolean(first.settingName(), true));
+        // the other block and its setting are untouched
+        assertTrue(state.blocks().hasIndexBlock("test", second.getBlock()));
+        assertTrue(state.metadata().index("test").getSettings().getAsBoolean(second.settingName(), false));
+
+        state = MetadataIndexStateService.removeIndexBlock(indices, state, second).v1();
+
+        assertThat("the index must not be left with any block", state.blocks().indices().containsKey("test"), is(false));
+        assertFalse(state.blocks().indexBlocked(ClusterBlockLevel.WRITE, "test"));
+        assertFalse(state.blocks().indexBlocked(ClusterBlockLevel.METADATA_WRITE, "test"));
+        assertFalse(state.metadata().index("test").getSettings().getAsBoolean(APIBlock.READ_ONLY.settingName(), true));
+        assertFalse(state.metadata().index("test").getSettings().getAsBoolean(APIBlock.WRITE.settingName(), true));
+    }
+
+    public void testRemoveIndexBlockLeavesOtherBlocksAndIndicesAlone() {
+        ClusterState state = addIndexWithApiBlocks(
+            emptyClusterState(),
+            "test",
+            IndexMetadata.State.OPEN,
+            APIBlock.READ,
+            APIBlock.WRITE,
+            APIBlock.METADATA
+        );
+        state = addIndexWithApiBlocks(state, "other", IndexMetadata.State.OPEN, APIBlock.WRITE);
+        final Index index = state.metadata().index("test").getIndex();
+
+        final ClusterState updated = MetadataIndexStateService.removeIndexBlock(new Index[] { index }, state, APIBlock.WRITE).v1();
+
+        assertFalse(updated.blocks().hasIndexBlockWithId("test", APIBlock.WRITE.getBlock().id()));
+        assertTrue(updated.blocks().hasIndexBlock("test", APIBlock.READ.getBlock()));
+        assertTrue(updated.blocks().hasIndexBlock("test", APIBlock.METADATA.getBlock()));
+        assertTrue(updated.metadata().index("test").getSettings().getAsBoolean(APIBlock.READ.settingName(), false));
+        assertTrue(updated.metadata().index("test").getSettings().getAsBoolean(APIBlock.METADATA.settingName(), false));
+        // the untargeted index keeps its block, setting and settings version
+        assertTrue(updated.blocks().hasIndexBlock("other", APIBlock.WRITE.getBlock()));
+        assertTrue(updated.metadata().index("other").getSettings().getAsBoolean(APIBlock.WRITE.settingName(), false));
+        assertThat(updated.metadata().index("other").getSettingsVersion(), equalTo(state.metadata().index("other").getSettingsVersion()));
+    }
+
+    public void testRemoveIndexBlockFromClosedIndexKeepsItClosed() {
+        final ClusterState state = addIndexWithApiBlocks(emptyClusterState(), "test", IndexMetadata.State.CLOSE, APIBlock.WRITE);
+        final Index index = state.metadata().index("test").getIndex();
+        assertTrue(state.blocks().hasIndexBlock("test", INDEX_CLOSED_BLOCK));
+
+        final ClusterState updated = MetadataIndexStateService.removeIndexBlock(new Index[] { index }, state, APIBlock.WRITE).v1();
+
+        assertFalse(updated.blocks().hasIndexBlockWithId("test", APIBlock.WRITE.getBlock().id()));
+        assertFalse(updated.metadata().index("test").getSettings().getAsBoolean(APIBlock.WRITE.settingName(), true));
+        assertThat(updated.metadata().index("test").getState(), is(IndexMetadata.State.CLOSE));
+        assertTrue("the closed block is not an API block and must stay", updated.blocks().hasIndexBlock("test", INDEX_CLOSED_BLOCK));
+    }
+
+    public void testRemoveIndexBlockDoesNotTouchTemporaryUuidBasedBlock() {
+        // a PUT _block that did not complete leaves a temporary UUID based block and index.blocks.write=true behind
+        final APIBlock block = randomFrom(removableBlocks());
+        final ClusterState plain = addOpenedIndex("test", 1, 0, emptyClusterState());
+        final Index index = plain.metadata().index("test").getIndex();
+        final ClusterState state = MetadataIndexStateService.addIndexBlock(new Index[] { index }, plain, block).v1();
+        final ClusterBlock temporary = state.blocks().getIndexBlockWithId("test", block.getBlock().id());
+        assertThat(temporary.uuid(), notNullValue());
+
+        final Tuple<ClusterState, List<RemoveBlockResult>> result = MetadataIndexStateService.removeIndexBlock(
+            new Index[] { index },
+            state,
+            block
+        );
+
+        assertSame("nothing may change while a temporary block exists", state, result.v1());
+        assertTrue(result.v1().blocks().hasIndexBlock("test", temporary));
+        assertTrue(result.v1().metadata().index("test").getSettings().getAsBoolean(block.settingName(), false));
+        assertThat(result.v2(), hasSize(1));
+        final RemoveBlockResult indexResult = result.v2().get(0);
+        assertFalse(indexResult.isUnblocked());
+        assertThat(indexResult.getException(), instanceOf(IllegalStateException.class));
+        assertThat(indexResult.getException().getMessage(), containsString("test"));
+        assertThat(indexResult.getException().getMessage(), containsString("[" + block.name + "]"));
+    }
+
+    public void testRemoveIndexBlockSucceedsOnceTemporaryBlockWasFinalized() {
+        final APIBlock block = randomFrom(removableBlocks());
+        final ClusterState plain = addOpenedIndex("test", 1, 0, emptyClusterState());
+        final Index index = plain.metadata().index("test").getIndex();
+        final Tuple<ClusterState, Map<Index, ClusterBlock>> adding = MetadataIndexStateService.addIndexBlock(
+            new Index[] { index },
+            plain,
+            block
+        );
+
+        // while the add block call is still in flight the remove call is refused
+        assertFalse(MetadataIndexStateService.removeIndexBlock(new Index[] { index }, adding.v1(), block).v2().get(0).isUnblocked());
+
+        // once the add block call finished, the block is a regular block and can be removed
+        final ClusterState finalized = MetadataIndexStateService.finalizeBlock(
+            adding.v1(),
+            adding.v2(),
+            Map.of(index, new AddBlockResult(index)),
+            block
+        ).v1();
+        assertTrue(finalized.blocks().hasIndexBlock("test", block.getBlock()));
+        final Tuple<ClusterState, List<RemoveBlockResult>> removed = MetadataIndexStateService.removeIndexBlock(
+            new Index[] { index },
+            finalized,
+            block
+        );
+        assertTrue(removed.v2().get(0).isUnblocked());
+        assertFalse(removed.v1().blocks().hasIndexBlockWithId("test", block.getBlock().id()));
+        assertFalse(removed.v1().metadata().index("test").getSettings().getAsBoolean(block.settingName(), true));
+    }
+
+    public void testAddIndexBlockAfterRemoveStartsOverWithFreshTemporaryBlock() {
+        final APIBlock block = randomFrom(removableBlocks());
+        final ClusterState blocked = addIndexWithApiBlocks(emptyClusterState(), "test", IndexMetadata.State.OPEN, block);
+        final Index index = blocked.metadata().index("test").getIndex();
+        final ClusterState removed = MetadataIndexStateService.removeIndexBlock(new Index[] { index }, blocked, block).v1();
+
+        final Tuple<ClusterState, Map<Index, ClusterBlock>> added = MetadataIndexStateService.addIndexBlock(
+            new Index[] { index },
+            removed,
+            block
+        );
+
+        assertThat(added.v2().keySet(), contains(index));
+        assertThat(added.v2().get(index).uuid(), notNullValue());
+        assertTrue(added.v1().metadata().index("test").getSettings().getAsBoolean(block.settingName(), false));
+    }
+
+    public void testRemoveIndexBlockReportsEveryIndexAndKeepsRequestOrder() {
+        ClusterState state = addIndexWithApiBlocks(emptyClusterState(), "blocked", IndexMetadata.State.OPEN, APIBlock.WRITE);
+        state = addOpenedIndex("plain", 1, 0, state);
+        // "stuck" only has a temporary block
+        state = addOpenedIndex("stuck", 1, 0, state);
+        final Index blocked = state.metadata().index("blocked").getIndex();
+        final Index plain = state.metadata().index("plain").getIndex();
+        final Index stuck = state.metadata().index("stuck").getIndex();
+        state = MetadataIndexStateService.addIndexBlock(new Index[] { stuck }, state, APIBlock.WRITE).v1();
+
+        final Tuple<ClusterState, List<RemoveBlockResult>> result = MetadataIndexStateService.removeIndexBlock(
+            new Index[] { stuck, blocked, plain },
+            state,
+            APIBlock.WRITE
+        );
+
+        assertThat(
+            result.v2().stream().map(r -> r.getIndex().getName()).collect(Collectors.toList()),
+            contains("stuck", "blocked", "plain")
+        );
+        assertThat(result.v2().stream().map(RemoveBlockResult::isUnblocked).collect(Collectors.toList()), contains(false, true, true));
+        assertFalse(result.v1().blocks().hasIndexBlockWithId("blocked", APIBlock.WRITE.getBlock().id()));
+        assertTrue("the index with the temporary block is left alone", result.v1().blocks().hasIndexBlockWithId("stuck", 8));
+        assertTrue(result.v1().metadata().index("stuck").getSettings().getAsBoolean(APIBlock.WRITE.settingName(), false));
+    }
+
+    public void testRemoveIndexBlockFailsForUnknownIndex() {
+        final ClusterState state = addOpenedIndex("test", 1, 0, emptyClusterState());
+        expectThrows(
+            IndexNotFoundException.class,
+            () -> MetadataIndexStateService.removeIndexBlock(new Index[] { new Index("missing", "_na_") }, state, APIBlock.WRITE)
+        );
+    }
+
+    public void testRemoveIndexBlockServiceRequiresIndices() {
+        final MetadataIndexStateService service = new MetadataIndexStateService(
+            mock(ClusterService.class),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        final RemoveIndexBlockClusterStateUpdateRequest request = new RemoveIndexBlockClusterStateUpdateRequest(APIBlock.WRITE).indices(
+            new Index[0]
+        );
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.removeIndexBlock(request, PlainActionFuture.newFuture())
+        );
+        assertThat(e.getMessage(), equalTo("Index name is required"));
+    }
+
+    public void testRemoveIndexBlockServiceAnswersWithPerIndexResultsOnceAcknowledged() throws Exception {
+        final ClusterState initial = addIndexWithApiBlocks(emptyClusterState(), "test", IndexMetadata.State.OPEN, APIBlock.WRITE);
+        final Index index = initial.metadata().index("test").getIndex();
+        final AtomicReference<ClusterStateUpdateTask> submitted = new AtomicReference<>();
+        final ClusterService clusterService = mock(ClusterService.class);
+        doAnswer(invocation -> {
+            submitted.set(invocation.getArgument(1));
+            return null;
+        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        final MetadataIndexStateService service = new MetadataIndexStateService(clusterService, null, null, null, null, null, null, null);
+        final RemoveIndexBlockClusterStateUpdateRequest request = new RemoveIndexBlockClusterStateUpdateRequest(APIBlock.WRITE).indices(
+            new Index[] { index }
+        ).ackTimeout(TimeValue.timeValueSeconds(7)).clusterManagerNodeTimeout(TimeValue.timeValueSeconds(9));
+        final PlainActionFuture<RemoveIndexBlockResponse> future = PlainActionFuture.newFuture();
+
+        service.removeIndexBlock(request, future);
+
+        final ClusterStateUpdateTask task = submitted.get();
+        assertThat(task, instanceOf(AckedClusterStateUpdateTask.class));
+        assertThat(task.priority(), equalTo(Priority.URGENT));
+        assertThat(task.timeout(), equalTo(TimeValue.timeValueSeconds(9)));
+        assertThat(((AckedClusterStateUpdateTask<?>) task).ackTimeout(), equalTo(TimeValue.timeValueSeconds(7)));
+        assertFalse("must not answer before the cluster state update is acknowledged", future.isDone());
+
+        final ClusterState updated = task.execute(initial);
+        assertFalse(updated.blocks().hasIndexBlockWithId("test", APIBlock.WRITE.getBlock().id()));
+        ((AckedClusterStateUpdateTask<?>) task).onAllNodesAcked(null);
+
+        final RemoveIndexBlockResponse response = future.actionGet();
+        assertTrue(response.isAcknowledged());
+        assertThat(response.getIndices(), hasSize(1));
+        assertThat(response.getIndices().get(0).getIndex(), equalTo(index));
+        assertTrue(response.getIndices().get(0).isUnblocked());
+    }
+
+    public void testRemoveIndexBlockServiceIsNotAcknowledgedWhileAnIndexKeepsItsBlock() throws Exception {
+        // like the add block API: a response that reports a failed index must not claim success through "acknowledged"
+        ClusterState initial = addIndexWithApiBlocks(emptyClusterState(), "unblockable", IndexMetadata.State.OPEN, APIBlock.WRITE);
+        initial = addOpenedIndex("stuck", 1, 0, initial);
+        final Index unblockable = initial.metadata().index("unblockable").getIndex();
+        final Index stuck = initial.metadata().index("stuck").getIndex();
+        initial = MetadataIndexStateService.addIndexBlock(new Index[] { stuck }, initial, APIBlock.WRITE).v1();
+        final AtomicReference<ClusterStateUpdateTask> submitted = new AtomicReference<>();
+        final ClusterService clusterService = mock(ClusterService.class);
+        doAnswer(invocation -> {
+            submitted.set(invocation.getArgument(1));
+            return null;
+        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        final MetadataIndexStateService service = new MetadataIndexStateService(clusterService, null, null, null, null, null, null, null);
+        final PlainActionFuture<RemoveIndexBlockResponse> future = PlainActionFuture.newFuture();
+        service.removeIndexBlock(
+            new RemoveIndexBlockClusterStateUpdateRequest(APIBlock.WRITE).indices(new Index[] { unblockable, stuck }),
+            future
+        );
+
+        submitted.get().execute(initial);
+        ((AckedClusterStateUpdateTask<?>) submitted.get()).onAllNodesAcked(null);
+
+        final RemoveIndexBlockResponse response = future.actionGet();
+        assertFalse("every node applied the cluster state, but one index still has its block", response.isAcknowledged());
+        assertThat(response.getIndices().stream().map(RemoveBlockResult::isUnblocked).collect(Collectors.toList()), contains(true, false));
+    }
+
+    public void testRemoveIndexBlockServiceReportsAckTimeoutWithResults() throws Exception {
+        final ClusterState initial = addIndexWithApiBlocks(emptyClusterState(), "test", IndexMetadata.State.OPEN, APIBlock.READ);
+        final Index index = initial.metadata().index("test").getIndex();
+        final AtomicReference<ClusterStateUpdateTask> submitted = new AtomicReference<>();
+        final ClusterService clusterService = mock(ClusterService.class);
+        doAnswer(invocation -> {
+            submitted.set(invocation.getArgument(1));
+            return null;
+        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        final MetadataIndexStateService service = new MetadataIndexStateService(clusterService, null, null, null, null, null, null, null);
+        final PlainActionFuture<RemoveIndexBlockResponse> future = PlainActionFuture.newFuture();
+        service.removeIndexBlock(new RemoveIndexBlockClusterStateUpdateRequest(APIBlock.READ).indices(new Index[] { index }), future);
+
+        submitted.get().execute(initial);
+        ((AckedClusterStateUpdateTask<?>) submitted.get()).onAckTimeout();
+
+        final RemoveIndexBlockResponse response = future.actionGet();
+        assertFalse(response.isAcknowledged());
+        assertThat(response.getIndices(), hasSize(1));
+        assertTrue(response.getIndices().get(0).isUnblocked());
+    }
+
+    public void testRemoveIndexBlockServiceForwardsFailures() throws Exception {
+        final ClusterState initial = addOpenedIndex("test", 1, 0, emptyClusterState());
+        final AtomicReference<ClusterStateUpdateTask> submitted = new AtomicReference<>();
+        final ClusterService clusterService = mock(ClusterService.class);
+        doAnswer(invocation -> {
+            submitted.set(invocation.getArgument(1));
+            return null;
+        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        final MetadataIndexStateService service = new MetadataIndexStateService(clusterService, null, null, null, null, null, null, null);
+        final PlainActionFuture<RemoveIndexBlockResponse> future = PlainActionFuture.newFuture();
+        service.removeIndexBlock(
+            new RemoveIndexBlockClusterStateUpdateRequest(APIBlock.WRITE).indices(new Index[] { new Index("gone", "_na_") }),
+            future
+        );
+
+        final Exception failure = expectThrows(IndexNotFoundException.class, () -> submitted.get().execute(initial));
+        submitted.get().onFailure("test", failure);
+
+        assertSame(failure, expectThrows(IndexNotFoundException.class, future::actionGet));
+    }
+
+    private static ClusterState emptyClusterState() {
+        return ClusterState.builder(new ClusterName("testRemoveIndexBlock")).build();
+    }
+
+    /**
+     * Adds an index that has the given API blocks the way the settings API or a completed add block call leaves it: the
+     * {@code index.blocks.*} settings are {@code true} and the matching full (non UUID based) cluster blocks are present.
+     */
+    private static ClusterState addIndexWithApiBlocks(
+        final ClusterState current,
+        final String index,
+        final IndexMetadata.State indexState,
+        final APIBlock... apiBlocks
+    ) {
+        final ClusterState withIndex = indexState == IndexMetadata.State.OPEN
+            ? addOpenedIndex(index, 1, 0, current)
+            : addClosedIndex(index, 1, 0, current);
+        final IndexMetadata indexMetadata = withIndex.metadata().index(index);
+        final Settings.Builder settings = Settings.builder().put(indexMetadata.getSettings());
+        for (APIBlock apiBlock : apiBlocks) {
+            settings.put(apiBlock.settingName(), true);
+        }
+        final IndexMetadata blocked = IndexMetadata.builder(indexMetadata).settings(settings).build();
+        return ClusterState.builder(withIndex)
+            .metadata(Metadata.builder(withIndex.metadata()).put(blocked, true))
+            .blocks(ClusterBlocks.builder().blocks(withIndex.blocks()).addBlocks(blocked))
+            .build();
     }
 
     public static ClusterState addOpenedIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {
