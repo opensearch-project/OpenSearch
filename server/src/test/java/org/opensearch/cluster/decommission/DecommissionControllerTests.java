@@ -15,6 +15,7 @@ import org.opensearch.action.admin.cluster.configuration.TransportClearVotingCon
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
@@ -167,35 +168,57 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
     }
 
     public void testTimesOut() throws InterruptedException {
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
-        Set<DiscoveryNode> nodesToBeRemoved = new HashSet<>();
-        nodesToBeRemoved.add(clusterService.state().nodes().get("node11"));
-        nodesToBeRemoved.add(clusterService.state().nodes().get("node12"));
-        nodesToBeRemoved.add(clusterService.state().nodes().get("node13"));
-        nodesToBeRemoved.add(clusterService.state().nodes().get("node14"));
-        nodesToBeRemoved.add(clusterService.state().nodes().get("node15"));
-        final AtomicReference<Exception> exceptionReference = new AtomicReference<>();
-        decommissionController.removeDecommissionedNodes(
-            nodesToBeRemoved,
-            "unit-test-timeout",
-            TimeValue.timeValueMillis(0),
-            new ActionListener<>() {
+        final CountDownLatch blockerStarted = new CountDownLatch(1);
+        final CountDownLatch releaseBlocker = new CountDownLatch(1);
+        try {
+            // Keep node removal pending so a completed removal cannot bypass the timeout path.
+            clusterService.submitStateUpdateTask("block node removal", new ClusterStateUpdateTask() {
                 @Override
-                public void onResponse(Void unused) {
-                    countDownLatch.countDown();
+                public ClusterState execute(ClusterState currentState) throws InterruptedException {
+                    blockerStarted.countDown();
+                    releaseBlocker.await();
+                    return currentState;
                 }
 
                 @Override
-                public void onFailure(Exception e) {
-                    exceptionReference.set(e);
-                    countDownLatch.countDown();
+                public void onFailure(String source, Exception e) {
+                    throw new AssertionError(source, e);
                 }
-            }
-        );
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        MatcherAssert.assertThat("Expected onFailure to be called", exceptionReference.get(), notNullValue());
-        MatcherAssert.assertThat(exceptionReference.get(), instanceOf(OpenSearchTimeoutException.class));
-        MatcherAssert.assertThat(exceptionReference.get().getMessage(), containsString("waiting for removal of decommissioned nodes"));
+            });
+            assertTrue("cluster-manager blocker did not start", blockerStarted.await(30, TimeUnit.SECONDS));
+
+            final CountDownLatch countDownLatch = new CountDownLatch(1);
+            Set<DiscoveryNode> nodesToBeRemoved = new HashSet<>();
+            nodesToBeRemoved.add(clusterService.state().nodes().get("node11"));
+            nodesToBeRemoved.add(clusterService.state().nodes().get("node12"));
+            nodesToBeRemoved.add(clusterService.state().nodes().get("node13"));
+            nodesToBeRemoved.add(clusterService.state().nodes().get("node14"));
+            nodesToBeRemoved.add(clusterService.state().nodes().get("node15"));
+            final AtomicReference<Exception> exceptionReference = new AtomicReference<>();
+            decommissionController.removeDecommissionedNodes(
+                nodesToBeRemoved,
+                "unit-test-timeout",
+                TimeValue.timeValueMillis(0),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        countDownLatch.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        exceptionReference.set(e);
+                        countDownLatch.countDown();
+                    }
+                }
+            );
+            assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
+            MatcherAssert.assertThat("Expected onFailure to be called", exceptionReference.get(), notNullValue());
+            MatcherAssert.assertThat(exceptionReference.get(), instanceOf(OpenSearchTimeoutException.class));
+            MatcherAssert.assertThat(exceptionReference.get().getMessage(), containsString("waiting for removal of decommissioned nodes"));
+        } finally {
+            releaseBlocker.countDown();
+        }
     }
 
     public void testSuccessfulDecommissionStatusMetadataUpdate() throws InterruptedException {
