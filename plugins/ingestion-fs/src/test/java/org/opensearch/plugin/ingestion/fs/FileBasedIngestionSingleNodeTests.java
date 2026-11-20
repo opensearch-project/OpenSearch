@@ -484,6 +484,68 @@ public class FileBasedIngestionSingleNodeTests extends OpenSearchSingleNodeTestC
         client().admin().indices().delete(new DeleteIndexRequest(index)).actionGet();
     }
 
+    public void testAWriteParamThatRepeatsAParamIsRejectedOnCreate() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put(writeEnabledSettings())
+                        .put("index.ingestion_source.write.param.base_directory", createTempDir().toString())
+                )
+                .get()
+        );
+        assertTrue(e.getMessage().contains("[index.ingestion_source.write.param.base_directory] is already set"));
+        assertFalse(client().admin().indices().prepareExists(index).get().isExists());
+    }
+
+    public void testAWriteParamThatRepeatsAParamIsRejectedOnUpdate() {
+        createIndex(index, writeEnabledSettings());
+
+        // adding a write param that repeats a param
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .indices()
+                .prepareUpdateSettings(index)
+                .setSettings(Settings.builder().put("index.ingestion_source.write.param.base_directory", "/tmp/elsewhere"))
+                .get()
+        );
+        assertTrue(e.getMessage().contains("[index.ingestion_source.write.param.base_directory] is already set"));
+
+        // a write-only param is accepted; adding the same key as a param afterwards is rejected
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(index)
+            .setSettings(Settings.builder().put("index.ingestion_source.write.param.flush", "true"))
+            .get();
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .indices()
+                .prepareUpdateSettings(index)
+                .setSettings(Settings.builder().put("index.ingestion_source.param.flush", "true"))
+                .get()
+        );
+        assertTrue(e.getMessage().contains("[index.ingestion_source.write.param.flush] is already set"));
+
+        client().admin().indices().delete(new DeleteIndexRequest(index)).actionGet();
+    }
+
+    private Settings writeEnabledSettings() {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("ingestion_source.type", "FILE")
+            .put("ingestion_source.param.stream", stream)
+            .put("ingestion_source.param.base_directory", ingestionDir.toString())
+            .put("index.replication.type", "SEGMENT")
+            .put(IndexMetadata.INGESTION_SOURCE_WRITE_ENABLED_SETTING.getKey(), true)
+            .build();
+    }
+
     /**
      * Helper method to get polling ingest stats for the index
      */

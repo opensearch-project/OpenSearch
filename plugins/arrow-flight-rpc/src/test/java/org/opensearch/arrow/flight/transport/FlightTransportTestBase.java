@@ -77,6 +77,7 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
         Settings settings = Settings.builder()
             .put("node.name", getTestName())
             .put("aux.transport.transport-flight.port", portRange)
+            .put(additionalSettings())
             .build();
         ServerConfig.init(settings);
         threadPool = new ThreadPool(
@@ -137,6 +138,11 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
             )
         );
         streamTransportService.connectToNode(remoteNode);
+    }
+
+    /** Extra node settings for the transport under test; subclasses override to exercise non-default configuration. */
+    protected Settings additionalSettings() {
+        return Settings.EMPTY;
     }
 
     @After

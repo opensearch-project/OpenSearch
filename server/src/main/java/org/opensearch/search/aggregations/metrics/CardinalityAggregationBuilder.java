@@ -33,6 +33,7 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -155,6 +156,17 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         }
         this.precisionThreshold = precisionThreshold;
         return this;
+    }
+
+    /**
+     * The precision threshold, or {@code null} if none was set and the default
+     * precision applies.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public Long precisionThreshold() {
+        return precisionThreshold;
     }
 
     public CardinalityAggregationBuilder executionHint(String executionHint) {
