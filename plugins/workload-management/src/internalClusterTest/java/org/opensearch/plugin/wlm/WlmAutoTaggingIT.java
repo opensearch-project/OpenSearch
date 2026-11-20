@@ -54,6 +54,7 @@ import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugin.wlm.action.CreateWorkloadGroupAction;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupAction;
@@ -94,6 +95,9 @@ import org.opensearch.rule.action.CreateRuleAction;
 import org.opensearch.rule.action.CreateRuleRequest;
 import org.opensearch.rule.action.DeleteRuleAction;
 import org.opensearch.rule.action.DeleteRuleRequest;
+import org.opensearch.rule.action.GetRuleAction;
+import org.opensearch.rule.action.GetRuleRequest;
+import org.opensearch.rule.action.GetRuleResponse;
 import org.opensearch.rule.action.UpdateRuleAction;
 import org.opensearch.rule.action.UpdateRuleRequest;
 import org.opensearch.rule.autotagging.Attribute;
@@ -124,6 +128,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -481,6 +486,101 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
                 clearScroll(scrollId);
             }
         });
+    }
+
+    public void testRulesBeyondFirstPageAreApplied() throws Exception {
+        String workloadGroupId = "wlm_paging_group";
+        setWlmMode("enabled");
+        updateWorkloadGroupInClusterState(PUT, createWorkloadGroup("paging_group", workloadGroupId));
+        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+
+        // More rules than fit on one page of TestWorkloadManagementPlugin.MAX_RULES_PER_PAGE.
+        int ruleCount = TestWorkloadManagementPlugin.MAX_RULES_PER_PAGE + 5;
+        for (int i = 0; i < ruleCount; i++) {
+            createRule("paging_rule_" + i, "paging rule " + i, "paging-idx-" + i, featureType, workloadGroupId);
+        }
+
+        // Neither of these is on a first page of rules, whether the page is in index order (the last rule created) or
+        // sorted by rule id (the largest id), so both only tag searches if the sync reads every page.
+        Rule largestIdRule = getRulePages(featureType).stream().flatMap(List::stream).max(Comparator.comparing(Rule::getId)).orElseThrow();
+        Set<String> indexNames = new HashSet<>();
+        indexNames.add("paging-idx-" + (ruleCount - 1));
+        indexNames.add(largestIdRule.getAttributeMap().get(RuleAttribute.INDEX_PATTERN).iterator().next());
+
+        for (String indexName : indexNames) {
+            indexDocument(indexName);
+            assertBusy(() -> {
+                int completionsBefore = getCompletions(workloadGroupId);
+                client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+                int completionsAfter = getCompletions(workloadGroupId);
+                assertTrue("Expected the rule for [" + indexName + "] to tag searches", completionsAfter > completionsBefore);
+            }, 30, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testGetRulePaginationReturnsEachRuleOnce() throws Exception {
+        String workloadGroupId = "wlm_get_paging_group";
+        setWlmMode("enabled");
+        updateWorkloadGroupInClusterState(PUT, createWorkloadGroup("get_paging_group", workloadGroupId));
+        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+
+        int ruleCount = 2 * TestWorkloadManagementPlugin.MAX_RULES_PER_PAGE + 10;
+        for (int i = 0; i < ruleCount; i++) {
+            createRule("get_paging_rule_" + i, "get paging rule " + i, "get-paging-idx-" + i, featureType, workloadGroupId);
+        }
+
+        assertEachRuleReturnedOnce(featureType, ruleCount);
+
+        // Paging must not depend on _id fielddata, which some clusters disable.
+        Settings.Builder disabled = Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), false);
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(disabled).get());
+        try {
+            assertEachRuleReturnedOnce(featureType, ruleCount);
+        } finally {
+            Settings.Builder reset = Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey());
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(reset).get());
+        }
+    }
+
+    public void testRulesOnEmptyRulesIndex() throws Exception {
+        String workloadGroupId = "wlm_empty_index_group";
+        setWlmMode("enabled");
+        updateWorkloadGroupInClusterState(PUT, createWorkloadGroup("empty_index_group", workloadGroupId));
+        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+
+        // A rules index with no documents has no mapping, so the sort field doesn't exist yet.
+        assertAcked(client().admin().indices().prepareCreate(TestWorkloadManagementPlugin.INDEX_NAME));
+
+        assertTrue(getRulePages(featureType).stream().allMatch(List::isEmpty));
+        createRule("empty_index_rule", "empty index rule", "empty-index-idx", featureType, workloadGroupId);
+        assertEquals(1, getRulePages(featureType).stream().mapToInt(List::size).sum());
+    }
+
+    private void assertEachRuleReturnedOnce(FeatureType featureType, int ruleCount) throws Exception {
+        List<String> ids = getRulePages(featureType).stream().flatMap(List::stream).map(Rule::getId).collect(Collectors.toList());
+        assertEquals("Expected every rule exactly once, got " + ids.size() + " ids", ruleCount, ids.size());
+        assertEquals("Expected no duplicate rules across pages", ruleCount, new HashSet<>(ids).size());
+    }
+
+    /**
+     * Pages through the Get Rule API by passing each response's search_after back until there is none.
+     */
+    private List<List<Rule>> getRulePages(FeatureType featureType) throws Exception {
+        List<List<Rule>> pages = new ArrayList<>();
+        String searchAfter = null;
+        do {
+            GetRuleResponse response = client().execute(
+                GetRuleAction.INSTANCE,
+                new GetRuleRequest(null, Collections.emptyMap(), searchAfter, featureType)
+            ).get();
+            pages.add(response.getRules());
+            if (response.getSearchAfter() != null) {
+                assertNotEquals("search_after must advance", searchAfter, response.getSearchAfter());
+            }
+            searchAfter = response.getSearchAfter();
+        } while (searchAfter != null && pages.size() <= 20);
+        assertNull("Paging did not finish", searchAfter);
+        return pages;
     }
 
     // Helper functions
