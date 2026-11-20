@@ -35,6 +35,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -85,13 +86,7 @@ public class CollapseContext {
      * @throws IllegalStateException if field type is not keyword or numeric
      */
     public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN) {
-        if (fieldType != null && fieldType.unwrap() instanceof KeywordFieldMapper.KeywordFieldType) {
-            return CollapsingTopDocsCollector.createKeyword(fieldName, fieldType, sort, topN);
-        } else if (fieldType != null && fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType) {
-            return CollapsingTopDocsCollector.createNumeric(fieldName, fieldType, sort, topN);
-        } else {
-            throw new IllegalStateException("unknown type for collapse field " + fieldName + ", only keywords and numbers are accepted");
-        }
+        return createTopDocs(sort, topN, null, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
     /**
@@ -104,8 +99,22 @@ public class CollapseContext {
      * @throws IllegalStateException if field type is not keyword or numeric
      */
     public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN, FieldDoc searchAfter) {
+        return createTopDocs(sort, topN, searchAfter, BigArrays.NON_RECYCLING_INSTANCE);
+    }
+
+    /**
+     * Creates a CollapsingTopDocsCollector for field collapsing with search_after support.
+     *
+     * @param sort The sort order for collapsed groups (must match collapse field for search_after)
+     * @param topN Maximum number of collapsed groups to collect
+     * @param searchAfter The last sort value from previous page for pagination
+     * @param bigArrays Accounts keyword collapse ord-cache memory against the request circuit breaker
+     * @return CollapsingTopDocsCollector instance based on field type
+     * @throws IllegalStateException if field type is not keyword or numeric
+     */
+    public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN, FieldDoc searchAfter, BigArrays bigArrays) {
         if (fieldType != null && fieldType.unwrap() instanceof KeywordFieldMapper.KeywordFieldType) {
-            return CollapsingTopDocsCollector.createKeyword(fieldName, fieldType, sort, topN, searchAfter);
+            return CollapsingTopDocsCollector.createKeyword(fieldName, fieldType, sort, topN, searchAfter, bigArrays);
         } else if (fieldType != null && fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType) {
             return CollapsingTopDocsCollector.createNumeric(fieldName, fieldType, sort, topN, searchAfter);
         } else {
