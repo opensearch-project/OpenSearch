@@ -583,9 +583,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             try {
                 final Task parentTask = extractParentTask(originalSearchRequest);
                 searchRequest = searchPipelineService.resolvePipeline(originalSearchRequest, parentTask, indexNameExpressionResolver);
-                listener = searchRequest.transformResponseListener(updatedListener);
+                // Outside the response processors, so the request ends where a search phase would end it.
+                listener = endRequestWithoutPhase(searchRequest.transformResponseListener(updatedListener), searchRequestContext);
             } catch (Exception e) {
-                updatedListener.onFailure(e);
+                endRequestWithoutPhase(updatedListener, searchRequestContext).onFailure(e);
                 return;
             }
 
@@ -621,6 +622,30 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 listener.onFailure(e);
             }
         }
+    }
+
+    /**
+     * Ends the request if it completes without a search phase having ended it, which happens when it fails before its shards are
+     * resolved or when a cross-cluster search runs no search phase on this node. Otherwise its {@code onRequestStart} would go
+     * unpaired.
+     */
+    private static ActionListener<SearchResponse> endRequestWithoutPhase(
+        final ActionListener<SearchResponse> listener,
+        final SearchRequestContext searchRequestContext
+    ) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse response) {
+                searchRequestContext.endRequest(null);
+                listener.onResponse(response);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                searchRequestContext.failRequest(null);
+                listener.onFailure(e);
+            }
+        };
     }
 
     /** Whether {@code task}'s work is accounted for against a throttle bucket, so a nested search can inherit it. */

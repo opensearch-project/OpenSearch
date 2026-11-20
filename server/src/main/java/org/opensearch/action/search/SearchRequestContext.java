@@ -11,6 +11,7 @@ package org.opensearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
@@ -23,6 +24,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**
@@ -44,6 +46,7 @@ public class SearchRequestContext {
     private final LinkedBlockingQueue<TaskResourceInfo> phaseResourceUsage;
     private final Supplier<TaskResourceInfo> taskResourceUsageSupplier;
     private boolean streamingRequest;
+    private final AtomicBoolean requestEnded = new AtomicBoolean();
 
     SearchRequestContext(
         final SearchRequestOperationsListener searchRequestOperationsListener,
@@ -61,6 +64,39 @@ public class SearchRequestContext {
 
     SearchRequestOperationsListener getSearchRequestOperationsListener() {
         return searchRequestOperationsListener;
+    }
+
+    /**
+     * Reports that the request succeeded, unless its end was already reported, so listeners see exactly one end per request.
+     * A search phase must report the end before it completes the request's listener. Otherwise the listener reports it first,
+     * as an end without a phase. In a cross-cluster search that minimizes roundtrips and also targets local indices, the local
+     * search reports the end when it finishes, which can be before the remote clusters respond.
+     *
+     * @param phaseContext the search phase that ended the request, or {@code null} if no search phase ran on this node
+     */
+    void endRequest(@Nullable SearchPhaseContext phaseContext) {
+        if (requestEnded.compareAndSet(false, true)) {
+            if (phaseContext != null) {
+                searchRequestOperationsListener.onRequestEnd(phaseContext, this);
+            } else {
+                searchRequestOperationsListener.onRequestEndWithoutPhase(this);
+            }
+        }
+    }
+
+    /**
+     * Reports that the request failed, unless its end was already reported. See {@link #endRequest}.
+     *
+     * @param phaseContext the search phase the request failed in, or {@code null} if no search phase ran on this node
+     */
+    void failRequest(@Nullable SearchPhaseContext phaseContext) {
+        if (requestEnded.compareAndSet(false, true)) {
+            if (phaseContext != null) {
+                searchRequestOperationsListener.onRequestFailure(phaseContext, this);
+            } else {
+                searchRequestOperationsListener.onRequestFailureWithoutPhase(this);
+            }
+        }
     }
 
     void updatePhaseTookMap(String phaseName, Long tookTime) {

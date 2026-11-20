@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -121,6 +122,51 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
         );
 
         assertSuccess(testWorkloadGroupId, workloadGroupStateMap, expectedStats, testWorkloadGroupId);
+    }
+
+    public void testValidWorkloadGroupRequestFailureWithoutPhase() {
+        WorkloadGroupStats expectedStats = new WorkloadGroupStats(
+            Map.of(
+                testWorkloadGroupId,
+                new WorkloadGroupStats.WorkloadGroupStatsHolder(
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    Map.of(
+                        ResourceType.CPU,
+                        new WorkloadGroupStats.ResourceStats(0, 0, 0),
+                        ResourceType.MEMORY,
+                        new WorkloadGroupStats.ResourceStats(0, 0, 0)
+                    )
+                ),
+                WorkloadGroupTask.DEFAULT_WORKLOAD_GROUP_ID_SUPPLIER.get(),
+                new WorkloadGroupStats.WorkloadGroupStatsHolder(
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    Map.of(
+                        ResourceType.CPU,
+                        new WorkloadGroupStats.ResourceStats(0, 0, 0),
+                        ResourceType.MEMORY,
+                        new WorkloadGroupStats.ResourceStats(0, 0, 0)
+                    )
+                )
+            )
+        );
+
+        assertSuccess(
+            testWorkloadGroupId,
+            workloadGroupStateMap,
+            expectedStats,
+            testWorkloadGroupId,
+            listener -> listener.onRequestFailureWithoutPhase(null)
+        );
     }
 
     public void testMultiThreadedValidWorkloadGroupRequestFailures() {
@@ -248,6 +294,22 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
         WorkloadGroupStats expectedStats,
         String threadContextQG_Id
     ) {
+        assertSuccess(
+            testWorkloadGroupId,
+            workloadGroupStateMap,
+            expectedStats,
+            threadContextQG_Id,
+            listener -> listener.onRequestFailure(null, null)
+        );
+    }
+
+    private void assertSuccess(
+        String testWorkloadGroupId,
+        Map<String, WorkloadGroupState> workloadGroupStateMap,
+        WorkloadGroupStats expectedStats,
+        String threadContextQG_Id,
+        Consumer<WorkloadGroupRequestOperationListener> failRequest
+    ) {
         WorkloadGroupsStateAccessor stateAccessor = new WorkloadGroupsStateAccessor(workloadGroupStateMap);
         try (ThreadContext.StoredContext currentContext = testThreadPool.getThreadContext().stashContext()) {
             testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, threadContextQG_Id);
@@ -266,7 +328,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
                 Collections.emptySet()
             );
             sut = new WorkloadGroupRequestOperationListener(workloadGroupService, testThreadPool);
-            sut.onRequestFailure(null, null);
+            failRequest.accept(sut);
 
             HashSet<String> set = new HashSet<>();
             set.add("_all");
