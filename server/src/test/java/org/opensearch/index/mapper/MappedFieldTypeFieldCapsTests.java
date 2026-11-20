@@ -8,9 +8,12 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.search.Query;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -61,16 +64,39 @@ public class MappedFieldTypeFieldCapsTests extends OpenSearchTestCase {
         return new IpFieldMapper.IpFieldType("ip", indexed, false, hasDocValues, null, Collections.emptyMap());
     }
 
+    private static MappedFieldType baseFieldType(boolean indexed, boolean hasDocValues) {
+        return new MappedFieldType("base", indexed, false, hasDocValues, TextSearchInfo.NONE, Collections.emptyMap()) {
+            @Override
+            public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String typeName() {
+                return "base";
+            }
+
+            @Override
+            public Query termQuery(Object value, QueryShardContext context) {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
+
     /** Types that do not override the method are unaffected on any index. */
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
     public void testBaseImplementationDelegatesToIsSearchable() {
         for (IndexSettings indexSettings : new IndexSettings[] { normalIndex(), pluggableIndex() }) {
-            MappedFieldType indexedKeyword = new KeywordFieldMapper.KeywordFieldType("kw", true, true, Collections.emptyMap());
-            assertTrue(indexedKeyword.isSearchableViaDocValues(indexSettings));
-
-            MappedFieldType unindexedKeyword = new KeywordFieldMapper.KeywordFieldType("kw", false, true, Collections.emptyMap());
-            assertFalse(unindexedKeyword.isSearchableViaDocValues(indexSettings));
+            assertTrue(baseFieldType(true, true).isSearchableViaDocValues(indexSettings));
+            assertFalse(baseFieldType(false, true).isSearchableViaDocValues(indexSettings));
         }
+    }
+
+    public void testKeywordUnchangedOnNormalIndex() {
+        IndexSettings normal = normalIndex();
+
+        assertTrue(new KeywordFieldMapper.KeywordFieldType("kw", true, true, Collections.emptyMap()).isSearchableViaDocValues(normal));
+        assertFalse(new KeywordFieldMapper.KeywordFieldType("kw", false, true, Collections.emptyMap()).isSearchableViaDocValues(normal));
     }
 
     public void testOverriddenTypesUnchangedOnNormalIndex() {
@@ -98,6 +124,7 @@ public class MappedFieldTypeFieldCapsTests extends OpenSearchTestCase {
         assertTrue(dateFieldType(false, true).isSearchableViaDocValues(pluggable));
         assertTrue(ipFieldType(false, true).isSearchableViaDocValues(pluggable));
         assertTrue(new BooleanFieldMapper.BooleanFieldType("bool", false, true).isSearchableViaDocValues(pluggable));
+        assertTrue(new KeywordFieldMapper.KeywordFieldType("kw", false, true, Collections.emptyMap()).isSearchableViaDocValues(pluggable));
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
@@ -108,6 +135,9 @@ public class MappedFieldTypeFieldCapsTests extends OpenSearchTestCase {
         assertFalse(dateFieldType(false, false).isSearchableViaDocValues(pluggable));
         assertFalse(ipFieldType(false, false).isSearchableViaDocValues(pluggable));
         assertFalse(new BooleanFieldMapper.BooleanFieldType("bool", false, false).isSearchableViaDocValues(pluggable));
+        assertFalse(
+            new KeywordFieldMapper.KeywordFieldType("kw", false, false, Collections.emptyMap()).isSearchableViaDocValues(pluggable)
+        );
     }
 
     /** Query planning must keep seeing no search index. */
@@ -130,6 +160,10 @@ public class MappedFieldTypeFieldCapsTests extends OpenSearchTestCase {
         MappedFieldType bool = new BooleanFieldMapper.BooleanFieldType("bool", false, true);
         assertTrue(bool.isSearchableViaDocValues(pluggable));
         assertFalse(bool.isSearchable());
+
+        MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType("kw", false, true, Collections.emptyMap());
+        assertTrue(keyword.isSearchableViaDocValues(pluggable));
+        assertFalse(keyword.isSearchable());
     }
 
     public void testNullIndexSettingsFallsBackToIsSearchable() {
@@ -140,6 +174,7 @@ public class MappedFieldTypeFieldCapsTests extends OpenSearchTestCase {
         assertFalse(dateFieldType(false, true).isSearchableViaDocValues(null));
         assertFalse(ipFieldType(false, true).isSearchableViaDocValues(null));
         assertFalse(new BooleanFieldMapper.BooleanFieldType("bool", false, true).isSearchableViaDocValues(null));
+        assertFalse(new KeywordFieldMapper.KeywordFieldType("kw", false, true, Collections.emptyMap()).isSearchableViaDocValues(null));
     }
 
     /** FilterFieldType has no logic of its own here; it must return exactly what its delegate returns. */

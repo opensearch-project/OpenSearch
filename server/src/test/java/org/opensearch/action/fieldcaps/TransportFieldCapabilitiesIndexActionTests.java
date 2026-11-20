@@ -169,17 +169,21 @@ public class TransportFieldCapabilitiesIndexActionTests extends OpenSearchSingle
         assertEquals("object", fields.get("user").values().iterator().next().getType());
     }
 
-    // Covers the pluggable branch in TransportFieldCapabilitiesIndexAction#shardOperation. A long
-    // with index:false, doc_values:true has isSearchable()==false but is searchable via doc values,
+    // Covers the pluggable branch in TransportFieldCapabilitiesIndexAction#shardOperation. Fields
+    // with index:false, doc_values:true have isSearchable()==false but are searchable via doc values,
     // so field caps must report searchable=true on a pluggable index and searchable=false otherwise.
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
     public void testSearchableReportedForDocValuesOnlyFieldOnPluggableIndex() throws Exception {
-        // A doc-values-only long: not indexed for search, but backed by doc values.
         String mapping = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
             .startObject("num")
             .field("type", "long")
+            .field("index", false)
+            .field("doc_values", true)
+            .endObject()
+            .startObject("kw")
+            .field("type", "keyword")
             .field("index", false)
             .field("doc_values", true)
             .endObject()
@@ -196,26 +200,35 @@ public class TransportFieldCapabilitiesIndexActionTests extends OpenSearchSingle
                 .setMapping(mapping)
         );
         // Pluggable indices are append-only, so a custom document id is rejected; let it auto-generate.
-        client().prepareIndex("pluggable").setSource("{\"num\": 42}", MediaTypeRegistry.JSON).get();
+        client().prepareIndex("pluggable").setSource("{\"num\": 42, \"kw\": \"value\"}", MediaTypeRegistry.JSON).get();
         client().admin().indices().prepareRefresh("pluggable").get();
 
-        FieldCapabilitiesResponse pluggableResponse = client().fieldCaps(new FieldCapabilitiesRequest().fields("num").indices("pluggable"))
-            .actionGet();
+        FieldCapabilitiesResponse pluggableResponse = client().fieldCaps(
+            new FieldCapabilitiesRequest().fields("num", "kw").indices("pluggable")
+        ).actionGet();
         assertTrue(
             "doc-values-only field must be searchable on a pluggable index",
             pluggableResponse.get().get("num").get("long").isSearchable()
         );
+        assertTrue(
+            "doc-values-only field must be searchable on a pluggable index",
+            pluggableResponse.get().get("kw").get("keyword").isSearchable()
+        );
 
         // Normal index: same mapping, no pluggable setting. The field stays non-searchable.
         assertAcked(client().admin().indices().prepareCreate("normal").setMapping(mapping));
-        client().prepareIndex("normal").setSource("{\"num\": 42}", MediaTypeRegistry.JSON).get();
+        client().prepareIndex("normal").setSource("{\"num\": 42, \"kw\": \"value\"}", MediaTypeRegistry.JSON).get();
         client().admin().indices().prepareRefresh("normal").get();
 
-        FieldCapabilitiesResponse normalResponse = client().fieldCaps(new FieldCapabilitiesRequest().fields("num").indices("normal"))
+        FieldCapabilitiesResponse normalResponse = client().fieldCaps(new FieldCapabilitiesRequest().fields("num", "kw").indices("normal"))
             .actionGet();
         assertFalse(
             "doc-values-only field must not be searchable on a normal index",
             normalResponse.get().get("num").get("long").isSearchable()
+        );
+        assertFalse(
+            "doc-values-only field must not be searchable on a normal index",
+            normalResponse.get().get("kw").get("keyword").isSearchable()
         );
     }
 }
