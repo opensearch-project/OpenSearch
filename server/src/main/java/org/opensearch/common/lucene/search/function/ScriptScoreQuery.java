@@ -117,7 +117,9 @@ public class ScriptScoreQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         if (scoreMode == ScoreMode.COMPLETE_NO_SCORES && minScore == null) {
-            return subQuery.createWeight(searcher, scoreMode, boost);
+            Weight subQueryWeight = subQuery.createWeight(searcher, scoreMode, boost);
+            // Stop a parent query that holds this one from caching it; see NonCacheableWeight.
+            return new NonCacheableWeight(this, subQueryWeight);
         }
         boolean needsScore = scriptBuilder.needs_score();
         ScoreMode subQueryScoreMode = needsScore ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
@@ -233,8 +235,9 @@ public class ScriptScoreQuery extends Query {
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
-                // If minScore is not null, then matches depend on statistics of the top-level reader.
-                return minScore == null;
+                // The script keeps the request's searcher reachable through the cached key, so this
+                // weight is never cached. (minScore being set would also make it non-cacheable.)
+                return false;
             }
         };
     }
