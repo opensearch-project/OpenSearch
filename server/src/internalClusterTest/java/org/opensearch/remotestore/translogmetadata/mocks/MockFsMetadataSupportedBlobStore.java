@@ -9,12 +9,14 @@
 package org.opensearch.remotestore.translogmetadata.mocks;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Optional;
 
 public class MockFsMetadataSupportedBlobStore extends FsBlobStore {
 
@@ -39,6 +41,11 @@ public class MockFsMetadataSupportedBlobStore extends FsBlobStore {
     @Override
     public boolean isBlobMetadataEnabled() {
         return true;
+    }
+
+    @Override
+    public Optional<Version> getBlobMetadataSupportVersion() {
+        return Optional.of(Version.V_2_15_0);
     }
 
 }

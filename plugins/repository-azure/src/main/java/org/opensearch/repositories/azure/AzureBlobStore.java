@@ -62,6 +62,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.Nullable;
@@ -94,6 +95,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
@@ -182,6 +184,16 @@ public class AzureBlobStore implements BlobStore {
     @Override
     public BlobContainer blobContainer(BlobPath path) {
         return new AzureBlobContainer(path, this, threadPool);
+    }
+
+    @Override
+    public boolean isBlobMetadataEnabled() {
+        return true;
+    }
+
+    @Override
+    public Optional<Version> getBlobMetadataSupportVersion() {
+        return Optional.of(Version.V_3_11_0);
     }
 
     @Override

@@ -77,6 +77,7 @@ import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Publisher;
 
+import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -126,6 +127,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -135,6 +137,15 @@ import static org.mockito.Mockito.when;
 
 @ThreadLeakFilters(filters = ResponseInputStreamTimeoutThreadFilter.class)
 public class S3BlobStoreContainerTests extends OpenSearchTestCase {
+
+    public void testBlobMetadataCapabilityVersion() {
+        S3BlobStore blobStore = mock(S3BlobStore.class, CALLS_REAL_METHODS);
+
+        assertTrue(blobStore.isBlobMetadataEnabled());
+        assertEquals(Version.V_2_15_0, blobStore.getBlobMetadataSupportVersion().orElseThrow());
+        assertFalse(blobStore.isBlobMetadataEnabled(Version.V_2_14_0));
+        assertTrue(blobStore.isBlobMetadataEnabled(Version.V_2_15_0));
+    }
 
     public void testExecuteSingleUploadBlobSizeTooLarge() {
         final long blobSize = ByteSizeUnit.GB.toBytes(randomIntBetween(6, 10));
