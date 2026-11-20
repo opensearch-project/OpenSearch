@@ -21,6 +21,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.support.XContentHttpChunk;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.bytes.CompositeBytesReference;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContent;
@@ -40,6 +43,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 import reactor.core.publisher.Flux;
@@ -125,6 +129,7 @@ public class RestBulkStreamingAction extends BaseRestHandler {
 
             // Set the content type and the status code before sending the response stream over
             channel.prepareResponse(RestStatus.OK, Map.of("Content-Type", List.of(mediaType.mediaTypeWithoutParameters())));
+            final AtomicBoolean responseChunkSent = new AtomicBoolean();
 
             // TODOs:
             // - eliminate serialization inefficiencies
@@ -183,24 +188,32 @@ public class RestBulkStreamingAction extends BaseRestHandler {
                 }
 
                 return Mono.just(f);
-            }).concatMap(f -> Mono.fromFuture(f).doOnNext(r -> {
+            }).concatMap(f -> Mono.fromFuture(f)).doOnNext(r -> {
                 try {
                     if (r == EMPTY) {
                         channel.sendChunk(XContentHttpChunk.last());
                     } else {
                         try (XContentBuilder builder = channel.newBuilder(mediaType, true)) {
                             channel.sendChunk(XContentHttpChunk.from(r.toXContent(builder, ToXContent.EMPTY_PARAMS)));
+                            responseChunkSent.set(true);
                         }
                     }
                 } catch (IOException ex) {
                     throw new UncheckedIOException(ex);
                 }
-            })).onErrorComplete(ex -> {
+            }).onErrorComplete(ex -> {
                 if (ex instanceof Error) {
                     return false;
                 }
                 try {
-                    channel.sendResponse(new BytesRestResponse(channel, (Exception) ex));
+                    // A standalone error needs no separator; an error following response records does.
+                    final boolean appendDelimiter = responseChunkSent.get();
+                    channel.sendResponse(new BytesRestResponse(channel, (Exception) ex) {
+                        @Override
+                        public BytesReference content() {
+                            return appendDelimiter ? CompositeBytesReference.of(super.content(), new BytesArray("\r\n")) : super.content();
+                        }
+                    });
                     return true;
                 } catch (final IOException e) {
                     throw new UncheckedIOException(e);
