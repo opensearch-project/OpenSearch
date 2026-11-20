@@ -47,10 +47,23 @@ public abstract class SearchRequestOperationsListener {
 
     protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {};
 
+    /**
+     * Invoked when a search request arrives. Exactly one of
+     * {@link #onRequestEnd(SearchPhaseContext, SearchRequestContext)} or
+     * {@link #onRequestFailure(SearchPhaseContext, SearchRequestContext)} follows it, so listeners can
+     * safely pair state started here.
+     */
     protected void onRequestStart(SearchRequestContext searchRequestContext) {}
 
     protected void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
+    /**
+     * Invoked when a search request fails.
+     *
+     * @param context the phase the request failed in, or {@code null} when it failed before its first
+     *                phase started, for instance while resolving indices or the search pipeline.
+     *                Implementations must tolerate a null context.
+     */
     protected void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
     protected boolean isEnabled(SearchRequest searchRequest) {

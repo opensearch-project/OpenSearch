@@ -500,11 +500,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void onRequestEnd(SearchRequestContext searchRequestContext) {
-        this.searchRequestContext.getSearchRequestOperationsListener().onRequestEnd(this, searchRequestContext);
+        if (searchRequestContext.markRequestCompleted()) {
+            this.searchRequestContext.getSearchRequestOperationsListener().onRequestEnd(this, searchRequestContext);
+        }
     }
 
     private void onRequestFailure(SearchRequestContext searchRequestContext) {
-        this.searchRequestContext.getSearchRequestOperationsListener().onRequestFailure(this, searchRequestContext);
+        if (searchRequestContext.markRequestCompleted()) {
+            this.searchRequestContext.getSearchRequestOperationsListener().onRequestFailure(this, searchRequestContext);
+        }
     }
 
     private void executePhase(SearchPhase phase) {
