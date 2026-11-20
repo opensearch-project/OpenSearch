@@ -54,15 +54,15 @@ public class DslQueryExecutorIT extends OpenSearchIntegTestCase {
         );
     }
 
-    public void testSearchFailsForMultipleIndices() {
+    public void testSearchSupportsMultipleIndices() {
         createTestIndex();
         createIndex("test-index-2");
         ensureGreen();
 
-        expectThrows(
-            Exception.class,
-            () -> client().search(new SearchRequest(INDEX, "test-index-2").source(new SearchSourceBuilder())).actionGet()
-        );
+        SearchResponse response = client().search(new SearchRequest(INDEX, "test-index-2").source(new SearchSourceBuilder())).actionGet();
+
+        assertNotNull(response);
+        assertEquals(200, response.status().getStatus());
     }
 
     private void createTestIndex() {

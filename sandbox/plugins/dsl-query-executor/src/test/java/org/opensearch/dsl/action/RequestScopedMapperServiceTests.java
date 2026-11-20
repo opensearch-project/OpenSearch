@@ -15,6 +15,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.Mockito.doThrow;
@@ -28,9 +29,13 @@ public class RequestScopedMapperServiceTests extends OpenSearchTestCase {
     private static final String INDEX = "probe";
 
     private IndexMetadata indexMetadata() {
-        return IndexMetadata.builder(INDEX)
+        return indexMetadata(INDEX, "uuid");
+    }
+
+    private IndexMetadata indexMetadata(String name, String uuid) {
+        return IndexMetadata.builder(name)
             .settings(
-                Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+                Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, uuid)
             )
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -53,6 +58,21 @@ public class RequestScopedMapperServiceTests extends OpenSearchTestCase {
         }
     }
 
+    public void testMergesMappingsFromAllResolvedIndices() {
+        IndexMetadata first = indexMetadata("logs-000001", "uuid-1");
+        IndexMetadata second = indexMetadata("logs-000002", "uuid-2");
+        MapperService created = mock(MapperService.class);
+
+        try (RequestScopedMapperService holder = new RequestScopedMapperService(List.of(first, second), metadata -> {
+            assertSame(first, metadata);
+            return created;
+        })) {
+            assertSame(created, holder.get());
+            verify(created).merge(eq(first), eq(MapperService.MergeReason.MAPPING_RECOVERY));
+            verify(created).merge(eq(second), eq(MapperService.MergeReason.MAPPING_RECOVERY));
+        }
+    }
+
     public void testCreatesAtMostOneMapperServicePerRequest() {
         MapperService created = mock(MapperService.class);
         AtomicInteger creations = new AtomicInteger();
@@ -68,7 +88,17 @@ public class RequestScopedMapperServiceTests extends OpenSearchTestCase {
     }
 
     public void testRejectsNullIndexMetadata() {
-        expectThrows(NullPointerException.class, () -> new RequestScopedMapperService(null, metadata -> mock(MapperService.class)));
+        expectThrows(
+            NullPointerException.class,
+            () -> new RequestScopedMapperService((IndexMetadata) null, metadata -> mock(MapperService.class))
+        );
+    }
+
+    public void testRejectsEmptyIndexMetadata() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RequestScopedMapperService(List.of(), metadata -> mock(MapperService.class))
+        );
     }
 
     public void testReturnsNullWhenCreationFails() {
