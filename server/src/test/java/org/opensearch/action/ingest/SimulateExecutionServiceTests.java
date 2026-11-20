@@ -353,6 +353,71 @@ public class SimulateExecutionServiceTests extends OpenSearchTestCase {
         assertThat(verboseResult.getProcessorResults().get(1).getFailure(), nullValue());
     }
 
+    public void testTerminateDocument() throws Exception {
+        TestProcessor processor1 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field1", "value"));
+        TestProcessor terminator = new TestProcessor("terminator", "terminate", null, doc -> { doc.terminatePipeline(); });
+        TestProcessor processor3 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field2", "value"));
+        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor1, terminator, processor3));
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
+        executionService.executeDocument(pipeline, ingestDocument, false, (r, e) -> {
+            holder.set(r);
+            latch.countDown();
+        });
+        latch.await();
+        assertThat(processor1.getInvokedCounter(), equalTo(1));
+        assertThat(terminator.getInvokedCounter(), equalTo(1));
+        assertThat(processor3.getInvokedCounter(), equalTo(0));
+        assertThat(holder.get(), instanceOf(SimulateDocumentBaseResult.class));
+        SimulateDocumentBaseResult result = (SimulateDocumentBaseResult) holder.get();
+        // the document is returned as if the pipeline had finished, not as a failure or a dropped document
+        assertThat(result.getFailure(), nullValue());
+        assertThat(result.getIngestDocument(), notNullValue());
+        assertThat(result.getIngestDocument().getFieldValue("field1", String.class), equalTo("value"));
+        assertThat(result.getIngestDocument().hasField("field2"), is(false));
+        assertThat(result.getIngestDocument().isPipelineTerminated(), is(false));
+    }
+
+    public void testTerminateDocumentVerbose() throws Exception {
+        TestProcessor processor1 = new TestProcessor(
+            "first",
+            "mock",
+            null,
+            ingestDocument -> { ingestDocument.setFieldValue("field1", "value"); }
+        );
+        TestProcessor terminator = new TestProcessor("terminator", "terminate", null, doc -> { doc.terminatePipeline(); });
+        TestProcessor processor3 = new TestProcessor(
+            "last",
+            "mock",
+            null,
+            ingestDocument -> { ingestDocument.setFieldValue("field2", "value"); }
+        );
+        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor1, terminator, processor3));
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
+        executionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
+            holder.set(r);
+            latch.countDown();
+        });
+        latch.await();
+        assertThat(processor3.getInvokedCounter(), equalTo(0));
+        assertThat(holder.get(), instanceOf(SimulateDocumentVerboseResult.class));
+        SimulateDocumentVerboseResult verboseResult = (SimulateDocumentVerboseResult) holder.get();
+        // the processors that were skipped are not listed, as is the case after a drop processor or a failure
+        assertThat(verboseResult.getProcessorResults().size(), equalTo(2));
+        assertThat(verboseResult.getProcessorResults().get(0).getProcessorTag(), equalTo("first"));
+        assertThat(verboseResult.getProcessorResults().get(0).getFailure(), nullValue());
+        // the terminate processor is listed as a success that carries the document, which is not dropped
+        assertThat(verboseResult.getProcessorResults().get(1).getType(), equalTo("terminate"));
+        assertThat(verboseResult.getProcessorResults().get(1).getProcessorTag(), equalTo("terminator"));
+        assertThat(verboseResult.getProcessorResults().get(1).getFailure(), nullValue());
+        assertThat(verboseResult.getProcessorResults().get(1).getIngestDocument(), notNullValue());
+        assertThat(verboseResult.getProcessorResults().get(1).getIngestDocument().hasField("field1"), is(true));
+        assertThat(verboseResult.getProcessorResults().get(1).getIngestDocument().hasField("field2"), is(false));
+    }
+
     public void testAsyncSimulation() throws Exception {
         int numDocs = randomIntBetween(1, 64);
         List<IngestDocument> documents = new ArrayList<>(numDocs);

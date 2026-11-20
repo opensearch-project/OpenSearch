@@ -791,6 +791,248 @@ public class IngestServiceTests extends OpenSearchSingleNodeTestCase {
         ingestService.validatePipeline(ingestInfos, putRequest);
     }
 
+    public void testValidateRejectsTerminateProcessorUntilAllNodesSupportIt() throws Exception {
+        IngestService ingestService = createIngestServiceWithProcessors(terminateTestProcessors());
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            "_id",
+            new BytesArray(
+                "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}, {\"terminate\" : {\"tag\": \"tag1\"}}]}"
+            ),
+            MediaTypeRegistry.JSON
+        );
+
+        DiscoveryNode upgradedNode = new DiscoveryNode(
+            "_node_id1",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT
+        );
+        DiscoveryNode olderNode = new DiscoveryNode("_node_id2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+        ingestInfos.put(upgradedNode, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("terminate"))));
+        ingestInfos.put(olderNode, new IngestInfo(Arrays.asList(new ProcessorInfo("set"))));
+
+        OpenSearchParseException e = expectThrows(
+            OpenSearchParseException.class,
+            () -> ingestService.validatePipeline(ingestInfos, putRequest)
+        );
+        assertEquals("Processor type [terminate] is not installed on node [" + olderNode + "]", e.getMessage());
+        assertEquals("terminate", e.getMetadata("opensearch.processor_type").get(0));
+        assertEquals("tag1", e.getMetadata("opensearch.processor_tag").get(0));
+
+        ingestInfos.put(olderNode, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("terminate"))));
+        ingestService.validatePipeline(ingestInfos, putRequest);
+    }
+
+    public void testValidateRejectsTerminateProcessorBehindConditionalUntilAllNodesSupportIt() throws Exception {
+        // a terminate processor is usually configured with an if condition, which wraps it in a ConditionalProcessor
+        String scriptName = "conditionalScript";
+        ScriptService scriptService = alwaysTrueConditionScriptService(scriptName);
+        Map<String, Processor.Factory> processors = new HashMap<>(terminateTestProcessors());
+        processors.put(
+            "terminate",
+            (factories, tag, description, config) -> new ConditionalProcessor(
+                tag,
+                description,
+                new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap()),
+                scriptService,
+                new FakeProcessor("terminate", tag, description, IngestDocument::terminatePipeline)
+            )
+        );
+        IngestService ingestService = createIngestServiceWithProcessors(processors);
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            "_id",
+            new BytesArray("{\"processors\": [{\"terminate\" : {\"tag\": \"tag1\"}}]}"),
+            MediaTypeRegistry.JSON
+        );
+
+        DiscoveryNode upgradedNode = new DiscoveryNode(
+            "_node_id1",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT
+        );
+        DiscoveryNode olderNode = new DiscoveryNode("_node_id2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+        ingestInfos.put(upgradedNode, new IngestInfo(Arrays.asList(new ProcessorInfo("terminate"))));
+        ingestInfos.put(olderNode, new IngestInfo(Collections.emptyList()));
+
+        OpenSearchParseException e = expectThrows(
+            OpenSearchParseException.class,
+            () -> ingestService.validatePipeline(ingestInfos, putRequest)
+        );
+        assertEquals("Processor type [terminate] is not installed on node [" + olderNode + "]", e.getMessage());
+        assertEquals("terminate", e.getMetadata("opensearch.processor_type").get(0));
+        assertEquals("tag1", e.getMetadata("opensearch.processor_tag").get(0));
+
+        ingestInfos.put(olderNode, new IngestInfo(Arrays.asList(new ProcessorInfo("terminate"))));
+        ingestService.validatePipeline(ingestInfos, putRequest);
+    }
+
+    public void testValidateLooksThroughConditionalThatWrapsCompoundProcessor() throws Exception {
+        // a processor with an if and an ignore_failure (or on_failure): a conditional around a compound processor
+        String scriptName = "conditionalScript";
+        ScriptService scriptService = alwaysTrueConditionScriptService(scriptName);
+        Map<String, Processor.Factory> processors = new HashMap<>();
+        processors.put(
+            "other",
+            (factories, tag, description, config) -> new ConditionalProcessor(
+                tag,
+                description,
+                new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap()),
+                scriptService,
+                new CompoundProcessor(true, List.of(new FakeProcessor("other", tag, description, doc -> {})), Collections.emptyList())
+            )
+        );
+        IngestService ingestService = createIngestServiceWithProcessors(processors);
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            "_id",
+            new BytesArray("{\"processors\": [{\"other\" : {\"tag\": \"tag1\"}}]}"),
+            MediaTypeRegistry.JSON
+        );
+        DiscoveryNode upgradedNode = new DiscoveryNode(
+            "_node_id1",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT
+        );
+        DiscoveryNode olderNode = new DiscoveryNode("_node_id2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+        ingestInfos.put(upgradedNode, new IngestInfo(Arrays.asList(new ProcessorInfo("other"))));
+        ingestInfos.put(olderNode, new IngestInfo(Collections.emptyList()));
+
+        OpenSearchParseException e = expectThrows(
+            OpenSearchParseException.class,
+            () -> ingestService.validatePipeline(ingestInfos, putRequest)
+        );
+        assertEquals("Processor type [other] is not installed on node [" + olderNode + "]", e.getMessage());
+
+        ingestInfos.put(olderNode, new IngestInfo(Arrays.asList(new ProcessorInfo("other"))));
+        ingestService.validatePipeline(ingestInfos, putRequest);
+    }
+
+    private static ScriptService alwaysTrueConditionScriptService(String scriptName) {
+        return new ScriptService(
+            Settings.builder().build(),
+            Collections.singletonMap(
+                Script.DEFAULT_SCRIPT_LANG,
+                new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> true), Collections.emptyMap())
+            ),
+            new HashMap<>(ScriptModule.CORE_CONTEXTS)
+        );
+    }
+
+    public void testTerminateEndsDefaultPipelineAndFinalPipelineStillRuns() {
+        assertTerminateEndsOnlyTheDefaultPipeline(1, true);
+    }
+
+    public void testDefaultPipelineRunsToTheEndWhenTerminateIsNotReached() {
+        // the condition of the terminate processor does not match the only document
+        assertTerminateEndsOnlyTheDefaultPipeline(1, false);
+    }
+
+    public void testTerminateEndsDefaultPipelineInBatchAndFinalPipelineStillRuns() {
+        assertTerminateEndsOnlyTheDefaultPipeline(randomIntBetween(2, 9), true);
+    }
+
+    /**
+     * Runs a bulk request through a default pipeline that terminates documents that have a {@code stop} field (standing in for a
+     * terminate processor behind an {@code if}) followed by a final pipeline, with one document if the single document path is wanted, or
+     * several for the batch path.
+     */
+    private void assertTerminateEndsOnlyTheDefaultPipeline(int numberOfDocuments, boolean firstDocumentStops) {
+        IngestService ingestService = createIngestServiceWithProcessors(terminateTestProcessors());
+        ClusterState clusterState = createPipeline(
+            "_default",
+            new BytesArray(
+                "{\"processors\": [{\"set\": {\"field\": \"before\", \"value\": \"ran\"}},"
+                    + "{\"terminate\": {}},"
+                    + "{\"set\": {\"field\": \"after\", \"value\": \"ran\"}}]}"
+            ),
+            ingestService,
+            null
+        );
+        createPipeline(
+            "_final",
+            new BytesArray("{\"processors\": [{\"set\": {\"field\": \"final\", \"value\": \"ran\"}}]}"),
+            ingestService,
+            clusterState
+        );
+
+        BulkRequest bulkRequest = new BulkRequest();
+        int terminated = 0;
+        for (int i = 0; i < numberOfDocuments; i++) {
+            boolean stop = (i % 2 == 0) == firstDocumentStops;
+            if (stop) {
+                terminated++;
+            }
+            bulkRequest.add(
+                new IndexRequest("_index").id("_id" + i)
+                    .source(stop ? Map.of("stop", true) : Map.of("foo", "bar"))
+                    .setPipeline("_default")
+                    .setFinalPipeline("_final")
+                    .setSystemIngestPipeline("_none")
+            );
+        }
+        @SuppressWarnings("unchecked")
+        final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
+        @SuppressWarnings("unchecked")
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final IntConsumer droppedHandler = mock(IntConsumer.class);
+
+        ingestService.executeBulkRequest(
+            numberOfDocuments,
+            bulkRequest.requests(),
+            failureHandler,
+            completionHandler,
+            droppedHandler,
+            Names.WRITE
+        );
+
+        verify(failureHandler, never()).accept(any(), any());
+        verify(droppedHandler, never()).accept(anyInt());
+        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        for (DocWriteRequest<?> request : bulkRequest.requests()) {
+            Map<String, Object> source = ((IndexRequest) request).sourceAsMap();
+            assertThat(source.get("before"), equalTo("ran"));
+            // the final pipeline still runs, whatever the default pipeline did
+            assertThat(source.get("final"), equalTo("ran"));
+            if (source.containsKey("stop")) {
+                assertThat(source.containsKey("after"), equalTo(false));
+            } else {
+                assertThat(source.get("after"), equalTo("ran"));
+            }
+        }
+
+        // terminating is a success: no failure is counted, and the skipped processor is only counted for the other documents
+        IngestStats stats = ingestService.stats();
+        assertStats(stats.getTotalStats(), 2L * numberOfDocuments, 0, 0);
+        assertPipelineStats(stats.getPipelineStats(), "_default", numberOfDocuments, 0, 0);
+        assertPipelineStats(stats.getPipelineStats(), "_final", numberOfDocuments, 0, 0);
+        assertProcessorStats(0, stats, "_default", numberOfDocuments, 0, 0);
+        assertProcessorStats(1, stats, "_default", numberOfDocuments, 0, 0);
+        assertProcessorStats(2, stats, "_default", numberOfDocuments - terminated, 0, 0);
+    }
+
+    private static Map<String, Processor.Factory> terminateTestProcessors() {
+        Map<String, Processor.Factory> processors = new HashMap<>();
+        processors.put("set", (factories, tag, description, config) -> {
+            String field = (String) config.remove("field");
+            String value = (String) config.remove("value");
+            return new FakeProcessor("set", tag, description, ingestDocument -> ingestDocument.setFieldValue(field, value));
+        });
+        // terminates the documents that have a "stop" field, as a terminate processor behind an if condition would
+        processors.put("terminate", (factories, tag, description, config) -> new FakeProcessor("terminate", tag, description, doc -> {
+            if (doc.hasField("stop")) {
+                doc.terminatePipeline();
+            }
+        }));
+        return processors;
+    }
+
     public void testValidateProcessorCountForIngestPipelineThrowsException() {
         IngestService ingestService = createIngestServiceWithProcessors();
         PutPipelineRequest putRequest = new PutPipelineRequest(

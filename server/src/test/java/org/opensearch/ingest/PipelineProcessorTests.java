@@ -45,11 +45,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -267,6 +269,291 @@ public class PipelineProcessorTests extends OpenSearchTestCase {
         for (int i = 0; i < numPipelines; i++) {
             assertThat(pipelines.get(i), equalTo(Integer.toString(i)));
         }
+    }
+
+    public void testTerminateInCalledPipelineDoesNotEndCallingPipeline() {
+        IngestService ingestService = createIngestService();
+        TestProcessor innerFirst = new TestProcessor(doc -> {});
+        TestProcessor innerTerminator = terminator();
+        TestProcessor innerLast = new TestProcessor(doc -> {});
+        Pipeline inner = new Pipeline("inner", null, null, new CompoundProcessor(innerFirst, innerTerminator, innerLast));
+        when(ingestService.getPipeline("inner")).thenReturn(inner);
+        List<Boolean> terminatedSeenByCaller = new ArrayList<>();
+        TestProcessor outerBefore = new TestProcessor(doc -> {});
+        TestProcessor outerProbe = new TestProcessor(doc -> { terminatedSeenByCaller.add(doc.isPipelineTerminated()); });
+        TestProcessor outerAfter = new TestProcessor(doc -> {});
+        Pipeline outer = new Pipeline(
+            "outer",
+            null,
+            null,
+            new CompoundProcessor(outerBefore, callPipeline("inner", ingestService), outerProbe, outerAfter)
+        );
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        ingestDocument.executePipeline(outer, (r, e) -> {
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        assertThat(failure[0], nullValue());
+        assertThat(result[0], equalTo(ingestDocument));
+        assertThat(innerFirst.getInvokedCounter(), equalTo(1));
+        assertThat(innerTerminator.getInvokedCounter(), equalTo(1));
+        assertThat(innerLast.getInvokedCounter(), equalTo(0));
+        // the calling pipeline carries on, and never sees the request of the pipeline that it called
+        assertThat(outerBefore.getInvokedCounter(), equalTo(1));
+        assertThat(outerProbe.getInvokedCounter(), equalTo(1));
+        assertThat(outerAfter.getInvokedCounter(), equalTo(1));
+        assertThat(terminatedSeenByCaller, equalTo(List.of(false)));
+        assertThat(ingestDocument.isPipelineTerminated(), equalTo(false));
+        // the called pipeline finished successfully
+        assertThat(inner.getMetrics().createStats().getCount(), equalTo(1L));
+        assertThat(inner.getMetrics().createStats().getFailedCount(), equalTo(0L));
+        assertThat(outer.getMetrics().createStats().getFailedCount(), equalTo(0L));
+    }
+
+    public void testTerminateInCallingPipelineAfterCalledPipelineCompleted() {
+        IngestService ingestService = createIngestService();
+        TestProcessor innerFirst = new TestProcessor(doc -> {});
+        TestProcessor innerLast = new TestProcessor(doc -> {});
+        Pipeline inner = new Pipeline("inner", null, null, new CompoundProcessor(innerFirst, innerLast));
+        when(ingestService.getPipeline("inner")).thenReturn(inner);
+        TestProcessor outerTerminator = terminator();
+        TestProcessor outerAfter = new TestProcessor(doc -> {});
+        Pipeline outer = new Pipeline(
+            "outer",
+            null,
+            null,
+            new CompoundProcessor(callPipeline("inner", ingestService), outerTerminator, outerAfter)
+        );
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        ingestDocument.executePipeline(outer, (r, e) -> {
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        assertThat(failure[0], nullValue());
+        // the pipeline completed, rather than the handler never having been called
+        assertThat(result[0], sameInstance(ingestDocument));
+        assertThat(innerFirst.getInvokedCounter(), equalTo(1));
+        assertThat(innerLast.getInvokedCounter(), equalTo(1));
+        assertThat(outerTerminator.getInvokedCounter(), equalTo(1));
+        assertThat(outerAfter.getInvokedCounter(), equalTo(0));
+        assertThat(ingestDocument.isPipelineTerminated(), equalTo(false));
+    }
+
+    public void testTerminateInInnermostOfThreeNestedPipelinesOnlyEndsThatPipeline() {
+        IngestService ingestService = createIngestService();
+        TestProcessor cTerminator = terminator();
+        TestProcessor cLast = new TestProcessor(doc -> {});
+        Pipeline c = new Pipeline("c", null, null, new CompoundProcessor(cTerminator, cLast));
+        TestProcessor bAfter = new TestProcessor(doc -> {});
+        Pipeline b = new Pipeline("b", null, null, new CompoundProcessor(callPipeline("c", ingestService), bAfter));
+        TestProcessor aAfter = new TestProcessor(doc -> {});
+        Pipeline a = new Pipeline("a", null, null, new CompoundProcessor(callPipeline("b", ingestService), aAfter));
+        when(ingestService.getPipeline("b")).thenReturn(b);
+        when(ingestService.getPipeline("c")).thenReturn(c);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        ingestDocument.executePipeline(a, (r, e) -> {
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        assertThat(failure[0], nullValue());
+        // the pipeline completed, rather than the handler never having been called
+        assertThat(result[0], sameInstance(ingestDocument));
+        assertThat(cTerminator.getInvokedCounter(), equalTo(1));
+        assertThat(cLast.getInvokedCounter(), equalTo(0));
+        assertThat(bAfter.getInvokedCounter(), equalTo(1));
+        assertThat(aAfter.getInvokedCounter(), equalTo(1));
+        assertThat(ingestDocument.isPipelineTerminated(), equalTo(false));
+    }
+
+    public void testTerminateInMiddleOfThreeNestedPipelinesSkipsOnlyItsOwnRemainder() {
+        IngestService ingestService = createIngestService();
+        TestProcessor cFirst = new TestProcessor(doc -> {});
+        Pipeline c = new Pipeline("c", null, null, new CompoundProcessor(cFirst));
+        TestProcessor bTerminator = terminator();
+        TestProcessor bAfter = new TestProcessor(doc -> {});
+        Pipeline b = new Pipeline("b", null, null, new CompoundProcessor(callPipeline("c", ingestService), bTerminator, bAfter));
+        TestProcessor aAfter = new TestProcessor(doc -> {});
+        Pipeline a = new Pipeline("a", null, null, new CompoundProcessor(callPipeline("b", ingestService), aAfter));
+        when(ingestService.getPipeline("b")).thenReturn(b);
+        when(ingestService.getPipeline("c")).thenReturn(c);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        ingestDocument.executePipeline(a, (r, e) -> {
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        assertThat(failure[0], nullValue());
+        // the pipeline completed, rather than the handler never having been called
+        assertThat(result[0], sameInstance(ingestDocument));
+        assertThat(cFirst.getInvokedCounter(), equalTo(1));
+        assertThat(bTerminator.getInvokedCounter(), equalTo(1));
+        assertThat(bAfter.getInvokedCounter(), equalTo(0));
+        assertThat(aAfter.getInvokedCounter(), equalTo(1));
+        assertThat(ingestDocument.isPipelineTerminated(), equalTo(false));
+    }
+
+    public void testTerminateRequestDoesNotLeakBetweenRepeatedCallsOfTheSamePipeline() {
+        IngestService ingestService = createIngestService();
+        TestProcessor innerTerminator = terminator();
+        TestProcessor innerLast = new TestProcessor(doc -> {});
+        Pipeline inner = new Pipeline("inner", null, null, new CompoundProcessor(innerTerminator, innerLast));
+        when(ingestService.getPipeline("inner")).thenReturn(inner);
+        TestProcessor outerAfter = new TestProcessor(doc -> {});
+        Pipeline outer = new Pipeline(
+            "outer",
+            null,
+            null,
+            new CompoundProcessor(callPipeline("inner", ingestService), callPipeline("inner", ingestService), outerAfter)
+        );
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        ingestDocument.executePipeline(outer, (r, e) -> {
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        assertThat(failure[0], nullValue());
+        // the pipeline completed, rather than the handler never having been called
+        assertThat(result[0], sameInstance(ingestDocument));
+        assertThat(innerTerminator.getInvokedCounter(), equalTo(2));
+        assertThat(innerLast.getInvokedCounter(), equalTo(0));
+        assertThat(outerAfter.getInvokedCounter(), equalTo(1));
+    }
+
+    public void testTerminateInCalledPipelineWithIgnoreFailureOnPipelineProcessor() {
+        IngestService ingestService = createIngestService();
+        TestProcessor innerTerminator = terminator();
+        TestProcessor innerLast = new TestProcessor(doc -> {});
+        Pipeline inner = new Pipeline("inner", null, null, new CompoundProcessor(innerTerminator, innerLast));
+        when(ingestService.getPipeline("inner")).thenReturn(inner);
+        TestProcessor outerAfter = new TestProcessor(doc -> {});
+        // ignore_failure wraps the pipeline processor in a compound processor of its own
+        CompoundProcessor wrappedCall = new CompoundProcessor(true, List.of(callPipeline("inner", ingestService)), Collections.emptyList());
+        Pipeline outer = new Pipeline("outer", null, null, new CompoundProcessor(wrappedCall, outerAfter));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        ingestDocument.executePipeline(outer, (r, e) -> {
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        assertThat(failure[0], nullValue());
+        // the pipeline completed, rather than the handler never having been called
+        assertThat(result[0], sameInstance(ingestDocument));
+        assertThat(innerLast.getInvokedCounter(), equalTo(0));
+        assertThat(outerAfter.getInvokedCounter(), equalTo(1));
+    }
+
+    public void testTerminateRequestPendingWhenAPipelineIsCalledIsKeptForTheCaller() {
+        IngestService ingestService = createIngestService();
+        TestProcessor innerFirst = new TestProcessor(doc -> {});
+        TestProcessor innerSecond = new TestProcessor(doc -> {});
+        Pipeline inner = new Pipeline("inner", null, null, new CompoundProcessor(innerFirst, innerSecond));
+        when(ingestService.getPipeline("inner")).thenReturn(inner);
+        Processor requestsTerminationThenCallsPipeline = requestsTerminationThenCallsPipeline("inner", ingestService);
+        TestProcessor outerAfter = new TestProcessor(doc -> {});
+        Pipeline outer = new Pipeline("outer", null, null, new CompoundProcessor(requestsTerminationThenCallsPipeline, outerAfter));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        ingestDocument.executePipeline(outer, (r, e) -> {
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        assertThat(failure[0], nullValue());
+        // the pipeline completed, rather than the handler never having been called
+        assertThat(result[0], sameInstance(ingestDocument));
+        // the called pipeline is not cut short by a request that was made before it started
+        assertThat(innerFirst.getInvokedCounter(), equalTo(1));
+        assertThat(innerSecond.getInvokedCounter(), equalTo(1));
+        // the request is still there when the calling pipeline gets back to it
+        assertThat(outerAfter.getInvokedCounter(), equalTo(0));
+        assertThat(ingestDocument.isPipelineTerminated(), equalTo(false));
+    }
+
+    public void testTerminateRequestPendingWhenACalledPipelineDropsTheDocument() {
+        IngestService ingestService = createIngestService();
+        TestProcessor dropper = new TestProcessor("", "drop", null, doc -> null);
+        TestProcessor innerAfterDrop = new TestProcessor(doc -> {});
+        Pipeline inner = new Pipeline("inner", null, null, new CompoundProcessor(dropper, innerAfterDrop));
+        when(ingestService.getPipeline("inner")).thenReturn(inner);
+        TestProcessor outerAfter = new TestProcessor(doc -> {});
+        Pipeline outer = new Pipeline(
+            "outer",
+            null,
+            null,
+            new CompoundProcessor(requestsTerminationThenCallsPipeline("inner", ingestService), outerAfter)
+        );
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+
+        boolean[] completed = new boolean[1];
+        IngestDocument[] result = new IngestDocument[1];
+        Exception[] failure = new Exception[1];
+        ingestDocument.executePipeline(outer, (r, e) -> {
+            completed[0] = true;
+            result[0] = r;
+            failure[0] = e;
+        });
+
+        // a dropped document has no result to hand the request back to, and that is not a failure
+        assertThat(completed[0], equalTo(true));
+        assertThat(failure[0], nullValue());
+        assertThat(result[0], nullValue());
+        assertThat(innerAfterDrop.getInvokedCounter(), equalTo(0));
+        assertThat(outerAfter.getInvokedCounter(), equalTo(0));
+    }
+
+    /**
+     * A processor that runs other processors, like foreach, can have a request to terminate pending from an earlier step when it
+     * calls a pipeline in a later one: the request belongs to the pipeline that runs it, not to the pipeline that it calls.
+     */
+    private static Processor requestsTerminationThenCallsPipeline(String pipelineId, IngestService ingestService) {
+        return new AbstractProcessor(null, null) {
+            @Override
+            public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+                ingestDocument.terminatePipeline();
+                callPipeline(pipelineId, ingestService).execute(ingestDocument, handler);
+            }
+
+            @Override
+            public IngestDocument execute(IngestDocument ingestDocument) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String getType() {
+                return "test-loop";
+            }
+        };
+    }
+
+    private static TestProcessor terminator() {
+        return new TestProcessor("terminator", "terminate", null, doc -> { doc.terminatePipeline(); });
+    }
+
+    private static PipelineProcessor callPipeline(String pipelineId, IngestService ingestService) {
+        return new PipelineProcessor(null, null, new TestTemplateService.MockTemplateScript.Factory(pipelineId), ingestService);
     }
 
     static IngestService createIngestService() {

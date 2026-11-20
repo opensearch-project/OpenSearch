@@ -194,14 +194,15 @@ public class CompoundProcessor implements Processor {
                 List<IngestDocumentWrapper> documentsDropped = new ArrayList<>();
                 List<IngestDocumentWrapper> documentsWithException = new ArrayList<>();
                 List<IngestDocumentWrapper> documentsToContinue = new ArrayList<>();
+                List<IngestDocumentWrapper> documentsTerminated = new ArrayList<>();
                 int totalFailed = 0;
-                // iterate all results to categorize them to: to continue, to drop, with exception
+                // iterate all results to categorize them to: to continue, to drop, with exception, terminated
                 for (IngestDocumentWrapper resultDocumentWrapper : allResults) {
                     IngestDocumentWrapper originalDocumentWrapper = slotToWrapperMap.get(resultDocumentWrapper.getSlot());
                     if (resultDocumentWrapper.getException() != null) {
                         ++totalFailed;
                         if (ignoreFailure) {
-                            documentsToContinue.add(originalDocumentWrapper);
+                            addToContinueOrTerminated(originalDocumentWrapper, documentsToContinue, documentsTerminated);
                         } else {
                             IngestProcessorException compoundProcessorException = newCompoundProcessorException(
                                 resultDocumentWrapper.getException(),
@@ -221,7 +222,7 @@ public class CompoundProcessor implements Processor {
                         if (resultDocumentWrapper.getIngestDocument() == null) {
                             documentsDropped.add(resultDocumentWrapper);
                         } else {
-                            documentsToContinue.add(resultDocumentWrapper);
+                            addToContinueOrTerminated(resultDocumentWrapper, documentsToContinue, documentsTerminated);
                         }
                     }
                 }
@@ -230,6 +231,12 @@ public class CompoundProcessor implements Processor {
                 }
                 if (!documentsDropped.isEmpty()) {
                     handler.accept(documentsDropped);
+                }
+                // a terminated document skips the remaining processors, and is handed back like one that completed all of them. The
+                // request to terminate is left set on the document: the enclosing compound processors have to see it too, and the
+                // pipeline clears it when it completes.
+                if (documentsTerminated.isEmpty() == false) {
+                    handler.accept(documentsTerminated);
                 }
                 if (!documentsToContinue.isEmpty()) {
                     innerBatchExecute(currentProcessor + 1, documentsToContinue, handler);
@@ -267,6 +274,10 @@ public class CompoundProcessor implements Processor {
         final Processor processor = processorWithMetric.v1();
         final OperationMetrics metric = processorWithMetric.v2();
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
+        // A request to terminate that is already pending when this processor starts was made by a processor that completed earlier, such
+        // as a previous iteration of a foreach processor, which does not cut its loop short. Handling the failure of this processor
+        // discards only its own request, so the pending one is put back when the on_failure processors have run.
+        final boolean terminationPending = ingestDocument.isPipelineTerminated();
         metric.before();
         processor.execute(ingestDocument, (result, e) -> {
             long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
@@ -275,23 +286,66 @@ public class CompoundProcessor implements Processor {
             if (e != null) {
                 metric.failed();
                 if (ignoreFailure) {
-                    innerExecute(currentProcessor + 1, ingestDocument, handler);
+                    executeNextProcessor(currentProcessor, ingestDocument, handler);
                 } else {
                     IngestProcessorException compoundProcessorException = newCompoundProcessorException(e, processor, ingestDocument);
                     if (onFailureProcessors.isEmpty()) {
                         handler.accept(null, compoundProcessorException);
                     } else {
-                        executeOnFailureAsync(0, ingestDocument, compoundProcessorException, handler);
+                        executeOnFailureAsync(
+                            0,
+                            ingestDocument,
+                            compoundProcessorException,
+                            terminationPending ? keepingTerminationRequest(handler) : handler
+                        );
                     }
                 }
             } else {
                 if (result != null) {
-                    innerExecute(currentProcessor + 1, result, handler);
+                    executeNextProcessor(currentProcessor, result, handler);
                 } else {
                     handler.accept(null, null);
                 }
             }
         });
+    }
+
+    /**
+     * Carries on with the processor after {@code currentProcessor}, unless a processor asked for the pipeline to stop with
+     * {@link IngestDocument#terminatePipeline()}: then the remaining processors are skipped and the document is handed back as it is,
+     * as a success. The request stays set on the document so that enclosing compound processors, which wrap processors that are
+     * configured with {@code ignore_failure} or {@code on_failure}, skip their remaining processors too. {@link Pipeline} clears it.
+     */
+    private void executeNextProcessor(int currentProcessor, IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        if (ingestDocument.isPipelineTerminated()) {
+            handler.accept(ingestDocument, null);
+        } else {
+            innerExecute(currentProcessor + 1, ingestDocument, handler);
+        }
+    }
+
+    /** Sets the request to terminate again on the document that the handler is given, after the on_failure processors cleared it. */
+    private static BiConsumer<IngestDocument, Exception> keepingTerminationRequest(BiConsumer<IngestDocument, Exception> handler) {
+        return (result, e) -> {
+            if (result != null) {
+                result.terminatePipeline();
+            }
+            handler.accept(result, e);
+        };
+    }
+
+    private static void addToContinueOrTerminated(
+        IngestDocumentWrapper wrapper,
+        List<IngestDocumentWrapper> documentsToContinue,
+        List<IngestDocumentWrapper> documentsTerminated
+    ) {
+        // a batching processor can update the wrappers that it is given in place, which leaves a failed one without a document
+        IngestDocument ingestDocument = wrapper.getIngestDocument();
+        if (ingestDocument != null && ingestDocument.isPipelineTerminated()) {
+            documentsTerminated.add(wrapper);
+        } else {
+            documentsToContinue.add(wrapper);
+        }
     }
 
     void executeOnFailureAsync(
@@ -302,6 +356,11 @@ public class CompoundProcessor implements Processor {
     ) {
         if (currentOnFailureProcessor == 0) {
             putFailureMetadata(ingestDocument, exception);
+            // The processor that failed did not complete, so a request to terminate that it made before it failed is discarded: the
+            // failure is handled as it always is, and from here only an on_failure processor can end the pipeline. (With
+            // ignore_failure the failure is not handled, the processor counts as completed and its request is honoured.) A request that
+            // was already pending before the failed processor started is put back by the caller when the on_failure processors are done.
+            ingestDocument.clearPipelineTermination();
         }
 
         if (currentOnFailureProcessor == onFailureProcessors.size()) {
@@ -320,6 +379,13 @@ public class CompoundProcessor implements Processor {
             if (result == null) {
                 removeFailureMetadata(ingestDocument);
                 handler.accept(null, null);
+                return;
+            }
+            if (result.isPipelineTerminated()) {
+                // the remaining on_failure processors are skipped, and so are the processors that follow in the pipeline. The failure
+                // has been handled, so the document completes as it does when the on_failure processors have all run.
+                removeFailureMetadata(ingestDocument);
+                handler.accept(result, null);
                 return;
             }
             executeOnFailureAsync(currentOnFailureProcessor + 1, ingestDocument, exception, handler);

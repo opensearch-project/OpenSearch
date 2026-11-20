@@ -1081,6 +1081,37 @@ public class IngestDocumentTests extends OpenSearchTestCase {
         assertThat(copy.getSourceAndMetadata().get("afterClockChange"), equalTo(original.getSourceAndMetadata().get("afterClockChange")));
     }
 
+    public void testPipelineTerminationIsNotRequestedByDefault() {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        assertThat(ingestDocument.isPipelineTerminated(), equalTo(false));
+    }
+
+    public void testTerminatePipelineRequestsTermination() {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        ingestDocument.terminatePipeline();
+        assertThat(ingestDocument.isPipelineTerminated(), equalTo(true));
+        // requesting twice is harmless
+        ingestDocument.terminatePipeline();
+        assertThat(ingestDocument.isPipelineTerminated(), equalTo(true));
+    }
+
+    public void testTerminationRequestIsNotCopied() {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        ingestDocument.terminatePipeline();
+        IngestDocument copy = new IngestDocument(ingestDocument);
+        assertThat(copy.isPipelineTerminated(), equalTo(false));
+        assertThat(ingestDocument.isPipelineTerminated(), equalTo(true));
+    }
+
+    public void testTerminationRequestIsNotPartOfDocumentIdentity() {
+        // a fixed document: random documents can hold arrays, which do not compare equal across copies
+        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(Map.of("foo", "bar")), new HashMap<>(Map.of("key", "value")));
+        IngestDocument copy = new IngestDocument(ingestDocument);
+        ingestDocument.terminatePipeline();
+        assertThat(ingestDocument, equalTo(copy));
+        assertThat(ingestDocument.hashCode(), equalTo(copy.hashCode()));
+    }
+
     public void testSetInvalidSourceField() throws Exception {
         Map<String, Object> document = new HashMap<>();
         Object randomObject = randomFrom(new ArrayList<>(), new HashMap<>(), 12, 12.34);
