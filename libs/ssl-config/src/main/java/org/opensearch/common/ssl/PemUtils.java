@@ -69,11 +69,14 @@ import java.util.function.Supplier;
 final class PemUtils {
 
     /**
-     * The standard JCA key algorithm of each common private key type. {@link JcaPEMKeyConverter} asks for "ECDSA" instead of "EC",
-     * which only BouncyCastle offers, so an EC key would always come from BouncyCastle, even when the JDK's providers come first.
+     * The first byte of a DER-encoded certificate, which is an ASN.1 SEQUENCE.
      */
     private static final byte DER_SEQUENCE_TAG = 0x30;
 
+    /**
+     * The standard JCA key algorithm of each common private key type. {@link JcaPEMKeyConverter} asks for "ECDSA" instead of "EC",
+     * which only BouncyCastle offers, so an EC key would always come from BouncyCastle, even when the JDK's providers come first.
+     */
     private static final Map<ASN1ObjectIdentifier, String> KEY_ALGORITHMS = Map.of(
         PKCSObjectIdentifiers.rsaEncryption,
         "RSA",
