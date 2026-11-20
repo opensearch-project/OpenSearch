@@ -49,6 +49,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.geometry.LinearRing;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.opensearch.test.VersionUtils;
@@ -57,6 +58,7 @@ import org.opensearch.test.geo.RandomShapeGenerator.ShapeType;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import org.locationtech.jts.geom.Coordinate;
 
@@ -152,6 +154,40 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
         GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(fieldName(), shape);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.relation(null));
         assertEquals("No Shape Relation defined", e.getMessage());
+    }
+
+    // https://github.com/opensearch-project/OpenSearch/issues/12324
+    public void testLinearRingShapeToString() throws IOException {
+        LinearRing linearRing = new LinearRing(new double[] { -25, -35, -25 }, new double[] { -25, -35, -25 });
+        GeoShapeQueryBuilder geoQuery = new GeoShapeQueryBuilder(fieldName(), linearRing);
+        String expected = String.format(Locale.ROOT, """
+            {
+              "geo_shape" : {
+                "%s" : {
+                  "shape" : {
+                    "type" : "LineString",
+                    "coordinates" : [
+                      [
+                        -25.0,
+                        -25.0
+                      ],
+                      [
+                        -35.0,
+                        -35.0
+                      ],
+                      [
+                        -25.0,
+                        -25.0
+                      ]
+                    ]
+                  },
+                  "relation" : "intersects"
+                },
+                "ignore_unmapped" : false,
+                "boost" : 1.0
+              }
+            }""", fieldName());
+        assertThat(geoQuery.toString(), equalTo(expected));
     }
 
     // see #3878
