@@ -193,7 +193,7 @@ public class AzureBlobStore implements BlobStore {
 
     @Override
     public Optional<Version> getBlobMetadataSupportVersion() {
-        return Optional.of(Version.V_3_10_0);
+        return Optional.of(Version.V_3_11_0);
     }
 
     @Override

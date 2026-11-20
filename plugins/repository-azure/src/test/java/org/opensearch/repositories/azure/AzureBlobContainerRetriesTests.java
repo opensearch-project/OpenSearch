@@ -1360,9 +1360,10 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         AzureBlobStore blobStore = createBlobStore(between(1, 3));
 
         assertTrue(blobStore.isBlobMetadataEnabled());
-        assertEquals(Version.V_3_10_0, blobStore.getBlobMetadataSupportVersion().orElseThrow());
+        assertEquals(Version.V_3_11_0, blobStore.getBlobMetadataSupportVersion().orElseThrow());
         assertFalse(blobStore.isBlobMetadataEnabled(Version.V_3_9_1));
-        assertTrue(blobStore.isBlobMetadataEnabled(Version.V_3_10_0));
+        assertFalse(blobStore.isBlobMetadataEnabled(Version.V_3_10_0));
+        assertTrue(blobStore.isBlobMetadataEnabled(Version.V_3_11_0));
     }
 
     public void testRetryUntilFail() throws IOException {
