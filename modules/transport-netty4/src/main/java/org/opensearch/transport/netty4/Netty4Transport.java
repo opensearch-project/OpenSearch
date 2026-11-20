@@ -52,9 +52,11 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.EventLoopStats;
 import org.opensearch.transport.Netty4NioSocketChannel;
 import org.opensearch.transport.NettyAllocator;
 import org.opensearch.transport.NettyByteBufSizer;
+import org.opensearch.transport.NettyEventLoopStats;
 import org.opensearch.transport.SharedGroupFactory;
 import org.opensearch.transport.TcpTransport;
 import org.opensearch.transport.TransportSettings;
@@ -345,6 +347,15 @@ public class Netty4Transport extends TcpTransport {
                 sharedGroup.shutdown();
             }
         }, serverBootstraps::clear, () -> clientBootstrap = null);
+    }
+
+    @Override
+    protected EventLoopStats eventLoopStats() {
+        SharedGroupFactory.SharedGroup group = sharedGroup;
+        if (group == null) {
+            return null;
+        }
+        return NettyEventLoopStats.collect(group.getLowLevelGroup(), sharedGroupFactory.isHttpGroupShared());
     }
 
     protected class ClientChannelInitializer extends ChannelInitializer<Channel> {

@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.Version;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -56,6 +57,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
     private final long rxSize;
     private final long txCount;
     private final long txSize;
+    private final EventLoopStats eventLoopStats;
 
     /**
      * Private constructor that takes a builder.
@@ -69,6 +71,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
         this.rxSize = builder.rxSize;
         this.txCount = builder.txCount;
         this.txSize = builder.txSize;
+        this.eventLoopStats = builder.eventLoopStats;
     }
 
     /**
@@ -83,6 +86,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
         this.rxSize = rxSize;
         this.txCount = txCount;
         this.txSize = txSize;
+        this.eventLoopStats = null;
     }
 
     public TransportStats(StreamInput in) throws IOException {
@@ -92,6 +96,11 @@ public class TransportStats implements Writeable, ToXContentFragment {
         rxSize = in.readVLong();
         txCount = in.readVLong();
         txSize = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
+            eventLoopStats = in.readOptionalWriteable(EventLoopStats::new);
+        } else {
+            eventLoopStats = null;
+        }
     }
 
     @Override
@@ -102,6 +111,9 @@ public class TransportStats implements Writeable, ToXContentFragment {
         out.writeVLong(rxSize);
         out.writeVLong(txCount);
         out.writeVLong(txSize);
+        if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
+            out.writeOptionalWriteable(eventLoopStats);
+        }
     }
 
     public long serverOpen() {
@@ -145,6 +157,13 @@ public class TransportStats implements Writeable, ToXContentFragment {
     }
 
     /**
+     * @return Netty event-loop queue stats, or {@code null} when this transport has no event-loop group
+     */
+    public EventLoopStats getEventLoopStats() {
+        return eventLoopStats;
+    }
+
+    /**
      * Builder for the {@link TransportStats} class.
      * Provides a fluent API for constructing a TransportStats object.
      */
@@ -155,6 +174,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
         private long rxSize = 0;
         private long txCount = 0;
         private long txSize = 0;
+        private EventLoopStats eventLoopStats;
 
         public Builder() {}
 
@@ -188,6 +208,11 @@ public class TransportStats implements Writeable, ToXContentFragment {
             return this;
         }
 
+        public Builder eventLoopStats(EventLoopStats eventLoopStats) {
+            this.eventLoopStats = eventLoopStats;
+            return this;
+        }
+
         /**
          * Creates a {@link TransportStats} object from the builder's current state.
          * @return A new TransportStats instance.
@@ -206,6 +231,9 @@ public class TransportStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.RX_SIZE_IN_BYTES, Fields.RX_SIZE, new ByteSizeValue(rxSize));
         builder.field(Fields.TX_COUNT, txCount);
         builder.humanReadableField(Fields.TX_SIZE_IN_BYTES, Fields.TX_SIZE, new ByteSizeValue(txSize));
+        if (eventLoopStats != null) {
+            eventLoopStats.toXContent(builder, params);
+        }
         builder.endObject();
         return builder;
     }

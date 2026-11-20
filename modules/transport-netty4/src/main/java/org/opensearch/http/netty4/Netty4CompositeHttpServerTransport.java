@@ -15,6 +15,7 @@ import org.opensearch.http.AbstractHttpServerTransport;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpStats;
+import org.opensearch.transport.EventLoopStats;
 
 import java.io.IOException;
 
@@ -42,14 +43,21 @@ public class Netty4CompositeHttpServerTransport extends AbstractLifecycleCompone
     @Override
     public HttpStats stats() {
         long serverOpen = 0L, totalOpen = 0L;
+        EventLoopStats eventLoopStats = null;
 
         for (AbstractHttpServerTransport transport : transports) {
             final HttpStats stats = transport.stats();
             serverOpen += stats.getServerOpen();
             totalOpen += stats.getTotalOpen();
+            if (eventLoopStats == null) {
+                eventLoopStats = stats.getEventLoopStats();
+            }
         }
-
-        return new HttpStats.Builder().serverOpen(serverOpen).totalOpen(totalOpen).build();
+        HttpStats.Builder builder = new HttpStats.Builder().serverOpen(serverOpen).totalOpen(totalOpen);
+        if (eventLoopStats != null) {
+            builder.eventLoopStats(eventLoopStats);
+        }
+        return builder.build();
     }
 
     @Override

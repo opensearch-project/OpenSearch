@@ -110,6 +110,7 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPoolStats;
+import org.opensearch.transport.EventLoopStats;
 import org.opensearch.transport.TransportStats;
 
 import java.io.IOException;
@@ -354,12 +355,14 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(nodeStats.getTransport().getServerOpen(), deserializedNodeStats.getTransport().getServerOpen());
                     assertEquals(nodeStats.getTransport().getTxCount(), deserializedNodeStats.getTransport().getTxCount());
                     assertEquals(nodeStats.getTransport().getTxSize(), deserializedNodeStats.getTransport().getTxSize());
+                    assertEquals(nodeStats.getTransport().getEventLoopStats(), deserializedNodeStats.getTransport().getEventLoopStats());
                 }
                 if (nodeStats.getHttp() == null) {
                     assertNull(deserializedNodeStats.getHttp());
                 } else {
                     assertEquals(nodeStats.getHttp().getServerOpen(), deserializedNodeStats.getHttp().getServerOpen());
                     assertEquals(nodeStats.getHttp().getTotalOpen(), deserializedNodeStats.getHttp().getTotalOpen());
+                    assertEquals(nodeStats.getHttp().getEventLoopStats(), deserializedNodeStats.getHttp().getEventLoopStats());
                 }
                 if (nodeStats.getBreaker() == null) {
                     assertNull(deserializedNodeStats.getBreaker());
@@ -649,6 +652,18 @@ public class NodeStatsTests extends OpenSearchTestCase {
         }
     }
 
+    private static EventLoopStats randomEventLoopStats() {
+        if (randomBoolean()) {
+            return null;
+        }
+        int workerCount = randomIntBetween(0, 5);
+        List<EventLoopStats.Worker> workers = new ArrayList<>();
+        for (int i = 0; i < workerCount; i++) {
+            workers.add(new EventLoopStats.Worker(randomAlphaOfLengthBetween(3, 12), randomIntBetween(0, 100)));
+        }
+        return new EventLoopStats(randomBoolean(), workers);
+    }
+
     public static NodeStats createNodeStats() throws IOException {
         return createNodeStats(false);
     }
@@ -829,10 +844,14 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 .rxSize(randomNonNegativeLong())
                 .txCount(randomNonNegativeLong())
                 .txSize(randomNonNegativeLong())
+                .eventLoopStats(randomEventLoopStats())
                 .build()
             : null;
         HttpStats httpStats = frequently()
-            ? new HttpStats.Builder().serverOpen(randomNonNegativeLong()).totalOpen(randomNonNegativeLong()).build()
+            ? new HttpStats.Builder().serverOpen(randomNonNegativeLong())
+                .totalOpen(randomNonNegativeLong())
+                .eventLoopStats(randomEventLoopStats())
+                .build()
             : null;
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {
