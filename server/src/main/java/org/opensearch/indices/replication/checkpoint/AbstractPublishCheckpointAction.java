@@ -215,6 +215,7 @@ public abstract class AbstractPublishCheckpointAction<
                         );
                     }
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     notifyOnceListener.onFailure(e);
                     logger.warn(
                         () -> new ParameterizedMessage("Interrupted while waiting for publish checkpoint complete [{}]", checkpoint),

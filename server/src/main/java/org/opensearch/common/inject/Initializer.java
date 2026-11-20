@@ -155,6 +155,7 @@ class Initializer {
                     ready.await();
                     return instance;
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     // Give up, since we don't know if our injection is ready
                     throw new RuntimeException(e);
                 }

@@ -211,6 +211,7 @@ public class RemoteStorePublishMergedSegmentAction extends AbstractPublishCheckp
                 );
             }
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             logger.warn(
                 () -> new ParameterizedMessage(
                     "Unable to confirm successful merge segment downloads by replicas due to interruption. Continuing. \nException - {}",
