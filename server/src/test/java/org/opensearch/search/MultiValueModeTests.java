@@ -1140,6 +1140,57 @@ public class MultiValueModeTests extends OpenSearchTestCase {
         verifySortedUnsignedLong(multiValues, numDocs, rootDocs, innerDocs, randomIntBetween(1, numDocs));
     }
 
+    public void testMultiValuedUnsignedLongsWithZero() throws Exception {
+        // Doc values are sorted in signed order: values above Long.MAX_VALUE are negative and come first.
+        final long[][] array = new long[][] {
+            { 0, 5 },
+            { 0, 100 },
+            { 0, 0, 7 },
+            { Long.MIN_VALUE, 0 }, // 2^63 and 0
+            { -1, 0, 3 }, // 2^64 - 1, 0 and 3
+            { 0 },
+            { 1, 2 } };
+        final long[] expectedMin = new long[] { 0, 0, 0, 0, 0, 0, 1 };
+        final Supplier<SortedNumericUnsignedLongValues> multiValues = () -> new SortedNumericUnsignedLongValues() {
+            int doc;
+            int i;
+
+            @Override
+            public long nextValue() {
+                return array[doc][i++];
+            }
+
+            @Override
+            public boolean advanceExact(int doc) {
+                this.doc = doc;
+                i = 0;
+                return array[doc].length > 0;
+            }
+
+            @Override
+            public int docValueCount() {
+                return array[doc].length;
+            }
+
+            @Override
+            public int docID() {
+                return doc;
+            }
+        };
+
+        final NumericDocValues selected = MultiValueMode.MIN.select(multiValues.get());
+        for (int doc = 0; doc < array.length; ++doc) {
+            assertTrue(selected.advanceExact(doc));
+            assertEquals("docId=" + doc, expectedMin[doc], selected.longValue());
+        }
+
+        verifySortedUnsignedLong(multiValues, array.length);
+        final FixedBitSet rootDocs = randomRootDocs(array.length);
+        final FixedBitSet innerDocs = randomInnerDocs(rootDocs);
+        verifySortedUnsignedLong(multiValues, array.length, rootDocs, innerDocs, Integer.MAX_VALUE);
+        verifySortedUnsignedLong(multiValues, array.length, rootDocs, innerDocs, randomIntBetween(1, array.length));
+    }
+
     private void verifySortedSet(Supplier<SortedSetDocValues> supplier, int maxDoc) throws IOException {
         for (MultiValueMode mode : new MultiValueMode[] { MultiValueMode.MIN, MultiValueMode.MAX }) {
             SortedSetDocValues values = supplier.get();
