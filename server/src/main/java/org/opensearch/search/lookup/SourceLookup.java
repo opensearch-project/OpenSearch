@@ -38,7 +38,6 @@ import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -99,17 +98,9 @@ public class SourceLookup implements Map {
             return source;
         }
         try {
-            // Lazily initialize fieldReader on first _source access.
-            // All the docs to fetch are adjacent but Lucene stored fields are optimized
-            // for random access and don't optimize for sequential access - except for merging.
-            // So we do a little hack here and pretend we're going to do merges in order to
-            // get better sequential access.
+            // Source lookups can be unordered and run inside scripts, where opening merge inputs is not allowed.
             if (fieldReader == null) {
-                if (reader instanceof SequentialStoredFieldsLeafReader lf) {
-                    fieldReader = lf.getSequentialStoredFieldsReader()::document;
-                } else {
-                    fieldReader = reader.storedFields()::document;
-                }
+                fieldReader = reader.storedFields()::document;
             }
 
             FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
