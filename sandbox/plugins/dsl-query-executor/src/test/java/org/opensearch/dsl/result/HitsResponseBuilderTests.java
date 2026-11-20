@@ -13,6 +13,7 @@ import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.dsl.converter.ProjectConverter;
 import org.opensearch.dsl.executor.QueryPlans;
 import org.opensearch.dsl.golden.CalciteTestInfra;
 import org.opensearch.search.SearchHit;
@@ -182,6 +183,28 @@ public class HitsResponseBuilderTests extends OpenSearchTestCase {
         assertEquals("store1", source.get("name"));
         Map<String, Object> city = Map.of("location", Map.of("lat", 47.6, "lon", -122.3), "name", "Seattle");
         assertEquals(city, source.get("city"));
+    }
+
+    public void testEmptySourcePlaceholderIsNotReturned() throws Exception {
+        Map<String, String> mapping = Map.of(ProjectConverter.EMPTY_SOURCE_PLACEHOLDER, "VARCHAR");
+        ExecutionResult result = new ExecutionResult(hitsPlan(mapping), List.<Object[]>of(new Object[] { "ignored" }));
+
+        SearchHits hits = HitsResponseBuilder.build(List.of(result), request(10), null);
+
+        assertEquals(Map.of(), hits.getHits()[0].getSourceAsMap());
+    }
+
+    public void testFetchSourceFalseOmitsSource() throws Exception {
+        ExecutionResult result = new ExecutionResult(
+            hitsPlan(PRODUCTS_MAPPING),
+            List.<Object[]>of(new Object[] { "laptop", 999, "BrandA" })
+        );
+        SearchRequest request = request(10);
+        request.source().fetchSource(false);
+
+        SearchHits hits = HitsResponseBuilder.build(List.of(result), request, null);
+
+        assertNull(hits.getHits()[0].getSourceRef());
     }
 
     /** Null cells are omitted: absent vs explicit null is indistinguishable after the columnar round trip. */
