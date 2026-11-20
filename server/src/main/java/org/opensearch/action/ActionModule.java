@@ -293,6 +293,7 @@ import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.action.search.GetSearchPipelineAction;
 import org.opensearch.action.search.GetSearchPipelineTransportAction;
 import org.opensearch.action.search.MultiSearchAction;
+import org.opensearch.action.search.PitUsageAction;
 import org.opensearch.action.search.PutSearchPipelineAction;
 import org.opensearch.action.search.PutSearchPipelineTransportAction;
 import org.opensearch.action.search.SearchAction;
@@ -304,6 +305,7 @@ import org.opensearch.action.search.TransportCreatePitAction;
 import org.opensearch.action.search.TransportDeletePitAction;
 import org.opensearch.action.search.TransportGetAllPitsAction;
 import org.opensearch.action.search.TransportMultiSearchAction;
+import org.opensearch.action.search.TransportPitUsageAction;
 import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.search.TransportSearchScrollAction;
 import org.opensearch.action.support.ActionFilters;
@@ -512,6 +514,7 @@ import org.opensearch.rest.action.search.RestExplainAction;
 import org.opensearch.rest.action.search.RestGetAllPitsAction;
 import org.opensearch.rest.action.search.RestGetSearchPipelineAction;
 import org.opensearch.rest.action.search.RestMultiSearchAction;
+import org.opensearch.rest.action.search.RestPitUsageAction;
 import org.opensearch.rest.action.search.RestPutSearchPipelineAction;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
@@ -849,6 +852,7 @@ public class ActionModule extends AbstractModule {
         actions.register(DeletePitAction.INSTANCE, TransportDeletePitAction.class);
         actions.register(PitSegmentsAction.INSTANCE, TransportPitSegmentsAction.class);
         actions.register(GetAllPitsAction.INSTANCE, TransportGetAllPitsAction.class);
+        actions.register(PitUsageAction.INSTANCE, TransportPitUsageAction.class);
 
         // Remote Store
         actions.register(RestoreRemoteStoreAction.INSTANCE, TransportRestoreRemoteStoreAction.class);
@@ -1088,6 +1092,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestDeletePitAction());
         registerHandler.accept(new RestGetAllPitsAction(nodesInCluster));
         registerHandler.accept(new RestPitSegmentsAction(nodesInCluster));
+        registerHandler.accept(new RestPitUsageAction());
         registerHandler.accept(new RestDeleteDecommissionStateAction());
 
         // Search pipelines API

@@ -905,6 +905,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 afterQueryTime = executor.success();
             }
+            if (readerContext instanceof PitReaderContext pitReaderContext) {
+                pitReaderContext.incrementSearchRequests();
+            }
             if (request.numberOfShards() == 1) {
                 return executeFetchPhase(readerContext, context, afterQueryTime);
             } else {
@@ -941,6 +944,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             if (reader.singleSession()) {
                 freeReaderContext(reader.id());
+            }
+            if (reader instanceof PitReaderContext pitReaderContext) {
+                pitReaderContext.addHitsReturned(context.fetchResult().hits().getHits().length);
             }
             executor.success();
         }
@@ -998,6 +1004,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 if (searchContext.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
                     // no hits, we can release the context since there will be no fetch phase
                     freeReaderContext(readerContext.id());
+                }
+                if (readerContext instanceof PitReaderContext pitReaderContext) {
+                    pitReaderContext.incrementSearchRequests();
                 }
                 executor.success();
                 // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
@@ -1100,6 +1109,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                     if (readerContext.singleSession()) {
                         freeReaderContext(request.contextId());
+                    }
+                    if (readerContext instanceof PitReaderContext pitReaderContext) {
+                        pitReaderContext.addHitsReturned(searchContext.fetchResult().hits().getHits().length);
                     }
                     executor.success();
                 }

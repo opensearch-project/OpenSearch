@@ -224,7 +224,7 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
     /**
      * This holds PIT id which is used to perform broadcast operation in PIT shards to retrieve segments information
      */
-    public class PitAwareShardRouting extends ShardRouting {
+    public static class PitAwareShardRouting extends ShardRouting {
 
         private final String pitId;
 
