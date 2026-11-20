@@ -118,6 +118,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         writers.put(short[].class, (b, v) -> b.values((short[]) v));
         writers.put(String.class, (b, v) -> b.value((String) v));
         writers.put(String[].class, (b, v) -> b.values((String[]) v));
+        writers.put(Character.class, (b, v) -> b.value(v.toString()));
         writers.put(Locale.class, (b, v) -> b.value(v.toString()));
         writers.put(Class.class, (b, v) -> b.value(v.toString()));
         writers.put(ZonedDateTime.class, (b, v) -> b.value(v.toString()));
