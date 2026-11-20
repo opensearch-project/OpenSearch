@@ -116,6 +116,8 @@ public class IoBasedAdmissionController extends AdmissionController {
                 return this.settings.getIndexingIOUsageLimit();
             case CLUSTER_ADMIN:
                 return this.settings.getClusterAdminIOUsageLimit();
+            case FORCE_MERGE:
+                return this.settings.getForceMergeIOUsageLimit();
             default:
                 throw new IllegalArgumentException(
                     String.format(

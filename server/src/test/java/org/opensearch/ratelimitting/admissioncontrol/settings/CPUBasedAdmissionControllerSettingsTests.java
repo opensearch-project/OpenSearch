@@ -51,9 +51,44 @@ public class CPUBasedAdmissionControllerSettingsTests extends OpenSearchTestCase
                     CpuBasedAdmissionControllerSettings.CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
                     CpuBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT,
                     CpuBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT,
-                    CpuBasedAdmissionControllerSettings.CLUSTER_ADMIN_CPU_USAGE_LIMIT
+                    CpuBasedAdmissionControllerSettings.CLUSTER_ADMIN_CPU_USAGE_LIMIT,
+                    CpuBasedAdmissionControllerSettings.FORCE_MERGE_CPU_USAGE_LIMIT
                 )
             )
+        );
+    }
+
+    public void testForceMergeCpuLimitDefaultConfiguredAndDynamicUpdate() {
+        CpuBasedAdmissionControllerSettings defaults = new CpuBasedAdmissionControllerSettings(
+            clusterService.getClusterSettings(),
+            Settings.EMPTY
+        );
+        assertEquals(CpuBasedAdmissionControllerSettings.Defaults.CPU_USAGE_LIMIT, defaults.getForceMergeCPULimit());
+
+        Settings configured = Settings.builder().put(CpuBasedAdmissionControllerSettings.FORCE_MERGE_CPU_USAGE_LIMIT.getKey(), 70).build();
+        CpuBasedAdmissionControllerSettings cpuSettings = new CpuBasedAdmissionControllerSettings(
+            clusterService.getClusterSettings(),
+            configured
+        );
+        assertEquals(70, cpuSettings.getForceMergeCPULimit());
+
+        clusterService.getClusterSettings()
+            .applySettings(Settings.builder().put(CpuBasedAdmissionControllerSettings.FORCE_MERGE_CPU_USAGE_LIMIT.getKey(), 40).build());
+        assertEquals(40, cpuSettings.getForceMergeCPULimit());
+        // updating the force merge limit must not touch the limits of other workloads
+        assertEquals(CpuBasedAdmissionControllerSettings.Defaults.CPU_USAGE_LIMIT, cpuSettings.getIndexingCPULimit().longValue());
+        assertEquals(CpuBasedAdmissionControllerSettings.Defaults.CPU_USAGE_LIMIT, cpuSettings.getSearchCPULimit().longValue());
+    }
+
+    public void testForceMergeCpuLimitValidation() {
+        String key = CpuBasedAdmissionControllerSettings.FORCE_MERGE_CPU_USAGE_LIMIT.getKey();
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> CpuBasedAdmissionControllerSettings.FORCE_MERGE_CPU_USAGE_LIMIT.get(Settings.builder().put(key, 101).build())
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> CpuBasedAdmissionControllerSettings.FORCE_MERGE_CPU_USAGE_LIMIT.get(Settings.builder().put(key, -1).build())
         );
     }
 
