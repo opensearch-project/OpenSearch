@@ -52,6 +52,7 @@ import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.BlockBlobItem;
 import com.azure.storage.blob.models.DownloadRetryOptions;
 import com.azure.storage.blob.models.ListBlobsOptions;
+import com.azure.storage.blob.models.ParallelTransferOptions;
 import com.azure.storage.blob.options.BlobInputStreamOptions;
 import com.azure.storage.blob.options.BlobParallelUploadOptions;
 import com.azure.storage.blob.options.BlockBlobSimpleUploadOptions;
@@ -444,6 +445,13 @@ public class AzureBlobStore implements BlobStore {
         assert inputStream.markSupported()
             : "Should not be used with non-mark supporting streams as their retry handling in the SDK is broken";
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {})", blobName, blobSize));
+        final ParallelTransferOptions transferOptions = service.getBlobRequestOptionsForWriteBlob(clientName);
+        AzureStorageService.validateUploadSize(
+            blobSize,
+            transferOptions,
+            "blob size",
+            AzureStorageSettings.WRITE_BLOCK_SIZE_SETTING.getConcreteSettingForNamespace(clientName).getKey()
+        );
         final Tuple<BlobServiceClient, Supplier<Context>> client = client();
         final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(container);
         final BlobClient blob = blobContainer.getBlobClient(blobName);
@@ -456,7 +464,7 @@ public class AzureBlobStore implements BlobStore {
             AccessController.doPrivilegedChecked(() -> {
                 final BlobParallelUploadOptions uploadOptions = new BlobParallelUploadOptions(inputStream, blobSize).setRequestConditions(
                     blobRequestConditions
-                ).setParallelTransferOptions(service.getBlobRequestOptionsForWriteBlob(clientName));
+                ).setParallelTransferOptions(transferOptions);
                 if (metadata != null) {
                     uploadOptions.setMetadata(metadata);
                 }
