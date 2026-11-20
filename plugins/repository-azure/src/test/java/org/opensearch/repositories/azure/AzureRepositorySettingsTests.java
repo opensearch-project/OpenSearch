@@ -213,6 +213,40 @@ public class AzureRepositorySettingsTests extends OpenSearchTestCase {
         );
     }
 
+    public void testReadonlySkipsBlockCountLimit() {
+        final AzureRepository repository = azureRepository(
+            Settings.builder().put("readonly", true).put("chunk_size", "50001b").build(),
+            new ParallelTransferOptions().setBlockSizeLong(1L).setMaxSingleUploadSizeLong(1L)
+        );
+        assertTrue(repository.isReadOnly());
+    }
+
+    public void testSecondaryOnlySkipsBlockCountLimit() {
+        final AzureRepository repository = azureRepository(
+            Settings.builder()
+                .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.SECONDARY_ONLY.name())
+                .put("chunk_size", "50001b")
+                .build(),
+            new ParallelTransferOptions().setBlockSizeLong(1L).setMaxSingleUploadSizeLong(1L)
+        );
+        assertTrue(repository.isReadOnly());
+    }
+
+    public void testSecondaryOnlyWithReadonlyOffValidatesBlockCountLimit() {
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> azureRepository(
+                Settings.builder()
+                    .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.SECONDARY_ONLY.name())
+                    .put("readonly", false)
+                    .put("chunk_size", "50001b")
+                    .build(),
+                new ParallelTransferOptions().setBlockSizeLong(1L).setMaxSingleUploadSizeLong(1L)
+            )
+        );
+        assertThat(exception.getMessage(), containsString("would require [50001] blocks"));
+    }
+
     public void testMaximumChunkSizeBlockCountLimit() {
         final long maximumChunkSize = AzureStorageService.MAX_CHUNK_SIZE.getBytes();
         final long minimumBlockSize = 1L + (maximumChunkSize - 1L) / 50_000L;
