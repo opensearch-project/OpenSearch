@@ -75,9 +75,11 @@ import org.opensearch.gateway.MetaStateService;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.FakeIngestionSource;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
@@ -93,8 +95,10 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.NonNegativeScoresSimilarity;
 import org.opensearch.index.store.IndexStoreListener;
 import org.opensearch.indices.IndicesService.ShardDeletionCheckResult;
+import org.opensearch.indices.pollingingest.IngestionEngineFactory;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.plugins.IngestionConsumerPlugin;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchStatsContributor;
@@ -153,7 +157,13 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Stream.concat(
             super.getPlugins().stream(),
-            Stream.of(TestPlugin.class, FooEnginePlugin.class, BarEnginePlugin.class, DeletionBlockingPlugin.class)
+            Stream.of(
+                TestPlugin.class,
+                FooEnginePlugin.class,
+                BarEnginePlugin.class,
+                DeletionBlockingPlugin.class,
+                FakeIngestionPlugin.class
+            )
         ).collect(Collectors.toList());
     }
 
@@ -284,6 +294,19 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
                     }
                 }
             });
+        }
+    }
+
+    public static class FakeIngestionPlugin extends Plugin implements IngestionConsumerPlugin {
+
+        @Override
+        public Map<String, IngestionConsumerFactory> getIngestionConsumerFactories() {
+            return Collections.singletonMap(getType(), new FakeIngestionSource.FakeIngestionConsumerFactory(Collections.emptyList()));
+        }
+
+        @Override
+        public String getType() {
+            return "FAKE";
         }
     }
 
@@ -814,6 +837,38 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
                 );
             }
         }
+    }
+
+    public void testIngestionIndexUsesIngestionEngine() throws IOException {
+        final IndexService indexService = getIndicesService().createIndex(ingestionIndexMetadata(false), Collections.emptyList(), false);
+        assertThat(indexService.getIndexerFactory(), instanceOf(EngineBackedIndexerFactory.class));
+        assertThat(
+            ((EngineBackedIndexerFactory) indexService.getIndexerFactory()).getEngineFactory(),
+            instanceOf(IngestionEngineFactory.class)
+        );
+    }
+
+    public void testRemoteSnapshotOfIngestionIndexDoesNotUseIngestionEngine() throws IOException {
+        // a searchable snapshot of an ingestion index is read-only and must not get the ingestion engine
+        final IndexService indexService = getIndicesService().createIndex(ingestionIndexMetadata(true), Collections.emptyList(), false);
+        assertThat(indexService.getIndexerFactory(), instanceOf(EngineBackedIndexerFactory.class));
+        assertThat(
+            ((EngineBackedIndexerFactory) indexService.getIndexerFactory()).getEngineFactory(),
+            not(instanceOf(IngestionEngineFactory.class))
+        );
+    }
+
+    private static IndexMetadata ingestionIndexMetadata(boolean remoteSnapshot) {
+        final Index index = new Index("ingestion-" + remoteSnapshot, UUIDs.randomBase64UUID());
+        final Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "fake")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT");
+        if (remoteSnapshot) {
+            settings.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey());
+        }
+        return new IndexMetadata.Builder(index.getName()).settings(settings).numberOfShards(1).numberOfReplicas(0).build();
     }
 
     public void testConflictingEngineFactories() {
