@@ -50,6 +50,7 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.opensearch.OpenSearchException;
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -94,6 +95,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -176,6 +178,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.nio.charset.Charset;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -2081,6 +2085,33 @@ public class IndexShardTests extends IndexShardTestCase {
         assertRemoteSegmentStats(remoteSegmentTransferTracker, remoteSegmentStats);
         RemoteTranslogStats remoteTranslogStats = shardStats.getStats().getTranslog().getRemoteTranslogStats();
         assertRemoteTranslogStats(remoteTranslogTransferTracker, remoteTranslogStats);
+        closeShards(shard);
+    }
+
+    public void testForceMergeWithUpgradeComposesWithMaxNumSegments() throws Exception {
+        final IndexShard shard = newStartedShard(true);
+        // Create three separate segments by flushing after each document.
+        for (int i = 0; i < 3; i++) {
+            indexDoc(shard, "_doc", Integer.toString(i));
+            shard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+        }
+        final long segmentsBeforeUpgrade = shard.segmentStats(false, false).getCount();
+        assertThat(segmentsBeforeUpgrade, greaterThanOrEqualTo(2L));
+
+        // upgrade=true with the default (-1) max_num_segments must NOT take the maybeMerge() path
+        // (IndexShard substitutes Integer.MAX_VALUE) and must NOT consolidate the topology.
+        final ForceMergeRequest upgradeOnly = new ForceMergeRequest();
+        upgradeOnly.upgrade(true);
+        shard.forceMerge(upgradeOnly);
+        assertThat(shard.segmentStats(false, false).getCount(), equalTo(segmentsBeforeUpgrade));
+
+        // upgrade=true composed with max_num_segments=1 must consolidate down to a single segment.
+        final ForceMergeRequest upgradeAndMerge = new ForceMergeRequest();
+        upgradeAndMerge.upgrade(true);
+        upgradeAndMerge.maxNumSegments(1);
+        shard.forceMerge(upgradeAndMerge);
+        assertThat(shard.segmentStats(false, false).getCount(), equalTo(1L));
+
         closeShards(shard);
     }
 
@@ -4095,6 +4126,37 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(sourceShard, targetShard);
     }
 
+    /** A shard whose indexer has no searcher capability rejects {@code _search} with a 400 instead of a 500. */
+    public void testSearchOnIndexerWithoutSearcherIsBadRequest() throws IOException {
+        final IndexerFactory engineBacked = new EngineBackedIndexerFactory(new InternalEngineFactory());
+        // Forwards every Indexer call to an engine-backed indexer but does not implement SearcherSupplierProvider.
+        final IndexerFactory searchless = config -> {
+            final Indexer delegate = engineBacked.createIndexer(config);
+            return (Indexer) Proxy.newProxyInstance(
+                Indexer.class.getClassLoader(),
+                new Class<?>[] { Indexer.class },
+                (proxy, method, args) -> {
+                    try {
+                        return method.invoke(delegate, args);
+                    } catch (InvocationTargetException e) {
+                        throw e.getCause();
+                    }
+                }
+            );
+        };
+        final IndexShard shard = newStartedShard(true, Settings.EMPTY, searchless);
+        try {
+            OpenSearchStatusException e = expectThrows(OpenSearchStatusException.class, () -> shard.acquireSearcher("test"));
+            assertEquals(RestStatus.BAD_REQUEST, e.status());
+            assertThat(e.getMessage(), containsString("does not support _search"));
+
+            e = expectThrows(OpenSearchStatusException.class, () -> shard.acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL));
+            assertEquals(RestStatus.BAD_REQUEST, e.status());
+        } finally {
+            closeShards(shard);
+        }
+    }
+
     public void testCompletionStatsMarksSearcherAccessed() throws Exception {
         IndexShard indexShard = null;
         try {
@@ -5746,6 +5808,29 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // Task should be closed after shard close
         assertTrue(primary.getPeriodicFlushTask().isClosed());
+    }
+
+    public void testSearchIdleNotSupportedForIngestionIndex() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+            .build();
+
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+
+        assertFalse(primary.isSearchIdleSupported());
+        assertFalse(primary.indexSettings().isExplicitRefresh());
+
+        closeShards(primary);
     }
 
     public void testPeriodicFlushTaskExecutesFlush() throws Exception {

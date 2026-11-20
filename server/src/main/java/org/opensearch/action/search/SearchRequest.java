@@ -396,9 +396,20 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * Returns the alias of the cluster that this search request is being executed on. A non-null value indicates that this search request
      * is being executed as part of a locally reduced cross-cluster search request. The cluster alias is used to prefix index names
      * returned as part of search hits with the alias of the cluster they came from.
+     * <p>
+     * A request carries this mark only when it originates in {@link #subSearchRequest(SearchRequest, String[], String, long, boolean)}, on
+     * the coordinating node of a cross-cluster search that minimizes round-trips; the copy constructor and wire deserialization preserve
+     * it, and nothing else sets it. A request submitted by a user therefore always returns null here, and so does the coordinating node's
+     * own request before it is split. A null return therefore means only that this request is not a forwarded sub-request, not that the
+     * search is not a cross-cluster one, so a caller that must also recognise the forwarding side has to look at the request's indices as
+     * well. The sub-request for the local half of a multi-cluster search carries an empty alias rather than a null one, so a caller asking
+     * only whether this request is a cross-cluster sub-request must test for null and not for an empty string.
+     *
+     * @return the alias this sub-request was created with, or null when this request is not a cross-cluster sub-request
      */
     @Nullable
-    String getLocalClusterAlias() {
+    @ExperimentalApi
+    public String getLocalClusterAlias() {
         return localClusterAlias;
     }
 

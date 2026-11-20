@@ -14,6 +14,7 @@ import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.pagination.ShardPaginationStrategy;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -93,6 +94,7 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
             clusterStateRequest.setShouldCancelOnTimeout(true);
             clusterStateRequest.setParentTask(client.getLocalNodeId(), task.getId());
             clusterStateRequest.clear().indices(request.indices()).routingTable(true).metadata(true);
+            clusterStateRequest.indicesOptions(pageIndicesOptions(request.indicesOptions()));
 
             client.admin().cluster().state(clusterStateRequest, new ActionListener<>() {
 
@@ -113,6 +115,24 @@ public class TransportGetIngestionStateAction extends TransportBroadcastByNodeAc
         } else {
             super.doExecute(task, request, listener);
         }
+    }
+
+    /**
+     * Expands wildcards like the request, so the page holds the same indices the broadcast resolves. Missing and
+     * unavailable indices are left to the broadcast, which reports them.
+     */
+    private static IndicesOptions pageIndicesOptions(IndicesOptions requestOptions) {
+        return IndicesOptions.fromOptions(
+            true,
+            true,
+            requestOptions.expandWildcardsOpen(),
+            requestOptions.expandWildcardsClosed(),
+            requestOptions.expandWildcardsHidden(),
+            requestOptions.allowAliasesToMultipleIndices(),
+            requestOptions.forbidClosedIndices(),
+            requestOptions.ignoreAliases(),
+            requestOptions.ignoreThrottled()
+        );
     }
 
     private void executePaginatedGetIngestionAction(
