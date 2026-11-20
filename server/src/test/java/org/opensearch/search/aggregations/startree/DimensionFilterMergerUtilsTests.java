@@ -324,7 +324,9 @@ public class DimensionFilterMergerUtilsTests extends OpenSearchTestCase {
             }
 
             @Override
-            public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) {}
+            public DimensionFilter forSegment(StarTreeValues starTreeValues, SearchContext searchContext) {
+                return this;
+            }
 
             @Override
             public void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector) {}

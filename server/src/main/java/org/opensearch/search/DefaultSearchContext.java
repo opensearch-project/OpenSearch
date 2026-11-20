@@ -1430,7 +1430,7 @@ final class DefaultSearchContext extends SearchContext {
             requestShouldUseIntraSegmentSearch.set(false);
             return;
         }
-        // StarTree precomputes aggregations at index time - intra-segment adds no benefit
+        // Star-tree pre-computation covers a whole segment: each partition would add the whole segment again
         if (aggregations() != null && StarTreeQueryHelper.getSupportedStarTree(getQueryShardContext()) != null) {
             logger.debug("partition strategy decision: StarTree detected, disabling intra-segment");
             requestShouldUseIntraSegmentSearch.set(false);

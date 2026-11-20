@@ -44,6 +44,7 @@ import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.search.aggregations.AbstractAggregationBuilder;
+import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -72,6 +73,7 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
@@ -79,6 +81,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.opensearch.search.aggregations.AggregationBuilders.count;
@@ -1076,12 +1079,144 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
         setStarTreeIndexSetting(null);
     }
 
+    /**
+     * Star-tree pre-computation covers a whole segment, so it must not run on intra-segment partitions, which would each
+     * add the whole segment. The decision depends on the
+     * star-tree query context, so the context must already be set when it is made. Segment-level concurrent search is
+     * still used, and requests the star-tree cannot resolve are unaffected.
+     */
+    public void testStarTreeRequestsAreNotPartitioned() throws IOException {
+        try {
+            setStarTreeIndexSetting("true");
+            CreateIndexRequestBuilder builder = client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(starStreeEnabledIndexSettings)
+                .setMapping(
+                    StarTreeFilterTests.getExpandedMapping(
+                        1,
+                        false,
+                        StarTreeFilterTests.DIMENSION_TYPE_MAP,
+                        StarTreeFilterTests.METRIC_TYPE_MAP
+                    )
+                );
+            createIndex("test", builder);
+            IndexShard indexShard = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex("test")).getShard(0);
+            ShardSearchRequest request = new ShardSearchRequest(
+                OriginalIndices.NONE,
+                new SearchRequest().allowPartialSearchResults(true),
+                indexShard.shardId(),
+                1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY),
+                1.0f,
+                -1,
+                null,
+                null
+            );
+            // No query and a metric aggregation: eligible for intra-segment search unless the star-tree resolves it
+            SearchSourceBuilder starTreeSource = new SearchSourceBuilder().size(0).aggregation(max("test").field("field"));
+            // "dv" is a dimension but not a star-tree metric, so the star-tree cannot resolve this one
+            SearchSourceBuilder regularSource = new SearchSourceBuilder().size(0).aggregation(max("test").field("dv"));
+            for (String mode : List.of(
+                SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO,
+                SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL
+            )) {
+                setConcurrentSearchMode(mode);
+                assertSearchDecisions(request, starTreeSource, true, true, false);
+                assertSearchDecisions(request, regularSource, false, true, true);
+            }
+        } finally {
+            setConcurrentSearchMode(null);
+            setStarTreeIndexSetting(null);
+        }
+    }
+
+    private void setConcurrentSearchMode(String mode) {
+        setTransientSetting(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), mode);
+    }
+
+    /**
+     * Bucket aggregations that opt into intra-segment search on their own, a date_histogram that the filter-rewrite path
+     * cannot answer (a time zone other than UTC) and a range with overlapping ranges, are not
+     * partitioned either when the star-tree resolves them: its pre-computation covers whole segments, so every partition
+     * would add the whole segment. The same requests with star-tree search off, which are partitioned, are the control.
+     */
+    public void testStarTreeBucketRequestsAreNotPartitioned() throws IOException {
+        try {
+            setStarTreeIndexSetting("true");
+            CreateIndexRequestBuilder builder = client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(starStreeEnabledIndexSettings)
+                .setMapping(DateHistogramAggregatorTests.getExpandedMapping(1, false));
+            createIndex("test", builder);
+            IndexShard indexShard = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex("test")).getShard(0);
+            ShardSearchRequest request = new ShardSearchRequest(
+                OriginalIndices.NONE,
+                new SearchRequest().allowPartialSearchResults(true),
+                indexShard.shardId(),
+                1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY),
+                1.0f,
+                -1,
+                null,
+                null
+            );
+            // Each shape takes the metric under its innermost bucket aggregation
+            List<Function<AggregationBuilder, AggregationBuilder>> shapes = List.of(
+                metric -> dateHistogram("by_day").field("@timestamp")
+                    .calendarInterval(DateHistogramInterval.DAY)
+                    .timeZone(ZoneId.of("+01:00"))
+                    .subAggregation(metric),
+                metric -> range("by_status").field("status").addRange(0, 10).addRange(5, 15).subAggregation(metric)
+            );
+            for (String mode : List.of(
+                SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO,
+                SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL
+            )) {
+                setConcurrentSearchMode(mode);
+                for (Function<AggregationBuilder, AggregationBuilder> shape : shapes) {
+                    SearchSourceBuilder source = new SearchSourceBuilder().size(0).aggregation(shape.apply(sum("sum").field("size")));
+                    assertSearchDecisions(request, source, true, true, false);
+                    // The control: the same request with star-tree search off is partitioned
+                    setStarTreeIndexSetting("false");
+                    assertSearchDecisions(request, source, false, true, true);
+                    setStarTreeIndexSetting("true");
+                }
+            }
+        } finally {
+            setConcurrentSearchMode(null);
+            setStarTreeIndexSetting(null);
+        }
+    }
+
+    private void assertSearchDecisions(
+        ShardSearchRequest request,
+        SearchSourceBuilder sourceBuilder,
+        boolean expectStarTree,
+        boolean expectConcurrent,
+        boolean expectIntraSegment
+    ) throws IOException {
+        request.source(sourceBuilder);
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        try (
+            ReaderContext reader = searchService.createOrGetReaderContext(request, false);
+            SearchContext context = searchService.createContext(reader, request, null, true)
+        ) {
+            String shape = sourceBuilder.toString();
+            assertEquals(shape, expectStarTree, context.getQueryShardContext().getStarTreeQueryContext() != null);
+            assertEquals(shape, expectConcurrent, context.shouldUseConcurrentSearch());
+            assertEquals(shape, expectIntraSegment, context.shouldUseIntraSegmentSearch());
+        }
+    }
+
     private void setStarTreeIndexSetting(String value) {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING.getKey(), value).build())
-            .execute();
+        setTransientSetting(CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING.getKey(), value);
+    }
+
+    /** Applies a transient cluster setting before returning, so the next search sees it; null resets it. */
+    private void setTransientSetting(String key, String value) {
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(key, value).build()).get();
     }
 
     private void assertStarTreeContext(

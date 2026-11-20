@@ -22,12 +22,16 @@ import java.io.IOException;
 @ExperimentalApi
 public interface DimensionFilter {
     /**
-     * Converts parsed user values to ordinals based on segment and other init actions can be performed.
+     * Returns this filter bound to one segment: user values converted to the segment's ordinals, and any other
+     * state that depends on the segment. A request's filters are shared by all of its concurrent search slices,
+     * which traverse different segments at the same time, so the returned filter must not share mutable state
+     * with this one. Filters without per-segment state return {@code this}.
      * @param starTreeValues : Segment specific star tree root node and other metadata
      * @param searchContext : Search context
+     * @return the filter to match nodes and values of this segment with
      * @throws IOException :
      */
-    void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) throws IOException;
+    DimensionFilter forSegment(StarTreeValues starTreeValues, SearchContext searchContext) throws IOException;
 
     /**
      * Called when matching a dimension values in the star tree index.

@@ -54,6 +54,17 @@ public class StarTreeQueryHelper {
         return context.aggregations() != null && context.mapperService().isCompositeIndexPresent() && context.parsedPostFilter() == null;
     }
 
+    /**
+     * Star-tree pre-computation covers whole segments: on a partition of a segment it would add the whole segment once
+     * per partition. The search service never partitions a request the star-tree resolves; this keeps that invariant
+     * checked with assertions disabled, failing the request rather than returning multiplied results.
+     */
+    private static void requireWholeSegments(SearchContext context) {
+        if (context.shouldUseIntraSegmentSearch()) {
+            throw new IllegalStateException("star-tree pre-computation covers whole segments, not partitions");
+        }
+    }
+
     public static CompositeIndexFieldInfo getSupportedStarTree(QueryShardContext context) {
         StarTreeQueryContext starTreeQueryContext = context.getStarTreeQueryContext();
         return (starTreeQueryContext != null) ? starTreeQueryContext.getStarTree() : null;
@@ -91,7 +102,7 @@ public class StarTreeQueryHelper {
         // Obtain a FixedBitSet of matched star tree document IDs
         FixedBitSet filteredValues = getStarTreeFilteredValues(context, ctx, starTreeValues);
 
-        int numBits = filteredValues.length();  // Get the number of the filtered values (matching docs)
+        int numBits = filteredValues.length();  // An upper bound on the matching entry ids, not their count
         if (numBits > 0) {
             // Iterate over the filtered values
             for (int bit = filteredValues.nextSetBit(0); bit != DocIdSetIterator.NO_MORE_DOCS; bit = (bit + 1 < numBits)
@@ -121,6 +132,7 @@ public class StarTreeQueryHelper {
      */
     public static FixedBitSet getStarTreeFilteredValues(SearchContext context, LeafReaderContext ctx, StarTreeValues starTreeValues)
         throws IOException {
+        requireWholeSegments(context);
         FixedBitSet result = context.getQueryShardContext().getStarTreeQueryContext().maybeGetCachedNodeIdsForSegment(ctx.ord);
         if (result == null) {
             result = StarTreeTraversalUtil.getStarTreeResult(
@@ -232,6 +244,7 @@ public class StarTreeQueryHelper {
         SearchContext context,
         List<DimensionFilter> dimensionFiltersToMerge
     ) throws IOException {
+        requireWholeSegments(context);
         StarTreeFilter starTreeFilter = context.getQueryShardContext().getStarTreeQueryContext().getBaseQueryStarTreeFilter();
         for (DimensionFilter dimensionFilter : dimensionFiltersToMerge) {
             starTreeFilter = StarTreeQueryHelper.mergeDimensionFilterIfNotExists(
