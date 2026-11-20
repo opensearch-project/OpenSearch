@@ -176,7 +176,9 @@ async fn internal_search_dataframe(
         InternalSearch::SeqNoAbove(seq_no_floor) => df
             .filter(col("_seq_no").gt(lit(seq_no_floor)))?
             .select_columns(&["_id", "_seq_no", "_primary_term", "_version"]),
-        InternalSearch::Off => unreachable!("internal_search_dataframe called with Off"),
+        InternalSearch::Off | InternalSearch::PlannedDocumentLookup => {
+            unreachable!("internal_search_dataframe called without a native internal plan")
+        }
     }
 }
 

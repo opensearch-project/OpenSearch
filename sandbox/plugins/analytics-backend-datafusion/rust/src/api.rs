@@ -950,9 +950,19 @@ pub async unsafe fn execute_query(
         &mut query_context,
     );
 
-    // Route to the indexed executor when the plan has an index_filter UDF or
-    // requests __row_id__ (QTF query phase); otherwise the ListingTable path.
-    let use_indexed = use_indexed_path(plan_bytes);
+    // Plans containing an index_filter UDF or requesting __row_id__ normally belong to the
+    // QTF query phase and therefore use the indexed executor. PlannedDocumentLookup instead
+    // comes from the Java GET/MGET path when its DocumentLookupContext contains DLS. There,
+    // the Lucene secondary resolves _id to a Parquet row id, DocumentLookupPlanBuilder builds
+    // a Substrait plan that filters that __row_id__ by the DLS predicate, and GetService sends
+    // the plan here with the PlannedDocumentLookup mode. Its __row_id__ reference is therefore
+    // a Parquet point predicate, not a request for a QTF candidate stream. Run it through
+    // ListingTable so DataFusion evaluates both predicates and returns a regular RecordBatch
+    // stream rather than the indexed executor's QTF stream handle.
+    let use_indexed = !matches!(
+        internal_search,
+        crate::datafusion_query_config::InternalSearch::PlannedDocumentLookup
+    ) && use_indexed_path(plan_bytes);
 
     // Register cancellation token.
     let token = query_tracker::get_cancellation_token(context_id);

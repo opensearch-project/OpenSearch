@@ -148,6 +148,33 @@ public class GetService implements Closeable {
         }
 
         @Override
+        public Map<String, Object> executeSingleRow(long rowId, WriterFileSet parquetSet, String tableName, byte[] plan)
+            throws IOException {
+            if (rowId < 0) {
+                throw new IllegalArgumentException("rowId must be non-negative, got: " + rowId);
+            }
+            if (plan.length == 0) {
+                throw new IllegalArgumentException("secured document lookup plan must not be empty");
+            }
+            String parquetDir = parquetSet.directory();
+            String parquetFile = parquetSet.files().iterator().next();
+            long runtimePtr = dfPlugin.getDataFusionService().getNativeRuntime().get();
+            MonoFileWriterSet segment = MonoFileWriterSet.of(parquetDir, parquetSet.writerGeneration(), parquetFile, 0L);
+            try (ReaderHandle readerHandle = new ReaderHandle(parquetDir, List.of(segment), null, List.of(), List.of())) {
+                long streamPtr = executeQuery(
+                    readerHandle.getPointer(),
+                    runtimePtr,
+                    tableName,
+                    plan,
+                    NativeBridge.INTERNAL_SEARCH_PLANNED_DOCUMENT_LOOKUP,
+                    0L,
+                    "DataFusion secured get-by-id query failed"
+                );
+                return readSingleRow(streamPtr);
+            }
+        }
+
+        @Override
         public List<Map<String, Object>> executeRowsAboveSeqNo(List<WriterFileSet> fileSets, long seqNoFloor) throws IOException {
             if (fileSets.isEmpty()) {
                 return List.of();
@@ -227,6 +254,18 @@ public class GetService implements Closeable {
          * but a valid {@link WireConfigSnapshot} is still required.
          */
         private long executeInternalSearch(long readerPtr, long runtimePtr, long mode, long bound, String errorMessage) throws IOException {
+            return executeQuery(readerPtr, runtimePtr, GET_BY_ID_TABLE_ALIAS, EMPTY_PLAN, mode, bound, errorMessage);
+        }
+
+        private long executeQuery(
+            long readerPtr,
+            long runtimePtr,
+            String tableName,
+            byte[] plan,
+            long mode,
+            long bound,
+            String errorMessage
+        ) throws IOException {
             CompletableFuture<Long> future = new CompletableFuture<>();
             WireConfigSnapshot configSnapshot = WireConfigSnapshot.builder(dfPlugin.getDatafusionSettings().getSnapshot()).build();
             try (Arena arena = Arena.ofConfined()) {
@@ -234,8 +273,8 @@ public class GetService implements Closeable {
                 configSnapshot.writeTo(configSegment);
                 NativeBridge.executeQueryAsync(
                     readerPtr,
-                    GET_BY_ID_TABLE_ALIAS,
-                    EMPTY_PLAN,
+                    tableName,
+                    plan,
                     runtimePtr,
                     0L,
                     configSegment.address(),

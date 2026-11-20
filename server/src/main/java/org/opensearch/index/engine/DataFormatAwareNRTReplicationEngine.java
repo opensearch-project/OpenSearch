@@ -35,6 +35,7 @@ import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
 import org.opensearch.index.engine.exec.CommitFileManager;
+import org.opensearch.index.engine.exec.DocumentLookupContext;
 import org.opensearch.index.engine.exec.DocumentLookupSupport;
 import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -416,12 +417,14 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
      * so reads go straight to the snapshot.
      */
     @Override
-    public Engine.GetResult getById(Engine.Get get, BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory)
-        throws IOException {
+    public Engine.GetResult getById(
+        DocumentLookupContext context,
+        BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory
+    ) throws IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             try (GatedCloseable<Reader> readerRef = acquireReader()) {
-                DocumentLookupResult result = documentLookup.getById(get, readerRef.get());
+                DocumentLookupResult result = documentLookup.getById(context, readerRef.get());
                 return result.exists() ? result.toGetResult() : Engine.GetResult.NOT_EXISTS;
             }
         }

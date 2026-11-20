@@ -34,6 +34,9 @@ package org.opensearch.action.get;
 
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.ReadAccessContext;
+import org.opensearch.action.support.ReadAccessPolicy;
+import org.opensearch.action.support.ReadAccessPolicyService;
 import org.opensearch.action.support.single.shard.TransportSingleShardAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -53,6 +56,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Performs the get operation.
@@ -62,6 +66,7 @@ import java.io.IOException;
 public class TransportGetAction extends TransportSingleShardAction<GetRequest, GetResponse> {
 
     private final IndicesService indicesService;
+    private final ReadAccessPolicyService readAccessPolicyService;
 
     @Inject
     public TransportGetAction(
@@ -70,7 +75,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         IndicesService indicesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ReadAccessPolicyService readAccessPolicyService
     ) {
         super(
             GetAction.NAME,
@@ -83,6 +89,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             ThreadPool.Names.GET
         );
         this.indicesService = indicesService;
+        this.readAccessPolicyService = readAccessPolicyService;
     }
 
     @Override
@@ -152,6 +159,9 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             indexShard.refresh("refresh_flag_get");
         }
 
+        ReadAccessPolicy readAccessPolicy = readAccessPolicyService.getReadAccessPolicy(
+            ReadAccessContext.of(List.of(shardId.getIndexName()))
+        );
         GetResult result = indexShard.getService()
             .get(
                 request.id(),
@@ -159,7 +169,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 request.realtime(),
                 request.version(),
                 request.versionType(),
-                request.fetchSourceContext()
+                request.fetchSourceContext(),
+                readAccessPolicy
             );
         return new GetResponse(result);
     }

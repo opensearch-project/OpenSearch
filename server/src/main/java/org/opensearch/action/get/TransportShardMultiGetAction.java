@@ -34,6 +34,9 @@ package org.opensearch.action.get;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.ReadAccessContext;
+import org.opensearch.action.support.ReadAccessPolicy;
+import org.opensearch.action.support.ReadAccessPolicyService;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.action.support.single.shard.TransportSingleShardAction;
 import org.opensearch.cluster.ClusterState;
@@ -52,6 +55,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Perform the shard multi get action
@@ -63,6 +67,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     private static final String ACTION_NAME = MultiGetAction.NAME + "[shard]";
 
     private final IndicesService indicesService;
+    private final ReadAccessPolicyService readAccessPolicyService;
 
     @Inject
     public TransportShardMultiGetAction(
@@ -71,7 +76,8 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         IndicesService indicesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ReadAccessPolicyService readAccessPolicyService
     ) {
         super(
             ACTION_NAME,
@@ -84,6 +90,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             ThreadPool.Names.GET
         );
         this.indicesService = indicesService;
+        this.readAccessPolicyService = readAccessPolicyService;
     }
 
     @Override
@@ -134,12 +141,23 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             indexShard.refresh("refresh_flag_mget");
         }
 
+        ReadAccessPolicy readAccessPolicy = readAccessPolicyService.getReadAccessPolicy(
+            ReadAccessContext.of(List.of(shardId.getIndexName()))
+        );
         MultiGetShardResponse response = new MultiGetShardResponse();
         for (int i = 0; i < request.locations.size(); i++) {
             MultiGetRequest.Item item = request.items.get(i);
             try {
                 GetResult getResult = indexShard.getService()
-                    .get(item.id(), item.storedFields(), request.realtime(), item.version(), item.versionType(), item.fetchSourceContext());
+                    .get(
+                        item.id(),
+                        item.storedFields(),
+                        request.realtime(),
+                        item.version(),
+                        item.versionType(),
+                        item.fetchSourceContext(),
+                        readAccessPolicy
+                    );
                 response.add(request.locations.get(i), new GetResponse(getResult));
             } catch (RuntimeException e) {
                 if (TransportActions.isShardNotAvailableException(e)) {

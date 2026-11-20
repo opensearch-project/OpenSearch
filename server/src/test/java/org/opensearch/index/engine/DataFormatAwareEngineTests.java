@@ -4963,7 +4963,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
     private DocumentLookupProvider mockLookupProvider() throws IOException {
         DocumentLookupProvider provider = mock(DocumentLookupProvider.class);
-        when(provider.getById(any(), any(), any(), any())).thenReturn(DocumentLookupResult.notFound(""));
+        when(provider.getById(any(), any(), any())).thenReturn(DocumentLookupResult.notFound(""));
         when(provider.getVersionMetadata(any(), any(), any(), any())).thenReturn(DocumentLookupResult.notFound(""));
         return provider;
     }
@@ -4988,7 +4988,14 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     /** Calls the new getById(Engine.Get, searcherFactory) and unwraps the pre-materialized lookup.
      *  DFA engines ignore the searcher factory, so a no-op factory is supplied. */
     private static DocumentLookupResult getByIdLookup(DataFormatAwareEngine engine, Engine.Get get) throws IOException {
-        Engine.GetResult result = engine.getById(get, (source, scope) -> null);
+        Engine.GetResult result = engine.getById(
+            org.opensearch.index.engine.exec.DocumentLookupContext.of(
+                get,
+                engine.config().getShardId().getIndex(),
+                org.opensearch.action.support.ReadAccessPolicy.unrestricted()
+            ),
+            (source, scope) -> null
+        );
         return result.exists() ? ((DocumentLookupResult.PreMaterialized) result).lookup() : DocumentLookupResult.notFound(get.id());
     }
 
@@ -5000,9 +5007,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     public void testGetByIdFromSegmentsEnforcesStaleIfSeqNo() throws IOException {
         DocumentLookupProvider provider = mockLookupProvider();
         // The stored document is at seqNo 7 / term 1.
-        when(provider.getById(any(), any(), any(), any())).thenReturn(
-            new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
-        );
+        when(provider.getById(any(), any(), any())).thenReturn(new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of()));
         try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
             engine.index(indexOp(createParsedDocWithInput("1", null)));
             // Refresh so the get cannot be answered from the version map.
@@ -5010,16 +5015,14 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
             Engine.Get stale = new Engine.Get(true, true, "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))).setIfSeqNo(3L)
                 .setIfPrimaryTerm(1L);
-            expectThrows(VersionConflictEngineException.class, () -> engine.getById(stale, (source, scope) -> null));
+            expectThrows(VersionConflictEngineException.class, () -> getByIdLookup(engine, stale));
         }
     }
 
     /** Control: a matching {@code if_seq_no} on the segment path must still be served. */
     public void testGetByIdFromSegmentsAcceptsCurrentIfSeqNo() throws IOException {
         DocumentLookupProvider provider = mockLookupProvider();
-        when(provider.getById(any(), any(), any(), any())).thenReturn(
-            new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
-        );
+        when(provider.getById(any(), any(), any())).thenReturn(new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of()));
         try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
             engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.refresh("test");
@@ -5033,9 +5036,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     /** And a get carrying no precondition at all must be unaffected by the enforcement. */
     public void testGetByIdFromSegmentsWithoutPreconditionIsUnaffected() throws IOException {
         DocumentLookupProvider provider = mockLookupProvider();
-        when(provider.getById(any(), any(), any(), any())).thenReturn(
-            new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
-        );
+        when(provider.getById(any(), any(), any())).thenReturn(new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of()));
         try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
             engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.refresh("test");
@@ -5055,28 +5056,24 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     public void testGetByIdFromSegmentsEnforcesStaleVersion() throws IOException {
         DocumentLookupProvider provider = mockLookupProvider();
         // Stored document is at version 2.
-        when(provider.getById(any(), any(), any(), any())).thenReturn(
-            new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
-        );
+        when(provider.getById(any(), any(), any())).thenReturn(new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of()));
         try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
             engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.refresh("test");
 
             Engine.Get stale = new Engine.Get(true, true, "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))).version(1L);
-            expectThrows(VersionConflictEngineException.class, () -> engine.getById(stale, (source, scope) -> null));
+            expectThrows(VersionConflictEngineException.class, () -> getByIdLookup(engine, stale));
 
             // A version ahead of the stored one must conflict as well, not be silently served.
             Engine.Get future = new Engine.Get(true, true, "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))).version(99L);
-            expectThrows(VersionConflictEngineException.class, () -> engine.getById(future, (source, scope) -> null));
+            expectThrows(VersionConflictEngineException.class, () -> getByIdLookup(engine, future));
         }
     }
 
     /** Control: the matching version on the segment path must still be served. */
     public void testGetByIdFromSegmentsAcceptsCurrentVersion() throws IOException {
         DocumentLookupProvider provider = mockLookupProvider();
-        when(provider.getById(any(), any(), any(), any())).thenReturn(
-            new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of())
-        );
+        when(provider.getById(any(), any(), any())).thenReturn(new DocumentLookupResult("1", 2L, true, null, 7L, 1L, Map.of(), Map.of()));
         try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
             engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.refresh("test");
@@ -5114,11 +5111,47 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         }
     }
 
+    public void testRestrictedGetDoesNotReturnUnfilteredTranslogSource() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        org.opensearch.action.support.ReadAccessPolicy restrictedPolicy = mock(org.opensearch.action.support.ReadAccessPolicy.class);
+        when(restrictedPolicy.hasRestrictions()).thenReturn(true);
+        try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            Engine.Get get = realtimeGet("1");
+            Engine.GetResult result = engine.getById(
+                org.opensearch.index.engine.exec.DocumentLookupContext.of(get, engine.config().getShardId().getIndex(), restrictedPolicy),
+                (source, scope) -> null
+            );
+            assertFalse("restricted get must not expose the raw translog source", result.exists());
+        }
+    }
+
+    public void testRestrictedRealtimeGetDoesNotEvaluateStaleSnapshotRow() throws IOException {
+        DocumentLookupProvider provider = mockLookupProvider();
+        when(provider.getById(any(), any(), any())).thenReturn(new DocumentLookupResult("1", 1L, true, null, 0L, 1L, Map.of(), Map.of()));
+        org.opensearch.action.support.ReadAccessPolicy restrictedPolicy = mock(org.opensearch.action.support.ReadAccessPolicy.class);
+        when(restrictedPolicy.hasRestrictions()).thenReturn(true);
+        try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("initial");
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+
+            Engine.GetResult result = engine.getById(
+                org.opensearch.index.engine.exec.DocumentLookupContext.of(
+                    realtimeGet("1"),
+                    engine.config().getShardId().getIndex(),
+                    restrictedPolicy
+                ),
+                (source, scope) -> null
+            );
+
+            assertFalse("restricted get must not evaluate DLS against an older snapshot row", result.exists());
+        }
+    }
+
     public void testGetByIdReturnsDocFromParquetAfterRefresh() throws IOException {
         DocumentLookupProvider provider = mock(DocumentLookupProvider.class);
-        when(provider.getById(any(), any(), any(), any())).thenReturn(
-            new DocumentLookupResult("1", 1L, true, null, 0L, 1L, Map.of(), Map.of())
-        );
+        when(provider.getById(any(), any(), any())).thenReturn(new DocumentLookupResult("1", 1L, true, null, 0L, 1L, Map.of(), Map.of()));
         try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
             engine.index(indexOp(createParsedDocWithInput("1", null)));
             engine.refresh("test");

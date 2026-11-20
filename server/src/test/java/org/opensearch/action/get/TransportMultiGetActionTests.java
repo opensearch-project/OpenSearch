@@ -36,6 +36,7 @@ import org.opensearch.Version;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.ReadAccessPolicyService;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -73,6 +74,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -214,7 +216,8 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
             mock(IndicesService.class),
             threadPool,
             new ActionFilters(emptySet()),
-            new Resolver()
+            new Resolver(),
+            new ReadAccessPolicyService(List.of())
         ) {
             @Override
             protected void doExecute(Task task, MultiGetShardRequest request, ActionListener<MultiGetShardResponse> listener) {}

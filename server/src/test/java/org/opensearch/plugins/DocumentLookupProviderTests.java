@@ -20,7 +20,7 @@ public class DocumentLookupProviderTests extends OpenSearchTestCase {
     private static final Index INDEX = new Index("idx", "uuid");
 
     /** A provider that overrides only the abstract getById; getVersionMetadata/getDocsAboveSeqNo use the SPI defaults. */
-    private static final DocumentLookupProvider DEFAULTS = (get, reader, index, resolver) -> DocumentLookupResult.notFound("x");
+    private static final DocumentLookupProvider DEFAULTS = (context, reader, resolver) -> DocumentLookupResult.notFound("x");
 
     public void testGetVersionMetadataDefaultsToNotFound() throws IOException {
         DocumentLookupResult result = DEFAULTS.getVersionMetadata("id", null, INDEX, DocumentMetadataResolver.NOOP);

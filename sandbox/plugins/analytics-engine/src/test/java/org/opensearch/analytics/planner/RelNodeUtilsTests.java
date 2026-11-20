@@ -24,6 +24,8 @@ import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.RelBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.List;
+
 import static org.opensearch.analytics.planner.RelNodeUtils.MAX_EXTRACT_INDICES_DEPTH;
 
 /**
@@ -157,6 +159,13 @@ public class RelNodeUtilsTests extends OpenSearchTestCase {
         RelBuilder b = builderWithTable("logs-2024-01,secrets-2024-01");
         RelNode plan = b.scan("logs-2024-01,secrets-2024-01").build();
         assertArrayEquals(new String[] { "logs-2024-01", "secrets-2024-01" }, RelNodeUtils.extractIndices(plan));
+    }
+
+    public void testTableExpressionsPreserveCommaExpression() {
+        RelBuilder b = builderWithTable("logs-2024-01,secrets-2024-01");
+        RelNode plan = b.scan("logs-2024-01,secrets-2024-01").build();
+
+        assertEquals(List.of("logs-2024-01,secrets-2024-01"), RelNodeUtils.extractTableExpressions(plan));
     }
 
     public void testCommaDelimitedThreeIndices() {
