@@ -1137,14 +1137,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
                 forceRefreshes.close();
 
-                boolean syncTranslog = (isRemoteTranslogEnabled() || this.isMigratingToRemote())
-                    && (Durability.ASYNC == indexSettings.getTranslogDurability() || indexSettings.isPluggableDataFormatEnabled());
-                // Force a final, blocking translog upload to remote for ALL remote-backed indexes before draining
-                // uploads below. This must run for REQUEST durability too, not just ASYNC: with REQUEST the freshest
-                // acked ops may still be in the buffered upload path and not yet on remote. If we drained without
-                // this sync, the pending upload would hit the drained syncPermit, no-op (TLOG-SKIP), and those acked
-                // ops would never reach remote, silently lost on handoff since the target recovers from remote.
+                // Force a final translog upload to remote for ALL remote-backed indexes before draining uploads below,
+                // regardless of durability: under REQUEST the freshest acked ops may still be in the buffered upload path
+                // and not yet on remote. If we drained without this sync, the pending upload would hit the drained
+                // syncPermit, no-op (TLOG-SKIP), and those acked ops would never reach remote, silently lost on handoff
+                // since the target recovers from remote.
+                boolean syncTranslog = isRemoteTranslogEnabled() || this.isMigratingToRemote();
                 if (syncTranslog) {
+                    // The sync below acquires the permit non-blocking and no-ops if an upload (e.g. a generation roll) is in
+                    // flight. Wait for that upload to finish first. Any upload that takes the permit after this point
+                    // rolls and uploads the current generation, which holds every pending op since indexing is blocked.
+                    getIndexer().translogManager().drainSync().close();
                     maybeSync();
                 }
 
@@ -1157,6 +1160,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 // Ensure all in-flight remote store translog upload drains, before we perform the performSegRep.
                 releasablesOnHandoffFailures.add(getIndexer().translogManager().drainSync());
+                if (syncTranslog) {
+                    // The upload above may have advanced this shard's persisted local checkpoint; the replication tracker
+                    // only learns it from the write path. Refresh it, as the primary context handed to the target is built
+                    // from it and the target verifies its own checkpoint against it.
+                    updateLocalCheckpointForShard(shardRouting.allocationId().getId(), getLocalCheckpoint());
+                }
 
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED
