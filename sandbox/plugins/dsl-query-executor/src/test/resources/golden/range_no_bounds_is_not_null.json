@@ -24,20 +24,23 @@
     "name",
     "price",
     "brand",
-    "rating"
+    "rating",
+    "_id"
   ],
   "mockResultRows": [
     [
       "laptop",
       999,
       "BrandA",
-      4.5
+      4.5,
+      "id-1"
     ],
     [
       "phone",
       699,
       "BrandB",
-      4.2
+      4.2,
+      "id-2"
     ]
   ],
   "expectedOutputDsl": {
@@ -56,7 +59,8 @@
             "price": 999,
             "brand": "BrandA",
             "rating": 4.5
-          }
+          },
+          "_id": "id-1"
         },
         {
           "_score": null,
@@ -65,7 +69,8 @@
             "price": 699,
             "brand": "BrandB",
             "rating": 4.2
-          }
+          },
+          "_id": "id-2"
         }
       ]
     }

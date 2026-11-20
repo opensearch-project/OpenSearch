@@ -15,6 +15,7 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.dsl.executor.QueryPlans;
 import org.opensearch.dsl.golden.CalciteTestInfra;
+import org.opensearch.index.mapper.Uid;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -47,6 +48,48 @@ public class HitsResponseBuilderTests extends OpenSearchTestCase {
         SearchRequest request = new SearchRequest("products");
         request.source(new SearchSourceBuilder().size(size));
         return request;
+    }
+
+    /** The _id metadata column is lifted into the hit envelope and never lands in _source. */
+    public void testIdColumnLiftedIntoHits() throws Exception {
+        Map<String, String> mapping = new LinkedHashMap<>(PRODUCTS_MAPPING);
+        mapping.put("_id", "VARBINARY");
+        ExecutionResult result = new ExecutionResult(
+            hitsPlan(mapping),
+            List.of(
+                new Object[] { "laptop", 999, "BrandA", encodedId("doc-1") },
+                new Object[] { "phone", 699, "BrandB", encodedId("doc-2") }
+            )
+        );
+
+        SearchHits hits = HitsResponseBuilder.build(List.of(result), request(10), null);
+
+        assertEquals(2, hits.getHits().length);
+        assertEquals("doc-1", hits.getHits()[0].getId());
+        assertEquals("doc-2", hits.getHits()[1].getId());
+        // _id must not leak into _source
+        assertEquals(Map.of("name", "laptop", "price", 999, "brand", "BrandA"), hits.getHits()[0].getSourceAsMap());
+    }
+
+    /** The engine returns the stored bytes as byte[] (Arrow Binary); mirror that here. */
+    private static byte[] encodedId(String id) {
+        org.apache.lucene.util.BytesRef ref = Uid.encodeId(id);
+        return java.util.Arrays.copyOfRange(ref.bytes, ref.offset, ref.offset + ref.length);
+    }
+
+    /** Test rows may carry the id as a plain string; anything else is a broken contract. */
+    public void testIdCellTypes() throws Exception {
+        Map<String, String> mapping = new LinkedHashMap<>(PRODUCTS_MAPPING);
+        mapping.put("_id", "VARBINARY");
+
+        ExecutionResult stringId = new ExecutionResult(
+            hitsPlan(mapping),
+            List.<Object[]>of(new Object[] { "laptop", 999, "BrandA", "doc-9" })
+        );
+        assertEquals("doc-9", HitsResponseBuilder.build(List.of(stringId), request(10), null).getHits()[0].getId());
+
+        ExecutionResult badId = new ExecutionResult(hitsPlan(mapping), List.<Object[]>of(new Object[] { "laptop", 999, "BrandA", 42 }));
+        expectThrows(ConversionException.class, () -> HitsResponseBuilder.build(List.of(badId), request(10), null));
     }
 
     public void testBuildsHitsFromRows() throws Exception {
@@ -202,7 +245,7 @@ public class HitsResponseBuilderTests extends OpenSearchTestCase {
     public void testDottedColumnConflictingWithScalarThrows() {
         expectThrows(
             ConversionException.class,
-            () -> HitsResponseBuilder.buildSourceMap(List.of("name", "name.first"), new Object[] { "laptop", "x" })
+            () -> HitsResponseBuilder.buildSourceMap(List.of("name", "name.first"), new Object[] { "laptop", "x" }, -1)
         );
     }
 }

@@ -20,10 +20,10 @@
     "  LogicalFilter(condition=[PREFIX_QUERY(MAP('field', $0), MAP('query', 'lap'))])",
     "    LogicalTableScan(table=[[test-index]])"
   ],
-  "mockResultFieldNames": ["name", "price"],
+  "mockResultFieldNames": ["name", "price", "_id"],
   "mockResultRows": [
-    ["laptop", 999],
-    ["laptop_pro", 1499]
+    ["laptop", 999, "id-1"],
+    ["laptop_pro", 1499, "id-2"]
   ],
   "expectedOutputDsl": {
     "num_reduce_phases": 0,
@@ -39,14 +39,16 @@
             "name": "laptop",
             "price": 999
           },
-          "_score": null
+          "_score": null,
+          "_id": "id-1"
         },
         {
           "_source": {
             "name": "laptop_pro",
             "price": 1499
           },
-          "_score": null
+          "_score": null,
+          "_id": "id-2"
         }
       ]
     }
