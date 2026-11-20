@@ -167,4 +167,20 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
 
         assertEquals(3, visitedQueries.size());
     }
+
+    public void testVisitReachesQueriesInsideCompoundChildren() {
+        TermQueryBuilder positiveTerm = new TermQueryBuilder(KEYWORD_FIELD_NAME, "positive");
+        TermQueryBuilder negativeTerm = new TermQueryBuilder(KEYWORD_FIELD_NAME, "negative");
+        BoostingQueryBuilder builder = new BoostingQueryBuilder(
+            new BoolQueryBuilder().must(positiveTerm),
+            new BoolQueryBuilder().must(negativeTerm)
+        );
+
+        List<QueryBuilder> visitedQueries = new ArrayList<>();
+        builder.visit(createTestVisitor(visitedQueries));
+
+        assertEquals(5, visitedQueries.size());
+        assertTrue(visitedQueries.contains(positiveTerm));
+        assertTrue(visitedQueries.contains(negativeTerm));
+    }
 }

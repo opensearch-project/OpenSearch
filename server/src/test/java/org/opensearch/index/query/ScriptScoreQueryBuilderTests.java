@@ -156,4 +156,16 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
         scriptQueryBuilder.visit(createTestVisitor(visitedQueries));
         assertEquals(2, visitedQueries.size());
     }
+
+    public void testVisitReachesQueriesInsideCompoundChild() {
+        TermQueryBuilder term = new TermQueryBuilder(KEYWORD_FIELD_NAME, "value");
+        Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap());
+        ScriptScoreQueryBuilder builder = new ScriptScoreQueryBuilder(new BoolQueryBuilder().filter(term), script);
+
+        List<QueryBuilder> visitedQueries = new ArrayList<>();
+        builder.visit(createTestVisitor(visitedQueries));
+
+        assertEquals(3, visitedQueries.size());
+        assertTrue(visitedQueries.contains(term));
+    }
 }
