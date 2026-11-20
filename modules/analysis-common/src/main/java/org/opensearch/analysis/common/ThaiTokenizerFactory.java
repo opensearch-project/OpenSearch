@@ -34,6 +34,7 @@ package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.th.ThaiTokenizer;
+import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
@@ -41,15 +42,25 @@ import org.opensearch.index.analysis.AbstractTokenizerFactory;
 
 /**
  * Factory for {@link ThaiTokenizer}
+ *
+ * <p>Indices created before {@link Version#V_3_10_0} keep the buffer cut points of Lucene 10.5 (see
+ * {@link LegacyThaiTokenizer}).
  */
 public class ThaiTokenizerFactory extends AbstractTokenizerFactory {
 
+    private final Version indexCreatedVersion;
+
     ThaiTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, settings, name);
+        this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
     }
 
     @Override
     public Tokenizer create() {
-        return new ThaiTokenizer();
+        if (ThaiAnalyzerProvider.usesLucene106Thai(indexCreatedVersion)) {
+            return new ThaiTokenizer();
+        }
+        // Indices created before Lucene 10.6 keep its previous buffer cut points (see LegacyThaiTokenizer).
+        return new LegacyThaiTokenizer();
     }
 }

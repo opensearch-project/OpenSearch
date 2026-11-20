@@ -35,6 +35,7 @@ package org.opensearch.index.analysis;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.WordlistLoader;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
 import org.apache.lucene.analysis.bn.BengaliAnalyzer;
@@ -67,7 +68,6 @@ import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
 import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
-import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
@@ -75,7 +75,9 @@ import org.opensearch.env.Environment;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Reader;
+import java.io.UncheckedIOException;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -116,6 +118,30 @@ public class Analysis {
         }
     }
 
+    /**
+     * The Thai stopwords shipped with Lucene up to 10.5. Lucene 10.6 replaced its default Thai list, so the previous one is
+     * kept to avoid changing the output of existing indices: it is what {@code _thai_} resolves to and what the {@code thai}
+     * analyzer of indices created before {@link org.opensearch.Version#V_3_10_0} removes.
+     */
+    public static CharArraySet legacyThaiStopWords() {
+        return LegacyThaiStopWords.SET;
+    }
+
+    private static final class LegacyThaiStopWords {
+        private static final String RESOURCE = "legacy-thai-stopwords.txt";
+        static final CharArraySet SET;
+        static {
+            try (InputStream in = Analysis.class.getResourceAsStream(RESOURCE)) {
+                if (in == null) {
+                    throw new IOException("Resource not found: " + RESOURCE);
+                }
+                SET = WordlistLoader.getWordSet(in, "#");
+            } catch (IOException e) {
+                throw new UncheckedIOException("Unable to load the legacy Thai stopword set", e);
+            }
+        }
+    }
+
     public static final Map<String, Set<?>> NAMED_STOP_WORDS;
     static {
         Map<String, Set<?>> namedStopWords = new HashMap<>();
@@ -151,7 +177,7 @@ public class Analysis {
         namedStopWords.put("_sorani_", SoraniAnalyzer.getDefaultStopSet());
         namedStopWords.put("_spanish_", SpanishAnalyzer.getDefaultStopSet());
         namedStopWords.put("_swedish_", SwedishAnalyzer.getDefaultStopSet());
-        namedStopWords.put("_thai_", ThaiAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_thai_", legacyThaiStopWords());
         namedStopWords.put("_turkish_", TurkishAnalyzer.getDefaultStopSet());
 
         NAMED_STOP_WORDS = unmodifiableMap(namedStopWords);

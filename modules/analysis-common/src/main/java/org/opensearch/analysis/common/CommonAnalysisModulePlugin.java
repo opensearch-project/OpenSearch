@@ -119,7 +119,6 @@ import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
-import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.th.ThaiTokenizer;
 import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
@@ -498,7 +497,12 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         analyzers.add(new PreBuiltAnalyzerProviderFactory("spanish", CachingStrategy.LUCENE, SpanishAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("swedish", CachingStrategy.LUCENE, SwedishAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("turkish", CachingStrategy.LUCENE, TurkishAnalyzer::new));
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("thai", CachingStrategy.LUCENE, ThaiAnalyzer::new));
+        analyzers.add(
+            PreBuiltAnalyzerProviderFactory.openSearchVersion(
+                "thai",
+                version -> ThaiAnalyzerProvider.create(version, ThaiAnalyzerProvider.defaultStopWords(version))
+            )
+        );
         return analyzers;
     }
 
@@ -662,7 +666,12 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
             )
         );
         tokenizers.add(PreConfiguredTokenizer.singleton("pattern", () -> new PatternTokenizer(Regex.compile("\\W+", null), -1)));
-        tokenizers.add(PreConfiguredTokenizer.singleton("thai", ThaiTokenizer::new));
+        tokenizers.add(
+            PreConfiguredTokenizer.openSearchVersion(
+                "thai",
+                version -> ThaiAnalyzerProvider.usesLucene106Thai(version) ? new ThaiTokenizer() : new LegacyThaiTokenizer()
+            )
+        );
         // TODO deprecate and remove in API
         // This is already broken with normalization, so backwards compat isn't necessary?
         tokenizers.add(PreConfiguredTokenizer.singleton("lowercase", XLowerCaseTokenizer::new));
