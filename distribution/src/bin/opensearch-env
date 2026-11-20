@@ -119,12 +119,26 @@ OPENSEARCH_FIPS_MODE="${OPENSEARCH_FIPS_MODE:-false}"
 OPENSEARCH_FIPS_MODE="${OPENSEARCH_FIPS_MODE:-false}"
 OPENSEARCH_FIPS_MODE="$(echo "$OPENSEARCH_FIPS_MODE" | tr '[:upper:]' '[:lower:]')"
 
-if [[ "$OPENSEARCH_FIPS_MODE" == "true" ]] && ls "$OPENSEARCH_HOME/lib" | grep -E -q "bc-fips.*\.jar"; then
+if [[ "$OPENSEARCH_FIPS_MODE" == "true" ]]; then
+  if ! ls "$OPENSEARCH_HOME/lib" | grep -E -q "bc-fips.*\.jar"; then
+    echo "OPENSEARCH_FIPS_MODE=true requires the BouncyCastle FIPS jars in $OPENSEARCH_HOME/lib, but this distribution does not contain them" >&2
+    exit 1
+  fi
   echo "FIPS mode enabled, setting JVM options."
-  export OPENSEARCH_JAVA_OPTS="-Djava.security.properties=${OPENSEARCH_PATH_CONF}/fips_java.security ${OPENSEARCH_JAVA_OPTS}"
+  JAVA_SECURITY_MODE="fips"
 
   # Ensure BC-FIPS "approved only" mode is on when FIPS mode is enabled
   export OPENSEARCH_JAVA_OPTS="-Dorg.bouncycastle.fips.approved_only=true ${OPENSEARCH_JAVA_OPTS}"
+else
+  JAVA_SECURITY_MODE="default"
+fi
+
+# Generate the java.security file for the JDK selected above. It replaces the JDK's own file (note the "=="), so the
+# provider list is exactly the one declared: fips_java.security in FIPS mode, otherwise the JDK's providers followed by
+# BouncyCastle FIPS. Prints nothing when OPENSEARCH_JAVA_OPTS already sets java.security.properties.
+JAVA_SECURITY_FILE=`"$JAVA" "$XSHARE" -cp "$OPENSEARCH_CLASSPATH" org.opensearch.tools.launchers.JavaSecurityFile "$OPENSEARCH_PATH_CONF" "$JAVA_SECURITY_MODE"`
+if [ -n "$JAVA_SECURITY_FILE" ]; then
+  export OPENSEARCH_JAVA_OPTS="-Djava.security.properties==${JAVA_SECURITY_FILE} ${OPENSEARCH_JAVA_OPTS}"
 fi
 
 OPENSEARCH_DISTRIBUTION_TYPE=${opensearch.distribution.type}

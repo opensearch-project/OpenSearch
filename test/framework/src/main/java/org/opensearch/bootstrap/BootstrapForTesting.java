@@ -138,7 +138,6 @@ public class BootstrapForTesting {
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
         if (FipsMode.CHECK.isFipsEnabled()) {
-            SecurityProviderManager.removeNonCompliantFipsProviders();
             FipsTrustStoreValidator.validate();
         }
 

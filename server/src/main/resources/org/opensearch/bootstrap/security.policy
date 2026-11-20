@@ -137,6 +137,15 @@ grant codeBase "${codebase.bc-fips}" {
   permission java.io.FilePermission "${java.home}/conf/security/policy/unlimited/*", "read";
 };
 
+// The BouncyCastle FIPS TLS provider opens outbound sockets on behalf of callers
+// (e.g. LDAPS from the security plugin, external audit sinks, remote reindex over
+// https). Without an explicit connect grant it only inherits the global "resolve"
+// below, so the connect is denied. Sibling bc-fips/bcpkix-fips are granted but
+// bctls-fips must additionally be allowed to connect.
+grant codeBase "${codebase.bctls-fips}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+};
+
 grant codeBase "${codebase.opensearch-ssl-config}" {
   permission java.io.FilePermission "${java.home}/conf/security/policy/unlimited/*", "read";
 };
@@ -279,13 +288,6 @@ grant {
   permission java.security.SecurityPermission "getProperty.jdk.certpath.disabledAlgorithms";
   permission java.security.SecurityPermission "getProperty.jdk.tls.disabledAlgorithms";
   permission java.security.SecurityPermission "getProperty.keystore.type.compat";
-
-  // needed by SecurityProviderManager
-  permission java.security.SecurityPermission "removeProvider.SunJCE";
-
-  // needed by PemUtils
-  permission java.security.SecurityPermission "insertProvider.BCFIPS";
-  permission java.security.SecurityPermission "insertProvider.BCJSSE";
 
   permission java.io.FilePermission "${java.home}/conf/security/policy/unlimited/*", "read";
 

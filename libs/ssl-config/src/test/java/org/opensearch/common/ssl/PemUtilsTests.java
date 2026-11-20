@@ -34,25 +34,35 @@ package org.opensearch.common.ssl;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.bouncycastle.asn1.ASN1Integer;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.DERNull;
+import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
+import org.bouncycastle.openssl.PEMException;
 import org.opensearch.test.BouncyCastleThreadFilter;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AlgorithmParameters;
 import java.security.Key;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.PrivateKey;
+import java.security.Signature;
 import java.security.interfaces.DSAParams;
 import java.security.interfaces.DSAPrivateKey;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
+import java.util.Base64;
 import java.util.Locale;
 import java.util.function.Supplier;
 
@@ -277,6 +287,44 @@ public class PemUtilsTests extends OpenSearchTestCase {
         SslConfigException e = expectThrows(SslConfigException.class, () -> PemUtils.readPrivateKey(path, TESTNODE_PASSWORD));
         assertThat(e.getMessage(), containsString("file is empty"));
         assertThat(e.getMessage(), containsString(path.toAbsolutePath().toString()));
+    }
+
+    public void testReadKeyOfAnAlgorithmOutsideTheCommonTypes() throws Exception {
+        // PemUtils converts RSA, RSASSA-PSS, EC and DSA keys itself and leaves every other type to JcaPEMKeyConverter
+        final KeyPair keyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        final Path path = writePrivateKeyPem(keyPair.getPrivate().getEncoded());
+
+        final PrivateKey key = PemUtils.readPrivateKey(path, TESTNODE_PASSWORD);
+
+        final byte[] data = "data".getBytes(StandardCharsets.UTF_8);
+        final Signature signer = Signature.getInstance("Ed25519");
+        signer.initSign(key);
+        signer.update(data);
+        final byte[] signature = signer.sign();
+        final Signature verifier = Signature.getInstance("Ed25519");
+        verifier.initVerify(keyPair.getPublic());
+        verifier.update(data);
+        assertTrue("the loaded key must be the generated one", verifier.verify(signature));
+    }
+
+    public void testReadKeyWithInvalidContentNamesTheAlgorithm() throws Exception {
+        // a well-formed PKCS#8 structure that declares RSA, but holds an integer instead of an RSA private key
+        final PrivateKeyInfo invalidRsaKey = new PrivateKeyInfo(
+            new AlgorithmIdentifier(PKCSObjectIdentifiers.rsaEncryption, DERNull.INSTANCE),
+            new ASN1Integer(1)
+        );
+        final Path path = writePrivateKeyPem(invalidRsaKey.getEncoded());
+
+        final PEMException e = expectThrows(PEMException.class, () -> PemUtils.readPrivateKey(path, TESTNODE_PASSWORD));
+
+        assertThat(e.getMessage(), containsString("unable to convert the RSA private key"));
+    }
+
+    private Path writePrivateKeyPem(byte[] pkcs8) throws IOException {
+        final Path path = createTempFile("key", ".pem");
+        final String base64 = Base64.getMimeEncoder(64, "\n".getBytes(StandardCharsets.US_ASCII)).encodeToString(pkcs8);
+        Files.writeString(path, "-----BEGIN PRIVATE KEY-----\n" + base64 + "\n-----END PRIVATE KEY-----\n", StandardCharsets.US_ASCII);
+        return path;
     }
 
     private Key getKeyFromKeystore(String algo) throws Exception {

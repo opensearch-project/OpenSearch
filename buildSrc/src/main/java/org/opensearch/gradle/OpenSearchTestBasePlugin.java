@@ -38,6 +38,7 @@ import org.opensearch.gradle.info.BuildParams;
 import org.opensearch.gradle.info.GlobalBuildInfoPlugin;
 import org.opensearch.gradle.jvm.JvmTestSuiteHelper;
 import org.opensearch.gradle.test.ErrorReportingTestListener;
+import org.opensearch.gradle.util.TestJavaSecurityFile;
 import org.opensearch.gradle.util.Util;
 import org.gradle.api.Action;
 import org.gradle.api.Plugin;
@@ -45,11 +46,13 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -152,12 +155,23 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                 test.systemProperty("tests.seed", BuildParams.getTestSeed());
             }
 
+            // Like the distribution's launcher: a generated file replaces the JDK's java.security (note the leading "=" of the
+            // value, which makes it "-Djava.security.properties=="). In FIPS mode the providers of fips_java.security are the only
+            // ones; otherwise the JDK's providers are followed by BouncyCastle FIPS. Every other JDK default is kept.
+            final File javaSecurityFile = project.getLayout()
+                .getBuildDirectory()
+                .file("java-security/" + test.getName() + ".security")
+                .get()
+                .getAsFile();
             if (BuildParams.isInFipsJvm()) {
-                test.systemProperty(
-                    "java.security.properties",
-                    project.getRootProject().getLayout().getProjectDirectory() + "/distribution/src/config/fips_java.security"
-                );
+                final File fipsFile = project.getRootProject().file("distribution/src/config/fips_java.security");
+                test.getInputs().file(fipsFile).withPropertyName("fipsJavaSecurityFile").withPathSensitivity(PathSensitivity.NONE);
+                test.doFirst(t -> TestJavaSecurityFile.writeFips(testJavaHome((Test) t), fipsFile.toPath(), javaSecurityFile.toPath()));
+                test.systemProperty("org.bouncycastle.fips.approved_only", "true");
+            } else {
+                test.doFirst(t -> TestJavaSecurityFile.writeDefault(testJavaHome((Test) t), javaSecurityFile.toPath()));
             }
+            nonInputProperties.systemProperty("java.security.properties", "=" + javaSecurityFile);
 
             // don't track these as inputs since they contain absolute paths and break cache relocatability
             File gradleHome = project.getGradle().getGradleUserHomeDir();
@@ -231,5 +245,15 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                 );
             });
         });
+    }
+
+    /**
+     * The JDK that runs the test JVM, whose java.security the generated file is built from. Gradle starts the test JVM with the
+     * task's java launcher, which follows an explicitly set {@code executable}. This is not always
+     * {@link BuildParams#getRuntimeJavaHome()}: without runtime.java or RUNTIME_JAVA_HOME that falls back to Gradle's own JDK, while
+     * runtime-jdk-provision.gradle runs the tests on the provisioned bundled JDK.
+     */
+    private static Path testJavaHome(Test test) {
+        return test.getJavaLauncher().get().getMetadata().getInstallationPath().getAsFile().toPath();
     }
 }

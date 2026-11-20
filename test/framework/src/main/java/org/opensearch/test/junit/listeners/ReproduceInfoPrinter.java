@@ -87,6 +87,13 @@ public class ReproduceInfoPrinter extends RunListener {
             return;
         }
 
+        printToErr(reproduceCommand(failure.getDescription()));
+    }
+
+    /**
+     * The Gradle command that runs the failed test again with the same seed and settings.
+     */
+    static String reproduceCommand(Description description) {
         final String gradlew = Constants.WINDOWS ? "gradlew" : "./gradlew";
         final StringBuilder b = new StringBuilder("REPRODUCE WITH: " + gradlew + " ");
         String task = System.getProperty("tests.task");
@@ -94,8 +101,8 @@ public class ReproduceInfoPrinter extends RunListener {
         // append Gradle test runner test filter string
         b.append("'" + task + "'");
         b.append(" --tests '");
-        b.append(failure.getDescription().getClassName());
-        final String methodName = failure.getDescription().getMethodName();
+        b.append(description.getClassName());
+        final String methodName = description.getMethodName();
         if (methodName != null) {
             // fallback to system property filter when tests contain "."
             if (methodName.contains(".")) {
@@ -109,14 +116,21 @@ public class ReproduceInfoPrinter extends RunListener {
         b.append("'");
 
         GradleMessageBuilder gradleMessageBuilder = new GradleMessageBuilder(b);
-        gradleMessageBuilder.appendAllOpts(failure.getDescription());
+        gradleMessageBuilder.appendAllOpts(description);
 
         // Client yaml suite tests are a special case as they allow for additional parameters
-        if (OpenSearchClientYamlSuiteTestCase.class.isAssignableFrom(failure.getDescription().getTestClass())) {
+        if (OpenSearchClientYamlSuiteTestCase.class.isAssignableFrom(description.getTestClass())) {
             gradleMessageBuilder.appendClientYamlSuiteProperties();
         }
 
-        printToErr(b.toString());
+        // A Gradle project property, not a test JVM property: the build derives the FIPS test JVM from it (its java.security file
+        // and approved-only mode). Passing those JVM properties to gradlew instead would not reach the test JVM, because
+        // OpenSearchTestBasePlugin forwards only "tests.*" and "opensearch.*" system properties to the forked test JVMs.
+        if (FipsMode.CHECK.isFipsEnabled()) {
+            b.append(" -Pcrypto.standard=FIPS-140-3");
+        }
+
+        return b.toString();
     }
 
     @SuppressForbidden(reason = "printing repro info")
@@ -194,12 +208,6 @@ public class ReproduceInfoPrinter extends RunListener {
             appendOpt("tests.locale", Locale.getDefault().toLanguageTag());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
             appendOpt("runtime.java", Integer.toString(Runtime.version().version().get(0)));
-            if (FipsMode.CHECK.isFipsEnabled()) {
-                appendProperties("org.bouncycastle.fips.approved_only");
-            }
-            if (System.getProperty("java.security.properties") != null) {
-                appendProperties("java.security.properties");
-            }
             return this;
         }
 

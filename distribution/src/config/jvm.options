@@ -93,3 +93,11 @@ ${error.file}
 -Dorg.apache.lucene.store.MMapDirectory.sharedArenaMaxPermits=1
 
 25-:-XX:+UseCompactObjectHeaders
+
+# Uncomment to route java.util.logging (JUL) through log4j2 from launch on.
+# LogConfigurator sets the same property at runtime, but that is too late for
+# code that uses JUL earlier; its logs then reach System.err and are logged as
+# [WARN][stderr]. One example is the BouncyCastle JSSE provider (declared in
+# FIPS mode), which logs every TLS handshake at INFO. Requires log4j-jul on the
+# classpath (in lib/).
+#-Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
