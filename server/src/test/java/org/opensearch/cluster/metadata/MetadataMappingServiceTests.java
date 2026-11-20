@@ -38,6 +38,7 @@ import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
@@ -129,5 +130,25 @@ public class MetadataMappingServiceTests extends OpenSearchSingleNodeTestCase {
         assertThat(result.executionResults.size(), equalTo(1));
         assertTrue(result.executionResults.values().iterator().next().isSuccess());
         assertThat(result.resultingState.metadata().index("test").getMappingVersion(), equalTo(previousVersion));
+    }
+
+    public void testMappingUpdateReusesExistingMappingInstance() throws Exception {
+        final String mapping = "{ \"properties\": { \"field\": { \"type\": \"text\" }}}";
+        final IndexService updated = createIndex("updated", client().admin().indices().prepareCreate("updated").setMapping());
+        final IndexService unchanged = createIndex("unchanged", client().admin().indices().prepareCreate("unchanged").setMapping());
+        client().admin().indices().preparePutMapping("unchanged").setSource(mapping, MediaTypeRegistry.JSON).get();
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final MappingMetadata existingMapping = clusterService.state().metadata().index("unchanged").mapping();
+
+        final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest(mapping);
+        request.indices(new Index[] { updated.index(), unchanged.index() });
+        final ClusterStateTaskExecutor.ClusterTasksResult<PutMappingClusterStateUpdateRequest> result = mappingService.putMappingExecutor
+            .execute(clusterService.state(), Collections.singletonList(request));
+        assertTrue(result.executionResults.values().iterator().next().isSuccess());
+
+        final Metadata metadata = result.resultingState.metadata();
+        assertSame(existingMapping, metadata.index("unchanged").mapping());
+        assertSame(existingMapping, metadata.index("updated").mapping());
     }
 }
