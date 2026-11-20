@@ -8,6 +8,7 @@
 
 package org.opensearch.dsl.result;
 
+import org.apache.calcite.rel.type.RelDataType;
 import org.opensearch.dsl.executor.QueryPlans;
 
 import java.util.List;
@@ -51,5 +52,10 @@ public final class ExecutionResult {
     /** Column names derived from the plan's RelNode row type. */
     public List<String> getFieldNames() {
         return plan.relNode().getRowType().getFieldNames();
+    }
+
+    /** Column types derived from the plan's RelNode row type. */
+    public List<RelDataType> getFieldTypes() {
+        return plan.relNode().getRowType().getFieldList().stream().map(field -> field.getType()).toList();
     }
 }
