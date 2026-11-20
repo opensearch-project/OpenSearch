@@ -18,6 +18,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class HierarchicalRoutingProcessorTests extends OpenSearchTestCase {
@@ -81,6 +82,26 @@ public class HierarchicalRoutingProcessorTests extends OpenSearchTestCase {
         processor.execute(ingestDocument2);
         String routingValue2 = ingestDocument2.getFieldValue("_routing", String.class);
         assertThat(routingValue, equalTo(routingValue2));
+    }
+
+    public void testMultiCharacterSeparatorNormalization() throws Exception {
+        Processor processor = createProcessor("path_field", 2, "->", false, true);
+
+        IngestDocument expected = createTestDocument("company->department->team");
+        processor.execute(expected);
+        String expectedRouting = expected.getFieldValue("_routing", String.class);
+
+        // Repeated multi-character separators must collapse to a single separator
+        for (String path : new String[] { "company->->department->team", "->->company->department->->->team->" }) {
+            IngestDocument doc = createTestDocument(path);
+            processor.execute(doc);
+            assertThat("Path: " + path, doc.getFieldValue("_routing", String.class), equalTo(expectedRouting));
+        }
+
+        // A partial separator repetition is part of a segment, not a separator run
+        IngestDocument partial = createTestDocument("company->>department->team");
+        processor.execute(partial);
+        assertThat(partial.getFieldValue("_routing", String.class), not(equalTo(expectedRouting)));
     }
 
     public void testPathNormalization() throws Exception {
