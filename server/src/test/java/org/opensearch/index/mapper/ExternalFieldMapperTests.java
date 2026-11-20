@@ -32,8 +32,10 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.Version;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.plugins.Plugin;
 
@@ -49,6 +51,22 @@ public class ExternalFieldMapperTests extends MapperServiceTestCase {
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return Collections.singletonList(new ExternalMapperPlugin());
+    }
+
+    public void testMergePreservesGeoShapeWriteCompatibility() throws Exception {
+        for (Version version : new Version[] { Version.V_2_8_0, Version.CURRENT }) {
+            MapperService mapper = createMapperService(version, fieldMapping(b -> b.field("type", "external")));
+            merge(mapper, fieldMapping(b -> b.field("type", "external")));
+            ParsedDocument doc = mapper.documentMapper().parse(source(b -> b.field("field", "1234")));
+            assertNotNull(doc.rootDoc().getField("field.shape"));
+            assertEquals(
+                version.onOrAfter(Version.V_2_9_0),
+                doc.rootDoc()
+                    .getFields()
+                    .stream()
+                    .anyMatch(f -> f.name().equals("field.shape") && f.fieldType().docValuesType() != DocValuesType.NONE)
+            );
+        }
     }
 
     public void testExternalValues() throws Exception {
