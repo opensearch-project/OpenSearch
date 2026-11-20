@@ -10,7 +10,6 @@ package org.opensearch.plugin.wlm;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
@@ -167,14 +166,11 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
     }
 
     @Before
-    public void registerFeatureTypeIfMissingOnAllNodes() {
-        FeatureType featureType;
-        try {
-            featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
-        } catch (ResourceNotFoundException e) {
-            featureType = TestWorkloadManagementPlugin.featureType;
-            AutoTaggingRegistry.registerFeatureType(featureType);
-        }
+    public void registerFeatureTypeOnAllNodes() {
+        // The registry is JVM-static but clusters are rebuilt between suites, so re-register this cluster's feature type.
+        AutoTaggingRegistry.featureTypesRegistryMap.remove(WorkloadGroupFeatureType.NAME);
+        FeatureType featureType = TestWorkloadManagementPlugin.featureType;
+        AutoTaggingRegistry.registerFeatureType(featureType);
 
         for (String node : internalCluster().getNodeNames()) {
             RulePersistenceServiceRegistry persistenceRegistry = internalCluster().getInstance(RulePersistenceServiceRegistry.class, node);
@@ -484,7 +480,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
     }
 
     // Helper functions
-    private void createRule(String ruleId, String ruleName, String indexPattern, FeatureType featureType, String workloadGroupId)
+    protected void createRule(String ruleId, String ruleName, String indexPattern, FeatureType featureType, String workloadGroupId)
         throws Exception {
         Rule rule = new Rule(
             ruleId,
@@ -497,13 +493,13 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         client().execute(CreateRuleAction.INSTANCE, new CreateRuleRequest(rule)).get();
     }
 
-    private void setWlmMode(String mode) throws Exception {
+    protected void setWlmMode(String mode) throws Exception {
         Settings.Builder settings = Settings.builder().put("wlm.workload_group.mode", mode);
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(settings);
         client().admin().cluster().updateSettings(request).get();
     }
 
-    private WorkloadGroup createWorkloadGroup(String name, String id) {
+    protected WorkloadGroup createWorkloadGroup(String name, String id) {
         return new WorkloadGroup(
             name,
             id,
@@ -515,7 +511,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         );
     }
 
-    private void indexDocument(String indexName) {
+    protected void indexDocument(String indexName) {
         assertAcked(
             client().admin()
                 .indices()
@@ -531,7 +527,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
     }
 
-    private int getCompletions(String groupId) throws Exception {
+    protected int getCompletions(String groupId) throws Exception {
         WlmStatsResponse response = getWlmStatsResponse(null, new String[] { groupId }, null);
         validateResponse(response, new String[] { groupId }, null);
         return extractTotalCompletions(response.toString(), groupId);
@@ -774,6 +770,13 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
          */
         public TestWorkloadManagementPlugin() {}
 
+        /**
+         * Registers additional attributes and their extractors with the feature type
+         * @param attributes attributes and their priorities
+         * @param extensions extractors for the attributes
+         */
+        protected void registerAttributes(Map<Attribute, Integer> attributes, Map<Attribute, AttributeExtractorExtension> extensions) {}
+
         @Override
         public Collection<Object> createComponents(
             Client client,
@@ -788,7 +791,9 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier
         ) {
-            featureType = new WorkloadGroupFeatureType(new WorkloadGroupFeatureValueValidator(clusterService), new HashMap<>());
+            Map<Attribute, Integer> attributes = new HashMap<>();
+            registerAttributes(attributes, attributeExtractorExtensions);
+            featureType = new WorkloadGroupFeatureType(new WorkloadGroupFeatureValueValidator(clusterService), attributes);
             RuleEntityParser parser = new XContentRuleParser(featureType);
             AttributeValueStoreFactory attributeValueStoreFactory = new AttributeValueStoreFactory(
                 featureType,
