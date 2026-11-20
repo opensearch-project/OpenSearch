@@ -94,6 +94,16 @@ public class RestRequest implements ToXContent.Params {
     private final HttpChannel httpChannel;
 
     private HttpRequest httpRequest;
+    private RestHandler.Route matchedRoute;
+
+    // Set by the router; the registered template distinguishes routes sharing a handler or HTTP method.
+    void setMatchedRoute(RestHandler.Route route) {
+        matchedRoute = route;
+    }
+
+    RestHandler.Route matchedRoute() {
+        return matchedRoute;
+    }
 
     private boolean contentConsumed = false;
 
@@ -151,6 +161,7 @@ public class RestRequest implements ToXContent.Params {
             restRequest.getHttpChannel(),
             restRequest.getRequestId()
         );
+        this.matchedRoute = restRequest.matchedRoute;
     }
 
     /**
@@ -377,6 +388,21 @@ public class RestRequest implements ToXContent.Params {
             return defaultValue;
         }
         return value;
+    }
+
+    /**
+     * Consumes and parses a declared REST parameter. Missing optional parameters return {@code null}.
+     */
+    public final <T> T param(RestParameter<T> parameter) {
+        return parameter.get(this);
+    }
+
+    /**
+     * Consumes and parses a declared REST parameter, using the action request's default when it is absent.
+     */
+    public final <T> T param(RestParameter<T> parameter, T defaultValue) {
+        T value = parameter.get(this);
+        return value == null ? defaultValue : value;
     }
 
     public Map<String, String> params() {

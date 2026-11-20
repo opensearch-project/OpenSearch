@@ -34,8 +34,6 @@ package org.opensearch.rest;
 
 import org.opensearch.common.Table;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.RestHandler.ReplacedRoute;
 import org.opensearch.rest.RestHandler.Route;
 import org.opensearch.rest.RestRequest.Method;
@@ -60,7 +58,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -298,13 +296,7 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
     }
 
     public void testRestHandlerWrapper() throws Exception {
-        RestHandler rh = new RestHandler() {
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
-            }
-        };
-        RestHandler handlerSpy = spy(rh);
+        RestHandler handlerSpy = mock(RestHandler.class);
         RestHandler.Wrapper rhWrapper = new RestHandler.Wrapper(handlerSpy);
 
         List<java.lang.reflect.Method> overridableMethods = Arrays.stream(RestHandler.class.getMethods())
@@ -327,6 +319,162 @@ public class BaseRestHandlerTests extends OpenSearchTestCase {
             method.invoke(verify(handlerSpy, times(1)), args);
         }
         verifyNoMoreInteractions(handlerSpy);
+    }
+
+    public void testDeclaredParameterMustStillBeConsumed() throws Exception {
+        final AtomicBoolean executed = new AtomicBoolean();
+        BaseRestHandler handler = new BaseRestHandler() {
+            private final RestParameter<String> index = RestParameter.simpleString(
+                "index",
+                RestParameter.Property.Required,
+                RestParameter.Property.Path
+            );
+            private final RestParameter<Boolean> local = RestParameter.boolParam("local");
+
+            @Override
+            public List<Route> routes() {
+                return List.of(new Route(RestRequest.Method.GET, "/", List.of(index, local)));
+            }
+
+            @Override
+            protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+                index.get(request);
+                return channel -> executed.set(true);
+            }
+
+            @Override
+            public String getName() {
+                return "test_declared_parameter";
+            }
+        };
+
+        final HashMap<String, String> params = new HashMap<>();
+        params.put("index", "logs");
+        for (String value : List.of("true", "garbage")) {
+            params.put("local", value);
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
+            request.setMatchedRoute(handler.routes().get(0));
+            RestChannel channel = new FakeRestChannel(request, false, 1);
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> handler.handleRequest(request, channel, mockClient)
+            );
+            assertThat(e.getMessage(), containsString("unrecognized parameter: [local]"));
+            assertFalse(executed.get());
+        }
+    }
+
+    public void testDeclarationsSupportTypedAndLegacyAccessors() throws Exception {
+        final AtomicBoolean executed = new AtomicBoolean();
+        BaseRestHandler handler = new BaseRestHandler() {
+            private final RestParameter<Boolean> local = RestParameter.boolParam("local");
+
+            @Override
+            public List<Route> routes() {
+                return List.of(new Route(RestRequest.Method.GET, "/", List.of(local)));
+            }
+
+            @Override
+            protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+                assertTrue(local.get(request));
+                assertEquals("value", request.param("legacy"));
+                return channel -> executed.set(true);
+            }
+
+            @Override
+            public String getName() {
+                return "test_declared_and_legacy_parameters";
+            }
+        };
+        final HashMap<String, String> params = new HashMap<>();
+        params.put("local", "true");
+        params.put("legacy", "value");
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
+        request.setMatchedRoute(handler.routes().get(0));
+        handler.handleRequest(request, new FakeRestChannel(request, false, 1), mockClient);
+        assertTrue(executed.get());
+
+        executed.set(false);
+        params.put("local", "garbage");
+        RestRequest invalid = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
+        invalid.setMatchedRoute(handler.routes().get(0));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> handler.handleRequest(invalid, new FakeRestChannel(invalid, false, 1), mockClient)
+        );
+        assertFalse(executed.get());
+    }
+
+    public void testDeclaredParametersRejectMissingRequired() {
+        BaseRestHandler handler = new BaseRestHandler() {
+            @Override
+            public List<Route> routes() {
+                return List.of(
+                    new Route(
+                        RestRequest.Method.GET,
+                        "/",
+                        List.of(
+                            RestParameter.simpleString("index", RestParameter.Property.Required, RestParameter.Property.Path),
+                            RestParameter.simpleString("id", RestParameter.Property.Required, RestParameter.Property.Path)
+                        )
+                    )
+                );
+            }
+
+            @Override
+            protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+                fail("required parameters should be rejected before prepareRequest");
+                return channel -> {};
+            }
+
+            @Override
+            public String getName() {
+                return "test_missing_required_parameter";
+            }
+        };
+
+        RestRequest request = new FakeRestRequest();
+        request.setMatchedRoute(handler.routes().get(0));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> handler.handleRequest(request, new FakeRestChannel(request, false, 1), mockClient)
+        );
+        assertThat(e, hasToString(containsString("missing required parameters: [id], [index]")));
+    }
+
+    public void testDeclaredParametersStillRejectUnknownParams() {
+        BaseRestHandler handler = new BaseRestHandler() {
+            private final RestParameter<String> index = RestParameter.simpleString("index", RestParameter.Property.Required);
+            private final RestParameter<Boolean> local = RestParameter.boolParam("local");
+
+            @Override
+            public List<Route> routes() {
+                return List.of(new Route(RestRequest.Method.GET, "/", List.of(index, local)));
+            }
+
+            @Override
+            protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+                index.get(request);
+                return channel -> {};
+            }
+
+            @Override
+            public String getName() {
+                return "test_declared_unknown_parameter";
+            }
+        };
+
+        final HashMap<String, String> params = new HashMap<>();
+        params.put("index", "logs");
+        params.put("locl", "true");
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
+        request.setMatchedRoute(handler.routes().get(0));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> handler.handleRequest(request, new FakeRestChannel(request, false, 1), mockClient)
+        );
+        assertThat(e, hasToString(containsString("unrecognized parameter: [locl]")));
+        assertThat(e, hasToString(containsString("did you mean [local]")));
     }
 
 }

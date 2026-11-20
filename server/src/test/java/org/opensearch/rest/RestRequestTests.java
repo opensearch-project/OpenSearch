@@ -61,6 +61,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class RestRequestTests extends OpenSearchTestCase {
+    public void testCopyPreservesMatchedRoute() {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/detectors/1").build();
+        RestHandler.Route route = new RestHandler.Route(RestRequest.Method.PUT, "/detectors/{id}");
+        request.setMatchedRoute(route);
+        assertSame(route, new RestRequest(request).matchedRoute());
+    }
 
     public void testContentConsumesContent() {
         runConsumesContentTest(RestRequest::content, true);
