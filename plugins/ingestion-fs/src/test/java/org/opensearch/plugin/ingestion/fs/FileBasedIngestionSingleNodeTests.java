@@ -23,6 +23,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.query.RangeQueryBuilder;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -399,6 +400,50 @@ public class FileBasedIngestionSingleNodeTests extends OpenSearchSingleNodeTestC
         client().admin().indices().delete(new DeleteIndexRequest(index)).actionGet();
     }
 
+    public void testFileIngestionWithRouting() throws Exception {
+        Path shardFile = ingestionDir.resolve(stream).resolve("0.ndjson");
+        try (BufferedWriter writer = Files.newBufferedWriter(shardFile, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
+            writer.write(
+                "{\"_id\":\"3\",\"_version\":\"1\",\"_op_type\":\"index\",\"_routing\":\"r1\",\"_source\":{\"name\":\"carol\", \"age\": 40}}\n"
+            );
+        }
+
+        String mappings = """
+            {
+              "properties": {
+                "name": { "type": "text" },
+                "age": { "type": "integer" }
+              }
+            }
+            """;
+        createIndexWithMappingSource(
+            index,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "FILE")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.stream", stream)
+                .put("ingestion_source.param.base_directory", ingestionDir.toString())
+                .put("index.replication.type", "SEGMENT")
+                .build(),
+            mappings
+        );
+        ensureGreen(index);
+
+        waitForState(() -> {
+            SearchResponse response = client().prepareSearch(index).setQuery(new RangeQueryBuilder("age").gte(0)).get();
+            return response.getHits().getTotalHits().value() == 3;
+        });
+
+        // only the message with a routing value is stored with it
+        SearchResponse response = client().prepareSearch(index).setQuery(new TermQueryBuilder("_routing", "r1")).get();
+        assertEquals(1, response.getHits().getTotalHits().value());
+        assertEquals("3", response.getHits().getAt(0).getId());
+
+        client().admin().indices().delete(new DeleteIndexRequest(index)).actionGet();
+    }
+
     public void testPaginatedIngestionStateUsesRequestIndicesOptions() throws Exception {
         createIndex(
             index,
@@ -437,6 +482,68 @@ public class FileBasedIngestionSingleNodeTests extends OpenSearchSingleNodeTestC
         expectThrows(IndexNotFoundException.class, () -> client().admin().indices().getIngestionState(missingIndexRequest).actionGet());
 
         client().admin().indices().delete(new DeleteIndexRequest(index)).actionGet();
+    }
+
+    public void testAWriteParamThatRepeatsAParamIsRejectedOnCreate() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put(writeEnabledSettings())
+                        .put("index.ingestion_source.write.param.base_directory", createTempDir().toString())
+                )
+                .get()
+        );
+        assertTrue(e.getMessage().contains("[index.ingestion_source.write.param.base_directory] is already set"));
+        assertFalse(client().admin().indices().prepareExists(index).get().isExists());
+    }
+
+    public void testAWriteParamThatRepeatsAParamIsRejectedOnUpdate() {
+        createIndex(index, writeEnabledSettings());
+
+        // adding a write param that repeats a param
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .indices()
+                .prepareUpdateSettings(index)
+                .setSettings(Settings.builder().put("index.ingestion_source.write.param.base_directory", "/tmp/elsewhere"))
+                .get()
+        );
+        assertTrue(e.getMessage().contains("[index.ingestion_source.write.param.base_directory] is already set"));
+
+        // a write-only param is accepted; adding the same key as a param afterwards is rejected
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(index)
+            .setSettings(Settings.builder().put("index.ingestion_source.write.param.flush", "true"))
+            .get();
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .indices()
+                .prepareUpdateSettings(index)
+                .setSettings(Settings.builder().put("index.ingestion_source.param.flush", "true"))
+                .get()
+        );
+        assertTrue(e.getMessage().contains("[index.ingestion_source.write.param.flush] is already set"));
+
+        client().admin().indices().delete(new DeleteIndexRequest(index)).actionGet();
+    }
+
+    private Settings writeEnabledSettings() {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("ingestion_source.type", "FILE")
+            .put("ingestion_source.param.stream", stream)
+            .put("ingestion_source.param.base_directory", ingestionDir.toString())
+            .put("index.replication.type", "SEGMENT")
+            .put(IndexMetadata.INGESTION_SOURCE_WRITE_ENABLED_SETTING.getKey(), true)
+            .build();
     }
 
     /**
