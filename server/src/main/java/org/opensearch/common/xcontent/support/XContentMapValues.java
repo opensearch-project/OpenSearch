@@ -182,20 +182,20 @@ public class XContentMapValues {
 
         if (currentValue instanceof Map) {
             Map<?, ?> map = (Map<?, ?>) currentValue;
+            // A key may hold several path elements joined by dots, e.g. {"a.b": ...} next to {"a": {...}}.
+            // Try the shortest key first and fall back to longer ones if it does not lead to a value.
             String key = pathElements[index];
-            Object mapValue = map.get(key);
-            int nextIndex = index + 1;
-            while (mapValue == null && nextIndex != pathElements.length) {
-                key += "." + pathElements[nextIndex];
-                mapValue = map.get(key);
-                nextIndex++;
+            for (int nextIndex = index + 1; nextIndex <= pathElements.length; nextIndex++) {
+                if (map.containsKey(key)) {
+                    Object value = extractValue(pathElements, nextIndex, map.get(key), nullValue);
+                    if (value != null) {
+                        return value;
+                    }
+                }
+                if (nextIndex < pathElements.length) {
+                    key += "." + pathElements[nextIndex];
+                }
             }
-
-            if (map.containsKey(key) == false) {
-                return null;
-            }
-
-            return extractValue(pathElements, nextIndex, mapValue, nullValue);
         }
         return null;
     }

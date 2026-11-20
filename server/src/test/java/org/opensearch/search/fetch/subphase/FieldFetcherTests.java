@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
@@ -405,6 +406,21 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "object");
         assertFalse(fields.containsKey("object"));
+    }
+
+    public void testDottedKeyNextToObject() throws IOException {
+        MapperService mapperService = createMapperService();
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("object.field", "dotted")
+            .startObject("object")
+            .field("other", "value")
+            .endObject()
+            .endObject();
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "object.field");
+        assertThat(fields.size(), equalTo(1));
+        assertThat(fields.get("object.field").getValues(), contains("dotted"));
     }
 
     public void testTextSubFields() throws IOException {
