@@ -312,6 +312,8 @@ import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.support.clustermanager.term.GetTermVersionAction;
 import org.opensearch.action.support.clustermanager.term.TransportGetTermVersionAction;
+import org.opensearch.action.termsenum.TermsEnumAction;
+import org.opensearch.action.termsenum.TransportTermsEnumAction;
 import org.opensearch.action.termvectors.MultiTermVectorsAction;
 import org.opensearch.action.termvectors.TermVectorsAction;
 import org.opensearch.action.termvectors.TransportMultiTermVectorsAction;
@@ -355,6 +357,7 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestHeaderDefinition;
 import org.opensearch.rest.action.RestFieldCapabilitiesAction;
 import org.opensearch.rest.action.RestMainAction;
+import org.opensearch.rest.action.RestTermsEnumAction;
 import org.opensearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction;
 import org.opensearch.rest.action.admin.cluster.RestCancelTasksAction;
 import org.opensearch.rest.action.admin.cluster.RestCleanupRepositoryAction;
@@ -811,6 +814,7 @@ public class ActionModule extends AbstractModule {
             TransportFieldCapabilitiesAction.class,
             TransportFieldCapabilitiesIndexAction.class
         );
+        actions.register(TermsEnumAction.INSTANCE, TransportTermsEnumAction.class);
 
         actions.register(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
         actions.register(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);
@@ -1029,6 +1033,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetScriptLanguageAction());
 
         registerHandler.accept(new RestFieldCapabilitiesAction());
+        registerHandler.accept(new RestTermsEnumAction());
 
         // Tasks API
         registerHandler.accept(new RestListTasksAction(nodesInCluster));
