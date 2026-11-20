@@ -12,7 +12,7 @@
 # To trigger Jenkins Gradle Check from a PR
 
 
-JENKINS_URL="https://build.ci.opensearch.org"
+JENKINS_URL="https://jenkins.opensearch.cluster.linuxfound.info"
 TRIGGER_TOKEN=""
 GITHUB_USER=""
 GITHUB_TOKEN=""
