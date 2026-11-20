@@ -106,6 +106,26 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
         assertEquals(5L, offset.getOffset());
     }
 
+    public void testTimestampFallbackUsesTheResetPolicyAfterExtensions() throws Exception {
+        // the index leaves auto.offset.reset at its default (none); an extension sets it to earliest
+        Properties consumerProp = KafkaPartitionConsumer.createConsumerProperties(
+            "client1",
+            config,
+            p -> p.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
+        );
+        KafkaPartitionConsumer extended = new KafkaPartitionConsumer("client1", config, 0, mockConsumer, consumerProp);
+        extended.initialize();
+
+        TopicPartition topicPartition = new TopicPartition("test-topic", 0);
+        when(mockConsumer.offsetsForTimes(Collections.singletonMap(topicPartition, 1000L))).thenReturn(Collections.emptyMap());
+        when(mockConsumer.beginningOffsets(Collections.singletonList(topicPartition))).thenReturn(
+            Collections.singletonMap(topicPartition, 3L)
+        );
+
+        // no message at that timestamp: falls back to the earliest offset, as the Kafka client itself does
+        assertEquals(new KafkaOffset(3L), extended.pointerFromTimestampMillis(1000));
+    }
+
     public void testPointerFromOffset() {
         KafkaOffset offset = new KafkaOffset(5L);
         assertEquals(5L, offset.getOffset());
@@ -161,6 +181,25 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
         assertFalse(loggable.contains("secret"));
         // the consumer still gets the real values
         assertEquals("key-secret", consumerProp.get(SslConfigs.SSL_KEY_PASSWORD_CONFIG));
+    }
+
+    public void testACustomizerAddsAndOverridesProperties() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("topic", "test-topic");
+        params.put("bootstrap_servers", "localhost:9092");
+        params.put(SaslConfigs.SASL_JAAS_CONFIG, "from-settings");
+
+        Properties consumerProp = KafkaPartitionConsumer.createConsumerProperties("client1", new KafkaSourceConfig(1000, params), p -> {
+            p.put(SaslConfigs.SASL_JAAS_CONFIG, "from-extension secret");
+            p.put("security.protocol", "SASL_SSL");
+        });
+
+        // the customizer runs after the index's params, so its values win
+        assertEquals("from-extension secret", consumerProp.get(SaslConfigs.SASL_JAAS_CONFIG));
+        assertEquals("SASL_SSL", consumerProp.get("security.protocol"));
+        assertEquals("localhost:9092", consumerProp.get(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG));
+        // what it adds is still redacted in the log
+        assertFalse(KafkaPartitionConsumer.toRedactedString(consumerProp).contains("secret"));
     }
 
     public void testGetPointerBasedLagBeforeAnyFetch() {

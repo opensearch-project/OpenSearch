@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.TimeoutException;
 
@@ -49,6 +50,8 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     private final String clientId;
     private final int partitionId;
     private final KafkaSourceConfig config;
+    // the effective auto.offset.reset, after extensions adjusted the consumer properties
+    private final String autoOffsetReset;
     private TopicPartition topicPartition;
 
     /**
@@ -58,7 +61,27 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
      * @param partitionId the partition id
      */
     public KafkaPartitionConsumer(String clientId, KafkaSourceConfig config, int partitionId) {
-        this(clientId, config, partitionId, createConsumer(clientId, config));
+        this(clientId, config, partitionId, properties -> {});
+    }
+
+    /**
+     * Constructor
+     * @param clientId the client id
+     * @param config   the Kafka source config
+     * @param partitionId the partition id
+     * @param propertiesCustomizer adjusts the consumer properties after the configured ones are applied
+     */
+    public KafkaPartitionConsumer(
+        String clientId,
+        KafkaSourceConfig config,
+        int partitionId,
+        java.util.function.Consumer<Properties> propertiesCustomizer
+    ) {
+        this(clientId, config, partitionId, createConsumerProperties(clientId, config, propertiesCustomizer));
+    }
+
+    private KafkaPartitionConsumer(String clientId, KafkaSourceConfig config, int partitionId, Properties consumerProp) {
+        this(clientId, config, partitionId, createConsumer(consumerProp), consumerProp);
     }
 
     /**
@@ -69,10 +92,39 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
      * @param consumer the created Kafka consumer
      */
     protected KafkaPartitionConsumer(String clientId, KafkaSourceConfig config, int partitionId, Consumer<byte[], byte[]> consumer) {
+        this(clientId, config, partitionId, consumer, config.getAutoOffsetResetConfig());
+    }
+
+    /**
+     * Constructor, visible for testing
+     * @param clientId the client id
+     * @param config the Kafka source config
+     * @param partitionId the partition id
+     * @param consumer the created Kafka consumer
+     * @param consumerProp the properties the consumer was created with
+     */
+    KafkaPartitionConsumer(
+        String clientId,
+        KafkaSourceConfig config,
+        int partitionId,
+        Consumer<byte[], byte[]> consumer,
+        Properties consumerProp
+    ) {
+        this(clientId, config, partitionId, consumer, Objects.toString(consumerProp.get(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG), null));
+    }
+
+    private KafkaPartitionConsumer(
+        String clientId,
+        KafkaSourceConfig config,
+        int partitionId,
+        Consumer<byte[], byte[]> consumer,
+        String autoOffsetReset
+    ) {
         this.clientId = clientId;
         this.consumer = consumer;
         this.config = config;
         this.partitionId = partitionId;
+        this.autoOffsetReset = autoOffsetReset;
     }
 
     void initialize() throws Exception {
@@ -103,12 +155,31 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
      * @return the consumer properties
      */
     protected static Properties createConsumerProperties(String clientId, KafkaSourceConfig config) {
+        return createConsumerProperties(clientId, config, properties -> {});
+    }
+
+    /**
+     * Create consumer properties with default configurations, apply user provided overrides on top, then let the
+     * customizer adjust them.
+     * @param clientId the client id
+     * @param config the Kafka source config
+     * @param propertiesCustomizer adjusts the properties after the configured ones are applied
+     * @return the consumer properties
+     */
+    static Properties createConsumerProperties(
+        String clientId,
+        KafkaSourceConfig config,
+        java.util.function.Consumer<Properties> propertiesCustomizer
+    ) {
         Properties consumerProp = new Properties();
         consumerProp.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, config.getBootstrapServers());
         consumerProp.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId);
 
         // apply user provided overrides
         consumerProp.putAll(config.getConsumerConfigurations());
+
+        // then the extensions, which take precedence
+        propertiesCustomizer.accept(consumerProp);
 
         logger.info("Kafka consumer properties for topic {}: {}", config.getTopic(), toRedactedString(consumerProp));
         return consumerProp;
@@ -131,8 +202,10 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
      * @return the Kafka consumer
      */
     protected static Consumer<byte[], byte[]> createConsumer(String clientId, KafkaSourceConfig config) {
-        Properties consumerProp = createConsumerProperties(clientId, config);
+        return createConsumer(createConsumerProperties(clientId, config));
+    }
 
+    private static Consumer<byte[], byte[]> createConsumer(Properties consumerProp) {
         // wrap the kafka consumer creation in a privileged block to apply plugin security policies
         final ClassLoader restore = Thread.currentThread().getContextClassLoader();
         try {
@@ -215,7 +288,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
         });
         if (offset < 0) {
             logger.warn("No message found for timestamp {}, fall back to auto.offset.reset policy", timestampMillis);
-            String autoOffsetResetConfig = config.getAutoOffsetResetConfig();
+            String autoOffsetResetConfig = autoOffsetReset;
             if (OffsetResetStrategy.EARLIEST.toString().equals(autoOffsetResetConfig)) {
                 logger.warn("The auto.offset.reset is set to earliest, seek to earliest pointer");
                 return earliestPointer();
