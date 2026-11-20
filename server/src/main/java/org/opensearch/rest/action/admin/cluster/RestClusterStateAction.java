@@ -32,6 +32,7 @@
 
 package org.opensearch.rest.action.admin.cluster;
 
+import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.support.IndicesOptions;
@@ -48,7 +49,9 @@ import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
+import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestBuilderListener;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Requests;
 import org.opensearch.transport.client.node.NodeClient;
 
@@ -151,21 +154,29 @@ public class RestClusterStateAction extends BaseRestHandler {
         }
         settingsFilter.addFilterSettingParams(request);
 
-        return channel -> client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
+        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
-            public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                if (clusterStateRequest.waitForMetadataVersion() != null) {
-                    builder.field(Fields.WAIT_FOR_TIMED_OUT, response.isWaitForTimedOut());
-                }
-                builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
-                ToXContent.Params params = new ToXContent.DelegatingMapParams(
-                    singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API),
-                    request
-                );
-                response.getState().toXContent(builder, params);
-                builder.endObject();
-                return new BytesRestResponse(RestStatus.OK, builder);
+            protected void processResponse(ClusterStateResponse clusterStateResponse) {
+                // The response can arrive on a network thread, and serializing a large cluster state to XContent takes seconds.
+                client.threadPool()
+                    .executor(ThreadPool.Names.MANAGEMENT)
+                    .execute(ActionRunnable.wrap(this, l -> new RestBuilderListener<ClusterStateResponse>(channel) {
+                        @Override
+                        public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
+                            builder.startObject();
+                            if (clusterStateRequest.waitForMetadataVersion() != null) {
+                                builder.field(Fields.WAIT_FOR_TIMED_OUT, response.isWaitForTimedOut());
+                            }
+                            builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
+                            ToXContent.Params params = new ToXContent.DelegatingMapParams(
+                                singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API),
+                                request
+                            );
+                            response.getState().toXContent(builder, params);
+                            builder.endObject();
+                            return new BytesRestResponse(RestStatus.OK, builder);
+                        }
+                    }.onResponse(clusterStateResponse)));
             }
         });
     }
