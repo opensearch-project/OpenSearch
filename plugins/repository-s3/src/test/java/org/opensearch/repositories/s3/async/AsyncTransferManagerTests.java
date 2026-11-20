@@ -10,6 +10,7 @@ package org.opensearch.repositories.s3.async;
 
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
@@ -416,6 +417,47 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
         verify(s3AsyncClient, times(1)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
     }
 
+    /**
+     * Regression for a class of S3-compatible endpoints (e.g. NetApp StorageGRID) that accept
+     * UploadPart requests but omit the x-amz-checksum-crc32 response header. The listener used to
+     * store the null checksum in the container, and mergeAndVerifyChecksum later decoded it as
+     * Base64 — surfacing as a bare NullPointerException after a confusing
+     * "Failed to send multipart upload requests" wrapper, which sent users chasing the wrong
+     * failure. The upload must instead abort with a clear SdkClientException.
+     */
+    public void testMultipartUploadMissingChecksumOutsideOfChecksummedEndpoint() throws Exception {
+        setUpMultipartMocksWithoutChecksum();
+
+        CompletableFuture<Void> result = asyncTransferManager.uploadObject(
+            s3AsyncClient,
+            buildUploadRequest(true, 3376132981L),
+            new StreamContext(
+                (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
+                ByteSizeUnit.MB.toBytes(1),
+                ByteSizeUnit.MB.toBytes(1),
+                5
+            ),
+            new StatsMetricPublisher()
+        );
+
+        ExecutionException ex = expectThrows(ExecutionException.class, () -> result.get(5, TimeUnit.SECONDS));
+        assertFalse(
+            "Must not surface as NullPointerException",
+            ExceptionsHelper.<IOException>unwrapCausesAndSuppressed(ex, t -> t instanceof NullPointerException).isPresent()
+        );
+        assertTrue(
+            "Missing checksum must surface as SdkClientException",
+            ExceptionsHelper.<Exception>unwrapCausesAndSuppressed(
+                ex,
+                t -> t instanceof SdkClientException && t.getMessage().contains("did not return a CRC32 checksum")
+            ).isPresent()
+        );
+
+        verify(s3AsyncClient, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
+        verify(s3AsyncClient, times(0)).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
+        verify(s3AsyncClient, times(1)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private void setUpMultipartMocks() {
@@ -425,6 +467,20 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
 
         CompletableFuture<UploadPartResponse> partFuture = new CompletableFuture<>();
         partFuture.complete(UploadPartResponse.builder().checksumCRC32("pzjqHA==").build());
+        when(s3AsyncClient.uploadPart(any(UploadPartRequest.class), any(AsyncRequestBody.class))).thenReturn(partFuture);
+
+        CompletableFuture<AbortMultipartUploadResponse> abortFuture = new CompletableFuture<>();
+        abortFuture.complete(AbortMultipartUploadResponse.builder().build());
+        when(s3AsyncClient.abortMultipartUpload(any(AbortMultipartUploadRequest.class))).thenReturn(abortFuture);
+    }
+
+    private void setUpMultipartMocksWithoutChecksum() {
+        CompletableFuture<CreateMultipartUploadResponse> createFuture = new CompletableFuture<>();
+        createFuture.complete(CreateMultipartUploadResponse.builder().uploadId("uploadId").build());
+        when(s3AsyncClient.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(createFuture);
+
+        CompletableFuture<UploadPartResponse> partFuture = new CompletableFuture<>();
+        partFuture.complete(UploadPartResponse.builder().build());
         when(s3AsyncClient.uploadPart(any(UploadPartRequest.class), any(AsyncRequestBody.class))).thenReturn(partFuture);
 
         CompletableFuture<AbortMultipartUploadResponse> abortFuture = new CompletableFuture<>();
