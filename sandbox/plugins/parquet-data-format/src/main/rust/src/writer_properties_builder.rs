@@ -458,7 +458,9 @@ impl WriterPropertiesBuilder {
     ///
     /// Appropriate Compression enum variant
     fn parse_compression_type(compression_type: &str, level: i32) -> Result<Compression, String> {
-        match compression_type.to_uppercase().as_str() {
+        // A per-column level may be inlined as `NAME(level)`; it takes precedence over the caller's level.
+        let (name, level) = Self::split_inline_level(compression_type, level)?;
+        match name.to_uppercase().as_str() {
             "ZSTD" => Ok(Compression::ZSTD(
                 ZstdLevel::try_new(level).unwrap_or(ZstdLevel::default()),
             )),
@@ -472,6 +474,32 @@ impl WriterPropertiesBuilder {
             "LZ4_RAW" => Ok(Compression::LZ4_RAW),
             "UNCOMPRESSED" => Ok(Compression::UNCOMPRESSED),
             other => Err(format!("Unknown compression type: '{}'", other)),
+        }
+    }
+
+    /// Splits `ZSTD(3)` into (`ZSTD`, 3). A bare name returns the fallback level unchanged.
+    fn split_inline_level(
+        compression_type: &str,
+        fallback_level: i32,
+    ) -> Result<(&str, i32), String> {
+        let trimmed = compression_type.trim();
+        match (trimmed.find('('), trimmed.ends_with(')')) {
+            (Some(open), true) => {
+                let name = &trimmed[..open];
+                let level_text = &trimmed[open + 1..trimmed.len() - 1];
+                let level = level_text.trim().parse::<i32>().map_err(|_| {
+                    format!(
+                        "Invalid compression level '{}' in '{}'",
+                        level_text, compression_type
+                    )
+                })?;
+                Ok((name, level))
+            }
+            (None, false) => Ok((trimmed, fallback_level)),
+            _ => Err(format!(
+                "Malformed compression type '{}'; expected NAME or NAME(level)",
+                compression_type
+            )),
         }
     }
 }
@@ -541,6 +569,33 @@ mod tests {
         assert!(WriterPropertiesBuilder::parse_compression_type("LZ4", 0).is_err());
         assert!(WriterPropertiesBuilder::parse_compression_type("SNPPY", 0).is_err());
         assert!(WriterPropertiesBuilder::parse_compression_type("unknown", 0).is_err());
+    }
+
+    #[test]
+    fn test_parse_compression_with_inline_level() {
+        // Inline level wins over the fallback level.
+        assert_eq!(
+            WriterPropertiesBuilder::parse_compression_type("ZSTD(9)", 1).unwrap(),
+            Compression::ZSTD(ZstdLevel::try_new(9).unwrap())
+        );
+        assert_eq!(
+            WriterPropertiesBuilder::parse_compression_type("gzip(4)", 1).unwrap(),
+            Compression::GZIP(GzipLevel::try_new(4).unwrap())
+        );
+        // Bare name keeps the fallback level.
+        assert_eq!(
+            WriterPropertiesBuilder::parse_compression_type("ZSTD", 5).unwrap(),
+            Compression::ZSTD(ZstdLevel::try_new(5).unwrap())
+        );
+        // Level on a level-less codec is accepted and ignored, matching the fallback-level behaviour.
+        assert!(matches!(
+            WriterPropertiesBuilder::parse_compression_type("LZ4_RAW(3)", 0).unwrap(),
+            Compression::LZ4_RAW
+        ));
+        // Malformed forms are rejected rather than silently defaulted.
+        assert!(WriterPropertiesBuilder::parse_compression_type("ZSTD(", 0).is_err());
+        assert!(WriterPropertiesBuilder::parse_compression_type("ZSTD3)", 0).is_err());
+        assert!(WriterPropertiesBuilder::parse_compression_type("ZSTD(x)", 0).is_err());
     }
 
     #[test]
