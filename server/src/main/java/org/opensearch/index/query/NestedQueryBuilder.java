@@ -346,6 +346,26 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         );
     }
 
+    /**
+     * Nested queries do not support a top-level filter clause in their DSL. Apply the filter to the inner query so it
+     * executes in the nested document context instead of wrapping the nested query in a parent-level bool query.
+     *
+     * @param filter filter to apply to the inner query
+     * @return a new nested query builder with the filter applied to the inner query
+     */
+    @Override
+    public QueryBuilder filter(QueryBuilder filter) {
+        if (validateFilterParams(filter) == false) {
+            return this;
+        }
+        QueryBuilder filteredInnerQuery = query.filter(filter);
+        NestedQueryBuilder result = new NestedQueryBuilder(path, filteredInnerQuery, scoreMode, innerHitBuilder);
+        result.ignoreUnmapped(ignoreUnmapped);
+        result.boost(boost());
+        result.queryName(queryName());
+        return result;
+    }
+
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewrittenQuery = query.rewrite(queryRewriteContext);
