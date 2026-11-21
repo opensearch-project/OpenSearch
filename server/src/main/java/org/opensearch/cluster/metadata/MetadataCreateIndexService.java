@@ -1805,6 +1805,9 @@ public class MetadataCreateIndexService {
         Optional<String> indexName
     ) {
         List<String> validationErrors = validateIndexCustomPath(settings, env.sharedDataDir());
+        if (indicesService.getScriptService() != null) {
+            validationErrors.addAll(indicesService.getScriptService().validateIndexLevelScriptLanguages(settings).values());
+        }
         if (forbidPrivateIndexSettings) {
             validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));
         }

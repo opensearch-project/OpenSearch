@@ -53,13 +53,13 @@ final class ScriptedSimilarityProvider implements TriFunction<Settings, Version,
         boolean discountOverlaps = settings.getAsBoolean(SimilarityProviders.DISCOUNT_OVERLAPS, true);
         Settings scriptSettings = settings.getAsSettings("script");
         Script script = Script.parse(scriptSettings);
-        SimilarityScript.Factory scriptFactory = scriptService.compile(script, SimilarityScript.CONTEXT);
+        SimilarityScript.Factory scriptFactory = scriptService.compileIndexLevelScript(script, SimilarityScript.CONTEXT);
         Settings weightScriptSettings = settings.getAsSettings("weight_script");
         Script weightScript = null;
         SimilarityWeightScript.Factory weightScriptFactory = null;
         if (weightScriptSettings.isEmpty() == false) {
             weightScript = Script.parse(weightScriptSettings);
-            weightScriptFactory = scriptService.compile(weightScript, SimilarityWeightScript.CONTEXT);
+            weightScriptFactory = scriptService.compileIndexLevelScript(weightScript, SimilarityWeightScript.CONTEXT);
         }
         return new ScriptedSimilarity(
             weightScript == null ? null : weightScript.toString(),
