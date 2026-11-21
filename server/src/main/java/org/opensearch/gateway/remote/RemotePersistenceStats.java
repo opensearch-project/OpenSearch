@@ -114,6 +114,22 @@ public class RemotePersistenceStats {
         remoteFullDownloadStats.incomingPublicationFailedCount();
     }
 
+    public void indexMetadataUploadTimedOut() {
+        remoteUploadStats.indexMetadataUploadTimedOut();
+    }
+
+    public long getIndexMetadataUploadTimeoutCount() {
+        return remoteUploadStats.getIndexMetadataUploadTimeoutCount();
+    }
+
+    public void metadataUploadTimedOut() {
+        remoteUploadStats.metadataUploadTimedOut();
+    }
+
+    public long getMetadataUploadTimeoutCount() {
+        return remoteUploadStats.getMetadataUploadTimeoutCount();
+    }
+
     public PersistedStateStats getUploadStats() {
         return remoteUploadStats;
     }
