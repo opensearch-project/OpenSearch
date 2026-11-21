@@ -640,6 +640,59 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         }
     }
 
+    public void testMergeFetchProfilesKeepsQueryPhaseQueueWait() {
+        SearchPhaseController searchPhaseController = new SearchPhaseController(
+            writableRegistry(),
+            r -> InternalAggregationTestCase.emptyReduceContextBuilder()
+        );
+
+        SearchShardTarget shardTarget = new SearchShardTarget("node_0", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE);
+        long queryQueueWaitNanos = 4_000L;
+        long fetchQueueWaitNanos = 9_000L;
+
+        ProfileShardResult queryProfile = new ProfileShardResult(
+            Arrays.asList(
+                new QueryProfileShardResult(
+                    Collections.emptyList(),
+                    20L,
+                    new CollectorResult("TotalHitCountCollector", "counting hits", 50L, Collections.emptyList())
+                )
+            ),
+            new AggregationProfileShardResult(Collections.emptyList()),
+            new FetchProfileShardResult(Collections.emptyList()),
+            new NetworkTime(5L, 10L),
+            queryQueueWaitNanos
+        );
+        SearchProfileShardResults queryProfiles = new SearchProfileShardResults(
+            Collections.singletonMap(shardTarget.toString(), queryProfile)
+        );
+
+        ProfileResult fetchPhase = new ProfileResult(
+            "FetchPhase",
+            "fetch documents",
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            35L,
+            Collections.emptyList()
+        );
+        FetchSearchResult fetchResult = new FetchSearchResult(new ShardSearchContextId("", 0), shardTarget);
+        fetchResult.profileResults(
+            new ProfileShardResult(
+                Collections.emptyList(),
+                new AggregationProfileShardResult(Collections.emptyList()),
+                new FetchProfileShardResult(Arrays.asList(fetchPhase)),
+                new NetworkTime(2L, 3L),
+                fetchQueueWaitNanos
+            )
+        );
+
+        SearchProfileShardResults merged = searchPhaseController.mergeFetchProfiles(queryProfiles, Collections.singletonList(fetchResult));
+
+        ProfileShardResult mergedProfile = merged.getShardResults().get(shardTarget.toString());
+        assertEquals("Fetch profile should be merged in", 1, mergedProfile.getFetchProfileResult().getFetchProfileResults().size());
+        assertEquals("Queue wait should survive the merge from the query phase", queryQueueWaitNanos, mergedProfile.getQueueWaitNanos());
+    }
+
     public void testMergeFetchProfilesWithNullQueryProfiles() {
         // Test that the caller properly handles null queryProfiles
         SearchPhaseController searchPhaseController = new SearchPhaseController(
