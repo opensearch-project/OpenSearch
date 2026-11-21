@@ -214,7 +214,7 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
      * directory within the provided file cache path.
      */
     public void restoreFromDirectory(List<Path> fileCacheDataPaths) {
-        Stream.concat(
+        Stream<Path> directoriesToScan = Stream.concat(
             fileCacheDataPaths.stream()
                 .filter(Files::isDirectory)
                 .map(path -> path.resolve(LOCAL_STORE_LOCATION))
@@ -223,18 +223,24 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
                 .filter(Files::isDirectory)
                 .map(path -> path.resolve(INDICES_FOLDER_IDENTIFIER))
                 .filter(Files::isDirectory)
-        ).flatMap(dir -> {
-            try {
-                return Files.list(dir);
+        );
+        directoriesToScan.forEach(dir -> {
+            // Each Files.list call opens a DirectoryStream that must be closed explicitly,
+            // so this is scoped per directory instead of flatMapping into one long-lived stream.
+            try (Stream<Path> filesInDir = Files.list(dir)) {
+                filesInDir.filter(Files::isRegularFile).forEach(path -> {
+                    try {
+                        put(path.toAbsolutePath(), new RestoredCachedIndexInput(Files.size(path)));
+                        decRef(path.toAbsolutePath());
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(
+                            "Unable to retrieve cache file details. Please clear the file cache for node startup.",
+                            e
+                        );
+                    }
+                });
             } catch (IOException e) {
                 throw new UncheckedIOException("Unable to process file cache directory. Please clear the file cache for node startup.", e);
-            }
-        }).filter(Files::isRegularFile).forEach(path -> {
-            try {
-                put(path.toAbsolutePath(), new RestoredCachedIndexInput(Files.size(path)));
-                decRef(path.toAbsolutePath());
-            } catch (IOException e) {
-                throw new UncheckedIOException("Unable to retrieve cache file details. Please clear the file cache for node startup.", e);
             }
         });
     }
