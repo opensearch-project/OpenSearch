@@ -859,6 +859,22 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.IndexScope
     );
 
+    public static final String SETTING_DATA_STREAM_ROLLOVER_INHERIT_MAPPINGS = "index.data_stream.rollover.inherit_mappings";
+    /**
+     * Whether a data stream rollover creates the new backing index with exactly the mappings of the current write index,
+     * instead of resolving mappings from the matching composable index template.
+     * <p>
+     * This setting is only honoured when set on the composable index template that matches the data stream. It is read
+     * from the template at rollover time, so enabling or disabling it on the template takes effect on the next rollover.
+     * A value present on a backing index (for example, inherited from the template at creation time) is not consulted.
+     */
+    public static final Setting<Boolean> INDEX_DATA_STREAM_ROLLOVER_INHERIT_MAPPINGS_SETTING = Setting.boolSetting(
+        SETTING_DATA_STREAM_ROLLOVER_INHERIT_MAPPINGS,
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     /**
      * Used to specify the type for the ingestion index. If not specified, the ingestion source not enabled
      */
