@@ -42,12 +42,18 @@ import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
+import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
+import org.opensearch.search.aggregations.bucket.filterrewrite.NumericHistogramAggregatorBridge;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+
+import static org.opensearch.search.aggregations.bucket.filterrewrite.AggregatorBridge.segmentMatchAll;
 
 /**
  * An aggregator for numeric values. For a given {@code interval},
@@ -59,6 +65,8 @@ import java.util.Map;
  */
 public class NumericHistogramAggregator extends AbstractHistogramAggregator {
     private final ValuesSource.Numeric valuesSource;
+
+    private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
 
     public NumericHistogramAggregator(
         String name,
@@ -94,6 +102,34 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
         );
         // TODO: Stop using null here
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
+
+        NumericHistogramAggregatorBridge bridge = new NumericHistogramAggregatorBridge() {
+            @Override
+            protected boolean canOptimize() {
+                return canOptimize(valuesSourceConfig, interval, offset, hardBounds);
+            }
+
+            @Override
+            protected void prepare() throws IOException {
+                buildRanges(context);
+            }
+
+            @Override
+            protected Function<Double, Long> bucketOrdProducer() {
+                return (key) -> bucketOrds.add(0, Double.doubleToLongBits(key));
+            }
+        };
+        filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, subAggregators.length, context);
+    }
+
+    @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        return filterRewriteOptimizationContext.tryOptimize(
+            ctx,
+            this::incrementBucketDocCount,
+            segmentMatchAll(context, ctx),
+            collectableSubAggregators
+        );
     }
 
     @Override
@@ -149,5 +185,11 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
                 super.collectRange(min, max);
             }
         };
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        filterRewriteOptimizationContext.populateDebugInfo(add);
     }
 }
