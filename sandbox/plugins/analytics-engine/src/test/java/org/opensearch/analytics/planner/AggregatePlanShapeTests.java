@@ -172,6 +172,86 @@ public class AggregatePlanShapeTests extends PlanShapeTestBase {
         );
     }
 
+    public void testShiftedSumsCollapseToSumAndCount_1shard() {
+        // stats sum(size), sum(size+1), sum(size+2) by status
+        // -> ONE SUM + ONE COUNT accumulator (COUNT() since the mock column is NOT NULL); the per-term arithmetic
+        // the scan-side Project no longer materializes size+1 / size+2.
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode plan = shiftedSumsByKey(scan, 3);
+        RelNode result = runPlanner(plan, singleShardContext());
+        assertPlanShape(
+            """
+                OpenSearchProject(status=[$0], sum(size)=[ANNOTATED_PROJECT_EXPR(id=3, backends=[mock-parquet], CAST($1):INTEGER NOT NULL)], sum(size+1)=[ANNOTATED_PROJECT_EXPR(id=4, backends=[mock-parquet], +($1, $2))], sum(size+2)=[ANNOTATED_PROJECT_EXPR(id=6, backends=[mock-parquet], +($1, ANNOTATED_PROJECT_EXPR(id=5, backends=[mock-parquet], *(2, $2))))], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], agg#0=[SUM($1)], agg#1=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                    OpenSearchProject(status=[$0], size0=[ANNOTATED_PROJECT_EXPR(id=0, backends=[mock-parquet], CAST($1):BIGINT NOT NULL)], viableBackends=[[mock-parquet]])
+                      OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    public void testShiftedSumsCollapseToSumAndCount_2shard() {
+        // Same query on 2 shards: the scalar Project stays above the FINAL aggregate (runs once, on the
+        // coordinator), PARTIAL/FINAL each carry exactly SUM + COUNT.
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode plan = shiftedSumsByKey(scan, 3);
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchProject(status=[$0], sum(size)=[ANNOTATED_PROJECT_EXPR(id=3, backends=[mock-parquet], CAST($1):INTEGER NOT NULL)], sum(size+1)=[ANNOTATED_PROJECT_EXPR(id=4, backends=[mock-parquet], +($1, $2))], sum(size+2)=[ANNOTATED_PROJECT_EXPR(id=6, backends=[mock-parquet], +($1, ANNOTATED_PROJECT_EXPR(id=5, backends=[mock-parquet], *(2, $2))))], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], $f1=[SUM($1)], $f2=[SUM($2)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                    OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
+                      OpenSearchAggregate(group=[{0}], agg#0=[SUM($1)], agg#1=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                        OpenSearchProject(status=[$0], size0=[ANNOTATED_PROJECT_EXPR(id=0, backends=[mock-parquet], CAST($1):BIGINT NOT NULL)], viableBackends=[[mock-parquet]])
+                          OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
+    }
+
+    /** {@code stats sum(size), sum(size+1), ... sum(size+terms-1) by status} as the PPL lowering shapes it. */
+    private RelNode shiftedSumsByKey(RelNode scan, int terms) {
+        RelDataType bigint = typeFactory.createSqlType(SqlTypeName.BIGINT);
+        List<org.apache.calcite.rex.RexNode> exprs = new java.util.ArrayList<>();
+        List<String> names = new java.util.ArrayList<>();
+        exprs.add(rexBuilder.makeInputRef(scan, 0));
+        names.add("status");
+        exprs.add(rexBuilder.makeInputRef(scan, 1));
+        names.add("size");
+        for (int k = 1; k < terms; k++) {
+            exprs.add(
+                rexBuilder.makeCall(
+                    SqlStdOperatorTable.PLUS,
+                    rexBuilder.makeCast(bigint, rexBuilder.makeInputRef(scan, 1)),
+                    rexBuilder.makeExactLiteral(java.math.BigDecimal.valueOf(k))
+                )
+            );
+            names.add(null);
+        }
+        LogicalProject project = LogicalProject.create(scan, List.of(), exprs, names);
+        List<AggregateCall> calls = new java.util.ArrayList<>();
+        for (int k = 0; k < terms; k++) {
+            calls.add(
+                AggregateCall.create(
+                    SqlStdOperatorTable.SUM,
+                    false,
+                    false,
+                    false,
+                    List.of(),
+                    List.of(1 + k),
+                    -1,
+                    null,
+                    org.apache.calcite.rel.RelCollations.EMPTY,
+                    1,
+                    project,
+                    null,
+                    k == 0 ? "sum(size)" : "sum(size+" + k + ")"
+                )
+            );
+        }
+        return makeAggregate(project, ImmutableBitSet.of(0), calls.toArray(AggregateCall[]::new));
+    }
+
     public void testStatsAvgByKey_1shard() {
         // AVG → SUM/COUNT primitives plus a Project for the quotient; SINGLE only.
         RelNode scan = stubScan(mockTable("test_index", "status", "size"));
