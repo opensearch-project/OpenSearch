@@ -16,9 +16,11 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.Preference;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
@@ -50,6 +52,61 @@ public class ScaleIndexIT extends RemoteStoreBaseIntegTestCase {
 
     public void testFullLifecycleWithoutSearchReplicas() throws Exception {
         testFullLifecycle(0);
+    }
+
+    public void testScaleDownSearchReplicaCatchesUpWithFinalRemoteStoreState() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        internalCluster().startSearchOnlyNode();
+
+        Settings specificSettings = Settings.builder()
+            .put(indexSettings())
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
+            .build();
+
+        createIndex(TEST_INDEX, specificSettings);
+        ensureGreen(TEST_INDEX);
+
+        client().prepareIndex(TEST_INDEX)
+            .setId("baseline")
+            .setSource("field1", "baseline")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        assertBusy(() -> {
+            assertHitCount(client().prepareSearch(TEST_INDEX).setPreference(Preference.PRIMARY.type()).setSize(0).get(), 1);
+            assertHitCount(client().prepareSearch(TEST_INDEX).setPreference(Preference.SEARCH_REPLICA.type()).setSize(0).get(), 1);
+        });
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(TEST_INDEX)
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1"))
+                .get()
+        );
+
+        client().prepareIndex(TEST_INDEX)
+            .setId("latest")
+            .setSource("field1", "latest")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        assertHitCount(client().prepareSearch(TEST_INDEX).setPreference(Preference.PRIMARY.type()).setSize(0).get(), 2);
+        assertHitCount(client().prepareSearch(TEST_INDEX).setPreference(Preference.SEARCH_REPLICA.type()).setSize(0).get(), 1);
+
+        assertAcked(client().admin().indices().prepareScaleSearchOnly(TEST_INDEX, true).get());
+        ensureGreen(TEST_INDEX);
+
+        assertBusy(
+            () -> {
+                assertHitCount(client().prepareSearch(TEST_INDEX).setPreference(Preference.SEARCH_REPLICA.type()).setSize(0).get(), 2);
+            },
+            10,
+            TimeUnit.SECONDS
+        );
     }
 
     /**
