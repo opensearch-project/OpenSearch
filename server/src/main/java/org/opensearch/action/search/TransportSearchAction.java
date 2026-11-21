@@ -1343,6 +1343,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             && preFilterShardSize < numShards;
     }
 
+    static boolean nodeLevelQueryFanoutEnabled(SearchRequest searchRequest, boolean clusterSettingEnabled) {
+        return searchRequest.nodeLevelQueryFanout() != null ? searchRequest.nodeLevelQueryFanout() : clusterSettingEnabled;
+    }
+
     private static boolean hasReadOnlyIndices(String[] indices, ClusterState clusterState) {
         for (String index : indices) {
             ClusterBlockException writeBlock = clusterState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, index);
@@ -1461,6 +1465,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters clusters,
         SearchRequestContext searchRequestContext
     ) {
+        final boolean nodeLevelQueryFanoutEnabled = nodeLevelQueryFanoutEnabled(searchRequest, searchService.nodeLevelQueryFanoutEnabled());
         if (preFilter) {
             return new CanMatchPreFilterSearchPhase(
                 logger,
@@ -1473,6 +1478,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest,
                 listener,
                 shardIterators,
+                CanMatchPreFilterSearchPhase.buildActiveShardIndexLookup(shardIterators),
                 timeProvider,
                 clusterState,
                 task,
@@ -1497,7 +1503,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 ),
                 clusters,
                 searchRequestContext,
-                tracer
+                tracer,
+                nodeLevelQueryFanoutEnabled
             );
         } else {
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(
@@ -1552,7 +1559,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         task,
                         clusters,
                         searchRequestContext,
-                        tracer
+                        tracer,
+                        nodeLevelQueryFanoutEnabled
                     );
                     break;
                 default:

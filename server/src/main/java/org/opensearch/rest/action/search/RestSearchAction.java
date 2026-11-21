@@ -96,6 +96,7 @@ public class RestSearchAction extends BaseRestHandler {
     public static final String TOTAL_HITS_AS_INT_PARAM = "rest_total_hits_as_int";
     public static final String TYPED_KEYS_PARAM = "typed_keys";
     public static final String INCLUDE_NAMED_QUERIES_SCORE_PARAM = "include_named_queries_score";
+    public static final String NODE_LEVEL_QUERY_FANOUT_PARAM = "node_level_query_fanout";
     private static final Set<String> RESPONSE_PARAMS;
 
     private ClusterSettings clusterSettings;
@@ -212,6 +213,10 @@ public class RestSearchAction extends BaseRestHandler {
         if (request.hasParam("allow_partial_search_results")) {
             // only set if we have the parameter passed to override the cluster-level default
             searchRequest.allowPartialSearchResults(request.paramAsBoolean("allow_partial_search_results", null));
+        }
+
+        if (request.hasParam(NODE_LEVEL_QUERY_FANOUT_PARAM)) {
+            searchRequest.nodeLevelQueryFanout(request.paramAsBoolean(NODE_LEVEL_QUERY_FANOUT_PARAM, null));
         }
 
         if (request.hasParam("phase_took")) {
