@@ -49,8 +49,8 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
     NGramTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         int maxAllowedNgramDiff = indexSettings.getMaxNgramDiff();
-        this.minGram = settings.getAsInt("min_gram", 1);
-        this.maxGram = settings.getAsInt("max_gram", 2);
+        this.minGram = settings.getAsIntStrict("min_gram", 1);
+        this.maxGram = settings.getAsIntStrict("max_gram", 2);
         int ngramDiff = maxGram - minGram;
         if (ngramDiff > maxAllowedNgramDiff) {
             throw new IllegalArgumentException(
