@@ -1739,4 +1739,212 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         );
         assertTrue("IndexSettings should have pluggable data format enabled", captor.getValue().isPluggableDataFormatEnabled());
     }
+
+    // hasMultiplePrimaryTerms unit tests
+
+    public void testHasMultiplePrimaryTerms_emptyList() {
+        assertFalse(RemoteSegmentStoreDirectory.hasMultiplePrimaryTerms(List.of()));
+    }
+
+    public void testHasMultiplePrimaryTerms_singleFile() {
+        String file = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(5, 10, 1, 1, 1, "node-1");
+        assertFalse(RemoteSegmentStoreDirectory.hasMultiplePrimaryTerms(List.of(file)));
+    }
+
+    public void testHasMultiplePrimaryTerms_sameTerm() {
+        String file1 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(5, 10, 1, 1, 1, "node-1");
+        String file2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(5, 9, 1, 1, 1, "node-1");
+        String file3 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(5, 8, 1, 1, 1, "node-1");
+        assertFalse(RemoteSegmentStoreDirectory.hasMultiplePrimaryTerms(List.of(file1, file2, file3)));
+    }
+
+    public void testHasMultiplePrimaryTerms_differentTerms() {
+        String file1 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(2, 10, 1, 1, 1, "node-1");
+        String file2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(1, 11, 1, 1, 1, "node-1");
+        assertTrue(RemoteSegmentStoreDirectory.hasMultiplePrimaryTerms(List.of(file1, file2)));
+    }
+
+    public void testHasMultiplePrimaryTerms_divergenceAtTail() {
+        // Simulate a retention window: 9 files from new primary (term=2) + 1 zombie file (term=1)
+        List<String> files = new ArrayList<>();
+        for (int gen = 9; gen >= 1; gen--) {
+            files.add(RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(2, gen, 1, 1, 1, "node-b"));
+        }
+        files.add(RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(1, 11, 1, 1, 1, "node-a"));
+        assertTrue(RemoteSegmentStoreDirectory.hasMultiplePrimaryTerms(files));
+    }
+
+    // deleteStaleSegments: zombie-primary divergence tests
+
+    public void testDeleteStaleSegmentsZombiePrimaryDivergence() throws Exception {
+
+        // Build metadata filenames in sorted (newest-first) order.
+        // Use timestamps to control lexicographic position: the 7th token (timestamp) in each name.
+        String latestMd = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(2, 9, 1, 1, 1, "node-b", 3000L);
+        String zombieBoundaryMd = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(1, 11, 1, 1, 1, "node-a", 2000L);
+        String staleMd = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(1, 10, 1, 1, 1, "node-a", 1000L);
+
+        // latestMd references _0 and _1 (active primary blobs).
+        Map<String, String> latestContent = new HashMap<>();
+        String _0uuid = UUIDs.base64UUID();
+        String _1uuid = UUIDs.base64UUID();
+        latestContent.put("_0.si", "_0.si::_0.si__" + _0uuid + "::1000::512::" + org.apache.lucene.util.Version.LATEST.major);
+        latestContent.put("_1.si", "_1.si::_1.si__" + _1uuid + "::1000::512::" + org.apache.lucene.util.Version.LATEST.major);
+
+        // zombieBoundaryMd references only _6 (merged by zombie, does NOT reference _0/_1).
+        Map<String, String> zombieContent = new HashMap<>();
+        String _6uuid = UUIDs.base64UUID();
+        zombieContent.put("_6.si", "_6.si::_6.si__" + _6uuid + "::1000::512::" + org.apache.lucene.util.Version.LATEST.major);
+
+        // staleMd references _0 and _1 (these blobs are still alive in the latest metadata).
+        Map<String, String> staleContent = new HashMap<>();
+        staleContent.put("_0.si", "_0.si::_0.si__" + _0uuid + "::1000::512::" + org.apache.lucene.util.Version.LATEST.major);
+        staleContent.put("_1.si", "_1.si::_1.si__" + _1uuid + "::1000::512::" + org.apache.lucene.util.Version.LATEST.major);
+
+        List<String> sortedMdList = List.of(latestMd, zombieBoundaryMd, staleMd);
+
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                METADATA_FILES_TO_FETCH
+            )
+        ).thenReturn(List.of(latestMd));
+
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                Integer.MAX_VALUE
+            )
+        ).thenReturn(new ArrayList<>(sortedMdList));
+
+        when(remoteMetadataDirectory.getBlobStream(latestMd)).thenAnswer(
+            I -> createMetadataFileBytes(latestContent, indexShard.getLatestReplicationCheckpoint(), segmentInfos)
+        );
+        when(remoteMetadataDirectory.getBlobStream(zombieBoundaryMd)).thenAnswer(
+            I -> createMetadataFileBytes(zombieContent, indexShard.getLatestReplicationCheckpoint(), segmentInfos)
+        );
+        when(remoteMetadataDirectory.getBlobStream(staleMd)).thenAnswer(
+            I -> createMetadataFileBytes(staleContent, indexShard.getLatestReplicationCheckpoint(), segmentInfos)
+        );
+
+        remoteSegmentStoreDirectory.init();
+
+        // The stale metadata is the only deletable file (idx 2).
+        // Its blobs (_0.si, _1.si) are still referenced by the latest metadata.
+        // They must NOT be deleted.
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
+
+        String activeBlob0 = "_0.si__" + _0uuid;
+        String activeBlob1 = "_1.si__" + _1uuid;
+
+        assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
+
+        // _0.si and _1.si are referenced by the latest metadata → must not be deleted.
+        verify(remoteDataDirectory, times(0)).deleteFiles(
+            argThat(files -> files != null && (files.contains(activeBlob0) || files.contains(activeBlob1)))
+        );
+
+        // The stale metadata file itself should be deleted (blobs were protected, not the md file).
+        verify(remoteMetadataDirectory).deleteFile(staleMd);
+    }
+
+    /**
+     * Verifies that when all retained metadata files share the same primary term the fast path
+     * (boundary optimization) is preserved — the fix must not regress normal behaviour.
+     */
+    public void testDeleteStaleSegmentsSinglePrimaryTermFastPath() throws Exception {
+
+        Map<String, Map<String, String>> contentMap = populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        // Retained window is single-term (term=12) → fast path taken; no extra reads.
+        // The stale file metadataFilename3 should still be deleted correctly.
+        Set<String> expectedFilesToDelete = contentMap.get(metadataFilename3)
+            .values()
+            .stream()
+            .map(metadata -> metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1])
+            .collect(Collectors.toSet());
+
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
+
+        assertBusy(() -> {
+            verify(remoteDataDirectory).deleteFiles(argThat(files -> files != null && new HashSet<>(files).equals(expectedFilesToDelete)));
+            assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true));
+        });
+        verify(remoteMetadataDirectory).deleteFile(metadataFilename3);
+    }
+
+    /**
+     * Exercises the multi-primary-term fallback path directly.
+     */
+    public void testDeleteStaleSegmentsMultiPrimaryTermFallbackPath() throws Exception {
+        String latestMd = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(3, 5, 1, 1, 1, "node-c", 3000L);
+        String retainedOldTermMd = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(2, 8, 1, 1, 1, "node-b", 2000L);
+        String staleMd = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(2, 7, 1, 1, 1, "node-b", 1000L);
+
+        String segAUuid = UUIDs.base64UUID();
+        String segBUuid = UUIDs.base64UUID();
+        String segCUuid = UUIDs.base64UUID();
+        int luceneMajor = org.apache.lucene.util.Version.LATEST.major;
+
+        Map<String, String> latestContent = new HashMap<>();
+        latestContent.put("_A.si", "_A.si::_A.si__" + segAUuid + "::1000::512::" + luceneMajor);
+
+        Map<String, String> retainedOldContent = new HashMap<>();
+        retainedOldContent.put("_B.si", "_B.si::_B.si__" + segBUuid + "::1000::512::" + luceneMajor);
+
+        Map<String, String> staleContent = new HashMap<>();
+        staleContent.put("_C.si", "_C.si::_C.si__" + segCUuid + "::1000::512::" + luceneMajor);
+
+        List<String> sortedMdList = List.of(latestMd, retainedOldTermMd, staleMd);
+
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                METADATA_FILES_TO_FETCH
+            )
+        ).thenReturn(List.of(latestMd));
+
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                Integer.MAX_VALUE
+            )
+        ).thenReturn(new ArrayList<>(sortedMdList));
+
+        when(remoteMetadataDirectory.getBlobStream(latestMd)).thenAnswer(
+            I -> createMetadataFileBytes(latestContent, indexShard.getLatestReplicationCheckpoint(), segmentInfos)
+        );
+        when(remoteMetadataDirectory.getBlobStream(retainedOldTermMd)).thenAnswer(
+            I -> createMetadataFileBytes(retainedOldContent, indexShard.getLatestReplicationCheckpoint(), segmentInfos)
+        );
+        when(remoteMetadataDirectory.getBlobStream(staleMd)).thenAnswer(
+            I -> createMetadataFileBytes(staleContent, indexShard.getLatestReplicationCheckpoint(), segmentInfos)
+        );
+
+        remoteSegmentStoreDirectory.init();
+
+        // lastNMetadataFilesToKeep=2 → retained=[latestMd, retainedOldTermMd], deletable=[staleMd].
+        // Retained window spans term=3 and term=2 → full-scan path must be taken.
+        // Active set must include _A.si (from latestMd) and _B.si (from retainedOldTermMd).
+        // _C.si is unique to staleMd and absent from the active set → must be deleted.
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
+
+        String activeBlobA = "_A.si__" + segAUuid;
+        String activeBlobB = "_B.si__" + segBUuid;
+        String staleBlob = "_C.si__" + segCUuid;
+
+        assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
+
+        // Active blobs must never be deleted.
+        verify(remoteDataDirectory, times(0)).deleteFiles(
+            argThat(files -> files != null && (files.contains(activeBlobA) || files.contains(activeBlobB)))
+        );
+
+        // The stale blob must be deleted.
+        verify(remoteDataDirectory).deleteFiles(argThat(files -> files != null && files.contains(staleBlob)));
+
+        // The stale metadata file itself must also be removed.
+        verify(remoteMetadataDirectory).deleteFile(staleMd);
+    }
 }
