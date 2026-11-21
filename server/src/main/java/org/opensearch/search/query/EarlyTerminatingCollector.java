@@ -94,6 +94,37 @@ public class EarlyTerminatingCollector extends FilterCollector {
                 }
                 super.collect(doc);
             }
+
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                if (min >= max) {
+                    return;
+                }
+                int rangeSize = max - min;
+                int remaining = maxCountHits - numCollected;
+                if (remaining <= 0) {
+                    earlyTerminated = true;
+                    if (forceTermination) {
+                        throw new EarlyTerminationException("early termination [CountBased]");
+                    } else {
+                        throw new CollectionTerminatedException();
+                    }
+                }
+                if (rangeSize <= remaining) {
+                    numCollected += rangeSize;
+                    super.collectRange(min, max);
+                } else {
+                    int to = (int) Math.min(max, (long) min + remaining);
+                    numCollected = maxCountHits;
+                    earlyTerminated = true;
+                    super.collectRange(min, to);
+                    if (forceTermination) {
+                        throw new EarlyTerminationException("early termination [CountBased]");
+                    } else {
+                        throw new CollectionTerminatedException();
+                    }
+                }
+            }
         };
     }
 
