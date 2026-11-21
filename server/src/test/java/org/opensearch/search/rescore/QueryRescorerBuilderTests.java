@@ -194,6 +194,10 @@ public class QueryRescorerBuilderTests extends OpenSearchTestCase {
             assertEquals(rescoreBuilder.getQueryWeight(), rescoreContext.queryWeight(), Float.MIN_VALUE);
             assertEquals(rescoreBuilder.getRescoreQueryWeight(), rescoreContext.rescoreQueryWeight(), Float.MIN_VALUE);
             assertEquals(rescoreBuilder.getScoreMode(), rescoreContext.scoreMode());
+            RescoreReorderMode expectedReorderMode = rescoreBuilder.reorderMode() == null
+                ? RescoreReorderMode.LEGACY
+                : rescoreBuilder.reorderMode();
+            assertEquals(expectedReorderMode, rescoreContext.getReorderMode());
         }
     }
 
@@ -295,12 +299,14 @@ public class QueryRescorerBuilderTests extends OpenSearchTestCase {
         rescoreBuilder.setRescoreQueryWeight(randomFloat());
         rescoreBuilder.setScoreMode(QueryRescoreMode.Max);
         rescoreBuilder.windowSize(randomIntBetween(0, 100));
+        rescoreBuilder.reorderMode(randomFrom(RescoreReorderMode.values()));
 
         QueryRescorerBuilder rescoreRewritten = rescoreBuilder.rewrite(mockShardContext);
         assertEquals(rescoreRewritten.getQueryWeight(), rescoreBuilder.getQueryWeight(), 0.01f);
         assertEquals(rescoreRewritten.getRescoreQueryWeight(), rescoreBuilder.getRescoreQueryWeight(), 0.01f);
         assertEquals(rescoreRewritten.getScoreMode(), rescoreBuilder.getScoreMode());
         assertEquals(rescoreRewritten.windowSize(), rescoreBuilder.windowSize());
+        assertEquals(rescoreRewritten.reorderMode(), rescoreBuilder.reorderMode());
     }
 
     /**
@@ -379,6 +385,44 @@ public class QueryRescorerBuilderTests extends OpenSearchTestCase {
     }
 
     /**
+     * test parsing of the {@code reorder_mode} field
+     */
+    public void testParseReorderMode() throws IOException {
+        String rescoreElement = """
+            {
+                "window_size" : 20,
+                "reorder_mode" : "window_only",
+                "query" : { "rescore_query" : { "match_all" : { } } }
+            }
+            """;
+        try (XContentParser parser = createParser(rescoreElement)) {
+            RescorerBuilder<?> rescorer = RescorerBuilder.parseFromXContent(parser);
+            assertEquals(RescoreReorderMode.WINDOW_ONLY, rescorer.reorderMode());
+        }
+
+        rescoreElement = """
+            {
+                "query" : { "rescore_query" : { "match_all" : { } } }
+            }
+            """;
+        try (XContentParser parser = createParser(rescoreElement)) {
+            RescorerBuilder<?> rescorer = RescorerBuilder.parseFromXContent(parser);
+            assertNull(rescorer.reorderMode());
+        }
+
+        rescoreElement = """
+            {
+                "reorder_mode" : "bogus",
+                "query" : { "rescore_query" : { "match_all" : { } } }
+            }
+            """;
+        try (XContentParser parser = createParser(rescoreElement)) {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            assertEquals("illegal reorder_mode [bogus]", e.getMessage());
+        }
+    }
+
+    /**
      * create a new parser from the rescorer string representation and reset context with it
      */
     private XContentParser createParser(String rescoreElement) throws IOException {
@@ -404,7 +448,7 @@ public class QueryRescorerBuilderTests extends OpenSearchTestCase {
             }
         } else {
             QueryRescorerBuilder queryRescorer = (QueryRescorerBuilder) mutation;
-            switch (randomIntBetween(0, 3)) {
+            switch (randomIntBetween(0, 4)) {
                 case 0:
                     queryRescorer.setQueryWeight(queryRescorer.getQueryWeight() + 0.1f);
                     break;
@@ -421,6 +465,13 @@ public class QueryRescorerBuilderTests extends OpenSearchTestCase {
                 case 3:
                     // only increase the boost to make it a slightly different query
                     queryRescorer.getRescoreQuery().boost(queryRescorer.getRescoreQuery().boost() + 0.1f);
+                    break;
+                case 4:
+                    RescoreReorderMode otherReorderMode;
+                    do {
+                        otherReorderMode = randomFrom(RescoreReorderMode.values());
+                    } while (otherReorderMode == queryRescorer.reorderMode());
+                    queryRescorer.reorderMode(otherReorderMode);
                     break;
                 default:
                     throw new IllegalStateException("unexpected random mutation in test");
@@ -446,6 +497,9 @@ public class QueryRescorerBuilderTests extends OpenSearchTestCase {
         }
         if (randomBoolean()) {
             rescorer.windowSize(randomIntBetween(0, 100));
+        }
+        if (randomBoolean()) {
+            rescorer.reorderMode(randomFrom(RescoreReorderMode.values()));
         }
         return rescorer;
     }
