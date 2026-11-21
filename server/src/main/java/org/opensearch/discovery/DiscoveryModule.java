@@ -142,7 +142,7 @@ public class DiscoveryModule {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
         hostProviders.put("settings", () -> new SettingsBasedSeedHostsProvider(settings, transportService));
-        hostProviders.put("file", () -> new FileBasedSeedHostsProvider(configFile));
+        hostProviders.put("file", () -> new FileBasedSeedHostsProvider(configFile, settings));
         final Map<String, ElectionStrategy> electionStrategies = new HashMap<>();
         electionStrategies.put(DEFAULT_ELECTION_STRATEGY, ElectionStrategy.DEFAULT_INSTANCE);
         for (DiscoveryPlugin plugin : plugins) {
