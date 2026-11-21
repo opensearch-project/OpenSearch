@@ -20,8 +20,10 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -177,6 +179,47 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         }
         ir.close();
         directory.close();
+    }
+
+    public void testStarTreeKeywordTermsWithMissingFieldSegment() throws IOException {
+        IndexWriterConfig config = newIndexWriterConfig(null);
+        config.setCodec(getCodec());
+        config.setMergePolicy(NoMergePolicy.INSTANCE);
+        config.setMaxBufferedDocs(100);
+        try (Directory directory = newDirectory(); IndexWriter writer = new IndexWriter(directory, config)) {
+            // Keep one populated segment and one whose documents all lack the keyword field.
+            for (boolean withKeyword : List.of(true, false)) {
+                for (int i = 0; i < 4; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedNumericDocValuesField(STATUS, 1));
+                    doc.add(new SortedNumericDocValuesField(SIZE, NumericUtils.doubleToSortableLong(1.5)));
+                    if (withKeyword) {
+                        doc.add(new SortedSetDocValuesField(CLIENTIP, new BytesRef("a")));
+                        doc.add(new StringField(CLIENTIP, "a", Field.Store.NO));
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                assertEquals(2, reader.leaves().size());
+                assertNull(reader.leaves().get(1).reader().terms(CLIENTIP));
+                SegmentReader segment = Lucene.segmentReader(reader.leaves().get(0).reader());
+                CompositeIndexFieldInfo starTree = ((CompositeIndexReader) segment.getDocValuesReader()).getCompositeIndexFields().get(0);
+                LinkedHashMap<Dimension, MappedFieldType> supportedDimensions = new LinkedHashMap<>();
+                supportedDimensions.put(new NumericDimension(STATUS), STATUS_FIELD_TYPE);
+                supportedDimensions.put(new NumericDimension(SIZE), SIZE_FIELD_NAME);
+                supportedDimensions.put(new OrdinalDimension(CLIENTIP), CLIENTIP_FIELD_NAME);
+                testCase(
+                    newSearcher(wrapInMockESDirectoryReader(reader), false, false),
+                    new MatchAllDocsQuery(),
+                    null,
+                    terms("terms_agg").field(CLIENTIP),
+                    starTree,
+                    supportedDimensions
+                );
+            }
+        }
     }
 
     private void testCase(
