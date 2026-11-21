@@ -204,9 +204,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     @Override
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
-        if (supportedStarTree != null) {
-            StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, supportedStarTree, null);
-            StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
+        if (supportedStarTree != null
+            && StarTreeQueryHelper.canPrecomputeWithStarTree(this.context)
+            && StarTreeQueryHelper.preComputeBucketsWithStarTree(this.context, getStarTreeBucketCollector(ctx, supportedStarTree, null))) {
             return true;
         }
 
