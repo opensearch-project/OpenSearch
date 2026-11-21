@@ -330,6 +330,43 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
         verify(ruleProcessingService, times(0)).remove(any(Rule.class));
     }
 
+    /**
+     * Tests that doRun stops paging when a page returns the same search_after token it was
+     * called with, instead of fetching forever. Against the old recursive implementation
+     * this test recurses until StackOverflowError.
+     */
+    @SuppressWarnings("unchecked")
+    public void test_doRun_StopsWhenSearchAfterDoesNotAdvance() {
+        List<Rule> firstPageRules = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            firstPageRules.add(ruleWithId("rule-" + i));
+        }
+        List<Rule> secondPageRules = new ArrayList<>();
+        for (int i = 50; i < 60; i++) {
+            secondPageRules.add(ruleWithId("rule-" + i));
+        }
+
+        AtomicInteger callCount = new AtomicInteger();
+        doAnswer(invocation -> {
+            ActionListener<GetRuleResponse> listener = invocation.getArgument(1);
+            if (callCount.getAndIncrement() == 0) {
+                listener.onResponse(new GetRuleResponse(firstPageRules, "rule-49"));
+            } else {
+                // Backend returns the same token again: no progress.
+                listener.onResponse(new GetRuleResponse(secondPageRules, "rule-49"));
+            }
+            return null;
+        }).when(rulePersistenceService).getRule(any(GetRuleRequest.class), any(ActionListener.class));
+
+        sut.doRun();
+
+        // Only two pages are fetched; the stalled token does not trigger a third call.
+        verify(rulePersistenceService, times(2)).getRule(any(GetRuleRequest.class), any(ActionListener.class));
+        // The rules from both fetched pages are still applied.
+        verify(ruleProcessingService, times(60)).add(any(Rule.class));
+        verify(ruleProcessingService, times(0)).remove(any(Rule.class));
+    }
+
     private static Rule ruleWithId(String id) {
         return Rule.builder()
             .id(id)
