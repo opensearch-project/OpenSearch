@@ -10,11 +10,11 @@ package org.opensearch.plugin.wlm.rule.sync;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.plugin.wlm.WlmClusterSettingValuesProvider;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEvent;
@@ -107,29 +107,53 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
             return;
         }
 
-        rulePersistenceService.getRule(
-            new GetRuleRequest(null, Collections.emptyMap(), null, featureType),
-            new ActionListener<GetRuleResponse>() {
-                @Override
-                public void onResponse(GetRuleResponse response) {
-                    final Set<Rule> newRules = new HashSet<>(response.getRules());
-                    ruleEventClassifier.setPreviousRules(lastRunIndexedRules);
+        fetchAllRules();
+    }
 
-                    ruleEventClassifier.getRuleEvents(newRules).forEach(RuleEvent::process);
-
-                    lastRunIndexedRules = newRules;
+    /**
+     * Fetches all rules page by page, following the {@code search_after} token until no more pages remain,
+     * and only then applies the complete rule set to the in-memory view. If any page fails, the whole sync
+     * run is skipped: applying a partial set would look like deletions of the rules on the missing pages.
+     * Pagination is an iterative loop, not recursion: the persistence service invokes the listener on the
+     * calling thread, so a recursive fetch would grow the stack by one frame per page. The loop also stops
+     * if a page returns the same {@code search_after} token it was called with, so a backend that stops
+     * making progress cannot spin forever.
+     */
+    private void fetchAllRules() {
+        Set<Rule> accumulatedRules = new HashSet<>();
+        String searchAfter = null;
+        try {
+            while (true) {
+                PlainActionFuture<GetRuleResponse> future = PlainActionFuture.newFuture();
+                rulePersistenceService.getRule(
+                    new GetRuleRequest(null, Collections.emptyMap(), searchAfter, featureType),
+                    future
+                );
+                GetRuleResponse response = future.actionGet();
+                accumulatedRules.addAll(response.getRules());
+                String nextSearchAfter = response.getSearchAfter();
+                if (nextSearchAfter == null) {
+                    break;
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof IndexNotFoundException) {
-                        logger.debug("Rule index not found, skipping rule processing.");
-                        return;
-                    }
-                    logger.warn("Failed to get rules from persistence service", e);
+                if (nextSearchAfter.equals(searchAfter)) {
+                    logger.warn("search_after token [{}] did not advance, stopping rule sync", nextSearchAfter);
+                    break;
                 }
+                searchAfter = nextSearchAfter;
             }
-        );
+        } catch (IndexNotFoundException e) {
+            logger.debug("Rule index not found, skipping rule processing.");
+            return;
+        } catch (Exception e) {
+            logger.warn("Failed to get rules from persistence service, skipping this sync run", e);
+            return;
+        }
+
+        ruleEventClassifier.setPreviousRules(lastRunIndexedRules);
+
+        ruleEventClassifier.getRuleEvents(accumulatedRules).forEach(RuleEvent::process);
+
+        lastRunIndexedRules = accumulatedRules;
     }
 
     @Override
