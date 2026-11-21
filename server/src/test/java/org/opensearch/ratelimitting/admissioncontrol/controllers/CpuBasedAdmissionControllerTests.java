@@ -9,7 +9,6 @@
 package org.opensearch.ratelimitting.admissioncontrol.controllers;
 
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
@@ -32,16 +31,13 @@ public class CpuBasedAdmissionControllerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("admission_controller_settings_test");
-        clusterService = ClusterServiceUtils.createClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
-        );
+        clusterService = ClusterServiceUtils.createClusterService(threadPool);
     }
 
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
+        clusterService.close();
         threadPool.shutdownNow();
     }
 
@@ -54,10 +50,8 @@ public class CpuBasedAdmissionControllerTests extends OpenSearchTestCase {
         );
         assertEquals(admissionController.getName(), CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER);
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
-        assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
-        assertFalse(
-            admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode())
-        );
+        assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.ENFORCED);
+        assertTrue(admissionController.isEnabledForTransportLayer(admissionController.settings.getTransportLayerAdmissionControllerMode()));
     }
 
     public void testCheckUpdateSettings() {
@@ -90,7 +84,7 @@ public class CpuBasedAdmissionControllerTests extends OpenSearchTestCase {
             Settings.EMPTY
         );
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);
-        assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
+        assertEquals(admissionController.settings.getTransportLayerAdmissionControllerMode(), AdmissionControlMode.ENFORCED);
         action = "indices:data/write/bulk[s][p]";
         admissionController.apply(action, AdmissionControlActionType.INDEXING);
         assertEquals(admissionController.getRejectionCount(AdmissionControlActionType.INDEXING.getType()), 0);

@@ -11,7 +11,6 @@ package org.opensearch.ratelimitting.admissioncontrol.settings;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 
 /**
@@ -35,10 +34,13 @@ public class CpuBasedAdmissionControllerSettings {
     /**
      * Feature level setting to operate in shadow-mode or in enforced-mode. If enforced field is set
      * rejection will be performed, otherwise only rejection metrics will be populated.
+     * Defaults to {@link AdmissionControlMode#ENFORCED} so CPU-based transport admission control is active
+     * out of the box; set this override to {@code disabled} or {@code monitor_only} to change that. This
+     * override no longer inherits the cluster-level admission_control.transport.mode setting.
      */
     public static final Setting<AdmissionControlMode> CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE = new Setting<>(
         "admission_control.transport.cpu_usage.mode_override",
-        AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE,
+        AdmissionControlMode.ENFORCED.getMode(),
         AdmissionControlMode::fromName,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
