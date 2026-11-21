@@ -1213,6 +1213,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     static final String KEY_ROLLOVER_INFOS = "rollover_info";
     static final String KEY_SYSTEM = "system";
     static final String KEY_SPLIT_SHARDS_METADATA = "split_shards_metadata";
+    static final String KEY_TIMESTAMP_RANGE = "timestamp_range";
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
     public static final String KEY_PRIMARY_TERMS_MAP = "primary_terms_map";
     public static final String REMOTE_STORE_CUSTOM_KEY = "remote_store";
@@ -1282,6 +1283,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final SplitShardsMetadata splitShardsMetadata;
 
+    private final IndexLongFieldRange timestampRange;
+
     private IndexMetadata(
         final Index index,
         final long version,
@@ -1316,7 +1319,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final Context context,
         final IngestionStatus ingestionStatus,
         final SplitShardsMetadata splitShardsMetadata,
-        final Map<Integer, Long> primaryTermsMap
+        final Map<Integer, Long> primaryTermsMap,
+        final IndexLongFieldRange timestampRange
     ) {
 
         this.index = index;
@@ -1370,6 +1374,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.context = context;
         this.ingestionStatus = ingestionStatus;
         this.splitShardsMetadata = splitShardsMetadata;
+        this.timestampRange = timestampRange;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -1621,6 +1626,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return splitShardsMetadata;
     }
 
+    /**
+     * Returns the known range of {@code @timestamp} values in this index, or {@link IndexLongFieldRange#UNKNOWN}
+     * if not yet computed.
+     */
+    public IndexLongFieldRange getTimestampRange() {
+        return timestampRange;
+    }
+
     public int getIndexTotalShardsPerNodeLimit() {
         return this.indexTotalShardsPerNodeLimit;
     }
@@ -1725,6 +1738,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (!Objects.equals(splitShardsMetadata, that.splitShardsMetadata)) {
             return false;
         }
+        if (!Objects.equals(timestampRange, that.timestampRange)) {
+            return false;
+        }
         return true;
     }
 
@@ -1746,6 +1762,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         result = 31 * result + Objects.hashCode(context);
         result = 31 * result + Objects.hashCode(ingestionStatus);
         result = 31 * result + Objects.hashCode(splitShardsMetadata);
+        result = 31 * result + Objects.hashCode(timestampRange);
         return result;
     }
 
@@ -1793,6 +1810,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final IngestionStatus ingestionStatus;
         private final Diff<SplitShardsMetadata> splitMetadata;
         private final Map<Integer, Long> primaryTermsMap;
+        private final IndexLongFieldRange timestampRange;
 
         IndexMetadataDiff(IndexMetadata before, IndexMetadata after) {
             index = after.index.getName();
@@ -1818,6 +1836,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             ingestionStatus = after.ingestionStatus;
             splitMetadata = after.splitShardsMetadata.diff(before.splitShardsMetadata);
             primaryTermsMap = after.primaryTermsMap;
+            timestampRange = after.timestampRange;
         }
 
         private static final DiffableUtils.DiffableValueReader<String, AliasMetadata> ALIAS_METADATA_DIFF_VALUE_READER =
@@ -1875,6 +1894,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 }
                 this.primaryTermsMap = primaryTermsMap;
             }
+
+            if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+                timestampRange = IndexLongFieldRange.readFrom(in);
+            } else {
+                timestampRange = IndexLongFieldRange.UNKNOWN;
+            }
         }
 
         @Override
@@ -1914,6 +1939,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 splitMetadata.writeTo(out);
                 out.writeMap(primaryTermsMap, StreamOutput::writeInt, StreamOutput::writeLong);
             }
+
+            if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+                timestampRange.writeTo(out);
+            }
         }
 
         @Override
@@ -1938,6 +1967,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (splitMetadata != null) {
                 builder.splitShardsMetadata(splitMetadata.apply(part.splitShardsMetadata));
             }
+            builder.timestampRange(timestampRange);
             // TODO: support ingestion source
             return builder.build();
         }
@@ -2002,6 +2032,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 primaryTermsMapFromArray.put(shardId, primaryTerms[shardId]);
             }
             builder.primaryTermsMap(primaryTermsMapFromArray);
+        }
+
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            builder.timestampRange(IndexLongFieldRange.readFrom(in));
         }
         return builder.build();
     }
@@ -2069,6 +2103,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             splitShardsMetadata.writeTo(out);
             out.writeMap(primaryTermsMap, StreamOutput::writeInt, StreamOutput::writeLong);
         }
+
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            timestampRange.writeTo(out);
+        }
     }
 
     @Override
@@ -2101,6 +2139,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (out.getVersion().onOrAfter(Version.V_3_6_0)) {
             splitShardsMetadata.writeTo(out);
             out.writeMap(primaryTermsMap, StreamOutput::writeInt, StreamOutput::writeLong);
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            timestampRange.writeTo(out);
         }
     }
 
@@ -2142,6 +2184,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             .append(ingestionStatus)
             .append(", splitShardsMetadata=")
             .append(splitShardsMetadata)
+            .append(", timestampRange=")
+            .append(timestampRange)
             .append("}")
             .toString();
     }
@@ -2192,6 +2236,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private Context context;
         private IngestionStatus ingestionStatus;
         private SplitShardsMetadata splitShardsMetadata;
+        private IndexLongFieldRange timestampRange = IndexLongFieldRange.UNKNOWN;
 
         public Builder(String index) {
             this.index = index;
@@ -2222,6 +2267,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.context = indexMetadata.context;
             this.ingestionStatus = indexMetadata.ingestionStatus;
             this.splitShardsMetadata = indexMetadata.splitShardsMetadata;
+            this.timestampRange = indexMetadata.timestampRange;
         }
 
         public Builder index(String index) {
@@ -2477,6 +2523,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return splitShardsMetadata;
         }
 
+        public Builder timestampRange(IndexLongFieldRange timestampRange) {
+            this.timestampRange = timestampRange;
+            return this;
+        }
+
+        public IndexLongFieldRange getTimestampRange() {
+            return timestampRange;
+        }
+
         public IndexMetadata build() {
             final Map<String, AliasMetadata> tmpAliases = aliases;
             Settings tmpSettings = settings;
@@ -2660,7 +2715,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 context,
                 ingestionStatus,
                 splitShardsMetadata,
-                primaryTermsMap
+                primaryTermsMap,
+                timestampRange
             );
         }
 
@@ -2787,6 +2843,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.endObject();
             }
 
+            if (indexMetadata.timestampRange != null) {
+                builder.startObject(KEY_TIMESTAMP_RANGE);
+                indexMetadata.timestampRange.toXContent(builder, params);
+                builder.endObject();
+            }
+
             builder.endObject();
         }
 
@@ -2872,6 +2934,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         builder.ingestionStatus(IngestionStatus.fromXContent(parser));
                     } else if (KEY_SPLIT_SHARDS_METADATA.equals(currentFieldName)) {
                         builder.splitShardsMetadata(SplitShardsMetadata.parse(parser));
+                    } else if (KEY_TIMESTAMP_RANGE.equals(currentFieldName)) {
+                        builder.timestampRange(IndexLongFieldRange.fromXContent(parser));
                     } else if (KEY_PRIMARY_TERMS_MAP.equals(currentFieldName)) {
                         Map<Integer, Long> primaryTermsMap = new HashMap<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
