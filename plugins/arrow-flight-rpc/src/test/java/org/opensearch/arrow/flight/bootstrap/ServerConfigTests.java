@@ -74,6 +74,7 @@ public class ServerConfigTests extends OpenSearchTestCase {
         assertTrue(settings.contains(ServerConfig.ARROW_SSL_ENABLE));
         assertTrue(settings.contains(ServerConfig.FLIGHT_READY_TIMEOUT));
         assertTrue(settings.contains(ServerConfig.FLIGHT_OUTBOUND_BUFFER_THRESHOLD));
+        assertTrue(settings.contains(ServerConfig.FLIGHT_CLIENT_FLOW_CONTROL_WINDOW));
     }
 
     public void testDefaultSettings() {
@@ -89,6 +90,8 @@ public class ServerConfigTests extends OpenSearchTestCase {
         assertFalse(ServerConfig.ARROW_SSL_ENABLE.get(defaultSettings));
         assertEquals(TimeValue.timeValueSeconds(60), ServerConfig.FLIGHT_READY_TIMEOUT.get(defaultSettings));
         assertEquals(512L * 1024, ServerConfig.FLIGHT_OUTBOUND_BUFFER_THRESHOLD.get(defaultSettings).getBytes());
+        // 0 keeps gRPC's BDP auto-tuning
+        assertEquals(0L, ServerConfig.FLIGHT_CLIENT_FLOW_CONTROL_WINDOW.get(defaultSettings).getBytes());
     }
 
     public void testBackpressureSettingsParse() {
@@ -145,5 +148,17 @@ public class ServerConfigTests extends OpenSearchTestCase {
             .put(ServerConfig.FLIGHT_OUTBOUND_BUFFER_THRESHOLD.getKey(), new ByteSizeValue(3, ByteSizeUnit.GB))
             .build();
         expectThrows(IllegalArgumentException.class, () -> ServerConfig.FLIGHT_OUTBOUND_BUFFER_THRESHOLD.get(tooHigh));
+    }
+
+    public void testClientFlowControlWindowBounds() {
+        Settings sixtyFourMb = Settings.builder()
+            .put(ServerConfig.FLIGHT_CLIENT_FLOW_CONTROL_WINDOW.getKey(), new ByteSizeValue(64, ByteSizeUnit.MB))
+            .build();
+        assertEquals(64L * 1024 * 1024, ServerConfig.FLIGHT_CLIENT_FLOW_CONTROL_WINDOW.get(sixtyFourMb).getBytes());
+
+        Settings tooHigh = Settings.builder()
+            .put(ServerConfig.FLIGHT_CLIENT_FLOW_CONTROL_WINDOW.getKey(), new ByteSizeValue(2, ByteSizeUnit.GB))
+            .build();
+        expectThrows(IllegalArgumentException.class, () -> ServerConfig.FLIGHT_CLIENT_FLOW_CONTROL_WINDOW.get(tooHigh));
     }
 }

@@ -38,6 +38,28 @@ queue grow.
   **Must be strictly smaller than `native.allocator.pool.flight.max`** so the
   gate engages before the allocator runs out (typical headroom: ~16 MiB).
 
+### Client receive window (`arrow.flight.client.flow_control_window`)
+
+The settings above govern the sender's queue. How much data can be on the wire
+is set by the receiver: the client's HTTP/2 flow-control window, which every
+stream on a connection shares. By default (`0`) gRPC auto-tunes it from its
+bandwidth-delay estimate, starting at 1 MiB and capped at 8 MiB. One connection
+carries at most about one window per round trip, so on a high-latency link
+throughput is bounded by roughly `window / RTT` no matter how many streams share
+the connection. For example, at 70 ms RTT a few MiB of window works out to tens
+of MB/s.
+
+Setting `arrow.flight.client.flow_control_window` (node-scope, `0` to `1gb`)
+fixes the window at that size and turns auto-tuning off. Notes:
+
+- It only helps if the kernel also allows that much data in flight: raise
+  `net.ipv4.tcp_rmem` (receiver) and `net.ipv4.tcp_wmem` (sender). With stock
+  Linux limits (6 MiB / 4 MiB) the TCP window, about 3 MiB, binds first.
+  Changing them affects only new connections.
+- A connection can buffer up to one window of unread data while its consumer
+  is slow. Size the window at roughly `2 × target throughput × RTT`, and count
+  it once per connection and per peer node.
+
 ## Operator-facing behaviour
 
 ### Fast consumer (steady state)
