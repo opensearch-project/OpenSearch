@@ -548,6 +548,15 @@ public class JavaJodaTimeDuellingTests extends OpenSearchTestCase {
         assertSameDate("2012-W1-1", "weekyear_week_day");
     }
 
+    public void testParsing() {
+        // considered as year
+        assertSameDate("1234", "strict_date_optional_time||epoch_millis");
+        // considered as 12345 milliseconds since epoch
+        assertSameDate("12345", "strict_date_optional_time||epoch_millis");
+        // considered as 561600000 milliseconds before epoch
+        assertSameDate("-561600000", "strict_date_optional_time||epoch_millis");
+    }
+
     public void testCompositeParsing() {
         // in all these examples the second pattern will be used
         assertSameDate("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
