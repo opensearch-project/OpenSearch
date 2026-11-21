@@ -503,6 +503,43 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         }
     }
 
+    public void testQueryWithLongWildCardQueryCanBeSearched2() throws IOException {
+        WildcardFieldMapper.WildcardFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
+        QueryShardContext context = mock(QueryShardContext.class);
+        when(context.sourcePath("field")).thenReturn(Set.of("field"));
+
+        String alphabet = "abcdefghijklmnopqrstuvwxyz";
+        String value = alphabet.repeat(80);
+        String shortValue = alphabet.repeat(79);
+        String pattern = value + "*";
+        assertTrue(value.length() > 2000);
+
+        Set<String> requiredNGrams = WildcardFieldMapper.WildcardFieldType.getRequiredNGrams(pattern, false);
+        assertEquals(27, requiredNGrams.size());
+
+        Query approximation = new WildcardFieldMapper.RequiredTermsQuery("field", requiredNGrams, false);
+        Query query = ft.wildcardQuery(pattern, null, false, context);
+        assertEquals(expectedQuery("field", approximation, pattern), query);
+
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig())) {
+                writer.addDocument(wildcardFieldDocument(value));
+                writer.addDocument(wildcardFieldDocument(shortValue));
+                writer.addDocument(wildcardFieldDocument("unrelated"));
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                assertEquals(2, reader.docFreq(new Term("field", "abc")));
+                // The approximation includes the shorter document.
+                assertEquals(2, searcher.count(approximation));
+                ;
+                // Full-pattern verification must reject the shorter document.
+                assertEquals(1, countMatches(searcher, query));
+            }
+        }
+    }
+
     /**
      * A query built without a {@link QueryShardContext} has no way to fetch field values, so it can be compared but
      * never searched. Searching one has to fail loudly rather than silently returning first-phase false positives.
