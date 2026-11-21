@@ -32,6 +32,9 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.ServerSideCopyBlobContainer;
+import org.opensearch.common.blobstore.ServerSideCopySource;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.logging.Loggers;
@@ -68,6 +71,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -225,6 +229,79 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             replaceUploadedSegments(Collections.emptyMap());
         }
         return remoteSegmentMetadata;
+    }
+
+    /**
+     * Reads the segment mapping recorded at one specific commit, without changing what this instance considers
+     * current.
+     *
+     * <p>For a caller that needs to address the blobs of a known commit while the shard carries on writing - copying
+     * them elsewhere, auditing them - rather than to restore from it. Differs from
+     * {@link #initializeToSpecificCommit} in the two respects that make it safe to call on a live shard:
+     *
+     * <ul>
+     *   <li>It does not require the commit's metadata file to be locked, so the caller takes on no lock to acquire
+     *       and no obligation to release one.</li>
+     *   <li>It does not replace this instance's uploaded-segment map, so reads, uploads and stale-segment deletion
+     *       continue against the latest commit as before.</li>
+     * </ul>
+     *
+     * <p>Needed because {@link #getSegmentsUploadedToRemoteStore()} reflects whichever metadata file this instance
+     * last initialised to, normally the newest refresh rather than the commit of interest. Using it to resolve an
+     * older commit goes wrong twice over: it reports files that commit never contained, and because
+     * {@code getNewRemoteSegmentFilename} mints a fresh UUID on every upload, the same Lucene file name can map to a
+     * blob uploaded by a different primary. Callers should still compare the returned checksum and length against
+     * what they expect of the commit, since this method reports what the metadata file claims and does not verify it
+     * against the blobs themselves.
+     *
+     * @param primaryTerm primary term of the commit
+     * @param generation  generation of the commit
+     * @return Lucene file name to uploaded blob metadata, as recorded at that commit; unmodifiable
+     * @throws NoSuchFileException if no metadata file exists for the commit, which is the normal outcome once the
+     *                             commit has aged out of the retention window
+     * @throws IllegalStateException if more than one metadata file matches the commit
+     * @throws IOException         if the metadata file cannot be read
+     */
+    public Map<String, UploadedSegmentMetadata> readSegmentsForCommit(long primaryTerm, long generation) throws IOException {
+        final String metadataFile = getMetadataFileForCommit(primaryTerm, generation);
+        final RemoteSegmentMetadata remoteSegmentMetadata = readMetadataFile(metadataFile);
+        if (remoteSegmentMetadata == null) {
+            // The file was listed, so it exists; being unreadable as metadata means it is corrupt rather than absent.
+            throw new IOException(
+                "Metadata file ["
+                    + metadataFile
+                    + "] for primary term "
+                    + primaryTerm
+                    + " and generation "
+                    + generation
+                    + " could not be read as segment metadata"
+            );
+        }
+        return Collections.unmodifiableMap(remoteSegmentMetadata.getMetadata());
+    }
+
+    /**
+     * Describes this shard's segment data as the source of a provider-side copy, so a caller can have the storage
+     * provider copy segments out without their bytes being read through this process.
+     *
+     * <p>Blob names within the returned source are the {@code uploadedFilename} values reported by
+     * {@link #readSegmentsForCommit}, never Lucene file names.
+     *
+     * @return the copy source, or empty when this shard's segment data cannot act as one. Empty is a normal outcome
+     *         meaning "fall back to reading the bytes", and arises when the shard routes blobs per data format, so
+     *         there is no single data container, or when the underlying provider has no server-side copy primitive.
+     * @throws IllegalStateException if the remote store repository is itself registered as a copy <em>destination</em>,
+     *         which is a misconfiguration rather than an absent capability
+     */
+    public Optional<ServerSideCopySource> asServerSideCopySource() {
+        if (remoteDataDirectory.getFormatBlobRouter().isPresent()) {
+            return Optional.empty();
+        }
+        final BlobContainer dataContainer = remoteDataDirectory.getBlobContainer();
+        if (dataContainer instanceof ServerSideCopyBlobContainer == false) {
+            return Optional.empty();
+        }
+        return Optional.of(((ServerSideCopyBlobContainer) dataContainer).asCopySource());
     }
 
     /**

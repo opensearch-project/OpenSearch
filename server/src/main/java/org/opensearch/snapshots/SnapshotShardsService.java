@@ -71,6 +71,7 @@ import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.repositories.blobstore.RemoteStoreCopySource;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestDeduplicator;
@@ -534,7 +535,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         version,
                         userMetadata,
                         ActionListener.runBefore(listener, wrappedSnapshot::close),
-                        indexMetadata
+                        indexMetadata,
+                        remoteStoreCopySource(indexShard, catalogSnapshot)
                     );
                 }
             } catch (Exception e) {
@@ -543,6 +545,37 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             }
         } catch (Exception e) {
             listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Where the remote store already holds this commit's segments, so the repository can have the storage provider
+     * copy them instead of reading their bytes out of the local store.
+     *
+     * <p>Always optional. Returns null for a shard that is not remote-store-backed, and for anything that goes wrong
+     * while working it out: this is an optimisation, and a snapshot must not fail because it could not be set up. A
+     * null result simply means the bytes get uploaded the way they always have.
+     */
+    @Nullable
+    private RemoteStoreCopySource remoteStoreCopySource(final IndexShard indexShard, final CatalogSnapshot catalogSnapshot) {
+        if (indexShard.indexSettings().isRemoteStoreEnabled() == false) {
+            return null;
+        }
+        try {
+            return RemoteStoreCopySource.resolve(
+                indexShard.getRemoteDirectory(),
+                indexShard.getOperationPrimaryTerm(),
+                catalogSnapshot.getGeneration()
+            ).orElse(null);
+        } catch (final Exception e) {
+            logger.warn(
+                () -> new ParameterizedMessage(
+                    "[{}] could not resolve the remote store as a snapshot copy source; uploading segment bytes instead",
+                    indexShard.shardId()
+                ),
+                e
+            );
+            return null;
         }
     }
 
