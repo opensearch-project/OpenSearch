@@ -3,34 +3,36 @@
  */
 package org.opensearch.tools.cli.heapprof;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import picocli.CommandLine.Parameters;
+
 /**
  * Subcommand that resets profiling state and optionally sets a new sample interval.
  */
 class ResetCommand extends HeapProfCommand {
-    private final OptionSpec<String> lgSampleArg;
+    @Parameters(arity = "0..*", paramLabel = "lg_prof_sample", description = "Log2 of bytes between samples")
+    private List<String> arguments = new ArrayList<>();
 
     ResetCommand() {
         super("Reset profiling state (discards data) and set sample interval");
-        lgSampleArg = parser.nonOptions("lg_prof_sample (log2 of bytes between samples: 15=32KB, 17=128KB, 19=512KB)").ofType(String.class);
     }
 
     @Override
-    protected void invokeOnMBean(MBeanServerConnection mbs, ObjectName mbean, Terminal terminal, OptionSet options) throws Exception {
-        var args = lgSampleArg.values(options);
+    protected void invokeOnMBean(MBeanServerConnection mbs, ObjectName mbean, Terminal terminal) throws Exception {
         int lgSample = 17; // default
-        if (!args.isEmpty()) {
+        if (!arguments.isEmpty()) {
             try {
-                lgSample = Integer.parseInt(args.get(0));
+                lgSample = Integer.parseInt(arguments.get(0));
             } catch (NumberFormatException e) {
-                throw new UserException(1, "lg_prof_sample must be an integer, got: " + args.get(0));
+                throw new UserException(1, "lg_prof_sample must be an integer, got: " + arguments.get(0));
             }
         }
         mbs.invoke(mbean, "reset", new Object[] { lgSample }, new String[] { "int" });

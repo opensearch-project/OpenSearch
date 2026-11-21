@@ -11,8 +11,8 @@
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
  * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
+ * the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
@@ -24,6 +24,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 /*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
@@ -31,8 +32,6 @@
 
 package org.opensearch.env;
 
-import joptsimple.OptionParser;
-import joptsimple.OptionSet;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cluster.ClusterState;
@@ -69,38 +68,41 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
 
     static final String ABORTED_BY_USER_MSG = OpenSearchNodeCommand.ABORTED_BY_USER_MSG;
     static final String FAILED_TO_OBTAIN_NODE_LOCK_MSG = OpenSearchNodeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG;
+
     static final String NO_CLEANUP = "Node has node.data=true and node.warm=true -> no clean up necessary";
     static final String NO_DATA_TO_CLEAN_UP_FOUND = "No data to clean-up found";
     static final String NO_SHARD_DATA_TO_CLEAN_UP_FOUND = "No shard data to clean-up found";
     static final String NO_FILE_CACHE_DATA_TO_CLEAN_UP_FOUND = "No file cache to clean-up found";
+
     private static final int FILE_CACHE_NODE_PATH_LOCATION = 0;
 
     public NodeRepurposeCommand() {
         super("Repurpose this node to another cluster-manager/data/warm role, cleaning up any excess persisted data");
     }
 
-    void testExecute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        execute(terminal, options, env);
+    // ---- lifecycle & validation ------------------------------------------------
+
+    void testExecute(Terminal terminal, Environment env) throws Exception {
+        execute(terminal, env);
     }
 
     @Override
-    protected boolean validateBeforeLock(Terminal terminal, Environment env) {
-        Settings settings = env.settings();
+    protected boolean validateBeforeLock(final Terminal terminal, final Environment env) {
+        final Settings settings = env.settings();
         if (DiscoveryNode.isDataNode(settings) && DiscoveryNode.isWarmNode(settings)) {
             terminal.println(Terminal.Verbosity.NORMAL, NO_CLEANUP);
             return false;
         }
-
         return true;
     }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, int nodeLockId, OptionSet options, Environment env)
+    protected void processNodePaths(final Terminal terminal, final Path[] dataPaths, final int nodeLockId, final Environment env)
         throws IOException {
         assert DiscoveryNode.isDataNode(env.settings()) == false || DiscoveryNode.isWarmNode(env.settings()) == false;
 
-        boolean repurposeData = DiscoveryNode.isDataNode(env.settings()) == false;
-        boolean repurposeWarm = DiscoveryNode.isWarmNode(env.settings()) == false;
+        final boolean repurposeData = (DiscoveryNode.isDataNode(env.settings()) == false);
+        final boolean repurposeWarm = (DiscoveryNode.isWarmNode(env.settings()) == false);
 
         if (DiscoveryNode.isClusterManagerNode(env.settings()) == false) {
             processNoClusterManagerRepurposeNode(terminal, dataPaths, env, repurposeData, repurposeWarm);
@@ -109,17 +111,20 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
         }
     }
 
+    // ---- implementations -------------------------------------------------------
+
     private void processNoClusterManagerRepurposeNode(
-        Terminal terminal,
-        Path[] dataPaths,
-        Environment env,
-        boolean repurposeData,
-        boolean repurposeSearch
+        final Terminal terminal,
+        final Path[] dataPaths,
+        final Environment env,
+        final boolean repurposeData,
+        final boolean repurposeSearch
     ) throws IOException {
-        NodeEnvironment.NodePath[] nodePaths = toNodePaths(dataPaths);
-        NodeEnvironment.NodePath fileCacheNodePath = toNodePaths(dataPaths)[FILE_CACHE_NODE_PATH_LOCATION];
-        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths);
-        final Metadata metadata = loadClusterState(terminal, env, persistedClusterStateService).metadata();
+
+        final NodeEnvironment.NodePath[] nodePaths = toNodePaths(dataPaths);
+        final NodeEnvironment.NodePath fileCacheNodePath = toNodePaths(dataPaths)[FILE_CACHE_NODE_PATH_LOCATION];
+        final PersistedClusterStateService psf = createPersistedClusterStateService(env.settings(), dataPaths);
+        final Metadata metadata = loadClusterState(terminal, env, psf).metadata();
 
         Set<Path> indexPaths = Set.of();
         List<Path> shardDataPaths = List.of();
@@ -127,7 +132,7 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
         List<Path> fileCacheDataPaths = List.of();
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting index metadata paths");
-        List<Path> indexMetadataPaths = NodeEnvironment.collectIndexMetadataPaths(nodePaths);
+        final List<Path> indexMetadataPaths = NodeEnvironment.collectIndexMetadataPaths(nodePaths);
 
         if (repurposeData) {
             terminal.println(Terminal.Verbosity.VERBOSE, "Collecting shard data paths");
@@ -157,13 +162,14 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
             Sets.union(
                 indexUUIDsFor(indexPaths),
                 StreamSupport.stream(metadata.indices().values().spliterator(), false)
-                    .map(imd -> imd.getIndexUUID())
+                    .map(IndexMetadata::getIndexUUID)
                     .collect(Collectors.toSet())
             )
         );
 
-        List<Path> cleanUpPaths = new ArrayList<>(shardDataPaths);
+        final List<Path> cleanUpPaths = new ArrayList<>(shardDataPaths);
         cleanUpPaths.addAll(fileCacheDataPaths);
+
         outputVerboseInformation(terminal, cleanUpPaths, indexUUIDs, metadata);
         terminal.println(noClusterManagerMessage(indexUUIDs.size(), cleanUpPaths.size(), indexMetadataPaths.size()));
         outputHowToSeeVerboseInformation(terminal);
@@ -179,13 +185,15 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
                 "Node is being re-purposed as no-cluster-manager and no-warm. Clean-up of file cache and corresponding index metadata will be performed."
             );
         }
+
         confirm(terminal, "Do you want to proceed?");
 
         // clean-up all metadata dirs
         MetadataStateFormat.deleteMetaState(dataPaths);
+
         if (repurposeData) {
             removePaths(terminal, indexPaths); // clean-up shard dirs
-            IOUtils.rm(Stream.of(dataPaths).map(path -> path.resolve(INDICES_FOLDER)).toArray(Path[]::new));
+            IOUtils.rm(Stream.of(dataPaths).map(p -> p.resolve(INDICES_FOLDER)).toArray(Path[]::new));
         }
 
         if (repurposeSearch) {
@@ -203,16 +211,17 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
     }
 
     private void processClusterManagerRepurposeNode(
-        Terminal terminal,
-        Path[] dataPaths,
-        Environment env,
-        boolean repurposeData,
-        boolean repurposeSearch
+        final Terminal terminal,
+        final Path[] dataPaths,
+        final Environment env,
+        final boolean repurposeData,
+        final boolean repurposeSearch
     ) throws IOException {
-        NodeEnvironment.NodePath[] nodePaths = toNodePaths(dataPaths);
-        NodeEnvironment.NodePath fileCacheNodePath = toNodePaths(dataPaths)[FILE_CACHE_NODE_PATH_LOCATION];
-        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths);
-        final Metadata metadata = loadClusterState(terminal, env, persistedClusterStateService).metadata();
+
+        final NodeEnvironment.NodePath[] nodePaths = toNodePaths(dataPaths);
+        final NodeEnvironment.NodePath fileCacheNodePath = toNodePaths(dataPaths)[FILE_CACHE_NODE_PATH_LOCATION];
+        final PersistedClusterStateService psf = createPersistedClusterStateService(env.settings(), dataPaths);
+        final Metadata metadata = loadClusterState(terminal, env, psf).metadata();
 
         Set<Path> indexPaths = Set.of();
         List<Path> shardDataPaths = List.of();
@@ -244,8 +253,9 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
 
         final Set<String> indexUUIDs = Sets.union(indexUUIDsFor(indexPaths), indexUUIDsFor(fileCachePaths));
 
-        List<Path> cleanUpPaths = new ArrayList<>(shardDataPaths);
+        final List<Path> cleanUpPaths = new ArrayList<>(shardDataPaths);
         cleanUpPaths.addAll(fileCacheDataPaths);
+
         outputVerboseInformation(terminal, cleanUpPaths, indexUUIDs, metadata);
         terminal.println(shardMessage(cleanUpPaths.size(), indexUUIDs.size()));
         outputHowToSeeVerboseInformation(terminal);
@@ -279,42 +289,50 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
         }
     }
 
-    private ClusterState loadClusterState(Terminal terminal, Environment env, PersistedClusterStateService psf) throws IOException {
+    // ---- helpers --------------------------------------------------------------
+
+    private ClusterState loadClusterState(final Terminal terminal, final Environment env, final PersistedClusterStateService psf)
+        throws IOException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
         return clusterState(env, psf.loadBestOnDiskState());
     }
 
-    private void outputVerboseInformation(Terminal terminal, Collection<Path> pathsToCleanup, Set<String> indexUUIDs, Metadata metadata) {
+    private void outputVerboseInformation(
+        final Terminal terminal,
+        final Collection<Path> pathsToCleanup,
+        final Set<String> indexUUIDs,
+        final Metadata metadata
+    ) {
         if (terminal.isPrintable(Terminal.Verbosity.VERBOSE)) {
             terminal.println(Terminal.Verbosity.VERBOSE, "Paths to clean up:");
-            pathsToCleanup.forEach(p -> terminal.println(Terminal.Verbosity.VERBOSE, "  " + p.toString()));
+            pathsToCleanup.forEach(p -> terminal.println(Terminal.Verbosity.VERBOSE, "  " + p));
             terminal.println(Terminal.Verbosity.VERBOSE, "Indices affected:");
             indexUUIDs.forEach(uuid -> terminal.println(Terminal.Verbosity.VERBOSE, "  " + toIndexName(uuid, metadata)));
         }
     }
 
-    private void outputHowToSeeVerboseInformation(Terminal terminal) {
+    private void outputHowToSeeVerboseInformation(final Terminal terminal) {
         if (terminal.isPrintable(Terminal.Verbosity.VERBOSE) == false) {
             terminal.println("Use -v to see list of paths and indices affected");
         }
     }
 
-    private String toIndexName(String uuid, Metadata metadata) {
+    private String toIndexName(final String uuid, final Metadata metadata) {
         if (metadata != null) {
-            for (final IndexMetadata indexMetadata : metadata.indices().values()) {
-                if (indexMetadata.getIndexUUID().equals(uuid)) {
-                    return indexMetadata.getIndex().getName();
+            for (final IndexMetadata imd : metadata.indices().values()) {
+                if (imd.getIndexUUID().equals(uuid)) {
+                    return imd.getIndex().getName();
                 }
             }
         }
         return "no name for uuid: " + uuid;
     }
 
-    private Set<String> indexUUIDsFor(Set<Path> indexPaths) {
+    private Set<String> indexUUIDsFor(final Set<Path> indexPaths) {
         return indexPaths.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.toSet());
     }
 
-    static String noClusterManagerMessage(int indexes, int shards, int indexMetadata) {
+    static String noClusterManagerMessage(final int indexes, final int shards, final int indexMetadata) {
         return "Found "
             + indexes
             + " indices ("
@@ -324,16 +342,16 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
             + " index meta data) to clean up";
     }
 
-    static String shardMessage(int shards, int indices) {
+    static String shardMessage(final int shards, final int indices) {
         return "Found " + shards + " shards/file cache folders in " + indices + " indices to clean up";
     }
 
-    private void removePaths(Terminal terminal, Collection<Path> paths) {
+    private void removePaths(final Terminal terminal, final Collection<Path> paths) {
         terminal.println(Terminal.Verbosity.VERBOSE, "Removing data");
         paths.forEach(this::removePath);
     }
 
-    private void removePath(Path path) {
+    private void removePath(final Path path) {
         try {
             IOUtils.rm(path);
         } catch (IOException e) {
@@ -343,13 +361,7 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
 
     @SafeVarargs
     @SuppressWarnings("varargs")
-    private final Set<Path> uniqueParentPaths(Collection<Path>... paths) {
-        // equals on Path is good enough here due to the way these are collected.
+    private final Set<Path> uniqueParentPaths(final Collection<Path>... paths) {
         return Arrays.stream(paths).flatMap(Collection::stream).map(Path::getParent).collect(Collectors.toSet());
-    }
-
-    // package-private for testing
-    OptionParser getParser() {
-        return parser;
     }
 }

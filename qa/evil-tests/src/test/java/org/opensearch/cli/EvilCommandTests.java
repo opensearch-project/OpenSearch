@@ -32,7 +32,6 @@
 
 package org.opensearch.cli;
 
-import joptsimple.OptionSet;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -47,10 +46,11 @@ public class EvilCommandTests extends OpenSearchTestCase {
     public void testCommandShutdownHook() throws Exception {
         final AtomicBoolean closed = new AtomicBoolean();
         final boolean shouldThrow = randomBoolean();
+
         final Command command = new Command("test-command-shutdown-hook", () -> {}) {
             @Override
-            protected void execute(Terminal terminal, OptionSet options) throws Exception {
-
+            protected void execute(Terminal terminal) throws Exception {
+                // no-op; we're only testing the shutdown hook & close()
             }
 
             @Override
@@ -61,14 +61,20 @@ public class EvilCommandTests extends OpenSearchTestCase {
                 }
             }
         };
+
         final MockTerminal terminal = new MockTerminal();
         command.main(new String[0], terminal);
+
         assertNotNull(command.getShutdownHookThread());
         // successful removal here asserts that the runtime hook was installed in Command#main
         assertTrue(Runtime.getRuntime().removeShutdownHook(command.getShutdownHookThread()));
+
+        // Manually run & wait for the hook to complete to verify close() + error reporting
         command.getShutdownHookThread().run();
         command.getShutdownHookThread().join();
+
         assertTrue(closed.get());
+
         final String output = terminal.getErrorOutput();
         if (shouldThrow) {
             // ensure that we dump the exception
@@ -79,5 +85,4 @@ public class EvilCommandTests extends OpenSearchTestCase {
             assertThat(output, is(emptyString()));
         }
     }
-
 }
