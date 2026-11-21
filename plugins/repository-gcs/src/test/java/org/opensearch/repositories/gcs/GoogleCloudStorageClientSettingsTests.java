@@ -62,6 +62,7 @@ import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.C
 import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.PROJECT_ID_SETTING;
 import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
+import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.UNIVERSE_DOMAIN_SETTING;
 import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.getClientSettings;
 import static org.opensearch.repositories.gcs.GoogleCloudStorageClientSettings.loadCredential;
 
@@ -92,6 +93,7 @@ public class GoogleCloudStorageClientSettingsTests extends OpenSearchTestCase {
             assertGoogleCredential(expectedClientSettings.getCredential(), actualClientSettings.getCredential());
             assertEquals(expectedClientSettings.getHost(), actualClientSettings.getHost());
             assertEquals(expectedClientSettings.getProjectId(), actualClientSettings.getProjectId());
+            assertEquals(expectedClientSettings.getUniverseDomain(), actualClientSettings.getUniverseDomain());
             assertEquals(expectedClientSettings.getConnectTimeout(), actualClientSettings.getConnectTimeout());
             assertEquals(expectedClientSettings.getReadTimeout(), actualClientSettings.getReadTimeout());
             assertEquals(expectedClientSettings.getApplicationName(), actualClientSettings.getApplicationName());
@@ -119,6 +121,7 @@ public class GoogleCloudStorageClientSettingsTests extends OpenSearchTestCase {
             credential,
             ENDPOINT_SETTING.getDefault(Settings.EMPTY),
             PROJECT_ID_SETTING.getDefault(Settings.EMPTY),
+            UNIVERSE_DOMAIN_SETTING.getDefault(Settings.EMPTY),
             CONNECT_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
             READ_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
             APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY),
@@ -240,6 +243,7 @@ public class GoogleCloudStorageClientSettingsTests extends OpenSearchTestCase {
             randomCredential(clientName).v1(),
             ENDPOINT_SETTING.getDefault(Settings.EMPTY),
             PROJECT_ID_SETTING.getDefault(Settings.EMPTY),
+            UNIVERSE_DOMAIN_SETTING.getDefault(Settings.EMPTY),
             CONNECT_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
             READ_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
             APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY),
@@ -310,6 +314,14 @@ public class GoogleCloudStorageClientSettingsTests extends OpenSearchTestCase {
             projectId = PROJECT_ID_SETTING.getDefault(Settings.EMPTY);
         }
 
+        String universeDomain;
+        if (randomBoolean()) {
+            universeDomain = randomAlphaOfLength(5) + ".fr";
+            settings.put(UNIVERSE_DOMAIN_SETTING.getConcreteSettingForNamespace(clientName).getKey(), universeDomain);
+        } else {
+            universeDomain = UNIVERSE_DOMAIN_SETTING.getDefault(Settings.EMPTY);
+        }
+
         TimeValue connectTimeout;
         if (randomBoolean()) {
             connectTimeout = randomTimeout();
@@ -339,6 +351,7 @@ public class GoogleCloudStorageClientSettingsTests extends OpenSearchTestCase {
             credential,
             endpoint,
             projectId,
+            universeDomain,
             connectTimeout,
             readTimeout,
             applicationName,
