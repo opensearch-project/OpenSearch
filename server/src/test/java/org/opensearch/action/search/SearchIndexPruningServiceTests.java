@@ -31,8 +31,10 @@ import org.opensearch.index.fielddomain.FieldDomain;
 import org.opensearch.index.fielddomain.FieldDomainProvider;
 import org.opensearch.index.fielddomain.IndexFieldDomainMetadata;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
@@ -177,6 +179,78 @@ public class SearchIndexPruningServiceTests extends OpenSearchTestCase {
         assertFalse(matchingIndex.skip());
     }
 
+    public void testDoesNotPruneSearchesWithGlobalAggregations() {
+        SearchShardIterator disjointIndex = shardIterator("logs-000001", 0);
+        SearchShardIterator matchingIndex = shardIterator("logs-000002", 0);
+        GroupShardsIterator<SearchShardIterator> shardIterators = new GroupShardsIterator<>(List.of(disjointIndex, matchingIndex));
+        SearchIndexPruningService service = serviceWithDomains(
+            Map.of("logs-000001", Optional.of(domain(false)), "logs-000002", Optional.of(domain(true)))
+        );
+
+        SearchRequest request = searchRequest();
+        request.source().aggregation(AggregationBuilders.global("all_docs"));
+
+        SearchIndexPruningResult result = service.prune(request, shardIterators, ClusterState.EMPTY_STATE, evaluationContext());
+
+        assertFalse(result.pruned());
+        assertFalse(disjointIndex.skip());
+        assertFalse(matchingIndex.skip());
+    }
+
+    public void testDoesNotPruneSearchesWithSuggesters() {
+        SearchShardIterator disjointIndex = shardIterator("logs-000001", 0);
+        SearchShardIterator matchingIndex = shardIterator("logs-000002", 0);
+        GroupShardsIterator<SearchShardIterator> shardIterators = new GroupShardsIterator<>(List.of(disjointIndex, matchingIndex));
+        SearchIndexPruningService service = serviceWithDomains(
+            Map.of("logs-000001", Optional.of(domain(false)), "logs-000002", Optional.of(domain(true)))
+        );
+
+        SearchRequest request = searchRequest();
+        request.source().suggest(new SuggestBuilder());
+
+        SearchIndexPruningResult result = service.prune(request, shardIterators, ClusterState.EMPTY_STATE, evaluationContext());
+
+        assertFalse(result.pruned());
+        assertFalse(disjointIndex.skip());
+        assertFalse(matchingIndex.skip());
+    }
+
+    public void testDoesNotPruneSearchesWithZeroMinDocCountTermsAggregations() {
+        SearchShardIterator disjointIndex = shardIterator("logs-000001", 0);
+        SearchShardIterator matchingIndex = shardIterator("logs-000002", 0);
+        GroupShardsIterator<SearchShardIterator> shardIterators = new GroupShardsIterator<>(List.of(disjointIndex, matchingIndex));
+        SearchIndexPruningService service = serviceWithDomains(
+            Map.of("logs-000001", Optional.of(domain(false)), "logs-000002", Optional.of(domain(true)))
+        );
+
+        SearchRequest request = searchRequest();
+        request.source().aggregation(AggregationBuilders.terms("all_terms").field(FIELD).minDocCount(0));
+
+        SearchIndexPruningResult result = service.prune(request, shardIterators, ClusterState.EMPTY_STATE, evaluationContext());
+
+        assertFalse(result.pruned());
+        assertFalse(disjointIndex.skip());
+        assertFalse(matchingIndex.skip());
+    }
+
+    public void testPrunesSearchesWithQueryScopedAggregations() {
+        SearchShardIterator disjointIndex = shardIterator("logs-000001", 0);
+        SearchShardIterator matchingIndex = shardIterator("logs-000002", 0);
+        GroupShardsIterator<SearchShardIterator> shardIterators = new GroupShardsIterator<>(List.of(disjointIndex, matchingIndex));
+        SearchIndexPruningService service = serviceWithDomains(
+            Map.of("logs-000001", Optional.of(domain(false)), "logs-000002", Optional.of(domain(true)))
+        );
+
+        SearchRequest request = searchRequest();
+        request.source().aggregation(AggregationBuilders.terms("matching_terms").field(FIELD));
+
+        SearchIndexPruningResult result = service.prune(request, shardIterators, ClusterState.EMPTY_STATE, evaluationContext());
+
+        assertTrue(result.pruned());
+        assertTrue(result.isPrunedShardGroup(0));
+        assertFalse(result.isPrunedShardGroup(1));
+    }
+
     public void testPruningSettingsAreRegisteredAsBuiltInClusterSettings() {
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.containsAll(SearchIndexPruningSettings.getSettings()));
     }
@@ -249,7 +323,7 @@ public class SearchIndexPruningServiceTests extends OpenSearchTestCase {
             List.of(shardIterator("logs-000001", 0), shardIterator("logs-000001", 1))
         );
 
-        service.prune(new SearchRequest().source(new SearchSourceBuilder()), shardIterators, ClusterState.EMPTY_STATE, evaluationContext());
+        service.prune(searchRequest(), shardIterators, ClusterState.EMPTY_STATE, evaluationContext());
 
         assertThat(lookups.get(), equalTo(1));
     }
@@ -279,7 +353,7 @@ public class SearchIndexPruningServiceTests extends OpenSearchTestCase {
     }
 
     private static SearchRequest searchRequest() {
-        return new SearchRequest().source(new SearchSourceBuilder());
+        return new SearchRequest().source(new SearchSourceBuilder().query(QueryBuilders.rangeQuery(FIELD).gte(0)));
     }
 
     private static SearchRequest dateRangeSearchRequest(long from, long to) {
