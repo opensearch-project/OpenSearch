@@ -25,9 +25,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class DerivedFieldResolverTests extends MapperServiceTestCase {
@@ -468,6 +474,62 @@ public class DerivedFieldResolverTests extends MapperServiceTestCase {
         );
         assertEquals(4, resolver.resolvePattern("derived_*").size());
         assertEquals(4, resolver.resolvePattern("*").size()); // should not include regular field indexed_field
+        assertEquals(Set.of("derived_2"), resolver.resolvePattern("derived_2"));
+        assertEquals(Set.of(), resolver.resolvePattern("indexed_field"));
+    }
+
+    public void testMapperServiceListsOnlyDerivedFieldTypes() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startObject("properties");
+            {
+                b.startObject("indexed_field");
+                {
+                    b.field("type", "text");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            b.startObject("derived");
+            {
+                b.startObject("derived_text");
+                {
+                    b.field("type", "keyword");
+                    b.field("script", "");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        Set<String> derivedNames = mapperService.derivedFieldTypes().stream().map(MappedFieldType::name).collect(Collectors.toSet());
+        assertEquals(Set.of("derived_text"), derivedNames);
+        Set<String> allNames = StreamSupport.stream(mapperService.fieldTypes().spliterator(), false)
+            .map(MappedFieldType::name)
+            .collect(Collectors.toSet());
+        assertTrue(allNames.containsAll(Set.of("indexed_field", "derived_text")));
+    }
+
+    public void testResolvePatternDoesNotIterateAllMappedFields() throws IOException {
+        MapperService mapperService = spy(createMapperService(topMapping(b -> {
+            b.startObject("properties");
+            {
+                for (int i = 0; i < 100; i++) {
+                    b.startObject("field_" + i);
+                    {
+                        b.field("type", "keyword");
+                    }
+                    b.endObject();
+                }
+            }
+            b.endObject();
+        })));
+        // A hand-built context: the shared helper stubs calls on the mapper service, which a spy does not allow.
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.getMapperService()).thenReturn(mapperService);
+        when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
+        DerivedFieldResolver resolver = DerivedFieldResolverFactory.createResolver(queryShardContext, null, null, true);
+        assertEquals(Set.of(), resolver.resolvePattern("field_1"));
+        assertEquals(Set.of(), resolver.resolvePattern("field_*"));
+        verify(mapperService, never()).fieldTypes();
     }
 
     private void assertEqualDerivedField(DerivedField expected, DerivedField actual) {
