@@ -39,6 +39,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.opensearch.index.fielddata.IndexOrdinalsFieldData;
@@ -78,6 +79,14 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
     private final LeafOrdinalsFieldData[] segmentAfd;
     private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
 
+    /**
+     * Optional one-shot release hook for the circuit-breaker bytes reserved by this fielddata. Non-null only for
+     * <b>group-scoped</b> global ordinals (see {@link GlobalOrdinalsBuilder#buildScoped}), which are not cached and
+     * therefore must have their reserved fielddata bytes released explicitly once the owning search completes.
+     * The cached (unscoped) path leaves this null: its bytes are released by the fielddata cache's eviction listener.
+     */
+    private final Releasable breakerReleasable;
+
     protected GlobalOrdinalsIndexFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
@@ -86,12 +95,35 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         long memorySizeInBytes,
         Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction
     ) {
+        this(fieldName, valuesSourceType, segmentAfd, ordinalMap, memorySizeInBytes, scriptFunction, null);
+    }
+
+    protected GlobalOrdinalsIndexFieldData(
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        LeafOrdinalsFieldData[] segmentAfd,
+        OrdinalMap ordinalMap,
+        long memorySizeInBytes,
+        Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction,
+        Releasable breakerReleasable
+    ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.memorySizeInBytes = memorySizeInBytes;
         this.ordinalMap = ordinalMap;
         this.segmentAfd = segmentAfd;
         this.scriptFunction = scriptFunction;
+        this.breakerReleasable = breakerReleasable;
+    }
+
+    /**
+     * Returns the release hook for the circuit-breaker bytes reserved by this (scoped, uncached) fielddata, or
+     * {@code null} for cached global ordinals whose bytes are managed by the fielddata cache. Callers that build
+     * scoped ordinals must invoke this exactly once when the owning search finishes.
+     */
+    @Nullable
+    public Releasable getBreakerReleasable() {
+        return breakerReleasable;
     }
 
     public IndexOrdinalsFieldData newConsumer(DirectoryReader source) {
