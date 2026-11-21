@@ -285,6 +285,14 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         return replicaRejections;
     }
 
+    /**
+     * Returns the node's indexing pressure memory limit ({@code indexing_pressure.memory.limit}), in bytes.
+     * @return the memory limit in bytes
+     */
+    public long getMemoryLimit() {
+        return memoryLimit;
+    }
+
     private static final String COMBINED = "combined_coordinating_and_primary";
     private static final String COMBINED_IN_BYTES = "combined_coordinating_and_primary_in_bytes";
     private static final String COORDINATING = "coordinating";
