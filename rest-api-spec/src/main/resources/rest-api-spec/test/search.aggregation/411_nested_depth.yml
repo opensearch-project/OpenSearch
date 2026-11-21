@@ -1,0 +1,76 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: nested_depth
+        body:
+          settings:
+            index.query.max_nested_depth: 2
+          mappings:
+            properties:
+              a:
+                type: nested
+                properties:
+                  b:
+                    type: nested
+  - do:
+      index:
+        index: nested_depth
+        id: "1"
+        refresh: true
+        body: { "a": { "b": {} } }
+
+---
+"Nested aggregation depth errors preserve the original cause":
+  - skip:
+      version: " - 3.9.99"
+      reason: "Aggregation scope cleanup fixed in 3.10.0"
+
+  - do:
+      search:
+        index: nested_depth
+        body:
+          size: 0
+          aggs:
+            outer:
+              nested: { path: a }
+              aggs:
+                root:
+                  reverse_nested: {}
+  - match: { aggregations.outer.root.doc_count: 1 }
+
+  - do:
+      catch: bad_request
+      search:
+        index: nested_depth
+        body:
+          size: 0
+          aggs:
+            outer:
+              nested: { path: a }
+              aggs:
+                root:
+                  reverse_nested: {}
+                  aggs:
+                    too_deep:
+                      nested: { path: a }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: '/.*index.query.max_nested_depth.*/' }
+
+  - do:
+      catch: bad_request
+      search:
+        index: nested_depth
+        body:
+          size: 0
+          aggs:
+            outer:
+              nested: { path: a }
+              aggs:
+                inner:
+                  nested: { path: a.b }
+                  aggs:
+                    too_deep:
+                      reverse_nested: {}
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: '/.*index.query.max_nested_depth.*/' }
