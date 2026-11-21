@@ -38,10 +38,11 @@
 //!     no arm for them today (DF 53). If it becomes available in DataFusion,
 //!     the `BinaryView → Binary` rewrite here can be removed.
 //!
-//!     TODO: every record batch goes through a `BinaryView → Binary` cast in the
+//!     TODO [df55-perf]: every record batch goes through a `BinaryView → Binary` cast in the
 //!     SchemaAdapter (offset+data buffer copy), and downstream operators see
 //!     `Binary` rather than `BinaryView`. Drop this arm when we have a proper
-//!     solution.
+//!     solution (B-10 in implementation/df55-new-api-adoption-tasklist.md; OPT-10) — largest
+//!     string/binary lever, but a Substrait-equivalence correctness change → own PR + benchmark.
 //!
 //!   - `(Int64, UInt64)` is a Substrait + Calcite gap. Substrait's integer
 //!     types are signed-only and Calcite has no unsigned `BIGINT`, so the
