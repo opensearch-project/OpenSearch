@@ -128,3 +128,41 @@
           query:
             query_string:
               query: "unmappedField: test*"
+
+---
+"Percolate a query_string wildcard query on a wildcard field":
+  - skip:
+      version: " - 3.9.99"
+      reason: "query_string did not use the wildcard field query before 3.10"
+  - do:
+      indices.create:
+        index: wildcard_queries
+        body:
+          mappings:
+            properties:
+              query:
+                type: percolator
+              my_field:
+                type: wildcard
+
+  - do:
+      index:
+        index: wildcard_queries
+        id: query_string
+        refresh: true
+        body:
+          query:
+            query_string:
+              query: "my_field:*test*"
+
+  - do:
+      search:
+        index: wildcard_queries
+        body:
+          query:
+            percolate:
+              field: query
+              document:
+                my_field: "apache_access_test.log"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "query_string" }
