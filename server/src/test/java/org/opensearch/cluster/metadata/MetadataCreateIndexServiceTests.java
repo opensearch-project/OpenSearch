@@ -161,6 +161,7 @@ import static org.opensearch.cluster.metadata.MetadataCreateIndexService.cluster
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.getIndexNumberOfRoutingShards;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.parseV1Mappings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
+import static org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
 import static org.opensearch.common.util.FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES;
 import static org.opensearch.common.util.FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG;
@@ -3750,6 +3751,252 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         } finally {
             threadPool.shutdown();
         }
+    }
+
+    public void testNodeAwareShardingDefaultsOnePrimaryPerDataNode() {
+        final int dataNodes = randomIntBetween(1, 12);
+        // joined == provisioned: the common steady state
+        Settings indexSettings = aggregateWithNodeAwareSharding(dataNodes, dataNodes, Settings.EMPTY);
+
+        assertEquals(dataNodes, INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings).intValue());
+        assertEquals(1, INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings).intValue());
+        assertEquals("true", indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
+        assertEquals(ReplicationType.SEGMENT.toString(), indexSettings.get(SETTING_REPLICATION_TYPE));
+    }
+
+    public void testNodeAwareShardingTakesMinOfJoinedAndProvisioned() {
+        // scale-out in progress: 6 provisioned, only 2 data nodes joined -> 2
+        Settings indexSettings = aggregateWithNodeAwareSharding(2, 6, Settings.EMPTY);
+        assertEquals(2, INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings).intValue());
+        assertEquals(1, INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings).intValue());
+
+        // blue/green overlap: 8 joined, 5 provisioned -> 5
+        indexSettings = aggregateWithNodeAwareSharding(8, 5, Settings.EMPTY);
+        assertEquals(5, INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings).intValue());
+        assertEquals(1, INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings).intValue());
+
+        // provisioned_capacity unset (-1): joined data-role count alone
+        indexSettings = aggregateWithNodeAwareSharding(4, -1, Settings.EMPTY);
+        assertEquals(4, INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings).intValue());
+        assertEquals(1, INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings).intValue());
+    }
+
+    public void testNodeAwareShardingCountsOnlyDataRoleNodes() {
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
+        for (int i = 0; i < 3; i++) {
+            nodes.add(remoteNodeWithRoles(DiscoveryNodeRole.DATA_ROLE));
+        }
+        nodes.add(remoteNodeWithRoles(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE));
+        nodes.add(remoteNodeWithRoles(DiscoveryNodeRole.SEARCH_ROLE));
+        nodes.add(remoteNodeWithRoles(DiscoveryNodeRole.WARM_ROLE));
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(nodes.build()).build();
+
+        // provisioned capacity of 10 does not matter: only the 3 data-role nodes count
+        Settings indexSettings = aggregateWithNodeAwareSharding(clusterState, 10, Settings.EMPTY);
+
+        assertEquals(3, INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings).intValue());
+        assertEquals(1, INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings).intValue());
+    }
+
+    public void testNodeAwareShardingCapsExplicitShardCountByCeil() {
+        // 10 shards over 4 data nodes -> ceil(10/4) = 3 primaries per node, shard count untouched
+        Settings indexSettings = aggregateWithNodeAwareSharding(4, 4, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 10).build());
+        assertEquals(10, INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings).intValue());
+        assertEquals(3, INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings).intValue());
+
+        // exact multiple: 8 shards over 4 nodes -> 2
+        indexSettings = aggregateWithNodeAwareSharding(4, 4, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 8).build());
+        assertEquals(2, INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings).intValue());
+
+        // fewer shards than nodes: 2 shards over 4 nodes -> 1
+        indexSettings = aggregateWithNodeAwareSharding(4, 4, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).build());
+        assertEquals(1, INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings).intValue());
+
+        // explicit count with a partially joined fleet: 10 shards, 6 provisioned, 3 joined -> ceil(10/3) = 4
+        indexSettings = aggregateWithNodeAwareSharding(3, 6, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 10).build());
+        assertEquals(4, INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings).intValue());
+    }
+
+    public void testNodeAwareShardingRespectsExplicitPrimaryShardsPerNode() {
+        Settings requestSettings = Settings.builder()
+            .put(SETTING_NUMBER_OF_SHARDS, 10)
+            .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), 7)
+            .build();
+        Settings indexSettings = aggregateWithNodeAwareSharding(4, 4, requestSettings);
+        assertEquals(7, INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings).intValue());
+
+        // an explicit -1 (unlimited) is also an explicit choice and is not overridden
+        requestSettings = Settings.builder().put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), -1).build();
+        indexSettings = aggregateWithNodeAwareSharding(4, 4, requestSettings);
+        assertEquals(4, INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings).intValue());
+        assertEquals(-1, INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings).intValue());
+    }
+
+    public void testNodeAwareShardingTakesShardCountFromTemplate() {
+        // a template-provided shard count is an explicit count: kept as-is, per-node cap derived from it
+        Settings templateSettings = Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 6).build();
+        Settings indexSettings = aggregateIndexSettings(
+            clusterStateWithRemoteDataNodes(4),
+            new CreateIndexClusterStateUpdateRequest("create index", "test", "test").settings(Settings.EMPTY),
+            templateSettings,
+            null,
+            remoteNodeSettings(),
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            nodeAwareShardingClusterSettings(4)
+        );
+        assertEquals(6, INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings).intValue());
+        assertEquals(2, INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings).intValue());
+    }
+
+    public void testNodeAwareShardingDisabledByDefault() {
+        // 5 data nodes joined and declared, switch off: static defaults stand
+        ClusterSettings capacityOnly = new ClusterSettings(
+            Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(), 5).build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+        Settings indexSettings = aggregateIndexSettings(
+            clusterStateWithRemoteDataNodes(5),
+            new CreateIndexClusterStateUpdateRequest("create index", "test", "test").settings(Settings.EMPTY),
+            Settings.EMPTY,
+            null,
+            remoteNodeSettings(),
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            capacityOnly
+        );
+        assertEquals("true", indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
+        assertEquals(INDEX_NUMBER_OF_SHARDS_SETTING.getDefault(Settings.EMPTY), INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings));
+        assertFalse(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.exists(indexSettings));
+    }
+
+    public void testNodeAwareShardingWithoutDataNodesKeepsDefaults() {
+        // only a cluster-manager has joined, whatever the declared capacity says
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(remoteNodeWithRoles(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)).build())
+            .build();
+        Settings indexSettings = aggregateWithNodeAwareSharding(clusterState, 6, Settings.EMPTY);
+        assertEquals("true", indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
+        assertEquals(INDEX_NUMBER_OF_SHARDS_SETTING.getDefault(Settings.EMPTY), INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings));
+        assertFalse(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.exists(indexSettings));
+    }
+
+    public void testNodeAwareShardingSkipsNonRemoteStoreIndex() {
+        // docrep cluster: no remote store attributes on the nodes, so nothing is stamped even with the switch on
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(new DiscoveryNode("n1", buildNewFakeTransportAddress(), Version.CURRENT))
+                    .add(new DiscoveryNode("n2", buildNewFakeTransportAddress(), Version.CURRENT))
+                    .build()
+            )
+            .build();
+        Settings indexSettings = aggregateIndexSettings(
+            clusterState,
+            new CreateIndexClusterStateUpdateRequest("create index", "test", "test").settings(Settings.EMPTY),
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            nodeAwareShardingClusterSettings(2)
+        );
+        assertNull(indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
+        assertEquals(INDEX_NUMBER_OF_SHARDS_SETTING.getDefault(Settings.EMPTY), INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings));
+        assertFalse(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.exists(indexSettings));
+    }
+
+    public void testNodeAwareShardingSkipsWarmIndex() {
+        Settings indexSettings = aggregateWithNodeAwareSharding(
+            4,
+            4,
+            Settings.builder().put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true).build()
+        );
+        assertEquals(INDEX_NUMBER_OF_SHARDS_SETTING.getDefault(Settings.EMPTY), INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings));
+        assertFalse(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.exists(indexSettings));
+    }
+
+    public void testNodeAwareShardingHelperIgnoresNonSegmentReplication() {
+        // Direct check of the helper's replication-type guard: remote store on, but DOCUMENT replication requested.
+        Settings.Builder builder = Settings.builder()
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_REMOTE_STORE_ENABLED, true)
+            .put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
+        MetadataCreateIndexService.updateNodeAwareShardingSettings(
+            builder,
+            clusterStateWithRemoteDataNodes(4).nodes(),
+            nodeAwareShardingClusterSettings(4),
+            false
+        );
+        Settings result = builder.build();
+        assertEquals(1, INDEX_NUMBER_OF_SHARDS_SETTING.get(result).intValue());
+        assertFalse(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.exists(result));
+    }
+
+    public void testEffectiveDataNodeCount() {
+        DiscoveryNodes fiveDataNodes = clusterStateWithRemoteDataNodes(5).nodes();
+        assertEquals(5, MetadataCreateIndexService.effectiveDataNodeCount(fiveDataNodes, nodeAwareShardingClusterSettings(-1)));
+        assertEquals(5, MetadataCreateIndexService.effectiveDataNodeCount(fiveDataNodes, nodeAwareShardingClusterSettings(9)));
+        assertEquals(3, MetadataCreateIndexService.effectiveDataNodeCount(fiveDataNodes, nodeAwareShardingClusterSettings(3)));
+        assertEquals(0, MetadataCreateIndexService.effectiveDataNodeCount(DiscoveryNodes.EMPTY_NODES, nodeAwareShardingClusterSettings(3)));
+    }
+
+    private Settings aggregateWithNodeAwareSharding(int joinedDataNodes, int provisionedCapacity, Settings requestSettings) {
+        return aggregateWithNodeAwareSharding(clusterStateWithRemoteDataNodes(joinedDataNodes), provisionedCapacity, requestSettings);
+    }
+
+    private Settings aggregateWithNodeAwareSharding(ClusterState clusterState, int provisionedCapacity, Settings requestSettings) {
+        return aggregateIndexSettings(
+            clusterState,
+            new CreateIndexClusterStateUpdateRequest("create index", "test", "test").settings(requestSettings),
+            Settings.EMPTY,
+            null,
+            remoteNodeSettings(),
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            nodeAwareShardingClusterSettings(provisionedCapacity)
+        );
+    }
+
+    private ClusterSettings nodeAwareShardingClusterSettings(int provisionedCapacity) {
+        return new ClusterSettings(
+            Settings.builder()
+                .put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_NODE_AWARE_SHARDING_ENABLED.getKey(), true)
+                .put(CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(), provisionedCapacity)
+                .build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+    }
+
+    private Settings remoteNodeSettings() {
+        return Settings.builder().put(translogRepositoryNameAttributeKey, "my-translog-repo-1").build();
+    }
+
+    /** Remote-store nodes with the built-in roles, which include {@code data}. */
+    private ClusterState clusterStateWithRemoteDataNodes(int dataNodes) {
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
+        for (int i = 0; i < dataNodes; i++) {
+            nodes.add(getRemoteNode());
+        }
+        return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes.build()).build();
+    }
+
+    private DiscoveryNode remoteNodeWithRoles(DiscoveryNodeRole... roles) {
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-cluster-rep-1");
+        attributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
+        attributes.put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
+        return new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            attributes,
+            new HashSet<>(Arrays.asList(roles)),
+            Version.CURRENT
+        );
     }
 
     private void verifyRemoteStoreIndexSettings(
