@@ -31,6 +31,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
@@ -82,6 +83,41 @@ public class RemoteSnapshotDirectoryTests extends OpenSearchTestCase {
         assertArrayEquals(content, readBack);
         input.close();
         dir.close();
+    }
+
+    public void testFailedLoadRetriesOnNextUse() throws Exception {
+        AtomicInteger reads = new AtomicInteger();
+        RuntimeException failure = new RuntimeException("snapshot unavailable");
+        try (RemoteSnapshotDirectory dir = new RemoteSnapshotDirectory(() -> {
+            if (reads.incrementAndGet() == 1) {
+                throw failure;
+            }
+            return remoteState(1024);
+        }, fsDirectory)) {
+            assertSame(failure, expectThrows(RuntimeException.class, dir::listAll));
+            assertEquals(0, dir.estimateSizeInBytes());
+            assertArrayEquals(new String[] { FILE_NAME }, dir.listAll());
+            assertEquals(1024, dir.fileLength(FILE_NAME));
+            assertEquals(1024, dir.estimateSizeInBytes());
+            assertEquals(2, reads.get());
+        }
+    }
+
+    public void testCloseDoesNotLoadSnapshot() throws Exception {
+        AtomicInteger reads = new AtomicInteger();
+        RemoteSnapshotDirectory dir = new RemoteSnapshotDirectory(() -> {
+            reads.incrementAndGet();
+            return remoteState(1024);
+        }, fsDirectory);
+        dir.close();
+        assertEquals(0, reads.get());
+        expectThrows(org.apache.lucene.store.AlreadyClosedException.class, () -> fsDirectory.listAll());
+    }
+
+    private RemoteSnapshotDirectory.RemoteState remoteState(int size) {
+        FileInfo fileInfo = new FileInfo(FILE_NAME, new StoreFileMetadata(FILE_NAME, size, "", Version.LATEST), null);
+        BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot("snap", 1, Collections.singletonList(fileInfo), 0, 0, 0, 0);
+        return new RemoteSnapshotDirectory.RemoteState(snapshot, transferManager);
     }
 
     private RemoteSnapshotDirectory createDirectoryWithVirtualFile(byte[] content) {

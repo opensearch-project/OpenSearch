@@ -30,8 +30,6 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.function.Supplier;
 
 /**
@@ -69,14 +67,10 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
         final Repository repository = repositoriesService.get().repository(repositoryName);
         assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
         final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-        try {
-            return createRemoteSnapshotDirectoryFromSnapshot(indexSettings, localShardPath, blobStoreRepository).get();
-        } catch (InterruptedException | ExecutionException e) {
-            throw new IllegalStateException(e);
-        }
+        return createRemoteSnapshotDirectoryFromSnapshot(indexSettings, localShardPath, blobStoreRepository);
     }
 
-    private Future<RemoteSnapshotDirectory> createRemoteSnapshotDirectoryFromSnapshot(
+    private RemoteSnapshotDirectory createRemoteSnapshotDirectoryFromSnapshot(
         IndexSettings indexSettings,
         ShardPath localShardPath,
         BlobStoreRepository blobStoreRepository
@@ -94,9 +88,9 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
         FSDirectory localStoreDir = FSDirectory.open(Files.createDirectories(localStorePath));
         // make sure directory is flushed to persistent storage
         localStoreDir.syncMetaData();
-        // this trick is needed to bypass assertions in BlobStoreRepository::assertAllowableThreadPools in case of node restart and a remote
-        // index restore is invoked
-        return threadPool.executor(ThreadPool.Names.SNAPSHOT).submit(() -> {
+        // The repository is read on first file access, not here, because this method runs on the cluster applier thread.
+        // Recovery normally makes that first access through Store#failIfCorrupted; store stats use a non-blocking size estimate.
+        return new RemoteSnapshotDirectory(() -> {
             // shardContainer(IndexId, shardId) method uses the id and pathType information to generate the blobPath and
             // hence the blobContainer. We have used a dummy name as it plays no relevance in the blobPath generation.
             final BlobContainer blobContainer = blobStoreRepository.shardContainer(
@@ -108,7 +102,7 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
                 : "indexShardSnapshot should be an instance of BlobStoreIndexShardSnapshot";
             final BlobStoreIndexShardSnapshot snapshot = (BlobStoreIndexShardSnapshot) indexShardSnapshot;
             TransferManager transferManager = new TransferManager(blobContainer::readBlob, remoteStoreFileCache, threadPool);
-            return new RemoteSnapshotDirectory(snapshot, localStoreDir, transferManager);
-        });
+            return new RemoteSnapshotDirectory.RemoteState(snapshot, transferManager);
+        }, localStoreDir);
     }
 }
