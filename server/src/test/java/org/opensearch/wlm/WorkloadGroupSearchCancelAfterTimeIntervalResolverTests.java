@@ -102,9 +102,9 @@ public class WorkloadGroupSearchCancelAfterTimeIntervalResolverTests extends Ope
     }
 
     public void testZeroAndNegativeGroupIntervalsAreAppliedAsIs() {
-        // Pins current behavior, pending a decision on rejecting these values: validation accepts them, and none of them equals
-        // -1 (NO_TIMEOUT, which is -1ms), so the coordinator schedules them and the search is cancelled at once (see
-        // TimeoutTaskCancellationUtilityTests). The request parameter and the cluster setting parse the same way.
+        // Validation accepts these values and the resolver passes them through. The coordinator then treats a negative interval as
+        // no timeout and schedules 0, which cancels the search at once (see TimeoutTaskCancellationUtilityTests). The request
+        // parameter and the cluster setting parse the same way.
         Map<String, TimeValue> accepted = Map.of(
             "0",
             TimeValue.ZERO,
