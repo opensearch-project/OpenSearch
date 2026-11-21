@@ -54,6 +54,7 @@ import org.opensearch.index.query.WrapperQueryBuilder;
 import org.opensearch.script.Script;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.TopMetricsAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
@@ -235,6 +236,27 @@ public class AggregatorFactoriesTests extends OpenSearchTestCase {
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Unknown aggregation type [term] did you mean [terms]?"));
+    }
+
+    public void testTopMetricsTypeParses() throws Exception {
+        XContentBuilder source = JsonXContent.contentBuilder()
+            .startObject()
+            .startObject("top_metric")
+            .startObject("top_metrics")
+            .startObject("metrics")
+            .field("field", "price")
+            .endObject()
+            .startObject("sort")
+            .field("timestamp", "desc")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        XContentParser parser = createParser(source);
+        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+        AggregatorFactories.Builder factories = AggregatorFactories.parseAggregators(parser);
+        assertEquals(1, factories.getAggregatorFactories().size());
+        assertThat(factories.getAggregatorFactories().iterator().next(), instanceOf(TopMetricsAggregationBuilder.class));
     }
 
     public void testRewriteAggregation() throws Exception {
