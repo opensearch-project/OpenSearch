@@ -50,12 +50,17 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
+import javax.tools.ToolProvider;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -721,6 +726,92 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         }
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
         assertEquals("Plugin [myplugin] cannot extend non-extensible plugin [nonextensible]", e.getMessage());
+    }
+
+    public void testSharedLibraryClassIdentity() throws Exception {
+        Path home = createTempDir();
+        Path classes = createTempDir();
+        Map<String, String> sources = Map.of("SharedApi", "package sharedtest; public interface SharedApi {}", "OwnerPlugin", """
+            package sharedtest;
+            public class OwnerPlugin extends org.opensearch.plugins.Plugin
+                implements org.opensearch.plugins.ExtensiblePlugin {
+                public void loadExtensions(ExtensionLoader loader) {
+                    if (loader.loadExtensions(SharedApi.class).size() != 1) {
+                        throw new AssertionError("Expected one extension");
+                    }
+                }
+            }
+            """, "ExtensionPlugin", """
+            package sharedtest;
+            public class ExtensionPlugin extends org.opensearch.plugins.Plugin implements SharedApi {}
+            """);
+        List<String> arguments = new ArrayList<>(List.of("-classpath", System.getProperty("java.class.path"), "-d", classes.toString()));
+        for (var source : sources.entrySet()) {
+            Path file = classes.resolve(source.getKey() + ".java");
+            Files.writeString(file, source.getValue());
+            arguments.add(file.toString());
+        }
+        assertEquals(0, ToolProvider.getSystemJavaCompiler().run(null, null, null, arguments.toArray(String[]::new)));
+        Path plugins = home.resolve("plugins");
+        for (String name : List.of("owner", "extension")) {
+            String classname = name.equals("owner") ? "OwnerPlugin" : "ExtensionPlugin";
+            Path directory = plugins.resolve(name);
+            PluginTestUtil.writePluginProperties(
+                directory,
+                "name",
+                name,
+                "description",
+                "test",
+                "version",
+                "1.0",
+                "opensearch.version",
+                Version.CURRENT.toString(),
+                "java.version",
+                System.getProperty("java.specification.version"),
+                "classname",
+                "sharedtest." + classname,
+                "extended.plugins",
+                name.equals("owner") ? "" : "owner"
+            );
+            try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(directory.resolve("plugin.jar")))) {
+                out.putNextEntry(new ZipEntry("sharedtest/" + classname + ".class"));
+                Files.copy(classes.resolve("sharedtest/" + classname + ".class"), out);
+                out.closeEntry();
+                if (name.equals("extension")) {
+                    out.putNextEntry(new ZipEntry("META-INF/services/sharedtest.SharedApi"));
+                    out.write("sharedtest.ExtensionPlugin".getBytes(StandardCharsets.UTF_8));
+                    out.closeEntry();
+                }
+            }
+        }
+        Path shared = Files.createDirectories(plugins.resolve("lib/owner"));
+        try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(shared.resolve("api.jar")))) {
+            out.putNextEntry(new ZipEntry("sharedtest/SharedApi.class"));
+            Files.copy(classes.resolve("sharedtest/SharedApi.class"), out);
+            out.closeEntry();
+        }
+        PluginsService service = newPluginsService(Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build());
+        List<Plugin> loaded = service.filterPlugins(Plugin.class);
+        ClassLoader owner = loaded.stream()
+            .filter(p -> p.getClass().getSimpleName().equals("OwnerPlugin"))
+            .findFirst()
+            .get()
+            .getClass()
+            .getClassLoader();
+        ClassLoader extension = loaded.stream()
+            .filter(p -> p.getClass().getSimpleName().equals("ExtensionPlugin"))
+            .findFirst()
+            .get()
+            .getClass()
+            .getClassLoader();
+        try {
+            assertSame(owner.loadClass("sharedtest.SharedApi"), extension.loadClass("sharedtest.SharedApi"));
+            expectThrows(ClassNotFoundException.class, () -> extension.loadClass("sharedtest.OwnerPlugin"));
+        } finally {
+            ((URLClassLoader) extension).close();
+            ((URLClassLoader) owner).close();
+            ((URLClassLoader) owner.loadClass("sharedtest.SharedApi").getClassLoader()).close();
+        }
     }
 
     public void testIncompatibleOpenSearchVersion() throws Exception {
