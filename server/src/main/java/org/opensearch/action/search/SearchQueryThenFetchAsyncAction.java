@@ -50,6 +50,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 /**
  * Async transport action for query then fetch
@@ -80,7 +81,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         final ActionListener<SearchResponse> listener,
         final GroupShardsIterator<SearchShardIterator> shardsIts,
         final TransportSearchAction.SearchTimeProvider timeProvider,
-        ClusterState clusterState,
+        Supplier<ClusterState> clusterStateSupplier,
         SearchTask task,
         SearchResponse.Clusters clusters,
         SearchRequestContext searchRequestContext,
@@ -99,7 +100,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             listener,
             shardsIts,
             timeProvider,
-            clusterState,
+            clusterStateSupplier,
             task,
             resultConsumer,
             request.getMaxConcurrentShardRequests(),
