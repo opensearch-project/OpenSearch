@@ -56,22 +56,42 @@ import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.core.common.Strings;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MapperServiceTestCase;
 import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
 import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.opensearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotationAnalyzerWrapper;
+import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.opensearch.lucene.search.uhighlight.Snippet;
-import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.plugin.mapper.AnnotatedTextPlugin;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.fetch.FetchContext;
+import org.opensearch.search.fetch.FetchSubPhase.HitContext;
+import org.opensearch.search.internal.ContextIndexSearcher;
+import org.opensearch.search.lookup.SourceLookup;
 
+import java.io.IOException;
 import java.net.URLEncoder;
 import java.text.BreakIterator;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 
 import static org.opensearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
+public class AnnotatedTextHighlighterTests extends MapperServiceTestCase {
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new AnnotatedTextPlugin());
+    }
 
     private void assertHighlightOneDoc(
         String fieldName,
@@ -230,6 +250,85 @@ public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
         Query query = new TermQuery(new Term("text", "singapore"));
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
         assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages);
+    }
+
+    public void testAnnotatedTextWithMaxAnalyzerOffset() throws IOException {
+        assertHighlightWithMaxAnalyzerOffset("no", "project", 100, "[OpenSearch](_hit_term=project&project) is a search engine.");
+        assertHighlightWithMaxAnalyzerOffset("no", "engine", 100, "[OpenSearch](project) is a search [engine](_hit_term=engine).");
+        assertHighlightWithMaxAnalyzerOffset("no", "engine", 10, null);
+    }
+
+    public void testAnnotatedTextWithMaxAnalyzerOffsetAndTermVectors() throws IOException {
+        assertHighlightWithMaxAnalyzerOffset(
+            "with_positions_offsets",
+            "project",
+            100,
+            "[OpenSearch](_hit_term=project&project) is a search engine."
+        );
+    }
+
+    private void assertHighlightWithMaxAnalyzerOffset(String termVectors, String term, int maxAnalyzerOffset, String expected)
+        throws IOException {
+        try (
+            MapperService mapper = createMapperService(
+                fieldMapping(b -> b.field("type", "annotated_text").field("store", true).field("term_vector", termVectors))
+            )
+        ) {
+            withLuceneIndex(
+                mapper,
+                writer -> writer.addDocument(
+                    mapper.documentMapper().parse(source(b -> b.field("field", "[OpenSearch](project) is a search engine."))).rootDoc()
+                ),
+                reader -> {
+                    QueryShardContext shardContext = createQueryShardContext(mapper);
+                    SearchHighlightContext.Field field = new HighlightBuilder().highlighterType("annotated")
+                        .maxAnalyzerOffset(maxAnalyzerOffset)
+                        .numOfFragments(0)
+                        .field("field")
+                        .build(shardContext)
+                        .fields()
+                        .iterator()
+                        .next();
+                    FetchContext fetchContext = mock(FetchContext.class);
+                    when(fetchContext.mapperService()).thenReturn(mapper);
+                    when(fetchContext.getQueryShardContext()).thenReturn(shardContext);
+                    when(fetchContext.getIndexSettings()).thenReturn(mapper.getIndexSettings());
+                    try (
+                        ContextIndexSearcher searcher = new ContextIndexSearcher(
+                            reader,
+                            IndexSearcher.getDefaultSimilarity(),
+                            null,
+                            IndexSearcher.getDefaultQueryCachingPolicy(),
+                            false,
+                            null,
+                            null
+                        )
+                    ) {
+                        when(fetchContext.searcher()).thenReturn(searcher);
+                        HitContext hit = new HitContext(new SearchHit(0), reader.leaves().get(0), 0, new SourceLookup());
+                        HighlightField highlight = new AnnotatedTextHighlighter().highlight(
+                            new FieldHighlightContext(
+                                "field",
+                                field,
+                                mapper.fieldType("field"),
+                                fetchContext,
+                                hit,
+                                new TermQuery(new Term("field", term)),
+                                false,
+                                new HashMap<>()
+                            )
+                        );
+                        if (expected == null) {
+                            assertNull(highlight);
+                        } else {
+                            assertNotNull(highlight);
+                            assertEquals(1, highlight.fragments().length);
+                            assertEquals(expected, highlight.fragments()[0].string());
+                        }
+                    }
+                }
+            );
+        }
     }
 
 }
