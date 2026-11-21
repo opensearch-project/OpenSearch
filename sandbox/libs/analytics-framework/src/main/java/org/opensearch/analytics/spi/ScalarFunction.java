@@ -75,6 +75,7 @@ public enum ScalarFunction {
     WILDCARD_QUERY_DSL(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     QUERY(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     MATCHALL(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    IDS(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
 
     // ── String ───────────────────────────────────────────────────────
     UPPER(Category.STRING, SqlKind.OTHER_FUNCTION),
