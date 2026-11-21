@@ -392,6 +392,15 @@ public enum ScalarFunction {
     ARRAY_SLICE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     ARRAY_DISTINCT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     /**
+     * Calcite's {@code ARRAY_CONTAINS} — element membership over an array. Registered with its
+     * reference operator so the filter rule recognizes it as a predicate; the DataFusion backend
+     * maps it to native {@code array_has}.
+     */
+    ARRAY_CONTAINS(
+        Category.SCALAR,
+        SqlKind.OTHER_FUNCTION,
+        org.apache.calcite.sql.fun.SqlLibraryOperators.ARRAY_CONTAINS),
+    /**
      * Calcite's {@code ARRAY_JOIN} — joins array elements with a separator. PPL
      * {@code mvjoin} is registered to this operator. DataFusion's native equivalent
      * is named {@code array_to_string}, so the DataFusion backend rewrites to that
