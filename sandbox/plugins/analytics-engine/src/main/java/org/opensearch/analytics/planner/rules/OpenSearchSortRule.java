@@ -62,12 +62,16 @@ public class OpenSearchSortRule extends RelOptRule {
             throw new IllegalStateException("No backend supports SORT capability among " + childViableBackends);
         }
 
+        // Seed UNRESOLVED, for the same reason OpenSearchAggregateRule does: this rule runs in HEP, where
+        // convert() is a no-op, so it cannot demand a gathered input of its child — and it must therefore not
+        // claim a placement either. OpenSearchSort.passThroughTraits / deriveTraits state the requirement
+        // instead, and no parent may consume an unresolved input (see OpenSearchRelNode.hasUnresolvedInput).
         // plus(): Calcite's Sort constructor asserts the trait set contains the collation.
         // replace() is a no-op if the slot is missing; plus() appends or overrides.
         call.transformTo(
             new OpenSearchSort(
                 sort.getCluster(),
-                child.getTraitSet().plus(sort.getCollation()),
+                child.getTraitSet().replace(context.getDistributionTraitDef().any()).plus(sort.getCollation()),
                 RelNodeUtils.unwrapHep(sort.getInput()),
                 sort.getCollation(),
                 sort.offset,

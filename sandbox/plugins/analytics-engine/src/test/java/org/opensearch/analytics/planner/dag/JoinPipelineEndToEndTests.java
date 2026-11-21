@@ -47,7 +47,7 @@ import java.util.Set;
  * arrow-flight-rpc extension — doable via {@code internalClusterTest} but too heavyweight for a
  * quick regression.
  *
- * <p>These tests double as regression anchors for the Codex findings across M0/M1/M2:
+ * <p>These tests double as regression anchors for the review findings across M0/M1/M2:
  * <ul>
  *   <li>Every marked join admits at least one backend via the post-intersection capability check.</li>
  *   <li>Plan forking narrows per-stage {@code viableBackends} to a single concrete backend.</li>
