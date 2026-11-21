@@ -77,7 +77,7 @@ public class TransportCreateWorkloadGroupAction extends TransportClusterManagerN
     @Override
     protected void doExecute(Task task, CreateWorkloadGroupRequest request, ActionListener<CreateWorkloadGroupResponse> listener) {
         try {
-            WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(
+            workloadGroupPersistenceService.validateThrottlingIsEnforceable(
                 request.getWorkloadGroup().getMutableWorkloadGroupFragment().getThrottling()
             );
         } catch (Exception e) {
@@ -94,7 +94,7 @@ public class TransportCreateWorkloadGroupAction extends TransportClusterManagerN
         ActionListener<CreateWorkloadGroupResponse> listener
     ) {
         try {
-            WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(
+            workloadGroupPersistenceService.validateThrottlingIsEnforceable(
                 request.getWorkloadGroup().getMutableWorkloadGroupFragment().getThrottling()
             );
         } catch (Exception e) {

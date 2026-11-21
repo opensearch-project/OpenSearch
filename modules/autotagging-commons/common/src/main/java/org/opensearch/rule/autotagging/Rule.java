@@ -106,7 +106,7 @@ public class Rule implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeString(description);
-        featureType.writeTo(out);
+        out.writeNamedWriteable(featureType);
         out.writeMap(attributeMap, (output, attribute) -> attribute.writeTo(output), StreamOutput::writeStringCollection);
         out.writeString(featureValue);
         out.writeString(updatedAt);

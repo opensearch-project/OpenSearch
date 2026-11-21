@@ -10,7 +10,6 @@ package org.opensearch.plugin.wlm;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
@@ -87,9 +86,7 @@ import org.opensearch.rule.RuleAttribute;
 import org.opensearch.rule.RuleEntityParser;
 import org.opensearch.rule.RuleFrameworkPlugin;
 import org.opensearch.rule.RulePersistenceService;
-import org.opensearch.rule.RulePersistenceServiceRegistry;
 import org.opensearch.rule.RuleRoutingService;
-import org.opensearch.rule.RuleRoutingServiceRegistry;
 import org.opensearch.rule.action.CreateRuleAction;
 import org.opensearch.rule.action.CreateRuleRequest;
 import org.opensearch.rule.action.DeleteRuleAction;
@@ -117,7 +114,6 @@ import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadManagementSettings;
 import org.joda.time.Instant;
 import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -126,6 +122,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -162,37 +159,35 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(TestWorkloadManagementPlugin.class);
-        plugins.add(RuleFrameworkPlugin.class);
         return plugins;
     }
 
-    @Before
-    public void registerFeatureTypeIfMissingOnAllNodes() {
-        FeatureType featureType;
-        try {
-            featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
-        } catch (ResourceNotFoundException e) {
-            featureType = TestWorkloadManagementPlugin.featureType;
-            AutoTaggingRegistry.registerFeatureType(featureType);
-        }
+    private FeatureType featureType() {
+        return internalCluster().getInstance(AutoTaggingRegistry.class, internalCluster().getClusterManagerName())
+            .getFeatureType(WorkloadGroupFeatureType.NAME);
+    }
 
+    public void testFeatureTypesAreNodeScoped() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        Set<FeatureType> instances = Collections.newSetFromMap(new IdentityHashMap<>());
         for (String node : internalCluster().getNodeNames()) {
-            RulePersistenceServiceRegistry persistenceRegistry = internalCluster().getInstance(RulePersistenceServiceRegistry.class, node);
-            RuleRoutingServiceRegistry routingRegistry = internalCluster().getInstance(RuleRoutingServiceRegistry.class, node);
-
-            try {
-                routingRegistry.getRuleRoutingService(featureType);
-            } catch (IllegalArgumentException ex) {
-                persistenceRegistry.register(featureType, TestWorkloadManagementPlugin.rulePersistenceService);
-                routingRegistry.register(featureType, TestWorkloadManagementPlugin.ruleRoutingService);
-            }
+            AutoTaggingRegistry registry = internalCluster().getInstance(AutoTaggingRegistry.class, node);
+            FeatureType featureType = registry.getFeatureType(WorkloadGroupFeatureType.NAME);
+            assertTrue("Feature type must belong to one node", instances.add(featureType));
         }
     }
 
     @After
     public void clearWlmModeSetting() {
         Settings.Builder builder = Settings.builder().putNull(WorkloadManagementSettings.WLM_MODE_SETTING.getKey());
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get());
+        assertAcked(
+            internalCluster().client(internalCluster().getClusterManagerName())
+                .admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(builder)
+                .get()
+        );
     }
 
     public void testExactIndexMatchTriggersTagging() throws Exception {
@@ -208,7 +203,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         updateWorkloadGroupInClusterState(PUT, workloadGroup);
 
         // Step 2: Create auto-tagging rule
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        FeatureType featureType = featureType();
         createRule(ruleId, "tagging flow test", indexName, featureType, workloadGroupId);
 
         // Step 3: Index document
@@ -219,9 +214,12 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             int completionsBefore = getCompletions(workloadGroupId);
 
             // Step 5: Execute query
-            client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+            internalCluster().client(internalCluster().getClusterManagerName())
+                .prepareSearch(indexName)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .get();
 
-            client().admin().indices().prepareRefresh(indexName).get();
+            internalCluster().client(internalCluster().getClusterManagerName()).admin().indices().prepareRefresh(indexName).get();
 
             // Step 6: Get post-query completions
             int completionsAfter = getCompletions(workloadGroupId);
@@ -239,15 +237,18 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         WorkloadGroup workloadGroup = createWorkloadGroup("tagging_test_group", workloadGroupId);
         updateWorkloadGroupInClusterState(PUT, workloadGroup);
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        FeatureType featureType = featureType();
         createRule(ruleId, "tagging flow test", "logs-tagged*", featureType, workloadGroupId);
 
         indexDocument(indexName);
 
         assertBusy(() -> {
             int completionsBefore = getCompletions(workloadGroupId);
-            client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
-            client().admin().indices().prepareRefresh(indexName).get();
+            internalCluster().client(internalCluster().getClusterManagerName())
+                .prepareSearch(indexName)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .get();
+            internalCluster().client(internalCluster().getClusterManagerName()).admin().indices().prepareRefresh(indexName).get();
             int completionsAfter = getCompletions(workloadGroupId);
             assertTrue("Expected completions to increase", completionsAfter > completionsBefore);
         });
@@ -267,7 +268,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         updateWorkloadGroupInClusterState(PUT, createWorkloadGroup("group_1", workloadGroupId1));
         updateWorkloadGroupInClusterState(PUT, createWorkloadGroup("group_2", workloadGroupId2));
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        FeatureType featureType = featureType();
 
         createRule(ruleId1, "rule for test_1", index1, featureType, workloadGroupId1);
         createRule(ruleId2, "rule for test_2", index2, featureType, workloadGroupId2);
@@ -279,7 +280,10 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             int pre1 = getCompletions(workloadGroupId1);
             int pre2 = getCompletions(workloadGroupId2);
 
-            client().prepareSearch(testIndex).setQuery(QueryBuilders.matchAllQuery()).get();
+            internalCluster().client(internalCluster().getClusterManagerName())
+                .prepareSearch(testIndex)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .get();
 
             int post1 = getCompletions(workloadGroupId1);
             int post2 = getCompletions(workloadGroupId2);
@@ -298,7 +302,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
 
         updateWorkloadGroupInClusterState(PUT, createWorkloadGroup("update_test_group", workloadGroupId));
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        FeatureType featureType = featureType();
         createRule(ruleId, "initial non-matching rule", "random", featureType, workloadGroupId);
 
         indexDocument(indexName);
@@ -312,10 +316,13 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             workloadGroupId,
             featureType
         );
-        client().execute(UpdateRuleAction.INSTANCE, updatedRule).get();
+        internalCluster().client(internalCluster().getClusterManagerName()).execute(UpdateRuleAction.INSTANCE, updatedRule).get();
 
         assertBusy(() -> {
-            SearchResponse response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+            SearchResponse response = internalCluster().client(internalCluster().getClusterManagerName())
+                .prepareSearch(indexName)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .get();
             assertEquals(1, response.getHits().getTotalHits().value());
 
             int postUpdateCompletions = getCompletions(workloadGroupId);
@@ -329,7 +336,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
 
         setWlmMode("enabled");
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        FeatureType featureType = featureType();
         Throwable thrown = assertThrows(
             Throwable.class,
             () -> createRule(ruleId, "test rule", indexName, featureType, "nonexistent_group")
@@ -360,7 +367,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         Attribute indexPatternAttr = RuleAttribute.INDEX_PATTERN;
         Map<Attribute, Set<String>> attributes = Map.of(indexPatternAttr, tooManyPatterns);
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        FeatureType featureType = featureType();
 
         Exception exception = assertThrows(
             IllegalArgumentException.class,
@@ -386,7 +393,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         Attribute indexPatternAttr = RuleAttribute.INDEX_PATTERN;
         Map<Attribute, Set<String>> attributes = Map.of(indexPatternAttr, emptyPattern);
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        FeatureType featureType = featureType();
 
         Exception exception = assertThrows(
             IllegalArgumentException.class,
@@ -411,7 +418,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         Attribute indexPatternAttr = RuleAttribute.INDEX_PATTERN;
         Map<Attribute, Set<String>> attributes = Map.of(indexPatternAttr, Set.of(longPattern));
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        FeatureType featureType = featureType();
 
         Exception exception = assertThrows(
             IllegalArgumentException.class,
@@ -430,11 +437,14 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         setWlmMode("enabled");
         updateWorkloadGroupInClusterState(PUT, createWorkloadGroup("fake_delete_group", workloadGroupId));
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        FeatureType featureType = featureType();
 
         DeleteRuleRequest request = new DeleteRuleRequest(fakeRuleId, featureType);
 
-        Exception exception = assertThrows(Exception.class, () -> client().execute(DeleteRuleAction.INSTANCE, request).get());
+        Exception exception = assertThrows(
+            Exception.class,
+            () -> internalCluster().client(internalCluster().getClusterManagerName()).execute(DeleteRuleAction.INSTANCE, request).get()
+        );
 
         assertTrue("Expected error message for nonexistent rule ID", exception.getMessage().contains("no such index"));
     }
@@ -449,7 +459,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         WorkloadGroup workloadGroup = createWorkloadGroup("scroll_tagging_group", workloadGroupId);
         updateWorkloadGroupInClusterState(PUT, workloadGroup);
 
-        FeatureType featureType = AutoTaggingRegistry.getFeatureType(WorkloadGroupFeatureType.NAME);
+        FeatureType featureType = featureType();
         createRule(ruleId, "scroll tagging rule", indexName, featureType, workloadGroupId);
 
         indexDocument(indexName);
@@ -457,7 +467,8 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         assertBusy(() -> {
             int completionsBefore = getCompletions(workloadGroupId);
 
-            SearchResponse initial = client().prepareSearch(indexName)
+            SearchResponse initial = internalCluster().client(internalCluster().getClusterManagerName())
+                .prepareSearch(indexName)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setScroll(TimeValue.timeValueMinutes(1))
                 .setSize(1)
@@ -469,7 +480,10 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
                 int afterInitialSearch = getCompletions(workloadGroupId);
                 assertTrue("Expected completions to increase after initial search with scroll", afterInitialSearch > completionsBefore);
 
-                SearchResponse scrollResp = client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(1)).get();
+                SearchResponse scrollResp = internalCluster().client(internalCluster().getClusterManagerName())
+                    .prepareSearchScroll(scrollId)
+                    .setScroll(TimeValue.timeValueMinutes(1))
+                    .get();
                 String nextScrollId = scrollResp.getScrollId();
                 if (nextScrollId != null && !nextScrollId.isEmpty()) {
                     scrollId = nextScrollId;
@@ -494,13 +508,15 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
             workloadGroupId,
             Instant.now().toString()
         );
-        client().execute(CreateRuleAction.INSTANCE, new CreateRuleRequest(rule)).get();
+        internalCluster().client(internalCluster().getClusterManagerName())
+            .execute(CreateRuleAction.INSTANCE, new CreateRuleRequest(rule))
+            .get();
     }
 
     private void setWlmMode(String mode) throws Exception {
         Settings.Builder settings = Settings.builder().put("wlm.workload_group.mode", mode);
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(settings);
-        client().admin().cluster().updateSettings(request).get();
+        internalCluster().client(internalCluster().getClusterManagerName()).admin().cluster().updateSettings(request).get();
     }
 
     private WorkloadGroup createWorkloadGroup(String name, String id) {
@@ -517,12 +533,14 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
 
     private void indexDocument(String indexName) {
         assertAcked(
-            client().admin()
+            internalCluster().client(internalCluster().getClusterManagerName())
+                .admin()
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
         );
-        IndexResponse response = client().prepareIndex(indexName)
+        IndexResponse response = internalCluster().client(internalCluster().getClusterManagerName())
+            .prepareIndex(indexName)
             .setId("1")
             .setSource(Map.of("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -540,7 +558,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
     public WlmStatsResponse getWlmStatsResponse(String[] nodesId, String[] queryGroupIds, Boolean breach) throws ExecutionException,
         InterruptedException {
         WlmStatsRequest request = new WlmStatsRequest(nodesId, new HashSet<>(Arrays.asList(queryGroupIds)), breach);
-        return client().execute(WlmStatsAction.INSTANCE, request).get();
+        return internalCluster().client(internalCluster().getClusterManagerName()).execute(WlmStatsAction.INSTANCE, request).get();
     }
 
     public void validateResponse(WlmStatsResponse response, String[] validIds, String[] invalidIds) {
@@ -580,7 +598,8 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
 
     public void updateWorkloadGroupInClusterState(String method, WorkloadGroup workloadGroup) throws InterruptedException {
         ExceptionCatchingListener listener = new ExceptionCatchingListener();
-        client().execute(TestClusterUpdateTransportAction.ACTION, new TestClusterUpdateRequest(workloadGroup, method), listener);
+        internalCluster().client(internalCluster().getClusterManagerName())
+            .execute(TestClusterUpdateTransportAction.ACTION, new TestClusterUpdateRequest(workloadGroup, method), listener);
         // wait for transport action to complete
         boolean completed = listener.getLatch().await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
         assertTrue("cluster-state update did not complete in time", completed);
@@ -745,7 +764,7 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
      * This class is not intended for production use and should only be used in internal
      * cluster tests that validate WLM rule framework behavior end-to-end.
      */
-    public static class TestWorkloadManagementPlugin extends Plugin
+    public static class TestWorkloadManagementPlugin extends RuleFrameworkPlugin
         implements
             ActionPlugin,
             SystemIndexPlugin,
@@ -761,10 +780,10 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
          * Maximum number of rules returned in a single page during GET operations.
          */
         public static final int MAX_RULES_PER_PAGE = 50;
-        static FeatureType featureType;
-        static RulePersistenceService rulePersistenceService;
-        private static final Map<Attribute, Integer> orderedAttributes = new HashMap<>();
-        static RuleRoutingService ruleRoutingService;
+        private FeatureType featureType;
+        private RulePersistenceService rulePersistenceService;
+        private final Map<Attribute, Integer> orderedAttributes = new HashMap<>();
+        private RuleRoutingService ruleRoutingService;
         private AutoTaggingActionFilter autoTaggingActionFilter;
         private final Map<Attribute, AttributeExtractorExtension> attributeExtractorExtensions = new HashMap<>();
 
@@ -847,13 +866,17 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
 
         @Override
         public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            return List.of(
-                new ActionPlugin.ActionHandler<>(CreateWorkloadGroupAction.INSTANCE, TransportCreateWorkloadGroupAction.class),
-                new ActionPlugin.ActionHandler<>(GetWorkloadGroupAction.INSTANCE, TransportGetWorkloadGroupAction.class),
-                new ActionPlugin.ActionHandler<>(DeleteWorkloadGroupAction.INSTANCE, TransportDeleteWorkloadGroupAction.class),
-                new ActionPlugin.ActionHandler<>(UpdateWorkloadGroupAction.INSTANCE, TransportUpdateWorkloadGroupAction.class),
-                new ActionPlugin.ActionHandler<>(TestClusterUpdateTransportAction.ACTION, TestClusterUpdateTransportAction.class)
+            List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>(super.getActions());
+            actions.addAll(
+                List.of(
+                    new ActionPlugin.ActionHandler<>(CreateWorkloadGroupAction.INSTANCE, TransportCreateWorkloadGroupAction.class),
+                    new ActionPlugin.ActionHandler<>(GetWorkloadGroupAction.INSTANCE, TransportGetWorkloadGroupAction.class),
+                    new ActionPlugin.ActionHandler<>(DeleteWorkloadGroupAction.INSTANCE, TransportDeleteWorkloadGroupAction.class),
+                    new ActionPlugin.ActionHandler<>(UpdateWorkloadGroupAction.INSTANCE, TransportUpdateWorkloadGroupAction.class),
+                    new ActionPlugin.ActionHandler<>(TestClusterUpdateTransportAction.ACTION, TestClusterUpdateTransportAction.class)
+                )
             );
+            return actions;
         }
 
         @Override
@@ -891,7 +914,9 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
 
         @Override
         public Collection<Module> createGuiceModules() {
-            return List.of(new WorkloadManagementPluginModule());
+            List<Module> modules = new ArrayList<>(super.createGuiceModules());
+            modules.add(new WorkloadManagementPluginModule());
+            return modules;
         }
 
         @Override
@@ -910,6 +935,11 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         }
 
         @Override
+        public String getFeatureTypeName() {
+            return WorkloadGroupFeatureType.NAME;
+        }
+
+        @Override
         public void setAttributes(List<Attribute> attributes) {
             for (Attribute attribute : attributes) {
                 if (attribute.getName().equals(PRINCIPAL_ATTRIBUTE_NAME)) {
@@ -919,6 +949,15 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
         }
 
         public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
+            super.loadExtensions(new ExtensionLoader() {
+                @Override
+                public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                    if (extensionPointType == RuleFrameworkExtension.class) {
+                        return List.of(extensionPointType.cast(TestWorkloadManagementPlugin.this));
+                    }
+                    return loader.loadExtensions(extensionPointType);
+                }
+            });
             for (AttributeExtractorExtension ext : loader.loadExtensions(AttributeExtractorExtension.class)) {
                 attributeExtractorExtensions.put(ext.getAttributeExtractor().getAttribute(), ext);
             }

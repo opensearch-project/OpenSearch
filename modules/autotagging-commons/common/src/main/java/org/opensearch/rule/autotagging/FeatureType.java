@@ -8,9 +8,9 @@
 
 package org.opensearch.rule.autotagging;
 
+import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Map;
@@ -22,11 +22,11 @@ import java.util.stream.Collectors;
  * feature types are uniquely identifiable by their class and name.
  *
  * Implementers should follow these guidelines:
- * Feature types should be singletons and managed centrally to avoid duplicates.
+ * Feature types should have one registered instance per node.
  *
  * @opensearch.experimental
  */
-public interface FeatureType extends Writeable {
+public interface FeatureType extends NamedWriteable {
     /**
      * Default value for max attribute values
      */
@@ -102,7 +102,12 @@ public interface FeatureType extends Writeable {
 
     @Override
     default void writeTo(StreamOutput out) throws IOException {
-        out.writeString(getName());
+        // The named-writeable name identifies the node-local instance; there is no additional payload.
+    }
+
+    @Override
+    default String getWriteableName() {
+        return getName();
     }
 
     /**
@@ -112,15 +117,6 @@ public interface FeatureType extends Writeable {
      * @throws IOException
      */
     static FeatureType from(StreamInput in) throws IOException {
-        return AutoTaggingRegistry.getFeatureType(in.readString());
-    }
-
-    /**
-     * Returns the instance for the passed param
-     * @param name
-     * @return
-     */
-    static FeatureType from(String name) {
-        return AutoTaggingRegistry.getFeatureType(name);
+        return in.readNamedWriteable(FeatureType.class);
     }
 }

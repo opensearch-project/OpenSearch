@@ -20,6 +20,7 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.rule.action.DeleteRuleAction;
 import org.opensearch.rule.action.DeleteRuleRequest;
+import org.opensearch.rule.autotagging.AutoTaggingRegistry;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.transport.client.node.NodeClient;
 
@@ -35,10 +36,16 @@ import static org.opensearch.rule.rest.RestGetRuleAction.FEATURE_TYPE;
  */
 @ExperimentalApi
 public class RestDeleteRuleAction extends BaseRestHandler {
+    private final AutoTaggingRegistry registry;
+
     /**
-     * Constructor for RestDeleteRuleAction
+     * Creates the handler with this node's feature type registry.
+     *
+     * @param registry this node's feature type registry
      */
-    public RestDeleteRuleAction() {}
+    public RestDeleteRuleAction(AutoTaggingRegistry registry) {
+        this.registry = registry;
+    }
 
     @Override
     public String getName() {
@@ -53,7 +60,7 @@ public class RestDeleteRuleAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         final String ruleId = request.param(ID_STRING);
-        FeatureType featureType = FeatureType.from(request.param(FEATURE_TYPE));
+        FeatureType featureType = registry.getFeatureType(request.param(FEATURE_TYPE));
         DeleteRuleRequest deleteRuleRequest = new DeleteRuleRequest(ruleId, featureType);
         return channel -> client.execute(DeleteRuleAction.INSTANCE, deleteRuleRequest, deleteRuleResponse(channel));
     }

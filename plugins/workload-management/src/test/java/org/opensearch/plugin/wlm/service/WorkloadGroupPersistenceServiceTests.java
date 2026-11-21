@@ -21,11 +21,16 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.plugin.wlm.WorkloadManagementPlugin;
 import org.opensearch.plugin.wlm.WorkloadManagementTestUtils;
 import org.opensearch.plugin.wlm.action.CreateWorkloadGroupResponse;
 import org.opensearch.plugin.wlm.action.DeleteWorkloadGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateWorkloadGroupRequest;
 import org.opensearch.plugin.wlm.action.UpdateWorkloadGroupResponse;
+import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
+import org.opensearch.rule.autotagging.Attribute;
+import org.opensearch.rule.autotagging.AutoTaggingRegistry;
+import org.opensearch.rule.autotagging.FeatureValueValidator;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
@@ -70,6 +75,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
 
@@ -163,7 +169,8 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         WorkloadGroupPersistenceService workloadGroupPersistenceService1 = new WorkloadGroupPersistenceService(
             clusterService,
             settings,
-            clusterSettings
+            clusterSettings,
+            new AutoTaggingRegistry()
         );
         assertThrows(
             RuntimeException.class,
@@ -181,7 +188,8 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             settings,
-            clusterSettings
+            clusterSettings,
+            new AutoTaggingRegistry()
         );
         assertThrows(IllegalArgumentException.class, () -> workloadGroupPersistenceService.setMaxWorkloadGroupCount(-1));
     }
@@ -195,7 +203,8 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             settings,
-            clusterSettings()
+            clusterSettings(),
+            new AutoTaggingRegistry()
         );
         workloadGroupPersistenceService.setMaxWorkloadGroupCount(50);
         assertEquals(50, workloadGroupPersistenceService.getMaxWorkloadGroupCount());
@@ -211,7 +220,8 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             WorkloadManagementTestUtils.settings(),
-            clusterSettings()
+            clusterSettings(),
+            new AutoTaggingRegistry()
         );
         workloadGroupPersistenceService.persistInClusterStateMetadata(workloadGroupOne, listener);
         verify(clusterService).submitStateUpdateTask(eq(SOURCE), any());
@@ -227,7 +237,8 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             WorkloadManagementTestUtils.settings(),
-            clusterSettings()
+            clusterSettings(),
+            new AutoTaggingRegistry()
         );
         ArgumentCaptor<ClusterStateUpdateTask> captor = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
         workloadGroupPersistenceService.persistInClusterStateMetadata(workloadGroupOne, listener);
@@ -254,7 +265,8 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             WorkloadManagementTestUtils.settings(),
-            clusterSettings()
+            clusterSettings(),
+            new AutoTaggingRegistry()
         );
         doAnswer(invocation -> {
             ClusterStateUpdateTask task = invocation.getArgument(1);
@@ -355,7 +367,8 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             WorkloadManagementTestUtils.settings(),
-            clusterSettings()
+            clusterSettings(),
+            new AutoTaggingRegistry()
         );
         doAnswer(invocation -> {
             AckedClusterStateUpdateTask<?> task = invocation.getArgument(1);
@@ -469,7 +482,8 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             WorkloadManagementTestUtils.settings(),
-            clusterSettings()
+            clusterSettings(),
+            new AutoTaggingRegistry()
         );
         workloadGroupPersistenceService.updateInClusterStateMetadata(null, listener);
         verify(clusterService).submitStateUpdateTask(eq(SOURCE), any());
@@ -485,7 +499,8 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             WorkloadManagementTestUtils.settings(),
-            clusterSettings()
+            clusterSettings(),
+            new AutoTaggingRegistry()
         );
         UpdateWorkloadGroupRequest updateWorkloadGroupRequest = updateWorkloadGroupRequest(
             NAME_TWO,
@@ -516,7 +531,8 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         WorkloadGroupPersistenceService workloadGroupPersistenceService = new WorkloadGroupPersistenceService(
             clusterService,
             WorkloadManagementTestUtils.settings(),
-            clusterSettings()
+            clusterSettings(),
+            new AutoTaggingRegistry()
         );
         UpdateWorkloadGroupRequest updateWorkloadGroupRequest = updateWorkloadGroupRequest(
             NAME_TWO,
@@ -544,18 +560,53 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
     }
 
     public void testValidateThrottlingIgnoresAbsentAndEmptyConfig() {
-        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(null);
-        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(Settings.EMPTY);
+        workloadGroupPersistenceService().validateThrottlingIsEnforceable(null);
+        workloadGroupPersistenceService().validateThrottlingIsEnforceable(Settings.EMPTY);
+    }
+
+    public void testPrincipalThrottlingUsesLocalRegistry() {
+        Attribute principal = mock(Attribute.class);
+        when(principal.getName()).thenReturn(WorkloadManagementPlugin.PRINCIPAL_ATTRIBUTE_NAME);
+        AutoTaggingRegistry withPrincipal = new AutoTaggingRegistry();
+        withPrincipal.registerFeatureType(
+            new WorkloadGroupFeatureType(mock(FeatureValueValidator.class), new HashMap<>(Map.of(principal, 1)))
+        );
+        AutoTaggingRegistry withoutPrincipal = new AutoTaggingRegistry();
+        withoutPrincipal.registerFeatureType(new WorkloadGroupFeatureType(mock(FeatureValueValidator.class), new HashMap<>()));
+        ClusterService clusterService = mock(ClusterService.class);
+        WorkloadGroupPersistenceService firstNode = new WorkloadGroupPersistenceService(
+            clusterService,
+            WorkloadManagementTestUtils.settings(),
+            clusterSettings(),
+            withPrincipal
+        );
+        WorkloadGroupPersistenceService secondNode = new WorkloadGroupPersistenceService(
+            clusterService,
+            WorkloadManagementTestUtils.settings(),
+            clusterSettings(),
+            withoutPrincipal
+        );
+
+        for (String by : List.of("username", "role")) {
+            Settings throttling = throttling(by, 9);
+            firstNode.validateThrottlingIsEnforceable(throttling);
+            IllegalArgumentException failure = expectThrows(
+                IllegalArgumentException.class,
+                () -> secondNode.validateThrottlingIsEnforceable(throttling)
+            );
+            assertTrue(failure.getMessage().contains("needs a principal attribute provider"));
+            firstNode.validateThrottlingIsEnforceable(throttling);
+        }
     }
 
     public void testValidateThrottlingTreatsMissingByAsGroupScope() {
-        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(throttling(null, 9));
+        workloadGroupPersistenceService().validateThrottlingIsEnforceable(throttling(null, 9));
     }
 
     public void testValidateThrottlingTreatsNullByAsGroupScope() {
         Settings throttling = Settings.builder().putNull("by").put("node_limit", 9).build();
 
-        WorkloadGroupPersistenceService.validateThrottlingIsEnforceable(throttling);
+        workloadGroupPersistenceService().validateThrottlingIsEnforceable(throttling);
     }
 
     public void testUpdateValidationUsesMergedThrottlingConfig() {
@@ -616,6 +667,6 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         assertFalse(effectiveThrottling.keySet().contains(WorkloadGroupThrottleSettings.BY.getKey()));
         assertEquals(WorkloadGroupThrottleSettings.GROUP_SCOPE, WorkloadGroupThrottleSettings.getEffectiveBy(effectiveThrottling));
         assertEquals(Integer.valueOf(5), WorkloadGroupThrottleSettings.NODE_LIMIT.get(effectiveThrottling));
-        WorkloadGroupPersistenceService.validateUpdateThrottlingIsEnforceable(request, clusterState);
+        workloadGroupPersistenceService().validateUpdateThrottlingIsEnforceable(request, clusterState);
     }
 }
