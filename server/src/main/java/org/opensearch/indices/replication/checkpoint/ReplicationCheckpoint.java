@@ -223,8 +223,12 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
     }
 
     /**
-     * Checks if current replication checkpoint is AheadOf `other` replication checkpoint point by first comparing
-     * primaryTerm followed by segmentInfosVersion. Returns true when `other` is null.
+     * Checks if current replication checkpoint is AheadOf {@code other} by primaryTerm then
+     * segmentInfosVersion. Returns true when {@code other} is null.
+     * <p>
+     * Does not consider {@code segmentsGen}. Term and generation can change without an infos version
+     * bump (primary restart); the replica {@code ReplicationTracker} must be updated in that case so
+     * catch-up (#20551) does not spin. See #18605.
      */
     public boolean isAheadOf(@Nullable ReplicationCheckpoint other) {
         return other == null
