@@ -150,9 +150,21 @@ public class AggregationMetadataBuilder {
         // Resolve grouping indices at build time
         List<Integer> allGroupIndices = new ArrayList<>();
         List<String> allGroupFieldNames = new ArrayList<>();
+        List<ExpressionGrouping> exprGroupings = new ArrayList<>();
+        int baseFieldCount = inputRowType.getFieldCount();
         for (GroupingInfo g : groupings) {
-            allGroupIndices.addAll(resolveFieldIndices(g, inputRowType));
-            allGroupFieldNames.addAll(g.getFieldNames());
+            if (g instanceof ExpressionGrouping eg) {
+                // Computed-key grouping (e.g. range ordinal): the synthetic column does not exist
+                // in the scan schema yet — ComputedGroupingConverter appends it after the base
+                // columns, so its index is assigned deterministically as baseFieldCount + offset
+                // (the append order equals the exprGroupings order here).
+                allGroupIndices.add(baseFieldCount + exprGroupings.size());
+                allGroupFieldNames.add(eg.getSyntheticColumn());
+                exprGroupings.add(eg);
+            } else {
+                allGroupIndices.addAll(resolveFieldIndices(g, inputRowType));
+                allGroupFieldNames.addAll(g.getFieldNames());
+            }
         }
 
         // For no-GROUP-BY, metric results could be null (e.g., AVG of empty set).
@@ -223,7 +235,8 @@ public class AggregationMetadataBuilder {
             fetch,
             perParentFetch,
             havingMinDocCount,
-            missingValues
+            missingValues,
+            exprGroupings
         );
     }
 

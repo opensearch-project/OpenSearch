@@ -120,6 +120,18 @@ scores are not surfaced). Rejected: `_name` (throws ConversionException — matc
 | 2 | Page pruning lost | A delegated predicate yields an all-true bitmap at the pruning stage (page_pruner.rs:779-782); the previous LIKE form was prunable (page_pruner.rs:24). Correctness preserved by residual re-evaluation (single_collector.rs:604-611). Follow-up: schema enrichment would enable a prunable fast path. |
 | 3 | Field types not storable in this engine mode | `wildcard`, `constant_keyword`, `version` and `flat_object` support prefix/wildcard in vanilla, but indexes using them cannot be created in optimized engine mode at all — the Parquet primary format (`CoreDataFieldPlugin`) and the Lucene secondary format (`LuceneFieldFactoryRegistry`) register no writers for them, so index creation fails with `MapperParsingException` (see `CompositeFieldCapabilityIT`). Storage-layer limitation shared by every query front-end via `OpenSearchSchemaBuilder`, not a prefix/wildcard behaviour difference. |
 
+### Bucket Aggregations
+- **Terms** — single-field `GROUP BY`; mapping-resolved key typing (string/long/double).
+- **Range** — buckets a numeric field into user-declared half-open intervals `[from, to)`.
+  Each document maps to a single range **ordinal** via a computed `CASE` group key
+  (`ComputedGroupingConverter`), then `GROUP BY ordinal, COUNT(*)`; the response
+  (`InternalRange`) returns every declared range in order, empty ranges included as
+  `doc_count: 0`. Sub-aggregations are supported.
+  - **Single-membership only**: overlapping ranges are rejected (classic search counts a
+    document in every matching range — see `RangeAggregator.collect` — which single-ordinal
+    grouping cannot reproduce). `script` and `missing` are also rejected on this path.
+    This mirrors PPL `bin`, which is single-membership by design.
+
 ## Dependencies
 
 - `analytics-engine` — provides `QueryPlanExecutor` and `EngineContext` via Guice (declared as `extendedPlugins`)

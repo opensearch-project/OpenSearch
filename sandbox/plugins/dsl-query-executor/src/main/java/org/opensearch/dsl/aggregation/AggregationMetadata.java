@@ -44,6 +44,7 @@ public class AggregationMetadata {
     private final Integer perParentFetch;
     private final Long havingMinDocCount;
     private final Map<String, Object> missingValues;
+    private final List<ExpressionGrouping> expressionGroupings;
 
     /**
      * Creates aggregation metadata.
@@ -62,6 +63,8 @@ public class AggregationMetadata {
      *        for none
      * @param missingValues null-substitution value per group field ({@code missing} parameter);
      *        fields absent from the map get an {@code IS NOT NULL} filter instead
+     * @param expressionGroupings computed-key groupings in this plan (e.g. {@code range} ordinals);
+     *        their synthetic columns are projected before the aggregate by {@code ComputedGroupingConverter}
      */
     public AggregationMetadata(
         List<String> aggNamePath,
@@ -73,7 +76,8 @@ public class AggregationMetadata {
         Integer fetch,
         Integer perParentFetch,
         Long havingMinDocCount,
-        Map<String, Object> missingValues
+        Map<String, Object> missingValues,
+        List<ExpressionGrouping> expressionGroupings
     ) {
         this.aggNamePath = List.copyOf(aggNamePath);
         this.groupByBitSet = groupByBitSet;
@@ -85,6 +89,7 @@ public class AggregationMetadata {
         this.perParentFetch = perParentFetch;
         this.havingMinDocCount = havingMinDocCount;
         this.missingValues = Map.copyOf(missingValues);
+        this.expressionGroupings = List.copyOf(expressionGroupings);
     }
 
     /**
@@ -174,6 +179,15 @@ public class AggregationMetadata {
      */
     public Map<String, Object> getMissingValues() {
         return missingValues;
+    }
+
+    /**
+     * Returns the computed-key groupings for this plan — {@code range} (and, later, histogram)
+     * groupings whose synthetic ordinal column {@code ComputedGroupingConverter} projects onto the
+     * pre-aggregate input so the GROUP BY bitset can resolve to it. Empty for field-only plans.
+     */
+    public List<ExpressionGrouping> getExpressionGroupings() {
+        return expressionGroupings;
     }
 
     /**
