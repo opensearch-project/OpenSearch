@@ -35,6 +35,8 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.opensearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
+import org.opensearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;
 import org.opensearch.cluster.Diff;
@@ -163,7 +165,9 @@ public class IndexMetadataTests extends OpenSearchTestCase {
                     Arrays.asList(
                         new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
                         new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
-                        new MaxDocsCondition(randomNonNegativeLong())
+                        new MaxDocsCondition(randomNonNegativeLong()),
+                        new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+                        new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
                     ),
                     randomNonNegativeLong()
                 )
@@ -235,7 +239,9 @@ public class IndexMetadataTests extends OpenSearchTestCase {
             Arrays.asList(
                 new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
                 new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
-                new MaxDocsCondition(randomNonNegativeLong())
+                new MaxDocsCondition(randomNonNegativeLong()),
+                new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+                new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
             ),
             randomNonNegativeLong()
         );
@@ -244,7 +250,9 @@ public class IndexMetadataTests extends OpenSearchTestCase {
             Arrays.asList(
                 new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
                 new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
-                new MaxDocsCondition(randomNonNegativeLong())
+                new MaxDocsCondition(randomNonNegativeLong()),
+                new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+                new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
             ),
             randomNonNegativeLong()
         );

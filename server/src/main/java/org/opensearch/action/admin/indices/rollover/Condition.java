@@ -105,6 +105,8 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
         public final long numDocs;
         public final long indexCreated;
         public final ByteSizeValue indexSize;
+        public final ByteSizeValue maxPrimaryShardSize;
+        public final long maxPrimaryShardDocs;
 
         /**
          * Private constructor that takes a builder.
@@ -115,6 +117,8 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
             this.numDocs = builder.numDocs;
             this.indexCreated = builder.indexCreated;
             this.indexSize = builder.indexSize;
+            this.maxPrimaryShardSize = builder.maxPrimaryShardSize;
+            this.maxPrimaryShardDocs = builder.maxPrimaryShardDocs;
         }
 
         /**
@@ -126,6 +130,8 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
             this.numDocs = numDocs;
             this.indexCreated = indexCreated;
             this.indexSize = indexSize;
+            this.maxPrimaryShardSize = ByteSizeValue.ZERO;
+            this.maxPrimaryShardDocs = 0;
         }
 
         /**
@@ -136,6 +142,8 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
             private long numDocs = 0;
             private long indexCreated = 0;
             private ByteSizeValue indexSize = null;
+            private ByteSizeValue maxPrimaryShardSize = ByteSizeValue.ZERO;
+            private long maxPrimaryShardDocs = 0;
 
             public Builder() {}
 
@@ -151,6 +159,16 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
 
             public Builder indexSize(ByteSizeValue size) {
                 this.indexSize = size;
+                return this;
+            }
+
+            public Builder maxPrimaryShardSize(ByteSizeValue size) {
+                this.maxPrimaryShardSize = size;
+                return this;
+            }
+
+            public Builder maxPrimaryShardDocs(long docs) {
+                this.maxPrimaryShardDocs = docs;
                 return this;
             }
 

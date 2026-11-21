@@ -56,6 +56,8 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
 import org.opensearch.cluster.metadata.Template;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.service.ClusterService;
@@ -700,6 +702,43 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
      * Test the main rolloverClusterState method. This does not validate every detail to depth, rather focuses on observing that each
      * parameter is used for the purpose intended.
      */
+    public void testRolloverClusterStateRejectsUnsupportedConditionsInMixedCluster() {
+        final String aliasName = "logs-alias";
+        final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("logs-index-000001")
+            .putAlias(AliasMetadata.builder(aliasName).writeIndex(true).build())
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().put(indexMetadata))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(new DiscoveryNode("old", buildNewFakeTransportAddress(), Version.V_3_10_0))
+                    .add(new DiscoveryNode("new", buildNewFakeTransportAddress(), Version.CURRENT))
+            )
+            .build();
+        MetadataRolloverService rolloverService = new MetadataRolloverService(
+            mock(ThreadPool.class),
+            mock(MetadataCreateIndexService.class),
+            mock(MetadataIndexAliasesService.class),
+            mock(IndexNameExpressionResolver.class)
+        );
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> rolloverService.rolloverClusterState(
+                clusterState,
+                aliasName,
+                null,
+                new CreateIndexRequest("_na_"),
+                Collections.singletonList(new MaxPrimaryShardDocsCondition(1L)),
+                false,
+                false
+            )
+        );
+        assertThat(e.getMessage(), containsString(MaxPrimaryShardDocsCondition.NAME));
+    }
+
     public void testRolloverClusterState() throws Exception {
         final String aliasName = "logs-alias";
         final String indexPrefix = "logs-index-00000";

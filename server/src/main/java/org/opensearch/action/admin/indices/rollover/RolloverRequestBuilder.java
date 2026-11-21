@@ -79,6 +79,16 @@ public class RolloverRequestBuilder extends ClusterManagerNodeOperationRequestBu
         return this;
     }
 
+    public RolloverRequestBuilder addMaxPrimaryShardSizeCondition(ByteSizeValue size) {
+        this.request.addMaxPrimaryShardSizeCondition(size);
+        return this;
+    }
+
+    public RolloverRequestBuilder addMaxPrimaryShardDocsCondition(long docs) {
+        this.request.addMaxPrimaryShardDocsCondition(docs);
+        return this;
+    }
+
     public RolloverRequestBuilder dryRun(boolean dryRun) {
         this.request.dryRun(dryRun);
         return this;

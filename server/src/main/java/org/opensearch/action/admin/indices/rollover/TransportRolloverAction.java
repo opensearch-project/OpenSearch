@@ -33,10 +33,13 @@
 package org.opensearch.action.admin.indices.rollover;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.create.CreateIndexAction;
+import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardsObserver;
 import org.opensearch.action.support.IndicesOptions;
@@ -51,6 +54,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.ResolvedIndices;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -151,6 +155,7 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
         final ClusterState state,
         final ActionListener<RolloverResponse> listener
     ) throws Exception {
+        validateConditionsSupported(rolloverRequest.getConditions().values(), state.nodes());
 
         MetadataRolloverService.RolloverResult preResult = rolloverService.rolloverClusterState(
             state,
@@ -291,9 +296,33 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
         }
     }
 
+    static void validateConditionsSupported(final Collection<Condition<?>> conditions, final DiscoveryNodes nodes) {
+        final Version minNodeVersion = nodes.getMinNodeVersion();
+        for (Condition<?> condition : conditions) {
+            if (condition.includedInVersion(minNodeVersion) == false) {
+                throw new IllegalArgumentException(
+                    "rollover condition ["
+                        + condition.name()
+                        + "] requires all nodes in the cluster to support it, but the minimum node version is ["
+                        + minNodeVersion
+                        + "]"
+                );
+            }
+        }
+    }
+
     static Map<String, Boolean> evaluateConditions(
         final Collection<Condition<?>> conditions,
         @Nullable final DocsStats docsStats,
+        @Nullable final IndexMetadata metadata
+    ) {
+        return evaluateConditions(conditions, docsStats, null, metadata);
+    }
+
+    static Map<String, Boolean> evaluateConditions(
+        final Collection<Condition<?>> conditions,
+        @Nullable final DocsStats docsStats,
+        @Nullable final ShardStats[] shards,
         @Nullable final IndexMetadata metadata
     ) {
         if (metadata == null) {
@@ -301,9 +330,22 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
         }
         final long numDocs = docsStats == null ? 0 : docsStats.getCount();
         final long indexSize = docsStats == null ? 0 : docsStats.getTotalSizeInBytes();
+        long maxPrimaryShardDocs = 0;
+        long maxPrimaryShardSize = 0;
+        if (shards != null) {
+            for (ShardStats shard : shards) {
+                final DocsStats shardDocs = shard.getStats() == null ? null : shard.getStats().getDocs();
+                if (shard.getShardRouting().primary() && shardDocs != null) {
+                    maxPrimaryShardDocs = Math.max(maxPrimaryShardDocs, shardDocs.getCount());
+                    maxPrimaryShardSize = Math.max(maxPrimaryShardSize, shardDocs.getTotalSizeInBytes());
+                }
+            }
+        }
         final Condition.Stats stats = new Condition.Stats.Builder().numDocs(numDocs)
             .indexCreated(metadata.getCreationDate())
             .indexSize(new ByteSizeValue(indexSize))
+            .maxPrimaryShardDocs(maxPrimaryShardDocs)
+            .maxPrimaryShardSize(new ByteSizeValue(maxPrimaryShardSize))
             .build();
         return conditions.stream()
             .map(condition -> condition.evaluate(stats))
@@ -318,11 +360,11 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
         if (metadata == null) {
             return conditions.stream().collect(Collectors.toMap(Condition::toString, cond -> false));
         } else {
-            final DocsStats docsStats = Optional.ofNullable(statsResponse)
-                .map(stats -> stats.getIndex(metadata.getIndex().getName()))
-                .map(indexStats -> indexStats.getPrimaries().getDocs())
-                .orElse(null);
-            return evaluateConditions(conditions, docsStats, metadata);
+            final Optional<IndexStats> indexStats = Optional.ofNullable(statsResponse)
+                .map(stats -> stats.getIndex(metadata.getIndex().getName()));
+            final DocsStats docsStats = indexStats.map(stats -> stats.getPrimaries().getDocs()).orElse(null);
+            final ShardStats[] shards = indexStats.map(IndexStats::getShards).orElse(null);
+            return evaluateConditions(conditions, docsStats, shards, metadata);
         }
     }
 

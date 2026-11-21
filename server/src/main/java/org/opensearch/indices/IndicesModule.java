@@ -35,6 +35,8 @@ package org.opensearch.indices;
 import org.opensearch.action.admin.indices.rollover.Condition;
 import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.opensearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
+import org.opensearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.opensearch.action.resync.TransportResyncReplicationAction;
 import org.opensearch.common.inject.AbstractModule;
@@ -202,6 +204,12 @@ public class IndicesModule extends AbstractModule {
         namedWritables.add(new NamedWriteableRegistry.Entry(Condition.class, MaxAgeCondition.NAME, MaxAgeCondition::new));
         namedWritables.add(new NamedWriteableRegistry.Entry(Condition.class, MaxDocsCondition.NAME, MaxDocsCondition::new));
         namedWritables.add(new NamedWriteableRegistry.Entry(Condition.class, MaxSizeCondition.NAME, MaxSizeCondition::new));
+        namedWritables.add(
+            new NamedWriteableRegistry.Entry(Condition.class, MaxPrimaryShardSizeCondition.NAME, MaxPrimaryShardSizeCondition::new)
+        );
+        namedWritables.add(
+            new NamedWriteableRegistry.Entry(Condition.class, MaxPrimaryShardDocsCondition.NAME, MaxPrimaryShardDocsCondition::new)
+        );
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -224,6 +232,16 @@ public class IndicesModule extends AbstractModule {
                 Condition.class,
                 new ParseField(MaxSizeCondition.NAME),
                 (p, c) -> MaxSizeCondition.fromXContent(p)
+            ),
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(MaxPrimaryShardSizeCondition.NAME),
+                (p, c) -> MaxPrimaryShardSizeCondition.fromXContent(p)
+            ),
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(MaxPrimaryShardDocsCondition.NAME),
+                (p, c) -> MaxPrimaryShardDocsCondition.fromXContent(p)
             )
         );
     }

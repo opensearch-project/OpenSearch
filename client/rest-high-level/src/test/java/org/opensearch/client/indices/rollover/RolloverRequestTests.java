@@ -35,6 +35,8 @@ package org.opensearch.client.indices.rollover;
 import org.opensearch.action.admin.indices.rollover.Condition;
 import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.opensearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
+import org.opensearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -61,10 +63,19 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(new TimeValue(10));
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(2000));
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(10000L);
-        Condition<?>[] expectedConditions = new Condition<?>[] { maxAgeCondition, maxSizeCondition, maxDocsCondition };
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(new ByteSizeValue(1000));
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(500L);
+        Condition<?>[] expectedConditions = new Condition<?>[] {
+            maxAgeCondition,
+            maxSizeCondition,
+            maxDocsCondition,
+            maxPrimaryShardSizeCondition,
+            maxPrimaryShardDocsCondition };
         rolloverRequest.addMaxIndexAgeCondition(maxAgeCondition.value());
         rolloverRequest.addMaxIndexSizeCondition(maxSizeCondition.value());
         rolloverRequest.addMaxIndexDocsCondition(maxDocsCondition.value());
+        rolloverRequest.addMaxPrimaryShardSizeCondition(maxPrimaryShardSizeCondition.value());
+        rolloverRequest.addMaxPrimaryShardDocsCondition(maxPrimaryShardDocsCondition.value());
         List<Condition<?>> requestConditions = new ArrayList<>(rolloverRequest.getConditions().values());
         assertThat(requestConditions, containsInAnyOrder(expectedConditions));
     }
