@@ -33,6 +33,7 @@
 package org.opensearch.bootstrap;
 
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.secure_sm.policy.Policy;
 
 import java.io.FilePermission;
 import java.io.IOException;
@@ -42,7 +43,6 @@ import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
 import java.security.Permissions;
-import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Collections;
 import java.util.Map;
@@ -151,7 +151,6 @@ final class OpenSearchPolicy extends Policy {
         new Rethrower<Error>().rethrow(t);
     }
 
-    @Override
     public PermissionCollection getPermissions(CodeSource codesource) {
         // code should not rely on this method, or at least use it correctly:
         // https://bugs.openjdk.java.net/browse/JDK-8014008
@@ -161,8 +160,8 @@ final class OpenSearchPolicy extends Policy {
                 return new Permissions();
             }
         }
-        // return UNSUPPORTED_EMPTY_COLLECTION since it is safe.
-        return super.getPermissions(codesource);
+        // return EMPTY_PERMISSION_COLLECTION since it is safe.
+        return Policy.EMPTY_PERMISSION_COLLECTION;
     }
 
     // TODO: remove this hack when insecure defaults are removed from java
@@ -229,8 +228,7 @@ final class OpenSearchPolicy extends Policy {
     );
 
     /**
-     * Wraps the Java system policy, filtering out bad default permissions that
-     * are granted to all domains. Note, before java 8 these were even worse.
+     * Wraps the OpenSearch default policy, filtering out bad default permissions that should not be granted to all domains.
      */
     static class SystemPolicy extends Policy {
         final Policy delegate;
