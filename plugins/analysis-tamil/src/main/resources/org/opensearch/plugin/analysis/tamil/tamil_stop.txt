@@ -1,0 +1,129 @@
+# Tamil Stopwords for OpenSearch analysis-tamil plugin
+# SPDX-License-Identifier: Apache-2.0
+#
+# This stopword list was derived from frequency analysis of Tamil text corpora
+# and represents common function words with low information value for search.
+# The list is intentionally conservative to avoid over-filtering meaningful terms.
+#
+# Categories included:
+# - Pronouns (personal, demonstrative, interrogative)
+# - Auxiliary verbs and copulas
+# - Common postpositions
+# - Conjunctions and discourse markers
+# - High-frequency determiners and particles
+#
+# Format: One word per line, UTF-8 encoded, NFC normalized.
+# Lines starting with # are comments.
+
+# Personal pronouns
+நான்
+நாம்
+நாங்கள்
+நீ
+நீங்கள்
+அவன்
+அவள்
+அவர்
+அவர்கள்
+அது
+அவை
+இது
+இவை
+எது
+யார்
+என்ன
+
+# Demonstratives
+இந்த
+அந்த
+எந்த
+அங்கே
+இங்கே
+எங்கே
+
+# Auxiliary verbs and copulas
+இருக்கிறது
+இருக்கும்
+இருந்தது
+இல்லை
+உள்ளது
+ஆகும்
+ஆனது
+
+# Common verbs (very high frequency, low information)
+செய்யும்
+செய்து
+செய்த
+செய்கிறது
+வரும்
+வந்த
+வந்து
+போனது
+போய்
+கொண்டு
+கொள்ள
+என்று
+என்ற
+என்றும்
+என்றால்
+
+# Postpositions (function words)
+மேல்
+கீழ்
+முன்
+பின்
+உள்ளே
+வெளியே
+மூலம்
+பற்றி
+வழியாக
+சார்பாக
+
+# Conjunctions and connectives
+மற்றும்
+அல்லது
+ஆனால்
+எனவே
+ஆகவே
+அதனால்
+இருந்தாலும்
+என்றாலும்
+ஏனென்றால்
+ஏனெனில்
+
+# Particles and markers
+தான்
+மட்டும்
+கூட
+போல்
+வரை
+வரையில்
+விட
+பிறகு
+முன்பு
+இப்போது
+அப்போது
+எப்போது
+எப்போதும்
+எல்லா
+எல்லாம்
+ஒவ்வொரு
+சில
+பல
+மிக
+மிகவும்
+மீண்டும்
+
+# Interrogatives and indefinites
+ஏன்
+எப்படி
+எவ்வளவு
+
+# Numbers (cardinal - very common, low specificity)
+ஒரு
+ஒன்று
+இரண்டு
+
+# Honorifics and titles (common noise in formal text)
+திரு
+திருமதி
