@@ -1837,6 +1837,63 @@ public class SearchPhaseControllerTests extends OpenSearchTestCase {
         latch.await();
     }
 
+    public void testTopDocsStatsZeroTimedOut() {
+        SearchPhaseController.TopDocsStats stats = new SearchPhaseController.TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+        TopDocsAndMaxScore td = emptyTopDocs();
+
+        int count = randomIntBetween(1, 10);
+        for (int i = 0; i < count; i++) {
+            stats.add(td, false, null);
+        }
+        assertEquals(0, stats.timedOutShards);
+        assertFalse(stats.timedOut);
+    }
+
+    public void testTopDocsStatsOneTimedOut() {
+        SearchPhaseController.TopDocsStats stats = new SearchPhaseController.TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+        TopDocsAndMaxScore td = emptyTopDocs();
+
+        stats.add(td, false, null);
+        stats.add(td, true, null);
+        stats.add(td, false, null);
+
+        assertEquals(1, stats.timedOutShards);
+        assertTrue(stats.timedOut);
+    }
+
+    public void testTopDocsStatsSomeTimedOut() {
+        SearchPhaseController.TopDocsStats stats = new SearchPhaseController.TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+        TopDocsAndMaxScore td = emptyTopDocs();
+
+        int total = randomIntBetween(5, 20);
+        int expectedTimedOut = 0;
+        for (int i = 0; i < total; i++) {
+            boolean timedOut = randomBoolean();
+            if (timedOut) {
+                expectedTimedOut++;
+            }
+            stats.add(td, timedOut, null);
+        }
+        assertEquals(expectedTimedOut, stats.timedOutShards);
+        assertEquals(expectedTimedOut > 0, stats.timedOut);
+    }
+
+    public void testTopDocsStatsAllTimedOut() {
+        SearchPhaseController.TopDocsStats stats = new SearchPhaseController.TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+        TopDocsAndMaxScore td = emptyTopDocs();
+
+        int count = randomIntBetween(1, 10);
+        for (int i = 0; i < count; i++) {
+            stats.add(td, true, null);
+        }
+        assertEquals(count, stats.timedOutShards);
+        assertTrue(stats.timedOut);
+    }
+
+    private static TopDocsAndMaxScore emptyTopDocs() {
+        return new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN);
+    }
+
     private static class AssertingCircuitBreaker extends NoopCircuitBreaker {
         private final AtomicBoolean shouldBreak = new AtomicBoolean(false);
 
