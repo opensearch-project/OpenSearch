@@ -50,6 +50,8 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.tasks.TaskCancelledException;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.SearchSlowLog;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
@@ -382,6 +384,28 @@ public class AnalyticsSearchService implements AutoCloseable {
                         .getInstructions()
                         .stream()
                         .anyMatch(n -> n.type() == InstructionType.SETUP_PARTIAL_AGGREGATE);
+                    // Extract DataFusion metrics (physical plan + execution stats) for slow fragments.
+                    // Gate on the LOWEST ENABLED threshold across all four levels: if the fragment
+                    // doesn't beat the most permissive enabled level, no slow log fires, so we skip
+                    // the extraction. Metrics collection is best-effort diagnostics — a failure here
+                    // must never fail the fragment or fire a second terminal callback (onComplete was
+                    // already sent above). We log at debug and continue.
+                    byte[] slowLogMetrics = null;
+                    long lowestEnabledThreshold = lowestEnabledSlowLogThreshold(shard.indexSettings());
+                    if (lowestEnabledThreshold >= 0 && fragmentTookNanos > lowestEnabledThreshold) {
+                        try {
+                            slowLogMetrics = exec.resources().getExecutionMetrics();
+                        } catch (Exception metricsEx) {
+                            LOGGER.debug(
+                                new ParameterizedMessage(
+                                    "[FragmentExecution] failed to collect slow-log metrics for shard={} task={}",
+                                    shard.shardId(),
+                                    task.getId()
+                                ),
+                                metricsEx
+                            );
+                        }
+                    }
                     FragmentExecutionStats stats = new FragmentExecutionStats(
                         rowsProduced,
                         usedSecondaryIndex,
@@ -389,7 +413,8 @@ public class AnalyticsSearchService implements AutoCloseable {
                         filterTreeShape,
                         hasPartialAggregate,
                         task.getId(),
-                        task.getHeader(Task.X_OPAQUE_ID)
+                        task.getHeader(Task.X_OPAQUE_ID),
+                        slowLogMetrics
                     );
                     listener.onFragmentSuccess(
                         request.getQueryId(),
@@ -648,6 +673,29 @@ public class AnalyticsSearchService implements AutoCloseable {
                 + ". Available: "
                 + backends.keySet()
         );
+    }
+
+    /**
+     * Returns the lowest enabled (non-negative) query slow-log threshold across all four levels
+     * (warn/info/debug/trace) in nanos, or -1 if every level is disabled. This is the most
+     * permissive gate: if a fragment's took time does not exceed this value, no slow-log level
+     * will fire, so callers can skip the cost of extracting DataFusion metrics entirely.
+     *
+     * <p>The four thresholds are independent settings — an operator may enable only {@code warn},
+     * so we cannot assume {@code trace} is always the lowest.
+     */
+    static long lowestEnabledSlowLogThreshold(IndexSettings indexSettings) {
+        long lowest = Long.MAX_VALUE;
+        long warn = indexSettings.getValue(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING).nanos();
+        long info = indexSettings.getValue(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING).nanos();
+        long debug = indexSettings.getValue(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING).nanos();
+        long trace = indexSettings.getValue(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING).nanos();
+        for (long t : new long[] { warn, info, debug, trace }) {
+            if (t >= 0 && t < lowest) {
+                lowest = t;
+            }
+        }
+        return lowest == Long.MAX_VALUE ? -1 : lowest;
     }
 
     /**

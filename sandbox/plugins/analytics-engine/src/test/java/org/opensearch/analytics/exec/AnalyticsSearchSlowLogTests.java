@@ -118,48 +118,71 @@ public class AnalyticsSearchSlowLogTests extends OpenSearchTestCase {
         }
     }
 
-    public void testSlowLogIncludesSourceAndHeaders() throws Exception {
+    public void testSlowLogIncludesFullPlan() throws Exception {
         AnalyticsSearchSlowLog slowLog = createSlowLog(TimeValue.timeValueMillis(0));
         Logger logger = LogManager.getLogger(AnalyticsSearchSlowLog.QUERY_LOGGER_NAME);
         Loggers.setLevel(logger, Level.WARN);
 
-        var wrapped = slowLog.createQueryListener("source = my_index | stats count()");
-        wrapped.setHeaders("user-opaque-123", "req-456");
+        var wrapped = slowLog.createQueryListener("source = idx | fields name");
+        wrapped.setPlanSupplier(() -> "LogicalProject(name=[$0])\n  OpenSearchTableScan(table=[[idx]])");
 
         try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
             appender.addExpectation(
                 new MockLogAppender.PatternSeenWithLoggerPrefixExpectation(
-                    "source in log",
+                    "plan included in log",
                     AnalyticsSearchSlowLog.QUERY_LOGGER_NAME,
                     Level.WARN,
-                    ".*source\\[source = my_index \\| stats count\\(\\)\\].*id\\[user-opaque-123\\].*request_id\\[req-456\\].*"
+                    ".*plan\\[LogicalProject\\(name=\\[\\$0\\]\\)\\\\n  OpenSearchTableScan\\(table=\\[\\[idx\\]\\]\\)\\].*"
                 )
             );
 
-            wrapped.onQueryComplete("q4", TimeValue.timeValueMillis(10).nanos(), 1);
+            wrapped.onQueryComplete("q-plan", TimeValue.timeValueMillis(10).nanos(), 5);
             appender.assertAllExpectationsMatched();
         }
     }
 
-    public void testSlowLogWithNullMetadata() throws Exception {
+    public void testSlowLogOmitsPlanWhenNull() throws Exception {
         AnalyticsSearchSlowLog slowLog = createSlowLog(TimeValue.timeValueMillis(0));
         Logger logger = LogManager.getLogger(AnalyticsSearchSlowLog.QUERY_LOGGER_NAME);
         Loggers.setLevel(logger, Level.WARN);
 
-        var wrapped = slowLog.createQueryListener(null);
+        var wrapped = slowLog.createQueryListener("source = idx");
+        // Do NOT call setPlanSupplier — plan should be omitted
 
         try (MockLogAppender appender = MockLogAppender.createForLoggers(logger)) {
             appender.addExpectation(
-                new MockLogAppender.PatternSeenWithLoggerPrefixExpectation(
-                    "empty fields present",
+                new MockLogAppender.UnseenEventExpectation(
+                    "no plan field when null",
                     AnalyticsSearchSlowLog.QUERY_LOGGER_NAME,
                     Level.WARN,
-                    ".*source\\[\\].*id\\[\\].*request_id\\[\\].*"
+                    "*plan[*"
+                )
+            );
+            appender.addExpectation(
+                new MockLogAppender.PatternSeenWithLoggerPrefixExpectation(
+                    "log still fires",
+                    AnalyticsSearchSlowLog.QUERY_LOGGER_NAME,
+                    Level.WARN,
+                    ".*query_id\\[q-noplan\\].*"
                 )
             );
 
-            wrapped.onQueryComplete("q5", TimeValue.timeValueMillis(1).nanos(), 0);
+            wrapped.onQueryComplete("q-noplan", TimeValue.timeValueMillis(10).nanos(), 1);
             appender.assertAllExpectationsMatched();
         }
+    }
+
+    public void testPlanSupplierNotInvokedBelowThreshold() throws Exception {
+        // Threshold is 10s; query takes 5ms — must not cross. The plan supplier throws if invoked,
+        // proving we never stringify the plan (no CPU cost, no plan text) for fast queries.
+        AnalyticsSearchSlowLog slowLog = createSlowLog(TimeValue.timeValueSeconds(10));
+        Logger logger = LogManager.getLogger(AnalyticsSearchSlowLog.QUERY_LOGGER_NAME);
+        Loggers.setLevel(logger, Level.WARN);
+
+        var wrapped = slowLog.createQueryListener("source = idx");
+        wrapped.setPlanSupplier(() -> { throw new AssertionError("plan supplier must not run below threshold"); });
+
+        // No exception means the supplier was never invoked.
+        wrapped.onQueryComplete("q-fast", TimeValue.timeValueMillis(5).nanos(), 1);
     }
 }
