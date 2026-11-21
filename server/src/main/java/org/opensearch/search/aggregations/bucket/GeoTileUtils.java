@@ -295,8 +295,13 @@ public final class GeoTileUtils {
      * @param geoShapeDocValue {@link GeoShapeDocValue}
      * @param precision int
      * @return {@link List} of {@link Long}
+     * @throws IllegalArgumentException if the number of tiles to process exceeds the maximum allowed
      */
     public static List<Long> encodeShape(final GeoShapeDocValue geoShapeDocValue, final int precision) {
+        // Maximum number of tiles that can be generated for a single shape.
+        // This prevents excessive CPU usage and memory consumption when processing shapes at high precision levels.
+        final int maxTilesPerShape = 10000;
+
         final GeoShapeDocValue.BoundingRectangle boundingRectangle = geoShapeDocValue.getBoundingRectangle();
         // generate all the grid long values that this shape intersects.
         final long totalTilesAtPrecision = 1L << checkPrecisionRange(precision);
@@ -306,9 +311,30 @@ public final class GeoTileUtils {
         // take maxY and for maxYTile we need to take minY.
         int minYTile = getYTile(boundingRectangle.getMaxY(), totalTilesAtPrecision);
         int maxYTile = getYTile(boundingRectangle.getMinY(), totalTilesAtPrecision);
+        // Calculate the number of tiles that would be processed
+        long xTileCount = (long) maxXTile - minXTile + 1;
+        long yTileCount = (long) maxYTile - minYTile + 1;
+        long totalTilesToProcess = xTileCount * yTileCount;
+        // Prevent excessive CPU usage by limiting the number of tiles to process
+        if (totalTilesToProcess > maxTilesPerShape) {
+            throw new IllegalArgumentException(
+                "The geotile_grid aggregation would process "
+                    + totalTilesToProcess
+                    + " tiles for this shape at precision "
+                    + precision
+                    + ", which exceeds the maximum allowed ("
+                    + maxTilesPerShape
+                    + "). Please use a lower precision value (recommended: precision <= 20 for geo_shape fields)."
+            );
+        }
+
         final List<Long> encodedValues = new ArrayList<>();
         for (int x = minXTile; x <= maxXTile; x++) {
             for (int y = minYTile; y <= maxYTile; y++) {
+                // Check for thread interruption to allow query cancellation
+                if (Thread.interrupted()) {
+                    throw new IllegalStateException("Query was cancelled or timed out during geotile_grid aggregation");
+                }
                 // Convert the precision, x , y to encoded value.
                 long encodedValue = longEncodeTiles(precision, x, y);
                 // Convert encoded value to rectangle
