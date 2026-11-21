@@ -34,6 +34,7 @@ package org.opensearch.script;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.opensearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
+import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
@@ -873,7 +874,7 @@ public class ScriptServiceTests extends OpenSearchTestCase {
             .put("index.analysis.filter.f1.script.source", "true")
             .put("index.analysis.filter.f1.script.lang", "painless")
             .put("index.analysis.filter.f2.type", "condition")
-            .put("index.analysis.filter.f2.script.id", "stored_script") // stored scripts are checked when compiled
+            .put("index.analysis.filter.f2.script.id", "stored_script") // resolves to language [test], which is enabled
             .put("index.similarity.sim2.type", "BM25")
             .build();
         Map<String, String> errors = scriptService.validateIndexLevelScriptLanguages(indexSettings);
@@ -890,6 +891,18 @@ public class ScriptServiceTests extends OpenSearchTestCase {
             .build();
         Map<String, String> errors = scriptService.validateIndexLevelScriptLanguages(templateSettings);
         assertThat(errors.get("index.similarity.sim1.script"), containsString("uses script language [painless]"));
+    }
+
+    public void testValidateIndexLevelScriptLanguagesResolvesStoredScripts() throws IOException {
+        // stored scripts resolve to language [test], see buildScriptService
+        buildScriptService(Settings.builder().put("script.engines.test.enabled", false).build());
+        scriptService.applyClusterState(new ClusterChangedEvent("test", ClusterState.EMPTY_STATE, ClusterState.EMPTY_STATE));
+        Settings indexSettings = Settings.builder()
+            .put("index.similarity.sim1.type", "scripted")
+            .put("index.similarity.sim1.script.id", "stored_script")
+            .build();
+        Map<String, String> errors = scriptService.validateIndexLevelScriptLanguages(indexSettings);
+        assertThat(errors.get("index.similarity.sim1.script"), containsString("uses script language [test]"));
     }
 
     public void testValidateIndexLevelScriptLanguagesWhenAllEnabled() throws IOException {

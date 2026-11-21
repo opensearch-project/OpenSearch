@@ -455,7 +455,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     }
 
     /**
-     * Returns an error, keyed by the script's setting prefix, for every inline script in the given index settings (scripted
+     * Returns an error, keyed by the script's setting prefix, for every script, inline or stored, in the given index settings (scripted
      * similarities and scripted token filters) whose language is disabled by {@link #SCRIPT_ENGINE_ENABLED_SETTING}. Used to reject new index definitions
      * (index creation, templates, restores and settings updates) while still allowing existing indices to open, see
      * {@link #compileIndexLevelScript(Script, ScriptContext)}.
@@ -501,17 +501,30 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         } catch (Exception e) {
             return; // malformed scripts are reported by the regular index validation
         }
-        if (script.getType() == ScriptType.INLINE && isLangEnabled(script.getLang()) == false) {
+        String lang = script.getType() == ScriptType.STORED ? storedScriptLang(script.getIdOrCode()) : script.getLang();
+        if (lang != null && isLangEnabled(lang) == false) {
             errors.put(
                 fullKey,
                 "["
                     + fullKey
                     + "] uses script language ["
-                    + script.getLang()
+                    + lang
                     + "], which is disabled by ["
-                    + SCRIPT_ENGINE_ENABLED_SETTING.getConcreteSettingForNamespace(script.getLang()).getKey()
+                    + SCRIPT_ENGINE_ENABLED_SETTING.getConcreteSettingForNamespace(lang).getKey()
                     + "]"
             );
+        }
+    }
+
+    /** The language of a stored script, or {@code null} if it does not exist; a missing script fails when compiled. */
+    private String storedScriptLang(String id) {
+        if (clusterState == null) {
+            return null;
+        }
+        try {
+            return getScriptFromClusterState(id).getLang();
+        } catch (ResourceNotFoundException e) {
+            return null;
         }
     }
 
@@ -592,6 +605,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
      */
     public <FactoryType> FactoryType compileIndexLevelScript(Script script, ScriptContext<FactoryType> context) {
         if (languagesDisabled.isEmpty()) {
+            // nothing to skip: keep using the public method, which subclasses (for example in tests) may override
             return compile(script, context);
         }
         return compile(script, context, false);
