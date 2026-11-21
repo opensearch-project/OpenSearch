@@ -9,6 +9,7 @@
 package org.opensearch.analytics.exec.join;
 
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.calcite.rel.RelNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -22,7 +23,11 @@ import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.CapabilityResolutionUtils;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
+import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.GeneralShuffleDAGRewriter;
+import org.opensearch.analytics.planner.dag.PlanAlternativeSelector;
+import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
@@ -47,6 +52,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
+import java.util.function.ToLongFunction;
 
 /**
  * Single dispatch entry point for the GENERAL post-CBO scheduler (Option B — see
@@ -78,6 +85,12 @@ import java.util.function.Function;
  * q3/q8/q9; a shuffle join above a broadcast — q17; a standalone broadcast — q12) because the broadcast
  * is resolved away into an instruction before the shuffle promotion ever runs.
  *
+ * <p><b>Runtime filters ride the same two mechanisms.</b> A shuffle join's filter needs a value that only
+ * the build side knows, so a pre-pass phase runs first — ahead of the capture phase above — summarising
+ * each build side into one Bloom filter; the value then travels as an instruction exactly as a broadcast
+ * does. Both are attached in the same post-promotion slot, since the promotion replaces every stage's
+ * plan alternatives and would discard anything attached earlier.
+ *
  * @opensearch.internal
  */
 public final class UnifiedDispatch {
@@ -92,19 +105,37 @@ public final class UnifiedDispatch {
     private final CapabilityRegistry capabilityRegistry;
     private final boolean preferMetadataDriver;
     private final long sortMergeJoinMinRows;
+    private final boolean runtimeFilterEnabled;
+    private final int runtimeFilterMaxValues;
+    private final int runtimeFilterMaxBloomBytes;
+    private final long runtimeFilterBuildSideMaxRows;
+    private final long runtimeFilterProbeSideMinScanBytes;
+    private final RuntimeFilterMetrics runtimeFilterMetrics;
 
     public UnifiedDispatch(
         QueryScheduler scheduler,
         ClusterService clusterService,
         CapabilityRegistry capabilityRegistry,
         boolean preferMetadataDriver,
-        long sortMergeJoinMinRows
+        long sortMergeJoinMinRows,
+        boolean runtimeFilterEnabled,
+        int runtimeFilterMaxValues,
+        int runtimeFilterMaxBloomBytes,
+        long runtimeFilterBuildSideMaxRows,
+        long runtimeFilterProbeSideMinScanBytes,
+        RuntimeFilterMetrics runtimeFilterMetrics
     ) {
         this.scheduler = scheduler;
         this.clusterService = clusterService;
         this.capabilityRegistry = capabilityRegistry;
         this.preferMetadataDriver = preferMetadataDriver;
         this.sortMergeJoinMinRows = sortMergeJoinMinRows;
+        this.runtimeFilterEnabled = runtimeFilterEnabled;
+        this.runtimeFilterMaxValues = runtimeFilterMaxValues;
+        this.runtimeFilterMaxBloomBytes = runtimeFilterMaxBloomBytes;
+        this.runtimeFilterBuildSideMaxRows = runtimeFilterBuildSideMaxRows;
+        this.runtimeFilterProbeSideMinScanBytes = runtimeFilterProbeSideMinScanBytes;
+        this.runtimeFilterMetrics = runtimeFilterMetrics;
     }
 
     /**
@@ -124,14 +155,250 @@ public final class UnifiedDispatch {
         AtomicBoolean done = new AtomicBoolean(false);
         ActionListener<Iterable<VectorSchemaRoot>> terminal = onceOnly(done, rawTerminal);
         try {
-            List<List<Stage>> waves = collectBuildWaves(dag.rootStage());
-            if (waves.isEmpty()) {
-                dispatchBroadcastFree(ctx, dag, Function.identity(), queryExecutionSink, terminal);
-                return;
+            if (runtimeFilterEnabled && GeneralShuffleDAGRewriter.hasDistributedJoin(dag)) {
+                // Planted before the shuffle promotion: that promotion re-runs the plan-side pipeline, so a
+                // predicate planted now is converted for free and one planted later never reaches a plan.
+                // The distributed-join precondition is what guarantees the promotion runs at all.
+                List<ShuffleRuntimeFilters.Descriptor> planned = ShuffleRuntimeFilters.plan(
+                    dag,
+                    runtimeFilterMaxBloomBytes,
+                    runtimeFilterBuildSideMaxRows,
+                    runtimeFilterProbeSideMinScanBytes
+                );
+                runtimeFilterMetrics.record(RuntimeFilterMetrics.Counter.SHUFFLE_PLANNED, planned.size());
+                ShuffleRuntimeFilters.Planted planted = ShuffleRuntimeFilters.plantProbePredicates(dag, planned);
+                runtimeFilterMetrics.record(RuntimeFilterMetrics.Counter.SHUFFLE_PLANTED, planted.descriptors().size());
+                if (!planted.descriptors().isEmpty()) {
+                    prePassThenDispatch(ctx, planted, captureSinkFactory, queryExecutionSink, terminal);
+                    return;
+                }
             }
-            captureThenDispatch(ctx, dag, waves, captureSinkFactory, queryExecutionSink, terminal);
+            dispatch(ctx, dag, captureSinkFactory, queryExecutionSink, terminal, NO_PAYLOADS);
         } catch (Exception e) {
             terminal.onFailure(e);
+        }
+    }
+
+    /** No runtime-filter payloads to attach — the shape of every query that has no shuffle filter. */
+    private static final Consumer<QueryDAG> NO_PAYLOADS = rewrittenDag -> {};
+
+    /**
+     * Dispatches the query proper: broadcast capture first when it has any build, else straight through.
+     *
+     * @param attachPayloads applied to the rewritten DAG in the same {@code postRewrite} slot the broadcast
+     *     injection uses, to attach whatever the pre-pass computed
+     */
+    private void dispatch(
+        QueryContext ctx,
+        QueryDAG dag,
+        Function<Stage, ExchangeSink> captureSinkFactory,
+        Consumer<QueryExecution> queryExecutionSink,
+        ActionListener<Iterable<VectorSchemaRoot>> terminal,
+        Consumer<QueryDAG> attachPayloads
+    ) {
+        List<List<Stage>> waves = collectBuildWaves(dag.rootStage());
+        if (waves.isEmpty()) {
+            dispatchBroadcastFree(ctx, dag, rewrittenDag -> {
+                attachPayloads.accept(rewrittenDag);
+                return rewrittenDag;
+            }, queryExecutionSink, terminal);
+            return;
+        }
+        captureThenDispatch(ctx, dag, waves, captureSinkFactory, queryExecutionSink, terminal, attachPayloads);
+    }
+
+    /**
+     * Runs one pre-pass per planted shuffle filter, then dispatches the query with whatever payloads those
+     * pre-passes produced.
+     *
+     * <p>Each pre-pass is a standalone mini-DAG over the build producer's own fragment, so it needs its own
+     * plan-side pipeline: it was built by hand after {@code DefaultPlanExecutor} ran that pipeline, and an
+     * unconverted stage has no plan to send to a data node.
+     *
+     * <p>Every failure mode here falls through to dispatching the query <em>without</em> that payload: a
+     * pre-pass that fails, is cancelled, or yields nothing leaves its predicate unsatisfied, and an
+     * unsatisfied predicate keeps every row. So a broken pre-pass costs a scan and the optimization, never
+     * the result. Task cancellation is the one exception — there the query is going away regardless.
+     */
+    private void prePassThenDispatch(
+        QueryContext ctx,
+        ShuffleRuntimeFilters.Planted planted,
+        Function<Stage, ExchangeSink> captureSinkFactory,
+        Consumer<QueryExecution> queryExecutionSink,
+        ActionListener<Iterable<VectorSchemaRoot>> terminal
+    ) {
+        QueryDAG dag = planted.dag();
+        Map<Integer, Stage> stagesById = new LinkedHashMap<>();
+        indexStages(dag.rootStage(), stagesById);
+
+        Map<Integer, ShuffleRuntimeFilters.Descriptor> byPrePassStageId = new LinkedHashMap<>();
+        List<Stage> prePassStages = new ArrayList<>();
+        for (ShuffleRuntimeFilters.Descriptor descriptor : planted.descriptors()) {
+            Stage buildStage = stagesById.get(descriptor.buildStageId());
+            if (buildStage == null) {
+                continue;
+            }
+            QueryDAG prePass = ShuffleRuntimeFilters.prePassDag(dag.queryId() + "-rf" + descriptor.filterId(), buildStage, descriptor);
+            if (prePass == null) {
+                continue;
+            }
+            PlanForker.forkAll(prePass, capabilityRegistry);
+            BackendPlanAdapter.adaptAll(prePass, capabilityRegistry);
+            PlanAlternativeSelector.selectAll(prePass, capabilityRegistry, preferMetadataDriver);
+            FragmentConversionDriver.convertAll(prePass, capabilityRegistry);
+            prePassStages.add(prePass.rootStage());
+            byPrePassStageId.put(prePass.rootStage().getStageId(), descriptor);
+        }
+        if (prePassStages.isEmpty()) {
+            dispatch(ctx, dag, captureSinkFactory, queryExecutionSink, terminal, NO_PAYLOADS);
+            return;
+        }
+
+        runtimeFilterMetrics.record(RuntimeFilterMetrics.Counter.PRE_PASS_RUN, prePassStages.size());
+        final long prePassStartNanos = System.nanoTime();
+        Map<Integer, byte[]> payloadsByFilterId = new LinkedHashMap<>();
+        // One merging sink per pre-pass, unioning as contributions arrive. An IPC capture sink would have to
+        // reserve `bloomBytes × shards` up front, which exhausted the native pool on multi-filter queries.
+        Map<Integer, RuntimeFilterMergeSink> sinksByStageId = new LinkedHashMap<>();
+        for (Map.Entry<Integer, ShuffleRuntimeFilters.Descriptor> e : byPrePassStageId.entrySet()) {
+            sinksByStageId.put(e.getKey(), new RuntimeFilterMergeSink(e.getValue().filterId()));
+        }
+        capturePrePasses(ctx, prePassStages, stage -> sinksByStageId.get(stage.getStageId()), prePassStageId -> {
+            ShuffleRuntimeFilters.Descriptor descriptor = byPrePassStageId.get(prePassStageId);
+            RuntimeFilterMergeSink sink = sinksByStageId.get(prePassStageId);
+            byte[] merged = sink == null ? null : sink.mergedBitset();
+            if (descriptor != null && merged != null) {
+                runtimeFilterMetrics.increment(RuntimeFilterMetrics.Counter.PRE_PASS_WITH_PAYLOAD);
+                runtimeFilterMetrics.record(RuntimeFilterMetrics.Counter.PAYLOAD_BYTES, merged.length);
+                synchronized (payloadsByFilterId) {
+                    payloadsByFilterId.put(descriptor.filterId(), merged);
+                }
+            }
+        }, () -> {
+            // Per phase, not per pre-pass: they run concurrently, so the phase's elapsed time is what any
+            // measured win pays, not the sum of its parts.
+            runtimeFilterMetrics.record(RuntimeFilterMetrics.Counter.PRE_PASS_NANOS, System.nanoTime() - prePassStartNanos);
+            try {
+                LOGGER.debug(
+                    "[runtime-filter] {} of {} pre-pass(es) produced a payload; dispatching",
+                    payloadsByFilterId.size(),
+                    prePassStages.size()
+                );
+                dispatch(ctx, dag, captureSinkFactory, queryExecutionSink, terminal, rewrittenDag -> {
+                    int attached = ShuffleRuntimeFilterPayload.attach(rewrittenDag.rootStage(), payloadsByFilterId);
+                    runtimeFilterMetrics.record(RuntimeFilterMetrics.Counter.PAYLOAD_ATTACHED, attached);
+                    LOGGER.debug("[runtime-filter] attached {} shuffle filter payload(s)", attached);
+                });
+            } catch (Exception e) {
+                terminal.onFailure(e);
+            }
+        }, terminal);
+    }
+
+    /**
+     * Runs each pre-pass subtree in isolation into its own sink, reporting every settled stage to
+     * {@code onSettled} and calling {@code onAllSettled} once, after the last one.
+     *
+     * <p>Whether a pre-pass produced anything is read from its sink by the caller rather than passed here:
+     * the sink accumulates the union as contributions arrive, so a settled stage is the signal and the sink
+     * is the value. That makes the terminal state load-bearing — a stage that did not succeed has its sink
+     * invalidated here, before the caller can read a union that is missing a shard.</p>
+     *
+     * <p>Unlike the broadcast capture phase, a failure is not fatal and siblings are not cancelled: a
+     * missing payload is a missing optimization. What must not be swallowed is task cancellation, which
+     * fails the query through {@code terminal} as everywhere else.
+     */
+    private void capturePrePasses(
+        QueryContext ctx,
+        List<Stage> prePassStages,
+        Function<Stage, ExchangeSink> captureSinkFactory,
+        IntConsumer onSettled,
+        Runnable onAllSettled,
+        ActionListener<Iterable<VectorSchemaRoot>> terminal
+    ) {
+        StageExecutionBuilder builder = scheduler.getStageExecutionBuilder();
+        AtomicInteger remaining = new AtomicInteger(prePassStages.size());
+        List<StageExecution> roots = new ArrayList<>(prePassStages.size());
+        List<StageExecution> allLeaves = new ArrayList<>();
+
+        for (Stage prePassStage : prePassStages) {
+            final int prePassStageId = prePassStage.getStageId();
+            ExchangeSink captureSink = captureSinkFactory.apply(prePassStage);
+            StageExecutionBuilder.SubGraph graph = builder.buildSubGraphWithSink(prePassStage, captureSink, ctx, scheduler::scheduleStage);
+            roots.add(graph.root());
+            allLeaves.addAll(graph.leaves());
+            graph.root().addStateListener((from, to) -> {
+                switch (to) {
+                    case SUCCEEDED -> {
+                        // Nothing to extract: the sink accumulates the union and the caller reads it
+                        // directly.
+                        try {
+                            captureSink.close();
+                        } catch (Throwable t) {
+                            LOGGER.warn(new ParameterizedMessage("[runtime-filter] pre-pass {} sink close failed", prePassStageId), t);
+                        }
+                    }
+                    case FAILED, CANCELLED -> {
+                        // Abandon the accumulator BEFORE anyone can read it: a pre-pass that got part way
+                        // has already unioned the shards that did report, and a union missing a shard's keys
+                        // makes the probe reject rows that belong in the result. The sink's per-contribution
+                        // checks cannot catch it — every contribution it received was well formed.
+                        if (captureSink instanceof RuntimeFilterMergeSink mergeSink) {
+                            mergeSink.invalidate();
+                        }
+                        try {
+                            captureSink.close();
+                        } catch (Throwable ignore) {
+                            // The stage already failed; a close failure adds nothing.
+                        }
+                        LOGGER.debug("[runtime-filter] pre-pass {} ended {}; continuing without its payload", prePassStageId, to);
+                    }
+                    default -> {
+                        return;
+                    }
+                }
+                onSettled.accept(prePassStageId);
+                if (remaining.decrementAndGet() == 0) {
+                    AnalyticsQueryTask task = ctx.parentTask();
+                    if (task != null && task.isCancelled()) {
+                        String reason = task.getReasonCancelled() != null ? task.getReasonCancelled() : "unknown";
+                        terminal.onFailure(new TaskCancelledException("query cancelled during runtime-filter pre-pass: " + reason));
+                        return;
+                    }
+                    onAllSettled.run();
+                }
+            });
+        }
+
+        // Cancel wiring goes last, as in the capture phase: the callback replays synchronously when the task
+        // is already cancelled. The next phase replaces it.
+        AnalyticsQueryTask parentTask = ctx.parentTask();
+        if (parentTask != null) {
+            parentTask.setOnCancelCallback(() -> {
+                String reason = parentTask.getReasonCancelled() != null ? parentTask.getReasonCancelled() : "unknown";
+                for (StageExecution root : roots) {
+                    try {
+                        root.cancel("task cancelled: " + reason);
+                    } catch (Exception e) {
+                        LOGGER.warn("[runtime-filter] failed to cancel pre-pass exec", e);
+                    }
+                }
+            });
+            if (parentTask.isCancelled()) {
+                LOGGER.debug("[runtime-filter] task already cancelled before the pre-pass started; not scheduling");
+                return;
+            }
+        }
+
+        for (StageExecution leaf : allLeaves) {
+            scheduler.scheduleStage(leaf);
+        }
+    }
+
+    private static void indexStages(Stage stage, Map<Integer, Stage> out) {
+        out.put(stage.getStageId(), stage);
+        for (Stage child : stage.getChildStages()) {
+            indexStages(child, out);
         }
     }
 
@@ -194,7 +461,8 @@ public final class UnifiedDispatch {
         List<List<Stage>> waves,
         Function<Stage, ExchangeSink> captureSinkFactory,
         Consumer<QueryExecution> queryExecutionSink,
-        ActionListener<Iterable<VectorSchemaRoot>> terminal
+        ActionListener<Iterable<VectorSchemaRoot>> terminal,
+        Consumer<QueryDAG> attachPayloads
     ) {
         // Accumulates across waves: a wave's builds are prepared against everything captured before it.
         Map<Integer, byte[]> capturedByBuildId = new LinkedHashMap<>();
@@ -212,7 +480,8 @@ public final class UnifiedDispatch {
             cancelCallbackInstalled,
             captureSinkFactory,
             queryExecutionSink,
-            terminal
+            terminal,
+            attachPayloads
         );
     }
 
@@ -230,7 +499,8 @@ public final class UnifiedDispatch {
         AtomicBoolean cancelCallbackInstalled,
         Function<Stage, ExchangeSink> captureSinkFactory,
         Consumer<QueryExecution> queryExecutionSink,
-        ActionListener<Iterable<VectorSchemaRoot>> terminal
+        ActionListener<Iterable<VectorSchemaRoot>> terminal,
+        Consumer<QueryDAG> attachPayloads
     ) {
         StageExecutionBuilder builder = scheduler.getStageExecutionBuilder();
         List<Stage> builds = waves.get(waveIndex);
@@ -303,10 +573,11 @@ public final class UnifiedDispatch {
                                         cancelCallbackInstalled,
                                         captureSinkFactory,
                                         queryExecutionSink,
-                                        terminal
+                                        terminal,
+                                        attachPayloads
                                     );
                                 } else {
-                                    injectStripAndDispatch(ctx, dag, capturedByBuildId, queryExecutionSink, terminal);
+                                    injectStripAndDispatch(ctx, dag, capturedByBuildId, queryExecutionSink, terminal, attachPayloads);
                                 }
                             } catch (Exception e) {
                                 terminal.onFailure(e);
@@ -415,7 +686,8 @@ public final class UnifiedDispatch {
         QueryDAG dag,
         Map<Integer, byte[]> capturedByBuildId,
         Consumer<QueryExecution> queryExecutionSink,
-        ActionListener<Iterable<VectorSchemaRoot>> terminal
+        ActionListener<Iterable<VectorSchemaRoot>> terminal,
+        Consumer<QueryDAG> attachPayloads
     ) {
         Stage strippedRoot = stripBuildChildren(dag.rootStage(), capturedByBuildId);
         QueryDAG strippedDag = new QueryDAG(dag.queryId(), strippedRoot);
@@ -429,6 +701,23 @@ public final class UnifiedDispatch {
         // the enrich or be discarded by it. Returns the same DAG.
         dispatchBroadcastFree(ctx, strippedDag, rewrittenDag -> {
             injectBroadcastsInPlace(rewrittenDag.rootStage(), capturedByBuildId);
+            // Same hook, same reason: anything attached before the shuffle promotion is wiped when it
+            // replaces every stage's plan alternatives. The build side is already captured here, so the key
+            // set costs no extra scan.
+            if (runtimeFilterEnabled) {
+                int canMatchAttached = BroadcastRuntimeFilters.attach(
+                    rewrittenDag.rootStage(),
+                    capturedByBuildId,
+                    ctx.bufferAllocator(),
+                    runtimeFilterMaxValues
+                );
+                // Recorded, not discarded: this is the only signal that the broadcast half fired, and an
+                // unrecorded counter is indistinguishable from a real failure.
+                runtimeFilterMetrics.record(RuntimeFilterMetrics.Counter.BROADCAST_CAN_MATCH_ATTACHED, canMatchAttached);
+            }
+            // The shuffle family's payload lands in the same slot, after the broadcast work, so a query
+            // using both gets both instructions.
+            attachPayloads.accept(rewrittenDag);
             return rewrittenDag;
         }, queryExecutionSink, terminal);
     }
@@ -494,9 +783,18 @@ public final class UnifiedDispatch {
 
     /** Copies a stage with new children, preserving role / exchange / resolver / factory / plan alternatives. */
     private static Stage copyStage(Stage stage, List<Stage> children, List<StagePlan> planAlternatives) {
+        return copyStage(stage, stage.getFragment(), children, planAlternatives);
+    }
+
+    /**
+     * Copies a stage with a new fragment as well. Package-private so {@code ShuffleRuntimeFilters} can
+     * plant a predicate into a producer's fragment without duplicating the field-by-field copy — a
+     * missed field here silently loses a role or a resolver.
+     */
+    static Stage copyStage(Stage stage, RelNode fragment, List<Stage> children, List<StagePlan> planAlternatives) {
         Stage copy = new Stage(
             stage.getStageId(),
-            stage.getFragment(),
+            fragment,
             children,
             stage.getExchangeInfo(),
             stage.getExchangeSinkProvider(),
@@ -610,6 +908,17 @@ public final class UnifiedDispatch {
         CapabilityRegistry capabilityRegistry,
         ClusterService clusterService
     ) {
+        final long broadcastMaxBytes = clusterService.getClusterSettings().get(AnalyticsSettings.BROADCAST_MAX_BYTES).getBytes();
+        return captureSinkFactory(ctx, dag, capabilityRegistry, stage -> broadcastMaxBytes);
+    }
+
+    /** As above, with the per-stage byte budget supplied by the caller. */
+    private static Function<Stage, ExchangeSink> captureSinkFactory(
+        QueryContext ctx,
+        QueryDAG dag,
+        CapabilityRegistry capabilityRegistry,
+        ToLongFunction<Stage> maxBytes
+    ) {
         Stage root = dag.rootStage();
         List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(
             capabilityRegistry,
@@ -619,9 +928,8 @@ public final class UnifiedDispatch {
             throw new IllegalStateException("No reduce-capable backend for broadcast capture sink (general scheduler)");
         }
         final String captureBackendId = reduceViable.get(0);
-        final long broadcastMaxBytes = clusterService.getClusterSettings().get(AnalyticsSettings.BROADCAST_MAX_BYTES).getBytes();
         return stage -> capabilityRegistry.getBackend(captureBackendId)
             .getExchangeSinkProvider()
-            .createBroadcastCaptureSink(ctx.bufferAllocator(), stage.getFragment().getRowType(), broadcastMaxBytes);
+            .createBroadcastCaptureSink(ctx.bufferAllocator(), stage.getFragment().getRowType(), maxBytes.applyAsLong(stage));
     }
 }

@@ -225,6 +225,169 @@ public final class AnalyticsSettings {
     );
 
     /**
+     * Master switch for join runtime filters: using a join's build side to reduce probe-side work before
+     * the probe is read. Off by default while the feature is being measured.
+     *
+     * <p>Read per query on the coordinator, so flipping it needs no restart and both arms of an A/B run
+     * the same binary. That matters more than usual here: the feature spans Java and the Rust cdylib, and
+     * the benchmark clusters are aarch64, where swapping the ~490 MB native library means a 15-minute
+     * on-node rebuild. Comparing two deploys would also fold deploy-to-deploy variance into the very
+     * difference being measured.
+     *
+     * <p>Turning it off can only cost work, never change results: every application point is a
+     * conservative prune that fails open.
+     */
+    public static final Setting<Boolean> RUNTIME_FILTER_ENABLED = Setting.boolSetting(
+        "analytics.mpp.runtime_filter.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Largest number of distinct build-side keys shipped as a can-match value set.
+     *
+     * <p>Bounds two things at once: the bytes added to every per-shard can-match request (8 per value),
+     * and the work the data node does per row group (a binary search over the set). Above the cap no
+     * value-set filter is produced for that join — the coordinator does not silently fall back to a
+     * min/max range, because a range over a wide key set has an envelope so broad it prunes nothing while
+     * still costing a round trip's worth of payload.
+     *
+     * <p>Default 50,000, which is Trino's ceiling for the tier this family actually is — a broadcast join —
+     * at 4 MB per driver. The previous default of 4096 was compared against the wrong reference: Trino's
+     * 20,000 / 200 kB applies to its *partitioned* joins. 50,000 keys is 400 kB per can-match request.
+     *
+     * <p>Measured caveat, so nobody reads this number as a tuning dial: raising it changes nothing on the
+     * TPC-H shapes measured here. Their broadcast build sides exceed **half a million** distinct keys, so
+     * they are refused at any cap worth setting, and the real limit is that the can-match phase can only
+     * evaluate a range or a bounded value set. A wide build side needs a Bloom on that path; a cap does not
+     * get there. Above the cap no value-set filter is produced and the coordinator deliberately does not
+     * fall back to a min/max range, because a range over a wide key set has an envelope so broad it prunes
+     * nothing while still costing a round trip's worth of payload.
+     */
+    public static final Setting<Integer> RUNTIME_FILTER_CANMATCH_MAX_VALUES = Setting.intSetting(
+        "analytics.mpp.runtime_filter.canmatch.max_values",
+        50_000,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Ceiling on the Bloom filter each build-side shard contributes, in bytes.
+     *
+     * <p>Every contribution must be this size or the coordinator's union of them is undefined, so
+     * it is one query-level decision shipped to every build task rather than something a task
+     * derives from its local cardinality. The backend rounds it up to a power of two.
+     *
+     * <p><b>A ceiling, not the size.</b> The size itself is derived per filter from the build side's
+     * estimated cardinality at roughly 10 bits per key; see {@code ShuffleRuntimeFilters.bloomBytesFor}.
+     * A fixed size fails silently in one direction, and it did: measured on sf=100, a 22.7M-key build
+     * side in a fixed 1 MiB is ~2.7 bits per key, the false-positive rate approaches 1, and a query that
+     * gains 78% with an adequately sized filter gained 3.9% — inside noise — with that one.
+     *
+     * <p>Default 32 MiB, which is ~11 bits per key at 22.7M keys, the largest build side measured. Two
+     * costs bound it: the payload is shipped once per probe-side shard task, and probe cost per row rises
+     * once the filter stops fitting the cache (measured 35–46 ns/row from 32 KiB through 1 MiB, rising at
+     * 8 MiB). Lower it to trade accuracy for payload; a build side whose estimate is small still gets a
+     * small filter, since the derivation caps rather than pads.
+     *
+     * <p>Spark's equivalent stays near 1 MiB, which is coherent for Spark because its creation-side
+     * threshold refuses large build sides outright — a rule that would have declined the 78% case.
+     */
+    public static final Setting<ByteSizeValue> RUNTIME_FILTER_BLOOM_BYTES = Setting.byteSizeSetting(
+        "analytics.mpp.runtime_filter.bloom.bytes",
+        new ByteSizeValue(32L * 1024 * 1024),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Smallest estimated probe-side scan, in bytes, for which a shuffle-family filter is worth building.
+     *
+     * <p>This is the gate that decides whether the feature does anything at all, and it exists because a
+     * filter only repays its pre-pass when the rows it removes were expensive to move. Measured on two
+     * scales of the same benchmark: a query whose filtered side scans ~80M wide rows gained 24%, while the
+     * same query over a tenth of the data gained nothing — it finishes in 1.4 seconds, so the pre-pass scan
+     * and the megabyte of payload were pure loss.
+     *
+     * <p><b>Bytes rather than rows, and the distinction is load-bearing.</b> A row threshold cannot separate
+     * those two cases: the case that gained scans 80M rows, and a case measured to gain nothing scans 60M —
+     * a floor between those would be fitted to noise.
+     *
+     * <p><b>Default 400 MB, interpolated from measurement rather than measured directly.</b> In this
+     * estimator's units the observed cases fall on both sides with nothing in between:
+     *
+     * <pre>
+     *   ~0.05-0.36 GB   no effect   (three shapes at a tenth of the data; each finishes in seconds)
+     *   ~0.40 GB        no effect
+     *   ---------------- boundary lies somewhere in here, unmeasured ----------------
+     *   ~0.80 GB        +24%
+     *   ~3.60 GB        +75%
+     * </pre>
+     *
+     * <p>400 MB refuses every case measured to gain nothing and admits both measured wins with roughly a
+     * factor of two to spare. <b>The bias toward the low end is deliberate</b>, because the two ways of
+     * being wrong are not equally expensive and both are silent: set too high, the gate suppresses a real
+     * speedup and the query merely looks unremarkable; set too low, the query pays one pre-pass — about
+     * 13 ms plus a payload — on something that finishes in seconds. Preferring the cheaper mistake means
+     * sitting nearer the no-effect side of the bracket.
+     *
+     * <p>Note that Spark's equivalent threshold is 10 GB, and adopting that number here would be a mistake
+     * rather than a shortcut: Spark measures real file statistics, whereas this compares against Calcite's
+     * estimate, which came out roughly an order of magnitude smaller on the same data (600M fact rows
+     * estimated at 3.6 GB, about 6 bytes per row). The quantity is the same; the scale is not.
+     *
+     * <p>Set to {@code 0} to apply a filter regardless of the filtered side's size — useful when checking
+     * whether this gate is what is suppressing a filter, since a refusal here is otherwise indistinguishable
+     * from a query with no eligible join.
+     */
+    public static final Setting<ByteSizeValue> RUNTIME_FILTER_PROBE_SIDE_MIN_SCAN_BYTES = Setting.byteSizeSetting(
+        "analytics.mpp.runtime_filter.probe_side.min_scan_bytes",
+        new ByteSizeValue(400L * 1024 * 1024),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Largest estimated build side, in rows, for which the shuffle-family pre-pass is worth running.
+     *
+     * <p>This gate is what keeps the feature from costing more than it saves. The pre-pass reads the
+     * build table's key column a <em>second</em> time — the table is already scanned as a shuffle
+     * producer in the same query — so unlike the broadcast family, where the build side is already
+     * materialised on the coordinator and the summary is free, here there is a real added scan.
+     * Spark guards the identical cost with a 10 MB creation-side threshold and abandons the filter
+     * above it rather than paying.
+     *
+     * <p>Measured against the side's estimated <em>output</em> rows, not the rows it scans. The scan is
+     * what the pre-pass costs, but selectivity is what decides whether paying it is sensible: a dimension
+     * that scans 20M rows and emits 400k of them is both cheap to summarise and a useful filter, and
+     * gating on its scan count would refuse it — which is exactly the shape measured to be worth 24%.
+     * Spark's threshold measures the same quantity, an estimated plan output size.
+     *
+     * <p>Expressed in rows because the planner has row counts and not bytes for a filtered subtree.
+     *
+     * <p><b>Calibration.</b> 50M is anchored by the largest build side measured to pay: a dimension emitting
+     * 22.76M rows, which produced a 75% improvement. Calcite estimated that side at 9.4M rows, so the gate
+     * is compared against a number well under the truth — which is the direction that matters here, since
+     * the gate refuses when the estimate is *large*. The measured need is therefore 22.76M with the estimate
+     * landing at 9.4M, and 50M leaves roughly a factor of two over the true figure and five over the
+     * estimate. Tightening below ~23M would remove the only large win observed; loosening has no supporting
+     * evidence, since nothing above this was measured to pay. A fact table as the summarised side — 600M
+     * rows — is refused, which is the case this gate exists for.
+     *
+     * <p>Set to {@code 0} to disable the shuffle-family pre-pass entirely while leaving the broadcast
+     * family's free path on.
+     */
+    public static final Setting<Long> RUNTIME_FILTER_BUILD_SIDE_MAX_ROWS = Setting.longSetting(
+        "analytics.mpp.runtime_filter.build_side.max_rows",
+        50_000_000L,
+        0L,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Master switch for hash-shuffle disk spill. When {@code true}, a query whose per-query shuffle
      * footprint would exceed the on-heap budget spills its oldest buffered Arrow-IPC chunks to disk
      * (see {@code ShuffleBufferManager.spillOldest}) instead of failing fast with
@@ -371,6 +534,11 @@ public final class AnalyticsSettings {
         MPP_DISTRIBUTE_MIN_ROWS,
         MPP_JOIN_REORDER,
         MPP_WORKER_SORT_MERGE_JOIN_MIN_ROWS,
+        RUNTIME_FILTER_ENABLED,
+        RUNTIME_FILTER_CANMATCH_MAX_VALUES,
+        RUNTIME_FILTER_BLOOM_BYTES,
+        RUNTIME_FILTER_BUILD_SIDE_MAX_ROWS,
+        RUNTIME_FILTER_PROBE_SIDE_MIN_SCAN_BYTES,
         MPP_SHUFFLE_SPILL_ENABLED,
         MPP_SHUFFLE_SPILL_DIRECTORY,
         MPP_SHUFFLE_SPILL_MAX_BYTES,

@@ -157,12 +157,16 @@ pub async fn register_listing_table(
 /// the physical optimizer drops the combine-partial-final pass, and the indexed
 /// `index_filter` / `delegation_possible` UDFs are registered on top of the base
 /// UDFs. When false, the vanilla path's defaults are used.
+/// Returns the context together with the join runtime-filter registry registered on
+/// it. The registry is returned rather than discoverable from the context because
+/// only the instruction handler that receives a filter's bitset needs it, and it must
+/// be the same one the `os_runtime_filter` UDF reads.
 pub fn build_query_session_context(
     query_config: &DatafusionQueryConfig,
     runtime_env: Arc<RuntimeEnv>,
     target_partitions: usize,
     indexed_path: bool,
-) -> SessionContext {
+) -> (SessionContext, crate::runtime_filter::RuntimeFilterRegistry) {
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters =
         query_config.listing_table_pushdown_filters;
@@ -183,10 +187,14 @@ pub fn build_query_session_context(
     let ctx = SessionContext::new_with_state(state);
     udf::register_all(&ctx);
     udaf::register_all(&ctx);
+    // Both halves of the join runtime filter, on every session this builder makes: a
+    // fragment carrying either one has to resolve it, and the build aggregate and the
+    // probe UDF only agree because they are registered as a pair.
+    let runtime_filters = crate::runtime_filter::register(&ctx);
     if indexed_path {
         // Indexed-path-only UDFs, on top of the base UDFs above.
         ctx.register_udf(create_index_filter_udf());
         ctx.register_udf(create_delegation_possible_udf());
     }
-    ctx
+    (ctx, runtime_filters)
 }
