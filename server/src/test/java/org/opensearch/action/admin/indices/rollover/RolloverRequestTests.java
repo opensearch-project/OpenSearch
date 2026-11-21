@@ -32,8 +32,10 @@
 
 package org.opensearch.action.admin.indices.rollover;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -44,6 +46,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -58,6 +61,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -155,11 +159,28 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         assertFalse(properties.isEmpty());
     }
 
+    public void testCopyMappingsParsingPreservesPresence() throws Exception {
+        final RolloverRequest omitted = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        assertNull(omitted.getCopyMappings());
+        assertFalse(omitted.isCopyMappings());
+
+        final RolloverRequest enabled = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        enabled.fromXContent(createParser(XContentFactory.jsonBuilder().startObject().field("copy_mappings", true).endObject()));
+        assertEquals(Boolean.TRUE, enabled.getCopyMappings());
+        assertTrue(enabled.isCopyMappings());
+
+        final RolloverRequest disabled = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        disabled.fromXContent(createParser(XContentFactory.jsonBuilder().startObject().field("copy_mappings", false).endObject()));
+        assertEquals(Boolean.FALSE, disabled.getCopyMappings());
+        assertFalse(disabled.isCopyMappings());
+    }
+
     public void testSerialize() throws Exception {
         RolloverRequest originalRequest = new RolloverRequest("alias-index", "new-index-name");
         originalRequest.addMaxIndexDocsCondition(randomNonNegativeLong());
         originalRequest.addMaxIndexAgeCondition(TimeValue.timeValueNanos(randomNonNegativeLong()));
         originalRequest.addMaxIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        originalRequest.copyMappings(true);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             originalRequest.writeTo(out);
             BytesReference bytes = out.bytes();
@@ -167,6 +188,8 @@ public class RolloverRequestTests extends OpenSearchTestCase {
                 RolloverRequest cloneRequest = new RolloverRequest(in);
                 assertThat(cloneRequest.getNewIndexName(), equalTo(originalRequest.getNewIndexName()));
                 assertThat(cloneRequest.getRolloverTarget(), equalTo(originalRequest.getRolloverTarget()));
+                assertEquals(Boolean.TRUE, cloneRequest.getCopyMappings());
+                assertTrue(cloneRequest.isCopyMappings());
                 for (Map.Entry<String, Condition<?>> entry : cloneRequest.getConditions().entrySet()) {
                     Condition<?> condition = originalRequest.getConditions().get(entry.getKey());
                     // here we compare the string representation as there is some information loss when serializing
@@ -174,6 +197,127 @@ public class RolloverRequestTests extends OpenSearchTestCase {
                     assertEquals(condition.toString(), entry.getValue().toString());
                 }
             }
+        }
+    }
+
+    public void testCopyMappingsSerializationPreservesOmittedAndExplicitFalse() throws Exception {
+        for (Boolean copyMappings : new Boolean[] { null, Boolean.FALSE }) {
+            RolloverRequest originalRequest = new RolloverRequest("alias-index", "new-index-name");
+            if (copyMappings != null) {
+                originalRequest.copyMappings(copyMappings);
+            }
+
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                originalRequest.writeTo(out);
+                try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writeableRegistry)) {
+                    RolloverRequest cloneRequest = new RolloverRequest(in);
+                    assertEquals(copyMappings, cloneRequest.getCopyMappings());
+                }
+            }
+        }
+    }
+
+    public void testCopyMappingsSerializationBwc() throws Exception {
+        for (Version version : new Version[] {
+            Version.V_2_19_0,
+            Version.V_3_4_0,
+            Version.V_3_7_0,
+            Version.V_3_8_0,
+            Version.V_3_9_0,
+            Version.V_3_10_0 }) {
+            RolloverRequest originalRequest = new RolloverRequest("alias-index", "new-index-name");
+            originalRequest.addMaxIndexDocsCondition(42);
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setVersion(version);
+                originalRequest.writeTo(out);
+                final LegacyRolloverRequest legacyRequest;
+                try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writeableRegistry)) {
+                    in.setVersion(version);
+                    legacyRequest = new LegacyRolloverRequest(in);
+                    assertEquals("Legacy readers must consume the complete request", 0, in.available());
+                    assertEquals(originalRequest.getRolloverTarget(), legacyRequest.rolloverTarget);
+                    assertEquals(originalRequest.getNewIndexName(), legacyRequest.newIndexName);
+                    assertEquals("_na_", legacyRequest.createIndexRequest.index());
+                }
+                try (BytesStreamOutput forwarded = new BytesStreamOutput()) {
+                    forwarded.setVersion(version);
+                    legacyRequest.writeTo(forwarded);
+                    final RolloverRequest received;
+                    try (StreamInput in = new NamedWriteableAwareStreamInput(forwarded.bytes().streamInput(), writeableRegistry)) {
+                        in.setVersion(version);
+                        received = new RolloverRequest(in);
+                        assertNull(received.getCopyMappings());
+                        assertEquals(0, in.available());
+                    }
+                    try (BytesStreamOutput current = new BytesStreamOutput()) {
+                        received.writeTo(current);
+                        try (StreamInput in = new NamedWriteableAwareStreamInput(current.bytes().streamInput(), writeableRegistry)) {
+                            final RolloverRequest clone = new RolloverRequest(in);
+                            assertNull(clone.getCopyMappings());
+                            assertEquals(originalRequest.getRolloverTarget(), clone.getRolloverTarget());
+                            assertEquals(42L, clone.getConditions().get(MaxDocsCondition.NAME).value);
+                            assertEquals(0, in.available());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void testExplicitCopyMappingsRejectedByOlderTransportVersions() throws Exception {
+        for (Version version : new Version[] { Version.V_2_19_0, Version.V_3_7_0, Version.V_3_9_0, Version.V_3_10_0 }) {
+            for (boolean copyMappings : new boolean[] { false, true }) {
+                RolloverRequest request = new RolloverRequest("alias-index", "new-index-name");
+                request.copyMappings(copyMappings);
+                try (BytesStreamOutput out = new BytesStreamOutput()) {
+                    out.setVersion(version);
+                    final IllegalStateException exception = expectThrows(IllegalStateException.class, () -> request.writeTo(out));
+                    assertEquals("copy_mappings requires nodes on or after version [3.11.0]", exception.getMessage());
+                    assertEquals(0, out.size());
+                }
+            }
+        }
+    }
+
+    /**
+     * The rollover transport layout before 3.11, without a copy-mappings field.
+     */
+    private static class LegacyRolloverRequest extends AcknowledgedRequest<LegacyRolloverRequest> {
+        private final String rolloverTarget;
+        private final String newIndexName;
+        private final boolean dryRun;
+        private final Map<String, Condition<?>> conditions = new HashMap<>();
+        private final CreateIndexRequest createIndexRequest;
+
+        LegacyRolloverRequest(StreamInput in) throws IOException {
+            super(in);
+            rolloverTarget = in.readString();
+            newIndexName = in.readOptionalString();
+            dryRun = in.readBoolean();
+            final int size = in.readVInt();
+            for (int i = 0; i < size; i++) {
+                Condition<?> condition = in.readNamedWriteable(Condition.class);
+                conditions.put(condition.name, condition);
+            }
+            createIndexRequest = new CreateIndexRequest(in);
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return createIndexRequest.validate();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(rolloverTarget);
+            out.writeOptionalString(newIndexName);
+            out.writeBoolean(dryRun);
+            out.writeVInt(conditions.size());
+            for (Condition<?> condition : conditions.values()) {
+                out.writeNamedWriteable(condition);
+            }
+            createIndexRequest.writeTo(out);
         }
     }
 
