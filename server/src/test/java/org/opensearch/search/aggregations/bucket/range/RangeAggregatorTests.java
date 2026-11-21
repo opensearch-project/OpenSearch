@@ -35,6 +35,7 @@ package org.opensearch.search.aggregations.bucket.range;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.KeywordField;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -69,6 +70,8 @@ import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.InternalMax;
+import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 
@@ -76,6 +79,7 @@ import java.io.IOException;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -681,9 +685,24 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify,
         boolean optimized
     ) throws IOException {
-        NumberType numberType = fieldType.numberType();
-        String fieldName = numberType.typeName();
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field(fieldType.numberType().typeName());
+        for (double[] range : ranges) {
+            aggregationBuilder.addRange(range[0], range[1]);
+        }
+        verify.accept(executeRangeAggregation(aggregationBuilder, fieldType, query, documents, optimized));
+    }
 
+    /**
+     * Runs the aggregation over the documents and asserts whether the filter rewrite fast path produced the
+     * result: when it does, no document is collected.
+     */
+    private InternalRange<? extends InternalRange.Bucket, ? extends InternalRange> executeRangeAggregation(
+        AggregationBuilder aggregationBuilder,
+        MappedFieldType fieldType,
+        Query query,
+        List<Document> documents,
+        boolean optimized
+    ) throws IOException {
         try (Directory directory = newDirectory()) {
             try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()))) {
                 for (Document doc : documents) {
@@ -693,11 +712,6 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field(fieldName);
-                for (double[] range : ranges) {
-                    aggregationBuilder.addRange(range[0], range[1]);
-                }
 
                 CountingAggregator aggregator = createCountingAggregator(query, aggregationBuilder, indexSearcher, fieldType);
                 aggregator.preCollection();
@@ -718,15 +732,209 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 InternalRange agg = (InternalRange) topLevel.reduce(Collections.singletonList(topLevel), context);
                 doAssertReducedMultiBucketConsumer(agg, reduceBucketConsumer);
 
-                verify.accept(agg);
-
                 if (optimized) {
                     assertEquals(0, aggregator.getCollectCount().get());
                 } else {
                     assertTrue(aggregator.getCollectCount().get() > 0);
                 }
+                return agg;
             }
         }
+    }
+
+    public void testDateNanosBoundedRange() throws IOException {
+        long jan15 = millis(2024, 1, 15);
+        long jan20 = millis(2024, 1, 20);
+        assertDateNanosDocCounts(
+            new RangeAggregationBuilder("range").field(DATE_FIELD_NAME).addRange(millis(2024, 1, 1), millis(2024, 2, 1)),
+            new long[] { nanos(jan15, 123_456_789), nanos(jan20, 456_789_012) },
+            2
+        );
+    }
+
+    public void testDateNanosFromOnlyRange() throws IOException {
+        long[] docs = new long[] { nanos(millis(2024, 1, 15), 123_456_789), nanos(millis(2024, 1, 20), 456_789_012) };
+        assertDateNanosDocCounts(new RangeAggregationBuilder("range").field(DATE_FIELD_NAME).addUnboundedFrom(millis(2025, 1, 1)), docs, 0);
+        assertDateNanosDocCounts(
+            new RangeAggregationBuilder("range").field(DATE_FIELD_NAME).addUnboundedFrom(millis(2024, 1, 16)),
+            docs,
+            1
+        );
+    }
+
+    public void testDateNanosToOnlyRange() throws IOException {
+        long[] docs = new long[] { nanos(millis(2024, 1, 15), 123_456_789), nanos(millis(2024, 1, 20), 456_789_012) };
+        assertDateNanosDocCounts(new RangeAggregationBuilder("range").field(DATE_FIELD_NAME).addUnboundedTo(millis(2024, 1, 16)), docs, 1);
+    }
+
+    public void testDateNanosSeparatedRanges() throws IOException {
+        long[] docs = new long[] {
+            nanos(millis(2024, 1, 5), 1),
+            nanos(millis(2024, 1, 15), 2),
+            nanos(millis(2024, 1, 16), 3),
+            nanos(millis(2024, 1, 25), 4),
+            nanos(millis(2024, 2, 10), 5) };
+        assertDateNanosDocCounts(
+            new RangeAggregationBuilder("range").field(DATE_FIELD_NAME)
+                .addRange(millis(2024, 1, 1), millis(2024, 1, 10))
+                .addRange(millis(2024, 1, 14), millis(2024, 1, 20))
+                .addRange(millis(2024, 2, 1), millis(2024, 2, 5)),
+            docs,
+            1,
+            2,
+            0
+        );
+    }
+
+    public void testDateNanosSubMillisecondBounds() throws IOException {
+        long base = millis(2024, 1, 15);
+        // The doc-by-doc path truncates doc values to milliseconds, so a value within base's millisecond
+        // belongs to [base, base + 1)
+        long[] docs = new long[] { nanos(base, 0), nanos(base, 999_999), nanos(base + 1, 0), nanos(base + 2, 0) };
+        assertDateNanosDocCounts(
+            new RangeAggregationBuilder("range").field(DATE_FIELD_NAME).addRange(base, base + 1).addRange(base + 1, base + 2),
+            docs,
+            2,
+            1
+        );
+    }
+
+    public void testDateNanosFractionalBounds() throws IOException {
+        long base = millis(2024, 1, 15);
+        // A fractional bound rounds up to the next whole millisecond, as in the doc-by-doc path
+        long[] docs = new long[] { nanos(base, 999_999), nanos(base + 1, 0), nanos(base + 2, 0) };
+        assertDateNanosDocCounts(new RangeAggregationBuilder("range").field(DATE_FIELD_NAME).addRange(base + 0.5, base + 1.5), docs, 1);
+    }
+
+    public void testDateNanosBoundsOutsideNanosecondRange() throws IOException {
+        long jan15 = millis(2024, 1, 15);
+        assertDateNanosDocCounts(
+            new RangeAggregationBuilder("range").field(DATE_FIELD_NAME).addRange(millis(1960, 1, 1), millis(2300, 1, 1)),
+            new long[] { nanos(jan15, 0), nanos(jan15, 1) },
+            2
+        );
+    }
+
+    public void testDateNanosDateRange() throws IOException {
+        assertDateNanosDocCounts(
+            new DateRangeAggregationBuilder("range").field(DATE_FIELD_NAME).addRange("2024-01-01T00:00:00Z", "2024-02-01T00:00:00Z"),
+            new long[] { nanos(millis(2024, 1, 15), 123_456_789), nanos(millis(2024, 3, 1), 0) },
+            1
+        );
+    }
+
+    public void testDateNanosWithSubAggregation() throws IOException {
+        long jan15 = millis(2024, 1, 15);
+        long jan20 = millis(2024, 1, 20);
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field(DATE_FIELD_NAME)
+            .addRange(millis(2024, 1, 1), millis(2024, 1, 18))
+            .addRange(millis(2024, 1, 18), millis(2024, 2, 1))
+            .subAggregation(new MaxAggregationBuilder("max").field(DATE_FIELD_NAME));
+        InternalRange<? extends InternalRange.Bucket, ? extends InternalRange> range = executeRangeAggregation(
+            aggregationBuilder,
+            dateNanosFieldType(),
+            new MatchAllDocsQuery(),
+            dateNanosDocs(true, nanos(jan15, 123_456_789), nanos(jan20, 456_789_012)),
+            true
+        );
+        assertEquals(1, range.getBuckets().get(0).getDocCount());
+        assertEquals(1, range.getBuckets().get(1).getDocCount());
+        assertEquals(jan15 + 123, ((InternalMax) range.getBuckets().get(0).getAggregations().get("max")).getValue(), 0d);
+        assertEquals(jan20 + 456, ((InternalMax) range.getBuckets().get(1).getAggregations().get("max")).getValue(), 0d);
+    }
+
+    /**
+     * The fast path must produce the same buckets as the doc-by-doc path, which runs when the values are
+     * indexed as doc values only.
+     */
+    public void testDateNanosMatchesDocByDocPath() throws IOException {
+        long base = millis(2024, 1, 15);
+        long[] values = new long[randomIntBetween(1, 200)];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = nanos(base, 0) + randomLongBetween(0, 100_000_000L);
+        }
+        double[] edges = new double[randomIntBetween(2, 6)];
+        for (int i = 0; i < edges.length; i++) {
+            edges[i] = base - 5 + randomDoubleBetween(0, 110, true);
+        }
+        Arrays.sort(edges);
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field(DATE_FIELD_NAME);
+        for (int i = 0; i + 1 < edges.length; i++) {
+            aggregationBuilder.addRange(edges[i], edges[i + 1]);
+        }
+
+        Query query = new MatchAllDocsQuery();
+        InternalRange<? extends InternalRange.Bucket, ? extends InternalRange> fastPath = executeRangeAggregation(
+            aggregationBuilder,
+            dateNanosFieldType(),
+            query,
+            dateNanosDocs(true, values),
+            true
+        );
+        InternalRange<? extends InternalRange.Bucket, ? extends InternalRange> docByDoc = executeRangeAggregation(
+            aggregationBuilder,
+            dateNanosFieldType(),
+            query,
+            dateNanosDocs(false, values),
+            false
+        );
+        assertEquals(docByDoc.getBuckets().size(), fastPath.getBuckets().size());
+        for (int i = 0; i < docByDoc.getBuckets().size(); i++) {
+            assertEquals(docByDoc.getBuckets().get(i).getDocCount(), fastPath.getBuckets().get(i).getDocCount());
+        }
+    }
+
+    private void assertDateNanosDocCounts(AggregationBuilder aggregationBuilder, long[] nanosValues, long... expectedDocCounts)
+        throws IOException {
+        InternalRange<? extends InternalRange.Bucket, ? extends InternalRange> range = executeRangeAggregation(
+            aggregationBuilder,
+            dateNanosFieldType(),
+            new MatchAllDocsQuery(),
+            dateNanosDocs(true, nanosValues),
+            true
+        );
+        assertEquals(expectedDocCounts.length, range.getBuckets().size());
+        for (int i = 0; i < expectedDocCounts.length; i++) {
+            assertEquals("bucket " + i, expectedDocCounts[i], range.getBuckets().get(i).getDocCount());
+        }
+    }
+
+    private static DateFieldMapper.DateFieldType dateNanosFieldType() {
+        return new DateFieldMapper.DateFieldType(
+            DATE_FIELD_NAME,
+            true,
+            false,
+            true,
+            DateFieldMapper.getDefaultDateTimeFormatter(),
+            DateFieldMapper.Resolution.NANOSECONDS,
+            null,
+            Collections.emptyMap()
+        );
+    }
+
+    /**
+     * Indexes date_nanos values the way {@link DateFieldMapper} does: a point and a doc value per document.
+     * Without the point the filter rewrite fast path cannot apply.
+     */
+    private static List<Document> dateNanosDocs(boolean indexPoints, long... nanosValues) {
+        List<Document> docs = new ArrayList<>();
+        for (long value : nanosValues) {
+            Document doc = new Document();
+            if (indexPoints) {
+                doc.add(new LongPoint(DATE_FIELD_NAME, value));
+            }
+            doc.add(new SortedNumericDocValuesField(DATE_FIELD_NAME, value));
+            docs.add(doc);
+        }
+        return docs;
+    }
+
+    private static long millis(int year, int month, int day) {
+        return ZonedDateTime.of(year, month, day, 0, 0, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
+    }
+
+    private static long nanos(long millis, long nanosOfMilli) {
+        return millis * 1_000_000 + nanosOfMilli;
     }
 
     protected CountingAggregator createCountingAggregator(
