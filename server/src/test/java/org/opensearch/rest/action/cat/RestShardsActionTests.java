@@ -312,4 +312,59 @@ public class RestShardsActionTests extends OpenSearchTestCase {
             assertThat(row.get(92).value, equalTo(shardStats.getStats().getDocs().getDeleted()));
         }
     }
+
+    // --- group_by / aggregate ---
+
+    private static boolean needsStats(String... keyValues) {
+        FakeRestRequest req = new FakeRestRequest();
+        for (int i = 0; i < keyValues.length; i += 2) {
+            req.params().put(keyValues[i], keyValues[i + 1]);
+        }
+        return RestShardsAction.requestNeedsIndicesStats(req);
+    }
+
+    public void testAggregationOverRoutingOnlyColumnsSkipsIndicesStats() {
+        // h is unset: the default headers are those of the aggregated result, which only has routing-only columns
+        assertFalse(needsStats("group_by", "index,prirep", "aggregate", "count(shard)"));
+        assertFalse(needsStats("aggregate", "count(shard)"));
+        assertFalse(needsStats("group_by", "node", "aggregate", "count(shard),count(index)"));
+        // aliases: i=index, p=prirep, sh=shard, st=state
+        assertFalse(needsStats("group_by", "i,p,st", "aggregate", "count(sh)"));
+        // function names are case-insensitive
+        assertFalse(needsStats("group_by", "index", "aggregate", "COUNT(shard)"));
+    }
+
+    public void testAggregationOverStatsColumnNeedsIndicesStats() {
+        assertTrue(needsStats("group_by", "index", "aggregate", "sum(docs)"));
+        assertTrue(needsStats("aggregate", "sum(store)"));
+        assertTrue(needsStats("group_by", "index", "aggregate", "count(shard),max(store)"));
+    }
+
+    public void testGroupByOnStatsColumnNeedsIndicesStatsEvenWhenNotDisplayed() {
+        // Without stats every `docs` would be null and the groups would merge, so the rows would change
+        assertTrue(needsStats("group_by", "index,docs", "aggregate", "count(shard)", "h", "index"));
+        assertTrue(needsStats("group_by", "docs", "aggregate", "count(shard)"));
+    }
+
+    public void testAggregationIgnoresHAndSForTheStatsDecision() {
+        // h and s select from, and sort, the aggregated result; they cannot add columns that need stats
+        assertFalse(needsStats("group_by", "index", "aggregate", "count(shard)", "h", "index,count(shard)", "s", "count(shard):desc"));
+        assertFalse(needsStats("group_by", "index", "aggregate", "count(shard)", "h", "count*"));
+        assertTrue(needsStats("group_by", "index", "aggregate", "sum(docs)", "h", "index"));
+    }
+
+    public void testUnparseableAggregationConservativelyNeedsIndicesStats() {
+        // These are rejected with a 400 later; the stats decision must just not fail on them
+        assertTrue(needsStats("group_by", "index"));
+        assertTrue(needsStats("aggregate", "bogus"));
+        assertTrue(needsStats("group_by", "index", "aggregate", ""));
+        // wildcards are not resolved here
+        assertTrue(needsStats("group_by", "*", "aggregate", "count(shard)"));
+    }
+
+    public void testPlainRequestsAreNotAffectedByAggregationSupport() {
+        assertTrue(needsStats());
+        assertFalse(needsStats("h", "index,shard"));
+        assertTrue(needsStats("h", "index,docs"));
+    }
 }

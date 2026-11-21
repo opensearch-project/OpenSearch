@@ -514,4 +514,128 @@ public class RestTableTests extends OpenSearchTestCase {
         }
         return table;
     }
+
+    private Table buildDocsTable(PageToken pageToken) {
+        Table t = pageToken == null ? new Table() : new Table(pageToken);
+        t.startHeaders();
+        t.addCell("index", "alias:i;desc:index name");
+        t.addCell("docs", "alias:d;text-align:right;desc:doc count");
+        t.endHeaders();
+        for (Object[] row : Arrays.asList(
+            new Object[] { "idx-a", 100L },
+            new Object[] { "idx-a", 200L },
+            new Object[] { "idx-b", 50L },
+            new Object[] { "idx-c", 400L }
+        )) {
+            t.startRow();
+            t.addCell(row[0]);
+            t.addCell(row[1]);
+            t.endRow();
+        }
+        return t;
+    }
+
+    private String jsonFor(Table table, Map<String, String> params) throws Exception {
+        FakeRestRequest req = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_JSON))
+        ).build();
+        req.params().putAll(params);
+        return buildResponse(table, new AbstractRestChannel(req, true) {
+            @Override
+            public void sendResponse(RestResponse response) {}
+        }).content().utf8ToString();
+    }
+
+    private static Map<String, String> params(String... keyValues) {
+        Map<String, String> m = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < keyValues.length; i += 2) {
+            m.put(keyValues[i], keyValues[i + 1]);
+        }
+        return m;
+    }
+
+    public void testGroupByAndAggregateProduceSummarizedOutput() throws Exception {
+        assertEquals(
+            "[{\"index\":\"idx-a\",\"sum(docs)\":\"300\"},{\"index\":\"idx-b\",\"sum(docs)\":\"50\"},"
+                + "{\"index\":\"idx-c\",\"sum(docs)\":\"400\"}]",
+            jsonFor(buildDocsTable(null), params("group_by", "index", "aggregate", "sum(docs)"))
+        );
+    }
+
+    public void testAggregateWithoutGroupByReturnsOneTotalRow() throws Exception {
+        assertEquals("[{\"sum(docs)\":\"750\"}]", jsonFor(buildDocsTable(null), params("aggregate", "sum(docs)")));
+    }
+
+    public void testHAloneDoesNotSummarize() throws Exception {
+        // A function-looking name in h is just an unknown column of the plain listing: it is not aggregated
+        assertEquals(
+            "[{\"index\":\"idx-a\"},{\"index\":\"idx-a\"},{\"index\":\"idx-b\"},{\"index\":\"idx-c\"}]",
+            jsonFor(buildDocsTable(null), params("h", "index,sum(docs)"))
+        );
+    }
+
+    public void testHSelectsAndOrdersColumnsOfTheAggregatedResult() throws Exception {
+        Map<String, String> p = params("group_by", "i", "aggregate", "SUM(d),count(docs)");
+        // by canonical name, reordered, one column hidden
+        p.put("h", "count(docs),index");
+        assertEquals(
+            "[{\"count(docs)\":\"2\",\"index\":\"idx-a\"},{\"count(docs)\":\"1\",\"index\":\"idx-b\"},"
+                + "{\"count(docs)\":\"1\",\"index\":\"idx-c\"}]",
+            jsonFor(buildDocsTable(null), p)
+        );
+        // by the alias of the group_by column and the spelling typed in aggregate; like for any _cat column, the
+        // header shows the name as it was typed in h
+        p.put("h", "i,SUM(d)");
+        assertEquals(
+            "[{\"i\":\"idx-a\",\"SUM(d)\":\"300\"},{\"i\":\"idx-b\",\"SUM(d)\":\"50\"},{\"i\":\"idx-c\",\"SUM(d)\":\"400\"}]",
+            jsonFor(buildDocsTable(null), p)
+        );
+    }
+
+    public void testHWithAColumnNotInTheAggregatedResultIsRejected() {
+        Map<String, String> p = params("group_by", "index", "aggregate", "sum(docs)", "h", "index,docs");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> jsonFor(buildDocsTable(null), p));
+        assertThat(e.getMessage(), containsString("Column [docs] in h is not in the aggregated result"));
+    }
+
+    public void testSortAndLimitApplyToAggregatedRows() throws Exception {
+        // groups: idx-a => 300, idx-b => 50, idx-c => 400. Sorted by the aggregate; limit counts groups, not source rows.
+        assertEquals(
+            "[{\"index\":\"idx-c\",\"sum(docs)\":\"400\"}]",
+            jsonFor(buildDocsTable(null), params("group_by", "index", "aggregate", "sum(docs)", "s", "sum(docs):desc", "limit", "1"))
+        );
+        assertEquals(
+            "[{\"index\":\"idx-c\",\"sum(docs)\":\"400\"},{\"index\":\"idx-a\",\"sum(docs)\":\"300\"}]",
+            jsonFor(buildDocsTable(null), params("group_by", "index", "aggregate", "sum(docs)", "s", "sum(docs):desc", "limit", "2"))
+        );
+        assertEquals(
+            "[{\"index\":\"idx-b\",\"sum(docs)\":\"50\"}]",
+            jsonFor(buildDocsTable(null), params("group_by", "index", "aggregate", "sum(docs)", "s", "sum(docs):asc", "limit", "1"))
+        );
+        // sorting by the spelling typed in aggregate
+        assertEquals(
+            "[{\"index\":\"idx-c\",\"sum(docs)\":\"400\"}]",
+            jsonFor(buildDocsTable(null), params("group_by", "index", "aggregate", "SUM(d)", "s", "SUM(d):desc", "limit", "1"))
+        );
+    }
+
+    public void testSortByAHiddenAggregateStillWorks() throws Exception {
+        assertEquals(
+            "[{\"index\":\"idx-c\"},{\"index\":\"idx-a\"},{\"index\":\"idx-b\"}]",
+            jsonFor(buildDocsTable(null), params("group_by", "index", "aggregate", "sum(docs)", "h", "index", "s", "sum(docs):desc"))
+        );
+    }
+
+    public void testGroupByWithoutAggregateIsRejected() {
+        expectThrows(IllegalArgumentException.class, () -> jsonFor(buildDocsTable(null), params("group_by", "index")));
+    }
+
+    public void testAggregationIsRejectedOnPaginatedTable() {
+        Table paginated = buildDocsTable(new PageToken("next", "entities"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> jsonFor(paginated, params("group_by", "index", "aggregate", "sum(docs)"))
+        );
+        assertThat(e.getMessage(), containsString("not supported on paginated APIs"));
+    }
 }

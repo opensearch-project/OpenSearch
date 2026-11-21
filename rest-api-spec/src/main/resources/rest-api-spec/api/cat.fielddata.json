@@ -28,6 +28,10 @@
       ]
     },
     "params":{
+      "aggregate":{
+        "type":"list",
+        "description":"Comma-separated list of function(column) entries to compute for each group, where function is one of sum, count, avg, min or max. Without group_by, a single row over all rows is returned. h, s and limit then apply to the aggregated result."
+      },
       "format":{
         "type":"string",
         "description":"a short version of the Accept header, e.g. json, yaml"
@@ -48,6 +52,10 @@
           "p",
           "pb"
         ]
+      },
+      "group_by":{
+        "type":"list",
+        "description":"Comma-separated list of column names or column aliases to group by. Requires aggregate. The result has the group-by columns first, then the aggregate columns."
       },
       "h":{
         "type":"list",
