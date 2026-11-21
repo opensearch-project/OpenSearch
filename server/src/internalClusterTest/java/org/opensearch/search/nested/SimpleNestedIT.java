@@ -51,6 +51,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.search.sort.NestedSortBuilder;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortMode;
@@ -1677,6 +1678,74 @@ public class SimpleNestedIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         assertAcked(client().admin().indices().prepareDelete("test"));
         clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
         assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
+    }
+
+    public void testBitsetFilterCacheDynamicEnableDisable() throws Exception {
+        assertAcked(
+            prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.refresh_interval", -1))
+                .setMapping("nested1", "type=nested")
+        );
+        ensureGreen();
+        indexNestedDocs(0, 3);
+        refresh();
+        try {
+            // bitsets are loaded eagerly on refresh for indices with nested mappings
+            assertThat(bitsetMemory(), greaterThan(0L));
+
+            setBitsetFilterCacheEnabled(false);
+            assertBusy(() -> assertThat(bitsetMemory(), equalTo(0L)));
+            // nested queries still need bitsets, which are built per request instead of cached
+            assertHitCount(searchNested(), 3L);
+            // new segments are not warmed while disabled
+            indexNestedDocs(3, 2);
+            refresh();
+            assertHitCount(searchNested(), 5L);
+            assertThat(bitsetMemory(), equalTo(0L));
+
+            setBitsetFilterCacheEnabled(true);
+            assertHitCount(searchNested(), 5L);
+            assertThat(bitsetMemory(), greaterThan(0L));
+        } finally {
+            // this suite shares a cluster across tests, so the setting must not leak
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(
+                        Settings.builder().putNull(IndicesBitsetFilterCache.INDICES_BITSET_FILTER_CACHE_ENABLED_SETTING.getKey())
+                    )
+            );
+        }
+    }
+
+    private void indexNestedDocs(int startId, int count) throws Exception {
+        for (int i = startId; i < startId + count; i++) {
+            client().prepareIndex("test")
+                .setId(Integer.toString(i))
+                .setSource(
+                    jsonBuilder().startObject().startArray("nested1").startObject().field("n", "v").endObject().endArray().endObject()
+                )
+                .get();
+        }
+    }
+
+    private SearchResponse searchNested() {
+        return client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n", "v"), ScoreMode.Avg)).get();
+    }
+
+    private long bitsetMemory() {
+        return client().admin().cluster().prepareClusterStats().get().getIndicesStats().getSegments().getBitsetMemoryInBytes();
+    }
+
+    private void setBitsetFilterCacheEnabled(boolean enabled) {
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder().put(IndicesBitsetFilterCache.INDICES_BITSET_FILTER_CACHE_ENABLED_SETTING.getKey(), enabled)
+                )
+        );
     }
 
     private void assertDocumentCount(String index, long numdocs) {
