@@ -35,6 +35,7 @@ package org.opensearch.index.mapper.size;
 import org.opensearch.common.Explicit;
 import org.opensearch.index.mapper.FieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MetadataFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
@@ -55,9 +56,11 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     public static class Builder extends MetadataFieldMapper.Builder {
 
         private final Parameter<Explicit<Boolean>> enabled = updateableBoolParam("enabled", m -> toType(m).enabled, false);
+        private final boolean pluggableDataFormat;
 
-        private Builder() {
+        private Builder(boolean pluggableDataFormat) {
             super(NAME);
+            this.pluggableDataFormat = pluggableDataFormat;
         }
 
         @Override
@@ -67,20 +70,50 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public SizeFieldMapper build(BuilderContext context) {
-            return new SizeFieldMapper(enabled.getValue(), new NumberFieldType(NAME, NumberType.INTEGER));
+            // The flag is carried by the builder rather than read from the context: mapping merges rebuild
+            // through a Settings.EMPTY context (ParametrizedFieldMapper#merge), and getMergeBuilder() hands the
+            // existing mapper's flag over, so a merge never flips _size back to indexed.
+            return new SizeFieldMapper(enabled.getValue(), fieldType(pluggableDataFormat), pluggableDataFormat);
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new SizeFieldMapper(new Explicit<>(false, false), new NumberFieldType(NAME, NumberType.INTEGER)),
-        c -> new Builder()
-    );
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> {
+        boolean pluggable = Mapper.isPluggableDataFormatEnabled(c.getSettings());
+        return new SizeFieldMapper(new Explicit<>(false, false), fieldType(pluggable), pluggable);
+    }, c -> new Builder(Mapper.isPluggableDataFormatEnabled(c.getSettings())));
+
+    /**
+     * Builds the {@code _size} field type.
+     * <p>
+     * On a regular index {@code _size} is indexed as a point and stored as a doc value, the historical shape.
+     * On a pluggable-data-format index it is doc-values-only: numeric fields there are searched from their
+     * doc values (see {@code NumberFieldMapper.Builder}, whose {@code index} parameter defaults to
+     * {@code false} on such indices), and no configured data format offers a {@code POINT_RANGE} capability
+     * for an {@code integer}, so an indexed {@code _size} would make the capability assignment fail for every
+     * composite index on a node that carries this plugin -- even with {@code _size} disabled, since the
+     * metadata mapper is always present in the mapping.
+     */
+    static NumberFieldType fieldType(boolean pluggableDataFormat) {
+        return new NumberFieldType(
+            NAME,
+            NumberType.INTEGER,
+            pluggableDataFormat == false,
+            false,
+            true,
+            false,
+            true,
+            null,
+            Collections.emptyMap()
+        );
+    }
 
     private final Explicit<Boolean> enabled;
+    private final boolean pluggableDataFormat;
 
-    private SizeFieldMapper(Explicit<Boolean> enabled, MappedFieldType mappedFieldType) {
+    private SizeFieldMapper(Explicit<Boolean> enabled, MappedFieldType mappedFieldType, boolean pluggableDataFormat) {
         super(mappedFieldType);
         this.enabled = enabled;
+        this.pluggableDataFormat = pluggableDataFormat;
     }
 
     @Override
@@ -108,6 +141,6 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder().init(this);
+        return new Builder(pluggableDataFormat).init(this);
     }
 }
