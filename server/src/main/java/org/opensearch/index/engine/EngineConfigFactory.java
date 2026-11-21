@@ -25,9 +25,12 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.AdditionalCodecs;
+import org.opensearch.index.codec.CodecDecorator;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceConfig;
 import org.opensearch.index.codec.CodecServiceFactory;
+import org.opensearch.index.codec.DelegatingPerFieldCodecBuilder;
+import org.opensearch.index.codec.PerFieldCodecBuilder;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
@@ -63,6 +66,8 @@ import java.util.function.Supplier;
  */
 public class EngineConfigFactory {
     private final CodecServiceFactory codecServiceFactory;
+    /** The plugin which provides the codec service (factory), if any */
+    private final String codecServiceProvider;
     private final TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
     private final List<AdditionalCodecs> additionalCodecs;
     private final CommitterFactory committerFactory;
@@ -179,12 +184,20 @@ public class EngineConfigFactory {
 
         final CodecService instance = codecService.orElse(null);
         this.codecServiceFactory = (instance != null) ? (config) -> instance : codecServiceFactory.orElse(null);
+        this.codecServiceProvider = (instance != null) ? codecServiceOverridingPlugin : codecServiceFactoryOverridingPlugin;
         this.translogDeletionPolicyFactory = translogDeletionPolicyFactory.orElse((idxs, rtls) -> null);
         this.additionalCodecs = Collections.unmodifiableList(codecRegistries);
         this.committerFactory = committerFactories.isEmpty() ? null : committerFactories.getFirst();
         this.enginePlugins = List.copyOf(enginePlugins);
         this.documentLookupProvider = documentLookupProvider;
         this.documentMetadataResolver = documentMetadataResolver;
+
+        // The factory is created along with the index, so probing it here rejects the index creation itself rather
+        // than failing its shards later on. Only the contributions which do not depend on the mapping are known at
+        // this point, the others are checked once the shards create their codec service.
+        if (this.codecServiceFactory != null && hasContributions(idxSettings, null)) {
+            newCodecServiceOrDefault(idxSettings, null, null, null);
+        }
     }
 
     /**
@@ -300,7 +313,14 @@ public class EngineConfigFactory {
     }
 
     public CodecService newDefaultCodecService(IndexSettings indexSettings, @Nullable MapperService mapperService, Logger logger) {
-        return new CodecService(mapperService, indexSettings, logger, additionalCodecs);
+        return new CodecService(
+            mapperService,
+            indexSettings,
+            logger,
+            additionalCodecs,
+            perFieldCodecBuilders(indexSettings, mapperService),
+            codecDecorators(indexSettings, mapperService)
+        );
     }
 
     public CodecService newCodecServiceOrDefault(
@@ -309,8 +329,86 @@ public class EngineConfigFactory {
         Logger logger,
         CodecService defaultCodecService
     ) {
-        return this.codecServiceFactory != null
-            ? this.codecServiceFactory.createCodecService(new CodecServiceConfig(indexSettings, mapperService, logger, additionalCodecs))
-            : defaultCodecService;
+        if (this.codecServiceFactory == null) {
+            return defaultCodecService;
+        }
+
+        final List<PerFieldCodecBuilder> perFieldCodecBuilders = perFieldCodecBuilders(indexSettings, mapperService);
+        final List<CodecDecorator> codecDecorators = codecDecorators(indexSettings, mapperService);
+        final CodecService codecService = this.codecServiceFactory.createCodecService(
+            new CodecServiceConfig(indexSettings, mapperService, logger, additionalCodecs, perFieldCodecBuilders, codecDecorators)
+        );
+
+        // the plugins' formats would otherwise be silently dropped, and their fields encoded with the default formats
+        if (hasContributions(perFieldCodecBuilders, codecDecorators) && codecService.composesPluginCodecs() == false) {
+            throw new IllegalStateException(
+                "the codec service provided by ["
+                    + codecServiceProvider
+                    + "] does not apply the codec contributions of "
+                    + contributingPlugins(indexSettings, mapperService)
+                    + ", it has to be created with CodecService(CodecServiceConfig)"
+            );
+        }
+
+        return codecService;
+    }
+
+    /**
+     * Rejects the mapping if more than one plugin claims the format of the same field: the claims are
+     * otherwise only resolved while writing the segments, where a conflict fails the shard rather than the
+     * mapping update. The mapper service has to reflect the mapping being validated.
+     */
+    public void validatePerFieldCodecClaims(IndexSettings indexSettings, MapperService mapperService) {
+        final DelegatingPerFieldCodecBuilder builder = new DelegatingPerFieldCodecBuilder(
+            perFieldCodecBuilders(indexSettings, mapperService)
+        );
+        if (builder.isEmpty()) {
+            return;
+        }
+
+        final List<String> fields = new ArrayList<>();
+        mapperService.fieldTypes().forEach(fieldType -> fields.add(fieldType.name()));
+        builder.validate(fields);
+    }
+
+    private boolean hasContributions(IndexSettings indexSettings, @Nullable MapperService mapperService) {
+        return hasContributions(perFieldCodecBuilders(indexSettings, mapperService), codecDecorators(indexSettings, mapperService));
+    }
+
+    private static boolean hasContributions(List<PerFieldCodecBuilder> perFieldCodecBuilders, List<CodecDecorator> codecDecorators) {
+        return new DelegatingPerFieldCodecBuilder(perFieldCodecBuilders).isEmpty() == false || codecDecorators.isEmpty() == false;
+    }
+
+    private List<String> contributingPlugins(IndexSettings indexSettings, @Nullable MapperService mapperService) {
+        return enginePlugins.stream()
+            .filter(
+                enginePlugin -> enginePlugin.getPerFieldCodecBuilder(mapperService, indexSettings).isPresent()
+                    || enginePlugin.getCodecDecorator(mapperService, indexSettings).isPresent()
+            )
+            .map(enginePlugin -> enginePlugin.getClass().getName())
+            .toList();
+    }
+
+    /**
+     * Collects the per-field codec contributions of all engine plugins: in contrast to the other
+     * codec related hooks, those are resolved every time a {@link CodecService} is created since
+     * they may depend on the mapping of the index.
+     */
+    private List<PerFieldCodecBuilder> perFieldCodecBuilders(IndexSettings indexSettings, @Nullable MapperService mapperService) {
+        return enginePlugins.stream()
+            .map(enginePlugin -> enginePlugin.getPerFieldCodecBuilder(mapperService, indexSettings))
+            .flatMap(Optional::stream)
+            .toList();
+    }
+
+    /**
+     * Collects the per-segment codec contributions of all engine plugins, resolved every time a
+     * {@link CodecService} is created for the very same reason as the per-field ones.
+     */
+    private List<CodecDecorator> codecDecorators(IndexSettings indexSettings, @Nullable MapperService mapperService) {
+        return enginePlugins.stream()
+            .map(enginePlugin -> enginePlugin.getCodecDecorator(mapperService, indexSettings))
+            .flatMap(Optional::stream)
+            .toList();
     }
 }

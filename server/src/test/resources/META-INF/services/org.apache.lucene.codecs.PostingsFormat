@@ -1,0 +1,2 @@
+org.opensearch.index.codec.DecoratedCodecTests$SideFilePostingsFormatA
+org.opensearch.index.codec.DecoratedCodecTests$SideFilePostingsFormatB

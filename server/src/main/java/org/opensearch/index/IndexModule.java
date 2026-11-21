@@ -1329,7 +1329,7 @@ public final class IndexModule {
         ScriptService scriptService,
         DataFormatRegistry dataFormatRegistry
     ) throws IOException {
-        return new MapperService(
+        final MapperService mapperService = new MapperService(
             indexSettings,
             analysisRegistry.build(indexSettings),
             xContentRegistry,
@@ -1342,6 +1342,9 @@ public final class IndexModule {
             scriptService,
             dataFormatRegistry
         );
+        // the mapping updates are validated (and applied) on the cluster-manager through this mapper service
+        mapperService.addMergeValidator(service -> engineConfigFactory.validatePerFieldCodecClaims(indexSettings, service));
+        return mapperService;
     }
 
     /**

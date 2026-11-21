@@ -56,6 +56,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecAliases;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecSettings;
+import org.opensearch.index.codec.DecoratedCodec;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
@@ -164,6 +165,12 @@ public final class EngineConfig {
             case "lucene_default":
                 return s;
             default:
+                if (DecoratedCodec.isDecoratedCodec(s)) {
+                    throw new IllegalArgumentException(
+                        "the codec [" + s + "] is an internal codec, it is applied automatically and could not be requested"
+                    );
+                }
+
                 if (Codec.availableCodecs().contains(s)) {
                     return s;
                 }

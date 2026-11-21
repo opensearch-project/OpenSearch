@@ -357,6 +357,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.recoveryStateFactory = recoveryStateFactory;
         this.indexerFactory = Objects.requireNonNull(indexerFactory);
         this.engineConfigFactory = Objects.requireNonNull(engineConfigFactory);
+        if (this.mapperService != null) {
+            this.mapperService.addMergeValidator(
+                mapperService -> engineConfigFactory.validatePerFieldCodecClaims(indexSettings, mapperService)
+            );
+        }
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.readerWrapper = wrapperFactory.apply(this);
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
