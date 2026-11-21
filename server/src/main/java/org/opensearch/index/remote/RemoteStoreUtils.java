@@ -19,6 +19,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.ClusterSettingsValidatorRegistry;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
@@ -272,27 +273,38 @@ public class RemoteStoreUtils {
     }
 
     /**
-     * Invoked after a cluster settings update.
-     * Checks if the applied cluster settings has switched the cluster to STRICT mode.
-     * If so, checks and applies appropriate index settings depending on the current set
-     * of node types in the cluster
-     * This has been intentionally done after the cluster settings update
-     * flow. That way we are not interfering with the usual settings update
-     * and the cluster state mutation that comes along with it
+     * Finalizes migration when the proposed cluster settings select STRICT compatibility mode.
+     * Checks node compatibility before updating index metadata. The resulting state is then validated before publication.
      *
-     * @param isCompatibilityModeChanging flag passed from cluster settings update call to denote if a compatibility mode change has been done
+     * @param nodeSettings node settings used to resolve the effective compatibility mode
      * @param request request payload passed from cluster settings update
-     * @param currentState cluster state generated after changing cluster settings were applied
+     * @param currentState proposed cluster state after updating cluster settings
      * @param logger Logger reference
      * @return Mutated cluster state with remote store index settings applied, no-op if the cluster is not switching to `STRICT` compatibility mode
      */
     public static ClusterState checkAndFinalizeRemoteStoreMigration(
-        boolean isCompatibilityModeChanging,
+        Settings nodeSettings,
         ClusterUpdateSettingsRequest request,
         ClusterState currentState,
         Logger logger
     ) {
-        if (isCompatibilityModeChanging && isSwitchToStrictCompatibilityMode(request)) {
+        boolean isCompatibilityModeChanging = ClusterSettingsValidatorRegistry.isUpdated(
+            RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING,
+            request.transientSettings(),
+            currentState.metadata().transientSettings()
+        )
+            || ClusterSettingsValidatorRegistry.isUpdated(
+                RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING,
+                request.persistentSettings(),
+                currentState.metadata().persistentSettings()
+            );
+        Settings effectiveSettings = Settings.builder().put(nodeSettings).put(currentState.metadata().settings()).build();
+        if (isCompatibilityModeChanging
+            && RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(
+                effectiveSettings
+            ) == RemoteStoreNodeService.CompatibilityMode.STRICT) {
+            // Migration requires uniform node versions and types before it changes index metadata.
+            RemoteStoreNodeService.validateCompatibilityModeSetting(effectiveSettings, currentState);
             return finalizeMigration(currentState, logger);
         }
         return currentState;
