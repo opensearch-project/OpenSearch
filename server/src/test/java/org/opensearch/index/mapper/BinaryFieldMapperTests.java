@@ -38,6 +38,7 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.compress.CompressorRegistry;
@@ -47,6 +48,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -193,6 +195,90 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             "field",
             false
         );
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatStoresByDefault() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        // Derived source is always on for a pluggable-format index and the mapping parse checks every field can
+        // derive its source, so a bare binary mapping only parses when it is stored by default.
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            mapping(b -> b.startObject("field").field("type", "binary").endObject())
+        );
+        FieldMapper field = (FieldMapper) mapper.mappers().getMapper("field");
+        assertThat(field, instanceOf(BinaryFieldMapper.class));
+        assertTrue(field.fieldType().isStored());
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatExplicitStoreFalseRejected() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        // MapperService wraps the derived-source UnsupportedOperationException in a MapperParsingException.
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                pluggableSettings,
+                mapping(b -> b.startObject("field").field("type", "binary").field("store", false).endObject())
+            )
+        );
+        assertThat(e.getMessage(), containsString("with store disabled"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatMappingUpdateStoresNewFieldByDefault() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        MapperService mapperService = createMapperService(pluggableSettings, fieldMapping(this::minimalMapping));
+        assertTrue(mapperService.fieldType("field").isStored());
+
+        merge(mapperService, mapping(b -> {
+            b.startObject("field2");
+            minimalMapping(b);
+            b.endObject();
+        }));
+        assertTrue("field added by a mapping update should be stored by default", mapperService.fieldType("field2").isStored());
+        assertTrue("existing field should stay stored across the update", mapperService.fieldType("field").isStored());
+
+        // Re-sending the bare mapping of an existing field is not a conflict: the merge builder must resolve
+        // the same default as the parser did, or `store` would look like a changed parameter.
+        merge(mapperService, fieldMapping(this::minimalMapping));
+        assertTrue(mapperService.fieldType("field").isStored());
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatMappingUpdateRejectsStoreFalse() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        MapperService mapperService = createMapperService(pluggableSettings, fieldMapping(this::minimalMapping));
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> merge(mapperService, mapping(b -> {
+            b.startObject("field2");
+            minimalMapping(b);
+            b.field("store", false);
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("with store disabled"));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatDynamicallyMappedBinaryIsStored() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        MapperService mapperService = createMapperService(pluggableSettings, mapping(b -> {}));
+
+        // Only a native binary value (SMILE/CBOR) is dynamically mapped as binary; in JSON it is a base64 string.
+        XContentBuilder builder = XContentFactory.cborBuilder();
+        BytesReference source = BytesReference.bytes(builder.startObject().field("field", new byte[] { 1, 2, 3 }).endObject());
+        ParsedDocument doc = mapperService.documentMapper()
+            .parse(new SourceToParse("test", "1", source, builder.contentType()), new CapturingDocumentInput());
+
+        // The mapper built on the shard for the dynamic update must already carry the index's default.
+        Mapping update = doc.dynamicMappingsUpdate();
+        assertNotNull(update);
+        Mapper dynamicMapper = update.root().getMapper("field");
+        assertThat(dynamicMapper, instanceOf(BinaryFieldMapper.class));
+        assertTrue("dynamically mapped binary should be stored by default", ((FieldMapper) dynamicMapper).fieldType().isStored());
+
+        // And so must the mapping that results from applying the update.
+        merge(mapperService, dynamicMapping(update));
+        assertTrue(mapperService.fieldType("field").isStored());
     }
 
     private void assertBinaryLuceneAndPluggablePathsEquivalent(
