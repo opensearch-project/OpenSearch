@@ -107,6 +107,9 @@ final class ExpandSearchPhase extends SearchPhase {
                     ).postFilter(searchRequest.source().postFilter());
                     SearchRequest groupRequest = new SearchRequest(searchRequest);
                     groupRequest.source(sourceBuilder);
+                    // only the hits of these per-hit sub-searches are read, so building a shard_info section for each
+                    // of them would cost one section per hit and be discarded
+                    groupRequest.shardInfo(null);
                     multiRequest.add(groupRequest);
                 }
             }
