@@ -1149,14 +1149,13 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             IndexReader indexReader = indexSearcher.getIndexReader();
             int limit = Math.min(MAX_REQUIRED_TERMS, IndexSearcher.getMaxClauseCount());
             List<Terms> segmentTerms = new ArrayList<>();
-            if (caseInsensitive || requiredTerms.stream().anyMatch(term -> term.length() < NGRAM_SIZE)) {
-                for (LeafReaderContext leaf : indexReader.leaves()) {
-                    Terms terms = leaf.reader().terms(fieldName);
-                    if (terms != null) {
-                        segmentTerms.add(terms);
-                    }
+            for (LeafReaderContext leaf : indexReader.leaves()) {
+                Terms terms = leaf.reader().terms(fieldName);
+                if (terms != null) {
+                    segmentTerms.add(terms);
                 }
             }
+
             PriorityQueue<Candidate> queue = new PriorityQueue<>(limit, BEST_FIRST.reversed());
             for (String requiredTerm : requiredTerms) {
                 long maxFrequency = queue.size() < limit ? Long.MAX_VALUE : queue.peek().frequency;
@@ -1173,11 +1172,9 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                     queue.add(candidate);
                     return buildQuery(queue);
                 }
-                if (queue.size() < limit) {
-                    queue.add(candidate);
-                } else if (BEST_FIRST.compare(candidate, queue.peek()) < 0) {
+                queue.add(candidate);
+                if (queue.size() > limit) {
                     queue.poll();
-                    queue.add(candidate);
                 }
             }
             return buildQuery(queue);
