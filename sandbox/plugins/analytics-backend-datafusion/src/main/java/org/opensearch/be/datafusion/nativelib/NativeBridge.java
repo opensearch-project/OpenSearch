@@ -261,6 +261,8 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,    // sort_fields_len_ptr
                 ValueLayout.ADDRESS,    // sort_orders_ptr (parallel String[] for index.sort.order: "asc"|"desc")
                 ValueLayout.ADDRESS,    // sort_orders_len_ptr
+                ValueLayout.ADDRESS,    // sort_missing_ptr (parallel String[] for index.sort.missing: "_first"|"_last")
+                ValueLayout.ADDRESS,    // sort_missing_len_ptr
                 ValueLayout.JAVA_LONG   // sort_count (0 when index has no sort)
             )
         );
@@ -1028,13 +1030,15 @@ public final class NativeBridge {
      *                   {@code output_ordering} to the optimizer, and indexed path's segment-iteration
      *                   reversal when the query's leading ORDER BY runs counter to catalog direction.
      * @param sortOrders index.sort.order values ("asc" or "desc"), parallel to {@code sortFields}.
+      * @param sortMissing index.sort.missing values ("_first" or "_last"), parallel to {@code sortFields}.
      */
     public static long createDatafusionReader(
         String path,
         List<org.opensearch.index.engine.exec.MonoFileWriterSet> segments,
         NativeStoreHandle dataformatAwareStoreHandle,
         List<String> sortFields,
-        List<String> sortOrders
+        List<String> sortOrders,
+        List<String> sortMissing
     ) {
         long storePtr = 0L;
         if (dataformatAwareStoreHandle != null) {
@@ -1047,12 +1051,15 @@ public final class NativeBridge {
         }
         if (sortFields == null) sortFields = List.of();
         if (sortOrders == null) sortOrders = List.of();
-        if (sortFields.size() != sortOrders.size()) {
+        if (sortMissing == null) sortMissing = List.of();
+        if (sortFields.size() != sortOrders.size() || sortFields.size() != sortMissing.size()) {
             throw new IllegalArgumentException(
                 "createDatafusionReader: sortFields ("
                     + sortFields.size()
                     + ") and sortOrders ("
                     + sortOrders.size()
+                    + ") and sortMissing ("
+                    + sortMissing.size()
                     + ") must have the same length"
             );
         }
@@ -1064,6 +1071,7 @@ public final class NativeBridge {
             );
             var sf = call.strArray(sortFields.toArray(String[]::new));
             var so = call.strArray(sortOrders.toArray(String[]::new));
+            var sm = call.strArray(sortMissing.toArray(String[]::new));
             return call.invoke(
                 CREATE_READER,
                 p.segment(),
@@ -1077,6 +1085,8 @@ public final class NativeBridge {
                 sf.lens(),
                 so.ptrs(),
                 so.lens(),
+                sm.ptrs(),
+                sm.lens(),
                 sf.count()
             );
         }

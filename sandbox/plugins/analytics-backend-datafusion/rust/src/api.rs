@@ -457,6 +457,9 @@ pub struct ShardView {
     /// Index sort directions per field — values: `"asc"` or `"desc"`.
     /// Parallel to `sort_fields`. Sourced from `index.sort.order`.
     pub sort_orders: Vec<String>,
+    /// Missing-value placement per field — values: `"_first"` or `"_last"`.
+    /// Parallel to `sort_fields`; defaults to `_last` as used by the writer.
+    pub sort_missing: Vec<String>,
 }
 
 /// Creates a DataFusion global runtime with the given resource limits.
@@ -835,6 +838,7 @@ pub fn create_reader(
     writer_generations: Vec<i64>,
     sort_fields: Vec<String>,
     sort_orders: Vec<String>,
+    sort_missing: Vec<String>,
     tokio_rt_manager: &RuntimeManager,
     store_ptr: i64,
 ) -> Result<i64, DataFusionError> {
@@ -845,11 +849,12 @@ pub fn create_reader(
             writer_generations.len()
         )));
     }
-    if sort_fields.len() != sort_orders.len() {
+    if sort_fields.len() != sort_orders.len() || sort_fields.len() != sort_missing.len() {
         return Err(DataFusionError::Execution(format!(
-            "create_reader: sort_fields ({}) and sort_orders ({}) must have the same length",
+            "create_reader: sort_fields ({}), sort_orders ({}), and sort_missing ({}) must have the same length",
             sort_fields.len(),
-            sort_orders.len()
+            sort_orders.len(),
+            sort_missing.len()
         )));
     }
 
@@ -896,6 +901,7 @@ pub fn create_reader(
         store,
         sort_fields,
         sort_orders,
+        sort_missing,
     };
     Ok(Box::into_raw(Box::new(shard_view)) as i64)
 }
@@ -990,6 +996,7 @@ pub async unsafe fn execute_query(
                 phantom_corrector,
                 &shard_view.sort_fields,
                 &shard_view.sort_orders,
+                &shard_view.sort_missing,
                 internal_search,
             )
             .await

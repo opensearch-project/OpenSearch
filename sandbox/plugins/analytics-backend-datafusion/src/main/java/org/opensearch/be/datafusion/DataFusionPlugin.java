@@ -903,6 +903,7 @@ public class DataFusionPlugin extends Plugin
         // ORDER BY runs counter to the catalog direction.
         List<String> sortFields = List.of();
         List<String> sortOrders = List.of();
+        List<String> sortMissing = List.of();
         IndexSettings indexSettings = settings.indexSettings();
         if (indexSettings != null) {
             Settings rawSettings = indexSettings.getSettings();
@@ -920,6 +921,11 @@ public class DataFusionPlugin extends Plugin
                 } else {
                     sortOrders = fields.stream().map(f -> "asc").toList();
                 }
+                if (IndexSortConfig.INDEX_SORT_MISSING_SETTING.exists(rawSettings)) {
+                    sortMissing = IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(rawSettings);
+                } else {
+                    sortMissing = fields.stream().map(f -> "_last").toList();
+                }
             }
         }
         return new DatafusionReaderManager(
@@ -928,7 +934,8 @@ public class DataFusionPlugin extends Plugin
             dataFusionService,
             dataformatAwareStoreHandle,
             sortFields,
-            sortOrders
+            sortOrders,
+            sortMissing
         );
     }
 
