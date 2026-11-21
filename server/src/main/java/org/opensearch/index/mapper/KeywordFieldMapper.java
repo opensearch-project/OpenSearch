@@ -46,7 +46,6 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
@@ -57,6 +56,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.AutomatonQueries;
+import org.opensearch.common.lucene.search.RegexpAutomatonCache;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
@@ -689,14 +689,14 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 return new IndexOrDocValuesQuery(indexQuery, dvQuery);
             }
             if (hasDocValues()) {
-                return new RegexpQuery(
-                    new Term(name(), indexedValueForSearch(rewriteForDocValue(value))),
-                    syntaxFlags,
-                    matchFlags,
-                    RegexpQuery.DEFAULT_PROVIDER,
-                    maxDeterminizedStates,
-                    MultiTermQuery.DOC_VALUES_REWRITE
-                );
+                return RegexpAutomatonCache.getInstance()
+                    .regexpQuery(
+                        new Term(name(), indexedValueForSearch(rewriteForDocValue(value))),
+                        syntaxFlags,
+                        matchFlags,
+                        maxDeterminizedStates,
+                        MultiTermQuery.DOC_VALUES_REWRITE
+                    );
             }
             return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
         }

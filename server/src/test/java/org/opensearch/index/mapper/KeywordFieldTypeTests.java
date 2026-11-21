@@ -62,6 +62,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.AutomatonQueries;
+import org.opensearch.common.lucene.search.RegexpAutomatonCache;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.analysis.AnalyzerScope;
@@ -317,6 +318,34 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             "[range] queries on [text] or [keyword] fields cannot be executed when " + "'search.allow_expensive_queries' is set to false.",
             ee.getMessage()
         );
+    }
+
+    public void testRegexpQueryWithNormalizer() {
+        MappedFieldType ft = new KeywordFieldType("field", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()));
+        Term normalized = new Term("field", "foo.*");
+        RegexpAutomatonCache cache = RegexpAutomatonCache.getInstance();
+        boolean originalEnabled = cache.isEnabled();
+        try {
+            for (boolean enabled : new boolean[] { false, true }) {
+                cache.setEnabled(enabled);
+                Query expected = new IndexOrDocValuesQuery(
+                    cache.regexpQuery(normalized, 0, 0, 10, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE),
+                    cache.regexpQuery(normalized, 0, 0, 10, MultiTermQuery.DOC_VALUES_REWRITE)
+                );
+                Query actual = ft.regexpQuery(
+                    "FOO.*",
+                    0,
+                    0,
+                    10,
+                    MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
+                    MOCK_QSC_ENABLE_INDEX_DOC_VALUES
+                );
+                assertEquals(expected, actual);
+                assertEquals("field:/foo.*/", ((IndexOrDocValuesQuery) actual).getIndexQuery().toString());
+            }
+        } finally {
+            cache.setEnabled(originalEnabled);
+        }
     }
 
     public void testRegexpQuery() {
