@@ -46,6 +46,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -55,7 +56,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -83,19 +86,20 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
 
     public void testHealth() {
         logger.info("--> running cluster health on an index that does not exists");
-        ClusterHealthResponse healthResponse = client().admin()
-            .cluster()
-            .prepareHealth("test1")
-            .setWaitForYellowStatus()
-            .setTimeout("1s")
-            .execute()
-            .actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(true));
-        assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.RED));
-        assertThat(healthResponse.getIndices().isEmpty(), equalTo(true));
+        IndexNotFoundException exception = expectThrows(
+            IndexNotFoundException.class,
+            () -> client().admin().cluster().prepareHealth("test1").setWaitForYellowStatus().setTimeout("1s").execute().actionGet()
+        );
+        assertThat(exception.getMessage(), equalTo("no such index [test1]"));
 
         logger.info("--> running cluster wide health");
-        healthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("10s").execute().actionGet();
+        ClusterHealthResponse healthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForGreenStatus()
+            .setTimeout("10s")
+            .execute()
+            .actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(healthResponse.getIndices().isEmpty(), equalTo(true));
@@ -110,17 +114,37 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
         assertThat(healthResponse.getIndices().get("test1").getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("--> running cluster health on an index that does exists and an index that doesn't exists");
-        healthResponse = client().admin()
-            .cluster()
-            .prepareHealth("test1", "test2")
-            .setWaitForYellowStatus()
-            .setTimeout("1s")
-            .execute()
-            .actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(true));
-        assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.RED));
-        assertThat(healthResponse.getIndices().get("test1").getStatus(), equalTo(ClusterHealthStatus.GREEN));
-        assertThat(healthResponse.getIndices().size(), equalTo(1));
+        IndexNotFoundException exception2 = expectThrows(
+            IndexNotFoundException.class,
+            () -> client().admin().cluster().prepareHealth("test1", "test2").setWaitForYellowStatus().setTimeout("1s").execute().actionGet()
+        );
+        assertThat(exception2.getMessage(), equalTo("no such index [test2]"));
+    }
+
+    public void testHealthOnMissingIndexTimeout() {
+        logger.info("--> testing cluster health timeout returns 404 for missing index");
+        // This test specifically validates that when waiting for a non-existent index,
+        // the onTimeout() callback correctly returns IndexNotFoundException instead of
+        // a timeout response with RED status
+        long startTime = System.currentTimeMillis();
+        IndexNotFoundException exception = expectThrows(
+            IndexNotFoundException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareHealth("missing-index-" + randomAlphaOfLength(5))
+                .setWaitForGreenStatus()
+                .setTimeout("2s") // Use a longer timeout to ensure onTimeout() fires
+                .execute()
+                .actionGet()
+        );
+        long elapsedTime = System.currentTimeMillis() - startTime;
+
+        // Verify we got the correct exception
+        assertThat(exception.getMessage(), containsString("no such index"));
+
+        // Verify that we actually waited for the timeout (should be close to 2 seconds)
+        // This confirms the onTimeout() callback was triggered
+        assertThat("Expected timeout to be triggered", elapsedTime, greaterThanOrEqualTo(1500L));
     }
 
     public void testHealthWithClosedIndices() {
@@ -341,7 +365,8 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
             createIndex("index");
             assertFalse(client().admin().cluster().prepareHealth("index").setWaitForGreenStatus().get().isTimedOut());
 
-            // at this point the original health response should not have returned: there was never a point where the index was green AND
+            // at this point the original health response should not have returned: there
+            // was never a point where the index was green AND
             // the cluster-manager had processed all pending tasks above LANGUID priority.
             assertFalse(healthResponseFuture.isDone());
             keepSubmittingTasks.set(false);
@@ -356,10 +381,14 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
         final String node = internalCluster().startDataOnlyNode();
         final boolean withIndex = randomBoolean();
         if (withIndex) {
-            // Create index with many shards to provoke the health request to wait (for green) while cluster-manager is being shut down.
-            // Notice that this is set to 0 after the test completed starting a number of health requests and cluster-manager restarts.
-            // This ensures that the cluster is yellow when the health request is made, making the health request wait on the observer,
-            // triggering a call to observer.onClusterServiceClose when cluster-manager is shutdown.
+            // Create index with many shards to provoke the health request to wait (for
+            // green) while cluster-manager is being shut down.
+            // Notice that this is set to 0 after the test completed starting a number of
+            // health requests and cluster-manager restarts.
+            // This ensures that the cluster is yellow when the health request is made,
+            // making the health request wait on the observer,
+            // triggering a call to observer.onClusterServiceClose when cluster-manager is
+            // shutdown.
             createIndex(
                 "test",
                 Settings.builder()
@@ -370,7 +399,8 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
             );
         }
         final List<ActionFuture<ClusterHealthResponse>> responseFutures = new ArrayList<>();
-        // Run a few health requests concurrent to cluster-manager fail-overs against a data-node
+        // Run a few health requests concurrent to cluster-manager fail-overs against a
+        // data-node
         // to make sure cluster-manager failover is handled without exceptions
         final int iterations = withIndex ? 10 : 20;
         for (int i = 0; i < iterations; ++i) {
