@@ -15,6 +15,8 @@ import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.protobufs.services.SearchServiceGrpc;
 import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.transport.grpc.client.GrpcCancellableNodeClient;
 import org.opensearch.transport.grpc.listeners.CreatePitRequestActionListener;
 import org.opensearch.transport.grpc.listeners.DeletePitRequestActionListener;
 import org.opensearch.transport.grpc.listeners.SearchRequestActionListener;
@@ -30,6 +32,7 @@ import org.opensearch.transport.grpc.util.GrpcErrorHandler;
 import java.io.IOException;
 
 import io.grpc.StatusRuntimeException;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 
 /**
@@ -114,7 +117,7 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
                 aggregationRegistry
             );
             SearchRequestActionListener listener = new SearchRequestActionListener(wrappedObserver, aggregateRegistry);
-            client.search(searchRequest, listener);
+            getClientForSearch(responseObserver).search(searchRequest, listener);
         } catch (CircuitBreakingException e) {
             logger.debug("Circuit breaker tripped for gRPC search request: {}", e.getMessage());
             StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
@@ -125,6 +128,30 @@ public class SearchServiceImpl extends SearchServiceGrpc.SearchServiceImplBase {
             StatusRuntimeException grpcError = GrpcErrorHandler.convertToGrpcError(e);
             responseObserver.onError(grpcError);
         }
+    }
+
+    /**
+     * Returns the client to execute the search against. When the underlying client is a {@link NodeClient} and the
+     * gRPC call exposes a cancellation signal (a {@link ServerCallStreamObserver}), the search is executed through a
+     * {@link GrpcCancellableNodeClient} so the underlying search task is cancelled if the client abandons the call.
+     * This mirrors how the HTTP transport cancels search tasks on channel close via {@code RestCancellableNodeClient},
+     * and prevents a cancelled/deadline-exceeded gRPC request from running server-side for its full duration.
+     * <p>
+     * Otherwise the plain client is returned, leaving existing behavior unchanged.
+     *
+     * @param responseObserver the gRPC response observer for this call
+     * @return the client to execute the search request against
+     */
+    // Visible for testing: package-private so the branch on client's type can be exercised directly, independent
+    // of SearchRequestProtoUtils#prepareRequest, which requires a NodeClient of its own.
+    Client getClientForSearch(StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver) {
+        if (client instanceof NodeClient && responseObserver instanceof ServerCallStreamObserver) {
+            return new GrpcCancellableNodeClient(
+                (NodeClient) client,
+                (ServerCallStreamObserver<org.opensearch.protobufs.SearchResponse>) responseObserver
+            );
+        }
+        return client;
     }
 
     /**
