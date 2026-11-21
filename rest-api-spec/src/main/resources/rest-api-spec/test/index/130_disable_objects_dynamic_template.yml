@@ -1,0 +1,99 @@
+---
+"Dynamic template creating an object with disable_objects flattens nested documents":
+
+  - skip:
+      version: " - 3.8.99"
+      reason: "Fixed in 3.9"
+
+  - do:
+      indices.create:
+        index: test_disable_objects_dynamic_template
+        body:
+          mappings:
+            dynamic_templates: [
+              {
+                attributes_flat: {
+                  "match": "attributes",
+                  "match_mapping_type": "object",
+                  "mapping": {
+                    "type": "object",
+                    "disable_objects": true
+                  }
+                }
+              }
+            ]
+
+  # Indexing nested objects under attributes triggers the dynamic template; the fields
+  # must be mapped as flat dotted names, not nested objects
+  - do:
+      index:
+        index: test_disable_objects_dynamic_template
+        id: "1"
+        body:
+          attributes:
+            foo:
+              bar: baz
+              deep:
+                nested: true
+            key: 1
+
+  - do:
+      indices.refresh:
+        index: test_disable_objects_dynamic_template
+
+  - do:
+      indices.get_mapping:
+        index: test_disable_objects_dynamic_template
+
+  # The dynamically created object must carry disable_objects and contain only flat leaf fields
+  - match: { test_disable_objects_dynamic_template.mappings.properties.attributes.disable_objects: true }
+  - match: { test_disable_objects_dynamic_template.mappings.properties.attributes.properties.foo\.bar.type: text }
+  - match: { test_disable_objects_dynamic_template.mappings.properties.attributes.properties.foo\.deep\.nested.type: boolean }
+  - match: { test_disable_objects_dynamic_template.mappings.properties.attributes.properties.key.type: long }
+  - is_false: test_disable_objects_dynamic_template.mappings.properties.attributes.properties.foo
+
+  - do:
+      search:
+        index: test_disable_objects_dynamic_template
+        body: {
+          query: {
+            match: {
+              "attributes.foo.bar": "baz"
+            }
+          }
+        }
+  - length: { hits.hits: 1 }
+
+  # A second document adding a new nested field must merge into the existing
+  # disable_objects mapper without creating intermediate objects
+  - do:
+      index:
+        index: test_disable_objects_dynamic_template
+        id: "2"
+        body:
+          attributes:
+            extra:
+              field: value
+
+  - do:
+      indices.refresh:
+        index: test_disable_objects_dynamic_template
+
+  - do:
+      indices.get_mapping:
+        index: test_disable_objects_dynamic_template
+
+  - match: { test_disable_objects_dynamic_template.mappings.properties.attributes.properties.extra\.field.type: text }
+  - is_false: test_disable_objects_dynamic_template.mappings.properties.attributes.properties.extra
+
+  - do:
+      search:
+        index: test_disable_objects_dynamic_template
+        body: {
+          query: {
+            match: {
+              "attributes.extra.field": "value"
+            }
+          }
+        }
+  - length: { hits.hits: 1 }
