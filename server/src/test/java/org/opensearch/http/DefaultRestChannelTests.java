@@ -197,6 +197,34 @@ public class DefaultRestChannelTests extends OpenSearchTestCase {
         );
     }
 
+    public void testCorrelationHeadersStrippedOfControlCharacters() {
+        Settings settings = Settings.builder().build();
+        final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        httpRequest.getHeaders().put(Task.X_OPAQUE_ID, Collections.singletonList("opaque\r\nid"));
+        httpRequest.getHeaders().put(Task.X_REQUEST_ID, Collections.singletonList("request\tid"));
+        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
+        HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
+
+        DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            request,
+            bigArrays,
+            handlingSettings,
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(settings),
+            null
+        );
+        channel.sendResponse(new TestRestResponse());
+
+        ArgumentCaptor<TestHttpResponse> responseCaptor = ArgumentCaptor.forClass(TestHttpResponse.class);
+        verify(httpChannel).sendResponse(responseCaptor.capture(), any());
+        Map<String, List<String>> headers = responseCaptor.getValue().headers();
+        // Control characters removed; remaining characters preserved
+        assertEquals("opaqueid", headers.get(Task.X_OPAQUE_ID).get(0));
+        assertEquals("requestid", headers.get(Task.X_REQUEST_ID).get(0));
+    }
+
     public void testCookiesSet() {
         Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_RESET_COOKIES.getKey(), true).build();
         final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
