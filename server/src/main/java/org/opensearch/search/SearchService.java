@@ -909,6 +909,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 return executeFetchPhase(readerContext, context, afterQueryTime);
             } else {
                 // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
+                // The rescoreDocIds include only the top docs, see RescoreProcessor#rescore.
                 // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs to stay in the data node.
                 final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
                 context.queryResult().setRescoreDocIds(rescoreDocIds);
@@ -1001,6 +1002,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 executor.success();
                 // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
+                // The rescoreDocIds include only the top docs, see RescoreProcessor#rescore.
                 // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs to stay in the data node.
                 final RescoreDocIds rescoreDocIds = searchContext.rescoreDocIds();
                 searchContext.queryResult().setRescoreDocIds(rescoreDocIds);
