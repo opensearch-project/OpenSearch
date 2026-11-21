@@ -1,0 +1,45 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+opensearchplugin {
+  description = 'Pull-based ingestion plugin that decodes Arrow-format record batches into index operations; the concrete data source is contributed by an extending plugin implementing ArrowSourceFactory'
+  classname = 'org.opensearch.plugin.arrow.ArrowPlugin'
+}
+
+dependencies {
+  implementation 'org.apache.arrow:arrow-vector:18.3.0'
+  implementation 'org.apache.arrow:arrow-format:18.3.0'
+  implementation 'org.apache.arrow:arrow-memory-core:18.3.0'
+  runtimeOnly 'org.apache.arrow:arrow-memory-unsafe:18.3.0'
+  implementation 'org.apache.arrow:arrow-c-data:18.3.0'
+  implementation 'org.apache.arrow:arrow-dataset:18.3.0'
+  // Arrow transitive deps not resolved by OpenSearch build tooling
+  runtimeOnly 'com.google.flatbuffers:flatbuffers-java:25.2.10'
+  // Must stay <= 2.17.x: Arrow 18.3.0 uses ByteBufferBackedInputStream removed in jackson 2.18+
+  implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
+  implementation 'com.fasterxml.jackson.core:jackson-annotations:2.17.2'
+  implementation 'com.fasterxml.jackson.core:jackson-core:2.17.2'
+
+  // Arrow JARs reference Checker Framework nullness types; OpenSearch's global -Werror turns missing annos into errors.
+  compileOnly 'org.checkerframework:checker-qual:3.42.0'
+  testCompileOnly 'org.checkerframework:checker-qual:3.42.0'
+  testImplementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
+  testImplementation 'com.fasterxml.jackson.core:jackson-core:2.17.2'
+}
+
+dependencyLicenses {
+  mapping from: /arrow-.*/, to: 'arrow'
+  mapping from: /jackson-.*/, to: 'jackson'
+}
+
+test {
+  jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED',
+          '--add-opens=java.base/java.nio=ALL-UNNAMED',
+          '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED',
+          '--enable-native-access=ALL-UNNAMED'
+}
