@@ -45,9 +45,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Sends throttled create/update requests from a {@link WorkloadGroupThrottleSettings#MIN_SUPPORTED_VERSION} node to a
- * pre-throttling node over a real transport connection, as when the cluster-manager has not been upgraded yet, and checks
- * the error an operator would see.
+ * Sends throttled or queue-configured create/update requests from a
+ * {@link WorkloadGroupThrottleSettings#MIN_SUPPORTED_VERSION} node to a pre-throttling node over a real transport connection,
+ * as when the cluster-manager has not been upgraded yet, and checks the error an operator would see.
  */
 public class ThrottledRequestForwardingTests extends OpenSearchTestCase {
 
@@ -84,6 +84,20 @@ public class ThrottledRequestForwardingTests extends OpenSearchTestCase {
 
     public void testThrottledUpdateToPre310NodeIsBadRequest() throws IOException {
         assertBadRequestNamingVersion(forward(new UpdateWorkloadGroupRequest("throttled_group", throttledFragment())));
+    }
+
+    public void testQueueOnlyCreateToOlderNodeIsBadRequest() throws IOException {
+        WorkloadGroup group = WorkloadGroup.builder()
+            .name("queued_group")
+            ._id("queued_group_id")
+            .mutableWorkloadGroupFragment(queueOnlyFragment())
+            .updatedAt(1690934400000L)
+            .build();
+        assertBadRequestNamingVersion(forward(new CreateWorkloadGroupRequest(group)));
+    }
+
+    public void testQueueOnlyUpdateToOlderNodeIsBadRequest() throws IOException {
+        assertBadRequestNamingVersion(forward(new UpdateWorkloadGroupRequest("queued_group", queueOnlyFragment())));
     }
 
     private MockTransportService startNode(Version version) {
@@ -124,7 +138,8 @@ public class ThrottledRequestForwardingTests extends OpenSearchTestCase {
         Map<String, Object> rootCause = ((List<Map<String, Object>>) ((Map<String, Object>) body.get("error")).get("root_cause")).get(0);
         assertEquals("illegal_argument_exception", rootCause.get("type"));
         assertEquals(
-            "cannot send workload group throttling to a node before version " + WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION,
+            "cannot send workload group throttling or queue config to a node before version "
+                + WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION,
             rootCause.get("reason")
         );
     }
@@ -135,6 +150,16 @@ public class ThrottledRequestForwardingTests extends OpenSearchTestCase {
             Map.of(ResourceType.MEMORY, 0.5),
             Settings.EMPTY,
             Settings.builder().put("node_limit", 5).build()
+        );
+    }
+
+    private static MutableWorkloadGroupFragment queueOnlyFragment() {
+        return new MutableWorkloadGroupFragment(
+            ResiliencyMode.ENFORCED,
+            Map.of(ResourceType.MEMORY, 0.5),
+            Settings.EMPTY,
+            Settings.EMPTY,
+            Settings.builder().put("size_per_bucket", 50).build()
         );
     }
 }
