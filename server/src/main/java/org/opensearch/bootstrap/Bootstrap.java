@@ -59,6 +59,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.env.Environment;
+import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.monitor.process.ProcessProbe;
@@ -255,13 +256,17 @@ final class Bootstrap {
         IfConfig.logIfNecessary();
 
         // install SM after natives, shutdown hooks, etc.
+        final AgentPolicy.EnforcementController javaAgentEnforcementController;
         try {
-            Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings));
+            javaAgentEnforcementController = Security.configure(
+                environment,
+                BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings)
+            );
         } catch (IOException | NoSuchAlgorithmException e) {
             throw new BootstrapException(e);
         }
 
-        node = new Node(environment) {
+        node = new Node(environment, javaAgentEnforcementController) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(
                 final BootstrapContext context,
