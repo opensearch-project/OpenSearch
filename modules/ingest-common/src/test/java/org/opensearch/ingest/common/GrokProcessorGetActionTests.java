@@ -32,7 +32,9 @@
 
 package org.opensearch.ingest.common;
 
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -41,8 +43,8 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.tasks.TaskManager;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -59,30 +61,47 @@ import static org.mockito.Mockito.mock;
 public class GrokProcessorGetActionTests extends OpenSearchTestCase {
     private static final Map<String, String> TEST_PATTERNS = Map.of("PATTERN2", "foo2", "PATTERN1", "foo1");
 
-    public void testRequest() throws Exception {
-        GrokProcessorGetAction.Request request = new GrokProcessorGetAction.Request(false);
-        BytesStreamOutput out = new BytesStreamOutput();
-        request.writeTo(out);
-        StreamInput streamInput = out.bytes().streamInput();
-        GrokProcessorGetAction.Request otherRequest = new GrokProcessorGetAction.Request(streamInput);
-        assertThat(otherRequest.validate(), nullValue());
+    public void testLocalActionValidatesRequests() {
+        var validationFailure = new ActionRequestValidationException();
+        validationFailure.addValidationError("invalid request");
+        var request = new GrokProcessorGetAction.Request(false) {
+            @Override
+            public ActionRequestValidationException validate() {
+                return validationFailure;
+            }
+        };
+        var action = new GrokProcessorGetAction.TransportAction(
+            mock(TaskManager.class),
+            new ActionFilters(Collections.emptySet()),
+            TEST_PATTERNS
+        );
+        var future = new PlainActionFuture<GrokProcessorGetAction.Response>();
+        action.execute(null, request, future);
+        assertSame(validationFailure, expectThrows(ActionRequestValidationException.class, future::actionGet));
     }
 
-    public void testResponseSerialization() throws Exception {
+    public void testRequest() throws Exception {
+        GrokProcessorGetAction.Request request = new GrokProcessorGetAction.Request(false);
+        assertThat(request.validate(), nullValue());
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            expectThrows(UnsupportedOperationException.class, () -> request.writeTo(out));
+        }
+    }
+
+    public void testWireSerializationIsUnsupported() throws Exception {
         GrokProcessorGetAction.Response response = new GrokProcessorGetAction.Response(TEST_PATTERNS);
-        BytesStreamOutput out = new BytesStreamOutput();
-        response.writeTo(out);
-        StreamInput streamInput = out.bytes().streamInput();
-        GrokProcessorGetAction.Response otherResponse = new GrokProcessorGetAction.Response(streamInput);
         assertThat(response.getGrokPatterns(), equalTo(TEST_PATTERNS));
-        assertThat(response.getGrokPatterns(), equalTo(otherResponse.getGrokPatterns()));
+        try (BytesStreamOutput out = new BytesStreamOutput(); StreamInput in = out.bytes().streamInput()) {
+            expectThrows(UnsupportedOperationException.class, () -> response.writeTo(out));
+            expectThrows(UnsupportedOperationException.class, () -> GrokProcessorGetAction.INSTANCE.getResponseReader().read(in));
+        }
     }
 
     public void testResponseSorting() {
         List<String> sortedKeys = new ArrayList<>(TEST_PATTERNS.keySet());
         Collections.sort(sortedKeys);
         GrokProcessorGetAction.TransportAction transportAction = new GrokProcessorGetAction.TransportAction(
-            mock(TransportService.class),
+            mock(TaskManager.class),
             mock(ActionFilters.class),
             TEST_PATTERNS
         );
