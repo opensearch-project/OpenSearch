@@ -9,6 +9,7 @@
 package org.opensearch.common.cache.stats;
 
 import org.opensearch.common.Randomness;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -111,6 +112,52 @@ public class DefaultCacheStatsHolderTests extends OpenSearchTestCase {
         cacheStatsHolder.removeDimensions(List.of("A2", "B3"));
         assertEquals(0, cacheStatsHolder.getStatsRoot().getImmutableStats().getHits());
         assertEquals(0, cacheStatsHolder.getStatsRoot().children.size());
+    }
+
+    /**
+     * When a shard is closed and reassigned to the same node within one cleanup cycle, the node-level stats entry
+     * for that index+shard is dropped while a second live copy of the shard still has entries counted against it.
+     * A later decrement for those already-dropped entries must not drive size_in_bytes/item_count negative, which
+     * is what makes _nodes/stats fail to serialize with "Negative longs unsupported".
+     */
+    public void testRemoveDimensionsWhileLiveCopyUsesSameDimensionsDoesNotGoNegative() throws Exception {
+        List<String> dimensionNames = List.of("index", "shard");
+        DefaultCacheStatsHolder cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames, storeName);
+        List<String> dims = List.of("test1", "0");
+        List<String> dimsNoItems = List.of("test1", "0");
+
+        // Copy 1 caches A, copy 2 (same shard id on the same node) caches B against the same stats entry.
+        cacheStatsHolder.incrementSizeInBytes(dims, 100);
+        cacheStatsHolder.incrementItems(dims);
+        cacheStatsHolder.incrementSizeInBytes(dims, 20);
+        cacheStatsHolder.incrementItems(dims);
+        assertEquals(120, cacheStatsHolder.getStatsRoot().getImmutableStats().getSizeInBytes());
+
+        // Cleanup removes A and drops the node-level stats for this index+shard, even though B is still live.
+        cacheStatsHolder.removeDimensions(dims);
+        assertEquals(0, cacheStatsHolder.getStatsRoot().getImmutableStats().getSizeInBytes());
+
+        // Copy 2 caches C, creating a fresh stats entry for the same dimensions.
+        cacheStatsHolder.incrementSizeInBytes(dims, 100);
+        cacheStatsHolder.incrementItems(dims);
+
+        // Copy 2's reader closes and cleanup removes B and C. B's bytes would come off a second time.
+        cacheStatsHolder.decrementSizeInBytes(dims, 20);
+        cacheStatsHolder.decrementItems(dims);
+        cacheStatsHolder.decrementSizeInBytes(dims, 100);
+        cacheStatsHolder.decrementItems(dims);
+
+        ImmutableCacheStats total = cacheStatsHolder.getStatsRoot().getImmutableStats();
+        assertTrue("size_in_bytes must not go negative but was " + total.getSizeInBytes(), total.getSizeInBytes() >= 0);
+        assertTrue("item_count must not go negative but was " + total.getItems(), total.getItems() >= 0);
+        assertEquals(0, total.getSizeInBytes());
+        assertEquals(0, total.getItems());
+
+        // Serializing the snapshot goes down the same path as _nodes/stats (writeVLong) and must not throw.
+        ImmutableCacheStatsHolder immutable = cacheStatsHolder.getImmutableCacheStatsHolder(new String[] { "index", "shard" });
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            immutable.writeTo(out);
+        }
     }
 
     public void testCount() throws Exception {
