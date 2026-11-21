@@ -86,4 +86,30 @@ public class RestBulkStreamingActionTests extends OpenSearchTestCase {
             );
         }
     }
+
+    public void testNonPositiveBatchSizeIsRejected() throws Exception {
+        final int batchSize = randomIntBetween(-100, 0);
+        final IllegalArgumentException e = expectPrepareRequestFailure("batch_size", Integer.toString(batchSize));
+        assertThat(e.getMessage(), equalTo("The batch_size value should be positive [" + batchSize + "]."));
+    }
+
+    public void testZeroBatchIntervalIsRejected() throws Exception {
+        final IllegalArgumentException e = expectPrepareRequestFailure("batch_interval", "0s");
+        assertThat(e.getMessage(), equalTo("The batch_interval value should be positive [0ms]."));
+    }
+
+    private IllegalArgumentException expectPrepareRequestFailure(String name, String value) throws Exception {
+        final Map<String, String> params = new HashMap<>();
+        params.put(name, value);
+
+        final FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk/stream")
+            .withParams(params)
+            .withMethod(RestRequest.Method.POST)
+            .build();
+
+        final RestBulkStreamingAction action = new RestBulkStreamingAction(settings(Version.CURRENT).build());
+        try (NodeClient client = new NoOpNodeClient(this.getTestName())) {
+            return expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, client));
+        }
+    }
 }
