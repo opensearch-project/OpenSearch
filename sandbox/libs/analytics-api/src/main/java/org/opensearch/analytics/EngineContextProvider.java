@@ -9,6 +9,7 @@
 package org.opensearch.analytics;
 
 import org.apache.calcite.schema.SchemaPlus;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.cluster.ClusterState;
 
@@ -34,12 +35,24 @@ public interface EngineContextProvider {
      * once at query entry (typically with {@code clusterService.state()}) and thread the
      * result through both schema-driven planning and {@code planExecutor.execute}.
      *
-     * <p>Default implementation builds a fresh {@link SchemaPlus} from the supplied state via
-     * {@link OpenSearchSchemaBuilder#buildSchema(ClusterState)}. Engine implementations that
-     * already carry an {@code IndexNameExpressionResolver} should override this to reuse it.
+     * <p>Delegates to {@link #getContext(ClusterState, IndicesOptions)} with
+     * {@link IndicesOptions#lenientExpandOpen()}. Engine implementations that already carry an
+     * {@code IndexNameExpressionResolver} should override the options-aware variant to reuse it.
      */
     default QueryRequestContext getContext(ClusterState clusterState) {
-        return new QueryRequestContext(clusterState, OpenSearchSchemaBuilder.buildSchema(clusterState));
+        return getContext(clusterState, IndicesOptions.lenientExpandOpen());
+    }
+
+    /**
+     * Options-aware variant: builds a fresh {@link SchemaPlus} resolving index expressions against
+     * {@code indicesOptions}. The DSL transports pass the request's options so schema membership
+     * matches the coordinator's index resolution; the {@link #getContext(ClusterState)} default
+     * passes {@link IndicesOptions#lenientExpandOpen()} to preserve existing behaviour. Engine
+     * implementations that already carry an {@code IndexNameExpressionResolver} should override
+     * this to reuse it.
+     */
+    default QueryRequestContext getContext(ClusterState clusterState, IndicesOptions indicesOptions) {
+        return new QueryRequestContext(clusterState, OpenSearchSchemaBuilder.buildSchema(clusterState, indicesOptions));
     }
 
     QueryRequestContext getContext();
