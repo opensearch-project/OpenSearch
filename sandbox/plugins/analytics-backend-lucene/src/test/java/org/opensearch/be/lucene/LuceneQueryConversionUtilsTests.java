@@ -16,15 +16,20 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 /**
  * Unit tests for {@link LuceneQueryConversionUtils#rewriteFieldExistsForSecondary} — the
@@ -32,6 +37,14 @@ import static org.hamcrest.Matchers.instanceOf;
  * lucene-secondary segment) into a postings-only {@link TermRangeQuery}.
  */
 public class LuceneQueryConversionUtilsTests extends OpenSearchTestCase {
+
+    public void testCompileQueryForSecondaryRewritesUnmappedTermToMatchNone() throws IOException {
+        QueryShardContext context = mock(QueryShardContext.class);
+
+        Query query = LuceneQueryConversionUtils.compileQueryForSecondary(new TermQueryBuilder("unmapped_field", "value"), context);
+
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
+    }
 
     private static FieldExistsQuery exists(String field) {
         return new FieldExistsQuery(field);
