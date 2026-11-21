@@ -29,6 +29,15 @@ public interface TranslogManager extends Closeable {
     void rollTranslogGeneration() throws TranslogException, IOException;
 
     /**
+     * Locally syncs and rolls the translog generation
+     *
+     * @param sync whether to upload the translog generation (only valid for remote translogs)
+     */
+    default void rollTranslogGeneration(boolean sync) throws TranslogException, IOException {
+        rollTranslogGeneration();
+    }
+
+    /**
      * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).
      * This operation will close the engine if the recovery fails.
      *
