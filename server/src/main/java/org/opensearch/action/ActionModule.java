@@ -34,7 +34,6 @@ package org.opensearch.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.opensearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.opensearch.action.admin.cluster.blockcache.PruneBlockCacheAction;
@@ -353,7 +352,6 @@ import org.opensearch.plugins.ActionPlugin.ActionHandler;
 import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
-import org.opensearch.rest.RestHandler.Route;
 import org.opensearch.rest.RestHeaderDefinition;
 import org.opensearch.rest.action.RestFieldCapabilitiesAction;
 import org.opensearch.rest.action.RestMainAction;
@@ -914,7 +912,6 @@ public class ActionModule extends AbstractModule {
     }
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
-        Set<String> pluginActionPrefixes = getPluginActionPrefixes();
         List<AbstractCatAction> catActions = new ArrayList<>();
         List<AbstractListAction> listActions = new ArrayList<>();
         Consumer<RestHandler> registerHandler = handler -> {
@@ -923,22 +920,6 @@ public class ActionModule extends AbstractModule {
                     listActions.add(abstractListAction);
                 } else {
                     catActions.add(abstractCatAction);
-                }
-            }
-            for (Route route : handler.routes()) {
-                if (route instanceof NamedRoute namedRoute) {
-                    for (String actionName : namedRoute.actionNames()) {
-                        if (!TransportService.isValidActionName(actionName, pluginActionPrefixes)) {
-                            throw new OpenSearchException(
-                                "Invalid action name ["
-                                    + actionName
-                                    + "]. It must start with one of: "
-                                    + TransportService.VALID_ACTION_PREFIXES
-                                    + " or plugin prefixes "
-                                    + pluginActionPrefixes
-                            );
-                        }
-                    }
                 }
             }
             restController.registerHandler(handler);

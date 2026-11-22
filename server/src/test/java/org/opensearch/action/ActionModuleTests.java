@@ -32,7 +32,6 @@
 
 package org.opensearch.action;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.main.MainAction;
 import org.opensearch.action.main.TransportMainAction;
 import org.opensearch.action.support.ActionFilters;
@@ -51,7 +50,6 @@ import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ActionPlugin.ActionHandler;
-import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
@@ -63,7 +61,6 @@ import org.opensearch.tasks.TaskManager;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
 
@@ -301,13 +298,6 @@ public class ActionModuleTests extends OpenSearchTestCase {
     }
 
     public void testGetPluginActionPrefixesExtractsNovelPrefix() throws IOException {
-        assertCustomRoutePrefix("report_definition:get", true);
-        assertCustomRoutePrefix("report_definition_extra:get", false);
-        assertCustomRoutePrefix("unknown:get", false);
-        assertCustomRoutePrefix("indices:data/read/get", true);
-    }
-
-    private void assertCustomRoutePrefix(String routeAction, boolean valid) throws IOException {
         class FakeRequest extends ActionRequest {
             @Override
             public ActionRequestValidationException validate() {
@@ -323,33 +313,6 @@ public class ActionModuleTests extends OpenSearchTestCase {
             protected void doExecute(Task task, FakeRequest request, ActionListener<ActionResponse> listener) {}
         }
         ActionPlugin pluginWithNovelPrefix = new ActionPlugin() {
-            @Override
-            public List<RestHandler> getRestHandlers(
-                Settings settings,
-                RestController restController,
-                ClusterSettings clusterSettings,
-                IndexScopedSettings indexScopedSettings,
-                SettingsFilter settingsFilter,
-                IndexNameExpressionResolver resolver,
-                Supplier<DiscoveryNodes> nodes
-            ) {
-                return List.of(new RestHandler() {
-                    @Override
-                    public List<Route> routes() {
-                        return List.of(
-                            new NamedRoute.Builder().method(Method.GET)
-                                .path("/_custom_prefix")
-                                .uniqueName("custom_prefix:get")
-                                .legacyActionNames(Set.of(routeAction))
-                                .build()
-                        );
-                    }
-
-                    @Override
-                    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {}
-                });
-            }
-
             @Override
             public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
                 return singletonList(new ActionHandler<>(new ActionType<ActionResponse>("report_definition:data/read/get", null) {
@@ -375,13 +338,6 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of()))
             );
             assertThat(actionModule.getPluginActionPrefixes(), containsInAnyOrder("report_definition:"));
-            assertEquals(valid, TransportService.isValidActionName(routeAction, actionModule.getPluginActionPrefixes()));
-            if (valid) {
-                actionModule.initRestHandlers(null);
-            } else {
-                OpenSearchException e = expectThrows(OpenSearchException.class, () -> actionModule.initRestHandlers(null));
-                assertThat(e.getMessage(), startsWith("Invalid action name [" + routeAction + "]"));
-            }
         } finally {
             threadPool.shutdown();
         }
