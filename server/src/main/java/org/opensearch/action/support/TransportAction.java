@@ -99,14 +99,6 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      * This is a typical behavior.
      */
     public final Task execute(Request request, ActionListener<Response> listener) {
-        return execute(request, actionName, listener);
-    }
-
-    /**
-     * Executes this transport action under its canonical or a registered legacy name.
-     */
-    public final Task execute(Request request, String actionName, ActionListener<Response> listener) {
-        ensureRegisteredActionName(actionName);
         /*
          * While this version of execute could delegate to the TaskListener
          * version of execute that'd add yet another layer of wrapping on the
@@ -126,7 +118,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
         ThreadContext.StoredContext storedContext = taskManager.taskExecutionStarted(task);
         try {
-            execute(actionName, task, request, new ActionListener<Response>() {
+            execute(task, request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {
                     try {
@@ -157,14 +149,6 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      * {@link TaskListener} which listens for the completion of the action.
      */
     public final Task execute(Request request, TaskListener<Response> listener) {
-        return execute(request, actionName, listener);
-    }
-
-    /**
-     * Executes this transport action under its canonical or a registered legacy name.
-     */
-    public final Task execute(Request request, String actionName, TaskListener<Response> listener) {
-        ensureRegisteredActionName(actionName);
         final Releasable unregisterChildNode = registerChildNode(request.getParentTask());
         final Task task;
         try {
@@ -175,7 +159,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         }
         ThreadContext.StoredContext storedContext = taskManager.taskExecutionStarted(task);
         try {
-            execute(actionName, task, request, new ActionListener<Response>() {
+            execute(task, request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {
                     try {
@@ -204,11 +188,6 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      * Use this method when the transport action should continue to run in the context of the current task
      */
     public final void execute(Task task, Request request, ActionListener<Response> listener) {
-        execute(actionName, task, request, listener);
-    }
-
-    final void execute(String actionName, Task task, Request request, ActionListener<Response> listener) {
-        ensureRegisteredActionName(actionName);
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             listener.onFailure(validationException);
@@ -225,12 +204,6 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
     Set<String> legacyActionNames() {
         return legacyActionNames;
-    }
-
-    private void ensureRegisteredActionName(String actionName) {
-        if (this.actionName.equals(actionName) == false && legacyActionNames.contains(actionName) == false) {
-            throw new IllegalArgumentException("action name [" + actionName + "] is not registered for action [" + this.actionName + "]");
-        }
     }
 
     protected abstract void doExecute(Task task, Request request, ActionListener<Response> listener);

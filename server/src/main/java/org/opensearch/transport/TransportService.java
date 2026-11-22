@@ -1210,6 +1210,18 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     /**
+     * Registers an additional lookup name for an existing handler. The handler, its interceptors and task registration
+     * use the canonical name; the alias is only used to resolve incoming requests.
+     *
+     * @param alias additional name accepted on the transport
+     * @param action name of the already registered handler
+     */
+    public void registerRequestHandlerAlias(String alias, String action) {
+        validateActionName(alias);
+        transport.getRequestHandlers().registerAlias(alias, action);
+    }
+
+    /**
      * Registers a new request handler
      *
      * @param action         The action the request handler is associated with

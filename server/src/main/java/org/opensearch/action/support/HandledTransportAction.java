@@ -169,18 +169,10 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
             canTripCircuitBreaker,
             admissionControlActionType,
             requestReader,
-            new TransportHandler(actionName)
+            new TransportHandler()
         );
         for (String legacyActionName : legacyActionNames) {
-            transportService.registerRequestHandler(
-                legacyActionName,
-                executor,
-                false,
-                canTripCircuitBreaker,
-                admissionControlActionType,
-                requestReader,
-                new TransportHandler(legacyActionName)
-            );
+            transportService.registerRequestHandlerAlias(legacyActionName, actionName);
         }
     }
 
@@ -190,16 +182,10 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
      * @opensearch.internal
      */
     class TransportHandler implements TransportRequestHandler<Request> {
-        private final String registeredActionName;
-
-        TransportHandler(String registeredActionName) {
-            this.registeredActionName = registeredActionName;
-        }
-
         @Override
         public final void messageReceived(final Request request, final TransportChannel channel, Task task) {
             // We already got the task created on the network layer - no need to create it again on the transport layer
-            execute(registeredActionName, task, request, new ChannelActionListener<>(channel, registeredActionName, request));
+            execute(task, request, new ChannelActionListener<>(channel, actionName, request));
         }
     }
 

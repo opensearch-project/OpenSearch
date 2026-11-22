@@ -110,7 +110,7 @@ public class NodeClient extends AbstractClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        return transportAction(action).execute(request, action.name(), listener);
+        return transportAction(action).execute(request, listener);
     }
 
     /**
@@ -122,7 +122,7 @@ public class NodeClient extends AbstractClient {
         Request request,
         TaskListener<Response> listener
     ) {
-        return transportAction(action).execute(request, action.name(), listener);
+        return transportAction(action).execute(request, listener);
     }
 
     /**
