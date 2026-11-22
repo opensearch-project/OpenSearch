@@ -46,6 +46,8 @@ import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
@@ -342,6 +344,50 @@ public class IndexStoredRulePersistenceServiceTests extends OpenSearchTestCase {
         ArgumentCaptor<GetRuleResponse> responseCaptor = ArgumentCaptor.forClass(GetRuleResponse.class);
         verify(listener).onResponse(responseCaptor.capture());
         assertTrue(responseCaptor.getValue().getRules().isEmpty());
+    }
+
+    public void testGetRuleSortsFirstPageByRuleId() {
+        GetRuleRequest getRuleRequest = mock(GetRuleRequest.class);
+        when(getRuleRequest.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
+
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(new SearchHits(new SearchHit[] {}, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f));
+        when(searchRequestBuilder.get()).thenReturn(searchResponse);
+
+        ActionListener<GetRuleResponse> listener = mock(ActionListener.class);
+        rulePersistenceService.getRule(getRuleRequest, listener);
+
+        // The first page must carry the same sort as later pages, otherwise search_after
+        // continues from an unsorted page and pagination skips or repeats rules.
+        ArgumentCaptor<FieldSortBuilder> sortCaptor = ArgumentCaptor.forClass(FieldSortBuilder.class);
+        verify(searchRequestBuilder).addSort(sortCaptor.capture());
+        FieldSortBuilder sort = sortCaptor.getValue();
+        assertEquals("id.keyword", sort.getFieldName());
+        assertEquals(SortOrder.ASC, sort.order());
+        assertEquals("keyword", sort.unmappedType());
+        verify(searchRequestBuilder, never()).searchAfter(any(Object[].class));
+    }
+
+    public void testGetRuleSortsLaterPagesByRuleIdAndPassesSearchAfter() {
+        GetRuleRequest getRuleRequest = mock(GetRuleRequest.class);
+        when(getRuleRequest.getFeatureType()).thenReturn(RuleTestUtils.MockRuleFeatureType.INSTANCE);
+        when(getRuleRequest.getSearchAfter()).thenReturn("last-rule-id");
+
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(new SearchHits(new SearchHit[] {}, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f));
+        when(searchRequestBuilder.get()).thenReturn(searchResponse);
+
+        ActionListener<GetRuleResponse> listener = mock(ActionListener.class);
+        rulePersistenceService.getRule(getRuleRequest, listener);
+
+        ArgumentCaptor<FieldSortBuilder> sortCaptor = ArgumentCaptor.forClass(FieldSortBuilder.class);
+        verify(searchRequestBuilder).addSort(sortCaptor.capture());
+        assertEquals("id.keyword", sortCaptor.getValue().getFieldName());
+        ArgumentCaptor<Object[]> searchAfterCaptor = ArgumentCaptor.forClass(Object[].class);
+        verify(searchRequestBuilder).searchAfter(searchAfterCaptor.capture());
+        Object[] searchAfter = searchAfterCaptor.getValue();
+        assertEquals(1, searchAfter.length);
+        assertEquals("last-rule-id", searchAfter[0]);
     }
 
     private Client setUpMockClient(SearchRequestBuilder searchRequestBuilder) {
