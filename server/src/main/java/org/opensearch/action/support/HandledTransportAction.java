@@ -59,46 +59,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader
     ) {
-        this(action, true, transportService, actionFilters, requestReader);
-    }
-
-    protected HandledTransportAction(
-        ActionType<Response> action,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Writeable.Reader<Request> requestReader,
-        String executor
-    ) {
-        this(action, true, null, transportService, actionFilters, requestReader, executor);
-    }
-
-    protected HandledTransportAction(
-        ActionType<Response> action,
-        boolean canTripCircuitBreaker,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Writeable.Reader<Request> requestReader
-    ) {
-        this(action, canTripCircuitBreaker, null, transportService, actionFilters, requestReader, ThreadPool.Names.SAME);
-    }
-
-    protected HandledTransportAction(
-        ActionType<Response> action,
-        boolean canTripCircuitBreaker,
-        AdmissionControlActionType admissionControlActionType,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Writeable.Reader<Request> requestReader
-    ) {
-        this(
-            action,
-            canTripCircuitBreaker,
-            admissionControlActionType,
-            transportService,
-            actionFilters,
-            requestReader,
-            ThreadPool.Names.SAME
-        );
+        this(action, true, null, transportService, actionFilters, requestReader, ThreadPool.Names.SAME);
     }
 
     protected HandledTransportAction(

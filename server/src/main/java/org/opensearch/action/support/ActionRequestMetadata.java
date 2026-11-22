@@ -62,6 +62,14 @@ public class ActionRequestMetadata<Request extends ActionRequest, Response exten
     }
 
     /**
+     * Returns the canonical name of the registered action, or null when no action metadata is available.
+     * This also identifies the canonical action when a request invoked a legacy name.
+     */
+    public String canonicalActionName() {
+        return transportAction == null ? null : transportAction.actionName;
+    }
+
+    /**
      * Returns legacy names registered for the action handling this request.
      */
     public Set<String> legacyActionNames() {

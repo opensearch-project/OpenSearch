@@ -250,6 +250,7 @@ public class TransportActionFilterChainTests extends OpenSearchTestCase {
             ) {
                 filteredActionName.set(action);
                 legacyActionNames.set(actionRequestMetadata.legacyActionNames());
+                assertEquals(canonicalActionName, actionRequestMetadata.canonicalActionName());
                 chain.proceed(task, action, request, listener);
             }
         };
