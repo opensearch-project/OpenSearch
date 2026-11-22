@@ -1641,6 +1641,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return this.isAppendOnlyIndex;
     }
 
+    /** Whether this index stores documents through a pluggable data format rather than Lucene alone. */
+    public boolean isPluggableDataFormatIndex() {
+        return IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(this.settings);
+    }
+
     public boolean bulkAdaptiveShardSelectionEnabled() {
         return this.bulkAdaptiveShardSelectionEnabled;
     }
