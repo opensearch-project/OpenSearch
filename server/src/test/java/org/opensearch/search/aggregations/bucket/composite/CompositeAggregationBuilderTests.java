@@ -32,12 +32,16 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.XContentParseException;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.sort.SortOrder;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -139,5 +143,22 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
         int validSize = randomIntBetween(1, 1000);
         builder.size(validSize);
         assertEquals(validSize, builder.size());
+    }
+
+    public void testParsingRejectsSizeZero() throws IOException {
+        String json = "{ \"size\": 0, \"sources\": [ { \"t\": { \"terms\": { \"field\": \"tag\" } } } ] }";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
+
+        XContentParseException e = expectThrows(
+            XContentParseException.class,
+            () -> CompositeAggregationBuilder.PARSER.parse(parser, "my_composite")
+        );
+        // the parser wraps the error a few times, the real reason is the innermost cause
+        Throwable cause = e;
+        while (cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+        assertEquals(IllegalArgumentException.class, cause.getClass());
+        assertEquals("[size] must be greater than 0. Found [0] in [my_composite]", cause.getMessage());
     }
 }
