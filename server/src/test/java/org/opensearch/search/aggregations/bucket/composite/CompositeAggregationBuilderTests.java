@@ -124,4 +124,20 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
         }
         return new CompositeAggregationBuilder(randomAlphaOfLength(10), sources);
     }
+
+    public void testSizeMustBeGreaterThanZero() {
+        List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>();
+        sources.add(new TermsValuesSourceBuilder("terms").field("field"));
+        CompositeAggregationBuilder builder = new CompositeAggregationBuilder("my_composite", sources);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.size(0));
+        assertEquals("[size] must be greater than 0. Found [0] in [my_composite]", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> builder.size(-1));
+        assertEquals("[size] must be greater than 0. Found [-1] in [my_composite]", e.getMessage());
+
+        int validSize = randomIntBetween(1, 1000);
+        builder.size(validSize);
+        assertEquals(validSize, builder.size());
+    }
 }
