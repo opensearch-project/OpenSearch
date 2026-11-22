@@ -99,13 +99,13 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      * This is a typical behavior.
      */
     public final Task execute(Request request, ActionListener<Response> listener) {
-        return executeWithActionName(actionName, request, listener);
+        return execute(request, actionName, listener);
     }
 
     /**
      * Executes this transport action under its canonical or a registered legacy name.
      */
-    public final Task executeWithActionName(String actionName, Request request, ActionListener<Response> listener) {
+    public final Task execute(Request request, String actionName, ActionListener<Response> listener) {
         ensureRegisteredActionName(actionName);
         /*
          * While this version of execute could delegate to the TaskListener
@@ -157,13 +157,13 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      * {@link TaskListener} which listens for the completion of the action.
      */
     public final Task execute(Request request, TaskListener<Response> listener) {
-        return executeWithActionName(actionName, request, listener);
+        return execute(request, actionName, listener);
     }
 
     /**
      * Executes this transport action under its canonical or a registered legacy name.
      */
-    public final Task executeWithActionName(String actionName, Request request, TaskListener<Response> listener) {
+    public final Task execute(Request request, String actionName, TaskListener<Response> listener) {
         ensureRegisteredActionName(actionName);
         final Releasable unregisterChildNode = registerChildNode(request.getParentTask());
         final Task task;

@@ -267,7 +267,7 @@ public class TransportActionFilterChainTests extends OpenSearchTestCase {
         };
         PlainActionFuture<TestResponse> future = PlainActionFuture.newFuture();
 
-        transportAction.executeWithActionName(legacyActionName, new TestRequest(), future);
+        transportAction.execute(new TestRequest(), legacyActionName, future);
 
         assertNotNull(future.get());
         assertEquals(legacyActionName, filteredActionName.get());
@@ -316,7 +316,7 @@ public class TransportActionFilterChainTests extends OpenSearchTestCase {
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> transportAction.executeWithActionName("unknown:action", new TestRequest(), PlainActionFuture.newFuture())
+            () -> transportAction.execute(new TestRequest(), "unknown:action", PlainActionFuture.newFuture())
         );
         assertEquals("action name [unknown:action] is not registered for action [canonical:action]", exception.getMessage());
     }
