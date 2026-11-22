@@ -63,6 +63,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
@@ -76,11 +77,14 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.dataformat.BulkBatchPlan;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.VersionConflictEngineException;
+import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Mapping;
 import org.opensearch.index.mapper.MetadataFieldMapper;
+import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.RootObjectMapper;
 import org.opensearch.index.remote.RemoteStorePressureService;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -134,6 +138,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -151,11 +156,22 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         .build();
 
     private IndexMetadata indexMetadata() throws IOException {
+        return indexMetadata(idxSettings);
+    }
+
+    /** A pluggable-data-format index: the only kind a shard bulk asks a batch plan for. */
+    private IndexMetadata pluggableIndexMetadata() throws IOException {
+        return indexMetadata(
+            Settings.builder().put(idxSettings).put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true).build()
+        );
+    }
+
+    private IndexMetadata indexMetadata(Settings settings) throws IOException {
         return IndexMetadata.builder("index")
             .putMapping(
                 "{\"properties\":{\"foo\":{\"type\":\"text\",\"fields\":" + "{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}"
             )
-            .settings(idxSettings)
+            .settings(settings)
             .primaryTerm(0, 1)
             .build();
     }
@@ -829,6 +845,162 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertThat(observedFailure.get(), equalTo(appendFailure));
+    }
+
+    /**
+     * CR-320955874 revision 2, AutoSDE: the batch plan is created before {@link IndexShard#beginTranslogBatch()} and the
+     * item loop's {@code try}; an exception thrown there escaped {@code doRun} to the runnable's failure path without
+     * releasing the plan (off-heap Arrow buffers and a native write-pool reservation, freed only by its {@code close}).
+     * The plan is now released on every exception that escapes {@code doRun}, and the request still fails with that
+     * exception.
+     */
+    public void testBatchPlanIsReleasedWhenBeginTranslogBatchThrows() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(pluggableIndexMetadata(), Settings.EMPTY);
+        BulkItemRequest item = new BulkItemRequest(
+            0,
+            new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value")
+        );
+        BulkShardRequest request = new BulkShardRequest(shardId, RefreshPolicy.NONE, new BulkItemRequest[] { item });
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+        BulkBatchPlan plan = mock(BulkBatchPlan.class);
+        when(plan.isCurrent()).thenReturn(true);
+        when(plan.batchedItems()).thenReturn(1);
+        when(shard.planBulkBatch(request)).thenReturn(plan);
+        EngineException beginFailure = new EngineException(shardId, "simulated beginTranslogBatch failure");
+        when(shard.beginTranslogBatch()).thenThrow(beginFailure);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> observedFailure = new AtomicReference<>();
+        TransportShardBulkAction.performOnPrimary(
+            request,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(new ActionListener<>() {
+                @Override
+                public void onResponse(PrimaryResult<BulkShardRequest, BulkShardResponse> response) {
+                    fail("request must not be acknowledged when the translog batch cannot begin");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    observedFailure.set(e);
+                }
+            }, latch),
+            threadPool,
+            Names.WRITE
+        );
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertThat(observedFailure.get(), equalTo(beginFailure));
+        // the plan was created, never consumed, and released exactly once on the failure path
+        verify(shard, times(1)).planBulkBatch(request);
+        verify(plan, times(1)).close();
+        verify(plan, never()).parsedDocument(any());
+        verify(shard, never()).applyBatchedIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
+    }
+
+    /**
+     * handalm #0.3 on revision 2 of the batch-parse CR: when the continuation after a mapping update is rejected by the
+     * write pool, {@code onRejection} force-executes a runnable that fails the remaining items and calls
+     * {@code finishRequest(-1, -1)}, which releases the batch plan. If that runnable's body throws before it gets there,
+     * its {@code onFailure} must release the plan too: the plan holds off-heap buffers and a write-pool reservation.
+     * Vanilla shards never have a plan and run the same statements. Same rejection set-up as
+     * {@link #testForceExecutionOnRejectionAfterMappingUpdate}; the body is made to throw through
+     * {@code exceptionToResult -> getFailedIndexResult}.
+     */
+    public void testBatchPlanIsReleasedWhenTheRejectionRunnableFails() throws Exception {
+        TestThreadPool rejectingThreadPool = new TestThreadPool(
+            "TransportShardBulkActionTests#testBatchPlanIsReleasedWhenTheRejectionRunnableFails",
+            Settings.builder()
+                .put("thread_pool." + ThreadPool.Names.WRITE + ".size", 1)
+                .put("thread_pool." + ThreadPool.Names.WRITE + ".queue_size", 1)
+                .build()
+        );
+        CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
+        rejectingThreadPool.executor(ThreadPool.Names.WRITE).execute(() -> {
+            try {
+                cyclicBarrier.await();
+                cyclicBarrier.await();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        try {
+            cyclicBarrier.await();
+            // Place a task in the queue to block next enqueue
+            rejectingThreadPool.executor(ThreadPool.Names.WRITE).execute(() -> {});
+
+            BulkItemRequest[] items = new BulkItemRequest[] {
+                new BulkItemRequest(0, new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "foo", 1)),
+                new BulkItemRequest(1, new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "foo", "bar")) };
+            BulkShardRequest request = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+            IndexShard shard = mock(IndexShard.class);
+            when(shard.indexSettings()).thenReturn(new IndexSettings(pluggableIndexMetadata(), Settings.EMPTY));
+            when(shard.shardId()).thenReturn(shardId);
+            when(shard.mapperService()).thenReturn(mock(MapperService.class));
+            BulkBatchPlan plan = mock(BulkBatchPlan.class);
+            when(plan.isCurrent()).thenReturn(true);
+            when(plan.batchedItems()).thenReturn(2);
+            when(plan.parsedDocument(any())).thenReturn(null); // both items take the per-document path
+            when(shard.planBulkBatch(request)).thenReturn(plan);
+            when(shard.beginTranslogBatch()).thenReturn(mock(Engine.TranslogBatch.class));
+            Engine.IndexResult mappingUpdate = new Engine.IndexResult(
+                new Mapping(null, mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap())
+            );
+            when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+                mappingUpdate
+            );
+            // the rejection runnable fails the remaining item through exceptionToResult -> getFailedIndexResult: make it throw
+            RuntimeException bodyFailure = new RuntimeException("simulated failure inside the rejection runnable");
+            when(shard.getFailedIndexResult(any(OpenSearchRejectedExecutionException.class), anyLong())).thenThrow(bodyFailure);
+
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicReference<Exception> observedFailure = new AtomicReference<>();
+            TransportShardBulkAction.performOnPrimary(
+                request,
+                shard,
+                null,
+                rejectingThreadPool::absoluteTimeInMillis,
+                (update, shardId, listener) -> {
+                    assertNotNull(update);
+                    listener.onResponse(null);
+                    try {
+                        // the continuation was rejected and the rejection runnable force-enqueued: release the blocker
+                        cyclicBarrier.await();
+                    } catch (InterruptedException | BrokenBarrierException e) {
+                        throw new IllegalStateException(e);
+                    }
+                },
+                listener -> listener.onResponse(null),
+                new LatchedActionListener<>(new ActionListener<>() {
+                    @Override
+                    public void onResponse(PrimaryResult<BulkShardRequest, BulkShardResponse> response) {
+                        fail("request must not be acknowledged when the rejection runnable fails");
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        observedFailure.set(e);
+                    }
+                }, latch),
+                rejectingThreadPool,
+                Names.WRITE
+            );
+
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+            assertThat(observedFailure.get(), sameInstance(bodyFailure));
+            verify(shard, times(1)).planBulkBatch(request);
+            verify(plan, times(1)).close();
+        } finally {
+            rejectingThreadPool.shutdownNow();
+        }
     }
 
     /**
@@ -1800,6 +1972,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
             IndexShard shard = mock(IndexShard.class);
             when(shard.shardId()).thenReturn(shardId);
+            when(shard.indexSettings()).thenReturn(new IndexSettings(indexMetadata(), Settings.EMPTY));
             when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
                 success1,
                 mappingUpdate,
@@ -1934,6 +2107,266 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertEquals("failed", task.getPhase());
     }
 
+    /**
+     * Review row M4 (CR-320955874): a batch row one format refuses (the plan's {@code parsedDocument} throws while it
+     * replays the row into a secondary input, e.g. a routed document on a composite index whose Lucene secondary has no
+     * {@code _routing} factory) fails that item only. The item takes the per-item path, where the mapper produces the
+     * same item failure as without a plan; the other rows of the batch are written as batched documents and the shard
+     * bulk completes with N-1 successes and one item failure instead of one exception for the whole bulk.
+     */
+    public void testBatchRowAFormatRefusesFailsOnlyThatItem() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(pluggableIndexMetadata(), Settings.EMPTY);
+        final int items = 3;
+        final int refused = 1;
+        BulkItemRequest[] requests = new BulkItemRequest[items];
+        for (int i = 0; i < items; i++) {
+            IndexRequest item = new IndexRequest("index").id("b" + i).source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+            if (i == refused) {
+                item.routing("r");
+            }
+            requests[i] = new BulkItemRequest(i, item);
+        }
+        BulkShardRequest request = new BulkShardRequest(shardId, RefreshPolicy.NONE, requests);
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(indexSettings);
+        when(shard.shardId()).thenReturn(shardId);
+        BulkBatchPlan plan = mock(BulkBatchPlan.class);
+        when(plan.isCurrent()).thenReturn(true);
+        when(plan.batchedItems()).thenReturn(items);
+        final String refusal = "Field: _routing requests capability: [FULL_TEXT_SEARCH] but does not have any factory";
+        for (int i = 0; i < items; i++) {
+            if (i == refused) {
+                when(plan.parsedDocument(requests[i].request())).thenThrow(new IllegalArgumentException(refusal));
+            } else {
+                when(plan.parsedDocument(requests[i].request())).thenReturn(mock(ParsedDocument.class));
+            }
+        }
+        when(shard.planBulkBatch(request)).thenReturn(plan);
+        when(shard.applyBatchedIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            new FakeIndexResult(1, 1, 30, true, new Translog.Location(30, 30, 30))
+        );
+        // the per-item path: the mapper refuses the same row with the same cause, as it does without a plan
+        Exception mapperFailure = new MapperParsingException("failed to parse", new IllegalArgumentException(refusal));
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            new Engine.IndexResult(mapperFailure, 0, 0, 0)
+        );
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<BulkShardResponse> response = new AtomicReference<>();
+        TransportShardBulkAction.performOnPrimary(
+            request,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> response.set(result.finalResponseIfSuccessful)), latch),
+            threadPool,
+            Names.WRITE
+        );
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        // no whole-bulk exception: the listener answered with a response for every item
+        assertNotNull(response.get());
+        BulkItemResponse[] responses = response.get().getResponses();
+        assertThat(responses.length, equalTo(items));
+        for (int i = 0; i < items; i++) {
+            assertThat(responses[i].getItemId(), equalTo(i));
+            if (i == refused) {
+                assertTrue(responses[i].isFailed());
+                assertThat(responses[i].getFailure().getStatus(), equalTo(RestStatus.BAD_REQUEST));
+                assertThat(responses[i].getFailureMessage(), containsString("failed to parse"));
+                assertThat(responses[i].getFailure().getCause(), equalTo(mapperFailure));
+            } else {
+                assertFalse(responses[i].isFailed());
+                assertThat(responses[i].getResponse().getSeqNo(), equalTo(30L));
+            }
+        }
+        // the refused row went down the per-item path once; the other rows were written as batched documents
+        verify(shard, times(1)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
+        verify(shard, times(items - 1)).applyBatchedIndexOperationOnPrimary(
+            anyLong(),
+            any(),
+            any(),
+            anyLong(),
+            anyLong(),
+            anyLong(),
+            anyBoolean()
+        );
+        verify(plan).close();
+    }
+
+    /**
+     * The kill switch (user rule 2026-11-12): with {@code cluster.bulk.batch.parse.enabled} off, or the cluster-level
+     * pluggable-data-format flag off, no plan is asked for and every item takes the per-document path, on an index whose
+     * shard would otherwise plan the whole bulk.
+     */
+    public void testNoBatchPlanIsAskedForWhenTheSwitchIsOff() throws Exception {
+        BulkShardRequest request = threeItemRequest();
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(new IndexSettings(pluggableIndexMetadata(), Settings.EMPTY));
+        when(shard.shardId()).thenReturn(shardId);
+        when(shard.planBulkBatch(request)).thenThrow(new AssertionError("the switch is off: no plan may be asked for"));
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            new FakeIndexResult(1, 1, 30, true, new Translog.Location(30, 30, 30))
+        );
+        BulkShardResponse response = performOnPrimary(request, shard, false);
+        assertEquals(3, response.getResponses().length);
+        for (BulkItemResponse item : response.getResponses()) {
+            assertFalse(item.getFailureMessage(), item.isFailed());
+        }
+        verify(shard, never()).planBulkBatch(any());
+        verify(shard, times(3)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
+        verify(shard, never()).applyBatchedIndexOperationOnPrimary(
+            anyLong(),
+            any(),
+            any(),
+            anyLong(),
+            anyLong(),
+            anyLong(),
+            anyBoolean()
+        );
+    }
+
+    /**
+     * Planning happens once per request, whatever the engine answered. When the first {@code planBulkBatch} declines
+     * ({@code null}) and the bulk then yields for a mapping update, the continuation re-enters {@code doRun} with the
+     * context initial again; it must not re-plan (a full re-parse of the bulk per yield) nor build a late plan over
+     * items that were already executed.
+     */
+    public void testBatchPlanIsAskedForOnceAcrossAMappingUpdateContinuation() throws Exception {
+        BulkShardRequest request = threeItemRequest();
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(new IndexSettings(pluggableIndexMetadata(), Settings.EMPTY));
+        when(shard.shardId()).thenReturn(shardId);
+        when(shard.mapperService()).thenReturn(mock(MapperService.class));
+        when(shard.planBulkBatch(request)).thenReturn(null);
+        Engine.IndexResult mappingUpdate = new Engine.IndexResult(
+            new Mapping(null, mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap())
+        );
+        Engine.IndexResult success = new FakeIndexResult(1, 1, 30, true, new Translog.Location(30, 30, 30));
+        // item 0 yields for a mapping update once, then every attempt succeeds: doRun runs twice on the same runnable
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            mappingUpdate,
+            success,
+            success,
+            success
+        );
+        BulkShardResponse response = performOnPrimary(request, shard, true);
+        assertEquals(3, response.getResponses().length);
+        for (BulkItemResponse item : response.getResponses()) {
+            assertFalse(item.getFailureMessage(), item.isFailed());
+        }
+        verify(shard, times(1)).planBulkBatch(request);
+        verify(shard, times(4)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
+    }
+
+    /** A plan is only ever asked for on a pluggable-data-format index: a Lucene index never reaches planBulkBatch, switch or not. */
+    public void testNoBatchPlanIsAskedForOnANonPluggableIndex() throws Exception {
+        BulkShardRequest request = threeItemRequest();
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.indexSettings()).thenReturn(new IndexSettings(indexMetadata(), Settings.EMPTY));
+        when(shard.shardId()).thenReturn(shardId);
+        when(shard.planBulkBatch(request)).thenThrow(new AssertionError("a Lucene index: no plan may be asked for"));
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            new FakeIndexResult(1, 1, 30, true, new Translog.Location(30, 30, 30))
+        );
+        BulkShardResponse response = performOnPrimary(request, shard, true);
+        assertEquals(3, response.getResponses().length);
+        verify(shard, never()).planBulkBatch(any());
+        verify(shard, times(3)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
+    }
+
+    /**
+     * {@code cluster.bulk.batch.parse.enabled}: dynamic, node level, default on, registered; an explicit {@code true} is refused
+     * while the cluster-level pluggable-data-format flag is off (the message names both keys), accepted with it on;
+     * {@code false} is always accepted. The default passes unvalidated ({@code Setting.get} validates the default too, and the
+     * action reads it on every node), so a cluster that sets neither keeps the default and the runtime conjunction with the
+     * flag keeps the batch path unreachable. Setting the flag off while the switch is explicitly on in
+     * the same scope is refused by the same validator (cluster settings re-validate the whole scope): unset the switch
+     * first, or set both in one request.
+     */
+    public void testBatchParseSettingIsDynamicDefaultsOnAndNeedsTheClusterFlag() {
+        Setting<Boolean> setting = TransportShardBulkAction.BULK_BATCH_PARSE_ENABLED_SETTING;
+        Setting<Boolean> flag = IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING;
+        assertEquals("cluster.bulk.batch.parse.enabled", setting.getKey());
+        assertTrue(setting.isDynamic());
+        assertTrue(setting.hasNodeScope());
+        assertTrue("default on", setting.get(Settings.EMPTY));
+        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(setting));
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        // the default (absent) passes with the flag off: Setting.get validates the default too, and every node reads it
+        assertTrue(setting.get(Settings.EMPTY));
+        assertTrue(setting.get(Settings.builder().put(flag.getKey(), false).build()));
+        assertTrue(clusterSettings.get(setting));
+        clusterSettings.validate(Settings.EMPTY, true);
+        // an explicit true with the flag off: refused, naming both keys
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterSettings.validate(Settings.builder().put(setting.getKey(), true).build(), true)
+        );
+        assertThat(e.getMessage(), containsString(setting.getKey()));
+        assertThat(e.getMessage(), containsString(flag.getKey()));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterSettings.validate(Settings.builder().put(setting.getKey(), true).put(flag.getKey(), false).build(), true)
+        );
+        assertThat(e.getMessage(), containsString(flag.getKey()));
+        e = expectThrows(IllegalArgumentException.class, () -> setting.get(Settings.builder().put(setting.getKey(), true).build()));
+        assertThat(e.getMessage(), containsString(flag.getKey()));
+        // an explicit true with the flag on: accepted; false: always accepted
+        clusterSettings.validate(Settings.builder().put(setting.getKey(), true).put(flag.getKey(), true).build(), true);
+        clusterSettings.validate(Settings.builder().put(setting.getKey(), false).build(), true);
+        clusterSettings.validate(Settings.builder().put(setting.getKey(), false).put(flag.getKey(), false).build(), true);
+        clusterSettings.validate(Settings.builder().put(setting.getKey(), false).put(flag.getKey(), true).build(), true);
+        // the flag alone, either way, is fine: the default of the switch is not validated
+        clusterSettings.validate(Settings.builder().put(flag.getKey(), false).build(), true);
+        clusterSettings.validate(Settings.builder().put(flag.getKey(), true).build(), true);
+        // applied dynamically: both consumers of the action follow the cluster settings, and the gate is their conjunction
+        TransportShardBulkAction action = createAction(clusterSettings);
+        assertTrue(action.batchParseEnabled);
+        assertFalse(action.clusterPluggableDataformatEnabled);
+        clusterSettings.applySettings(Settings.builder().put(flag.getKey(), true).build());
+        assertTrue(action.clusterPluggableDataformatEnabled);
+        clusterSettings.applySettings(Settings.builder().put(flag.getKey(), true).put(setting.getKey(), false).build());
+        assertFalse(action.batchParseEnabled);
+        clusterSettings.applySettings(Settings.builder().put(flag.getKey(), true).put(setting.getKey(), true).build());
+        assertTrue(action.batchParseEnabled);
+        assertTrue(action.clusterPluggableDataformatEnabled);
+    }
+
+    private BulkShardRequest threeItemRequest() {
+        BulkItemRequest[] requests = new BulkItemRequest[3];
+        for (int i = 0; i < requests.length; i++) {
+            IndexRequest item = new IndexRequest("index").id("b" + i).source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+            requests[i] = new BulkItemRequest(i, item);
+        }
+        return new BulkShardRequest(shardId, RefreshPolicy.NONE, requests);
+    }
+
+    private BulkShardResponse performOnPrimary(BulkShardRequest request, IndexShard shard, boolean batchParseAllowed) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<BulkShardResponse> response = new AtomicReference<>();
+        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener = ActionTestUtils.assertNoFailureListener(
+            result -> response.set(result.finalResponseIfSuccessful)
+        );
+        TransportShardBulkAction.performOnPrimary(
+            request,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            l -> l.onResponse(null),
+            new LatchedActionListener<>(listener, latch),
+            threadPool,
+            Names.WRITE,
+            batchParseAllowed
+        );
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNotNull(response.get());
+        return response.get();
+    }
+
     public void testHandlePrimaryTermValidationRequestSuccess() {
 
         final String aId = "test-allocation-id";
@@ -2027,10 +2460,16 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     }
 
     private TransportShardBulkAction createAction() {
+        return createAction(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+    }
+
+    private TransportShardBulkAction createAction(ClusterSettings clusterSettings) {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return new TransportShardBulkAction(
             Settings.EMPTY,
             mock(TransportService.class),
-            mockClusterService(),
+            clusterService,
             mock(IndicesService.class),
             threadPool,
             mock(ShardStateAction.class),

@@ -73,6 +73,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
@@ -90,9 +91,11 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.VersionConflictEngineException;
+import org.opensearch.index.engine.dataformat.BulkBatchPlan;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.mapper.MapperException;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.remote.RemoteStorePressureService;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -114,6 +117,8 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.transport.NoNodeAvailableException;
 
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -132,6 +137,61 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         TransportIndicesResolvingAction<BulkShardRequest> {
 
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
+
+    /**
+     * Kill switch of the bulk batch parse: whether a shard bulk may be parsed ahead of its item loop by an engine with
+     * a {@link org.opensearch.index.engine.dataformat.BulkBatchIndexer} capability ({@link IndexShard#planBulkBatch}).
+     * Dynamic, node level, default on. Off means no plan is asked for and every item of every shard bulk takes the
+     * per-document mapper path, whatever the engine; a bulk already planned finishes with its plan, so a flip mid-ingest
+     * fails or duplicates nothing. An explicit {@code true} is only accepted while the cluster-level
+     * {@link IndicesService#CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING} is on ({@link BatchParseEnabledValidator});
+     * the default passes unvalidated, so the runtime gate is the conjunction of both settings and the batch path is
+     * unreachable on a cluster that never turned pluggable data formats on. A Lucene engine has no capability and never
+     * reaches the gate: its behaviour does not depend on this setting.
+     */
+    public static final Setting<Boolean> BULK_BATCH_PARSE_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.bulk.batch.parse.enabled",
+        true,
+        new BatchParseEnabledValidator(),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * {@link #BULK_BATCH_PARSE_ENABLED_SETTING} may be set to {@code true} explicitly only while
+     * {@link IndicesService#CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING} is {@code true} in the same settings scope
+     * (cluster settings validate transient and persistent settings each on their own, as every dependent cluster
+     * setting does). {@code false} is always accepted, and so is the default: {@link Setting#get(Settings)} runs the
+     * validator on the default too, so an absent switch (the default {@code true} next to the flag's default
+     * {@code false}) must pass, or no node could read the setting; the runtime gate is the conjunction of both.
+     *
+     * @opensearch.internal
+     */
+    static final class BatchParseEnabledValidator implements Setting.Validator<Boolean> {
+
+        @Override
+        public void validate(Boolean value) {}
+
+        @Override
+        public void validate(Boolean enabled, Map<Setting<?>, Object> settings, boolean isPresent) {
+            Boolean pluggable = (Boolean) settings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING);
+            if (isPresent && enabled && Boolean.TRUE.equals(pluggable) == false) {
+                throw new IllegalArgumentException(
+                    "["
+                        + BULK_BATCH_PARSE_ENABLED_SETTING.getKey()
+                        + "] can only be [true] when ["
+                        + IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey()
+                        + "] is [true]"
+                );
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = List.of(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING);
+            return settings.iterator();
+        }
+    }
 
     private static final Logger logger = LogManager.getLogger(TransportShardBulkAction.class);
     private static final Function<IndexShard, String> EXECUTOR_NAME_FUNCTION = shard -> {
@@ -155,6 +215,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      * term validation in presence of a new primary.
      */
     private final String transportPrimaryTermValidationAction;
+
+    /** Current value of {@link #BULK_BATCH_PARSE_ENABLED_SETTING}; package-private for tests. */
+    volatile boolean batchParseEnabled;
+    /** Current value of {@link IndicesService#CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING}; package-private for tests. */
+    volatile boolean clusterPluggableDataformatEnabled;
 
     @Inject
     public TransportShardBulkAction(
@@ -197,6 +262,15 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         this.remoteStorePressureService = remoteStorePressureService;
 
         this.transportPrimaryTermValidationAction = ACTION_NAME + "[validate_primary_term]";
+
+        this.batchParseEnabled = BULK_BATCH_PARSE_ENABLED_SETTING.get(settings);
+        this.clusterPluggableDataformatEnabled = IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(BULK_BATCH_PARSE_ENABLED_SETTING, value -> batchParseEnabled = value);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING,
+                value -> clusterPluggableDataformatEnabled = value
+            );
 
         transportService.registerRequestHandler(
             transportPrimaryTermValidationAction,
@@ -444,7 +518,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             public void onTimeout(TimeValue timeout) {
                 mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
             }
-        }), listener, threadPool, executor(primary));
+        }), listener, threadPool, executor(primary), batchParseEnabled && clusterPluggableDataformatEnabled);
     }
 
     @Override
@@ -484,15 +558,98 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ThreadPool threadPool,
         String executorName
     ) {
+        performOnPrimary(
+            request,
+            primary,
+            updateHelper,
+            nowInMillisSupplier,
+            mappingUpdater,
+            waitForMappingUpdate,
+            listener,
+            threadPool,
+            executorName,
+            true
+        );
+    }
+
+    /**
+     * @param batchParseAllowed the kill switch ({@link #BULK_BATCH_PARSE_ENABLED_SETTING} and the cluster-level pluggable
+     *                          data format flag, both on): with {@code false} no batch plan is asked for and every item
+     *                          takes the per-document path. A plan is only asked for on a pluggable-data-format index.
+     */
+    public static void performOnPrimary(
+        BulkShardRequest request,
+        IndexShard primary,
+        UpdateHelper updateHelper,
+        LongSupplier nowInMillisSupplier,
+        MappingUpdatePerformer mappingUpdater,
+        Consumer<ActionListener<Void>> waitForMappingUpdate,
+        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
+        ThreadPool threadPool,
+        String executorName,
+        boolean batchParseAllowed
+    ) {
         new ActionRunnable<PrimaryResult<BulkShardRequest, BulkShardResponse>>(listener) {
 
             private final ExecutorService executor = threadPool.executor(executorName);
 
             private final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
 
+            /**
+             * Documents of this bulk the engine parsed in one pass before the item loop (append-only composite
+             * indices only; {@code null} elsewhere). Created once: a mapping-update continuation re-enters
+             * {@link #doRun} on the same runnable. Released in {@link #finishRequest} or when the request fails:
+             * {@link #onFailure} releases it for every exception that escapes {@link #doRun}, including one thrown
+             * between the plan's creation and the item loop ({@link IndexShard#beginTranslogBatch()}) or ahead of
+             * the loop on a continuation, because the plan owns off-heap buffers and a write-pool reservation. The
+             * rejection runnable of {@link #onRejection} releases it the same way when its own body throws before
+             * reaching {@link #finishRequest}.
+             */
+            @Nullable
+            private BulkBatchPlan batchPlan;
+
+            /**
+             * Planning runs at most once per request: {@link #batchPlan} stays {@code null} when the engine declines to
+             * plan, and a mapping-update continuation re-enters {@link #doRun} with {@link BulkPrimaryExecutionContext#isInitial()}
+             * true again, so the null plan alone cannot tell "not yet planned" from "declined".
+             */
+            private boolean planningAttempted;
+
+            @Override
+            public void onFailure(Exception e) {
+                if (batchPlan != null) { // append-only composite indices only; every other index never has a plan
+                    releaseBatchPlan();
+                }
+                super.onFailure(e);
+            }
+
             @Override
             protected void doRun() throws Exception {
                 long startTime = System.nanoTime();
+                if (planningAttempted == false
+                    && context.isInitial()
+                    && context.hasMoreOperationsToExecute()
+                    && batchParseAllowed
+                    && primary.indexSettings().getIndexMetadata().isPluggableDataFormatIndex()) {
+                    planningAttempted = true;
+                    try {
+                        batchPlan = primary.planBulkBatch(request);
+                        // the "bulk batch plan: none" line of a pluggable-format shard that does not batch is logged by
+                        // DataFormatAwareEngine.planBulkBatch; a shard without a plan logs nothing here
+                        if (batchPlan != null && logger.isDebugEnabled()) {
+                            logger.debug(
+                                "{} bulk batch plan: {} of {} items",
+                                primary.shardId(),
+                                batchPlan.batchedItems(),
+                                request.items().length
+                            );
+                        }
+                    } catch (Exception e) {
+                        // Pure optimization: every item still parses the normal way.
+                        logger.debug(() -> new ParameterizedMessage("{} bulk batch planning skipped", primary.shardId()), e);
+                        batchPlan = null;
+                    }
+                }
                 // Batch successful primary index operations for eligible remote-backed segment-replication engines. A
                 // realtime GET or the size cap may flush a chunk from another thread while this scope remains open;
                 // updates/deletes flush the current chunk for ordering, and finally always appends and closes it.
@@ -513,7 +670,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                             nowInMillisSupplier,
                             mappingUpdater,
                             waitForMappingUpdate,
-                            ActionListener.wrap(v -> executor.execute(this), this::onRejection)
+                            ActionListener.wrap(v -> executor.execute(this), this::onRejection),
+                            batchPlan
                         ) == false) {
                             // We are waiting for a mapping update on another thread, that will invoke this action again
                             // once its done so we just break out here. executeBulkItemRequest finished the batch before
@@ -525,6 +683,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     }
                 } catch (Exception e) {
                     bodyFailure = e;
+                    releaseBatchPlan();
                     throw e;
                 } finally {
                     finishTranslogBatch(bodyFailure);
@@ -598,13 +757,35 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     }
 
                     @Override
+                    public void onFailure(Exception failure) {
+                        // finishRequest releases the plan on the way out; a doRun that throws before reaching it must too
+                        if (batchPlan != null) { // append-only composite indices only; every other index never has a plan
+                            releaseBatchPlan();
+                        }
+                        super.onFailure(failure);
+                    }
+
+                    @Override
                     public boolean isForceExecution() {
                         return true;
                     }
                 });
             }
 
+            private void releaseBatchPlan() {
+                final BulkBatchPlan plan = batchPlan;
+                batchPlan = null;
+                if (plan != null) {
+                    try {
+                        plan.close();
+                    } catch (Exception e) {
+                        logger.warn(() -> new ParameterizedMessage("{} failed to release bulk batch plan", primary.shardId()), e);
+                    }
+                }
+            }
+
             private void finishRequest(long serviceTimeEWMAInNanos, int nodeQueueSize) {
+                releaseBatchPlan();
                 // If no actual writes occurred (locationToSync is null), we should not trigger refresh
                 // even if the request has RefreshPolicy.IMMEDIATE
                 final Translog.Location locationToSync = context.getLocationToSync();
@@ -668,6 +849,18 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         Consumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<Void> itemDoneListener
     ) throws Exception {
+        return executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate, itemDoneListener, null);
+    }
+
+    static boolean executeBulkItemRequest(
+        BulkPrimaryExecutionContext context,
+        UpdateHelper updateHelper,
+        LongSupplier nowInMillisSupplier,
+        MappingUpdatePerformer mappingUpdater,
+        Consumer<ActionListener<Void>> waitForMappingUpdate,
+        ActionListener<Void> itemDoneListener,
+        @Nullable BulkBatchPlan batchPlan
+    ) throws Exception {
         final DocWriteRequest.OpType opType = context.getCurrent().opType();
 
         final UpdateHelper.Result updateResult;
@@ -728,22 +921,47 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             );
         } else {
             final IndexRequest request = context.getRequestToExecute();
-            result = primary.applyIndexOperationOnPrimary(
-                version,
-                request.versionType(),
-                new SourceToParse(
-                    request.index(),
-                    request.id(),
-                    request.source(),
-                    request.getContentType(),
-                    request.routing(),
-                    request.extraFieldValues()
-                ),
-                request.ifSeqNo(),
-                request.ifPrimaryTerm(),
-                request.getAutoGeneratedTimestamp(),
-                request.isRetry()
-            );
+            // A document the engine parsed ahead of the loop (BulkBatchPlan) replaces only the parse step;
+            // seq_no, version, translog and the item response come from the same engine call. The plan holds
+            // nothing for update-translated requests, and is bypassed once the mapping moved under it.
+            ParsedDocument batched = null;
+            if (batchPlan != null && updateResult == null && batchPlan.isCurrent()) {
+                try {
+                    batched = batchPlan.parsedDocument(request);
+                } catch (Exception e) {
+                    // The row could not be handed to every format (a secondary input rejected a value). The
+                    // per-item path fails this item with the mapper's message, as it does without a plan.
+                    logger.debug(() -> new ParameterizedMessage("batch row for [{}] not usable, per-item path", request.id()), e);
+                }
+            }
+            if (batched != null) {
+                result = primary.applyBatchedIndexOperationOnPrimary(
+                    version,
+                    request.versionType(),
+                    batched,
+                    request.ifSeqNo(),
+                    request.ifPrimaryTerm(),
+                    request.getAutoGeneratedTimestamp(),
+                    request.isRetry()
+                );
+            } else {
+                result = primary.applyIndexOperationOnPrimary(
+                    version,
+                    request.versionType(),
+                    new SourceToParse(
+                        request.index(),
+                        request.id(),
+                        request.source(),
+                        request.getContentType(),
+                        request.routing(),
+                        request.extraFieldValues()
+                    ),
+                    request.ifSeqNo(),
+                    request.ifPrimaryTerm(),
+                    request.getAutoGeneratedTimestamp(),
+                    request.isRetry()
+                );
+            }
         }
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
 

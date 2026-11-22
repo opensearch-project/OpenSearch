@@ -80,6 +80,7 @@ import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
@@ -103,6 +104,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.SegmentReplicationShardStats;
+import org.opensearch.index.VersionType;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
@@ -124,6 +126,7 @@ import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
+import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
@@ -4937,6 +4940,60 @@ public class IndexShardTests extends IndexShardTestCase {
             closeShards(indexShard);
         }
 
+    }
+
+    /**
+     * CR-320955874 bansvaru #8/#9: a document the engine parsed ahead of the bulk loop ({@link IndexShard#planBulkBatch}) goes
+     * through the same {@code applyIndexOperation} as a parsed source, so there is one call point of {@code index(indexer, op)}
+     * and the mapping-update check is shared: a batched document that carries a dynamic mapping update is a
+     * {@code MAPPING_UPDATE_REQUIRED} result and is never written, exactly like a parsed one.
+     */
+    public void testBatchedIndexOperationSharesTheParsedDocumentPath() throws Exception {
+        IndexShard shard = newStartedShard(true);
+        ParsedDocument batched = EngineTestCase.createParsedDoc("batched", null);
+        assertNull(batched.dynamicMappingsUpdate());
+        Engine.IndexResult result = shard.applyBatchedIndexOperationOnPrimary(
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            batched,
+            UNASSIGNED_SEQ_NO,
+            0,
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            false
+        );
+        assertEquals(Engine.Result.Type.SUCCESS, result.getResultType());
+        assertTrue(result.isCreated());
+        assertEquals(0L, result.getSeqNo());
+        assertEquals(shard.getOperationPrimaryTerm(), result.getTerm());
+        try (Engine.GetResult get = shard.get(new Engine.Get(true, false, "batched", new Term(IdFieldMapper.NAME, Uid.encodeId("batched"))))) {
+            assertTrue("the batched document is readable", get.exists());
+        }
+
+        // The same document parsed by the mapper against an index without a mapping for its field: it carries a dynamic
+        // mapping update, and the batched entry refuses it before the engine, as the parsed entry does.
+        DocumentMapperForType docMapper = shard.mapperService().documentMapperWithAutoCreate();
+        ParsedDocument withUpdate = docMapper.getDocumentMapper()
+            .parse(new SourceToParse(shard.shardId().getIndexName(), "updating", new BytesArray("{\"value\":\"x\"}"), MediaTypeRegistry.JSON));
+        if (docMapper.getMapping() != null) {
+            withUpdate.addDynamicMappingsUpdate(docMapper.getMapping());
+        }
+        assertNotNull(withUpdate.dynamicMappingsUpdate());
+        Engine.IndexResult refused = shard.applyBatchedIndexOperationOnPrimary(
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            withUpdate,
+            UNASSIGNED_SEQ_NO,
+            0,
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            false
+        );
+        assertEquals(Engine.Result.Type.MAPPING_UPDATE_REQUIRED, refused.getResultType());
+        assertNotNull(refused.getRequiredMappingUpdate());
+        assertEquals("nothing was written: no further seq_no assigned", 0L, shard.seqNoStats().getMaxSeqNo());
+        try (Engine.GetResult get = shard.get(new Engine.Get(true, false, "updating", new Term(IdFieldMapper.NAME, Uid.encodeId("updating"))))) {
+            assertFalse(get.exists());
+        }
+        closeShards(shard);
     }
 
     public void testSupplyTombstoneDoc() throws Exception {

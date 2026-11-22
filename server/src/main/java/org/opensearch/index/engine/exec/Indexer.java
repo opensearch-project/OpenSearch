@@ -9,6 +9,7 @@
 package org.opensearch.index.engine.exec;
 
 import org.apache.lucene.index.IndexCommit;
+import org.opensearch.action.bulk.BulkShardRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -17,6 +18,7 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.LifecycleAware;
 import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.engine.dataformat.BulkBatchPlan;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogManager;
@@ -207,6 +209,17 @@ public interface Indexer
      * row-store indexers acquire their own reader and ignore the factory.
      */
     Engine.GetResult getById(Engine.Get get, BiFunction<String, Engine.SearcherScope, Engine.Searcher> searcherFactory) throws IOException;
+
+    /**
+     * Parses the documents of a shard bulk ahead of its item loop, when this engine can do so in one
+     * pass (see {@link org.opensearch.index.engine.dataformat.BulkBatchIndexer}). The item loop is
+     * unchanged; it only skips the per-document parse for the items the plan holds. Defaults to
+     * {@code null}: every item parses its own source.
+     */
+    @Nullable
+    default BulkBatchPlan planBulkBatch(BulkShardRequest request) {
+        return null;
+    }
 
     /**
      * Returns {@code true} if there are merges queued but not yet started.
