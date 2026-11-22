@@ -77,9 +77,9 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
-import org.opensearch.index.engine.dataformat.BulkBatchPlan;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.VersionConflictEngineException;
+import org.opensearch.index.engine.dataformat.BulkBatchPlan;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Mapping;
@@ -2161,7 +2161,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
             listener -> listener.onResponse(null),
-            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> response.set(result.finalResponseIfSuccessful)), latch),
+            new LatchedActionListener<>(
+                ActionTestUtils.assertNoFailureListener(result -> response.set(result.finalResponseIfSuccessful)),
+                latch
+            ),
             threadPool,
             Names.WRITE
         );
@@ -2217,15 +2220,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         }
         verify(shard, never()).planBulkBatch(any());
         verify(shard, times(3)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
-        verify(shard, never()).applyBatchedIndexOperationOnPrimary(
-            anyLong(),
-            any(),
-            any(),
-            anyLong(),
-            anyLong(),
-            anyLong(),
-            anyBoolean()
-        );
+        verify(shard, never()).applyBatchedIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
     }
 
     /**

@@ -849,7 +849,15 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         Consumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<Void> itemDoneListener
     ) throws Exception {
-        return executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate, itemDoneListener, null);
+        return executeBulkItemRequest(
+            context,
+            updateHelper,
+            nowInMillisSupplier,
+            mappingUpdater,
+            waitForMappingUpdate,
+            itemDoneListener,
+            null
+        );
     }
 
     static boolean executeBulkItemRequest(

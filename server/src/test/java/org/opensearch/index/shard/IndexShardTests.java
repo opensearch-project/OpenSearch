@@ -4965,7 +4965,9 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(result.isCreated());
         assertEquals(0L, result.getSeqNo());
         assertEquals(shard.getOperationPrimaryTerm(), result.getTerm());
-        try (Engine.GetResult get = shard.get(new Engine.Get(true, false, "batched", new Term(IdFieldMapper.NAME, Uid.encodeId("batched"))))) {
+        try (
+            Engine.GetResult get = shard.get(new Engine.Get(true, false, "batched", new Term(IdFieldMapper.NAME, Uid.encodeId("batched"))))
+        ) {
             assertTrue("the batched document is readable", get.exists());
         }
 
@@ -4973,7 +4975,9 @@ public class IndexShardTests extends IndexShardTestCase {
         // mapping update, and the batched entry refuses it before the engine, as the parsed entry does.
         DocumentMapperForType docMapper = shard.mapperService().documentMapperWithAutoCreate();
         ParsedDocument withUpdate = docMapper.getDocumentMapper()
-            .parse(new SourceToParse(shard.shardId().getIndexName(), "updating", new BytesArray("{\"value\":\"x\"}"), MediaTypeRegistry.JSON));
+            .parse(
+                new SourceToParse(shard.shardId().getIndexName(), "updating", new BytesArray("{\"value\":\"x\"}"), MediaTypeRegistry.JSON)
+            );
         if (docMapper.getMapping() != null) {
             withUpdate.addDynamicMappingsUpdate(docMapper.getMapping());
         }
@@ -4990,7 +4994,11 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(Engine.Result.Type.MAPPING_UPDATE_REQUIRED, refused.getResultType());
         assertNotNull(refused.getRequiredMappingUpdate());
         assertEquals("nothing was written: no further seq_no assigned", 0L, shard.seqNoStats().getMaxSeqNo());
-        try (Engine.GetResult get = shard.get(new Engine.Get(true, false, "updating", new Term(IdFieldMapper.NAME, Uid.encodeId("updating"))))) {
+        try (
+            Engine.GetResult get = shard.get(
+                new Engine.Get(true, false, "updating", new Term(IdFieldMapper.NAME, Uid.encodeId("updating")))
+            )
+        ) {
             assertFalse(get.exists());
         }
         closeShards(shard);
