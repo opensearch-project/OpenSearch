@@ -665,18 +665,16 @@ public class ActionModule extends AbstractModule {
     }
 
     /**
-     * Returns the set of action name prefixes (the segment before the first {@code :}) contributed
-     * by plugins that are not already covered by {@link org.opensearch.transport.TransportService#VALID_ACTION_PREFIXES}.
-     * Used to extend the valid action prefix set for plugin-defined {@link org.opensearch.action.DocRequest} types.
+     * Returns custom namespaces from registered actions, including the trailing {@code :}.
+     * These prefixes describe naming conventions, not authorization or resource ownership.
      */
     public Set<String> getPluginActionPrefixes() {
-        return actionPlugins.stream()
-            .flatMap(p -> p.getActions().stream())
-            .map(h -> h.getAction().name())
-            .filter(name -> name.contains(":"))
-            .map(name -> name.substring(0, name.indexOf(':')))
-            .filter(prefix -> TransportService.VALID_ACTION_PREFIXES.stream().noneMatch(v -> v.startsWith(prefix)))
-            .collect(Collectors.toSet());
+        return actions.keySet()
+            .stream()
+            .filter(name -> TransportService.isValidActionName(name) == false)
+            .filter(name -> name.indexOf(':') > 0)
+            .map(name -> name.substring(0, name.indexOf(':') + 1))
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     static Map<String, ActionHandler<?, ?>> setupActions(List<ActionPlugin> actionPlugins) {
@@ -916,6 +914,7 @@ public class ActionModule extends AbstractModule {
     }
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
+        Set<String> pluginActionPrefixes = getPluginActionPrefixes();
         List<AbstractCatAction> catActions = new ArrayList<>();
         List<AbstractListAction> listActions = new ArrayList<>();
         Consumer<RestHandler> registerHandler = handler -> {
@@ -929,12 +928,14 @@ public class ActionModule extends AbstractModule {
             for (Route route : handler.routes()) {
                 if (route instanceof NamedRoute namedRoute) {
                     for (String actionName : namedRoute.actionNames()) {
-                        if (!TransportService.isValidActionName(actionName)) {
+                        if (!TransportService.isValidActionName(actionName, pluginActionPrefixes)) {
                             throw new OpenSearchException(
                                 "Invalid action name ["
                                     + actionName
                                     + "]. It must start with one of: "
                                     + TransportService.VALID_ACTION_PREFIXES
+                                    + " or plugin prefixes "
+                                    + pluginActionPrefixes
                             );
                         }
                     }

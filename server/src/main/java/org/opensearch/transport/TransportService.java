@@ -294,7 +294,6 @@ public class TransportService extends AbstractLifecycleComponent
         this.tracer = tracer;
         this.remoteClusterService = remoteClusterService;
         responseHandlers = streamTransport.getResponseHandlers();
-        this.additionalActionPrefixes = new HashSet<>();
     }
 
     public TransportService(
@@ -326,7 +325,6 @@ public class TransportService extends AbstractLifecycleComponent
         this.tracer = tracer;
         remoteClusterService = new RemoteClusterService(settings, this);
         responseHandlers = transport.getResponseHandlers();
-        this.additionalActionPrefixes = new HashSet<>();
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
@@ -1190,13 +1188,21 @@ public class TransportService extends AbstractLifecycleComponent
         )
     );
 
-    private final Set<String> additionalActionPrefixes;
+    private volatile Set<String> additionalActionPrefixes = Set.of();
 
     /**
-     * Registers additional valid action name prefixes contributed by plugins.
+     * Registers additional valid action name prefixes before plugin handlers are constructed.
+     * Each namespace must include its trailing {@code :}. This affects naming validation only, not authorization.
      */
-    public void registerAdditionalActionPrefixes(Collection<String> prefixes) {
-        additionalActionPrefixes.addAll(prefixes);
+    public synchronized void registerAdditionalActionPrefixes(Collection<String> prefixes) {
+        Set<String> combined = new HashSet<>(additionalActionPrefixes);
+        for (String prefix : prefixes) {
+            if (prefix == null || prefix.length() < 2 || prefix.indexOf(':') != prefix.length() - 1) {
+                throw new IllegalArgumentException("Action prefix must be a nonempty namespace followed by ':'");
+            }
+            combined.add(prefix);
+        }
+        additionalActionPrefixes = Set.copyOf(combined);
     }
 
     protected void validateActionName(String actionName) {

@@ -1483,6 +1483,7 @@ public class Node implements Closeable {
                 taskHeaders,
                 tracer
             );
+            transportService.registerAdditionalActionPrefixes(actionModule.getPluginActionPrefixes());
             final Optional<StreamTransportService> streamTransportService = streamTransport != null
                 ? Optional.of(
                     new StreamTransportService(
@@ -1498,6 +1499,7 @@ public class Node implements Closeable {
                     )
                 )
                 : Optional.empty();
+            streamTransportService.ifPresent(service -> service.registerAdditionalActionPrefixes(actionModule.getPluginActionPrefixes()));
 
             // Cluster-level (shared_limit) WLM throttle tier. Built here because it needs the transport service for
             // the owner round-trip; late-bound into the WorkloadGroupService (constructed earlier) so the two-tier

@@ -81,7 +81,8 @@ public class NamedRoute extends RestHandler.Route {
         }
 
         /**
-         * Sets the legacy action names for the route.
+         * Sets the legacy action names for the route. Prefixes are validated when REST handlers
+         * are initialized, after plugin action namespaces are known.
          *
          * @param legacyActionNames the legacy action names for the route
          * @return the builder instance
