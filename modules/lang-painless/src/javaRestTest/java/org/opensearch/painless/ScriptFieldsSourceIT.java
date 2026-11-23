@@ -37,8 +37,7 @@ public class ScriptFieldsSourceIT extends OpenSearchRestTestCase {
         assertOK(client().performRequest(createIndex));
 
         // Keep the compressed stored fields large enough for mmap read advice to apply.
-        byte[] padding = new byte[256 * 1024];
-        new Random(0).nextBytes(padding);
+        byte[] padding = randomByteArrayOfLength(256 * 1024);
         Request index = new Request("PUT", "/compound-source/_doc/1");
         index.addParameter("refresh", "true");
         index.setJsonEntity("{\"product_id\":42,\"padding\":\"" + Base64.getEncoder().encodeToString(padding) + "\"}");
