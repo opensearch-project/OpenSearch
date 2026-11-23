@@ -583,10 +583,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             try {
                 final Task parentTask = extractParentTask(originalSearchRequest);
                 searchRequest = searchPipelineService.resolvePipeline(originalSearchRequest, parentTask, indexNameExpressionResolver);
-                // Outside the response processors, so the request ends where a search phase would end it.
-                listener = endRequestWithoutPhase(searchRequest.transformResponseListener(updatedListener), searchRequestContext);
+                // Wraps the response processors, so the request ends before they run.
+                listener = endRequestOnCompletion(searchRequest.transformResponseListener(updatedListener), searchRequestContext);
             } catch (Exception e) {
-                endRequestWithoutPhase(updatedListener, searchRequestContext).onFailure(e);
+                endRequestOnCompletion(updatedListener, searchRequestContext).onFailure(e);
                 return;
             }
 
@@ -625,24 +625,24 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Ends the request if it completes without a search phase having ended it, which happens when it fails before its shards are
-     * resolved or when a cross-cluster search runs no search phase on this node. Otherwise its {@code onRequestStart} would go
-     * unpaired.
+     * Ends the request once it completes, before notifying {@code listener}, so that every request that started ends exactly
+     * once. That includes a request that fails before its search starts and a cross-cluster search that runs no search on this
+     * node.
      */
-    private static ActionListener<SearchResponse> endRequestWithoutPhase(
+    static ActionListener<SearchResponse> endRequestOnCompletion(
         final ActionListener<SearchResponse> listener,
         final SearchRequestContext searchRequestContext
     ) {
         return new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse response) {
-                searchRequestContext.endRequest(null);
+                searchRequestContext.endRequest();
                 listener.onResponse(response);
             }
 
             @Override
             public void onFailure(Exception e) {
-                searchRequestContext.failRequest(null);
+                searchRequestContext.failRequest();
                 listener.onFailure(e);
             }
         };

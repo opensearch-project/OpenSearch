@@ -47,6 +47,7 @@ public class SearchRequestContext {
     private final Supplier<TaskResourceInfo> taskResourceUsageSupplier;
     private boolean streamingRequest;
     private final AtomicBoolean requestEnded = new AtomicBoolean();
+    private volatile SearchPhaseContext phaseContext;
 
     SearchRequestContext(
         final SearchRequestOperationsListener searchRequestOperationsListener,
@@ -67,35 +68,40 @@ public class SearchRequestContext {
     }
 
     /**
-     * Reports that the request succeeded, unless its end was already reported, so listeners see exactly one end per request.
-     * A search phase must report the end before it completes the request's listener. Otherwise the listener reports it first,
-     * as an end without a phase. In a cross-cluster search that minimizes roundtrips and also targets local indices, the local
-     * search reports the end when it finishes, which can be before the remote clusters respond.
-     *
-     * @param phaseContext the search phase that ended the request, or {@code null} if no search phase ran on this node
+     * Records the search that runs the request on this node, once it starts. A later search replaces an earlier one, as when
+     * the search that pre-filters shards hands off to the search that queries them.
      */
-    void endRequest(@Nullable SearchPhaseContext phaseContext) {
+    void setPhaseContext(SearchPhaseContext phaseContext) {
+        this.phaseContext = phaseContext;
+    }
+
+    /**
+     * Returns the search that ran the request on this node, or {@code null} if none started. None starts when the request fails
+     * before its search does, for instance on a missing index or search pipeline, or for a cross-cluster search that minimizes
+     * roundtrips and targets only remote clusters. A search that finds no shards to query still counts as started. When a
+     * cross-cluster search that minimizes roundtrips also targets local indices, this is the search of the local indices. It
+     * then describes only that part of the request, although the request ends once every cluster responds.
+     */
+    @Nullable
+    public SearchPhaseContext getPhaseContext() {
+        return phaseContext;
+    }
+
+    /**
+     * Reports that the request succeeded, unless its end was already reported, so listeners see exactly one end per request.
+     */
+    void endRequest() {
         if (requestEnded.compareAndSet(false, true)) {
-            if (phaseContext != null) {
-                searchRequestOperationsListener.onRequestEnd(phaseContext, this);
-            } else {
-                searchRequestOperationsListener.onRequestEndWithoutPhase(this);
-            }
+            searchRequestOperationsListener.onRequestEnd(this);
         }
     }
 
     /**
-     * Reports that the request failed, unless its end was already reported. See {@link #endRequest}.
-     *
-     * @param phaseContext the search phase the request failed in, or {@code null} if no search phase ran on this node
+     * Reports that the request failed, unless its end was already reported, so listeners see exactly one end per request.
      */
-    void failRequest(@Nullable SearchPhaseContext phaseContext) {
+    void failRequest() {
         if (requestEnded.compareAndSet(false, true)) {
-            if (phaseContext != null) {
-                searchRequestOperationsListener.onRequestFailure(phaseContext, this);
-            } else {
-                searchRequestOperationsListener.onRequestFailureWithoutPhase(this);
-            }
+            searchRequestOperationsListener.onRequestFailure(this);
         }
     }
 

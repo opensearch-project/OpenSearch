@@ -147,7 +147,12 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
     protected void onRequestStart(SearchRequestContext searchRequestContext) {}
 
     @Override
-    protected void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+    protected void onRequestEnd(SearchRequestContext searchRequestContext) {
+        // The slow log describes the search that ran on this node.
+        final SearchPhaseContext context = searchRequestContext.getPhaseContext();
+        if (context == null) {
+            return;
+        }
         long tookInNanos = System.nanoTime() - searchRequestContext.getAbsoluteStartNanos();
 
         if (warnThreshold >= 0 && tookInNanos > warnThreshold && level.isLevelEnabledFor(SlowLogLevel.WARN)) {

@@ -419,7 +419,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertEquals(requestIds, releasedContexts);
     }
 
-    public void testZeroShardSearchEndsRequestBeforeResponding() {
+    public void testZeroShardSearchEndsRequestWithItsPhaseContext() {
         SearchRequest searchRequest = new SearchRequest();
         RequestEndRecorder recorder = new RequestEndRecorder();
         SearchRequestContext searchRequestContext = new SearchRequestContext(
@@ -428,15 +428,14 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             () -> null
         );
         AtomicInteger endsBeforeResponse = new AtomicInteger(-1);
-        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> {
-            endsBeforeResponse.set(recorder.ends.get());
-            // TransportSearchAction's fallback runs next, and must find the request already ended.
-            searchRequestContext.endRequest(null);
-        }, e -> fail("onFailure should not be called"));
+        ActionListener<SearchResponse> listener = ActionListener.wrap(
+            response -> endsBeforeResponse.set(recorder.ends.get()),
+            e -> fail("onFailure should not be called")
+        );
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
             searchRequest,
             new ArraySearchPhaseResults<>(0),
-            listener,
+            TransportSearchAction.endRequestOnCompletion(listener, searchRequestContext),
             false,
             false,
             false,
@@ -450,7 +449,6 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertEquals(1, endsBeforeResponse.get());
         assertEquals(1, recorder.ends.get());
         assertSame(action, recorder.endContext.get());
-        assertEquals(0, recorder.endsWithoutPhase.get());
         assertEquals(0, recorder.failures.get());
     }
 
@@ -482,6 +480,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertEquals(0, searchRequestStats.getTookCurrent());
         assertEquals(1, searchRequestStats.getTookTotal());
         assertEquals(1, recorder.ends.get());
+        assertSame(action, recorder.endContext.get());
         assertEquals(0, recorder.failures.get());
     }
 
@@ -515,14 +514,53 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertSame(action, recorder.failureContext.get());
     }
 
+    public void testDisallowedPartialResultsFailPhaseAndRequestOnce() {
+        SearchRequestStats searchRequestStats = new SearchRequestStats(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        RequestEndRecorder recorder = new RequestEndRecorder();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createStartedAction(
+            new SearchRequest().allowPartialSearchResults(false),
+            ActionListener.wrap(response -> fail("onResponse should not be called"), failure::set),
+            searchRequestStats,
+            recorder
+        );
+        ShardId shardId = new ShardId("index", "index-uuid", 0);
+        action.onShardFailure(
+            0,
+            new SearchShardTarget(randomAlphaOfLengthBetween(5, 10), shardId, null, OriginalIndices.NONE),
+            new IllegalArgumentException()
+        );
+
+        // sendSearchResponse finds the shard failure and fails the request without failing the expand phase first.
+        action.executeNextPhase(action, new ExpandSearchPhase(action, InternalSearchResponse.empty(), null));
+
+        assertThat(failure.get(), instanceOf(SearchPhaseExecutionException.class));
+        assertEquals(0, searchRequestStats.getPhaseCurrent(SearchPhaseName.EXPAND));
+        assertEquals(0, searchRequestStats.getPhaseTotal(SearchPhaseName.EXPAND));
+        assertEquals(0, searchRequestStats.getTookCurrent());
+        assertEquals(0, searchRequestStats.getTookTotal());
+        assertEquals(1, recorder.failures.get());
+        assertSame(action, recorder.failureContext.get());
+    }
+
     /**
-     * Creates an action over one skipped shard whose request has started, so its next phase can run.
+     * Creates an action over one skipped shard whose request has started, so its next phase can run. Its listener ends the
+     * request as TransportSearchAction does.
      */
     private AbstractSearchAsyncAction<SearchPhaseResult> createStartedAction(
         ActionListener<SearchResponse> listener,
         SearchRequestOperationsListener... requestListeners
     ) {
-        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        return createStartedAction(new SearchRequest().allowPartialSearchResults(true), listener, requestListeners);
+    }
+
+    private AbstractSearchAsyncAction<SearchPhaseResult> createStartedAction(
+        SearchRequest searchRequest,
+        ActionListener<SearchResponse> listener,
+        SearchRequestOperationsListener... requestListeners
+    ) {
         SearchRequestContext searchRequestContext = new SearchRequestContext(
             new SearchRequestOperationsListener.CompositeListener(List.of(requestListeners), logger),
             searchRequest,
@@ -534,7 +572,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
             searchRequest,
             new ArraySearchPhaseResults<>(1),
-            listener,
+            TransportSearchAction.endRequestOnCompletion(listener, searchRequestContext),
             false,
             false,
             false,
@@ -543,6 +581,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             searchRequestContext,
             shard
         );
+        // As start() does, which would run the query phase.
+        searchRequestContext.setPhaseContext(action);
         shard.resetAndSkip();
         action.skipShard(shard);
         return action;
@@ -550,26 +590,20 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
 
     private static final class RequestEndRecorder extends SearchRequestOperationsListener {
         private final AtomicInteger ends = new AtomicInteger();
-        private final AtomicInteger endsWithoutPhase = new AtomicInteger();
         private final AtomicInteger failures = new AtomicInteger();
         private final AtomicReference<SearchPhaseContext> endContext = new AtomicReference<>();
         private final AtomicReference<SearchPhaseContext> failureContext = new AtomicReference<>();
 
         @Override
-        protected void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+        protected void onRequestEnd(SearchRequestContext searchRequestContext) {
             ends.incrementAndGet();
-            endContext.set(context);
+            endContext.set(searchRequestContext.getPhaseContext());
         }
 
         @Override
-        protected void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+        protected void onRequestFailure(SearchRequestContext searchRequestContext) {
             failures.incrementAndGet();
-            failureContext.set(context);
-        }
-
-        @Override
-        protected void onRequestEndWithoutPhase(SearchRequestContext searchRequestContext) {
-            endsWithoutPhase.incrementAndGet();
+            failureContext.set(searchRequestContext.getPhaseContext());
         }
     }
 

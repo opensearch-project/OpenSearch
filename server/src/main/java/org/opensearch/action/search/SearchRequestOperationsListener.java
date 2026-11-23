@@ -48,29 +48,52 @@ public abstract class SearchRequestOperationsListener {
     protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {};
 
     /**
-     * Invoked once the request is admitted. Exactly one of {@link #onRequestEnd}, {@link #onRequestFailure},
-     * {@link #onRequestEndWithoutPhase} or {@link #onRequestFailureWithoutPhase} follows, so a listener that pairs state with
-     * this call must handle all four. For a cross-cluster search that minimizes roundtrips and also targets local indices, it
-     * follows when the local search ends, which can be before the remote clusters respond.
+     * Invoked once the request is admitted. Exactly one of {@link #onRequestEnd(SearchRequestContext)} or
+     * {@link #onRequestFailure(SearchRequestContext)} follows once the request completes.
      */
     protected void onRequestStart(SearchRequestContext searchRequestContext) {}
 
+    /**
+     * Invoked once the request succeeds. The response processors of its search pipeline run after this call, so a failure in
+     * them does not turn the request into a failure. By default, calls
+     * {@link #onRequestEnd(SearchPhaseContext, SearchRequestContext)} if a search started on this node, see
+     * {@link SearchRequestContext#getPhaseContext()}.
+     */
+    protected void onRequestEnd(SearchRequestContext searchRequestContext) {
+        final SearchPhaseContext phaseContext = searchRequestContext.getPhaseContext();
+        if (phaseContext != null) {
+            onRequestEnd(phaseContext, searchRequestContext);
+        }
+    }
+
+    /**
+     * Invoked once the request fails. By default, calls {@link #onRequestFailure(SearchPhaseContext, SearchRequestContext)}
+     * if a search started on this node, see {@link SearchRequestContext#getPhaseContext()}.
+     */
+    protected void onRequestFailure(SearchRequestContext searchRequestContext) {
+        final SearchPhaseContext phaseContext = searchRequestContext.getPhaseContext();
+        if (phaseContext != null) {
+            onRequestFailure(phaseContext, searchRequestContext);
+        }
+    }
+
+    /**
+     * Invoked once a request whose search started on this node succeeds, with that search as {@code context}.
+     *
+     * @deprecated Override {@link #onRequestEnd(SearchRequestContext)} instead, which is also invoked for a request that
+     * succeeds without a search on this node.
+     */
+    @Deprecated
     protected void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
+    /**
+     * Invoked once a request whose search started on this node fails, with that search as {@code context}.
+     *
+     * @deprecated Override {@link #onRequestFailure(SearchRequestContext)} instead, which is also invoked for a request that
+     * fails without a search on this node.
+     */
+    @Deprecated
     protected void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
-
-    /**
-     * Invoked instead of {@link #onRequestEnd} when the request succeeds without a search phase on this node, which happens for a
-     * cross-cluster search that minimizes roundtrips and targets only remote clusters.
-     */
-    protected void onRequestEndWithoutPhase(SearchRequestContext searchRequestContext) {}
-
-    /**
-     * Invoked instead of {@link #onRequestFailure} when the request fails without a search phase on this node. That happens when
-     * it fails before its shards are resolved, for instance on a missing index or search pipeline, or when a cross-cluster search
-     * that minimizes roundtrips and targets only remote clusters fails.
-     */
-    protected void onRequestFailureWithoutPhase(SearchRequestContext searchRequestContext) {}
 
     protected boolean isEnabled(SearchRequest searchRequest) {
         return isEnabled();
@@ -144,10 +167,10 @@ public abstract class SearchRequestOperationsListener {
         }
 
         @Override
-        public void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+        public void onRequestEnd(SearchRequestContext searchRequestContext) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
-                    listener.onRequestEnd(context, searchRequestContext);
+                    listener.onRequestEnd(searchRequestContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onRequestEnd listener [{}] failed", listener), e);
                 }
@@ -155,34 +178,12 @@ public abstract class SearchRequestOperationsListener {
         }
 
         @Override
-        public void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+        public void onRequestFailure(SearchRequestContext searchRequestContext) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
-                    listener.onRequestFailure(context, searchRequestContext);
+                    listener.onRequestFailure(searchRequestContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onRequestFailure listener [{}] failed", listener), e);
-                }
-            }
-        }
-
-        @Override
-        protected void onRequestEndWithoutPhase(SearchRequestContext searchRequestContext) {
-            for (SearchRequestOperationsListener listener : listeners) {
-                try {
-                    listener.onRequestEndWithoutPhase(searchRequestContext);
-                } catch (Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("onRequestEndWithoutPhase listener [{}] failed", listener), e);
-                }
-            }
-        }
-
-        @Override
-        protected void onRequestFailureWithoutPhase(SearchRequestContext searchRequestContext) {
-            for (SearchRequestOperationsListener listener : listeners) {
-                try {
-                    listener.onRequestFailureWithoutPhase(searchRequestContext);
-                } catch (Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("onRequestFailureWithoutPhase listener [{}] failed", listener), e);
                 }
             }
         }

@@ -160,6 +160,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -2087,12 +2088,12 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             }
 
             @Override
-            protected void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+            protected void onRequestEnd(SearchRequestContext searchRequestContext) {
                 requestEnded.set(true);
             }
 
             @Override
-            protected void onRequestFailureWithoutPhase(SearchRequestContext searchRequestContext) {
+            protected void onRequestFailure(SearchRequestContext searchRequestContext) {
                 requestEnded.set(true);
             }
         };
@@ -2132,7 +2133,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         verify(workloadGroupService).rejectIfNeeded(eq("test-workload-group"));
     }
 
-    public void testRequestFailingBeforeItsFirstPhaseEndsWithoutPhase() throws Exception {
+    public void testRequestFailingBeforeItsFirstPhaseEnds() throws Exception {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
@@ -2144,8 +2145,10 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         AtomicInteger failuresWithoutPhase = new AtomicInteger();
         SearchRequestOperationsListener failureTracker = new SearchRequestOperationsListener() {
             @Override
-            protected void onRequestFailureWithoutPhase(SearchRequestContext searchRequestContext) {
-                failuresWithoutPhase.incrementAndGet();
+            protected void onRequestFailure(SearchRequestContext searchRequestContext) {
+                if (searchRequestContext.getPhaseContext() == null) {
+                    failuresWithoutPhase.incrementAndGet();
+                }
             }
         };
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
@@ -2172,9 +2175,15 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         );
 
         AtomicReference<Exception> failure = new AtomicReference<>();
-        action.executeRequest(newSearchTask(), new SearchRequest(), null, ActionListener.wrap(r -> fail("expected failure"), failure::set));
+        AtomicLong tookCurrentWhenNotified = new AtomicLong(-1);
+        action.executeRequest(newSearchTask(), new SearchRequest(), null, ActionListener.wrap(r -> fail("expected failure"), e -> {
+            tookCurrentWhenNotified.set(searchRequestStats.getTookCurrent());
+            failure.set(e);
+        }));
 
         assertThat(failure.get(), instanceOf(IllegalArgumentException.class));
+        // The request ends before the caller is notified.
+        assertEquals(0, tookCurrentWhenNotified.get());
         assertEquals(1, failuresWithoutPhase.get());
         assertEquals(0, searchRequestStats.getTookCurrent());
         assertEquals(0, searchRequestStats.getTookTotal());

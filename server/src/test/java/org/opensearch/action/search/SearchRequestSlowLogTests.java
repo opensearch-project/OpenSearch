@@ -134,7 +134,12 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         when(searchPhaseContext.getTask()).thenReturn(searchTask);
         when(searchRequest.searchType()).thenReturn(SearchType.QUERY_THEN_FETCH);
 
-        searchRequestContext.getSearchRequestOperationsListener().onRequestEnd(searchPhaseContext, searchRequestContext);
+        // A request without a search on this node has nothing to describe. Called directly, so a failure is not swallowed.
+        searchRequestSlowLog.onRequestEnd(searchRequestContext);
+        verify(logger, never()).info(any(SearchRequestSlowLog.SearchRequestSlowLogMessage.class));
+
+        when(searchRequestContext.getPhaseContext()).thenReturn(searchPhaseContext);
+        searchRequestContext.getSearchRequestOperationsListener().onRequestEnd(searchRequestContext);
 
         verify(logger, never()).warn(any(SearchRequestSlowLog.SearchRequestSlowLogMessage.class));
         verify(logger, times(1)).info(any(SearchRequestSlowLog.SearchRequestSlowLogMessage.class));
@@ -179,6 +184,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
                 () -> null
             );
             searchRequestContext.setAbsoluteStartNanos((i < numRequestsLogged) ? 0 : System.nanoTime());
+            searchRequestContext.setPhaseContext(searchPhaseContext);
             searchRequestContexts.add(searchRequestContext);
         }
 
@@ -187,7 +193,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
             threads[i] = new Thread(() -> {
                 phaser.arriveAndAwaitAdvance();
                 SearchRequestContext thisContext = searchRequestContexts.get(finalI);
-                thisContext.getSearchRequestOperationsListener().onRequestEnd(searchPhaseContext, thisContext);
+                thisContext.getSearchRequestOperationsListener().onRequestEnd(thisContext);
                 countDownLatch.countDown();
             });
             threads[i].start();

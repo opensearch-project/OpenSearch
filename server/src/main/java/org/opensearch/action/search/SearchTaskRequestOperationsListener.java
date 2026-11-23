@@ -24,7 +24,12 @@ public final class SearchTaskRequestOperationsListener extends SearchRequestOper
     }
 
     @Override
-    public void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+    public void onRequestEnd(SearchRequestContext searchRequestContext) {
+        // Without a search on this node, there is no task to refresh and no shard usage to remove.
+        final SearchPhaseContext context = searchRequestContext.getPhaseContext();
+        if (context == null) {
+            return;
+        }
         // Refresh the coordinator node level resource usages
         taskResourceTrackingService.refreshResourceStats(context.getTask());
         // Remove the shard level resource usages from thread context
@@ -32,7 +37,10 @@ public final class SearchTaskRequestOperationsListener extends SearchRequestOper
     }
 
     @Override
-    public void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+    public void onRequestFailure(SearchRequestContext searchRequestContext) {
+        if (searchRequestContext.getPhaseContext() == null) {
+            return;
+        }
         taskResourceTrackingService.removeTaskResourceUsage();
     }
 }

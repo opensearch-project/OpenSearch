@@ -209,6 +209,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * This is the main entry point for a search. This method starts the search execution of the initial phase.
      */
     public final void start() {
+        // TransportSearchAction ends the request once it completes, and reports it with this search as its phase context.
+        searchRequestContext.setPhaseContext(this);
         if (getNumShards() == 0) {
             // no search shards to search on, bail with empty response
             // (it happens with search across _all with no indices around and consistent with broadcast operations)
@@ -217,21 +219,20 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 : request.source().trackTotalHitsUpTo();
             // total hits is null in the response if the tracking of total hits is disabled
             boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
-            final SearchResponse response = new SearchResponse(
-                InternalSearchResponse.empty(withTotalHits),
-                null,
-                0,
-                0,
-                0,
-                buildTookInMillis(),
-                searchRequestContext.getPhaseTook(),
-                ShardSearchFailure.EMPTY_ARRAY,
-                clusters,
-                null
+            listener.onResponse(
+                new SearchResponse(
+                    InternalSearchResponse.empty(withTotalHits),
+                    null,
+                    0,
+                    0,
+                    0,
+                    buildTookInMillis(),
+                    searchRequestContext.getPhaseTook(),
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    clusters,
+                    null
+                )
             );
-            // End the request before responding, as sendSearchResponse does, so it is not ended without its phase context.
-            searchRequestContext.endRequest(this);
-            listener.onResponse(response);
             return;
         }
         executePhase(this);
@@ -804,7 +805,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     .collect(Collectors.toSet())
             );
             onPhaseEnd(searchRequestContext);
-            searchRequestContext.endRequest(this);
             listener.onResponse(buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
         }
         setCurrentPhase(null);
@@ -842,7 +842,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         Releasables.close(releasables);
         // sendSearchResponse fails the request here without failing its phase first.
         onCurrentPhaseFailure(exception);
-        searchRequestContext.failRequest(this);
         listener.onFailure(exception);
     }
 
@@ -877,7 +876,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public final void onFailure(Exception e) {
         onCurrentPhaseFailure(e);
-        searchRequestContext.failRequest(this);
         listener.onFailure(e);
     }
 

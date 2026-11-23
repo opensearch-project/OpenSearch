@@ -65,7 +65,11 @@ public final class TraceableSearchRequestOperationsListener extends SearchReques
     public void onRequestStart(SearchRequestContext searchRequestContext) {}
 
     @Override
-    public void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+    public void onRequestEnd(SearchRequestContext searchRequestContext) {
+        // Only a search on this node records total hits.
+        if (searchRequestContext.getPhaseContext() == null) {
+            return;
+        }
         // add response-related attributes on request end
         requestSpan.addAttribute(
             AttributeNames.TOTAL_HITS,

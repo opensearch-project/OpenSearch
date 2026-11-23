@@ -69,42 +69,67 @@ public class SearchRequestOperationsListenerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testRequestEndsWithoutPhaseReachEveryListener() {
+    public void testRequestEndReachesEveryListener() {
         AtomicInteger ends = new AtomicInteger();
         AtomicInteger failures = new AtomicInteger();
         SearchRequestOperationsListener countingListener = new SearchRequestOperationsListener() {
             @Override
-            protected void onRequestEndWithoutPhase(SearchRequestContext searchRequestContext) {
+            protected void onRequestEnd(SearchRequestContext searchRequestContext) {
                 ends.incrementAndGet();
             }
 
             @Override
-            protected void onRequestFailureWithoutPhase(SearchRequestContext searchRequestContext) {
+            protected void onRequestFailure(SearchRequestContext searchRequestContext) {
                 failures.incrementAndGet();
             }
         };
         SearchRequestOperationsListener failingListener = new SearchRequestOperationsListener() {
             @Override
-            protected void onRequestEndWithoutPhase(SearchRequestContext searchRequestContext) {
+            protected void onRequestEnd(SearchRequestContext searchRequestContext) {
                 throw new IllegalStateException("end");
             }
 
             @Override
-            protected void onRequestFailureWithoutPhase(SearchRequestContext searchRequestContext) {
+            protected void onRequestFailure(SearchRequestContext searchRequestContext) {
                 throw new IllegalStateException("failure");
             }
         };
+        List<SearchPhaseContext> legacyEnds = new ArrayList<>();
+        List<SearchPhaseContext> legacyFailures = new ArrayList<>();
+        SearchRequestOperationsListener legacyListener = new SearchRequestOperationsListener() {
+            @Override
+            protected void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+                legacyEnds.add(context);
+            }
+
+            @Override
+            protected void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+                legacyFailures.add(context);
+            }
+        };
         SearchRequestOperationsListener compositeListener = new SearchRequestOperationsListener.CompositeListener(
-            List.of(failingListener, countingListener),
+            List.of(failingListener, countingListener, legacyListener),
             logger
         );
-        SearchRequestContext searchRequestContext = mock(SearchRequestContext.class);
+        SearchRequestContext searchRequestContext = new SearchRequestContext(compositeListener, new SearchRequest(), () -> null);
 
-        compositeListener.onRequestEndWithoutPhase(searchRequestContext);
-        compositeListener.onRequestFailureWithoutPhase(searchRequestContext);
-
-        // A listener that throws must not stop the listeners after it.
+        // Without a search phase on this node, only listeners of the single-argument methods hear about it.
+        compositeListener.onRequestEnd(searchRequestContext);
+        compositeListener.onRequestFailure(searchRequestContext);
         assertEquals(1, ends.get());
         assertEquals(1, failures.get());
+        assertTrue(legacyEnds.isEmpty());
+        assertTrue(legacyFailures.isEmpty());
+
+        // With one, listeners of the two-argument methods hear about it too, with its context.
+        SearchPhaseContext phaseContext = mock(SearchPhaseContext.class);
+        searchRequestContext.setPhaseContext(phaseContext);
+        compositeListener.onRequestEnd(searchRequestContext);
+        compositeListener.onRequestFailure(searchRequestContext);
+        // A listener that throws must not stop the listeners after it.
+        assertEquals(2, ends.get());
+        assertEquals(2, failures.get());
+        assertEquals(List.of(phaseContext), legacyEnds);
+        assertEquals(List.of(phaseContext), legacyFailures);
     }
 }

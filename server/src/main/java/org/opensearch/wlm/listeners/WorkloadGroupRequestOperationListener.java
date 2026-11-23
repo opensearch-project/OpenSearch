@@ -10,7 +10,6 @@ package org.opensearch.wlm.listeners;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchRequestContext;
 import org.opensearch.action.search.SearchRequestOperationsListener;
@@ -48,16 +47,7 @@ public class WorkloadGroupRequestOperationListener extends SearchRequestOperatio
     }
 
     @Override
-    protected void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
-        recordFailure();
-    }
-
-    @Override
-    protected void onRequestFailureWithoutPhase(SearchRequestContext searchRequestContext) {
-        recordFailure();
-    }
-
-    private void recordFailure() {
+    protected void onRequestFailure(SearchRequestContext searchRequestContext) {
         final String workloadGroupId = threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER);
         workloadGroupService.incrementFailuresFor(workloadGroupId);
     }
