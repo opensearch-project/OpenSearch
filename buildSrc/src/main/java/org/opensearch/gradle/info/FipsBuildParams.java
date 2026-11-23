@@ -34,12 +34,37 @@ public class FipsBuildParams {
 
     private FipsBuildParams() {}
 
-    public static boolean isInFipsMode() {
+    /**
+     * Whether the build targets {@code crypto.standard=FIPS-140-3}: the artifacts and test classpaths contain the
+     * BouncyCastle FIPS providers. This alone does not put any JVM into FIPS mode; see {@link #isFipsModeEnabled()}.
+     */
+    public static boolean isFipsBuild() {
         return DEFAULT_FIPS_MODE.equals(fipsMode);
     }
 
+    /**
+     * Whether JVMs started by the build run in FIPS mode: a {@linkplain #isFipsBuild() FIPS build} with
+     * {@code OPENSEARCH_FIPS_MODE=true}, the same variable that turns FIPS mode on in a distribution. Test JVMs then use
+     * only the providers of {@code fips_java.security}, in approved-only mode, and the {@code *FipsTests} variants run.
+     */
+    public static boolean isFipsModeEnabled() {
+        return isFipsBuild() && "true".equalsIgnoreCase(fipsModeEnvSupplier.get());
+    }
+
+    /**
+     * @deprecated use {@link #isFipsBuild()}; the name suggested a JVM in FIPS mode.
+     */
+    @Deprecated
+    public static boolean isInFipsMode() {
+        return isFipsBuild();
+    }
+
+    /**
+     * @deprecated use {@link #isFipsModeEnabled()}.
+     */
+    @Deprecated
     public static boolean isInFipsApprovedOnlyMode() {
-        return isInFipsMode() && "true".equalsIgnoreCase(fipsModeEnvSupplier.get());
+        return isFipsModeEnabled();
     }
 
     public static String getFipsMode() {

@@ -108,6 +108,10 @@ public class BuildParams {
         return value(runtimeJavaDetails);
     }
 
+    /**
+     * Despite the name, this is {@link FipsBuildParams#isFipsBuild()}: true for {@code crypto.standard=FIPS-140-3}, whether or
+     * not a JVM runs in FIPS mode. Use {@link FipsBuildParams#isFipsModeEnabled()} for the latter.
+     */
     public static Boolean isInFipsJvm() {
         return value(inFipsJvm);
     }
