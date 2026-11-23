@@ -96,7 +96,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         HistogramFactory factory = (HistogramFactory) histo;
 
         List<Bucket> newBuckets = new ArrayList<>();
-        EvictingQueue<Double> values = new EvictingQueue<>(this.window);
+        EvictingQueue<Double> values = new EvictingQueue<>(Math.min(this.window, buckets.size()));
 
         Number lastValidKey = 0;
         int lastValidPosition = 0;
