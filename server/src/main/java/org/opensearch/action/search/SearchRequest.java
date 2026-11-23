@@ -129,6 +129,12 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private Boolean phaseTook = null;
 
+    /**
+     * Whether index-aware search request processors leave this request alone. Only the coordinating node
+     * sets and reads it, so it is not serialized. Requests copied from this one inherit it.
+     */
+    private boolean skipIndexAwareProcessors;
+
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
@@ -234,6 +240,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.finalReduce = finalReduce;
         this.cancelAfterTimeInterval = searchRequest.cancelAfterTimeInterval;
         this.phaseTook = searchRequest.phaseTook;
+        this.skipIndexAwareProcessors = searchRequest.skipIndexAwareProcessors;
     }
 
     /**
@@ -799,6 +806,21 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             sb.append("source[]");
         }
         return sb.toString();
+    }
+
+    /**
+     * Makes index-aware search request processors leave this request, and every request copied from it,
+     * alone. The coordinating node calls this for a request that has been through the processors, so that
+     * searches it later derives from that request are not processed a second time, and for a request that
+     * carries no query of the caller's to process.
+     */
+    void skipIndexAwareProcessors() {
+        this.skipIndexAwareProcessors = true;
+    }
+
+    /** Whether {@link #skipIndexAwareProcessors()} was called on this request or on one it was copied from. */
+    boolean indexAwareProcessorsSkipped() {
+        return skipIndexAwareProcessors;
     }
 
     @Override

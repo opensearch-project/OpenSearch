@@ -42,7 +42,9 @@ import org.opensearch.search.builder.SearchSourceBuilder;
  *   <li>An internal search (the search behind a by-query or reindex job, or a search of a system index),
  *       unless the processor opts in with {@link #appliesToInternalSearches()}. See
  *       {@link IndexAwareSearchRequestScope#isInternalByDefault}.</li>
- *   <li>A request without a source.</li>
+ *   <li>A search the coordinating node issues as part of a search that has already been processed, such
+ *       as the search per group of a collapse with inner hits.</li>
+ *   <li>A request without a source, and the creation of a point in time, which runs no query.</li>
  * </ul>
  * <p>
  * <b>Indices that map a field differently.</b> One source is sent to every index the request targets, but

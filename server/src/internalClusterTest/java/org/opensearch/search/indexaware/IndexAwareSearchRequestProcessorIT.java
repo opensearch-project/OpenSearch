@@ -28,6 +28,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -35,9 +36,11 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
+import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
@@ -168,6 +171,19 @@ public class IndexAwareSearchRequestProcessorIT extends OpenSearchIntegTestCase 
         });
     }
 
+    // Creating a point in time opens shard contexts but runs no query, so there is nothing to process.
+    public void testCreatingAPointInTimeDoesNotRunProcessors() throws Exception {
+        MarkerObservingPlugin.OBSERVATIONS.set(0);
+        withProcessorsEnabled(() -> {
+            CreatePitResponse pit = createPointInTime(OPTED_IN_INDEX);
+            try {
+                assertEquals(0, MarkerObservingPlugin.OBSERVATIONS.get());
+            } finally {
+                client().execute(DeletePitAction.INSTANCE, new DeletePitRequest(pit.getId())).get();
+            }
+        });
+    }
+
     // A point-in-time search names no index: its indices are recorded in the PIT, and that is where the
     // processors' context has to take them from.
     public void testPointInTimeSearchIsRewrittenPerItsIndexMapping() throws Exception {
@@ -217,6 +233,32 @@ public class IndexAwareSearchRequestProcessorIT extends OpenSearchIntegTestCase 
             // It ran once, for the outer search only, and not under the marker.
             assertEquals(1, MarkerObservingPlugin.OBSERVATIONS.get());
             assertFalse("a later processor ran under the sub-search marker", MarkerObservingPlugin.SAW_MARKER.get());
+        });
+    }
+
+    // Collapsing with inner hits makes the search issue one more search per group, built around the query
+    // the processors already produced. Those searches are part of the caller's search, not new requests:
+    // processing them would apply the processors to their own output.
+    public void testCollapseExpansionSearchesAreNotProcessedAgain() throws Exception {
+        String index = "collapse_index";
+        client().admin().indices().prepareCreate(index).setMapping("title", "type=text", "group", "type=keyword").get();
+        client().prepareIndex(index).setId("1").setSource("title", "red shoes", "group", "a").get();
+        client().prepareIndex(index).setId("2").setSource("title", "blue shoes", "group", "a").get();
+        client().prepareIndex(index).setId("3").setSource("title", "green shoes", "group", "b").get();
+        client().admin().indices().prepareRefresh(index).get();
+        MarkerObservingPlugin.OBSERVATIONS.set(0);
+        withProcessorsEnabled(() -> {
+            SearchResponse response = client().prepareSearch(index)
+                .setQuery(shoesQuery())
+                .setCollapse(new CollapseBuilder("group").setInnerHits(new InnerHitBuilder("by_group")))
+                .get();
+            // Two groups, each expanded by a search of its own.
+            assertEquals(2, response.getHits().getHits().length);
+            for (SearchHit hit : response.getHits().getHits()) {
+                assertNotNull(hit.getInnerHits().get("by_group"));
+            }
+            // One invocation, for the search the caller sent; none for the two expansion searches.
+            assertEquals(1, MarkerObservingPlugin.OBSERVATIONS.get());
         });
     }
 

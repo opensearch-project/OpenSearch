@@ -450,6 +450,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SinglePhaseSearchAction phaseSearchAction,
         ActionListener<SearchResponse> listener
     ) {
+        // A single-phase action, such as creating a point in time, runs no query, so the request holds
+        // nothing of the caller's for an index-aware search request processor to act on.
+        searchRequest.skipIndexAwareProcessors();
         executeRequest(task, searchRequest, new SearchAsyncActionProvider() {
             @Override
             public AbstractSearchAsyncAction<? extends SearchPhaseResult> asyncSearchAction(
@@ -606,6 +609,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             ActionListener<SearchRequest> requestTransformListener = ActionListener.wrap(sr -> {
 
                 final Runnable continueWithRewrite = () -> {
+                    // The processors have had their turn with this request. Searches the coordinating node
+                    // later derives from it, such as the search per group when collapsing with inner hits,
+                    // are copies of it and inherit this, so that they are not processed again.
+                    sr.skipIndexAwareProcessors();
                     ActionListener<SearchSourceBuilder> rewriteListener = buildRewriteListener(
                         sr,
                         task,
@@ -755,7 +762,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * they need. The checks are ordered from cheapest to most expensive, so that a request no processor
      * runs for costs as little as possible:
      * <ol>
-     *   <li>the request has no source, or is a sub-search a processor issued (see {@link SubSearchMarker});</li>
+     *   <li>the request has no source, is a sub-search a processor issued (see {@link SubSearchMarker}), or
+     *       is one the coordinating node excluded itself: a search derived from a request that was already
+     *       processed, or a single-phase action such as creating a point in time;</li>
      *   <li>the request is the search of a by-query or reindex job and no processor opted into those, or
      *       it was forwarded to this node by the coordinating node of another cluster;</li>
      *   <li>no processor's {@link IndexAwareSearchRequestProcessor#mayApplyTo} accepts the source;</li>
@@ -775,7 +784,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchTimeProvider timeProvider
     ) {
         final SearchSourceBuilder source = searchRequest.source();
-        if (source == null || SubSearchMarker.isMarked(threadPool.getThreadContext())) {
+        if (source == null || searchRequest.indexAwareProcessorsSkipped() || SubSearchMarker.isMarked(threadPool.getThreadContext())) {
             return null;
         }
         // The by-query half of IndexAwareSearchRequestScope#isInternalByDefault is known without resolving

@@ -2212,6 +2212,40 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         });
     }
 
+    // A request the coordinating node itself marked: one that has already been through the processors,
+    // or a single-phase action such as creating a point in time.
+    public void testIndexAwareProcessorsSkipARequestMarkedToSkipThem() {
+        withIndexAwareFixture(fixture -> {
+            AtomicInteger invocations = new AtomicInteger();
+            fixture.register(counting(invocations));
+            SearchSourceBuilder original = new SearchSourceBuilder();
+            SearchRequest searchRequest = new SearchRequest("my-index").source(original);
+            searchRequest.skipIndexAwareProcessors();
+
+            HookOutcome outcome = fixture.apply(searchRequest);
+
+            outcome.assertCompleted();
+            assertSame(original, searchRequest.source());
+            assertEquals(0, invocations.get());
+        });
+    }
+
+    // A search derived from a processed request, the way collapse expansion derives one search per group:
+    // a copy of the request with a new source built around the processed query.
+    public void testIndexAwareProcessorsSkipASearchDerivedFromAProcessedRequest() {
+        withIndexAwareFixture(fixture -> {
+            AtomicInteger invocations = new AtomicInteger();
+            fixture.register(counting(invocations));
+            SearchRequest processed = new SearchRequest("my-index").source(new SearchSourceBuilder());
+            processed.skipIndexAwareProcessors();
+            SearchRequest derived = new SearchRequest(processed).source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
+
+            fixture.apply(derived).assertCompleted();
+
+            assertEquals(0, invocations.get());
+        });
+    }
+
     // A request the coordinating node of another cluster forwarded here carries that node's alias for
     // this cluster. The other cluster skipped its processors, so this one must too.
     public void testIndexAwareProcessorsSkipARequestForwardedByAnotherCluster() {
