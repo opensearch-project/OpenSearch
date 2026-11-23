@@ -2295,9 +2295,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     shardLimitValidator,
                     indicesService,
                     clusterInfoService::getClusterInfo,
-                    () -> 5.0,
-                    threadPool,
-                    Collections.emptyList()
+                    () -> 5.0
                 );
                 actions.put(
                     PutMappingAction.INSTANCE,
