@@ -1,4 +1,5 @@
 import org.opensearch.gradle.info.BuildParams
+import org.opensearch.gradle.info.FipsBuildParams
 
 // Configure FIPS dependencies for full Java projects
 plugins.withId('java') {
@@ -89,8 +90,11 @@ plugins.withId('opensearch.testclusters') {
 // This applies to both 'java' and 'java-base' plugins
 ['java', 'java-base'].each { pluginId ->
   plugins.withId(pluginId) {
+    // Test JVMs run in FIPS mode only with OPENSEARCH_FIPS_MODE=true (see OpenSearchTestBasePlugin), so the FIPS variants
+    // are selected by the same condition. crypto.standard=FIPS-140-3 alone runs the baseline tests with BouncyCastle FIPS
+    // on the classpath.
     // Exclude FipsTests and FipsIT source files from compilation when not in FIPS mode
-    if (!BuildParams.isInFipsJvm()) {
+    if (!FipsBuildParams.isFipsModeEnabled()) {
       afterEvaluate {
         sourceSets.matching { it.name == "test" }.configureEach {
           java.exclude '**/*FipsTests.java'
@@ -100,7 +104,7 @@ plugins.withId('opensearch.testclusters') {
     }
 
     tasks.withType(Test).configureEach { testTask ->
-      if (BuildParams.isInFipsJvm()) {
+      if (FipsBuildParams.isFipsModeEnabled()) {
         testTask.systemProperty 'javax.net.ssl.trustStore', "${project.rootDir}/buildSrc/src/main/resources/opensearch-fips-truststore.bcfks"
         testTask.systemProperty 'javax.net.ssl.trustStoreType', 'BCFKS'
         testTask.systemProperty 'javax.net.ssl.trustStoreProvider', 'BCFIPS'

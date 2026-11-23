@@ -360,7 +360,7 @@ internalClusterTest {
   exclude '**/GoogleCloudStorageThirdPartyFipsTests.class'
 
   // Conditionally exclude based on FIPS mode
-  if (FipsBuildParams.isInFipsMode()) {
+  if (FipsBuildParams.isFipsModeEnabled()) {
     exclude '**/GoogleCloudStorageBlobStoreRepositoryTests.class'
   } else {
     exclude '**/GoogleCloudStorageBlobStoreRepositoryFipsTests.class'
@@ -427,7 +427,7 @@ task gcsThirdPartyTest(type: Test) {
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
-  if (FipsBuildParams.isInFipsMode()) {
+  if (FipsBuildParams.isFipsModeEnabled()) {
     include '**/GoogleCloudStorageThirdPartyFipsTests.class'
   } else {
     include '**/GoogleCloudStorageThirdPartyTests.class'

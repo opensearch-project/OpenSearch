@@ -35,6 +35,7 @@ package org.opensearch.gradle;
 import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 
 import org.opensearch.gradle.info.BuildParams;
+import org.opensearch.gradle.info.FipsBuildParams;
 import org.opensearch.gradle.info.GlobalBuildInfoPlugin;
 import org.opensearch.gradle.jvm.JvmTestSuiteHelper;
 import org.opensearch.gradle.test.ErrorReportingTestListener;
@@ -157,13 +158,14 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
             // Like the distribution's launcher: a generated file replaces the JDK's java.security (note the leading "=" of the
             // value, which makes it "-Djava.security.properties=="). In FIPS mode the providers of fips_java.security are the only
             // ones; otherwise the JDK's providers are followed by BouncyCastle FIPS. Every other JDK default is kept.
-            // The FIPS file comes from the build tools jar, so external plugins get it too.
+            // As in the distribution, OPENSEARCH_FIPS_MODE=true turns FIPS mode on. crypto.standard=FIPS-140-3 alone only puts
+            // BouncyCastle FIPS on the classpath. The FIPS file comes from the build tools jar, so external plugins get it too.
             final File javaSecurityFile = project.getLayout()
                 .getBuildDirectory()
                 .file("java-security/" + test.getName() + ".security")
                 .get()
                 .getAsFile();
-            if (BuildParams.isInFipsJvm()) {
+            if (FipsBuildParams.isFipsModeEnabled()) {
                 final String fipsJavaSecurity = TestJavaSecurityFile.bundledFipsJavaSecurity();
                 test.getInputs().property("fipsJavaSecurity", fipsJavaSecurity);
                 test.doFirst(t -> TestJavaSecurityFile.writeFips(testJavaHome((Test) t), fipsJavaSecurity, javaSecurityFile.toPath()));
