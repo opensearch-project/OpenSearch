@@ -70,6 +70,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
@@ -138,15 +139,34 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         Setting.Property.Dynamic
     );
 
+    /**
+     * Below this precision a {@link HyperLogLogPlusPlus} sketch is so small that {@link CompactHyperLogLogPlusPlus} would not
+     * save memory.
+     */
+    static final int COMPACT_SKETCHES_MIN_PRECISION = 10;
+
+    /**
+     * Setting to keep the sketches of cardinality under a parent with many buckets in {@link CompactHyperLogLogPlusPlus}, so
+     * that each bucket only pays for the values it holds. Disabling it goes back to {@link HyperLogLogPlusPlus}, which reserves
+     * {@code 2^precision} bytes for every bucket.
+     */
+    public static final Setting<Boolean> CARDINALITY_AGGREGATION_COMPACT_SKETCHES_ENABLED = Setting.boolSetting(
+        "search.aggregations.cardinality.compact_sketches.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     final CardinalityAggregatorFactory.ExecutionMode executionMode;
     final int precision;
     final ValuesSource valuesSource;
 
     private final ValuesSourceConfig valuesSourceConfig;
+    private final boolean compactSketches;
 
     // Expensive to initialize, so we only initialize it when we have an actual value source
     @Nullable
-    HyperLogLogPlusPlus counts;
+    AbstractHyperLogLogPlusPlus counts;
 
     Collector collector;
 
@@ -169,13 +189,47 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         Map<String, Object> metadata,
         CardinalityAggregatorFactory.ExecutionMode executionMode
     ) throws IOException {
+        this(name, valuesSourceConfig, precision, context, parent, CardinalityUpperBound.ONE, metadata, executionMode);
+    }
+
+    public CardinalityAggregator(
+        String name,
+        ValuesSourceConfig valuesSourceConfig,
+        int precision,
+        SearchContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata,
+        CardinalityAggregatorFactory.ExecutionMode executionMode
+    ) throws IOException {
         super(name, context, parent, metadata);
         // TODO: Stop using nulls here
         this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
         this.precision = precision;
-        this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
+        final CardinalityAggregationContext cardinalityContext = context.cardinalityAggregationContext();
+        this.compactSketches = (cardinalityContext == null || cardinalityContext.isCompactSketchesEnabled())
+            && useCompactSketches(cardinality, precision);
+        this.counts = valuesSource == null ? null : newCounts();
         this.valuesSourceConfig = valuesSourceConfig;
         this.executionMode = executionMode;
+    }
+
+    /**
+     * Whether to keep the sketches in a {@link CompactHyperLogLogPlusPlus}: worth it when the parent can collect into more
+     * than one bucket, as {@link HyperLogLogPlusPlus} reserves {@code 2^precision} bytes for every bucket.
+     */
+    static boolean useCompactSketches(CardinalityUpperBound cardinality, int precision) {
+        return precision >= COMPACT_SKETCHES_MIN_PRECISION && cardinality.map(buckets -> buckets > 1);
+    }
+
+    /**
+     * Creates the sketches that the collectors hash values into.
+     */
+    final AbstractHyperLogLogPlusPlus newCounts() {
+        if (compactSketches) {
+            return new CompactHyperLogLogPlusPlus(precision, context.bigArrays(), this::addRequestCircuitBreakerBytes);
+        }
+        return new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
     }
 
     @Override
@@ -423,6 +477,11 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         add.accept("dynamic_pruned_segments", dynamicPrunedSegments);
         add.accept("roaring_ordinals_collectors_used", roaringOrdinalsCollectorsUsed);
         add.accept("hybrid_collectors_switched_to_direct", hybridCollectorsSwitchedToDirect);
+        add.accept("compact_sketches", compactSketches);
+        if (counts instanceof CompactHyperLogLogPlusPlus compact) {
+            add.accept("hyperloglog_buckets", compact.hyperLogLogBuckets());
+            add.accept("linear_counting_bytes", compact.linearCountingBytes());
+        }
     }
 
     /**
@@ -595,9 +654,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     static class DirectCollector extends Collector {
 
         private final MurmurHash3Values hashes;
-        private final HyperLogLogPlusPlus counts;
+        private final AbstractHyperLogLogPlusPlus counts;
 
-        DirectCollector(HyperLogLogPlusPlus counts, MurmurHash3Values values) {
+        DirectCollector(AbstractHyperLogLogPlusPlus counts, MurmurHash3Values values) {
             this.counts = counts;
             this.hashes = values;
         }
@@ -643,19 +702,19 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         private final BigArrays bigArrays;
         private final SortedSetDocValues values;
         private final int maxOrd;
-        private final HyperLogLogPlusPlus counts;
+        private final AbstractHyperLogLogPlusPlus counts;
         private ObjectArray<BitArray> visitedOrds;
         private long currentMemoryUsage = 0;
 
         private final long memoryThreshold;
         private final boolean memoryMonitoringEnabled;
 
-        OrdinalsCollector(HyperLogLogPlusPlus counts, SortedSetDocValues values, BigArrays bigArrays) {
+        OrdinalsCollector(AbstractHyperLogLogPlusPlus counts, SortedSetDocValues values, BigArrays bigArrays) {
             this(counts, values, bigArrays, Long.MAX_VALUE, false);
         }
 
         OrdinalsCollector(
-            HyperLogLogPlusPlus counts,
+            AbstractHyperLogLogPlusPlus counts,
             SortedSetDocValues values,
             BigArrays bigArrays,
             long memoryThreshold,
@@ -895,7 +954,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
          *
          * @param values resolves the ordinals held by the bitmaps to their values
          */
-        void collectInto(HyperLogLogPlusPlus counts, SortedSetDocValues values) throws IOException {
+        void collectInto(AbstractHyperLogLogPlusPlus counts, SortedSetDocValues values) throws IOException {
             final FastRankRoaringBitmap visited = new FastRankRoaringBitmap();
             for (long bucket = 0; bucket <= maxBucket; bucket++) {
                 final RoaringBitmap bitmap = bitmaps.get(bucket);
@@ -962,7 +1021,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
      */
     static class RoaringOrdinalsCollector extends Collector {
 
-        private final HyperLogLogPlusPlus counts;
+        private final AbstractHyperLogLogPlusPlus counts;
         private final SortedSetDocValues values;
         private final BucketOrdinalBitmaps bitmaps;
         private final long memoryThreshold;
@@ -970,7 +1029,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         private RoaringBitmap cachedBitmap;
 
         RoaringOrdinalsCollector(
-            HyperLogLogPlusPlus counts,
+            AbstractHyperLogLogPlusPlus counts,
             SortedSetDocValues values,
             BucketOrdinalBitmaps bitmaps,
             long memoryThreshold

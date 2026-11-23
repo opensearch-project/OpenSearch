@@ -617,6 +617,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.TERMS_AGGREGATION_MAX_PRECOMPUTE_CARDINALITY,
                 CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_ENABLED,
                 CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_MEMORY_THRESHOLD,
+                CardinalityAggregator.CARDINALITY_AGGREGATION_COMPACT_SKETCHES_ENABLED,
                 SearchService.KEYWORD_INDEX_OR_DOC_VALUES_ENABLED,
                 CreatePitController.PIT_INIT_KEEP_ALIVE,
                 Node.WRITE_PORTS_FILE_SETTING,

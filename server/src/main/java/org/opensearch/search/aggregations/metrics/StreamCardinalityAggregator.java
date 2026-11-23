@@ -11,6 +11,7 @@ package org.opensearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
@@ -38,7 +39,20 @@ public class StreamCardinalityAggregator extends CardinalityAggregator {
         Map<String, Object> metadata,
         CardinalityAggregatorFactory.ExecutionMode executionMode
     ) throws IOException {
-        super(name, valuesSourceConfig, precision, context, parent, metadata, executionMode);
+        this(name, valuesSourceConfig, precision, context, parent, CardinalityUpperBound.ONE, metadata, executionMode);
+    }
+
+    public StreamCardinalityAggregator(
+        String name,
+        ValuesSourceConfig valuesSourceConfig,
+        int precision,
+        SearchContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata,
+        CardinalityAggregatorFactory.ExecutionMode executionMode
+    ) throws IOException {
+        super(name, valuesSourceConfig, precision, context, parent, cardinality, metadata, executionMode);
     }
 
     @Override
@@ -89,7 +103,8 @@ public class StreamCardinalityAggregator extends CardinalityAggregator {
         // HyperLogLog doesn't have a public reset method, so we need to recreate it
         if (counts != null) {
             counts.close();
-            counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
+            counts = null;
+            counts = newCounts();
         }
     }
 
