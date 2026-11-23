@@ -125,6 +125,9 @@ import org.opensearch.search.fetch.subphase.FetchDocValuesContext;
 import org.opensearch.search.fetch.subphase.FetchFieldsContext;
 import org.opensearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.opensearch.search.indexaware.IndexAwareContext;
+import org.opensearch.search.indexaware.IndexAwareSearchRequestProcessor;
+import org.opensearch.search.indexaware.IndexMappingSourceCache;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalScrollSearchRequest;
 import org.opensearch.search.internal.LegacyReaderContext;
@@ -540,6 +543,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final List<SearchPlugin.ProfileMetricsProvider> pluginProfilers;
 
+    private final List<IndexAwareSearchRequestProcessor> indexAwareSearchRequestProcessors;
+
+    private final IndexMappingSourceCache indexMappingSourceCache = new IndexMappingSourceCache();
+
     private volatile boolean indexAwareSearchRequestProcessorsEnabled;
 
     public SearchService(
@@ -556,7 +563,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         TaskResourceTrackingService taskResourceTrackingService,
         Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
         List<SearchPlugin.ProfileMetricsProvider> pluginProfilers,
-        WorkloadGroupService workloadGroupService
+        WorkloadGroupService workloadGroupService,
+        List<IndexAwareSearchRequestProcessor> indexAwareSearchRequestProcessors
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -631,12 +639,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         this.pluginProfilers = pluginProfilers;
 
+        this.indexAwareSearchRequestProcessors = indexAwareSearchRequestProcessors;
         this.indexAwareSearchRequestProcessorsEnabled = INDEX_AWARE_SEARCH_REQUEST_PROCESSORS_ENABLED_SETTING.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(
                 INDEX_AWARE_SEARCH_REQUEST_PROCESSORS_ENABLED_SETTING,
                 this::setIndexAwareSearchRequestProcessorsEnabled
             );
+        if (indexAwareSearchRequestProcessors.isEmpty() == false) {
+            // The mapping cache keeps one entry per index it has been asked about. Nothing else removes
+            // the entry of an index that has been deleted.
+            clusterService.addListener(event -> {
+                for (Index deleted : event.indicesDeleted()) {
+                    indexMappingSourceCache.remove(deleted);
+                }
+            });
+        }
 
         // Initialize QueryRewriterRegistry with cluster settings so TermsMergingRewriter
         // can register its settings update consumer
@@ -653,6 +671,23 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public boolean isIndexAwareSearchRequestProcessorsEnabled() {
         return indexAwareSearchRequestProcessorsEnabled;
+    }
+
+    /**
+     * The {@link IndexAwareSearchRequestProcessor}s registered by installed plugins, in registration
+     * order, or an empty list while {@link #INDEX_AWARE_SEARCH_REQUEST_PROCESSORS_ENABLED_SETTING} is
+     * {@code false}. A search therefore finds out with one call whether there is anything to run.
+     */
+    public List<IndexAwareSearchRequestProcessor> getIndexAwareSearchRequestProcessors() {
+        return indexAwareSearchRequestProcessorsEnabled ? indexAwareSearchRequestProcessors : Collections.emptyList();
+    }
+
+    /**
+     * The node's cache of parsed index mappings, which backs
+     * {@link IndexAwareContext#getMappingSourceAsMap} for every search this node coordinates.
+     */
+    public IndexMappingSourceCache getIndexMappingSourceCache() {
+        return indexMappingSourceCache;
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {

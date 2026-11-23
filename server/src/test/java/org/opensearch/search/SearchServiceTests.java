@@ -108,6 +108,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.fetch.ShardFetchRequest;
+import org.opensearch.search.indexaware.IndexAwareSearchRequestProcessor;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.SearchContext;
@@ -166,7 +167,8 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             CustomScriptPlugin.class,
             ReaderWrapperCountPlugin.class,
             InternalOrPrivateSettingsPlugin.class,
-            MockSearchService.TestPlugin.class
+            MockSearchService.TestPlugin.class,
+            IndexAwareSearchRequestProcessorTestPlugin.class
         );
     }
 
@@ -174,6 +176,13 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         @Override
         public void onIndexModule(IndexModule indexModule) {
             indexModule.setReaderWrapper(service -> SearchServiceTests::apply);
+        }
+    }
+
+    public static class IndexAwareSearchRequestProcessorTestPlugin extends Plugin implements SearchPlugin {
+        @Override
+        public List<IndexAwareSearchRequestProcessor> getIndexAwareSearchRequestProcessors() {
+            return List.of((source, context, listener) -> listener.onResponse(source));
         }
     }
 
@@ -687,9 +696,13 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    // IndexAwareSearchRequestProcessorTestPlugin registers one processor on this node. The three tests
+    // below check that the setting alone decides whether SearchService hands it out.
+
     public void testIndexAwareSearchRequestProcessorsAreDisabledByDefault() {
         final SearchService service = getInstanceFromNode(SearchService.class);
         assertFalse(service.isIndexAwareSearchRequestProcessorsEnabled());
+        assertTrue(service.getIndexAwareSearchRequestProcessors().isEmpty());
     }
 
     public void testIndexAwareSearchRequestProcessorsCanBeEnabledDynamically() {
@@ -697,6 +710,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         try {
             setIndexAwareSearchRequestProcessorsEnabled(true);
             assertTrue(service.isIndexAwareSearchRequestProcessorsEnabled());
+            assertEquals(1, service.getIndexAwareSearchRequestProcessors().size());
         } finally {
             setIndexAwareSearchRequestProcessorsEnabled(null);
         }
@@ -708,6 +722,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             setIndexAwareSearchRequestProcessorsEnabled(true);
             setIndexAwareSearchRequestProcessorsEnabled(false);
             assertFalse(service.isIndexAwareSearchRequestProcessorsEnabled());
+            assertTrue(service.getIndexAwareSearchRequestProcessors().isEmpty());
         } finally {
             setIndexAwareSearchRequestProcessorsEnabled(null);
         }

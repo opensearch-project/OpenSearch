@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Node-level cache of parsed index mappings, so an {@code IndexAwareSearchRequestProcessor} across many
+ * Node-level cache of parsed index mappings, so an {@link IndexAwareSearchRequestProcessor} across many
  * requests over time &mdash; not just within one request &mdash; never re-parses an unchanged mapping.
  * <p>
  * {@code MappingMetadata#sourceAsMap()} decompresses and re-parses the mapping on every call, with no

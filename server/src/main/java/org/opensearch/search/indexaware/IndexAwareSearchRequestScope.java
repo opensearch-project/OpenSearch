@@ -18,7 +18,7 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- * Classifies the searches an {@code IndexAwareSearchRequestProcessor} does not act on by default.
+ * Classifies the searches an {@link IndexAwareSearchRequestProcessor} does not act on by default.
  * <ul>
  *   <li>{@link #isInternalByDefault} identifies searches where changing the query is unsafe unless a
  *       processor explicitly opts in: the search behind a by-query or reindex job, and a search of a
@@ -35,7 +35,7 @@ public final class IndexAwareSearchRequestScope {
     /**
      * Whether a search with this parent task and these target indices is internal: one a processor only
      * runs for if it returns {@code true} from
-     * {@code IndexAwareSearchRequestProcessor#appliesToInternalSearches()}.
+     * {@link IndexAwareSearchRequestProcessor#appliesToInternalSearches()}.
      * <p>
      * A search is internal when either of the following holds:
      * <ul>
@@ -78,7 +78,7 @@ public final class IndexAwareSearchRequestScope {
      * it holds to the remote side in both modes:
      * <ul>
      *   <li>without round-trip minimization, directly to the remote shards, whose mappings the local
-     *       {@code IndexAwareContext} knows nothing about;</li>
+     *       {@link IndexAwareContext} knows nothing about;</li>
      *   <li>with it, to a remote coordinating node, which would run its own processors on a source the
      *       local processors had already changed.</li>
      * </ul>

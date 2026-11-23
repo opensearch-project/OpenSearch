@@ -20,7 +20,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
- * What an {@code IndexAwareSearchRequestProcessor} is told about the search request it is processing: the
+ * What an {@link IndexAwareSearchRequestProcessor} is told about the search request it is processing: the
  * concrete indices the request targets, with their metadata and mappings, plus the request-level facts a
  * processor needs to behave the way the rest of the search does.
  * <p>
@@ -120,7 +120,7 @@ public final class IndexAwareContext {
      * reveal, through different results or errors, a field the caller cannot see.
      * <p>
      * A plugin's predicate may read the caller's identity from the thread context, so apply it on the
-     * thread {@code IndexAwareSearchRequestProcessor#process} was called on, before any asynchronous work.
+     * thread {@link IndexAwareSearchRequestProcessor#process} was called on, before any asynchronous work.
      *
      * @param indexName the name of one of {@link #getTargetIndices()}
      * @return a predicate that accepts the names of the fields the caller may see in that index

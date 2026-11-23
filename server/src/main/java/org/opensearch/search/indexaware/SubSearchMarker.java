@@ -14,7 +14,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import java.util.Collections;
 
 /**
- * Marks a search as a sub-search that {@code IndexAwareSearchRequestProcessor}s do not process.
+ * Marks a search as a sub-search that {@link IndexAwareSearchRequestProcessor}s do not process.
  * <p>
  * A processor, or the query it produces, may issue searches of its own: a lookup the processor needs
  * before it can decide what to do, or the separate searches a composite query runs for each of its parts.

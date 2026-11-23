@@ -281,6 +281,7 @@ import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.fetch.FetchPhase;
+import org.opensearch.search.indexaware.IndexAwareSearchRequestProcessor;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
@@ -1734,7 +1735,8 @@ public class Node implements Closeable {
                 taskResourceTrackingService,
                 searchModule.getConcurrentSearchRequestDeciderFactories(),
                 searchModule.getPluginProfileMetricsProviders(),
-                workloadGroupService
+                workloadGroupService,
+                searchModule.getIndexAwareSearchRequestProcessors()
             );
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
@@ -2516,7 +2518,8 @@ public class Node implements Closeable {
         TaskResourceTrackingService taskResourceTrackingService,
         Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
         List<SearchPlugin.ProfileMetricsProvider> pluginProfilers,
-        WorkloadGroupService workloadGroupService
+        WorkloadGroupService workloadGroupService,
+        List<IndexAwareSearchRequestProcessor> indexAwareSearchRequestProcessors
     ) {
         return new SearchService(
             clusterService,
@@ -2532,7 +2535,8 @@ public class Node implements Closeable {
             taskResourceTrackingService,
             concurrentSearchDeciderFactories,
             pluginProfilers,
-            workloadGroupService
+            workloadGroupService,
+            indexAwareSearchRequestProcessors
         );
     }
 
