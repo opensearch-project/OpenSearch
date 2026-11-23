@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -52,7 +53,43 @@ import java.util.Objects;
 public final class InternalCardinality extends InternalNumericMetricsAggregation.SingleValue implements Cardinality {
     private final AbstractHyperLogLogPlusPlus counts;
 
-    InternalCardinality(String name, AbstractHyperLogLogPlusPlus counts, Map<String, Object> metadata) {
+    /**
+     * Constructs a result from a HyperLogLog++ sketch, for producers that build
+     * cardinality results outside the shard-level aggregation path.
+     *
+     * <p>The reduce phase merges the sketches of all shards, so a sketch built
+     * here must be interchangeable with one the shard-level aggregator builds
+     * for the same request:
+     * <ul>
+     *   <li>Values must be collected into bucket ordinal {@code 0}, the only bucket
+     *   this result reads.</li>
+     *   <li>Its precision must be the one the aggregator uses: the field's mapped
+     *   precision for an {@code hll} field, and otherwise
+     *   {@link HyperLogLogPlusPlus#DEFAULT_PRECISION} when
+     *   {@link CardinalityAggregationBuilder#precisionThreshold()} is {@code null} and
+     *   {@link HyperLogLogPlusPlus#precisionFromThreshold(long)} of it when it is set.
+     *   Sketches of different precisions cannot be merged.</li>
+     *   <li>Each distinct value must be collected under the hash the aggregator gives
+     *   its doc value: {@code BitMixer.mix64(value)} for an integer-valued numeric field;
+     *   {@code BitMixer.mix64(Double.doubleToLongBits(value))} of the value as a double for
+     *   a floating-point or {@code unsigned_long} field; and for any other field, the
+     *   {@code h1} half of {@code MurmurHash3.hash128} with seed 0 over the doc-value bytes
+     *   (the encoded form, such as the 16-byte encoding of an {@code ip}, not its string
+     *   form). A different hash still merges, but values shared with other shards are then
+     *   counted more than once.</li>
+     * </ul>
+     *
+     * <p>The sketch must be allocated on {@link BigArrays#NON_RECYCLING_INSTANCE}. This
+     * result never releases it and is read after the search context that produced it
+     * is closed, which is why the aggregator clones its counts onto that instance
+     * before building the result. A sketch on the search context's {@code BigArrays}
+     * either keeps its bytes charged to the request circuit breaker, if it is never
+     * closed, or is read from recycled pages, if it is closed with the context.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public InternalCardinality(String name, AbstractHyperLogLogPlusPlus counts, Map<String, Object> metadata) {
         super(name, metadata);
         this.counts = counts;
     }

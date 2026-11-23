@@ -52,6 +52,7 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
     public static final String ID = "_id";
     public static final String OP_TYPE = "_op_type";
     public static final String SOURCE = "_source";
+    public static final String ROUTING = "_routing";
 
     private static final Logger logger = LogManager.getLogger(MessageProcessorRunnable.class);
     private static final int MIN_RETRY_COUNT = 2;
@@ -208,6 +209,13 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
             }
 
             String id = (String) payloadMap.get(ID);
+            if (payloadMap.containsKey(ROUTING) && !(payloadMap.get(ROUTING) instanceof String)) {
+                messageProcessorMetrics.invalidMessageCounter.inc();
+                String errorMessage = "_routing field is not a string. Invalid message.";
+                logger.error(errorMessage);
+                throw new IllegalArgumentException(errorMessage);
+            }
+            String routing = (String) payloadMap.get(ROUTING);
             String opTypeString = (String) payloadMap.getOrDefault(OP_TYPE, "index");
             DocWriteRequest.OpType opType = DocWriteRequest.OpType.fromString(opTypeString);
 
@@ -261,7 +269,7 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
                     }
 
                     BytesReference source = convertToBytes(sourceMap);
-                    SourceToParse sourceToParse = new SourceToParse(index, id, source, MediaTypeRegistry.xContentType(source), null);
+                    SourceToParse sourceToParse = new SourceToParse(index, id, source, MediaTypeRegistry.xContentType(source), routing);
                     ParsedDocument doc = engine.getDocumentMapperForType().getDocumentMapper().parse(sourceToParse);
                     ParseContext.Document document = doc.rootDoc();
                     // set the offset as the offset field
@@ -296,8 +304,6 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
                             "Delete operation is missing ID. Skipping message."
                         );
                     } else {
-                        // TODO: routing is not available from the ingestion message; if pull-based
-                        // ingestion adds routing support, thread it through here as well.
                         operation = new Engine.Delete(
                             id,
                             new Term(IdFieldMapper.NAME, Uid.encodeId(id)),
@@ -308,7 +314,8 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
                             Engine.Operation.Origin.PRIMARY,
                             System.nanoTime(),
                             UNASSIGNED_SEQ_NO,
-                            0
+                            0,
+                            routing
                         );
                     }
                     break;

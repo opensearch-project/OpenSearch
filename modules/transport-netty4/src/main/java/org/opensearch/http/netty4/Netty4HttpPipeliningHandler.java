@@ -44,6 +44,7 @@ import java.util.List;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
+import io.netty.util.ReferenceCountUtil;
 
 /**
  * Implements HTTP pipelining ordering, ensuring that responses are completely served in the same order as their corresponding requests.
@@ -52,6 +53,9 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     private final Logger logger;
     private final HttpPipeliningAggregator<ChannelPromise> aggregator;
+    // True while the drain loop is on the call stack, not until the network writes complete.
+    private boolean draining;
+    private boolean closed;
 
     /**
      * Construct a new pipelining handler; this handler should be used downstream of HTTP decoding/aggregation.
@@ -75,37 +79,87 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     @Override
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) {
         assert msg instanceof HttpPipelinedResponse : "Invalid message type: " + msg.getClass();
-        HttpPipelinedResponse response = (HttpPipelinedResponse) msg;
-        boolean success = false;
-        try {
-            List<Tuple<HttpPipelinedResponse, ChannelPromise>> readyResponses = aggregator.write(response, promise);
-            for (Tuple<HttpPipelinedResponse, ChannelPromise> readyResponse : readyResponses) {
-                ctx.write(readyResponse.v1().getDelegateRequest(), readyResponse.v2());
-            }
-            success = true;
-        } catch (IllegalStateException e) {
-            ctx.channel().close();
-        } finally {
-            if (success == false) {
-                promise.setFailure(new ClosedChannelException());
-            }
+        assert ctx.executor().inEventLoop();
+        final HttpPipelinedResponse response = (HttpPipelinedResponse) msg;
+        // Prevent cancellation from releasing backing storage while queued. If cancellation already won, close:
+        // skipping a response would cause HTTP/1.1 clients to associate later responses with the wrong requests.
+        if (promise.setUncancellable() == false) {
+            rejectAndClose(ctx, response, promise);
+            return;
         }
+        if (closed || ctx.channel().isActive() == false) {
+            reject(response, promise, new ClosedChannelException());
+            return;
+        }
+        try {
+            aggregator.add(response, promise);
+        } catch (IllegalStateException e) {
+            logger.debug("closing HTTP connection: {}", e.getMessage());
+            rejectAndClose(ctx, response, promise);
+            return;
+        }
+        drainReadyResponses(ctx);
     }
 
     @Override
     public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
-        List<Tuple<HttpPipelinedResponse, ChannelPromise>> inflightResponses = aggregator.removeAllInflightResponses();
+        closePendingResponses(ctx);
+        ctx.close(promise);
+    }
 
-        if (inflightResponses.isEmpty() == false) {
-            ClosedChannelException closedChannelException = new ClosedChannelException();
-            for (Tuple<HttpPipelinedResponse, ChannelPromise> inflightResponse : inflightResponses) {
-                try {
-                    inflightResponse.v2().setFailure(closedChannelException);
-                } catch (RuntimeException e) {
-                    logger.error("unexpected error while releasing pipelined http responses", e);
+    @Override
+    public void handlerRemoved(ChannelHandlerContext ctx) {
+        // A closed channel's pipeline is destroyed after unregistration, even when an earlier handler consumes
+        // channelInactive or initiates closure before this handler.
+        closePendingResponses(ctx);
+    }
+
+    private void drainReadyResponses(ChannelHandlerContext ctx) {
+        // A synchronous outbound handler can reenter write() during handoff. The active drain must
+        // pick up that queued response so it cannot overtake the response currently being forwarded.
+        if (draining) {
+            return;
+        }
+        draining = true;
+        try {
+            while (closed == false) {
+                final Tuple<HttpPipelinedResponse, ChannelPromise> next = aggregator.poll();
+                if (next == null) {
+                    return;
                 }
+                // Poll one at a time so a reentrant close can still release all responses not yet handed to Netty.
+                ctx.write(next.v1().getDelegateResponse(), next.v2());
+            }
+        } finally {
+            draining = false;
+        }
+    }
+
+    private void rejectAndClose(ChannelHandlerContext ctx, HttpPipelinedResponse response, ChannelPromise promise) {
+        closePendingResponses(ctx);
+        // This response was never queued, so closePendingResponses() could not release it.
+        reject(response, promise, new ClosedChannelException());
+        ctx.close();
+    }
+
+    private void closePendingResponses(ChannelHandlerContext ctx) {
+        assert ctx.executor().inEventLoop();
+        if (closed) {
+            return;
+        }
+        // Set the terminal state before invoking listeners, which can reenter write() or close().
+        closed = true;
+        List<Tuple<HttpPipelinedResponse, ChannelPromise>> pending = aggregator.removeAllInflightResponses();
+        if (pending.isEmpty() == false) {
+            ClosedChannelException failure = new ClosedChannelException();
+            for (Tuple<HttpPipelinedResponse, ChannelPromise> next : pending) {
+                reject(next.v1(), next.v2(), failure);
             }
         }
-        ctx.close(promise);
+    }
+
+    private static void reject(HttpPipelinedResponse response, ChannelPromise promise, ClosedChannelException failure) {
+        ReferenceCountUtil.safeRelease(response.getDelegateResponse());
+        promise.tryFailure(failure);
     }
 }

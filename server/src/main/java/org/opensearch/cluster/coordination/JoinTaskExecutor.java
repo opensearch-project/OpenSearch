@@ -39,7 +39,10 @@ import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.decommission.NodeDecommissionedException;
+import org.opensearch.cluster.metadata.ComponentTemplate;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -54,6 +57,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.persistent.PersistentTasksCustomMetadata;
+import org.opensearch.search.internal.AliasFilter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -68,6 +72,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
@@ -246,6 +251,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                     // we have to reject nodes that don't support all indices we have in this cluster
                     ensureIndexCompatibility(node.getVersion(), currentState.getMetadata());
+                    ensureScoringModeCompatibility(node.getVersion(), currentState.getMetadata());
                     // we have added the same check in handleJoinRequest method and adding it here as this method
                     // would guarantee that a decommissioned node would never be able to join the cluster and ensures correctness
                     ensureNodeCommissioned(node, currentState.metadata());
@@ -430,6 +436,37 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
      */
     public static Task newFinishElectionTask() {
         return new Task(null, Task.FINISH_ELECTION_TASK_REASON);
+    }
+
+    /**
+     * Rejects a node that cannot read the scoring mode of an alias stored in the cluster, because it would drop the
+     * mode from every state it receives or publishes.
+     *
+     * @param nodeVersion the version of the joining node
+     * @param metadata the cluster metadata
+     * @throws IllegalStateException if an index alias or template sets a scoring mode and the node predates it
+     */
+    public static void ensureScoringModeCompatibility(final Version nodeVersion, Metadata metadata) {
+        if (nodeVersion.onOrAfter(AliasFilter.SCORING_MODE_VERSION)) {
+            return;
+        }
+        final Supplier<Version> version = () -> nodeVersion;
+        try {
+            for (IndexMetadata index : metadata) {
+                AliasFilter.ensureScoringModesSupported(index.getAliases(), version);
+            }
+            for (IndexTemplateMetadata template : metadata.templates().values()) {
+                AliasFilter.ensureScoringModesSupported(template.aliases(), version);
+            }
+            for (ComponentTemplate template : metadata.componentTemplates().values()) {
+                AliasFilter.ensureScoringModesSupported(template.template(), version);
+            }
+            for (ComposableIndexTemplate template : metadata.templatesV2().values()) {
+                AliasFilter.ensureScoringModesSupported(template.template(), version);
+            }
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("node version [" + nodeVersion + "] cannot join: " + e.getMessage(), e);
+        }
     }
 
     /**
