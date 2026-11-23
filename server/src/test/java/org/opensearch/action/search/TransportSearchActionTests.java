@@ -170,9 +170,11 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -2118,5 +2120,81 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         assertThat(failure.get(), instanceOf(OpenSearchRejectedExecutionException.class));
         assertFalse("onRequestStart must not run for a rejected request", requestStarted.get());
         verify(workloadGroupService).rejectIfNeeded(eq("test-workload-group"));
+    }
+
+    public void testParentTaskIsFoundOnItsOwnNode() {
+        TaskManager taskManager = mock(TaskManager.class);
+        Task parentTask = new Task(7L, "transport", "some/parent/action", "", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+        when(taskManager.getTask(7L)).thenReturn(parentTask);
+        TransportSearchAction action = actionForParentTaskLookup(taskManager);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.setParentTask(new TaskId(LOCAL_NODE_ID, 7L));
+
+        assertSame(parentTask, action.extractParentTask(searchRequest));
+    }
+
+    // Task ids are only unique per node. A parent on another node must not be matched to the local task
+    // that happens to have the same number, so the local task manager is not even asked.
+    public void testParentTaskOnAnotherNodeIsNotMatchedToALocalTaskWithTheSameId() {
+        TaskManager taskManager = mock(TaskManager.class);
+        Task unrelatedLocalTask = new Task(7L, "transport", "some/other/action", "", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+        when(taskManager.getTask(7L)).thenReturn(unrelatedLocalTask);
+        TransportSearchAction action = actionForParentTaskLookup(taskManager);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.setParentTask(new TaskId("another-node-id", 7L));
+
+        assertNull(action.extractParentTask(searchRequest));
+        verify(taskManager, never()).getTask(anyLong());
+    }
+
+    public void testSearchWithoutAParentTaskHasNone() {
+        TaskManager taskManager = mock(TaskManager.class);
+        TransportSearchAction action = actionForParentTaskLookup(taskManager);
+
+        assertNull(action.extractParentTask(new SearchRequest()));
+        verify(taskManager, never()).getTask(anyLong());
+    }
+
+    public void testParentTaskThatIsNoLongerRegisteredIsNotFound() {
+        TaskManager taskManager = mock(TaskManager.class);
+        when(taskManager.getTask(7L)).thenReturn(null);
+        TransportSearchAction action = actionForParentTaskLookup(taskManager);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.setParentTask(new TaskId(LOCAL_NODE_ID, 7L));
+
+        assertNull(action.extractParentTask(searchRequest));
+    }
+
+    /** A {@link TransportSearchAction} on a node with id {@link #LOCAL_NODE_ID} whose tasks {@code taskManager} tracks. */
+    private TransportSearchAction actionForParentTaskLookup(TaskManager taskManager) {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        when(clusterService.localNode()).thenReturn(new DiscoveryNode(LOCAL_NODE_ID, buildNewFakeTransportAddress(), Version.CURRENT));
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getTaskManager()).thenReturn(taskManager);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+        return new TransportSearchAction(
+            mock(NodeClient.class),
+            threadPool,
+            mock(CircuitBreakerService.class),
+            transportService,
+            mock(SearchService.class),
+            mock(SearchTransportService.class),
+            new SearchPhaseController(namedWriteableRegistry, (searchSourceBuilder) -> null),
+            clusterService,
+            mock(ActionFilters.class),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            namedWriteableRegistry,
+            mock(SearchPipelineService.class),
+            mock(MetricsRegistry.class),
+            new SearchRequestOperationsCompositeListenerFactory(),
+            NoopTracer.INSTANCE,
+            mock(TaskResourceTrackingService.class),
+            mock(IndicesService.class),
+            SearchExecutionGate.NOOP,
+            SearchCancelAfterTimeIntervalResolver.NOOP
+        );
     }
 }
