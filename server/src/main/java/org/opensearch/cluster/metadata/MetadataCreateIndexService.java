@@ -114,6 +114,7 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -662,8 +663,48 @@ public class MetadataCreateIndexService {
         // Set up everything, now locally create the index to see that things are ok, and apply
         IndexMetadata tempMetadata = tmpImdBuilder.build();
         validateActiveShardCount(request.waitForActiveShards(), tempMetadata);
+        // checked on the settings after templates, which can also set ingestion params
+        validateIngestionWriteSettingsVersion(aggregatedIndexSettings, clusterState);
+        validateIngestionWriteParams(aggregatedIndexSettings);
 
         return tempMetadata;
+    }
+
+    /**
+     * Ingestion write settings were introduced in V_3_11_0. Reject them on mixed clusters, where older nodes do not
+     * recognise the keys and would fail to create the index.
+     */
+    static void validateIngestionWriteSettingsVersion(Settings settings, ClusterState state) {
+        boolean hasWriteSettings = settings.keySet()
+            .stream()
+            .anyMatch(
+                key -> IndexMetadata.INGESTION_SOURCE_WRITE_ENABLED_SETTING.match(key)
+                    || IndexMetadata.INGESTION_SOURCE_WRITE_PARAMS_SETTING.match(key)
+            );
+        if (hasWriteSettings == false) {
+            return;
+        }
+        Version minNodeVersion = state.nodes().getMinNodeVersion();
+        if (minNodeVersion.before(Version.V_3_11_0)) {
+            throw new IllegalArgumentException(
+                "index.ingestion_source.write.* settings require all nodes in the cluster to be on version ["
+                    + Version.V_3_11_0
+                    + "] or later, but the minimum node version is ["
+                    + minNodeVersion
+                    + "]"
+            );
+        }
+    }
+
+    /**
+     * Rejects ingestion write params that repeat a param, so that writes go to the stream the index reads.
+     * See {@link IngestionSource#getWriterParams()}.
+     */
+    static void validateIngestionWriteParams(Settings settings) {
+        IngestionSource.validateWriteParams(
+            IndexMetadata.INGESTION_SOURCE_PARAMS_SETTING.getAsMap(settings),
+            IndexMetadata.INGESTION_SOURCE_WRITE_PARAMS_SETTING.getAsMap(settings)
+        );
     }
 
     /**
@@ -1205,6 +1246,7 @@ public class MetadataCreateIndexService {
      * Also validates that mapper_settings keys are recognized for the configured mapper_type.
      */
     static void validateIngestionSourceSettings(Settings settings, ClusterState state) {
+        validateIngestionWriteSettingsVersion(settings, state);
         // Partition strategy validation. The setting key itself was introduced in V_3_7_0; reject any explicit
         // value (including [simple], the default) on mixed clusters where some nodes don't recognize the key.
         // And in that case the index metadata replicated to older nodes would carry unknown settings.
@@ -1523,6 +1565,7 @@ public class MetadataCreateIndexService {
                 .searchRouting(alias.searchRouting())
                 .writeIndex(alias.writeIndex())
                 .isHidden(alias.isHidden())
+                .scoringMode(alias.scoringMode())
                 .build();
             resolvedAliases.add(aliasMetadata);
         }
@@ -1730,6 +1773,9 @@ public class MetadataCreateIndexService {
         validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
         validateContext(request);
         validateIngestionSourceSettings(request.settings(), state);
+        for (Alias alias : request.aliases()) {
+            AliasFilter.ensureScoringModeSupported(alias.name(), alias.scoringMode(), () -> state.nodes().getMinNodeVersion());
+        }
     }
 
     public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)

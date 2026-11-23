@@ -1,0 +1,82 @@
+---
+"Describe index settings without any index":
+  - skip:
+      version: " - 3.10.99"
+      reason: "Index settings describe API introduced in 3.11.0"
+  - do:
+      indices.describe_settings:
+        settings: "index.number_of_replicas,index.number_of_shards,index.refresh_interval,index.unknown"
+  - match: { settings.index\.number_of_replicas.dynamic: true }
+  - match: { settings.index\.number_of_replicas.default: "1" }
+  - match: { settings.index\.number_of_replicas.validation.type: "integer" }
+  - match: { settings.index\.number_of_replicas.validation.min: "0" }
+  - match: { settings.index\.number_of_shards.dynamic: false }
+  - match: { settings.index\.number_of_shards.validation.type: "integer" }
+  - match: { settings.index\.number_of_shards.validation.min: "1" }
+  - match: { settings.index\.refresh_interval.dynamic: true }
+  - match: { settings.index\.refresh_interval.default: "1s" }
+  - is_false: settings.index\.unknown
+  - length: { settings: 3 }
+---
+"Definitions do not change when an index exists":
+  - skip:
+      version: " - 3.10.99"
+      reason: "Index settings describe API introduced in 3.11.0"
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards: 3
+            number_of_replicas: 0
+  - do:
+      indices.describe_settings:
+        settings: "index.number_of_shards,index.number_of_replicas"
+  - match: { settings.index\.number_of_shards.dynamic: false }
+  - match: { settings.index\.number_of_replicas.dynamic: true }
+  - match: { settings.index\.number_of_replicas.default: "1" }
+  - length: { settings: 2 }
+---
+"There is no per-index form":
+  - skip:
+      version: " - 3.10.99"
+      reason: "Index settings describe API introduced in 3.11.0"
+  # Describe lives at /_index/_settings/_describe only. /{index}/_settings/{name} belongs to indices.get_settings, which
+  # treats _describe as a setting-name filter that matches nothing, so the response is an empty object, not a definition.
+  - do:
+      indices.create:
+        index: per_index_form
+  - do:
+      indices.get_settings:
+        index: per_index_form
+        name: _describe
+  - is_false: per_index_form
+  - is_false: settings
+---
+"Expand a prefix":
+  - skip:
+      version: " - 3.10.99"
+      reason: "Index settings describe API introduced in 3.11.0"
+  - do:
+      indices.describe_settings:
+        settings: "index.unassigned.node_left.*"
+  - match: { settings.index\.unassigned\.node_left\.delayed_timeout.dynamic: true }
+  - match: { settings.index\.unassigned\.node_left\.delayed_timeout.default: "1m" }
+  - length: { settings: 1 }
+---
+"Reject wildcard shapes other than a trailing prefix":
+  - skip:
+      version: " - 3.10.99"
+      reason: "Index settings describe API introduced in 3.11.0"
+  - do:
+      catch: bad_request
+      indices.describe_settings:
+        settings: "*"
+  - do:
+      catch: bad_request
+      indices.describe_settings:
+        settings: "index.*.enabled"
+  - do:
+      catch: bad_request
+      indices.describe_settings:
+        settings: "index.?"

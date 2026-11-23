@@ -10,15 +10,14 @@ package org.opensearch.action.admin.cluster.settings;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.common.settings.AbstractScopedSettings;
+import org.opensearch.common.settings.SettingsDescriber;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-import static org.opensearch.action.ValidateActions.addValidationError;
-
-/** Requests definitions for exact cluster setting names.
+/** Requests definitions for cluster setting names, given exactly or as a single trailing-wildcard prefix such as
+ * {@code cluster.routing.allocation.*}. The whole result is returned in one response, in ascending key order.
  * @opensearch.internal
  */
 public class ClusterDescribeSettingsRequest extends ActionRequest {
@@ -45,20 +44,6 @@ public class ClusterDescribeSettingsRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException exception = null;
-        if (names.length == 0) {
-            exception = addValidationError("settings must contain at least one exact setting name", exception);
-        }
-        for (String name : names) {
-            if (name == null
-                || name.isBlank()
-                || name.contains("*")
-                || name.contains("?")
-                || AbstractScopedSettings.isValidKey(name) == false) {
-                exception = addValidationError("settings must contain exact setting names, without wildcards", exception);
-                break;
-            }
-        }
-        return exception;
+        return SettingsDescriber.validateNames(names, "cluster.routing.allocation.*");
     }
 }

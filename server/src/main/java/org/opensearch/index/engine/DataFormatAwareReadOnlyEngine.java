@@ -75,6 +75,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -91,7 +92,7 @@ import java.util.function.Supplier;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class DataFormatAwareReadOnlyEngine implements Indexer {
+public class DataFormatAwareReadOnlyEngine implements Indexer, SearcherSupplierProvider {
 
     private final Logger logger;
     private final EngineConfig engineConfig;
@@ -101,6 +102,7 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     // Core state
     private final CatalogSnapshotManager catalogSnapshotManager;
     private final Map<DataFormat, EngineReaderManager<?>> readerManagers;
+    private final DataFormatAwareSearcherSupport searcherSupport;
     private final LocalCheckpointTracker localCheckpointTracker;
     private final NoOpTranslogManager translogManager;
     private final Committer committer;
@@ -186,6 +188,7 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
             }
             readerManagersRef = Map.copyOf(aggregated);
             this.readerManagers = readerManagersRef;
+            this.searcherSupport = new DataFormatAwareSearcherSupport(shardId, engineConfig, readerManagers.keySet());
 
             // Register reader managers as BOTH files listeners and snapshot lifecycle listeners.
             // Files listeners make IndexFileDeleter fire onFilesAdded for the committed snapshot
@@ -312,6 +315,28 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
         // The reader holds a permanent snapshotRef for the engine's lifetime.
         // Callers must not release it — use a no-op close callback.
         return new GatedCloseable<>(reader, () -> {});
+    }
+
+    /**
+     * Builds a point-in-time searcher supplier so {@code _search} reaches a shard tiered to warm. Identical
+     * to {@link DataFormatAwareEngine#acquireSearcherSupplier}, so a warm shard serves searches the same way
+     * a hot one does.
+     *
+     * <p>{@link #acquireReader()} returns a no-op reference here, so the supplier pins the store and the
+     * Lucene reader itself; an open scroll or PIT keeps working after this engine closes.
+     */
+    @Override
+    public Engine.SearcherSupplier acquireSearcherSupplier(Function<Engine.Searcher, Engine.Searcher> wrapper, Engine.SearcherScope scope) {
+        // One point-in-time view per catalog snapshot, so there is no separate INTERNAL reader; IndexShard only asks for EXTERNAL.
+        assert scope == Engine.SearcherScope.EXTERNAL : "unexpected searcher scope " + scope;
+        ensureOpen();
+        final GatedCloseable<Reader> readerRef;
+        try {
+            readerRef = acquireReader();
+        } catch (IOException e) {
+            throw new EngineException(shardId, "failed to acquire reader for searcher", e);
+        }
+        return searcherSupport.acquireSearcherSupplier(readerRef, wrapper);
     }
 
     // ---- IndexerEngineOperations (Task 3 — write rejection) ----

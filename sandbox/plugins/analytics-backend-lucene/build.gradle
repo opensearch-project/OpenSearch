@@ -77,7 +77,7 @@ dependencies {
     calciteCompile "com.google.guava:guava:${versions.guava}"
     calciteTestCompile "com.google.guava:guava:${versions.guava}"
     testRuntimeOnly "com.google.guava:guava:${versions.guava}"
-    testRuntimeOnly 'com.google.guava:failureaccess:1.0.2'
+    testRuntimeOnly 'com.google.guava:failureaccess:1.0.3'
     // AggregateFunction's <clinit> instantiates ArrowType.Int, whose generated FlatBuffers
     // schema descends from com.google.flatbuffers.Table. arrow-format / flatbuffers are
     // provided at runtime by analytics-engine in production but not on the unit-test JVM.
