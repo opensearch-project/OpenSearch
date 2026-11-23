@@ -15,7 +15,6 @@ import org.opensearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.util.Base64;
-import java.util.Random;
 
 import static org.hamcrest.Matchers.equalTo;
 
