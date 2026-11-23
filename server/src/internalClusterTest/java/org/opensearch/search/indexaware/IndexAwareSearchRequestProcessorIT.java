@@ -13,26 +13,33 @@ import org.opensearch.action.search.CreatePitRequest;
 import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.action.search.DeletePitAction;
 import org.opensearch.action.search.DeletePitRequest;
+import org.opensearch.action.search.DeleteSearchPipelineRequest;
 import org.opensearch.action.search.MultiSearchResponse;
+import org.opensearch.action.search.PutSearchPipelineRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.query.InnerHitBuilder;
+import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -41,6 +48,9 @@ import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseBuilder;
+import org.opensearch.search.pipeline.AbstractProcessor;
+import org.opensearch.search.pipeline.Processor;
+import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
@@ -60,6 +70,7 @@ import static java.util.Collections.singletonList;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Runs {@link IndexAwareSearchRequestProcessor}s registered by test plugins through real searches on a
@@ -91,7 +102,8 @@ public class IndexAwareSearchRequestProcessorIT extends OpenSearchIntegTestCase 
             TestIndexAwareSearchRequestProcessorPlugin.class,
             NestedSearchTriggeringPlugin.class,
             MarkerObservingPlugin.class,
-            FailingOnTriggerPlugin.class
+            FailingOnTriggerPlugin.class,
+            BeforePipelineRewritingPlugin.class
         );
     }
 
@@ -262,6 +274,38 @@ public class IndexAwareSearchRequestProcessorIT extends OpenSearchIntegTestCase 
         });
     }
 
+    // --- stages ---
+
+    // A BEFORE_PIPELINE processor runs ahead of the request's search pipeline: the pipeline's own request
+    // processor, an ordinary SearchRequestProcessor, sees the query the index-aware processor produced.
+    public void testBeforePipelineProcessorRunsAheadOfTheSearchPipeline() throws Exception {
+        withQueryRecordingPipeline(pipelineId -> {
+            SearchRequest searchRequest = new SearchRequest(OPTED_OUT_INDEX).source(
+                new SearchSourceBuilder().query(QueryBuilders.matchQuery("title", BeforePipelineRewritingPlugin.TRIGGER))
+            );
+            searchRequest.pipeline(pipelineId);
+
+            SearchResponse response = client().search(searchRequest).actionGet();
+
+            assertThat(BeforePipelineRewritingPlugin.SEEN_BY_PIPELINE.get(), instanceOf(MatchAllQueryBuilder.class));
+            assertHitCount(response, REWRITTEN);
+        });
+    }
+
+    // The default stage is the other way round: the pipeline's request processor sees the query the
+    // caller wrote, and the index-aware processor rewrites it afterwards.
+    public void testAfterPipelineProcessorRunsBehindTheSearchPipeline() throws Exception {
+        withQueryRecordingPipeline(pipelineId -> {
+            SearchRequest searchRequest = new SearchRequest(OPTED_IN_INDEX).source(new SearchSourceBuilder().query(shoesQuery()));
+            searchRequest.pipeline(pipelineId);
+
+            SearchResponse response = client().search(searchRequest).actionGet();
+
+            assertThat(BeforePipelineRewritingPlugin.SEEN_BY_PIPELINE.get(), instanceOf(MatchQueryBuilder.class));
+            assertHitCount(response, REWRITTEN);
+        });
+    }
+
     // --- failures and side effects ---
 
     // A processor failure fails the search with the processor's exception, rather than running the
@@ -332,6 +376,27 @@ public class IndexAwareSearchRequestProcessorIT extends OpenSearchIntegTestCase 
             total += searchService.getIndexMappingSourceCache().size();
         }
         return total;
+    }
+
+    /**
+     * Runs {@code test} with the processors switched on and a search pipeline in place whose one request
+     * processor records the query it is given in {@link BeforePipelineRewritingPlugin#SEEN_BY_PIPELINE}.
+     */
+    private void withQueryRecordingPipeline(CheckedConsumer<String, Exception> test) throws Exception {
+        String pipelineId = "record-query-pipeline";
+        BytesArray pipeline = new BytesArray(
+            "{ \"request_processors\": [ { \"" + BeforePipelineRewritingPlugin.RECORD_QUERY_TYPE + "\": {} } ] }"
+        );
+        client().admin()
+            .cluster()
+            .putSearchPipeline(new PutSearchPipelineRequest(pipelineId, pipeline, MediaTypeRegistry.JSON))
+            .actionGet();
+        BeforePipelineRewritingPlugin.SEEN_BY_PIPELINE.set(null);
+        try {
+            withProcessorsEnabled(() -> test.accept(pipelineId));
+        } finally {
+            client().admin().cluster().deleteSearchPipeline(new DeleteSearchPipelineRequest(pipelineId)).actionGet();
+        }
     }
 
     /** Runs {@code test} with the processors switched on, and switches them off again whatever happens. */
@@ -520,6 +585,76 @@ public class IndexAwareSearchRequestProcessorIT extends OpenSearchIntegTestCase 
                     listener.onResponse(source);
                 }
             });
+        }
+    }
+
+    /**
+     * Registers two things that together show where a {@code BEFORE_PIPELINE} processor runs:
+     * <ul>
+     *   <li>an index-aware processor at {@code BEFORE_PIPELINE} that turns a {@code match} on {@code title}
+     *       for {@link #TRIGGER} into {@code match_all};</li>
+     *   <li>a search pipeline request processor type, {@link #RECORD_QUERY_TYPE}, that records the query
+     *       it is given.</li>
+     * </ul>
+     */
+    public static class BeforePipelineRewritingPlugin extends Plugin implements SearchPlugin, SearchPipelinePlugin {
+
+        static final String TRIGGER = "before_pipeline_trigger";
+        static final String RECORD_QUERY_TYPE = "record_query";
+        static final AtomicReference<QueryBuilder> SEEN_BY_PIPELINE = new AtomicReference<>();
+
+        @Override
+        public List<IndexAwareSearchRequestProcessor> getIndexAwareSearchRequestProcessors() {
+            return singletonList(new IndexAwareSearchRequestProcessor() {
+                @Override
+                public void process(SearchSourceBuilder source, IndexAwareContext context, ActionListener<SearchSourceBuilder> listener) {
+                    if (source.query() instanceof MatchQueryBuilder matchQuery
+                        && "title".equals(matchQuery.fieldName())
+                        && TRIGGER.equals(matchQuery.value())) {
+                        listener.onResponse(source.query(QueryBuilders.matchAllQuery()));
+                    } else {
+                        listener.onResponse(source);
+                    }
+                }
+
+                @Override
+                public ExecutionStage getExecutionStage() {
+                    return ExecutionStage.BEFORE_PIPELINE;
+                }
+            });
+        }
+
+        @Override
+        public Map<String, Processor.Factory<SearchRequestProcessor>> getRequestProcessors(Parameters parameters) {
+            return Map.of(
+                RECORD_QUERY_TYPE,
+                (processorFactories, tag, description, ignoreFailure, config, pipelineContext) -> new RecordQueryProcessor(
+                    tag,
+                    description,
+                    ignoreFailure
+                )
+            );
+        }
+    }
+
+    /** A search pipeline request processor that records the query of the request it is given. */
+    private static final class RecordQueryProcessor extends AbstractProcessor implements SearchRequestProcessor {
+
+        RecordQueryProcessor(String tag, String description, boolean ignoreFailure) {
+            super(tag, description, ignoreFailure);
+        }
+
+        @Override
+        public String getType() {
+            return BeforePipelineRewritingPlugin.RECORD_QUERY_TYPE;
+        }
+
+        @Override
+        public SearchRequest processRequest(SearchRequest request) {
+            if (request.source() != null) {
+                BeforePipelineRewritingPlugin.SEEN_BY_PIPELINE.set(request.source().query());
+            }
+            return request;
         }
     }
 }

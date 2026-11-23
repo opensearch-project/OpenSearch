@@ -19,9 +19,10 @@ import org.opensearch.search.builder.SearchSourceBuilder;
  * <p>
  * Processors are registered through {@link SearchPlugin#getIndexAwareSearchRequestProcessors()} and run
  * only while {@code search.index_aware_search_request_processors.enabled} is {@code true}. Each one runs
- * once per search request, after the request's search pipeline request processors and before the
- * coordinator query rewrite. Whatever a processor produces is therefore rewritten and sent to the shards
- * like a request the caller had written that way.
+ * once per search request, before the coordinator query rewrite: by default after the request's search
+ * pipeline request processors, or before them if the processor asks for that with
+ * {@link #getExecutionStage()}. Whatever a processor produces is therefore rewritten and sent to the
+ * shards like a request the caller had written that way.
  * <p>
  * An index-aware processor differs from a search pipeline request processor in two ways:
  * <ul>
@@ -103,8 +104,9 @@ public interface IndexAwareSearchRequestProcessor {
      * <b>Thread context.</b> The search continues in the thread context {@code process} was called in,
      * whichever thread and context the listener is completed from.
      *
-     * @param source   the search request's source, as left by the request's search pipeline and by any
-     *                 processor that ran before this one
+     * @param source   the search request's source, as left by whatever ran before this processor: the
+     *                 request's search pipeline, for an {@link ExecutionStage#AFTER_PIPELINE} processor,
+     *                 and any processor of the same stage that was registered earlier
      * @param context  the indices the request targets, their metadata and mappings, and request-level
      *                 information
      * @param listener receives the source to continue with: {@code source} itself, changed or not, or a
@@ -165,5 +167,36 @@ public interface IndexAwareSearchRequestProcessor {
      */
     default String getName() {
         return getClass().getSimpleName();
+    }
+
+    /**
+     * When this processor runs relative to the request's search pipeline.
+     * <p>
+     * A {@link ExecutionStage#BEFORE_PIPELINE} processor is given a context resolved from the request as
+     * the caller sent it. If a search pipeline request processor then changes which indices the request
+     * targets, that context no longer describes the indices the search runs against.
+     *
+     * @return {@link ExecutionStage#AFTER_PIPELINE} by default
+     */
+    default ExecutionStage getExecutionStage() {
+        return ExecutionStage.AFTER_PIPELINE;
+    }
+
+    /**
+     * When a processor runs relative to the request's search pipeline. The pipeline here is everything
+     * search pipelines do to a request: the pipeline the request names or its indices default to, and the
+     * system-generated processors that run before and after it.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    enum ExecutionStage {
+        /** Before the search pipeline, whose request processors then see what this processor produced. */
+        BEFORE_PIPELINE,
+        /**
+         * After the search pipeline and before the coordinator query rewrite. The processor sees what the
+         * pipeline's request processors produced.
+         */
+        AFTER_PIPELINE
     }
 }

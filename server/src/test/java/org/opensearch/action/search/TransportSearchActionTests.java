@@ -114,6 +114,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.search.indexaware.IndexAwareContext;
 import org.opensearch.search.indexaware.IndexAwareSearchRequestProcessor;
+import org.opensearch.search.indexaware.IndexAwareSearchRequestProcessor.ExecutionStage;
 import org.opensearch.search.indexaware.IndexMappingSourceCache;
 import org.opensearch.search.indexaware.SubSearchMarker;
 import org.opensearch.search.internal.AliasFilter;
@@ -2791,6 +2792,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 null,
                 null,
                 new SearchTimeProvider(0, 0, () -> 0),
+                ExecutionStage.AFTER_PIPELINE,
                 ActionListener.wrap(response -> fail("the hook never completes the request with a response"), failures::add),
                 () -> {
                     continuationRuns.incrementAndGet();
@@ -2818,6 +2820,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 null,
                 null,
                 new SearchTimeProvider(0, 0, () -> 0),
+                ExecutionStage.AFTER_PIPELINE,
                 ActionListener.wrap(response -> fail("the hook never completes the request with a response"), e -> {
                     failure.set(e);
                     failed.countDown();
@@ -2924,6 +2927,81 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         });
     }
 
+    // --- stages ---
+
+    // One processor per stage is registered. Running the BEFORE_PIPELINE stage runs only its processor.
+    public void testBeforePipelineStageRunsOnlyBeforePipelineIndexAwareProcessors() {
+        withIndexAwareFixture(fixture -> {
+            AtomicInteger beforeInvocations = new AtomicInteger();
+            AtomicInteger afterInvocations = new AtomicInteger();
+            fixture.register(beforePipeline(counting(beforeInvocations)), counting(afterInvocations));
+
+            fixture.apply(
+                new SearchRequest("my-index").source(new SearchSourceBuilder()),
+                null,
+                null,
+                ExecutionStage.BEFORE_PIPELINE,
+                () -> {}
+            ).assertCompleted();
+
+            assertEquals(1, beforeInvocations.get());
+            assertEquals(0, afterInvocations.get());
+        });
+    }
+
+    // The same two processors: running the AFTER_PIPELINE stage runs only the one that kept the default.
+    public void testAfterPipelineStageRunsOnlyAfterPipelineIndexAwareProcessors() {
+        withIndexAwareFixture(fixture -> {
+            AtomicInteger beforeInvocations = new AtomicInteger();
+            AtomicInteger afterInvocations = new AtomicInteger();
+            fixture.register(beforePipeline(counting(beforeInvocations)), counting(afterInvocations));
+
+            fixture.apply(
+                new SearchRequest("my-index").source(new SearchSourceBuilder()),
+                null,
+                null,
+                ExecutionStage.AFTER_PIPELINE,
+                () -> {}
+            ).assertCompleted();
+
+            assertEquals(0, beforeInvocations.get());
+            assertEquals(1, afterInvocations.get());
+        });
+    }
+
+    // A stage none of the registered processors asked for leaves the request alone, like an empty list.
+    public void testStageWithoutIndexAwareProcessorsLeavesTheRequestAlone() {
+        withIndexAwareFixture(fixture -> {
+            AtomicInteger afterInvocations = new AtomicInteger();
+            fixture.register(counting(afterInvocations));
+            SearchSourceBuilder original = new SearchSourceBuilder();
+            SearchRequest searchRequest = new SearchRequest("my-index").source(original);
+
+            fixture.apply(searchRequest, null, null, ExecutionStage.BEFORE_PIPELINE, () -> {}).assertCompleted();
+
+            assertSame(original, searchRequest.source());
+            assertEquals(0, afterInvocations.get());
+            verify(fixture.clusterService, never()).state();
+        });
+    }
+
+    // Both stages share the failure handling: a BEFORE_PIPELINE processor that throws fails the search.
+    public void testBeforePipelineIndexAwareProcessorThatThrowsFailsTheSearch() {
+        withIndexAwareFixture(fixture -> {
+            fixture.register(beforePipeline((source, context, listener) -> { throw new RuntimeException("before-pipeline boom"); }));
+
+            HookOutcome outcome = fixture.apply(
+                new SearchRequest("my-index").source(new SearchSourceBuilder()),
+                null,
+                null,
+                ExecutionStage.BEFORE_PIPELINE,
+                () -> {}
+            );
+
+            assertEquals("before-pipeline boom", outcome.assertFailed().getMessage());
+        });
+    }
+
     // --- fixture and helpers for the index-aware processor tests ---
 
     /** What one call to {@code maybeApplyIndexAwareSearchRequestProcessors} led to. */
@@ -2979,14 +3057,20 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             return apply(searchRequest, task, parentTask, () -> {});
         }
 
-        /** Runs the hook; {@code continuation} stands in for the rest of the search. */
+        /** Runs the hook's default stage; {@code continuation} stands in for the rest of the search. */
         HookOutcome apply(SearchRequest searchRequest, Task task, Task parentTask, Runnable continuation) {
+            return apply(searchRequest, task, parentTask, ExecutionStage.AFTER_PIPELINE, continuation);
+        }
+
+        /** Runs one stage of the hook; {@code continuation} stands in for what the search does next. */
+        HookOutcome apply(SearchRequest searchRequest, Task task, Task parentTask, ExecutionStage stage, Runnable continuation) {
             HookOutcome outcome = new HookOutcome();
             action.maybeApplyIndexAwareSearchRequestProcessors(
                 searchRequest,
                 task,
                 parentTask,
                 new SearchTimeProvider(0, 0, () -> 0),
+                stage,
                 ActionListener.wrap(response -> fail("the hook never completes the request with a response"), e -> {
                     outcome.failure.set(e);
                     outcome.done.countDown();
@@ -3154,6 +3238,21 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             @Override
             public boolean mayApplyTo(SearchSourceBuilder source) {
                 return false;
+            }
+        };
+    }
+
+    /** {@code delegate}, running before the search pipeline instead of after it. */
+    private static IndexAwareSearchRequestProcessor beforePipeline(IndexAwareSearchRequestProcessor delegate) {
+        return new IndexAwareSearchRequestProcessor() {
+            @Override
+            public void process(SearchSourceBuilder source, IndexAwareContext context, ActionListener<SearchSourceBuilder> listener) {
+                delegate.process(source, context, listener);
+            }
+
+            @Override
+            public ExecutionStage getExecutionStage() {
+                return ExecutionStage.BEFORE_PIPELINE;
             }
         };
     }

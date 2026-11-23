@@ -636,14 +636,35 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         );
                     }
                 };
-                maybeApplyIndexAwareSearchRequestProcessors(sr, task, parentTask, timeProvider, listener, continueWithRewrite);
+                maybeApplyIndexAwareSearchRequestProcessors(
+                    sr,
+                    task,
+                    parentTask,
+                    timeProvider,
+                    IndexAwareSearchRequestProcessor.ExecutionStage.AFTER_PIPELINE,
+                    listener,
+                    continueWithRewrite
+                );
             }, listener::onFailure);
-            try {
-                searchRequest.transformRequest(requestTransformListener);
-            } catch (Exception e) {
-                // Same listener as the async failure path; it wraps updatedListener, so the permit is still released.
-                listener.onFailure(e);
-            }
+            // transformRequest runs the whole search pipeline: the system-generated processors before the
+            // user's pipeline, that pipeline, and those after it. BEFORE_PIPELINE processors come first.
+            final Runnable runPipelineThenRewrite = () -> {
+                try {
+                    searchRequest.transformRequest(requestTransformListener);
+                } catch (Exception e) {
+                    // Same listener as the async failure path; it wraps updatedListener, so the permit is still released.
+                    listener.onFailure(e);
+                }
+            };
+            maybeApplyIndexAwareSearchRequestProcessors(
+                searchRequest,
+                task,
+                parentTask,
+                timeProvider,
+                IndexAwareSearchRequestProcessor.ExecutionStage.BEFORE_PIPELINE,
+                listener,
+                runPipelineThenRewrite
+            );
         }
     }
 
@@ -680,11 +701,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Runs the registered {@link IndexAwareSearchRequestProcessor}s on {@code searchRequest}'s source,
-     * then calls {@code onComplete}.
+     * Runs the registered {@link IndexAwareSearchRequestProcessor}s of one {@code stage} on
+     * {@code searchRequest}'s source, then calls {@code onComplete}.
      * <p>
-     * This is the last step before the coordinator query rewrite. The request's search pipeline has
-     * already run, so processors see the source it left, and the rewrite sees the source they leave.
+     * A search calls this twice. First for {@code BEFORE_PIPELINE}, with a continuation that runs the
+     * request's search pipeline. Then for {@code AFTER_PIPELINE}, on the request the pipeline left, with a
+     * continuation that runs the coordinator query rewrite.
      * <p>
      * A request no processor runs for (see {@link #prepareIndexAwareDispatch}) is left untouched, and
      * {@code onComplete} is called on the calling thread. Otherwise the processors run one after another,
@@ -700,6 +722,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      *                      is internal
      * @param timeProvider  the search's time provider, so that a date-math index name resolves here as it
      *                      does when the search executes
+     * @param stage         which processors to run: those whose
+     *                      {@link IndexAwareSearchRequestProcessor#getExecutionStage()} is this stage
      * @param listener      the request's response listener; only its {@code onFailure} is used
      * @param onComplete    continues the search once the processors have run or been skipped
      */
@@ -709,6 +733,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Nullable Task task,
         @Nullable Task parentTask,
         SearchTimeProvider timeProvider,
+        IndexAwareSearchRequestProcessor.ExecutionStage stage,
         ActionListener<SearchResponse> listener,
         Runnable onComplete
     ) {
@@ -719,9 +744,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             onComplete.run();
             return;
         }
+        // The processors of this stage, in registration order. The list is as short as the number of
+        // plugins that register a processor.
+        final List<IndexAwareSearchRequestProcessor> atStage = new ArrayList<>(registered.size());
+        for (IndexAwareSearchRequestProcessor processor : registered) {
+            if (processor.getExecutionStage() == stage) {
+                atStage.add(processor);
+            }
+        }
+        if (atStage.isEmpty()) {
+            onComplete.run();
+            return;
+        }
         final IndexAwareDispatch dispatch;
         try {
-            dispatch = prepareIndexAwareDispatch(registered, searchRequest, task, parentTask, timeProvider);
+            dispatch = prepareIndexAwareDispatch(atStage, searchRequest, task, parentTask, timeProvider);
         } catch (Exception e) {
             // For example an index that does not exist: the same failure the search itself would report.
             listener.onFailure(e);
@@ -773,7 +810,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * </ol>
      * The source is copied last, once it is certain that a processor runs.
      *
-     * @param registered the registered processors; not empty
+     * @param registered the registered processors of the stage being run; not empty
      * @return what to run, or {@code null} if no processor runs for this request
      */
     private IndexAwareDispatch prepareIndexAwareDispatch(
