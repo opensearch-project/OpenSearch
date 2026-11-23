@@ -545,7 +545,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final List<IndexAwareSearchRequestProcessor> indexAwareSearchRequestProcessors;
 
-    private final IndexMappingSourceCache indexMappingSourceCache = new IndexMappingSourceCache();
+    private final IndexMappingSourceCache indexMappingSourceCache;
 
     private volatile boolean indexAwareSearchRequestProcessorsEnabled;
 
@@ -640,6 +640,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.pluginProfilers = pluginProfilers;
 
         this.indexAwareSearchRequestProcessors = indexAwareSearchRequestProcessors;
+        this.indexMappingSourceCache = new IndexMappingSourceCache(settings);
         this.indexAwareSearchRequestProcessorsEnabled = INDEX_AWARE_SEARCH_REQUEST_PROCESSORS_ENABLED_SETTING.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(
@@ -647,8 +648,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 this::setIndexAwareSearchRequestProcessorsEnabled
             );
         if (indexAwareSearchRequestProcessors.isEmpty() == false) {
-            // The mapping cache keeps one entry per index it has been asked about. Nothing else removes
-            // the entry of an index that has been deleted.
+            // The mapping cache keeps one entry per index it has been asked about, until its size bound evicts
+            // it. Drop the entry of a deleted index right away rather than leave it to the bound.
             clusterService.addListener(event -> {
                 for (Index deleted : event.indicesDeleted()) {
                     indexMappingSourceCache.remove(deleted);
@@ -683,8 +684,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * The node's cache of parsed index mappings, which backs
-     * {@link IndexAwareContext#getMappingSourceAsMap} for every search this node coordinates.
+     * The node's cache of parsed index field mappings, which backs
+     * {@link IndexAwareContext#getFieldMappings} for every search this node coordinates.
      */
     public IndexMappingSourceCache getIndexMappingSourceCache() {
         return indexMappingSourceCache;

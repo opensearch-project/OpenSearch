@@ -11,12 +11,16 @@ package org.opensearch.search.indexaware;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CyclicBarrier;
 
@@ -30,8 +34,8 @@ public class IndexMappingSourceCacheTests extends OpenSearchTestCase {
 
         // Two separate calls -- standing in for two separate requests, or two processors in one request --
         // for the same (index UUID, mapping version) must not re-parse: same cached instance back.
-        Map<String, Object> first = cache.getMappingSourceAsMap(metadata);
-        Map<String, Object> second = cache.getMappingSourceAsMap(metadata);
+        Map<String, Object> first = cache.getFieldMappings(metadata);
+        Map<String, Object> second = cache.getFieldMappings(metadata);
         assertSame(first, second);
     }
 
@@ -43,8 +47,8 @@ public class IndexMappingSourceCacheTests extends OpenSearchTestCase {
         IndexMetadata first = indexAt(UUID, 1, mapping);
         IndexMetadata second = indexAt(UUID, 1, mapping);
 
-        Map<String, Object> firstResult = cache.getMappingSourceAsMap(first);
-        Map<String, Object> secondResult = cache.getMappingSourceAsMap(second);
+        Map<String, Object> firstResult = cache.getFieldMappings(first);
+        Map<String, Object> secondResult = cache.getFieldMappings(second);
         assertSame(firstResult, secondResult);
     }
 
@@ -52,9 +56,9 @@ public class IndexMappingSourceCacheTests extends OpenSearchTestCase {
         IndexMappingSourceCache cache = new IndexMappingSourceCache();
         IndexMetadata v1 = indexAt(UUID, 1, Map.of("properties", Map.of("title", Map.of("type", "text"))));
         IndexMetadata v2 = indexAt(UUID, 2, Map.of("properties", Map.of("title", Map.of("type", "keyword"))));
-        cache.getMappingSourceAsMap(v1);
+        cache.getFieldMappings(v1);
 
-        Map<String, Object> resultV2 = cache.getMappingSourceAsMap(v2);
+        Map<String, Object> resultV2 = cache.getFieldMappings(v2);
 
         assertEquals("keyword", titleType(resultV2));
     }
@@ -64,9 +68,9 @@ public class IndexMappingSourceCacheTests extends OpenSearchTestCase {
         IndexMappingSourceCache cache = new IndexMappingSourceCache();
         IndexMetadata v1 = indexAt(UUID, 1, Map.of("properties", Map.of("title", Map.of("type", "text"))));
         IndexMetadata v2 = indexAt(UUID, 2, Map.of("properties", Map.of("title", Map.of("type", "keyword"))));
-        cache.getMappingSourceAsMap(v1);
+        cache.getFieldMappings(v1);
 
-        cache.getMappingSourceAsMap(v2);
+        cache.getFieldMappings(v2);
 
         assertEquals(1, cache.size());
     }
@@ -77,8 +81,8 @@ public class IndexMappingSourceCacheTests extends OpenSearchTestCase {
         IndexMetadata indexA = indexAt("uuid-a", 1, mapping);
         IndexMetadata indexB = indexAt("uuid-b", 1, mapping);
 
-        Map<String, Object> resultA = cache.getMappingSourceAsMap(indexA);
-        Map<String, Object> resultB = cache.getMappingSourceAsMap(indexB);
+        Map<String, Object> resultA = cache.getFieldMappings(indexA);
+        Map<String, Object> resultB = cache.getFieldMappings(indexB);
         assertNotSame(resultA, resultB);
         assertEquals(2, cache.size());
     }
@@ -90,8 +94,8 @@ public class IndexMappingSourceCacheTests extends OpenSearchTestCase {
         IndexMetadata text = indexWithoutUuid("text-index", Map.of("properties", Map.of("title", Map.of("type", "text"))));
         IndexMetadata keyword = indexWithoutUuid("keyword-index", Map.of("properties", Map.of("title", Map.of("type", "keyword"))));
 
-        Map<String, Object> textResult = cache.getMappingSourceAsMap(text);
-        Map<String, Object> keywordResult = cache.getMappingSourceAsMap(keyword);
+        Map<String, Object> textResult = cache.getFieldMappings(text);
+        Map<String, Object> keywordResult = cache.getFieldMappings(keyword);
 
         assertEquals("text", titleType(textResult));
         assertEquals("keyword", titleType(keywordResult));
@@ -106,7 +110,7 @@ public class IndexMappingSourceCacheTests extends OpenSearchTestCase {
             .numberOfReplicas(0)
             .build();
 
-        assertEquals(Collections.emptyMap(), cache.getMappingSourceAsMap(noMapping));
+        assertEquals(Collections.emptyMap(), cache.getFieldMappings(noMapping));
         assertEquals(0, cache.size());
     }
 
@@ -116,9 +120,9 @@ public class IndexMappingSourceCacheTests extends OpenSearchTestCase {
         IndexMappingSourceCache cache = new IndexMappingSourceCache();
         IndexMetadata v1 = indexAt(UUID, 1, Map.of("properties", Map.of("title", Map.of("type", "text"))));
         IndexMetadata v2 = indexAt(UUID, 2, Map.of("properties", Map.of("title", Map.of("type", "keyword"))));
-        cache.getMappingSourceAsMap(v2);
+        cache.getFieldMappings(v2);
 
-        Map<String, Object> resultV1 = cache.getMappingSourceAsMap(v1);
+        Map<String, Object> resultV1 = cache.getFieldMappings(v1);
 
         assertEquals("text", titleType(resultV1));
     }
@@ -128,11 +132,11 @@ public class IndexMappingSourceCacheTests extends OpenSearchTestCase {
         IndexMappingSourceCache cache = new IndexMappingSourceCache();
         IndexMetadata v1 = indexAt(UUID, 1, Map.of("properties", Map.of("title", Map.of("type", "text"))));
         IndexMetadata v2 = indexAt(UUID, 2, Map.of("properties", Map.of("title", Map.of("type", "keyword"))));
-        Map<String, Object> resultV2 = cache.getMappingSourceAsMap(v2);
+        Map<String, Object> resultV2 = cache.getFieldMappings(v2);
 
-        cache.getMappingSourceAsMap(v1);
+        cache.getFieldMappings(v1);
 
-        assertSame(resultV2, cache.getMappingSourceAsMap(v2));
+        assertSame(resultV2, cache.getFieldMappings(v2));
     }
 
     public void testConcurrentLookupsShareOneParsedMap() throws Exception {
@@ -150,7 +154,7 @@ public class IndexMappingSourceCacheTests extends OpenSearchTestCase {
                     throw new AssertionError(e);
                 }
                 for (int j = 0; j < 100; j++) {
-                    results.add(cache.getMappingSourceAsMap(metadata));
+                    results.add(cache.getFieldMappings(metadata));
                 }
             });
             workers.add(worker);
@@ -170,7 +174,7 @@ public class IndexMappingSourceCacheTests extends OpenSearchTestCase {
     public void testRemoveDropsADeletedIndex() {
         IndexMappingSourceCache cache = new IndexMappingSourceCache();
         IndexMetadata metadata = indexAt(UUID, 1, Map.of("properties", Map.of()));
-        cache.getMappingSourceAsMap(metadata);
+        cache.getFieldMappings(metadata);
         assertEquals(1, cache.size());
 
         cache.remove(metadata.getIndex());
@@ -181,52 +185,215 @@ public class IndexMappingSourceCacheTests extends OpenSearchTestCase {
     // tests below cover the map itself, a map nested in it, a list nested in it, and a map inside a list.
 
     public void testCachedMapIsUnmodifiable() {
-        Map<String, Object> source = new IndexMappingSourceCache().getMappingSourceAsMap(indexWithNestedMapping());
+        Map<String, Object> fields = new IndexMappingSourceCache().getFieldMappings(indexWithNestedMapping());
 
-        expectThrows(UnsupportedOperationException.class, () -> source.put("x", "y"));
+        expectThrows(UnsupportedOperationException.class, () -> fields.put("x", "y"));
     }
 
     public void testMapNestedInACachedMapIsUnmodifiable() {
-        Map<String, Object> source = new IndexMappingSourceCache().getMappingSourceAsMap(indexWithNestedMapping());
+        Map<String, Object> fields = new IndexMappingSourceCache().getFieldMappings(indexWithNestedMapping());
         @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>) source.get("properties");
+        Map<String, Object> title = (Map<String, Object>) fields.get("title");
 
-        expectThrows(UnsupportedOperationException.class, () -> properties.put("x", "y"));
+        expectThrows(UnsupportedOperationException.class, () -> title.put("x", "y"));
     }
 
     public void testListNestedInACachedMapIsUnmodifiable() {
-        Map<String, Object> source = new IndexMappingSourceCache().getMappingSourceAsMap(indexWithNestedMapping());
+        Map<String, Object> fields = new IndexMappingSourceCache().getFieldMappings(indexWithNestedMapping());
         @SuppressWarnings("unchecked")
-        List<Object> dynamicTemplates = (List<Object>) source.get("dynamic_templates");
+        List<Object> copyTo = (List<Object>) ((Map<String, Object>) fields.get("title")).get("copy_to");
 
-        expectThrows(UnsupportedOperationException.class, () -> dynamicTemplates.add("x"));
+        expectThrows(UnsupportedOperationException.class, () -> copyTo.add("x"));
     }
 
     public void testMapInsideAListOfACachedMapIsUnmodifiable() {
-        Map<String, Object> source = new IndexMappingSourceCache().getMappingSourceAsMap(indexWithNestedMapping());
+        Map<String, Object> fields = new IndexMappingSourceCache().getFieldMappings(indexWithNestedMapping());
         @SuppressWarnings("unchecked")
-        Map<String, Object> template = (Map<String, Object>) ((List<Object>) source.get("dynamic_templates")).get(0);
+        Map<String, Object> rule = (Map<String, Object>) ((List<Object>) ((Map<String, Object>) fields.get("embedding")).get("rules")).get(
+            0
+        );
 
-        expectThrows(UnsupportedOperationException.class, () -> template.put("x", "y"));
+        expectThrows(UnsupportedOperationException.class, () -> rule.put("x", "y"));
     }
 
-    /** The {@code type} of the {@code title} field in a parsed mapping. */
-    private static Object titleType(Map<String, Object> mappingSource) {
-        return ((Map<?, ?>) ((Map<?, ?>) mappingSource.get("properties")).get("title")).get("type");
+    // Only the properties section is cached: the rest of the mapping is not held in memory.
+    public void testOnlyFieldMappingsAreCached() {
+        Map<String, Object> fields = Map.of("title", Map.of("type", "text"));
+        IndexMetadata metadata = indexAt(
+            UUID,
+            1,
+            Map.of(
+                "dynamic",
+                "strict",
+                "_meta",
+                Map.of("owner", "search"),
+                "dynamic_templates",
+                List.of(Map.of("strings", Map.of("match_mapping_type", "string"))),
+                "properties",
+                fields
+            )
+        );
+
+        assertEquals(fields, new IndexMappingSourceCache().getFieldMappings(metadata));
     }
 
-    /** An index whose mapping has a nested map ({@code properties}) and a list of maps ({@code dynamic_templates}). */
+    public void testMappingWithoutFieldsIsEmpty() {
+        IndexMetadata metadata = indexAt(UUID, 1, Map.of("dynamic", "strict"));
+
+        assertEquals(Collections.emptyMap(), new IndexMappingSourceCache().getFieldMappings(metadata));
+    }
+
+    // A size of 0 caches nothing, and every lookup still gets the right fields.
+    public void testZeroSizeCachesNothing() {
+        IndexMappingSourceCache cache = new IndexMappingSourceCache(0);
+        IndexMetadata metadata = indexAt(UUID, 1, titleOfType("keyword"));
+
+        assertEquals("keyword", titleType(cache.getFieldMappings(metadata)));
+        assertEquals(0, cache.size());
+    }
+
+    public void testSizeSettingSetsTheBound() {
+        IndexMappingSourceCache cache = new IndexMappingSourceCache(
+            Settings.builder().put(IndexMappingSourceCache.SIZE_SETTING.getKey(), "0b").build()
+        );
+
+        cache.getFieldMappings(indexAt(UUID, 1, titleOfType("text")));
+
+        assertEquals(0, cache.size());
+    }
+
+    public void testSizeSettingDefaultsToOnePercentOfTheHeap() {
+        assertEquals(
+            new ByteSizeValue(JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 100).getBytes(),
+            IndexMappingSourceCache.SIZE_SETTING.get(Settings.EMPTY).getBytes(),
+            1
+        );
+    }
+
+    public void testEvictsBeyondTheSize() {
+        long oneEntry = weightOfOneEntry();
+        IndexMappingSourceCache cache = new IndexMappingSourceCache(2 * oneEntry);
+
+        cache.getFieldMappings(indexAt("uuid-a", 1, titleOfType("text")));
+        cache.getFieldMappings(indexAt("uuid-b", 1, titleOfType("text")));
+        cache.getFieldMappings(indexAt("uuid-c", 1, titleOfType("text")));
+
+        assertEquals(2, cache.size());
+        assertTrue(cache.weight() <= 2 * oneEntry);
+    }
+
+    // The entry evicted is the one used least recently, not the one inserted first.
+    public void testEvictsTheLeastRecentlyUsedIndex() {
+        IndexMappingSourceCache cache = new IndexMappingSourceCache(2 * weightOfOneEntry());
+        IndexMetadata a = indexAt("uuid-a", 1, titleOfType("text"));
+        IndexMetadata b = indexAt("uuid-b", 1, titleOfType("text"));
+        IndexMetadata c = indexAt("uuid-c", 1, titleOfType("text"));
+        cache.getFieldMappings(a);
+        cache.getFieldMappings(b);
+        cache.getFieldMappings(a);
+
+        cache.getFieldMappings(c);
+
+        assertFalse(cache.contains(b.getIndex()));
+        assertTrue(cache.contains(a.getIndex()));
+        assertTrue(cache.contains(c.getIndex()));
+    }
+
+    // Lucene's RamUsageEstimator#sizeOfObject looks one level into a map, so it would weigh a long value
+    // three levels down as a few bytes. The cache's own estimate counts it.
+    public void testWeightCountsDeeplyNestedValues() {
+        IndexMappingSourceCache cache = new IndexMappingSourceCache(Long.MAX_VALUE);
+        String longValue = "x".repeat(10_000);
+
+        cache.getFieldMappings(
+            indexAt(UUID, 1, Map.of("properties", Map.of("title", Map.of("fields", Map.of("raw", Map.of("meta", longValue))))))
+        );
+
+        assertTrue("weight " + cache.weight(), cache.weight() > longValue.length());
+    }
+
+    // An entry larger than the whole cache is not kept, but its caller still gets the fields.
+    public void testEntryLargerThanTheCacheIsNotKept() {
+        IndexMappingSourceCache cache = new IndexMappingSourceCache(weightOfOneEntry());
+        IndexMetadata large = indexAt(UUID, 1, Map.of("properties", Map.of("title", Map.of("type", "text", "meta", "x".repeat(10_000)))));
+
+        Map<String, Object> fields = cache.getFieldMappings(large);
+
+        assertEquals("text", titleType(fields));
+        assertEquals(0, cache.size());
+    }
+
+    // Many threads reading more indices than the cache holds: each gets its own index's fields, and the
+    // cache stays within its size.
+    public void testConcurrentLookupsBeyondTheSize() throws Exception {
+        long maxWeight = 5 * weightOfOneEntry();
+        int threads = 8;
+        IndexMappingSourceCache cache = new IndexMappingSourceCache(maxWeight);
+        List<IndexMetadata> indices = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            indices.add(indexAt("uuid-" + (char) ('a' + i), 1, titleOfType("type-" + (char) ('a' + i))));
+        }
+        CyclicBarrier start = new CyclicBarrier(threads);
+        List<Throwable> failures = new CopyOnWriteArrayList<>();
+        List<Thread> workers = new ArrayList<>();
+        for (int t = 0; t < threads; t++) {
+            // The test framework's Random belongs to the test thread: give each worker its own.
+            Random random = new Random(randomLong());
+            Thread worker = new Thread(() -> {
+                try {
+                    start.await();
+                    for (int j = 0; j < 500; j++) {
+                        int i = random.nextInt(indices.size());
+                        assertEquals("type-" + (char) ('a' + i), titleType(cache.getFieldMappings(indices.get(i))));
+                    }
+                } catch (Throwable e) {
+                    failures.add(e);
+                }
+            });
+            workers.add(worker);
+            worker.start();
+        }
+        for (Thread worker : workers) {
+            worker.join();
+        }
+        assertEquals(Collections.emptyList(), failures);
+        assertTrue("weight " + cache.weight(), cache.weight() <= maxWeight);
+    }
+
+    /** The {@code type} of the {@code title} field in a set of field mappings. */
+    private static Object titleType(Map<String, Object> fieldMappings) {
+        return ((Map<?, ?>) fieldMappings.get("title")).get("type");
+    }
+
+    /** The weight of one entry for a {@code uuid-?} index whose {@code title} is of a one-word type. */
+    private static long weightOfOneEntry() {
+        IndexMappingSourceCache probe = new IndexMappingSourceCache(Long.MAX_VALUE);
+        probe.getFieldMappings(indexAt("uuid-z", 1, titleOfType("text")));
+        return probe.weight();
+    }
+
+    /**
+     * An index whose fields include a nested map ({@code title}), a list ({@code copy_to}) and a list of
+     * maps ({@code rules}; no built-in field type has one, but a plugin's field type may).
+     */
     private static IndexMetadata indexWithNestedMapping() {
         return indexAt(
             UUID,
             1,
             Map.of(
                 "properties",
-                Map.of("title", Map.of("type", "text")),
-                "dynamic_templates",
-                List.of(Map.of("strings", Map.of("match_mapping_type", "string")))
+                Map.of(
+                    "title",
+                    Map.of("type", "text", "copy_to", List.of("all_text")),
+                    "embedding",
+                    Map.of("type", "plugin_type", "rules", List.of(Map.of("when", "always")))
+                )
             )
         );
+    }
+
+    private static Map<String, Object> titleOfType(String type) {
+        return Map.of("properties", Map.of("title", Map.of("type", type)));
     }
 
     private static IndexMetadata indexWithoutUuid(String name, Map<String, Object> mapping) {

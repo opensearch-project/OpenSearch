@@ -174,6 +174,7 @@ import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
+import org.opensearch.search.indexaware.IndexMappingSourceCache;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.streaming.FlushModeResolver;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
@@ -898,6 +899,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.QUERY_REWRITING_ENABLED_SETTING,
                 SearchService.QUERY_REWRITING_TERMS_THRESHOLD_SETTING,
                 SearchService.INDEX_AWARE_SEARCH_REQUEST_PROCESSORS_ENABLED_SETTING,
+                IndexMappingSourceCache.SIZE_SETTING,
                 FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT,
                 FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO,
                 FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT,

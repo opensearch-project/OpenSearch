@@ -29,7 +29,7 @@ import java.util.function.Predicate;
  * <p>
  * <b>Indices can disagree.</b> A request over an alias, a wildcard or a list of indices may target indices
  * that map the same field differently, or that do not all have it. {@link #getTargetIndices()} and
- * {@link #getMappingSourceAsMap(String)} are per index for that reason: a processor decides per index, and
+ * {@link #getFieldMappings(String)} are per index for that reason: a processor decides per index, and
  * must resolve a source that is correct for every index in the request, not only for the first one it
  * looks at.
  * <p>
@@ -91,22 +91,29 @@ public final class IndexAwareContext {
     }
 
     /**
-     * The mapping of one target index, parsed into a {@code Map}. The map comes from the node-level
-     * {@link IndexMappingSourceCache}, so it is parsed once per mapping version rather than once per
-     * request, and it is shared with every other request on the node: it is unmodifiable at every level.
+     * The field mappings of one target index: the {@code properties} section of its mapping, as a map from
+     * field name to that field's mapping. For example, the mapping of a {@code title} field is
+     * {@code getFieldMappings(indexName).get("title")}, and its sub-fields and object properties are nested
+     * inside it as they are in the mapping. The rest of the mapping ({@code dynamic}, {@code _meta},
+     * {@code dynamic_templates} and so on) is not included; {@link #getTargetIndices()} has the complete
+     * mapping in each index's {@link IndexMetadata}.
      * <p>
-     * This is the index's complete mapping. It is not reduced by {@link #getFieldFilter(String)}.
+     * The map comes from the node-level {@link IndexMappingSourceCache}, so it is usually parsed once per
+     * mapping version rather than once per request, and it is shared with every other request on the node:
+     * it is unmodifiable at every level.
+     * <p>
+     * These are all of the index's fields. They are not reduced by {@link #getFieldFilter(String)}.
      *
      * @param indexName the name of one of {@link #getTargetIndices()}
-     * @return the parsed mapping, or an empty map if {@code indexName} is not a target index or has no
-     *         mapping
+     * @return the field mappings, or an empty map if {@code indexName} is not a target index or its mapping
+     *         has no fields
      */
-    public Map<String, Object> getMappingSourceAsMap(String indexName) {
+    public Map<String, Object> getFieldMappings(String indexName) {
         final IndexMetadata metadata = targetIndices.get(indexName);
         if (metadata == null) {
             return Collections.emptyMap();
         }
-        return mappingSourceCache.getMappingSourceAsMap(metadata);
+        return mappingSourceCache.getFieldMappings(metadata);
     }
 
     /**

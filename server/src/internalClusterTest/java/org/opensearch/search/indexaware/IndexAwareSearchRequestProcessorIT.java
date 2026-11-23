@@ -444,8 +444,7 @@ public class IndexAwareSearchRequestProcessorIT extends OpenSearchIntegTestCase 
 
         /** Whether {@code indexName}'s mapping marks the {@code title} field. */
         static boolean isOptedIn(IndexAwareContext context, String indexName) {
-            Object properties = context.getMappingSourceAsMap(indexName).get("properties");
-            if (properties instanceof Map<?, ?> propertiesMap && propertiesMap.get("title") instanceof Map<?, ?> titleMapping) {
+            if (context.getFieldMappings(indexName).get("title") instanceof Map<?, ?> titleMapping) {
                 Object meta = titleMapping.get("meta");
                 return meta instanceof Map<?, ?> metaMap && "true".equals(metaMap.get(OPT_IN_META_KEY));
             }
