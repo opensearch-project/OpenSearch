@@ -183,6 +183,9 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         MultiBucketsAggregation histo,
         MovAvgModel model
     ) {
+        if ((long) window * 2 > buckets.size()) {
+            return model;
+        }
 
         int counter = 0;
         EvictingQueue<Double> values = new EvictingQueue<>(this.window);

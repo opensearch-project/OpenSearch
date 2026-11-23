@@ -51,11 +51,21 @@ public class MovAvgAggregatorTests extends AggregatorTestCase {
         check(movAvg(Integer.MAX_VALUE), expected);
     }
 
+    public void testMinimizeWindowLargerThanBuckets() throws IOException {
+        for (MovAvgModel model : Arrays.asList(new EwmaModel(), new HoltLinearModel(), new HoltWintersModel())) {
+            assertThat(run(movAvg(Integer.MAX_VALUE).model(model).minimize(true)), equalTo(run(movAvg(Integer.MAX_VALUE).model(model))));
+        }
+    }
+
     private static MovAvgPipelineAggregationBuilder movAvg(int window) {
         return new MovAvgPipelineAggregationBuilder("mov_avg", "avg").window(window).model(new SimpleModel());
     }
 
     private void check(PipelineAggregationBuilder pipeline, List<Double> expected) throws IOException {
+        assertThat(run(pipeline), equalTo(expected));
+    }
+
+    private List<Double> run(PipelineAggregationBuilder pipeline) throws IOException {
         DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("histo").calendarInterval(DateHistogramInterval.DAY)
             .field(DATE_FIELD)
             .subAggregation(new AvgAggregationBuilder("avg").field(VALUE_FIELD))
@@ -88,7 +98,7 @@ public class MovAvgAggregatorTests extends AggregatorTestCase {
                     InternalSimpleValue value = bucket.getAggregations().get(pipeline.getName());
                     actual.add(value == null ? null : value.value());
                 }
-                assertThat(actual, equalTo(expected));
+                return actual;
             }
         }
     }
