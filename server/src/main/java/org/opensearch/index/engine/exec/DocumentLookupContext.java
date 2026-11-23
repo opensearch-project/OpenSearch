@@ -8,7 +8,7 @@
 
 package org.opensearch.index.engine.exec;
 
-import org.opensearch.action.support.ReadAccessPolicy;
+import org.opensearch.action.support.DocumentLevelReadAccessPolicy;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.engine.Engine;
@@ -21,16 +21,19 @@ public final class DocumentLookupContext {
 
     private final Engine.Get get;
     private final Index index;
-    private final ReadAccessPolicy readAccessPolicy;
+    private final DocumentLevelReadAccessPolicy documentLevelReadAccessPolicy;
 
-    private DocumentLookupContext(Engine.Get get, Index index, ReadAccessPolicy readAccessPolicy) {
+    private DocumentLookupContext(Engine.Get get, Index index, DocumentLevelReadAccessPolicy documentLevelReadAccessPolicy) {
         this.get = Objects.requireNonNull(get, "get must not be null");
         this.index = Objects.requireNonNull(index, "index must not be null");
-        this.readAccessPolicy = Objects.requireNonNull(readAccessPolicy, "readAccessPolicy must not be null");
+        this.documentLevelReadAccessPolicy = Objects.requireNonNull(
+            documentLevelReadAccessPolicy,
+            "documentLevelReadAccessPolicy must not be null"
+        );
     }
 
-    public static DocumentLookupContext of(Engine.Get get, Index index, ReadAccessPolicy readAccessPolicy) {
-        return new DocumentLookupContext(get, index, readAccessPolicy);
+    public static DocumentLookupContext of(Engine.Get get, Index index, DocumentLevelReadAccessPolicy documentLevelReadAccessPolicy) {
+        return new DocumentLookupContext(get, index, documentLevelReadAccessPolicy);
     }
 
     public Engine.Get get() {
@@ -41,7 +44,7 @@ public final class DocumentLookupContext {
         return index;
     }
 
-    public ReadAccessPolicy readAccessPolicy() {
-        return readAccessPolicy;
+    public DocumentLevelReadAccessPolicy documentLevelReadAccessPolicy() {
+        return documentLevelReadAccessPolicy;
     }
 }

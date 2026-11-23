@@ -34,8 +34,8 @@ package org.opensearch.action.get;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.DocumentLevelReadAccessPolicy;
 import org.opensearch.action.support.ReadAccessContext;
-import org.opensearch.action.support.ReadAccessPolicy;
 import org.opensearch.action.support.ReadAccessPolicyService;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.action.support.single.shard.TransportSingleShardAction;
@@ -141,7 +141,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             indexShard.refresh("refresh_flag_mget");
         }
 
-        ReadAccessPolicy readAccessPolicy = readAccessPolicyService.getReadAccessPolicy(
+        DocumentLevelReadAccessPolicy readAccessPolicy = readAccessPolicyService.getDocumentLevelReadAccessPolicy(
             ReadAccessContext.of(List.of(shardId.getIndexName()))
         );
         MultiGetShardResponse response = new MultiGetShardResponse();

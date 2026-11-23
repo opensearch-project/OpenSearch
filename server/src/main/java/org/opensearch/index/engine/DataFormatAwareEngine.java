@@ -2383,7 +2383,7 @@ public class DataFormatAwareEngine implements Indexer {
                     // A translog hit contains the unfiltered source and cannot enforce the
                     // logical DLS predicate. Restricted lookups therefore continue to the
                     // snapshot-backed provider.
-                    if (context.readAccessPolicy().hasRestrictions() == false
+                    if (context.documentLevelReadAccessPolicy().hasRestrictions() == false
                         && get.isReadFromTranslog()
                         && versionValue.getLocation() != null) {
                         try {
@@ -2414,7 +2414,7 @@ public class DataFormatAwareEngine implements Indexer {
             // results still receive the same version/if_seq_no checks as DocumentLookupSupport#getById.
             try (GatedCloseable<Reader> readerRef = acquireReader()) {
                 DocumentLookupResult result = documentLookup.lookupFromReader(context, readerRef.get());
-                if (context.readAccessPolicy().hasRestrictions()
+                if (context.documentLevelReadAccessPolicy().hasRestrictions()
                     && versionValue != null
                     && result.exists()
                     && (result.version() != versionValue.version

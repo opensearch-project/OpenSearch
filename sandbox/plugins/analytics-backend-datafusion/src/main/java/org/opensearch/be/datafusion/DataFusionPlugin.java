@@ -1061,7 +1061,7 @@ public class DataFusionPlugin extends Plugin
         throws IOException {
         GetService getService = getServiceOrThrow();
         var lookupService = getService.documentLookupService(resolver);
-        if (context.readAccessPolicy().hasRestrictions() == false) {
+        if (context.documentLevelReadAccessPolicy().hasRestrictions() == false) {
             return lookupService.getById(context.get().id(), reader, context.index());
         }
 
@@ -1073,7 +1073,7 @@ public class DataFusionPlugin extends Plugin
         if (planBuilder == null) {
             throw new IllegalStateException("DocumentLookupPlanBuilder is not initialized");
         }
-        RelNode plan = planBuilder.build(context.index(), metadata.rowId(), context.readAccessPolicy());
+        RelNode plan = planBuilder.build(context.index(), metadata.rowId(), context.documentLevelReadAccessPolicy());
         byte[] substraitPlan = new DataFusionFragmentConvertor(getSubstraitExtensions()).convertFragment(plan);
         return lookupService.getByResolvedMetadata(context.get().id(), metadata, reader, context.index(), substraitPlan);
     }

@@ -12,8 +12,8 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.get.MultiGetResponse;
+import org.opensearch.action.support.DocumentLevelReadAccessPolicy;
 import org.opensearch.action.support.ReadAccessContext;
-import org.opensearch.action.support.ReadAccessPolicy;
 import org.opensearch.action.support.ReadAccessPolicyProvider;
 import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.arrow.allocator.ArrowBasePlugin;
@@ -43,7 +43,7 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Verifies end-to-end enforcement of a cluster-provided {@link ReadAccessPolicy} for composite
+ * Verifies end-to-end enforcement of a cluster-provided {@link DocumentLevelReadAccessPolicy} for composite
  * indices with Parquet as the primary data format and Lucene as a secondary data format. In a
  * secured cluster the security plugin supplies this policy; this test installs a mock provider so
  * it can exercise policy propagation and enforcement independently of the security plugin.
@@ -225,17 +225,17 @@ public class ReadAccessPolicyIntegrationIT extends OpenSearchIntegTestCase {
 
     private static class TestReadAccessPolicyProvider implements ReadAccessPolicyProvider {
         @Override
-        public ReadAccessPolicy getReadAccessPolicy(ReadAccessContext context) {
+        public DocumentLevelReadAccessPolicy getDocumentLevelReadAccessPolicy(ReadAccessContext context) {
             if (context.concreteIndices().contains(RESTRICTED_INDEX)) {
                 return new TestReadAccessPolicy(
                     new TestIndexGroup(Set.of(RESTRICTED_INDEX), Optional.of(QueryBuilders.termQuery("tenant", "blue")))
                 );
             }
-            return ReadAccessPolicy.unrestricted();
+            return DocumentLevelReadAccessPolicy.unrestricted();
         }
     }
 
-    private static class TestReadAccessPolicy implements ReadAccessPolicy {
+    private static class TestReadAccessPolicy implements DocumentLevelReadAccessPolicy {
         private final List<IndexGroup> indexGroups;
 
         TestReadAccessPolicy(IndexGroup indexGroup) {
@@ -268,7 +268,7 @@ public class ReadAccessPolicyIntegrationIT extends OpenSearchIntegTestCase {
         }
     }
 
-    private static class TestIndexGroup implements ReadAccessPolicy.IndexGroup {
+    private static class TestIndexGroup implements DocumentLevelReadAccessPolicy.IndexGroup {
         private final Set<String> concreteIndices;
         private final Optional<QueryBuilder> restrictions;
 

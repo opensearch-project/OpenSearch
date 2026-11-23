@@ -16,7 +16,7 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexShuttle;
 import org.apache.calcite.rex.RexSubQuery;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.support.ReadAccessPolicy;
+import org.opensearch.action.support.DocumentLevelReadAccessPolicy;
 import org.opensearch.analytics.query.QueryBuilderTranslationService;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
@@ -44,7 +44,7 @@ public class LogicalPlanDlsRewriterTests extends BasePlannerRulesTests {
         }));
         LogicalPlanDlsRewriter rewriter = new LogicalPlanDlsRewriter(translationService);
         QueryBuilder restriction = QueryBuilders.termQuery("tenant", "blue");
-        ReadAccessPolicy policy = policy(restrictedGroup(Set.of("logs-2025", "logs-2026"), restriction));
+        DocumentLevelReadAccessPolicy policy = policy(restrictedGroup(Set.of("logs-2025", "logs-2026"), restriction));
 
         RelNode result = rewriter.rewrite(scan, policy, Map.of("logs-*", List.of("logs-2025", "logs-2026")));
 
@@ -63,7 +63,7 @@ public class LogicalPlanDlsRewriterTests extends BasePlannerRulesTests {
         }));
         QueryBuilder blue = QueryBuilders.termQuery("tenant", "blue");
         QueryBuilder green = QueryBuilders.termQuery("tenant", "green");
-        ReadAccessPolicy policy = policy(
+        DocumentLevelReadAccessPolicy policy = policy(
             restrictedGroup(List.of("logs-blue-1", "logs-blue-2"), blue),
             restrictedGroup(List.of("logs-green"), green),
             unrestrictedGroup(List.of("logs-public"))
@@ -93,7 +93,7 @@ public class LogicalPlanDlsRewriterTests extends BasePlannerRulesTests {
 
         RelNode result = new LogicalPlanDlsRewriter(translationService).rewrite(
             scan,
-            ReadAccessPolicy.unrestricted(),
+            DocumentLevelReadAccessPolicy.unrestricted(),
             Map.of("logs", List.of("logs"))
         );
 
@@ -103,7 +103,7 @@ public class LogicalPlanDlsRewriterTests extends BasePlannerRulesTests {
     public void testMatchNoneDoesNotRequireTranslatorProvider() {
         TableScan scan = stubScan(mockTable("logs", "tenant"));
         LogicalPlanDlsRewriter rewriter = new LogicalPlanDlsRewriter(new QueryBuilderTranslationService(List.of()));
-        ReadAccessPolicy policy = policy(restrictedGroup(List.of("logs"), new MatchNoneQueryBuilder()));
+        DocumentLevelReadAccessPolicy policy = policy(restrictedGroup(List.of("logs"), new MatchNoneQueryBuilder()));
 
         RelNode result = rewriter.rewrite(scan, policy, Map.of("logs", List.of("logs")));
 
@@ -116,7 +116,7 @@ public class LogicalPlanDlsRewriterTests extends BasePlannerRulesTests {
         // A protected scan must fail rather than execute without its policy predicate.
         TableScan scan = stubScan(mockTable("logs", "tenant"));
         LogicalPlanDlsRewriter rewriter = new LogicalPlanDlsRewriter(new QueryBuilderTranslationService(List.of()));
-        ReadAccessPolicy policy = policy(restrictedGroup(List.of("logs"), QueryBuilders.termQuery("tenant", "blue")));
+        DocumentLevelReadAccessPolicy policy = policy(restrictedGroup(List.of("logs"), QueryBuilders.termQuery("tenant", "blue")));
 
         OpenSearchException exception = expectThrows(
             OpenSearchException.class,
@@ -130,7 +130,7 @@ public class LogicalPlanDlsRewriterTests extends BasePlannerRulesTests {
         LogicalPlanDlsRewriter rewriter = new LogicalPlanDlsRewriter(
             new QueryBuilderTranslationService(List.of((query, cluster, table) -> cluster.getRexBuilder().makeLiteral(true)))
         );
-        ReadAccessPolicy policy = policy(restrictedGroup(List.of("logs", "other-index"), QueryBuilders.matchAllQuery()));
+        DocumentLevelReadAccessPolicy policy = policy(restrictedGroup(List.of("logs", "other-index"), QueryBuilders.matchAllQuery()));
 
         OpenSearchException exception = expectThrows(
             OpenSearchException.class,
@@ -144,7 +144,7 @@ public class LogicalPlanDlsRewriterTests extends BasePlannerRulesTests {
         LogicalPlanDlsRewriter rewriter = new LogicalPlanDlsRewriter(
             new QueryBuilderTranslationService(List.of((query, cluster, table) -> cluster.getRexBuilder().makeLiteral(true)))
         );
-        ReadAccessPolicy policy = policy(restrictedGroup(List.of("logs-blue"), QueryBuilders.matchAllQuery()));
+        DocumentLevelReadAccessPolicy policy = policy(restrictedGroup(List.of("logs-blue"), QueryBuilders.matchAllQuery()));
 
         OpenSearchException exception = expectThrows(
             OpenSearchException.class,
@@ -163,7 +163,7 @@ public class LogicalPlanDlsRewriterTests extends BasePlannerRulesTests {
         QueryBuilderTranslationService translationService = new QueryBuilderTranslationService(
             List.of((query, cluster, table) -> cluster.getRexBuilder().makeLiteral(true))
         );
-        ReadAccessPolicy policy = policy(
+        DocumentLevelReadAccessPolicy policy = policy(
             unrestrictedGroup(List.of("outer-concrete")),
             restrictedGroup(List.of("restricted-concrete"), restriction)
         );
@@ -224,19 +224,19 @@ public class LogicalPlanDlsRewriterTests extends BasePlannerRulesTests {
         return scan.getTable().getQualifiedName().getLast();
     }
 
-    private static ReadAccessPolicy policy(ReadAccessPolicy.IndexGroup... groups) {
+    private static DocumentLevelReadAccessPolicy policy(DocumentLevelReadAccessPolicy.IndexGroup... groups) {
         return new TestReadAccessPolicy(List.of(groups));
     }
 
-    private static ReadAccessPolicy.IndexGroup restrictedGroup(Collection<String> concreteIndices, QueryBuilder restrictions) {
+    private static DocumentLevelReadAccessPolicy.IndexGroup restrictedGroup(Collection<String> concreteIndices, QueryBuilder restrictions) {
         return new TestIndexGroup(concreteIndices, Optional.of(restrictions));
     }
 
-    private static ReadAccessPolicy.IndexGroup unrestrictedGroup(Collection<String> concreteIndices) {
+    private static DocumentLevelReadAccessPolicy.IndexGroup unrestrictedGroup(Collection<String> concreteIndices) {
         return new TestIndexGroup(concreteIndices, Optional.empty());
     }
 
-    private static final class TestReadAccessPolicy implements ReadAccessPolicy {
+    private static final class TestReadAccessPolicy implements DocumentLevelReadAccessPolicy {
         private final List<IndexGroup> groups;
         private final Set<String> coveredIndices;
 
@@ -273,7 +273,7 @@ public class LogicalPlanDlsRewriterTests extends BasePlannerRulesTests {
         }
     }
 
-    private static final class TestIndexGroup implements ReadAccessPolicy.IndexGroup {
+    private static final class TestIndexGroup implements DocumentLevelReadAccessPolicy.IndexGroup {
         private final Set<String> concreteIndices;
         private final Optional<QueryBuilder> restrictions;
 

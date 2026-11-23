@@ -66,8 +66,8 @@ import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngestionState;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.opensearch.action.support.DocumentLevelReadAccessPolicy;
 import org.opensearch.action.support.ListenerTimeouts;
-import org.opensearch.action.support.ReadAccessPolicy;
 import org.opensearch.action.support.replication.PendingReplicationActions;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.DataStream;
@@ -1808,11 +1808,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine.GetResult get(Engine.Get get) {
-        return get(get, ReadAccessPolicy.unrestricted());
+        return get(get, DocumentLevelReadAccessPolicy.unrestricted());
     }
 
     /** Resolves a get while carrying its effective read-access policy to pluggable lookup providers. */
-    public Engine.GetResult get(Engine.Get get, ReadAccessPolicy readAccessPolicy) {
+    public Engine.GetResult get(Engine.Get get, DocumentLevelReadAccessPolicy readAccessPolicy) {
         readAllowed();
         DocumentMapper mapper = mapperService.documentMapper();
         if (mapper == null) {

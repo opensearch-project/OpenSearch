@@ -25,7 +25,7 @@ import org.apache.calcite.schema.Table;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.support.ReadAccessPolicy;
+import org.opensearch.action.support.DocumentLevelReadAccessPolicy;
 import org.opensearch.analytics.EngineContextProvider;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.engine.dataformat.DocumentInput;
@@ -49,7 +49,7 @@ public final class DocumentLookupPlanBuilder {
      * Builds {@code Filter(__row_id__ = rowId, Filter(dls, Scan(index)))}. The caller must only
      * invoke this for a restricted policy; missing policy coverage fails closed in the DLS rewriter.
      */
-    public RelNode build(Index index, long rowId, ReadAccessPolicy policy) {
+    public RelNode build(Index index, long rowId, DocumentLevelReadAccessPolicy policy) {
         if (policy.hasRestrictions() == false) {
             throw new IllegalArgumentException("A restricted read-access policy is required for secured document lookup");
         }

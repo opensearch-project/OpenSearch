@@ -210,6 +210,8 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.operationRouting()).thenReturn(operationRouting);
 
+        ReadAccessPolicyService readAccessPolicyService = new ReadAccessPolicyService(List.of());
+        readAccessPolicyService.initialize();
         shardAction = new TransportShardMultiGetAction(
             clusterService,
             transportService,
@@ -217,7 +219,7 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
             threadPool,
             new ActionFilters(emptySet()),
             new Resolver(),
-            new ReadAccessPolicyService(List.of())
+            readAccessPolicyService
         ) {
             @Override
             protected void doExecute(Task task, MultiGetShardRequest request, ActionListener<MultiGetShardResponse> listener) {}

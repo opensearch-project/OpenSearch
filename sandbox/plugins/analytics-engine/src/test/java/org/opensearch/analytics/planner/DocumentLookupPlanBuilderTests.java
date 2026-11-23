@@ -16,7 +16,7 @@ import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.tools.Frameworks;
-import org.opensearch.action.support.ReadAccessPolicy;
+import org.opensearch.action.support.DocumentLevelReadAccessPolicy;
 import org.opensearch.analytics.EngineContextProvider;
 import org.opensearch.analytics.QueryRequestContext;
 import org.opensearch.analytics.query.QueryBuilderTranslationService;
@@ -43,8 +43,8 @@ public class DocumentLookupPlanBuilderTests extends OpenSearchTestCase {
             }
         });
         EngineContextProvider contextProvider = () -> new QueryRequestContext(null, schema);
-        ReadAccessPolicy policy = mock(ReadAccessPolicy.class);
-        ReadAccessPolicy.IndexGroup group = mock(ReadAccessPolicy.IndexGroup.class);
+        DocumentLevelReadAccessPolicy policy = mock(DocumentLevelReadAccessPolicy.class);
+        DocumentLevelReadAccessPolicy.IndexGroup group = mock(DocumentLevelReadAccessPolicy.IndexGroup.class);
         when(policy.hasRestrictions()).thenReturn(true);
         when(policy.coveredConcreteIndices()).thenReturn(Set.of("idx"));
         when(policy.indexGroups()).thenReturn(List.of(group));
@@ -63,7 +63,10 @@ public class DocumentLookupPlanBuilderTests extends OpenSearchTestCase {
 
     public void testBuildRejectsUnrestrictedPolicy() {
         DocumentLookupPlanBuilder builder = new DocumentLookupPlanBuilder(mock(EngineContextProvider.class), rewriter());
-        expectThrows(IllegalArgumentException.class, () -> builder.build(new Index("idx", "uuid"), 1L, ReadAccessPolicy.unrestricted()));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> builder.build(new Index("idx", "uuid"), 1L, DocumentLevelReadAccessPolicy.unrestricted())
+        );
     }
 
     private static LogicalPlanDlsRewriter rewriter() {

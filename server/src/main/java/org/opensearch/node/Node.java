@@ -1213,7 +1213,11 @@ public class Node implements Closeable {
             );
             final MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(clusterService);
 
+            final ReadAccessPolicyService readAccessPolicyService = new ReadAccessPolicyService(
+                pluginsService.filterPlugins(AccessPolicyProviderPlugin.class)
+            );
             final DefaultPluginComponentRegistry pluginComponentRegistry = new DefaultPluginComponentRegistry();
+            pluginComponentRegistry.register(readAccessPolicyService);
             pluginComponentRegistry.register(new FieldFilterProvider(indicesService.getFieldFilter()));
             pluginComponentRegistry.register(dataFormatRegistry);
             final List<Object> pluginComponents = new ArrayList<>();
@@ -1237,6 +1241,7 @@ public class Node implements Closeable {
                 }
                 pluginComponents.addAll(components);
             }
+            readAccessPolicyService.initialize();
             final NativeAllocator nativeAllocator = pluginComponentRegistry.getComponent(NativeAllocator.class).orElse(null);
             pluginComponentRegistry.seal();
 
@@ -1757,9 +1762,6 @@ public class Node implements Closeable {
                 : Optional.empty();
 
             final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(tasksExecutors);
-            final ReadAccessPolicyService readAccessPolicyService = new ReadAccessPolicyService(
-                pluginsService.filterPlugins(AccessPolicyProviderPlugin.class)
-            );
             final PersistentTasksClusterService persistentTasksClusterService = new PersistentTasksClusterService(
                 settings,
                 registry,

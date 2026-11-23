@@ -916,7 +916,7 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
             org.opensearch.index.engine.exec.DocumentLookupContext.of(
                 get,
                 engine.config().getShardId().getIndex(),
-                org.opensearch.action.support.ReadAccessPolicy.unrestricted()
+                org.opensearch.action.support.DocumentLevelReadAccessPolicy.unrestricted()
             ),
             (source, scope) -> null
         );

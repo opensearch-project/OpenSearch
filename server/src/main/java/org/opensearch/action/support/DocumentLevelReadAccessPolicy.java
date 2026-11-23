@@ -22,11 +22,11 @@ import java.util.Set;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface ReadAccessPolicy {
+public interface DocumentLevelReadAccessPolicy {
 
     /** Returns an unrestricted read-access policy. */
-    static ReadAccessPolicy unrestricted() {
-        return UnrestrictedReadAccessPolicy.INSTANCE;
+    static DocumentLevelReadAccessPolicy unrestricted() {
+        return UnrestrictedDocumentLevelReadAccessPolicy.INSTANCE;
     }
 
     /** Returns whether at least one concrete index is protected. */
@@ -59,10 +59,10 @@ public interface ReadAccessPolicy {
     Collection<IndexGroup> indexGroups();
 }
 
-final class UnrestrictedReadAccessPolicy implements ReadAccessPolicy {
-    static final ReadAccessPolicy INSTANCE = new UnrestrictedReadAccessPolicy();
+final class UnrestrictedDocumentLevelReadAccessPolicy implements DocumentLevelReadAccessPolicy {
+    static final DocumentLevelReadAccessPolicy INSTANCE = new UnrestrictedDocumentLevelReadAccessPolicy();
 
-    private UnrestrictedReadAccessPolicy() {}
+    private UnrestrictedDocumentLevelReadAccessPolicy() {}
 
     @Override
     public boolean hasRestrictions() {

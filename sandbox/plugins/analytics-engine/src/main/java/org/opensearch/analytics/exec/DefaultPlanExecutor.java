@@ -22,9 +22,9 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.DocumentLevelReadAccessPolicy;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.ReadAccessContext;
-import org.opensearch.action.support.ReadAccessPolicy;
 import org.opensearch.action.support.ReadAccessPolicyService;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.analytics.AnalyticsPlugin;
@@ -916,13 +916,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
             try {
                 ClusterState clusterState = clusterService.state();
                 Map<String, List<String>> concreteIndicesByTable = resolveConcreteIndicesByTable(request.getPlan(), clusterState);
-                List<String> concreteIndices = concreteIndicesByTable.values()
-                    .stream()
-                    .flatMap(List::stream)
-                    .distinct()
-                    .sorted()
-                    .toList();
-                ReadAccessPolicy readAccessPolicy = readAccessPolicyService.getReadAccessPolicy(
+                List<String> concreteIndices = concreteIndicesByTable.values().stream().flatMap(List::stream).distinct().sorted().toList();
+                DocumentLevelReadAccessPolicy readAccessPolicy = readAccessPolicyService.getDocumentLevelReadAccessPolicy(
                     ReadAccessContext.of(concreteIndices)
                 );
                 RelNode securedPlan = logicalPlanDlsRewriter.rewrite(request.getPlan(), readAccessPolicy, concreteIndicesByTable);

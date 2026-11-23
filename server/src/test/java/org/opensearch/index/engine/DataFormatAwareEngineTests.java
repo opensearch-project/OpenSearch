@@ -4711,7 +4711,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             org.opensearch.index.engine.exec.DocumentLookupContext.of(
                 get,
                 engine.config().getShardId().getIndex(),
-                org.opensearch.action.support.ReadAccessPolicy.unrestricted()
+                org.opensearch.action.support.DocumentLevelReadAccessPolicy.unrestricted()
             ),
             (source, scope) -> null
         );
@@ -4832,7 +4832,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
 
     public void testRestrictedGetDoesNotReturnUnfilteredTranslogSource() throws IOException {
         DocumentLookupProvider provider = mockLookupProvider();
-        org.opensearch.action.support.ReadAccessPolicy restrictedPolicy = mock(org.opensearch.action.support.ReadAccessPolicy.class);
+        org.opensearch.action.support.DocumentLevelReadAccessPolicy restrictedPolicy = mock(
+            org.opensearch.action.support.DocumentLevelReadAccessPolicy.class
+        );
         when(restrictedPolicy.hasRestrictions()).thenReturn(true);
         try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
             engine.index(indexOp(createParsedDocWithInput("1", null)));
@@ -4848,7 +4850,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     public void testRestrictedRealtimeGetDoesNotEvaluateStaleSnapshotRow() throws IOException {
         DocumentLookupProvider provider = mockLookupProvider();
         when(provider.getById(any(), any(), any())).thenReturn(new DocumentLookupResult("1", 1L, true, null, 0L, 1L, Map.of(), Map.of()));
-        org.opensearch.action.support.ReadAccessPolicy restrictedPolicy = mock(org.opensearch.action.support.ReadAccessPolicy.class);
+        org.opensearch.action.support.DocumentLevelReadAccessPolicy restrictedPolicy = mock(
+            org.opensearch.action.support.DocumentLevelReadAccessPolicy.class
+        );
         when(restrictedPolicy.hasRestrictions()).thenReturn(true);
         try (DataFormatAwareEngine engine = createDFAEngineWithLookupProvider(store, createTempDir(), provider)) {
             engine.index(indexOp(createParsedDocWithInput("1", null)));

@@ -20,7 +20,7 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexShuttle;
 import org.apache.calcite.rex.RexSubQuery;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.support.ReadAccessPolicy;
+import org.opensearch.action.support.DocumentLevelReadAccessPolicy;
 import org.opensearch.analytics.query.QueryBuilderTranslationService;
 
 import java.util.ArrayList;
@@ -72,7 +72,7 @@ public final class LogicalPlanDlsRewriter {
      * )
      * }</pre>
      */
-    public RelNode rewrite(RelNode logicalPlan, ReadAccessPolicy policy, Map<String, List<String>> concreteIndicesByTable)
+    public RelNode rewrite(RelNode logicalPlan, DocumentLevelReadAccessPolicy policy, Map<String, List<String>> concreteIndicesByTable)
         throws OpenSearchException {
         if (policy.hasRestrictions() == false) {
             return logicalPlan;
@@ -107,7 +107,7 @@ public final class LogicalPlanDlsRewriter {
 
                 List<RelNode> branches = new ArrayList<>();
                 Set<String> indicesRewrittenForScan = new HashSet<>();
-                for (ReadAccessPolicy.IndexGroup group : policy.indexGroups()) {
+                for (DocumentLevelReadAccessPolicy.IndexGroup group : policy.indexGroups()) {
                     List<String> branchIndices = intersection(concreteIndices, group.concreteIndices());
                     if (branchIndices.isEmpty()) {
                         continue;

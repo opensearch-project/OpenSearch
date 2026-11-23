@@ -12,12 +12,12 @@ import org.opensearch.action.support.ReadAccessPolicyProvider;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
- * Plugin extension point for supplying effective document-level read policies. This is usually only implemented by the
+ * Plugin extension point for supplying effective read-access policies. This is usually only implemented by the
  * security plugin. There can be max ONE plugin in a node implementing this interface.
  */
 @ExperimentalApi
 public interface AccessPolicyProviderPlugin {
 
-    /** Returns this plugin's read-access policy provider. */
+    /** Returns this plugin's read-access policy provider after plugin components have been created. */
     ReadAccessPolicyProvider getReadAccessPolicyProvider();
 }

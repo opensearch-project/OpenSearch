@@ -34,8 +34,8 @@ package org.opensearch.action.get;
 
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.DocumentLevelReadAccessPolicy;
 import org.opensearch.action.support.ReadAccessContext;
-import org.opensearch.action.support.ReadAccessPolicy;
 import org.opensearch.action.support.ReadAccessPolicyService;
 import org.opensearch.action.support.single.shard.TransportSingleShardAction;
 import org.opensearch.cluster.ClusterState;
@@ -159,7 +159,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             indexShard.refresh("refresh_flag_get");
         }
 
-        ReadAccessPolicy readAccessPolicy = readAccessPolicyService.getReadAccessPolicy(
+        DocumentLevelReadAccessPolicy readAccessPolicy = readAccessPolicyService.getDocumentLevelReadAccessPolicy(
             ReadAccessContext.of(List.of(shardId.getIndexName()))
         );
         GetResult result = indexShard.getService()

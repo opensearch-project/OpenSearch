@@ -43,7 +43,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.opensearch.OpenSearchException;
-import org.opensearch.action.support.ReadAccessPolicy;
+import org.opensearch.action.support.DocumentLevelReadAccessPolicy;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
@@ -133,7 +133,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             UNASSIGNED_SEQ_NO,
             UNASSIGNED_PRIMARY_TERM,
             fetchSourceContext,
-            ReadAccessPolicy.unrestricted()
+            DocumentLevelReadAccessPolicy.unrestricted()
         );
     }
 
@@ -145,7 +145,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         long version,
         VersionType versionType,
         FetchSourceContext fetchSourceContext,
-        ReadAccessPolicy readAccessPolicy
+        DocumentLevelReadAccessPolicy readAccessPolicy
     ) {
         return get(
             id,
@@ -169,7 +169,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         long ifSeqNo,
         long ifPrimaryTerm,
         FetchSourceContext fetchSourceContext,
-        ReadAccessPolicy readAccessPolicy
+        DocumentLevelReadAccessPolicy readAccessPolicy
     ) {
         currentMetric.inc();
         try {
@@ -207,7 +207,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             ifSeqNo,
             ifPrimaryTerm,
             FetchSourceContext.FETCH_SOURCE,
-            ReadAccessPolicy.unrestricted()
+            DocumentLevelReadAccessPolicy.unrestricted()
         );
     }
 
@@ -273,7 +273,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         long ifSeqNo,
         long ifPrimaryTerm,
         FetchSourceContext fetchSourceContext,
-        ReadAccessPolicy readAccessPolicy
+        DocumentLevelReadAccessPolicy readAccessPolicy
     ) {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
 

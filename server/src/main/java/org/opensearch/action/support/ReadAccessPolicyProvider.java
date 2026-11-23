@@ -10,11 +10,11 @@ package org.opensearch.action.support;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
-/** Supplies effective read restrictions for the current request. */
+/** Supplies effective read-access policies for the current request. */
 @ExperimentalApi
 @FunctionalInterface
 public interface ReadAccessPolicyProvider {
 
-    /** Returns the effective policy for {@code context}. */
-    ReadAccessPolicy getReadAccessPolicy(ReadAccessContext context);
+    /** Returns the effective document-level policy for {@code context}. */
+    DocumentLevelReadAccessPolicy getDocumentLevelReadAccessPolicy(ReadAccessContext context);
 }
