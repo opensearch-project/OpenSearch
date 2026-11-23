@@ -10,6 +10,8 @@ package org.opensearch.gradle.util;
 
 import org.opensearch.gradle.test.GradleUnitTestCase;
 
+import java.io.IOException;
+import java.io.StringReader;
 import java.util.Properties;
 
 public class TestJavaSecurityFileTests extends GradleUnitTestCase {
@@ -25,6 +27,20 @@ public class TestJavaSecurityFileTests extends GradleUnitTestCase {
         assertNull(result.getProperty("security.provider.2"));
         assertEquals("SSLv3, TLSv1", result.getProperty("jdk.tls.disabledAlgorithms"));
         assertEquals("PKIX", result.getProperty("ssl.KeyManagerFactory.algorithm"));
+    }
+
+    /**
+     * The build tools carry the distribution's fips_java.security, so plugins built outside this repository get its providers.
+     */
+    public void testBundledFipsFileStartsWithTheBouncyCastleFipsProviders() throws IOException {
+        final Properties bundled = new Properties();
+        bundled.load(new StringReader(TestJavaSecurityFile.bundledFipsJavaSecurity()));
+
+        final Properties result = TestJavaSecurityFile.forFips(jdk(), bundled);
+
+        assertEquals(TestJavaSecurityFile.BC_FIPS_PROVIDER_ENTRY, result.getProperty("security.provider.1"));
+        assertTrue(result.getProperty("security.provider.2").startsWith("org.bouncycastle.jsse.provider.BouncyCastleJsseProvider"));
+        assertEquals("SSLv3, TLSv1", result.getProperty("jdk.tls.disabledAlgorithms"));
     }
 
     public void testFipsFileWithoutProvidersIsRejected() {

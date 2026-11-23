@@ -11,7 +11,9 @@ package org.opensearch.gradle.util;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.StringReader;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
@@ -26,20 +28,38 @@ import java.util.Properties;
  *     a declared provider whose class is not on the classpath.</li>
  * </ul>
  * Keep the two in sync; buildSrc cannot depend on the launchers project.
+ * <p>
+ * The build-tools jar carries a copy of {@code fips_java.security} (see buildSrc/build.gradle), so plugins built outside
+ * this repository get the same FIPS providers as the distribution without a copy of their own.
  */
 public final class TestJavaSecurityFile {
 
     static final String PROVIDER_KEY_PREFIX = "security.provider.";
     static final String BC_FIPS_PROVIDER_ENTRY = "org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider C:HYBRID;ENABLE{All};";
+    static final String BUNDLED_FIPS_RESOURCE = "fips_java.security";
 
     private TestJavaSecurityFile() {}
 
     /**
-     * Writes the FIPS file for the JDK at {@code javaHome} to {@code target}.
+     * Returns the content of the {@code fips_java.security} that the build-tools jar carries.
      */
-    public static void writeFips(Path javaHome, Path fipsFile, Path target) {
+    public static String bundledFipsJavaSecurity() {
+        return BundledFipsJavaSecurity.CONTENT;
+    }
+
+    /**
+     * Writes the FIPS file for the JDK at {@code javaHome} to {@code target}. {@code fipsJavaSecurity} is the content of a
+     * {@code fips_java.security} file, usually {@link #bundledFipsJavaSecurity()}.
+     */
+    public static void writeFips(Path javaHome, String fipsJavaSecurity, Path target) {
         try {
-            write(forFips(loadJdkProperties(javaHome), load(fipsFile)), target, "the java.security of " + javaHome + " and " + fipsFile);
+            final Properties fipsProperties = new Properties();
+            fipsProperties.load(new StringReader(fipsJavaSecurity));
+            write(
+                forFips(loadJdkProperties(javaHome), fipsProperties),
+                target,
+                "the java.security of " + javaHome + " and the fips_java.security of the build tools"
+            );
         } catch (IOException e) {
             throw new UncheckedIOException("cannot generate the FIPS java.security file [" + target + "]", e);
         }
@@ -115,5 +135,24 @@ public final class TestJavaSecurityFile {
             properties.load(in);
         }
         return properties;
+    }
+
+    /**
+     * Reads the resource once, on first use, so that builds without FIPS mode never touch it.
+     */
+    private static final class BundledFipsJavaSecurity {
+        static final String CONTENT = read();
+
+        private static String read() {
+            try (InputStream in = TestJavaSecurityFile.class.getClassLoader().getResourceAsStream(BUNDLED_FIPS_RESOURCE)) {
+                if (in == null) {
+                    throw new IllegalStateException("The build-tools jar does not contain [" + BUNDLED_FIPS_RESOURCE + "].");
+                }
+                // ISO-8859-1 is the encoding Properties#load(InputStream) assumes.
+                return new String(in.readAllBytes(), StandardCharsets.ISO_8859_1);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Cannot read [" + BUNDLED_FIPS_RESOURCE + "] from the build-tools jar.", e);
+            }
+        }
     }
 }

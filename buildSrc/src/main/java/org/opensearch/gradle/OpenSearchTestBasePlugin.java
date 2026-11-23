@@ -46,7 +46,6 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
@@ -158,15 +157,16 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
             // Like the distribution's launcher: a generated file replaces the JDK's java.security (note the leading "=" of the
             // value, which makes it "-Djava.security.properties=="). In FIPS mode the providers of fips_java.security are the only
             // ones; otherwise the JDK's providers are followed by BouncyCastle FIPS. Every other JDK default is kept.
+            // The FIPS file comes from the build tools jar, so external plugins get it too.
             final File javaSecurityFile = project.getLayout()
                 .getBuildDirectory()
                 .file("java-security/" + test.getName() + ".security")
                 .get()
                 .getAsFile();
             if (BuildParams.isInFipsJvm()) {
-                final File fipsFile = project.getRootProject().file("distribution/src/config/fips_java.security");
-                test.getInputs().file(fipsFile).withPropertyName("fipsJavaSecurityFile").withPathSensitivity(PathSensitivity.NONE);
-                test.doFirst(t -> TestJavaSecurityFile.writeFips(testJavaHome((Test) t), fipsFile.toPath(), javaSecurityFile.toPath()));
+                final String fipsJavaSecurity = TestJavaSecurityFile.bundledFipsJavaSecurity();
+                test.getInputs().property("fipsJavaSecurity", fipsJavaSecurity);
+                test.doFirst(t -> TestJavaSecurityFile.writeFips(testJavaHome((Test) t), fipsJavaSecurity, javaSecurityFile.toPath()));
                 test.systemProperty("org.bouncycastle.fips.approved_only", "true");
             } else {
                 test.doFirst(t -> TestJavaSecurityFile.writeDefault(testJavaHome((Test) t), javaSecurityFile.toPath()));
