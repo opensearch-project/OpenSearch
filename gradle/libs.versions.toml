@@ -3,7 +3,9 @@ opensearch        = "3.10.0"
 lucene            = "10.6.0"
 
 bundled_jdk_vendor = "adoptium"
-bundled_jdk = "25.0.5+8"
+# riscv64 release is delayed, using older version
+bundled_jdk_linux_riscv64 = "25.0.5+8"
+bundled_jdk = "25.0.5.1+2"
 
 # optional dependencies
 spatial4j               = "0.7"
