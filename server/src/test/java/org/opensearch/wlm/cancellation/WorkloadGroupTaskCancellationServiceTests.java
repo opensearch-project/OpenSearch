@@ -741,7 +741,7 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
         assertEquals(2, cancellableTasks.get(0).getReasons().size());
     }
 
-    public void testGetAllCancellableTasks_doesNotAddATaskTwiceWhenItIsTheTopConsumerOfTwoResources() {
+    public void testCancelTasks_cancelsATaskOnceWhenItIsTheTopConsumerOfTwoResources() {
         Double threshold = 0.1;
 
         WorkloadGroup workloadGroup1 = new WorkloadGroup(
@@ -751,17 +751,35 @@ public class WorkloadGroupTaskCancellationServiceTests extends OpenSearchTestCas
             1L
         );
 
-        // task 1 is the top consumer of both resources, and MEMORY still needs task 2 after CPU selects task 1
+        // Task 1 is the top consumer of both resources. CPU selects it, and MEMORY still needs task 2 after that
         List<WorkloadGroupTask> activeTasks = List.of(createMockTask(1, 0.5, 0.5), createMockTask(2, 0, 0.4));
         WorkloadGroupLevelResourceUsageView mockView = mock(WorkloadGroupLevelResourceUsageView.class);
         when(mockView.getActiveTasks()).thenReturn(activeTasks);
         when(mockView.getResourceUsageData()).thenReturn(Map.of(ResourceType.CPU, 0.5, ResourceType.MEMORY, 0.9));
         workloadGroupLevelViews.put(workloadGroupId1, mockView);
-        taskCancellation.workloadGroupLevelResourceUsageViews = workloadGroupLevelViews;
+        activeWorkloadGroups.add(workloadGroup1);
 
-        List<TaskCancellation> cancellableTasks = taskCancellation.getAllCancellableTasks(List.of(workloadGroup1));
-        assertEquals(List.of(1L, 2L), cancellableTasks.stream().map(t -> t.getTask().getId()).collect(Collectors.toList()));
-        assertEquals(2, cancellableTasks.get(0).getReasons().size());
+        WorkloadGroupState workloadGroupState = new WorkloadGroupState();
+        when(stateAccessor.getWorkloadGroupState(workloadGroupId1)).thenReturn(workloadGroupState);
+
+        when(resourceUsageTrackerService.constructWorkloadGroupLevelUsageViews()).thenReturn(workloadGroupLevelViews);
+        when(workloadManagementSettings.getWlmMode()).thenReturn(WlmMode.ENABLED);
+        taskCancellation.cancelTasks(() -> false, activeWorkloadGroups, deletedWorkloadGroups);
+
+        // Each task is cancelled once, and its reason names both breached resources
+        for (WorkloadGroupTask task : activeTasks) {
+            verify(taskManager, times(1)).cancelTaskAndDescendants(eq(task), anyString(), anyBoolean(), any());
+            ArgumentCaptor<String> reason = ArgumentCaptor.forClass(String.class);
+            verify(task, times(1)).cancel(reason.capture());
+            assertTrue(reason.getValue(), reason.getValue().contains("for resource type : " + ResourceType.CPU.getName()));
+            assertTrue(reason.getValue(), reason.getValue().contains("for resource type : " + ResourceType.MEMORY.getName()));
+        }
+        verify(taskManager, times(activeTasks.size())).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
+
+        // Task 1 counts once, under CPU, which selected it. Task 2 counts under MEMORY
+        assertEquals(1, workloadGroupState.getResourceState().get(ResourceType.CPU).cancellations.count());
+        assertEquals(1, workloadGroupState.getResourceState().get(ResourceType.MEMORY).cancellations.count());
+        assertEquals(2, workloadGroupState.getTotalCancellations());
     }
 
     public void testGetAllCancellableTasks_doesNotCountTheUsageOfSelectedTasksTwice() {
