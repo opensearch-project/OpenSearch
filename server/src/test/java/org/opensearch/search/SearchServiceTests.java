@@ -687,6 +687,39 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    public void testIndexAwareSearchRequestProcessorsAreDisabledByDefault() {
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        assertFalse(service.isIndexAwareSearchRequestProcessorsEnabled());
+    }
+
+    public void testIndexAwareSearchRequestProcessorsCanBeEnabledDynamically() {
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        try {
+            setIndexAwareSearchRequestProcessorsEnabled(true);
+            assertTrue(service.isIndexAwareSearchRequestProcessorsEnabled());
+        } finally {
+            setIndexAwareSearchRequestProcessorsEnabled(null);
+        }
+    }
+
+    public void testIndexAwareSearchRequestProcessorsCanBeDisabledAgainDynamically() {
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        try {
+            setIndexAwareSearchRequestProcessorsEnabled(true);
+            setIndexAwareSearchRequestProcessorsEnabled(false);
+            assertFalse(service.isIndexAwareSearchRequestProcessorsEnabled());
+        } finally {
+            setIndexAwareSearchRequestProcessorsEnabled(null);
+        }
+    }
+
+    /** Sets the index-aware processor setting as a transient cluster setting; {@code null} removes it again. */
+    private void setIndexAwareSearchRequestProcessorsEnabled(Boolean enabled) {
+        final String key = SearchService.INDEX_AWARE_SEARCH_REQUEST_PROCESSORS_ENABLED_SETTING.getKey();
+        final Settings.Builder settings = enabled == null ? Settings.builder().putNull(key) : Settings.builder().put(key, enabled);
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get();
+    }
+
     /**
      * test that getting more than the allowed number of script_fields throws an exception
      */

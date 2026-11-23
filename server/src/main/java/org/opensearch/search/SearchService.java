@@ -289,6 +289,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     );
 
     /**
+     * Whether plugin-registered {@code IndexAwareSearchRequestProcessor}s run. Off by default: when on, a
+     * search resolves its target indices and their metadata before the coordinator rewrite, which is
+     * extra work a cluster that doesn't use the extension point shouldn't pay for. Dynamic, so it can be
+     * changed at runtime without a node restart.
+     */
+    public static final Setting<Boolean> INDEX_AWARE_SEARCH_REQUEST_PROCESSORS_ENABLED_SETTING = Setting.boolSetting(
+        "search.index_aware_search_request_processors.enabled",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
      * Controls the threshold for the number of term queries on the same field that triggers
      * the TermsMergingRewriter to combine them into a single terms query. For example,
      * if set to 16 (default), when 16 or more term queries target the same field within
@@ -527,6 +540,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final List<SearchPlugin.ProfileMetricsProvider> pluginProfilers;
 
+    private volatile boolean indexAwareSearchRequestProcessorsEnabled;
+
     public SearchService(
         ClusterService clusterService,
         IndicesService indicesService,
@@ -616,9 +631,28 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         this.pluginProfilers = pluginProfilers;
 
+        this.indexAwareSearchRequestProcessorsEnabled = INDEX_AWARE_SEARCH_REQUEST_PROCESSORS_ENABLED_SETTING.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                INDEX_AWARE_SEARCH_REQUEST_PROCESSORS_ENABLED_SETTING,
+                this::setIndexAwareSearchRequestProcessorsEnabled
+            );
+
         // Initialize QueryRewriterRegistry with cluster settings so TermsMergingRewriter
         // can register its settings update consumer
         QueryRewriterRegistry.INSTANCE.initialize(settings, clusterService.getClusterSettings());
+    }
+
+    private void setIndexAwareSearchRequestProcessorsEnabled(boolean indexAwareSearchRequestProcessorsEnabled) {
+        this.indexAwareSearchRequestProcessorsEnabled = indexAwareSearchRequestProcessorsEnabled;
+    }
+
+    /**
+     * Whether any plugin-registered {@code IndexAwareSearchRequestProcessor} should run, per
+     * {@link #INDEX_AWARE_SEARCH_REQUEST_PROCESSORS_ENABLED_SETTING}.
+     */
+    public boolean isIndexAwareSearchRequestProcessorsEnabled() {
+        return indexAwareSearchRequestProcessorsEnabled;
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {

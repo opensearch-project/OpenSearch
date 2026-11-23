@@ -897,6 +897,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
                 SearchService.QUERY_REWRITING_ENABLED_SETTING,
                 SearchService.QUERY_REWRITING_TERMS_THRESHOLD_SETTING,
+                SearchService.INDEX_AWARE_SEARCH_REQUEST_PROCESSORS_ENABLED_SETTING,
                 FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT,
                 FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO,
                 FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT,
