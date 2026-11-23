@@ -535,7 +535,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             SearchRequestContext searchRequestContext = new SearchRequestContext(
                 requestOperationsListeners,
                 originalSearchRequest,
-                taskResourceTrackingService::getTaskResourceUsageFromThreadContext
+                taskResourceTrackingService::getTaskResourceUsageFromThreadContext,
+                task instanceof SearchTask searchTask ? searchTask : null
             );
 
             // At this point either the QUERY_GROUP_ID header will be present in ThreadContext either via ActionFilter

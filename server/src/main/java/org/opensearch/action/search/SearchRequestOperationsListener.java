@@ -81,7 +81,7 @@ public abstract class SearchRequestOperationsListener {
      * Invoked once a request whose search started on this node succeeds, with that search as {@code context}.
      *
      * @deprecated Override {@link #onRequestEnd(SearchRequestContext)} instead, which is also invoked for a request that
-     * succeeds without a search on this node.
+     * succeeds without a search on this node. {@link SearchRequestContext#getTask()} gives its task either way.
      */
     @Deprecated
     protected void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
@@ -90,7 +90,7 @@ public abstract class SearchRequestOperationsListener {
      * Invoked once a request whose search started on this node fails, with that search as {@code context}.
      *
      * @deprecated Override {@link #onRequestFailure(SearchRequestContext)} instead, which is also invoked for a request that
-     * fails without a search on this node.
+     * fails without a search on this node. {@link SearchRequestContext#getTask()} gives its task either way.
      */
     @Deprecated
     protected void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}

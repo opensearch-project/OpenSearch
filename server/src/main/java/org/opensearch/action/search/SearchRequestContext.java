@@ -48,12 +48,23 @@ public class SearchRequestContext {
     private boolean streamingRequest;
     private final AtomicBoolean requestEnded = new AtomicBoolean();
     private volatile SearchPhaseContext phaseContext;
+    private final SearchTask task;
 
     SearchRequestContext(
         final SearchRequestOperationsListener searchRequestOperationsListener,
         final SearchRequest searchRequest,
         final Supplier<TaskResourceInfo> taskResourceUsageSupplier
     ) {
+        this(searchRequestOperationsListener, searchRequest, taskResourceUsageSupplier, null);
+    }
+
+    SearchRequestContext(
+        final SearchRequestOperationsListener searchRequestOperationsListener,
+        final SearchRequest searchRequest,
+        final Supplier<TaskResourceInfo> taskResourceUsageSupplier,
+        @Nullable final SearchTask task
+    ) {
+        this.task = task;
         this.searchRequestOperationsListener = searchRequestOperationsListener;
         this.absoluteStartNanos = System.nanoTime();
         this.phaseTookMap = new HashMap<>();
@@ -85,6 +96,15 @@ public class SearchRequestContext {
     @Nullable
     public SearchPhaseContext getPhaseContext() {
         return phaseContext;
+    }
+
+    /**
+     * Returns the task of the request on this node, or {@code null} if it has none. Unlike the task of
+     * {@link #getPhaseContext()}, it is available whether or not a search started on this node.
+     */
+    @Nullable
+    public SearchTask getTask() {
+        return task;
     }
 
     /**

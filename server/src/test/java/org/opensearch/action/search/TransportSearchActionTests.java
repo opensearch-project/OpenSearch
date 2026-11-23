@@ -2143,11 +2143,13 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         );
         SearchRequestStats searchRequestStats = new SearchRequestStats(clusterSettings);
         AtomicInteger failuresWithoutPhase = new AtomicInteger();
+        AtomicReference<SearchTask> failedTask = new AtomicReference<>();
         SearchRequestOperationsListener failureTracker = new SearchRequestOperationsListener() {
             @Override
             protected void onRequestFailure(SearchRequestContext searchRequestContext) {
                 if (searchRequestContext.getPhaseContext() == null) {
                     failuresWithoutPhase.incrementAndGet();
+                    failedTask.set(searchRequestContext.getTask());
                 }
             }
         };
@@ -2176,7 +2178,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
 
         AtomicReference<Exception> failure = new AtomicReference<>();
         AtomicLong tookCurrentWhenNotified = new AtomicLong(-1);
-        action.executeRequest(newSearchTask(), new SearchRequest(), null, ActionListener.wrap(r -> fail("expected failure"), e -> {
+        SearchTask task = newSearchTask();
+        action.executeRequest(task, new SearchRequest(), null, ActionListener.wrap(r -> fail("expected failure"), e -> {
             tookCurrentWhenNotified.set(searchRequestStats.getTookCurrent());
             failure.set(e);
         }));
@@ -2185,6 +2188,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         // The request ends before the caller is notified.
         assertEquals(0, tookCurrentWhenNotified.get());
         assertEquals(1, failuresWithoutPhase.get());
+        // Listeners still get the task, as query insights needs to describe the request.
+        assertSame(task, failedTask.get());
         assertEquals(0, searchRequestStats.getTookCurrent());
         assertEquals(0, searchRequestStats.getTookTotal());
     }
