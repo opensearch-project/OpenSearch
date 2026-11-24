@@ -18,6 +18,10 @@ import java.util.Set;
 
 /**
  * Effective document-level read restrictions grouped by concrete indices that share the same restrictions.
+ * A policy returned by {@link ReadAccessPolicyProvider#getDocumentLevelReadAccessPolicy(ReadAccessContext)} must
+ * retain any request-specific authorization information it needs. Its methods must not depend on the calling thread's
+ * context, so the policy can be used later on another thread during the same request. Restrictions may be computed
+ * when the policy is created or when its methods are called.
  *
  * @opensearch.experimental
  */

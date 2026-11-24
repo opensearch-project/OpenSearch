@@ -41,7 +41,11 @@ public final class ReadAccessPolicyService {
         initialized = true;
     }
 
-    /** Returns the effective policy, or an unrestricted policy when no provider is installed. */
+    /**
+     * Returns the effective policy, or an unrestricted policy when no provider is installed. Call during the read
+     * request with its authorization context on the current thread, as required by
+     * {@link ReadAccessPolicyProvider#getDocumentLevelReadAccessPolicy(ReadAccessContext)}.
+     */
     public DocumentLevelReadAccessPolicy getDocumentLevelReadAccessPolicy(ReadAccessContext context) {
         if (initialized == false) {
             throw new IllegalStateException("ReadAccessPolicyService is not initialized");
