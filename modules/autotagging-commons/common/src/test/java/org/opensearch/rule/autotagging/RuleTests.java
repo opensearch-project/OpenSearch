@@ -9,11 +9,13 @@
 package org.opensearch.rule.autotagging;
 
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rule.RuleUtils;
+import org.opensearch.rule.utils.RuleTestUtils;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
@@ -25,6 +27,11 @@ import static org.opensearch.rule.autotagging.RuleTests.TestAttribute.TEST_ATTRI
 import static org.opensearch.rule.autotagging.RuleTests.TestAttribute.TEST_ATTRIBUTE_2;
 
 public class RuleTests extends AbstractSerializingTestCase<Rule> {
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return RuleTestUtils.namedWriteableRegistry(FEATURE_TYPE);
+    }
+
     public static final String TEST_ATTR1_NAME = "test_attr1";
     public static final String TEST_ATTR2_NAME = "test_attr2";
     public static final String TEST_FEATURE_TYPE = "test_feature_type";
@@ -79,10 +86,6 @@ public class RuleTests extends AbstractSerializingTestCase<Rule> {
         private static final int MAX_ATTRIBUTE_VALUE_LENGTH = 100;
 
         public TestFeatureType() {}
-
-        static {
-            AutoTaggingRegistry.registerFeatureType(INSTANCE);
-        }
 
         @Override
         public String getName() {
