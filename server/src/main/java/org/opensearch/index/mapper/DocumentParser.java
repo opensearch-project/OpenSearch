@@ -47,7 +47,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaType;
@@ -103,30 +102,26 @@ final class DocumentParser {
         throws MapperParsingException {
         final Mapping mapping = docMapper.mapping();
         ParseContext.InternalParseContext context;
+        final MediaType mediaType = source.getMediaType();
         final boolean ignoreConflicts = IGNORE_MAPPING_CONFLICTS_SETTING.get(indexSettings.getSettings());
         final Set<String> conflicts = new HashSet<>();
-
-        if (ignoreConflicts) {
-            if (indexSettings.isPluggableDataFormatEnabled()
+        if (ignoreConflicts
+            && (indexSettings.isPluggableDataFormatEnabled()
                 || IndexSettings.INDEX_DERIVED_SOURCE_SETTING.get(indexSettings.getSettings())
-                || docMapper.sourceMapper().isComplete() == false) {
-                throw new MapperParsingException(
-                    "index.mapping.ignore_conflicts requires complete stored _source and the Lucene data format"
-                );
-            }
-            // Validate the entire input before recovery: malformed JSON must never become a successful partial ingestion.
-            try (XContentParser parser = createParser(source)) {
-                validateStart(parser);
-                parser.skipChildren();
-                validateEnd(parser);
-            } catch (Exception e) {
-                throw wrapInMapperParsingException(source, e);
-            }
+                || docMapper.sourceMapper().isComplete() == false)) {
+            throw new MapperParsingException("index.mapping.ignore_conflicts requires complete stored _source and the Lucene data format");
         }
 
-        // Retry from unchanged source to discard partial fields, nested documents, copy_to output and dynamic mappings.
+        // A fresh context discards partial fields and nested documents without changing _source.
         while (true) {
-            try (XContentParser parser = createParser(source)) {
+            try (
+                XContentParser parser = XContentHelper.createParser(
+                    docMapperParser.getXContentRegistry(),
+                    LoggingDeprecationHandler.INSTANCE,
+                    source.source(),
+                    mediaType
+                )
+            ) {
                 context = new ParseContext.InternalParseContext(indexSettings, docMapperParser, docMapper, source, parser, documentInput);
                 context.ignoreMappingConflicts(conflicts);
                 validateStart(parser);
@@ -148,15 +143,6 @@ final class DocumentParser {
         context.postParse();
 
         return parsedDocument(source, context, createDynamicUpdate(mapping, docMapper, context.getDynamicMappers()), documentInput);
-    }
-
-    private XContentParser createParser(SourceToParse source) throws IOException {
-        return XContentHelper.createParser(
-            docMapperParser.getXContentRegistry(),
-            LoggingDeprecationHandler.INSTANCE,
-            source.source(),
-            source.getMediaType()
-        );
     }
 
     private static boolean containsDisabledObjectMapper(ObjectMapper objectMapper, String[] subfields) {
@@ -2028,7 +2014,7 @@ final class DocumentParser {
         Mapper mapper = context.docMapper().mappers().getMapper(field);
         if (mapper != null) {
             if (mapper instanceof FieldMapper fieldMapper) {
-                parseMappedField(context, fieldMapper);
+                fieldMapper.parse(context);
             } else if (mapper instanceof FieldAliasMapper) {
                 throw new IllegalArgumentException("Cannot copy to a field alias [" + mapper.name() + "].");
             } else {
@@ -2063,12 +2049,6 @@ final class DocumentParser {
         for (int i = 0; i < paths.length - 1; i++) {
             String currentPath = context.path().pathAsText(paths[i]);
             Mapper existingFieldMapper = context.docMapper().mappers().getMapper(currentPath);
-            if (existingFieldMapper == null) {
-                Mapper inferred = inferredMapper(context, currentPath);
-                if (inferred instanceof FieldMapper) {
-                    existingFieldMapper = inferred;
-                }
-            }
             if (existingFieldMapper != null) {
                 throw mappingConflict(
                     context,
@@ -2166,11 +2146,6 @@ final class DocumentParser {
             return mapper;
         }
 
-        Mapper inferred = inferredMapper(context, fieldPath);
-        if (inferred != null) {
-            return inferred;
-        }
-
         // Normal traversal with disable_objects check
         for (int i = 0; i < subfields.length - 1; ++i) {
             mapper = objectMapper.getMapper(subfields[i]);
@@ -2205,17 +2180,6 @@ final class DocumentParser {
         return objectMapper.getMapper(subfields[subfields.length - 1]);
     }
 
-    private static Mapper inferredMapper(ParseContext context, String path) {
-        if (IGNORE_MAPPING_CONFLICTS_SETTING.get(context.indexSettings().getSettings())) {
-            for (Mapper mapper : context.getDynamicMappers()) {
-                if (mapper.name().equals(path)) {
-                    return mapper;
-                }
-            }
-        }
-        return null;
-    }
-
     private static byte[] parseChildToBytes(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
         try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
@@ -2225,63 +2189,41 @@ final class DocumentParser {
     }
 
     private static void parseFieldWithCopyTo(ParseContext context, FieldMapper fieldMapper) throws IOException {
-        try {
-            XContentParser.Token token = context.parser().currentToken();
-            if ((token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT)
-                && !fieldMapper.copyTo().copyToFields().isEmpty()) {
-                byte[] childBytes = parseChildToBytes(context);
-                // Parse the captured structure with a fresh parser; the original parser is already at its end.
-                XContentParser parser = context.parser();
-                try (
-                    XContentParser innerParser = parser.contentType()
-                        .xContent()
-                        .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), childBytes)
-                ) {
-                    innerParser.nextToken();
-                    ParseContext innerContext = context.switchParser(innerParser);
-                    parseMappedField(innerContext, fieldMapper);
-                }
-                parseCopyFields(context, fieldMapper.copyTo().copyToFields(), childBytes);
-            } else {
-                parseMappedField(context, fieldMapper);
-                parseCopyFields(context, fieldMapper.copyTo().copyToFields());
+        XContentParser.Token token = context.parser().currentToken();
+        if ((token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT)
+            && !fieldMapper.copyTo().copyToFields().isEmpty()) {
+            byte[] childBytes = parseChildToBytes(context);
+            // After parseChildToBytes, the original parser has consumed the full structure.
+            // Parse the field using a fresh parser over the captured bytes.
+            XContentParser parser = context.parser();
+            try (
+                XContentParser innerParser = parser.contentType()
+                    .xContent()
+                    .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), childBytes)
+            ) {
+                innerParser.nextToken();
+                ParseContext innerContext = context.switchParser(innerParser);
+                parseMappedField(innerContext, fieldMapper);
             }
-        } catch (MappingConflictException e) {
-            // A failing multi-field/copy_to value belongs to this source field, not its potentially source-less destination.
-            throw new MappingConflictException(fieldMapper.name(), e);
+            parseCopyFields(context, fieldMapper.copyTo().copyToFields(), childBytes);
+        } else {
+            parseMappedField(context, fieldMapper);
+            parseCopyFields(context, fieldMapper.copyTo().copyToFields());
         }
     }
 
     private static void parseMappedField(ParseContext context, FieldMapper mapper) throws IOException {
         try {
             mapper.parse(context);
-        } catch (IOException | RuntimeException e) {
-            if (mapper instanceof MetadataFieldMapper == false
-                && IGNORE_MAPPING_CONFLICTS_SETTING.get(context.indexSettings().getSettings())
-                && isValueConflict(e)) {
+        } catch (MapperParsingException | IllegalArgumentException e) {
+            if (IGNORE_MAPPING_CONFLICTS_SETTING.get(context.indexSettings().getSettings())
+                && mapper instanceof MetadataFieldMapper == false
+                && context.docMapper().mappers().getMapper(mapper.name()) != null
+                && mapper.multiFields().iterator().hasNext() == false) {
                 throw new MappingConflictException(mapper.name(), e);
             }
             throw e;
         }
-    }
-
-    private static boolean isValueConflict(Exception exception) {
-        Throwable cause = exception;
-        while (cause instanceof MapperParsingException && cause.getCause() != null) {
-            cause = cause.getCause();
-        }
-        // Keep typed parse exceptions intact: their causes may be third-party runtime exceptions.
-        // Mapper implementations do not share a dedicated value-error type. Restrict recovery to parse/value errors;
-        // unexpected internal failures and structural limits outside mapper.parse remain fatal.
-        return cause instanceof MapperParsingException && cause instanceof StrictDynamicMappingException == false
-            || cause instanceof IllegalArgumentException
-            || cause instanceof OpenSearchParseException
-            || cause instanceof ParsingException
-            || cause instanceof DateTimeParseException
-            || cause instanceof IOException
-            || (cause instanceof IllegalStateException
-                && cause.getMessage() != null
-                && cause.getMessage().startsWith("Can't get text on a "));
     }
 
     private static MapperParsingException mappingConflict(ParseContext context, String field, MapperParsingException cause) {

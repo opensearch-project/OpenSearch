@@ -191,35 +191,23 @@ public class IgnoreMappingConflictsTests extends MapperServiceTestCase {
         }
     }
 
-    public void testCopyToFailureDropsSourceAndAllCopyOutput() throws Exception {
+    public void testCopyToFailureStillRejectsDocument() throws Exception {
         DocumentMapper mapper = tolerant(mapping(b -> {
             b.startObject("source").field("type", "keyword").array("copy_to", "first", "number").endObject();
             b.startObject("first").field("type", "keyword").endObject();
             b.startObject("number").field("type", "long").endObject();
             b.startObject("good").field("type", "keyword").endObject();
         }));
-        SourceToParse source = source("{\"source\":\"invalid-number\",\"good\":\"kept\"}");
-        ParsedDocument doc = mapper.parse(source);
-        assertEquals(Set.of("source"), ignored(doc));
-        assertNull(doc.rootDoc().getField("source"));
-        assertNull(doc.rootDoc().getField("first"));
-        assertNull(doc.rootDoc().getField("number"));
-        assertEquals("kept", doc.rootDoc().getBinaryValue("good").utf8ToString());
-        assertPreserved(source, doc);
+        expectThrows(MapperParsingException.class, () -> mapper.parse(source("{\"source\":\"invalid-number\",\"good\":\"kept\"}")));
     }
 
-    public void testMultiFieldFailureDropsParentField() throws Exception {
+    public void testMultiFieldFailureStillRejectsDocument() throws Exception {
         DocumentMapper mapper = tolerant(fieldMapping(b -> {
             b.field("type", "keyword").startObject("fields");
             b.startObject("number").field("type", "long").endObject();
             b.endObject();
         }));
-        SourceToParse source = source("{\"field\":\"not-a-number\"}");
-        ParsedDocument doc = mapper.parse(source);
-        assertEquals(Set.of("field"), ignored(doc));
-        assertNull(doc.rootDoc().getField("field"));
-        assertNull(doc.rootDoc().getField("field.number"));
-        assertPreserved(source, doc);
+        expectThrows(MapperParsingException.class, () -> mapper.parse(source("{\"field\":\"not-a-number\"}")));
     }
 
     public void testRangeAndGeoPointValues() throws Exception {
@@ -270,16 +258,9 @@ public class IgnoreMappingConflictsTests extends MapperServiceTestCase {
         assertPreserved(source, doc);
     }
 
-    public void testDynamicallyInferredArrayConflict() throws Exception {
+    public void testDynamicMappingConflictStillRejectsDocument() throws Exception {
         DocumentMapper mapper = tolerant(mapping(b -> {}));
-        SourceToParse source = source("{\"outer\":{\"bad\":[1,\"not-a-number\"],\"good\":\"kept\"}}");
-        ParsedDocument doc = mapper.parse(source);
-        assertEquals(Set.of("outer.bad"), ignored(doc));
-        assertNull(doc.rootDoc().getField("outer.bad"));
-        assertEquals("kept", doc.rootDoc().get("outer.good"));
-        assertThat(doc.dynamicMappingsUpdate().toString(), containsString("good"));
-        assertFalse(doc.dynamicMappingsUpdate().toString().contains("bad"));
-        assertPreserved(source, doc);
+        expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("{\"field\":[1,\"not-a-number\"]}")));
     }
 
     public void testDisabledObjectsFlattenedConflict() throws Exception {
@@ -304,8 +285,13 @@ public class IgnoreMappingConflictsTests extends MapperServiceTestCase {
 
     public void testMalformedJsonAndMetadataAreNotIgnored() throws Exception {
         DocumentMapper mapper = tolerant(fieldMapping(b -> b.field("type", "long")));
-        expectThrows(MapperParsingException.class, () -> mapper.parse(source("{\"field\":{\"bad\":}}")));
-        expectThrows(MapperParsingException.class, () -> mapper.parse(source("{\"field\":\"bad\"} {}")));
+        for (String json : new String[] {
+            "{\"field\":{\"bad\":}}",
+            "{\"field\":[1,]}",
+            "{\"field\":\"bad\\q\"}",
+            "{\"field\":\"bad\"} {}" }) {
+            expectThrows(MapperParsingException.class, () -> mapper.parse(source(json)));
+        }
         expectThrows(MapperParsingException.class, () -> mapper.parse(source("{\"_id\":\"forbidden\"}")));
     }
 
