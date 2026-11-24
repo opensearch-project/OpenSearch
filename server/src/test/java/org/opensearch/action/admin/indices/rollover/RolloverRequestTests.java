@@ -123,6 +123,7 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
         assertThat(e.getMessage(), containsString(MaxPrimaryShardDocsCondition.NAME));
         assertThat(e.getMessage(), containsString(Version.V_3_10_0.toString()));
+        assertThat("nothing is written before the conditions are validated", out.size(), equalTo(0));
     }
 
     public void testSerializeOldConditionsToOlderVersion() throws Exception {

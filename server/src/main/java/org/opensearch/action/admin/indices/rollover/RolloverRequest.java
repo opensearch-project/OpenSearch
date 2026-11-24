@@ -165,17 +165,19 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(rolloverTarget);
-        out.writeOptionalString(newIndexName);
-        out.writeBoolean(dryRun);
-        out.writeVInt(conditions.size());
         for (Condition<?> condition : conditions.values()) {
             if (condition.includedInVersion(out.getVersion()) == false) {
                 throw new IllegalArgumentException(
                     "rollover condition [" + condition.name() + "] is not supported by nodes on version [" + out.getVersion() + "]"
                 );
             }
+        }
+        super.writeTo(out);
+        out.writeString(rolloverTarget);
+        out.writeOptionalString(newIndexName);
+        out.writeBoolean(dryRun);
+        out.writeVInt(conditions.size());
+        for (Condition<?> condition : conditions.values()) {
             out.writeNamedWriteable(condition);
         }
         createIndexRequest.writeTo(out);
