@@ -27,6 +27,7 @@ import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.CheckedRunnable;
+import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
@@ -53,13 +54,14 @@ import org.opensearch.transport.TcpTransport;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportHandshaker;
 import org.opensearch.transport.TransportKeepAlive;
+import org.opensearch.transport.TransportRequestOptions;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -403,15 +405,40 @@ class FlightTransport extends TcpTransport {
 
     @Override
     public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
+        // One channel per profile connection. Each channel is its own FlightClient, i.e. its own gRPC channel and
+        // TCP connection with independent flow-control windows; NodeChannels round-robins requests across them.
+        final int numConnections = profile.getNumConnections();
+        if (numConnections < 1 || profile.getNumConnectionsPerType(TransportRequestOptions.Type.STREAM) != numConnections) {
+            listener.onFailure(
+                new IllegalArgumentException("Flight transport only opens STREAM connections, but the profile was: " + profile)
+            );
+            return;
+        }
+        final List<TcpChannel> channels = new ArrayList<>(numConnections);
+        final NodeChannels nodeChannels;
         try {
             ensureOpen();
-            TcpChannel channel = initiateChannel(node);
-            List<TcpChannel> channels = Collections.singletonList(channel);
-            NodeChannels nodeChannels = new NodeChannels(node, channels, profile, getVersion());
-            listener.onResponse(nodeChannels);
+            for (int i = 0; i < numConnections; i++) {
+                channels.add(initiateChannel(node));
+            }
+            nodeChannels = new NodeChannels(node, channels, perConnectionProfile(profile), getVersion());
+            final List<FlightClientChannel> flightChannels = new ArrayList<>(numConnections);
+            for (TcpChannel channel : channels) {
+                flightChannels.add((FlightClientChannel) channel);
+            }
+            final FlightClientChannel.Group group = new FlightClientChannel.Group(flightChannels);
+            for (FlightClientChannel channel : flightChannels) {
+                channel.setGroup(group);
+                // As in TcpTransport: losing any channel closes the whole connection, so the connection manager
+                // reconnects instead of routing a share of requests to a closed channel.
+                channel.addCloseListener(ActionListener.wrap(nodeChannels::close));
+            }
         } catch (Exception e) {
+            CloseableChannel.closeChannels(channels, false);
             listener.onFailure(new ConnectTransportException(node, "Failed to open Flight connection", e));
+            return;
         }
+        listener.onResponse(nodeChannels);
     }
 
     @Override
@@ -445,6 +472,32 @@ class FlightTransport extends TcpTransport {
             responseHandlers,
             tracer
         );
+    }
+
+    /**
+     * A copy of {@code profile} with its own channel-selection state. {@link NodeChannels} round-robins over its
+     * channels with a position held in the profile, and the connection manager hands every node the same default
+     * profile, so without a copy all node connections would share one position. Requests that visit nodes in a
+     * fixed order would then keep landing on the same subset of each node's channels.
+     */
+    private static ConnectionProfile perConnectionProfile(ConnectionProfile profile) {
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.addConnections(profile.getNumConnectionsPerType(TransportRequestOptions.Type.STREAM), TransportRequestOptions.Type.STREAM);
+        EnumSet<TransportRequestOptions.Type> others = EnumSet.complementOf(EnumSet.of(TransportRequestOptions.Type.STREAM));
+        builder.addConnections(0, others.toArray(new TransportRequestOptions.Type[0]));
+        if (profile.getConnectTimeout() != null) {
+            builder.setConnectTimeout(profile.getConnectTimeout());
+        }
+        if (profile.getHandshakeTimeout() != null) {
+            builder.setHandshakeTimeout(profile.getHandshakeTimeout());
+        }
+        if (profile.getPingInterval() != null) {
+            builder.setPingInterval(profile.getPingInterval());
+        }
+        if (profile.getCompressionEnabled() != null) {
+            builder.setCompressionEnabled(profile.getCompressionEnabled());
+        }
+        return builder.build();
     }
 
     private EventLoopGroup createEventLoopGroup(String name, int threads) {

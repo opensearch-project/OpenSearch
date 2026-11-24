@@ -20,6 +20,9 @@ done
 # avoid stealing many CPU cycles; a user can override by setting OPENSEARCH_JAVA_OPTS
 OPENSEARCH_JAVA_OPTS="-Xms4m -Xmx64m -XX:+UseSerialGC ${OPENSEARCH_JAVA_OPTS}"
 
+# libraries on the class path (for example bc-fips) load native code
+OPENSEARCH_JAVA_OPTS="--enable-native-access=ALL-UNNAMED ${OPENSEARCH_JAVA_OPTS}"
+
 exec \
   "$JAVA" \
   "$XSHARE" \
