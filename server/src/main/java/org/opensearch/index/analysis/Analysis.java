@@ -121,7 +121,7 @@ public class Analysis {
     /**
      * The Thai stopwords shipped with Lucene up to 10.5. Lucene 10.6 replaced its default Thai list, so the previous one is
      * kept to avoid changing the output of existing indices: it is what {@code _thai_} resolves to and what the {@code thai}
-     * analyzer of indices created before {@link org.opensearch.Version#V_3_10_0} removes.
+     * analyzer of indices created before {@link org.opensearch.Version#V_3_11_0} removes.
      */
     public static CharArraySet legacyThaiStopWords() {
         return LegacyThaiStopWords.SET;

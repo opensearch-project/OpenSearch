@@ -67,21 +67,22 @@ public class ThaiAnalysisTests extends OpenSearchTokenStreamTestCase {
 
     /** Indices created before Lucene 10.6 must produce the same terms as before, so that they do not need a reindex. */
     public void testAnalyzerOnOlderIndex() throws IOException {
-        OpenSearchTestCase.TestAnalysis analysis = analysis(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_3_9_0)
-                .put("index.analysis.analyzer.my_thai.type", "thai")
-        );
-        for (Analyzer analyzer : List.of(
-            analysis.indexAnalyzers.get("my_thai").analyzer(),
-            analysis.indexAnalyzers.get("thai").analyzer()
-        )) {
-            assertThat(analyzer, instanceOf(LegacyThaiAnalyzer.class));
-            // no char filter, normalization or repeat expansion
-            assertAnalyzesTo(analyzer, "เเมวนอนหลับ", new String[] { "เเมวน", "อ", "น", "หลับ" });
-            assertAnalyzesTo(analyzer, "สวัสดีๆ", new String[] { "สวัสดี", "ๆ" });
-            // the previous default stopword list removes เปิด
-            assertAnalyzesTo(analyzer, LEGACY_TEXT, new String[] { "ผลไม้", "ตัว", "สินค้า" });
+        // 3.10.0 already shipped Lucene 10.6, but without this gate, so its indices are treated as old ones
+        for (Version version : List.of(Version.V_3_9_0, Version.V_3_10_0)) {
+            OpenSearchTestCase.TestAnalysis analysis = analysis(
+                Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).put("index.analysis.analyzer.my_thai.type", "thai")
+            );
+            for (Analyzer analyzer : List.of(
+                analysis.indexAnalyzers.get("my_thai").analyzer(),
+                analysis.indexAnalyzers.get("thai").analyzer()
+            )) {
+                assertThat(analyzer, instanceOf(LegacyThaiAnalyzer.class));
+                // no char filter, normalization or repeat expansion
+                assertAnalyzesTo(analyzer, "เเมวนอนหลับ", new String[] { "เเมวน", "อ", "น", "หลับ" });
+                assertAnalyzesTo(analyzer, "สวัสดีๆ", new String[] { "สวัสดี", "ๆ" });
+                // the previous default stopword list removes เปิด
+                assertAnalyzesTo(analyzer, LEGACY_TEXT, new String[] { "ผลไม้", "ตัว", "สินค้า" });
+            }
         }
     }
 
@@ -96,7 +97,7 @@ public class ThaiAnalysisTests extends OpenSearchTokenStreamTestCase {
 
     /**
      * Lucene 10.6 treats whitespace as a safe place to cut when the 1024 character buffer fills. A word that straddles the cut
-     * after a space is split by the old tokenizer, which indices created before 3.10.0 must keep doing.
+     * after a space is split by the old tokenizer, which indices created before 3.11.0 must keep doing.
      */
     public void testBufferCut() throws IOException {
         String text = "ก".repeat(1021) + " แมว";
@@ -106,7 +107,7 @@ public class ThaiAnalysisTests extends OpenSearchTokenStreamTestCase {
         legacy[511] = "แม";
         legacy[512] = "ว";
 
-        for (Version version : List.of(Version.V_3_9_0, Version.V_3_10_0)) {
+        for (Version version : List.of(Version.V_3_9_0, Version.V_3_10_0, Version.V_3_11_0)) {
             OpenSearchTestCase.TestAnalysis analysis = analysis(
                 Settings.builder()
                     .put(IndexMetadata.SETTING_VERSION_CREATED, version)
@@ -116,7 +117,7 @@ public class ThaiAnalysisTests extends OpenSearchTokenStreamTestCase {
             );
             for (String name : List.of("thai_only", "thai_preconfigured")) {
                 Analyzer analyzer = analysis.indexAnalyzers.get(name).analyzer();
-                if (version.equals(Version.V_3_9_0)) {
+                if (version.before(Version.V_3_11_0)) {
                     assertAnalyzesTo(analyzer, text, legacy);
                 } else {
                     String[] tokens = new String[legacy.length - 1];
@@ -130,7 +131,7 @@ public class ThaiAnalysisTests extends OpenSearchTokenStreamTestCase {
 
     /** {@code _thai_} is frozen: it keeps removing the words Lucene's 10.5 list removed, for every index version. */
     public void testThaiStopwordNameRemovesLegacyStopwords() throws IOException {
-        for (Version version : List.of(Version.V_3_9_0, Version.V_3_10_0)) {
+        for (Version version : List.of(Version.V_3_9_0, Version.V_3_10_0, Version.V_3_11_0)) {
             Analyzer analyzer = analysis(
                 Settings.builder()
                     .put(IndexMetadata.SETTING_VERSION_CREATED, version)
@@ -152,11 +153,11 @@ public class ThaiAnalysisTests extends OpenSearchTokenStreamTestCase {
     }
 
     public void testTokenizerOnOlderIndex() throws IOException {
-        TokenizerFactory factory = analysis(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_3_9_0)
-                .put("index.analysis.tokenizer.my_thai.type", "thai")
-        ).tokenizer.get("my_thai");
-        assertThat(factory.create(), instanceOf(LegacyThaiTokenizer.class));
+        for (Version version : List.of(Version.V_3_9_0, Version.V_3_10_0)) {
+            TokenizerFactory factory = analysis(
+                Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).put("index.analysis.tokenizer.my_thai.type", "thai")
+            ).tokenizer.get("my_thai");
+            assertThat(factory.create(), instanceOf(LegacyThaiTokenizer.class));
+        }
     }
 }

@@ -11,7 +11,7 @@ package org.opensearch.analysis.common;
 import org.apache.lucene.analysis.th.ThaiTokenizer;
 
 /**
- * {@link ThaiTokenizer} as it behaved before Lucene 10.6, for indices created before {@link org.opensearch.Version#V_3_10_0}.
+ * {@link ThaiTokenizer} as it behaved before Lucene 10.6, for indices created before {@link org.opensearch.Version#V_3_11_0}.
  *
  * <p>Lucene 10.6 also treats whitespace as a safe place to cut when the internal buffer is full. That can move the token
  * boundaries of long text, so this tokenizer only accepts the line and paragraph separators it accepted before.

@@ -46,7 +46,7 @@ import org.opensearch.index.analysis.Analysis;
  * Provider for the {@code thai} analyzer.
  *
  * <p>Lucene 10.6 changed what its Thai analyzer, default stopwords and tokenizer produce for some text. To avoid a reindex,
- * indices created before {@link Version#V_3_10_0} keep the previous behavior ({@link LegacyThaiAnalyzer},
+ * indices created before {@link Version#V_3_11_0} keep the previous behavior ({@link LegacyThaiAnalyzer},
  * {@link LegacyThaiTokenizer}, {@link Analysis#legacyThaiStopWords()}); newer indices use Lucene's
  * {@link ThaiAnalyzer} and its default stopwords.
  */
@@ -64,7 +64,7 @@ public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stopword
      * Whether an index created with {@code indexCreatedVersion} uses the Thai components as changed in Lucene 10.6.
      */
     static boolean usesLucene106Thai(Version indexCreatedVersion) {
-        return indexCreatedVersion.onOrAfter(Version.V_3_10_0);
+        return indexCreatedVersion.onOrAfter(Version.V_3_11_0);
     }
 
     static CharArraySet defaultStopWords(Version indexCreatedVersion) {

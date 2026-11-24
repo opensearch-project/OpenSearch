@@ -18,7 +18,7 @@ import org.apache.lucene.analysis.core.DecimalDigitFilter;
 
 /**
  * The {@code thai} analyzer as it was before Lucene 10.6, kept for indices created before
- * {@link org.opensearch.Version#V_3_10_0}: {@link LegacyThaiTokenizer}, lowercase, decimal digits, stop.
+ * {@link org.opensearch.Version#V_3_11_0}: {@link LegacyThaiTokenizer}, lowercase, decimal digits, stop.
  *
  * <p>Lucene 10.6's {@link org.apache.lucene.analysis.th.ThaiAnalyzer} also applies {@code ThaiCharFilter},
  * {@code ThaiNormalizationFilter} and {@code ThaiRepeatFilter} and ships a different default stopword list, which changes the

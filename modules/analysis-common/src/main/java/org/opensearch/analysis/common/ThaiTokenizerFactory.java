@@ -43,7 +43,7 @@ import org.opensearch.index.analysis.AbstractTokenizerFactory;
 /**
  * Factory for {@link ThaiTokenizer}
  *
- * <p>Indices created before {@link Version#V_3_10_0} keep the buffer cut points of Lucene 10.5 (see
+ * <p>Indices created before {@link Version#V_3_11_0} keep the buffer cut points of Lucene 10.5 (see
  * {@link LegacyThaiTokenizer}).
  */
 public class ThaiTokenizerFactory extends AbstractTokenizerFactory {
