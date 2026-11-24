@@ -343,7 +343,10 @@ public class ShardLimitValidator {
                 state.getMetadata().getTotalOpenIndexShards(),
                 getShardLimitPerNode(),
                 getShardLimitPerCluster(),
-                state.getNodes().getDataNodes().size(),
+                // Exclude warm nodes from the hot shard limit calculation. Warm nodes are intended
+                // to host remote-capable (warm) indices only, so counting them inflates the hot-tier
+                // ceiling and allows far more hot shards than the hot nodes can support.
+                state.getNodes().getDataNodes().size() - state.getNodes().getWarmNodes().size(),
                 shardPool
             );
     }
