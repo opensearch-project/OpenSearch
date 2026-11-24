@@ -8,16 +8,32 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 public class IgnoreMappingConflictsTests extends MapperServiceTestCase {
     private static final Settings TOLERANT = Settings.builder().put(FieldMapper.IGNORE_MAPPING_CONFLICTS_SETTING.getKey(), true).build();
@@ -30,9 +46,20 @@ public class IgnoreMappingConflictsTests extends MapperServiceTestCase {
         return Arrays.stream(document.rootDoc().getFields("_ignored")).map(IndexableField::stringValue).collect(Collectors.toSet());
     }
 
-    private void assertPreserved(SourceToParse source, ParsedDocument document) {
+    private void assertStoredSource(SourceToParse source, ParsedDocument document) {
         assertEquals(source.source(), document.source());
         assertEquals(source.source().toBytesRef(), document.rootDoc().getBinaryValue("_source"));
+    }
+
+    private void assertPreserved(SourceToParse source, ParsedDocument document) {
+        assertStoredSource(source, document);
+        assertWarnings(
+            "Ignored mapping-conflicting fields "
+                + ignored(document).stream().sorted().collect(Collectors.toList())
+                + " while parsing document with id ["
+                + source.id()
+                + "] in index [index]; values preserved in _source"
+        );
     }
 
     public void testScalarTypesAtMultipleDepths() throws Exception {
@@ -105,6 +132,7 @@ public class IgnoreMappingConflictsTests extends MapperServiceTestCase {
     public void testObjectAndNestedReceiveScalars() throws Exception {
         for (String type : new String[] { "object", "nested" }) {
             DocumentMapper mapper = tolerant(mapping(b -> {
+                b.startObject("trigger").field("type", "long").endObject();
                 b.startObject("outer").startObject("properties");
                 b.startObject("bad").field("type", type).startObject("properties");
                 b.startObject("value").field("type", "keyword").endObject();
@@ -112,9 +140,9 @@ public class IgnoreMappingConflictsTests extends MapperServiceTestCase {
                 b.startObject("good").field("type", "keyword").endObject();
                 b.endObject().endObject();
             }));
-            SourceToParse source = source("{\"outer\":{\"bad\":\"unexpected\",\"good\":\"kept\"}}");
+            SourceToParse source = source("{\"trigger\":\"bad\",\"outer\":{\"bad\":\"unexpected\",\"good\":\"kept\"}}");
             ParsedDocument doc = mapper.parse(source);
-            assertEquals(Set.of("outer.bad"), ignored(doc));
+            assertEquals(Set.of("trigger", "outer.bad"), ignored(doc));
             assertEquals(1, doc.docs().size());
             assertEquals("kept", doc.rootDoc().getBinaryValue("outer.good").utf8ToString());
             assertPreserved(source, doc);
@@ -136,17 +164,29 @@ public class IgnoreMappingConflictsTests extends MapperServiceTestCase {
 
     public void testConflictInsideNestedArrayKeepsSiblingFields() throws Exception {
         DocumentMapper mapper = tolerant(mapping(b -> {
+            b.startObject("trigger").field("type", "long").endObject();
             b.startObject("items").field("type", "nested").field("include_in_root", true).startObject("properties");
             b.startObject("price").field("type", "long").endObject();
             b.startObject("name").field("type", "keyword").endObject();
             b.endObject().endObject();
         }));
-        SourceToParse source = source("{\"items\":[{\"price\":1,\"name\":\"first\"},{\"price\":{},\"name\":\"second\"}]}");
+        SourceToParse source = source(
+            "{\"trigger\":\"bad\",\"items\":[{\"price\":1,\"name\":\"first\"},{\"price\":\"bad\",\"name\":\"second\"}]}"
+        );
         ParsedDocument doc = mapper.parse(source);
-        assertEquals(Set.of("items.price"), ignored(doc));
+        assertEquals(Set.of("trigger", "items.price"), ignored(doc));
+        assertEquals(2, doc.rootDoc().getFields("_ignored").length);
         assertEquals(3, doc.docs().size());
         for (ParseContext.Document luceneDoc : doc.docs()) {
             assertNull(luceneDoc.getField("items.price"));
+        }
+        for (int i = 0; i < 2; i++) {
+            assertEquals(
+                1,
+                Arrays.stream(doc.docs().get(i).getFields("items.name"))
+                    .filter(field -> field.fieldType().indexOptions() != IndexOptions.NONE)
+                    .count()
+            );
         }
         assertEquals(
             Set.of("first", "second"),
@@ -175,17 +215,18 @@ public class IgnoreMappingConflictsTests extends MapperServiceTestCase {
 
     public void testDottedFieldBelowScalar() throws Exception {
         DocumentMapper mapper = tolerant(mapping(b -> {
+            b.startObject("trigger").field("type", "long").endObject();
             b.startObject("outer").startObject("properties");
             b.startObject("scalar").field("type", "keyword").endObject();
             b.startObject("good").field("type", "keyword").endObject();
             b.endObject().endObject();
         }));
         for (String json : new String[] {
-            "{\"outer\":{\"scalar.child\":42,\"good\":\"kept\"}}",
-            "{\"outer.scalar.child\":42,\"outer.good\":\"kept\"}" }) {
+            "{\"trigger\":\"bad\",\"outer\":{\"scalar.child\":42,\"good\":\"kept\"}}",
+            "{\"trigger\":\"bad\",\"outer.scalar.child\":42,\"outer.good\":\"kept\"}" }) {
             SourceToParse source = source(json);
             ParsedDocument doc = mapper.parse(source);
-            assertEquals(Set.of("outer.scalar.child"), ignored(doc));
+            assertEquals(Set.of("trigger", "outer.scalar.child"), ignored(doc));
             assertEquals("kept", doc.rootDoc().getBinaryValue("outer.good").utf8ToString());
             assertPreserved(source, doc);
         }
@@ -258,11 +299,6 @@ public class IgnoreMappingConflictsTests extends MapperServiceTestCase {
         assertPreserved(source, doc);
     }
 
-    public void testDynamicMappingConflictStillRejectsDocument() throws Exception {
-        DocumentMapper mapper = tolerant(mapping(b -> {}));
-        expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("{\"field\":[1,\"not-a-number\"]}")));
-    }
-
     public void testDisabledObjectsFlattenedConflict() throws Exception {
         DocumentMapper mapper = tolerant(topMapping(b -> {
             b.field("disable_objects", true).startObject("properties");
@@ -276,6 +312,42 @@ public class IgnoreMappingConflictsTests extends MapperServiceTestCase {
         assertNull(doc.rootDoc().getField("outer.bad"));
         assertEquals("kept", doc.rootDoc().getBinaryValue("outer.good").utf8ToString());
         assertPreserved(source, doc);
+    }
+
+    public void testLiteralDottedFieldsRemainIndependent() throws Exception {
+        DocumentMapper mapper = tolerant(topMapping(b -> {
+            b.field("disable_objects", true).startObject("properties");
+            b.startObject("a").field("type", "long").endObject();
+            b.startObject("a.b").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+        SourceToParse source = source("{\"a\":\"bad\",\"a.b\":\"kept\"}");
+        ParsedDocument doc = mapper.parse(source);
+        assertEquals(Set.of("a"), ignored(doc));
+        assertEquals("kept", doc.rootDoc().getBinaryValue("a.b").utf8ToString());
+        assertPreserved(source, doc);
+    }
+
+    public void testDiscoveryFindsAllFlattenedChildrenOfMappedLeaf() throws Exception {
+        MapperService service = createMapperService(TOLERANT, topMapping(b -> {
+            b.field("disable_objects", true).startObject("properties");
+            b.startObject("trigger").field("type", "long").endObject();
+            b.startObject("a").field("type", "long").endObject();
+            b.startObject("a.b").field("type", "long").endObject();
+            b.startObject("a.c").field("type", "long").endObject();
+            b.startObject("good").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+        for (String value : new String[] { "{\"b\":\"bad\",\"c\":\"bad\"}", "[{\"b\":\"bad\"},{\"c\":\"bad\"}]" }) {
+            SourceToParse source = source("{\"trigger\":\"bad\",\"a\":" + value + ",\"good\":\"kept\"}");
+            ParsedDocument doc = parseCountingSourcePasses(service, source, 3);
+            assertEquals(Set.of("trigger", "a.b", "a.c"), ignored(doc));
+            assertNull(doc.rootDoc().getField("a"));
+            assertNull(doc.rootDoc().getField("a.b"));
+            assertNull(doc.rootDoc().getField("a.c"));
+            assertEquals("kept", doc.rootDoc().getBinaryValue("good").utf8ToString());
+            assertPreserved(source, doc);
+        }
     }
 
     public void testDefaultStillRejectsConflicts() throws Exception {
@@ -300,23 +372,265 @@ public class IgnoreMappingConflictsTests extends MapperServiceTestCase {
         expectThrows(MapperParsingException.class, () -> mapper.parse(source("{\"unknown\":42}")));
     }
 
-    public void testNestedDocumentLimitIsNotIgnored() throws Exception {
+    public void testDiscoveryDoesNotBypassNestedDocumentLimit() throws Exception {
         Settings settings = Settings.builder().put(TOLERANT).put("index.mapping.nested_objects.limit", 1).build();
         DocumentMapper mapper = createDocumentMapper(settings, mapping(b -> {
+            b.startObject("trigger").field("type", "long").endObject();
             b.startObject("items").field("type", "nested").startObject("properties");
             b.startObject("name").field("type", "keyword").endObject();
             b.endObject().endObject();
         }));
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> mapper.parse(source("{\"items\":[{\"name\":\"one\"},{\"name\":\"two\"}]}"))
+            () -> mapper.parse(source("{\"trigger\":\"bad\",\"items\":[{\"name\":\"one\"},{\"name\":\"two\"},\"bad\"]}"))
         );
         assertThat(e.getMessage(), containsString("nested documents"));
+        assertNoDeprecationWarnings();
+    }
+
+    public void testDiscoveryDoesNotResetArrayDepthLimitInFieldProbe() throws Exception {
+        Settings settings = Settings.builder().put(TOLERANT).put("index.mapping.depth.limit", 2).build();
+        DocumentMapper mapper = createDocumentMapper(settings, mapping(b -> {
+            b.startObject("trigger").field("type", "long").endObject();
+            b.startObject("items").startObject("properties");
+            b.startObject("price").field("type", "long").endObject();
+            b.endObject().endObject();
+        }));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source("{\"trigger\":\"bad\",\"items\":[{\"price\":[[1,\"bad\"]]}]}"))
+        );
+        assertThat(e.getCause().getMessage(), containsString("depth of the nested array field"));
+        assertNoDeprecationWarnings();
     }
 
     public void testRequiresCompleteStoredSource() throws Exception {
-        DocumentMapper mapper = tolerant(topMapping(b -> b.startObject("_source").field("enabled", false).endObject()));
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source("{}")));
+        for (String option : new String[] { "enabled", "includes", "excludes" }) {
+            Exception e = expectThrows(MapperParsingException.class, () -> tolerant(topMapping(b -> {
+                b.startObject("_source");
+                if (option.equals("enabled")) {
+                    b.field(option, false);
+                } else {
+                    b.array(option, "field");
+                }
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("complete stored _source"));
+        }
+    }
+
+    public void testMutableDocumentInputIsRejectedBeforeParsing() throws Exception {
+        DocumentMapper mapper = tolerant(fieldMapping(b -> b.field("type", "long")));
+        DocumentInput<?> input = mock(DocumentInput.class);
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source("{\"field\":\"bad\"}"), input));
+        assertThat(e.getMessage(), containsString("does not support DocumentInput"));
+        verifyNoInteractions(input);
+    }
+
+    public void testDerivedSourceIsRejected() throws Exception {
+        Settings settings = Settings.builder().put(TOLERANT).put("index.derived_source.enabled", true).build();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(settings, mapping(b -> {})));
         assertThat(e.getMessage(), containsString("complete stored _source"));
+    }
+
+    private ParsedDocument parseCountingSourcePasses(MapperService service, SourceToParse source, int expectedPasses) throws Exception {
+        DocumentMapperParser mapperParser = spy(service.documentMapperParser());
+        DocumentMapper mapper = service.documentMapper();
+        ParsedDocument document = new DocumentParser(service.getIndexSettings(), mapperParser, mapper).parseDocument(
+            source,
+            mapper.mapping().metadataMappers
+        );
+        verify(mapperParser, times(expectedPasses)).getXContentRegistry();
+        return document;
+    }
+
+    public void testHealthyDocumentUsesOneSourcePass() throws Exception {
+        MapperService service = createMapperService(TOLERANT, mapping(b -> {
+            b.startObject("number").field("type", "long").endObject();
+            b.startObject("object").startObject("properties");
+            b.startObject("good").field("type", "keyword").endObject();
+            b.endObject().endObject();
+        }));
+        SourceToParse source = source("{\"number\":[1,2],\"object\":{\"good\":\"kept\"}}");
+        ParsedDocument doc = parseCountingSourcePasses(service, source, 1);
+        assertEquals(Set.of(), ignored(doc));
+        assertStoredSource(source, doc);
+        assertNoDeprecationWarnings();
+    }
+
+    public void testManyConflictsUseThreeSourcePasses() throws Exception {
+        // The number of whole-source passes is constant, not proportional to the number of conflicts.
+        MapperService service = createMapperService(TOLERANT, mapping(b -> {
+            for (int i = 0; i < 32; i++) {
+                b.startObject("field" + i).field("type", "long").endObject();
+            }
+            b.startObject("good").field("type", "keyword").endObject();
+        }));
+        StringBuilder json = new StringBuilder("{");
+        for (int i = 0; i < 32; i++) {
+            json.append("\"field").append(i).append("\":\"bad\",");
+        }
+        json.append("\"good\":\"kept\"}");
+        SourceToParse source = source(json.toString());
+        ParsedDocument doc = parseCountingSourcePasses(service, source, 3);
+        assertEquals(32, ignored(doc).size());
+        assertEquals(32, doc.rootDoc().getFields("_ignored").length);
+        for (int i = 0; i < 32; i++) {
+            assertTrue(ignored(doc).contains("field" + i));
+            assertNull(doc.rootDoc().getField("field" + i));
+        }
+        assertEquals("kept", doc.rootDoc().getBinaryValue("good").utf8ToString());
+        assertPreserved(source, doc);
+    }
+
+    public void testProbesPreserveNumericTextForDateFormats() throws Exception {
+        MapperService service = createMapperService(TOLERANT, mapping(b -> {
+            b.startObject("trigger").field("type", "long").endObject();
+            b.startObject("clock").field("type", "date").field("format", "HH.mm").endObject();
+            b.startObject("window").field("type", "date_range").field("format", "HH.mm").endObject();
+        }));
+        String values = ",\"clock\":12.30,\"window\":{\"gte\":12.30,\"lte\":13.00}}";
+        ParsedDocument healthy = parseCountingSourcePasses(service, source("{\"trigger\":1" + values), 1);
+        assertNotNull(healthy.rootDoc().getField("clock"));
+        assertNotNull(healthy.rootDoc().getField("window"));
+        assertNoDeprecationWarnings();
+        SourceToParse source = source("{\"trigger\":\"bad\"" + values);
+        ParsedDocument doc = parseCountingSourcePasses(service, source, 3);
+        assertEquals(Set.of("trigger"), ignored(doc));
+        assertNotNull(doc.rootDoc().getField("clock"));
+        assertNotNull(doc.rootDoc().getField("window"));
+        assertPreserved(source, doc);
+    }
+
+    public void testUnsafeNumericNormalizationFailsRatherThanIgnoringValidField() throws Exception {
+        DocumentMapper mapper = tolerant(mapping(b -> {
+            b.startObject("trigger").field("type", "long").endObject();
+            b.startObject("clock").field("type", "date").field("format", "HH.mm").endObject();
+        }));
+        SourceToParse healthy = new SourceToParse("index", "1", new BytesArray("---\ntrigger: 1\nclock: 12.30\n"), XContentType.YAML);
+        assertNotNull(mapper.parse(healthy).rootDoc().getField("clock"));
+        assertNoDeprecationWarnings();
+        SourceToParse source = new SourceToParse("index", "1", new BytesArray("---\ntrigger: bad\nclock: 12.30\n"), XContentType.YAML);
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
+        assertThat(e.getMessage(), containsString("cannot safely preserve numeric representations"));
+        assertNoDeprecationWarnings();
+    }
+
+    public void testDiscoveryDefersDocumentOutputValidation() throws Exception {
+        MapperService service = createMapperService(TOLERANT, topMapping(b -> {
+            b.startObject("_data_stream_timestamp").field("enabled", true).endObject();
+            b.startObject("properties");
+            b.startObject("trigger").field("type", "long").endObject();
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.endObject();
+        }));
+        SourceToParse source = source("{\"trigger\":\"bad\",\"@timestamp\":\"2026-01-01T00:00:00Z\"}");
+        ParsedDocument doc = parseCountingSourcePasses(service, source, 3);
+        assertEquals(Set.of("trigger"), ignored(doc));
+        assertNotNull(doc.rootDoc().getField("@timestamp"));
+        assertPreserved(source, doc);
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> service.documentMapper().parse(source("{\"trigger\":\"bad\"}"))
+        );
+        assertThat(e.getCause().getMessage(), containsString("timestamp"));
+        assertNoDeprecationWarnings();
+    }
+
+    public void testFinalDynamicMappingFailureDoesNotStartAnotherRecovery() throws Exception {
+        MapperService service = createMapperService(TOLERANT, fieldMapping(b -> b.field("type", "long")));
+        DocumentMapperParser mapperParser = spy(service.documentMapperParser());
+        DocumentMapper mapper = service.documentMapper();
+        DocumentParser parser = new DocumentParser(service.getIndexSettings(), mapperParser, mapper);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> parser.parseDocument(source("{\"field\":\"bad\",\"dynamic\":[1,\"bad\"]}"), mapper.mapping().metadataMappers)
+        );
+        assertThat(e.getMessage(), containsString("mapper [dynamic] cannot be changed from type [long] to [text]"));
+        verify(mapperParser, times(3)).getXContentRegistry();
+    }
+
+    @TestLogging(value = "org.opensearch.index.mapper.DocumentParser:WARN", reason = "verify conflict recovery warnings")
+    public void testRecoveryWarnsOnceWithoutSourceValues() throws Exception {
+        DocumentMapper mapper = tolerant(mapping(b -> {
+            b.startObject("a").field("type", "long").endObject();
+            b.startObject("b").field("type", "long").endObject();
+        }));
+        List<String> warnings = new ArrayList<>();
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(DocumentParser.class))) {
+            appender.addExpectation(new MockLogAppender.LoggingExpectation() {
+                @Override
+                public void match(LogEvent event) {
+                    if (event.getLevel() == Level.WARN && event.getLoggerName().equals(DocumentParser.class.getName())) {
+                        warnings.add(event.getMessage().getFormattedMessage());
+                    }
+                }
+
+                @Override
+                public void assertMatched() {
+                    assertEquals(1, warnings.size());
+                }
+            });
+            mapper.parse(source("{\"a\":1,\"b\":2}"));
+            assertTrue(warnings.isEmpty());
+            assertNoDeprecationWarnings();
+            expectThrows(MapperParsingException.class, () -> mapper.parse(source("{\"a\":\"secret\",\"_id\":\"forbidden\"}")));
+            assertTrue(warnings.isEmpty());
+            assertNoDeprecationWarnings();
+            mapper.parse(source("{\"b\":\"secret\",\"a\":\"secret\"}"));
+            appender.assertAllExpectationsMatched();
+            assertEquals(
+                "Ignored mapping-conflicting fields [a, b] while parsing document with id [1] in index [index]; values preserved in _source",
+                warnings.get(0)
+            );
+            assertWarnings(warnings.get(0));
+        }
+    }
+
+    public void testDottedObjectConflictPaths() throws Exception {
+        DocumentMapper mapper = tolerant(mapping(b -> {
+            b.startObject("a").startObject("properties");
+            b.startObject("b").startObject("properties");
+            b.startObject("k").field("type", "long").endObject();
+            b.endObject().endObject().endObject().endObject();
+            b.startObject("good").field("type", "keyword").endObject();
+        }));
+        for (String json : new String[] {
+            "{\"a.b\":1,\"a\":{\"b\":{\"k\":2}},\"good\":\"kept\"}",
+            "{\"a\":{\"b\":{\"k\":2}},\"a.b\":1,\"good\":\"kept\"}" }) {
+            SourceToParse source = source(json);
+            ParsedDocument doc = mapper.parse(source);
+            assertEquals(Set.of("a.b"), ignored(doc));
+            assertEquals(1, doc.rootDoc().getFields("_ignored").length);
+            assertNull(doc.rootDoc().getField("a.b.k"));
+            assertEquals("kept", doc.rootDoc().getBinaryValue("good").utf8ToString());
+            assertPreserved(source, doc);
+        }
+        SourceToParse source = source("{\"a\":\"x\",\"a.b\":1,\"good\":\"kept\"}");
+        ParsedDocument doc = mapper.parse(source);
+        assertEquals(Set.of("a"), ignored(doc));
+        assertEquals("kept", doc.rootDoc().getBinaryValue("good").utf8ToString());
+        assertPreserved(source, doc);
+    }
+
+    public void testIgnoreMalformedTakesPrecedenceWithoutDroppingValidOccurrences() throws Exception {
+        Settings settings = Settings.builder().put(TOLERANT).put("index.mapping.ignore_malformed", true).build();
+        MapperService service = createMapperService(settings, fieldMapping(b -> b.field("type", "long")));
+        SourceToParse source = source("{\"field\":[1,\"not_a_number\",2]}");
+        ParsedDocument doc = parseCountingSourcePasses(service, source, 1);
+        assertEquals(Set.of("field"), ignored(doc));
+        assertNotNull(doc.rootDoc().getField("field"));
+        assertStoredSource(source, doc);
+        assertNoDeprecationWarnings();
+    }
+
+    public void testDepthLimitIsNotIgnored() throws Exception {
+        Settings settings = Settings.builder().put(TOLERANT).put("index.mapping.depth.limit", 2).build();
+        DocumentMapper mapper = createDocumentMapper(settings, mapping(b -> { b.startObject("field").field("type", "long").endObject(); }));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source("{\"field\":\"bad\",\"a\":{\"b\":{\"c\":1}}}"))
+        );
+        assertThat(e.getCause().getMessage(), containsString("depth"));
     }
 }

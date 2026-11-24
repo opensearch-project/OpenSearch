@@ -76,10 +76,16 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         false,
         Property.IndexScope
     );
-    /** Exclude mapping-conflicting field paths from indexing while preserving their values in stored _source. */
+    /**
+     * Exclude mapping-conflicting field paths from indexing while preserving their values in complete stored _source.
+     * Recovery is limited to existing mappings. Only after a conflict, discover conflicting paths and rebuild once.
+     * Documents without conflicts use the normal single-pass parser. Skipped paths are recorded in _ignored
+     * and reported through server logs and Warning response headers.
+     */
     public static final Setting<Boolean> IGNORE_MAPPING_CONFLICTS_SETTING = Setting.boolSetting(
         "index.mapping.ignore_conflicts",
         false,
+        Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", false, Property.IndexScope);

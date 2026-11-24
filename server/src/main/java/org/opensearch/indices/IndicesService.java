@@ -1376,6 +1376,10 @@ public class IndicesService extends AbstractLifecycleComponent
             service.mapperService().merge(metadata, MapperService.MergeReason.MAPPING_RECOVERY);
             if (metadata.equals(metadataUpdate) == false) {
                 service.updateMetadata(metadata, metadataUpdate);
+                // Settings may impose new requirements on the existing mapping (e.g. complete stored _source).
+                if (service.mapperService().documentMapper() != null) {
+                    service.mapperService().documentMapper().validate(service.getIndexSettings(), false);
+                }
             }
         } finally {
             IOUtils.close(closeables);

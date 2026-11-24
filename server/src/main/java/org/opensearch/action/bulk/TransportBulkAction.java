@@ -118,6 +118,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -722,6 +723,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
 
             final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
+            final ConcurrentLinkedQueue<String> warnings = new ConcurrentLinkedQueue<>();
             final DocStatusStats docStatusStats = new DocStatusStats();
             String nodeId = clusterService.localNode().getId();
             final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
@@ -750,6 +752,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 final ActionListener<BulkShardResponse> shardListener = new ActionListener<>() {
                     @Override
                     public void onResponse(BulkShardResponse bulkShardResponse) {
+                        collectWarnings();
                         if (targetNodeId != null && bulkAdaptiveShardSelectionEnabled) {
                             if (bulkShardResponse.getNodeQueueSize() < 0 || bulkShardResponse.getServiceTimeEWMAInNanos() < 0) {
                                 // The shard already applied these items, so skip the statistics instead of failing the items.
@@ -786,6 +789,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                     @Override
                     public void onFailure(Exception e) {
+                        collectWarnings();
                         // create failures for all relevant requests
                         for (BulkItemRequest request : requests) {
                             final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
@@ -805,7 +809,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         }
                     }
 
+                    private void collectWarnings() {
+                        List<String> headers = threadPool.getThreadContext().getResponseHeaders().get("Warning");
+                        if (headers != null) {
+                            warnings.addAll(headers);
+                        }
+                    }
+
                     private void finishHim() {
+                        // A bulk completes in the last shard's context; retain warnings from every shard response.
+                        warnings.forEach(warning -> threadPool.getThreadContext().addResponseHeader("Warning", warning));
                         indicesService.addDocStatusStats(docStatusStats);
                         listener.onResponse(
                             new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))

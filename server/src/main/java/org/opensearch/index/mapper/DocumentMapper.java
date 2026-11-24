@@ -417,7 +417,17 @@ public class DocumentMapper implements ToXContentFragment {
         return new DocumentMapper(mapperService, merged, this.version + 1L);
     }
 
+    void validateIgnoreMappingConflicts(IndexSettings settings) {
+        if (FieldMapper.IGNORE_MAPPING_CONFLICTS_SETTING.get(settings.getSettings())
+            && (settings.isPluggableDataFormatEnabled()
+                || IndexSettings.INDEX_DERIVED_SOURCE_SETTING.get(settings.getSettings())
+                || sourceMapper().isComplete() == false)) {
+            throw new MapperParsingException("index.mapping.ignore_conflicts requires complete stored _source and the Lucene data format");
+        }
+    }
+
     public void validate(IndexSettings settings, boolean checkLimits) {
+        validateIgnoreMappingConflicts(settings);
         this.mapping.validate(this.fieldMappers);
         if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
             if (routingFieldMapper().required() == false) {
