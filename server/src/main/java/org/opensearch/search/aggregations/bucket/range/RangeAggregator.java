@@ -32,10 +32,8 @@
 package org.opensearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -330,8 +328,9 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
     @Override
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
-        if (supportedStarTree != null) {
-            preComputeWithStarTree(ctx, supportedStarTree);
+        if (supportedStarTree != null
+            && StarTreeQueryHelper.canPrecomputeWithStarTree(this.context)
+            && preComputeWithStarTree(ctx, supportedStarTree)) {
             return true;
         }
 
@@ -381,19 +380,9 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
         };
     }
 
-    private void preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+    private boolean preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, starTree, null);
-        FixedBitSet matchingDocsBitSet = starTreeBucketCollector.getMatchingDocsBitSet();
-
-        int numBits = matchingDocsBitSet.length();
-
-        if (numBits > 0) {
-            for (int bit = matchingDocsBitSet.nextSetBit(0); bit != DocIdSetIterator.NO_MORE_DOCS; bit = (bit + 1 < numBits)
-                ? matchingDocsBitSet.nextSetBit(bit + 1)
-                : DocIdSetIterator.NO_MORE_DOCS) {
-                starTreeBucketCollector.collectStarTreeEntry(bit, 0);
-            }
-        }
+        return StarTreeQueryHelper.preComputeBucketsWithStarTree(this.context, starTreeBucketCollector);
     }
 
     @Override

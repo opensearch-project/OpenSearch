@@ -127,14 +127,13 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
         }
 
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
-        if (supportedStarTree != null) {
+        if (supportedStarTree != null && StarTreeQueryHelper.canPrecomputeWithStarTree(this.context)) {
             if (parent != null && subAggregators.length == 0) {
                 // If this a child aggregator, then the parent will trigger star-tree pre-computation.
                 // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
                 return true;
             }
-            precomputeLeafUsingStarTree(ctx, supportedStarTree);
-            return true;
+            return precomputeLeafUsingStarTree(ctx, supportedStarTree);
         }
 
         return false;
@@ -200,11 +199,19 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
         };
     }
 
-    private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+    private boolean precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         AtomicReference<Double> min = new AtomicReference<>(mins.get(0));
-        StarTreeQueryHelper.precomputeLeafUsingStarTree(context, valuesSource, ctx, starTree, MetricStat.MIN.getTypeName(), value -> {
-            min.set(Math.min(min.get(), (NumericUtils.sortableLongToDouble(value))));
-        }, () -> mins.set(0, min.get()));
+        return StarTreeQueryHelper.precomputeLeafUsingStarTree(
+            context,
+            valuesSource,
+            ctx,
+            starTree,
+            MetricStat.MIN.getTypeName(),
+            value -> {
+                min.set(Math.min(min.get(), (NumericUtils.sortableLongToDouble(value))));
+            },
+            () -> mins.set(0, min.get())
+        );
     }
 
     @Override

@@ -91,14 +91,13 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         if (valuesSource instanceof ValuesSource.Numeric) {
             CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
-            if (supportedStarTree != null) {
+            if (supportedStarTree != null && StarTreeQueryHelper.canPrecomputeWithStarTree(this.context)) {
                 if (parent != null && subAggregators.length == 0) {
                     // If this a child aggregator, then the parent will trigger star-tree pre-computation.
                     // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
                     return true;
                 }
-                precomputeLeafUsingStarTree(ctx, supportedStarTree);
-                return true;
+                return precomputeLeafUsingStarTree(ctx, supportedStarTree);
             }
         }
         return false;
@@ -151,8 +150,8 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
         };
     }
 
-    private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
-        StarTreeQueryHelper.precomputeLeafUsingStarTree(
+    private boolean precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+        return StarTreeQueryHelper.precomputeLeafUsingStarTree(
             context,
             (ValuesSource.Numeric) valuesSource,
             ctx,

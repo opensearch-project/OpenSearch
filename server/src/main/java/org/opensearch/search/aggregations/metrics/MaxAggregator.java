@@ -128,14 +128,13 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
         }
 
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
-        if (supportedStarTree != null) {
+        if (supportedStarTree != null && StarTreeQueryHelper.canPrecomputeWithStarTree(this.context)) {
             if (parent != null && subAggregators.length == 0) {
                 // If this a child aggregator, then the parent will trigger star-tree pre-computation.
                 // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
                 return true;
             }
-            precomputeLeafUsingStarTree(ctx, supportedStarTree);
-            return true;
+            return precomputeLeafUsingStarTree(ctx, supportedStarTree);
         }
         return false;
     }
@@ -200,11 +199,19 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
         };
     }
 
-    private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+    private boolean precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         AtomicReference<Double> max = new AtomicReference<>(maxes.get(0));
-        StarTreeQueryHelper.precomputeLeafUsingStarTree(context, valuesSource, ctx, starTree, MetricStat.MAX.getTypeName(), value -> {
-            max.set(Math.max(max.get(), (NumericUtils.sortableLongToDouble(value))));
-        }, () -> maxes.set(0, max.get()));
+        return StarTreeQueryHelper.precomputeLeafUsingStarTree(
+            context,
+            valuesSource,
+            ctx,
+            starTree,
+            MetricStat.MAX.getTypeName(),
+            value -> {
+                max.set(Math.max(max.get(), (NumericUtils.sortableLongToDouble(value))));
+            },
+            () -> maxes.set(0, max.get())
+        );
     }
 
     @Override

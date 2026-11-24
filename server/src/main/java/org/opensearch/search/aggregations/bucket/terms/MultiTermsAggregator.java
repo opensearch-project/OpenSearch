@@ -409,16 +409,15 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
     @Override
     protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
-        if (supportedStarTree != null) {
-            preComputeWithStarTree(ctx, supportedStarTree);
-            return true;
+        if (supportedStarTree != null && StarTreeQueryHelper.canPrecomputeWithStarTree(this.context)) {
+            return preComputeWithStarTree(ctx, supportedStarTree);
         }
         return false;
     }
 
-    private void preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+    private boolean preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         StarTreeBucketCollector starTreeBucketCollector = getStarTreeBucketCollector(ctx, starTree, null);
-        StarTreeQueryHelper.preComputeBucketsWithStarTree(starTreeBucketCollector);
+        return StarTreeQueryHelper.preComputeBucketsWithStarTree(this.context, starTreeBucketCollector);
     }
 
     /**
