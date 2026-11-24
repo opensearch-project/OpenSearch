@@ -2000,6 +2000,50 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
     }
 
+    /**
+     * A histogram with min_doc_count 0 fills a gap with the empty sub-aggregations, which a date
+     * histogram builds in buildEmptyAggregation. With an offset, those filled-in buckets must
+     * carry the same keys as the date histograms in the buckets that have documents.
+     */
+    public void testEmptyBucketKeysWithOffsetUnderHistogram() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            DateFieldMapper.DateFieldType dft = aggregableDateFieldType(false, true);
+            NumberFieldMapper.NumberFieldType nft = new NumberFieldMapper.NumberFieldType("n", NumberFieldMapper.NumberType.LONG);
+            long date = dft.parse("2020-02-01T10:00:00Z");
+            for (long n : new long[] { 0, 2 }) {
+                indexWriter.addDocument(
+                    List.of(new SortedNumericDocValuesField(AGGREGABLE_DATE, date), new SortedNumericDocValuesField("n", n))
+                );
+            }
+            try (IndexReader reader = indexWriter.getReader()) {
+                IndexSearcher searcher = newIndexSearcher(reader);
+                HistogramAggregationBuilder builder = new HistogramAggregationBuilder("outer").field("n")
+                    .interval(1)
+                    .minDocCount(0)
+                    .subAggregation(
+                        new DateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE)
+                            .calendarInterval(DateHistogramInterval.DAY)
+                            .offset("+6h")
+                            .minDocCount(0)
+                            .extendedBounds(new LongBounds("2020-02-01", "2020-02-03"))
+                    );
+                InternalHistogram outer = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, dft, nft);
+                List<InternalHistogram.Bucket> buckets = outer.getBuckets();
+                assertEquals(3, buckets.size());
+                assertEquals(0, buckets.get(1).getDocCount());
+                List<String> expected = List.of("2020-02-01T06:00:00.000Z", "2020-02-02T06:00:00.000Z", "2020-02-03T06:00:00.000Z");
+                for (InternalHistogram.Bucket bucket : buckets) {
+                    InternalDateHistogram dh = bucket.getAggregations().get("dh");
+                    assertEquals(
+                        "keys under outer bucket " + bucket.getKeyAsString(),
+                        expected,
+                        dh.getBuckets().stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(toList())
+                    );
+                }
+            }
+        }
+    }
+
     private boolean supportsIntraSegmentSearch(org.opensearch.search.aggregations.AggregationBuilder builder, boolean searchable)
         throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
