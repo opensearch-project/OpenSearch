@@ -46,6 +46,9 @@ public class FipsBuildParams {
      * Whether JVMs started by the build run in FIPS mode: a {@linkplain #isFipsBuild() FIPS build} with
      * {@code OPENSEARCH_FIPS_MODE=true}, the same variable that turns FIPS mode on in a distribution. Test JVMs then use
      * only the providers of {@code fips_java.security}, in approved-only mode, and the {@code *FipsTests} variants run.
+     * <p>
+     * This is a build-time decision. It does not tell whether a running JVM is in approved-only mode; that is decided by the
+     * JVM's own java.security and BouncyCastle settings.
      */
     public static boolean isFipsModeEnabled() {
         return isFipsBuild() && "true".equalsIgnoreCase(fipsModeEnvSupplier.get());
