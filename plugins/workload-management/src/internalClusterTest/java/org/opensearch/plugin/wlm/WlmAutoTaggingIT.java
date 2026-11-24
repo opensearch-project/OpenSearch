@@ -97,6 +97,7 @@ import org.opensearch.rule.action.UpdateRuleAction;
 import org.opensearch.rule.action.UpdateRuleRequest;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
+import org.opensearch.rule.autotagging.AutoTaggingRegistryTestUtils;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
@@ -168,9 +169,8 @@ public class WlmAutoTaggingIT extends ParameterizedStaticSettingsOpenSearchInteg
     @Before
     public void registerFeatureTypeOnAllNodes() {
         // The registry is JVM-static but clusters are rebuilt between suites, so re-register this cluster's feature type.
-        AutoTaggingRegistry.featureTypesRegistryMap.remove(WorkloadGroupFeatureType.NAME);
         FeatureType featureType = TestWorkloadManagementPlugin.featureType;
-        AutoTaggingRegistry.registerFeatureType(featureType);
+        AutoTaggingRegistryTestUtils.replaceFeatureType(featureType);
 
         for (String node : internalCluster().getNodeNames()) {
             RulePersistenceServiceRegistry persistenceRegistry = internalCluster().getInstance(RulePersistenceServiceRegistry.class, node);
