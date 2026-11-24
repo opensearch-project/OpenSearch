@@ -674,6 +674,45 @@ public class IndexShardRoutingTable extends AbstractDiffable<IndexShardRoutingTa
     }
 
     /**
+     * Returns an iterator on the same search replicas as {@link #searchReplicaActiveInitializingShardIt()}, but prefers
+     * the ones on nodes sharing the given awareness attributes with the local node: active search replicas with the
+     * same attributes first, then the other active search replicas, followed by initializing search replicas in the
+     * same order. Like {@link #preferAttributesActiveInitializingShardsIt(List, DiscoveryNodes)}, search replicas on
+     * nodes missing from {@code nodes} are skipped when the local node has one of the attributes.
+     */
+    public ShardIterator searchReplicaPreferAttributesActiveInitializingShardsIt(List<String> attributes, DiscoveryNodes nodes) {
+        // Take the candidates from the replicas list like filterAndOrderShards does, rather than from activeShards and
+        // allInitializingShards, so that relocation targets are not added as candidates.
+        ArrayList<ShardRouting> activeWithoutSameAttribute = new ArrayList<>();
+        ArrayList<ShardRouting> initializingWithoutSameAttribute = new ArrayList<>();
+        for (ShardRouting replica : replicas) {
+            if (replica.isSearchOnly()) {
+                if (replica.active()) {
+                    activeWithoutSameAttribute.add(replica);
+                } else if (replica.initializing()) {
+                    initializingWithoutSameAttribute.add(replica);
+                }
+            }
+        }
+        AttributesKey key = new AttributesKey(attributes);
+        // moves the shards sharing an attribute value with the local node out of the "without" lists
+        List<ShardRouting> activeWithSameAttribute = collectAttributeShards(key, nodes, activeWithoutSameAttribute);
+        List<ShardRouting> initializingWithSameAttribute = collectAttributeShards(key, nodes, initializingWithoutSameAttribute);
+
+        // Rotate each group after filtering, for the same reason as in filterAndOrderShards.
+        int seed = shuffler.nextSeed();
+        List<ShardRouting> ordered = new ArrayList<>(
+            activeWithSameAttribute.size() + activeWithoutSameAttribute.size() + initializingWithSameAttribute.size()
+                + initializingWithoutSameAttribute.size()
+        );
+        ordered.addAll(shuffler.shuffle(activeWithSameAttribute, seed));
+        ordered.addAll(shuffler.shuffle(activeWithoutSameAttribute, seed));
+        ordered.addAll(initializingWithSameAttribute);
+        ordered.addAll(initializingWithoutSameAttribute);
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    /**
      * Returns an ordered iterator on active replica shards, followed by the primary shard.
      */
     public ShardIterator replicaFirstActiveInitializingShardsIt() {

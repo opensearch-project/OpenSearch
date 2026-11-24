@@ -32,6 +32,10 @@
 
 package org.opensearch.cluster.routing;
 
+import org.opensearch.Version;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.index.Index;
@@ -278,6 +282,160 @@ public class IndexShardRoutingTableTests extends OpenSearchTestCase {
             assertEquals("node-initializing", iterator.nextOrNull().currentNodeId());
             assertNull(iterator.nextOrNull());
         }
+    }
+
+    /**
+     * With awareness attributes, the search replica iterator must return the search replicas in the local node's zone
+     * first, round-robin evenly among them, and still return only search replicas.
+     */
+    public void testSearchReplicaPreferAttributesShardIteratorPrefersLocalZone() {
+        ShardId shardId = new ShardId(new Index("a", UUID.randomUUID().toString()), 0);
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(zoneNode("node-coordinator", "a"))
+            .add(zoneNode("node-primary", "a"))
+            .add(zoneNode("node-replica", "a"))
+            .add(zoneNode("node-search-a0", "a"))
+            .add(zoneNode("node-search-a1", "a"))
+            .add(zoneNode("node-search-b0", "b"))
+            .add(zoneNode("node-search-b1", "b"))
+            .add(zoneNode("node-search-a-init", "a"))
+            .add(zoneNode("node-search-b-init", "b"))
+            .localNodeId("node-coordinator")
+            .build();
+        List<ShardRouting> shards = new ArrayList<>();
+        shards.add(TestShardRouting.newShardRouting(shardId, "node-primary", true, ShardRoutingState.STARTED));
+        shards.add(TestShardRouting.newShardRouting(shardId, "node-replica", false, ShardRoutingState.STARTED));
+        for (String nodeId : Arrays.asList("node-search-a0", "node-search-a1", "node-search-b0", "node-search-b1")) {
+            shards.add(TestShardRouting.newShardRouting(shardId, nodeId, null, false, true, ShardRoutingState.STARTED, null));
+        }
+        for (String nodeId : Arrays.asList("node-search-a-init", "node-search-b-init")) {
+            shards.add(
+                TestShardRouting.newShardRouting(
+                    shardId,
+                    nodeId,
+                    false,
+                    true,
+                    ShardRoutingState.INITIALIZING,
+                    RecoverySource.PeerRecoverySource.INSTANCE
+                )
+            );
+        }
+        Collections.shuffle(shards, random());
+        IndexShardRoutingTable table = new IndexShardRoutingTable(shardId, shards);
+
+        int iterationsPerReplica = 100;
+        Map<String, Integer> firstShardCounts = new HashMap<>();
+        for (int i = 0; i < 2 * iterationsPerReplica; i++) {
+            ShardIterator iterator = table.searchReplicaPreferAttributesActiveInitializingShardsIt(
+                Collections.singletonList("zone"),
+                nodes
+            );
+            assertEquals(6, iterator.size());
+            List<String> order = new ArrayList<>();
+            for (ShardRouting shard = iterator.nextOrNull(); shard != null; shard = iterator.nextOrNull()) {
+                assertTrue(shard.isSearchOnly());
+                order.add(shard.currentNodeId());
+            }
+            assertTrue(order.subList(0, 2).containsAll(Arrays.asList("node-search-a0", "node-search-a1")));
+            assertTrue(order.subList(2, 4).containsAll(Arrays.asList("node-search-b0", "node-search-b1")));
+            assertEquals(Arrays.asList("node-search-a-init", "node-search-b-init"), order.subList(4, 6));
+            firstShardCounts.merge(order.get(0), 1, Integer::sum);
+        }
+        assertEquals(Map.of("node-search-a0", iterationsPerReplica, "node-search-a1", iterationsPerReplica), firstShardCounts);
+    }
+
+    /**
+     * The awareness-preferring search replica iterator must return the same candidates as the plain one: the target of a
+     * relocating search replica is not a candidate, only its source is.
+     */
+    public void testSearchReplicaPreferAttributesShardIteratorSkipsRelocationTargets() {
+        ShardId shardId = new ShardId(new Index("a", UUID.randomUUID().toString()), 0);
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(zoneNode("node-coordinator", "a"))
+            .add(zoneNode("node-primary", "a"))
+            .add(zoneNode("node-search-source", "a"))
+            .add(zoneNode("node-search-target", "a"))
+            .add(zoneNode("node-search-b", "b"))
+            .localNodeId("node-coordinator")
+            .build();
+        IndexShardRoutingTable table = new IndexShardRoutingTable(
+            shardId,
+            Arrays.asList(
+                TestShardRouting.newShardRouting(shardId, "node-primary", true, ShardRoutingState.STARTED),
+                TestShardRouting.newShardRouting(
+                    shardId,
+                    "node-search-source",
+                    "node-search-target",
+                    false,
+                    true,
+                    ShardRoutingState.RELOCATING,
+                    null
+                ),
+                TestShardRouting.newShardRouting(shardId, "node-search-b", null, false, true, ShardRoutingState.STARTED, null)
+            )
+        );
+
+        ShardIterator iterator = table.searchReplicaPreferAttributesActiveInitializingShardsIt(Collections.singletonList("zone"), nodes);
+        assertEquals(2, iterator.size());
+        assertEquals("node-search-source", iterator.nextOrNull().currentNodeId());
+        assertEquals("node-search-b", iterator.nextOrNull().currentNodeId());
+        assertNull(iterator.nextOrNull());
+    }
+
+    /**
+     * When the local node has none of the awareness attributes, no search replica is preferred and all of them are
+     * round-robined evenly, like the plain search replica iterator does.
+     */
+    public void testSearchReplicaPreferAttributesShardIteratorWithoutLocalAttribute() {
+        ShardId shardId = new ShardId(new Index("a", UUID.randomUUID().toString()), 0);
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(
+                new DiscoveryNode(
+                    "node-coordinator",
+                    buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
+                    Version.CURRENT
+                )
+            )
+            .add(zoneNode("node-primary", "a"))
+            .add(zoneNode("node-search-a", "a"))
+            .add(zoneNode("node-search-b", "b"))
+            .add(zoneNode("node-search-c", "c"))
+            .localNodeId("node-coordinator")
+            .build();
+        List<ShardRouting> shards = new ArrayList<>();
+        shards.add(TestShardRouting.newShardRouting(shardId, "node-primary", true, ShardRoutingState.STARTED));
+        for (String nodeId : Arrays.asList("node-search-a", "node-search-b", "node-search-c")) {
+            shards.add(TestShardRouting.newShardRouting(shardId, nodeId, null, false, true, ShardRoutingState.STARTED, null));
+        }
+        Collections.shuffle(shards, random());
+        IndexShardRoutingTable table = new IndexShardRoutingTable(shardId, shards);
+
+        int iterationsPerReplica = 100;
+        Map<String, Integer> firstShardCounts = new HashMap<>();
+        for (int i = 0; i < 3 * iterationsPerReplica; i++) {
+            ShardIterator iterator = table.searchReplicaPreferAttributesActiveInitializingShardsIt(
+                Collections.singletonList("zone"),
+                nodes
+            );
+            assertEquals(3, iterator.size());
+            firstShardCounts.merge(iterator.nextOrNull().currentNodeId(), 1, Integer::sum);
+        }
+        assertEquals(
+            Map.of("node-search-a", iterationsPerReplica, "node-search-b", iterationsPerReplica, "node-search-c", iterationsPerReplica),
+            firstShardCounts
+        );
+    }
+
+    private static DiscoveryNode zoneNode(String nodeId, String zone) {
+        return new DiscoveryNode(
+            nodeId,
+            buildNewFakeTransportAddress(),
+            Collections.singletonMap("zone", zone),
+            Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
+            Version.CURRENT
+        );
     }
 
     public void testSearchReplicaShardIteratorReturnsActiveBeforeInitializing() {

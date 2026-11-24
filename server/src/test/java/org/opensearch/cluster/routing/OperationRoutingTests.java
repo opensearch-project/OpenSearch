@@ -33,6 +33,7 @@ package org.opensearch.cluster.routing;
 
 import org.opensearch.Version;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
+import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.deployment.Deployment;
 import org.opensearch.cluster.deployment.DeploymentMetadata;
@@ -42,6 +43,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SuppressForbidden;
@@ -1402,6 +1404,78 @@ public class OperationRoutingTests extends OpenSearchTestCase {
             IOUtils.close(clusterService);
             terminate(threadPool);
         }
+    }
+
+    public void testSearchReplicaRoutingPrefersLocalZoneWhenAwarenessIsHonored() {
+        final String indexName = "test";
+        final String[] indexNames = new String[] { indexName };
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(zoneDataNode("node-coordinator", "a"))
+            .add(zoneDataNode("node-primary", "a"))
+            .add(zoneDataNode("node-replica", "b"))
+            .add(zoneDataNode("node-search-a", "a"))
+            .add(zoneDataNode("node-search-b", "b"))
+            .localNodeId("node-coordinator")
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .numberOfSearchReplicas(2)
+            .build();
+        ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
+        IndexShardRoutingTable shardRoutingTable = new IndexShardRoutingTable(
+            shardId,
+            Arrays.asList(
+                TestShardRouting.newShardRouting(shardId, "node-primary", true, ShardRoutingState.STARTED),
+                TestShardRouting.newShardRouting(shardId, "node-replica", false, ShardRoutingState.STARTED),
+                TestShardRouting.newShardRouting(shardId, "node-search-a", null, false, true, ShardRoutingState.STARTED, null),
+                TestShardRouting.newShardRouting(shardId, "node-search-b", null, false, true, ShardRoutingState.STARTED, null)
+            )
+        );
+        ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .nodes(nodes)
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(
+                RoutingTable.builder().add(IndexRoutingTable.builder(indexMetadata.getIndex()).addIndexShard(shardRoutingTable)).build()
+            )
+            .build();
+        Settings settings = Settings.builder()
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+            .build();
+        OperationRouting opRouting = new OperationRouting(
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+
+        // awareness attributes are ignored by default, so both search replicas take turns
+        Set<String> firstNodes = new HashSet<>();
+        for (int i = 0; i < 10; i++) {
+            ShardIterator shardIterator = opRouting.searchShards(state, indexNames, null, null).iterator().next();
+            firstNodes.add(shardIterator.nextOrNull().currentNodeId());
+        }
+        assertEquals(Set.of("node-search-a", "node-search-b"), firstNodes);
+
+        opRouting.setIgnoreAwarenessAttributes(false);
+        // both the server-injected and an explicit _search_replica preference prefer the local zone
+        for (String preference : Arrays.asList(null, Preference.SEARCH_REPLICA.type())) {
+            for (int i = 0; i < 10; i++) {
+                ShardIterator shardIterator = opRouting.searchShards(state, indexNames, null, preference).iterator().next();
+                assertEquals(2, shardIterator.size());
+                assertEquals("node-search-a", shardIterator.nextOrNull().currentNodeId());
+                assertEquals("node-search-b", shardIterator.nextOrNull().currentNodeId());
+            }
+        }
+    }
+
+    private static DiscoveryNode zoneDataNode(String nodeId, String zone) {
+        return new DiscoveryNode(
+            nodeId,
+            buildNewFakeTransportAddress(),
+            singletonMap("zone", zone),
+            Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
+            Version.CURRENT
+        );
     }
 
     private DiscoveryNode[] setupNodes() {
