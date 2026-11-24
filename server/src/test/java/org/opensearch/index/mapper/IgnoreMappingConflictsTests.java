@@ -14,8 +14,10 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.test.MockLogAppender;
@@ -29,6 +31,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -199,18 +202,23 @@ public class IgnoreMappingConflictsTests extends MapperServiceTestCase {
 
     public void testMixedNestedArrayDropsSubtreeAndNestedDocuments() throws Exception {
         DocumentMapper mapper = tolerant(mapping(b -> {
+            b.startObject("trigger").field("type", "long").endObject();
             b.startObject("items").field("type", "nested").startObject("properties");
             b.startObject("value").field("type", "keyword").endObject();
             b.endObject().endObject();
             b.startObject("good").field("type", "keyword").endObject();
         }));
-        SourceToParse source = source("{\"items\":[{\"value\":\"first\"},\"invalid\"],\"good\":\"kept\"}");
-        ParsedDocument doc = mapper.parse(source);
-        assertEquals(Set.of("items"), ignored(doc));
-        assertEquals(1, doc.docs().size());
-        assertEquals("kept", doc.rootDoc().getBinaryValue("good").utf8ToString());
-        assertNull(doc.dynamicMappingsUpdate());
-        assertPreserved(source, doc);
+        for (String prefix : new String[] { "", "\"trigger\":\"bad\"," }) {
+            SourceToParse source = source(
+                "{" + prefix + "\"items\":[{\"value\":\"first\"},\"invalid\",{\"value\":\"last\"}],\"good\":\"kept\"}"
+            );
+            ParsedDocument doc = mapper.parse(source);
+            assertEquals(prefix.isEmpty() ? Set.of("items") : Set.of("trigger", "items"), ignored(doc));
+            assertEquals(1, doc.docs().size());
+            assertEquals("kept", doc.rootDoc().getBinaryValue("good").utf8ToString());
+            assertNull(doc.dynamicMappingsUpdate());
+            assertPreserved(source, doc);
+        }
     }
 
     public void testDottedFieldBelowScalar() throws Exception {
@@ -222,12 +230,16 @@ public class IgnoreMappingConflictsTests extends MapperServiceTestCase {
             b.endObject().endObject();
         }));
         for (String json : new String[] {
-            "{\"trigger\":\"bad\",\"outer\":{\"scalar.child\":42,\"good\":\"kept\"}}",
-            "{\"trigger\":\"bad\",\"outer.scalar.child\":42,\"outer.good\":\"kept\"}" }) {
+            "{\"trigger\":\"bad\",\"outer\":{\"scalar.child\":42,\"good\":\"kept\"},\"new.parent\":{\"value\":1}}",
+            "{\"trigger\":\"bad\",\"outer.scalar.child\":42,\"outer.good\":\"kept\",\"new.parent\":[{\"value\":1}]}",
+            "{\"trigger\":\"bad\",\"outer.scalar.child\":{\"value\":42},\"outer.good\":\"kept\",\"new.parent\":{\"value\":1}}",
+            "{\"trigger\":\"bad\",\"outer.scalar.child\":[42],\"outer.good\":\"kept\",\"new.parent\":[{\"value\":1}]}" }) {
             SourceToParse source = source(json);
             ParsedDocument doc = mapper.parse(source);
             assertEquals(Set.of("trigger", "outer.scalar.child"), ignored(doc));
             assertEquals("kept", doc.rootDoc().getBinaryValue("outer.good").utf8ToString());
+            assertNotNull(doc.rootDoc().getField("new.parent.value"));
+            assertNotNull(doc.dynamicMappingsUpdate());
             assertPreserved(source, doc);
         }
     }
@@ -356,12 +368,17 @@ public class IgnoreMappingConflictsTests extends MapperServiceTestCase {
     }
 
     public void testMalformedJsonAndMetadataAreNotIgnored() throws Exception {
-        DocumentMapper mapper = tolerant(fieldMapping(b -> b.field("type", "long")));
+        DocumentMapper mapper = tolerant(mapping(b -> {
+            b.startObject("field").field("type", "long").endObject();
+            b.startObject("probe").field("type", "completion").field("analyzer", "default").field("search_analyzer", "default").endObject();
+        }));
         for (String json : new String[] {
             "{\"field\":{\"bad\":}}",
             "{\"field\":[1,]}",
             "{\"field\":\"bad\\q\"}",
-            "{\"field\":\"bad\"} {}" }) {
+            "{\"field\":\"bad\"} {}",
+            "{\"field\":\"bad\",\"probe\":{\"input\":[\"ok\",",
+            "{\"field\":\"bad\",\"probe\":{\"input\":" }) {
             expectThrows(MapperParsingException.class, () -> mapper.parse(source(json)));
         }
         expectThrows(MapperParsingException.class, () -> mapper.parse(source("{\"_id\":\"forbidden\"}")));
@@ -427,10 +444,44 @@ public class IgnoreMappingConflictsTests extends MapperServiceTestCase {
         verifyNoInteractions(input);
     }
 
-    public void testDerivedSourceIsRejected() throws Exception {
-        Settings settings = Settings.builder().put(TOLERANT).put("index.derived_source.enabled", true).build();
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(settings, mapping(b -> {})));
-        assertThat(e.getMessage(), containsString("complete stored _source"));
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testUnsupportedSourceFormatsAreRejected() throws Exception {
+        for (String setting : new String[] { "index.derived_source.enabled", "index.pluggable.dataformat.enabled" }) {
+            Settings settings = Settings.builder().put(TOLERANT).put(setting, true).build();
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(settings, mapping(b -> {})));
+            assertThat(e.getMessage(), containsString("complete stored _source and the Lucene data format"));
+        }
+    }
+
+    public void testNonInternalContextDoesNotSupportRecovery() {
+        ParseContext context = mock(ParseContext.class, CALLS_REAL_METHODS);
+        assertFalse(context.isMappingConflictIgnored("field"));
+        assertNull(context.mappingConflictsToCollect());
+        expectThrows(UnsupportedOperationException.class, () -> context.createFieldProbeContext(null));
+    }
+
+    public void testStructuredProbesAcrossSourceFormats() throws Exception {
+        DocumentMapper mapper = tolerant(mapping(b -> {
+            b.startObject("trigger").field("type", "long").endObject();
+            b.startObject("point").field("type", "geo_point").endObject();
+            b.startObject("suggest")
+                .field("type", "completion")
+                .field("analyzer", "default")
+                .field("search_analyzer", "default")
+                .endObject();
+        }));
+        for (XContentType type : XContentType.values()) {
+            try (XContentBuilder b = XContentBuilder.builder(type.xContent())) {
+                b.startObject().field("trigger", "bad").array("point", 10.0, 20.0);
+                b.startObject("suggest").array("input", "one", "two").endObject().endObject();
+                SourceToParse source = new SourceToParse("index", "1", BytesReference.bytes(b), type);
+                ParsedDocument doc = mapper.parse(source);
+                assertEquals(type.toString(), Set.of("trigger"), ignored(doc));
+                assertNotNull(doc.rootDoc().getField("point"));
+                assertNotNull(doc.rootDoc().getField("suggest"));
+                assertPreserved(source, doc);
+            }
+        }
     }
 
     private ParsedDocument parseCountingSourcePasses(MapperService service, SourceToParse source, int expectedPasses) throws Exception {
