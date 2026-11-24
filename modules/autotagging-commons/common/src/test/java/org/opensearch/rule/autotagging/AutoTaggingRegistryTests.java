@@ -14,6 +14,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.BeforeClass;
 
 import java.util.HashMap;
+import java.util.Locale;
 
 import static org.opensearch.rule.autotagging.AutoTaggingRegistry.MAX_FEATURE_TYPE_NAME_LENGTH;
 import static org.opensearch.rule.autotagging.RuleTests.INVALID_FEATURE;
@@ -38,6 +39,19 @@ public class AutoTaggingRegistryTests extends OpenSearchTestCase {
         assertThrows(ResourceNotFoundException.class, () -> AutoTaggingRegistry.getFeatureType(INVALID_FEATURE));
     }
 
+    public void testReplaceFeatureType() {
+        // The registry is static, so use a fresh name each run
+        String name = "replace_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        FeatureType original = mockFeatureType(name);
+        FeatureType replacement = mockFeatureType(name);
+        AutoTaggingRegistry.registerFeatureType(original);
+
+        AutoTaggingRegistry.replaceFeatureType(replacement);
+        assertSame(replacement, AutoTaggingRegistry.getFeatureType(name));
+        assertThrows(IllegalStateException.class, () -> AutoTaggingRegistry.registerFeatureType(original));
+        assertThrows(IllegalStateException.class, () -> AutoTaggingRegistry.replaceFeatureType(null));
+    }
+
     public void testIllegalStateExceptionException() {
         assertThrows(IllegalStateException.class, () -> AutoTaggingRegistry.registerFeatureType(null));
 
@@ -57,5 +71,13 @@ public class AutoTaggingRegistryTests extends OpenSearchTestCase {
         when(featureType.getOrderedAttributes()).thenReturn(new HashMap<>());
         when(featureType.getFeatureValueValidator()).thenReturn(null);
         assertThrows(IllegalStateException.class, () -> AutoTaggingRegistry.registerFeatureType(featureType));
+    }
+
+    private static FeatureType mockFeatureType(String name) {
+        FeatureType featureType = mock(FeatureType.class);
+        when(featureType.getName()).thenReturn(name);
+        when(featureType.getOrderedAttributes()).thenReturn(new HashMap<>());
+        when(featureType.getFeatureValueValidator()).thenReturn(featureValue -> {});
+        return featureType;
     }
 }
