@@ -79,7 +79,7 @@ pipeline {
                 [key: 'pr_owner', value: '$.pr_owner'],
                 [key: 'gradle_check_command', value: '$.gradle_check_command']
             ],
-            tokenCredentialId: 'jenkins-gradle-check-generic-webhook-token',
+            tokenCredentialId: 'jenkins-gradle-check-generic-webhook-token-prod',
             causeString: 'Triggered by PR on OpenSearch core repository',
             printContributedVariables: false,
             printPostContent: false
