@@ -22,10 +22,12 @@ import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.aggregations.AggregatorTestCase;
+import org.opensearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException;
 import org.opensearch.search.aggregations.PipelineAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.histogram.InternalDateHistogram;
+import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 
 import java.io.IOException;
@@ -57,6 +59,29 @@ public class MovAvgAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testPredict() throws IOException {
+        check(movAvg(3).predict(3), Arrays.asList(null, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 9.0, 9.0));
+    }
+
+    public void testPredictCountsNewBucketsAgainstMaxBuckets() throws IOException {
+        // 10 histogram buckets + 5 predicted buckets
+        assertThat(run(movAvg(3).predict(5), 15, 10).size(), equalTo(15));
+        expectThrows(TooManyBucketsException.class, () -> run(movAvg(3).predict(5), 14, 10));
+    }
+
+    public void testPredictDoesNotCountOverwrittenEmptyBuckets() throws IOException {
+        // extended bounds add 3 trailing empty buckets: the first 3 predictions overwrite them, the rest are appended
+        List<Double> expected = Arrays.asList(null, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 9.0, 9.0, 9.0, 9.0);
+        assertThat(run(movAvg(3).predict(5), 15, 13), equalTo(expected));
+        expectThrows(TooManyBucketsException.class, () -> run(movAvg(3).predict(5), 14, 13));
+        assertThat(run(movAvg(3).predict(2), 13, 13).size(), equalTo(13));
+    }
+
+    public void testPredictExceedingMaxBucketsIsRejected() throws IOException {
+        expectThrows(TooManyBucketsException.class, () -> run(movAvg(3).predict(5000)));
+        expectThrows(TooManyBucketsException.class, () -> run(movAvg(3).predict(Integer.MAX_VALUE)));
+    }
+
     private static MovAvgPipelineAggregationBuilder movAvg(int window) {
         return new MovAvgPipelineAggregationBuilder("mov_avg", "avg").window(window).model(new SimpleModel());
     }
@@ -66,8 +91,13 @@ public class MovAvgAggregatorTests extends AggregatorTestCase {
     }
 
     private List<Double> run(PipelineAggregationBuilder pipeline) throws IOException {
+        return run(pipeline, 1000, 10);
+    }
+
+    private List<Double> run(PipelineAggregationBuilder pipeline, int maxBucket, int lastDay) throws IOException {
         DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("histo").calendarInterval(DateHistogramInterval.DAY)
             .field(DATE_FIELD)
+            .extendedBounds(new LongBounds(asLong(day(1)), asLong(day(lastDay))))
             .subAggregation(new AvgAggregationBuilder("avg").field(VALUE_FIELD))
             .subAggregation(pipeline);
 
@@ -75,9 +105,7 @@ public class MovAvgAggregatorTests extends AggregatorTestCase {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 for (int day = 1; day <= 10; day++) {
                     Document document = new Document();
-                    document.add(
-                        new SortedNumericDocValuesField(DATE_FIELD, asLong(String.format(Locale.ROOT, "2017-01-%02dT00:00:00", day)))
-                    );
+                    document.add(new SortedNumericDocValuesField(DATE_FIELD, asLong(day(day))));
                     document.add(new NumericDocValuesField(VALUE_FIELD, day));
                     indexWriter.addDocument(document);
                 }
@@ -90,7 +118,7 @@ public class MovAvgAggregatorTests extends AggregatorTestCase {
                     indexSearcher,
                     new MatchAllDocsQuery(),
                     histo,
-                    1000,
+                    maxBucket,
                     new MappedFieldType[] { dateFieldType, valueFieldType }
                 );
                 List<Double> actual = new ArrayList<>();
@@ -101,6 +129,10 @@ public class MovAvgAggregatorTests extends AggregatorTestCase {
                 return actual;
             }
         }
+    }
+
+    private static String day(int day) {
+        return String.format(Locale.ROOT, "2017-01-%02dT00:00:00", day);
     }
 
     private static long asLong(String dateTime) {

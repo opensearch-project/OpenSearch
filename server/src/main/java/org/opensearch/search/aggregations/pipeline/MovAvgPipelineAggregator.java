@@ -141,6 +141,8 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         }
 
         if (buckets.size() > 0 && predict > 0) {
+            int existingBuckets = newBuckets.size() - lastValidPosition - 1;
+            reduceContext.consumeBucketsAndMaybeBreak(Math.max(0, predict - existingBuckets));
             double[] predictions = model.predict(values, predict);
             for (int i = 0; i < predictions.length; i++) {
 
