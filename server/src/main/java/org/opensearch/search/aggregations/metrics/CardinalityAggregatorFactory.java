@@ -69,7 +69,12 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
      */
     public enum ExecutionMode {
         DIRECT,
-        ORDINALS;
+        ORDINALS,
+        /**
+         * Collect the global ordinals of each bucket for the whole shard, building them if needed, and only hash the values of
+         * the buckets the parent keeps. Only applies under a parent with many buckets.
+         */
+        DEFERRED_ORDINALS;
 
         ExecutionMode() {}
 
@@ -77,7 +82,9 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
             try {
                 return ExecutionMode.valueOf(value.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Unknown execution_hint: [" + value + "], expected any of [direct, ordinals]");
+                throw new IllegalArgumentException(
+                    "Unknown execution_hint: [" + value + "], expected any of [direct, ordinals, deferred_ordinals]"
+                );
             }
         }
 

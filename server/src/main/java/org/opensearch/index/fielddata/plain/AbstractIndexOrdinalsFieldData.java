@@ -130,6 +130,11 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         }
     }
 
+    @Override
+    public boolean isGlobalOrdinalsLoaded(DirectoryReader indexReader) {
+        return indexReader.leaves().size() <= 1 || cache.isCached(indexReader);
+    }
+
     private IndexOrdinalsFieldData loadGlobalInternal(DirectoryReader indexReader) {
         if (indexReader.leaves().size() <= 1) {
             // ordinals are already global

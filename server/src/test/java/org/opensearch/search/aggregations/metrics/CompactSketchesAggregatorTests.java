@@ -54,6 +54,7 @@ import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -107,6 +108,10 @@ public class CompactSketchesAggregatorTests extends AggregatorTestCase {
      * spread over a few segments.
      */
     private static void index(Directory dir, Map<String, List<Long>> groups) throws IOException {
+        index(dir, groups, false);
+    }
+
+    private static void index(Directory dir, Map<String, List<Long>> groups, boolean singleSegment) throws IOException {
         try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
             int docs = 0;
             for (Map.Entry<String, List<Long>> group : groups.entrySet()) {
@@ -127,6 +132,9 @@ public class CompactSketchesAggregatorTests extends AggregatorTestCase {
                         }
                     }
                 }
+            }
+            if (singleSegment) {
+                w.forceMerge(1);
             }
         }
     }
@@ -280,7 +288,22 @@ public class CompactSketchesAggregatorTests extends AggregatorTestCase {
      * by key for the reduce, so their order is only checked once reduced.
      */
     private static void assertTopBuckets(String context, Map<String, Long> expected, boolean asc, int size, Terms terms, boolean reduced) {
-        final List<String> expectedKeys = expectedTop(expected, asc, size);
+        assertTopBuckets(context, expected, expected, asc, size, terms, reduced);
+    }
+
+    /**
+     * Checks that {@code terms} holds the top {@code size} buckets by {@code rankBy}, with the cardinalities of {@code expected}.
+     */
+    private static void assertTopBuckets(
+        String context,
+        Map<String, Long> rankBy,
+        Map<String, Long> expected,
+        boolean asc,
+        int size,
+        Terms terms,
+        boolean reduced
+    ) {
+        final List<String> expectedKeys = expectedTop(rankBy, asc, size);
         final List<String> keys = terms.getBuckets().stream().map(Terms.Bucket::getKeyAsString).toList();
         if (reduced) {
             assertEquals(context, expectedKeys, keys);
@@ -397,6 +420,218 @@ public class CompactSketchesAggregatorTests extends AggregatorTestCase {
                     );
                     assertEquals(compact, debug.get("compact_sketches"));
                     assertTopBuckets("compact=" + compact, expected, false, size, terms, false);
+                }
+            }
+        }
+    }
+
+    /**
+     * The exact number of distinct values of each group, which deferred collection ranks buckets by.
+     */
+    private static Map<String, Long> exactCardinalities(Map<String, List<Long>> groups) {
+        final Map<String, Long> exact = new HashMap<>();
+        for (Map.Entry<String, List<Long>> group : groups.entrySet()) {
+            exact.put(group.getKey(), (long) group.getValue().size());
+        }
+        return exact;
+    }
+
+    /**
+     * With {@code execution_hint: deferred_ordinals} buckets are ranked by their exact number of distinct values and only the
+     * buckets the parent keeps are hashed, with the same sketches as collecting segment ordinals. Under a small memory
+     * threshold collection stops deferring, sometimes on the first document, and returns the same sketches.
+     */
+    public void testDeferredOrdinalsMatchPerBucketSketches() throws IOException {
+        final long precisionThreshold = randomFrom(1000L, 3000L, 5000L);
+        final int precision = HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
+        final Map<String, List<Long>> groups = randomGroups((1 << precision) / 4 * 3 / 4);
+        try (Directory dir = newDirectory()) {
+            index(dir, groups);
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final IndexSearcher searcher = newIndexSearcher(reader);
+                final Map<String, Long> expected = expectedCardinalities(groups, precision, true);
+                final Map<String, Long> exact = exactCardinalities(groups);
+                for (long memoryThreshold : new long[] { Long.MAX_VALUE, 1L << 16, 1L }) {
+                    final boolean asc = randomBoolean();
+                    final int size = randomIntBetween(1, Math.min(200, groups.size()));
+                    final Map<String, Object> debug = new HashMap<>();
+                    final Terms terms = collect(
+                        searcher,
+                        termsByCardinality(
+                            new CardinalityAggregationBuilder("card").field(KEYWORD)
+                                .precisionThreshold(precisionThreshold)
+                                .executionHint("deferred_ordinals"),
+                            asc,
+                            size,
+                            size
+                        ),
+                        new CardinalityAggregationContext(randomBoolean(), memoryThreshold),
+                        new NoneCircuitBreakerService(),
+                        debug
+                    );
+                    final String context = "threshold=" + memoryThreshold + " asc=" + asc + " size=" + size + " debug=" + debug;
+                    final boolean stopped = "stopped_over_memory_threshold".equals(debug.get("deferred_ordinals"));
+                    if (memoryThreshold == Long.MAX_VALUE) {
+                        assertEquals(context, "used", debug.get("deferred_ordinals"));
+                        // Buckets without values are returned empty without hashing anything
+                        final long nonEmpty = terms.getBuckets()
+                            .stream()
+                            .filter(bucket -> ((Cardinality) bucket.getAggregations().get("card")).getValue() > 0)
+                            .count();
+                        assertEquals(context, (int) nonEmpty, debug.get("deferred_buckets_built"));
+                    } else if (memoryThreshold == 1L) {
+                        assertTrue(context, stopped);
+                    }
+                    // Deferred collection ranks by exact counts, collection that stopped deferring by the sketches
+                    assertTopBuckets(context, stopped ? expected : exact, expected, asc, size, terms, false);
+                }
+            }
+        }
+    }
+
+    /**
+     * Shards rank by exact counts and the merged sketches decide the final order.
+     */
+    public void testDeferredOrdinalsAcrossShards() throws IOException {
+        final long precisionThreshold = randomFrom(1000L, 3000L);
+        final int precision = HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
+        final Map<String, List<Long>> groups = randomGroups((1 << precision) / 4 * 3 / 4);
+        try (Directory dir = newDirectory()) {
+            index(dir, groups);
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final IndexSearcher searcher = newIndexSearcher(reader);
+                final Map<String, Long> expected = expectedCardinalities(groups, precision, true);
+                final boolean asc = randomBoolean();
+                final int size = randomIntBetween(1, Math.min(100, groups.size()));
+                final Terms terms = searchAndReduce(
+                    searcher,
+                    new MatchAllDocsQuery(),
+                    termsByCardinality(
+                        new CardinalityAggregationBuilder("card").field(KEYWORD)
+                            .precisionThreshold(precisionThreshold)
+                            .executionHint("deferred_ordinals"),
+                        asc,
+                        size,
+                        groups.size()
+                    ),
+                    true,
+                    FIELD_TYPES
+                );
+                assertTopBuckets("asc=" + asc + " size=" + size, expected, asc, size, terms, true);
+            }
+        }
+    }
+
+    /**
+     * Without the execution hint collection is only deferred when the parent orders by the cardinality and global ordinals
+     * are loaded, here because the index has a single segment.
+     */
+    public void testAutomaticDeferral() throws IOException {
+        final Map<String, List<Long>> groups = randomGroups(3072);
+        final Map<String, Long> expected = expectedCardinalities(groups, HyperLogLogPlusPlus.DEFAULT_PRECISION, true);
+        final Map<String, Long> exact = exactCardinalities(groups);
+        for (boolean singleSegment : new boolean[] { true, false }) {
+            try (Directory dir = newDirectory()) {
+                index(dir, groups, singleSegment);
+                try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                    final IndexSearcher searcher = newIndexSearcher(reader);
+                    final boolean multipleSegments = reader.leaves().size() > 1;
+                    final CardinalityAggregationContext cardinalityContext = new CardinalityAggregationContext(true, 1L << 20);
+
+                    Map<String, Object> debug = new HashMap<>();
+                    Terms terms = collect(
+                        searcher,
+                        termsByCardinality(new CardinalityAggregationBuilder("card").field(KEYWORD), false, 20, 20),
+                        cardinalityContext,
+                        new NoneCircuitBreakerService(),
+                        debug
+                    );
+                    // The test field data cache never caches global ordinals
+                    final String context = "segments=" + reader.leaves().size() + " debug=" + debug;
+                    assertEquals(context, multipleSegments ? "global_ordinals_not_loaded" : "used", debug.get("deferred_ordinals"));
+                    assertTopBuckets(context, multipleSegments ? expected : exact, expected, false, 20, terms, false);
+
+                    // Ordered by count, or with another hint, or as a top-level aggregation: never deferred
+                    debug = new HashMap<>();
+                    collect(
+                        searcher,
+                        new TermsAggregationBuilder("groups").field(GROUP)
+                            .size(20)
+                            .order(BucketOrder.count(false))
+                            .subAggregation(new CardinalityAggregationBuilder("card").field(KEYWORD)),
+                        cardinalityContext,
+                        new NoneCircuitBreakerService(),
+                        debug
+                    );
+                    assertEquals("not_ordered_by_parent", debug.get("deferred_ordinals"));
+
+                    debug = new HashMap<>();
+                    collect(
+                        searcher,
+                        termsByCardinality(new CardinalityAggregationBuilder("card").field(KEYWORD).executionHint("direct"), false, 20, 20),
+                        cardinalityContext,
+                        new NoneCircuitBreakerService(),
+                        debug
+                    );
+                    assertEquals("execution_hint", debug.get("deferred_ordinals"));
+
+                    debug = new HashMap<>();
+                    collect(
+                        searcher,
+                        termsByCardinality(new CardinalityAggregationBuilder("card").field(KEYWORD).missing("none"), false, 20, 20),
+                        cardinalityContext,
+                        new NoneCircuitBreakerService(),
+                        debug
+                    );
+                    assertEquals("unsupported_values_source", debug.get("deferred_ordinals"));
+
+                    debug = new HashMap<>();
+                    collect(
+                        searcher,
+                        termsByCardinality(new CardinalityAggregationBuilder("card").field(KEYWORD), false, 20, 20),
+                        new CardinalityAggregationContext(true, 1L << 20, false),
+                        new NoneCircuitBreakerService(),
+                        debug
+                    );
+                    assertEquals("no_compact_sketches", debug.get("deferred_ordinals"));
+                }
+            }
+        }
+    }
+
+    /**
+     * Deferred bitmaps are charged to the request circuit breaker and released, whether the aggregation succeeds or trips.
+     */
+    public void testDeferredOrdinalsReleaseBreaker() throws IOException {
+        final Map<String, List<Long>> groups = randomGroups(3072);
+        final AtomicLong used = new AtomicLong();
+        final AtomicLong peak = new AtomicLong();
+        try (Directory dir = newDirectory()) {
+            index(dir, groups);
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final IndexSearcher searcher = newIndexSearcher(reader);
+                for (long limit : new long[] { Long.MAX_VALUE, randomLongBetween(1, 512 << 10) }) {
+                    try {
+                        final Map<String, Object> debug = new HashMap<>();
+                        collect(
+                            searcher,
+                            termsByCardinality(
+                                new CardinalityAggregationBuilder("card").field(KEYWORD).executionHint("deferred_ordinals"),
+                                randomBoolean(),
+                                10,
+                                10
+                            ),
+                            new CardinalityAggregationContext(randomBoolean(), randomFrom(Long.MAX_VALUE, 1L << 16)),
+                            countingBreakerService(used, peak, limit),
+                            debug
+                        );
+                        if (limit == Long.MAX_VALUE) {
+                            assertThat(peak.get(), greaterThan(0L));
+                        }
+                    } catch (CircuitBreakingException e) {
+                        assertNotEquals(Long.MAX_VALUE, limit);
+                    }
+                    assertThat("breaker must be released", used.get(), equalTo(0L));
                 }
             }
         }
