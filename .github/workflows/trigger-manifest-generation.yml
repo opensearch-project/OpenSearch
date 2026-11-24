@@ -14,4 +14,4 @@ jobs:
       - name: Trigger manifest-update workflow
         run: |
             echo "Triggering manifest-update workflow at https://jenkins.opensearch.org/job/manifest-update/"
-            curl -f -X POST https://jenkins.opensearch.org/job/manifest-update/build --user ${{ secrets.JENKINS_GITHUB_USER}}:${{ secrets.JENKINS_GITHUB_USER_TOKEN}}
+            curl -f -X POST https://jenkins.opensearch.org/job/manifest-update/build --user ${{ secrets.JENKINS_GITHUB_USER_LF }}:${{ secrets.JENKINS_GITHUB_USER_TOKEN_LF }}
