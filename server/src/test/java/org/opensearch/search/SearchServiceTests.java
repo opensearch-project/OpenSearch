@@ -36,6 +36,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.OriginalIndices;
@@ -60,6 +61,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -76,8 +78,10 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.DerivedFieldType;
 import org.opensearch.index.query.AbstractQueryBuilder;
+import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
+import org.opensearch.index.query.NestedQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
@@ -105,12 +109,15 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.fetch.ShardFetchRequest;
+import org.opensearch.search.fetch.ShardFetchSearchRequest;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.rescore.QueryRescoreMode;
+import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.ScoreSortBuilder;
@@ -128,6 +135,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
@@ -1402,6 +1410,97 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         assertNull("Profile results should be null when profiler is disabled", fetchResult.getProfileResults());
 
         service.freeReaderContext(queryResult.getContextId());
+    }
+
+    public void testRescoreDocIdsOnlyTopDocs() throws Exception {
+        assertRescoreDocIdsOnlyTopDocs(false);
+    }
+
+    public void testRescoreDocIdsOnlyTopDocsKeepStatesInContext() throws Exception {
+        assertRescoreDocIdsOnlyTopDocs(true);
+    }
+
+    /**
+     * @param keepStatesInContext if true, the fetch phase reads the ids from the reader context, else from the fetch request.
+     */
+    private void assertRescoreDocIdsOnlyTopDocs(boolean keepStatesInContext) throws Exception {
+        createIndex("index", Settings.EMPTY, "_doc", "nested", "type=nested");
+        final int numDocs = 5;
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("index")
+                .setId(Integer.toString(i))
+                .setSource(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startArray("nested")
+                        .startObject()
+                        .field("field", "value")
+                        .endObject()
+                        .endArray()
+                        .endObject()
+                )
+                .get();
+        }
+        client().admin().indices().prepareRefresh("index").get();
+
+        SearchService service = getInstanceFromNode(SearchService.class);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexShard indexShard = indicesService.indexServiceSafe(resolveIndex("index")).getShard(0);
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+
+        for (String explain : new String[] { "none", "top level", "inner hit" }) {
+            InnerHitBuilder innerHit = new InnerHitBuilder().setExplain(explain.equals("inner hit"));
+            SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+            searchRequest.source(
+                new SearchSourceBuilder().query(
+                    new NestedQueryBuilder("nested", new MatchAllQueryBuilder(), ScoreMode.Avg).innerHit(innerHit)
+                )
+                    .size(1)
+                    .addRescorer(new QueryRescorerBuilder(new MatchAllQueryBuilder()).windowSize(numDocs))
+                    .explain(explain.equals("top level"))
+            );
+            // More than one shard, so the query result goes to the coordinator before the fetch phase.
+            ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
+                OriginalIndices.NONE,
+                searchRequest,
+                indexShard.shardId(),
+                2,
+                new AliasFilter(null, Strings.EMPTY_ARRAY),
+                1.0f,
+                -1,
+                null,
+                null
+            );
+            PlainActionFuture<SearchPhaseResult> queryFuture = new PlainActionFuture<>();
+            service.executeQueryPhase(shardSearchRequest, keepStatesInContext, task, queryFuture);
+            SearchPhaseResult queryResult = queryFuture.get();
+            try {
+                RescoreDocIds rescoreDocIds = queryResult.getRescoreDocIds();
+                int topDoc = queryResult.queryResult().topDocs().topDocs.scoreDocs[0].doc;
+                assertEquals(explain, Set.of(topDoc), rescoreDocIds.getId(0));
+
+                // Send the ids back as the coordinator does. The explanation must include the rescore.
+                ShardFetchSearchRequest fetchRequest = new ShardFetchSearchRequest(
+                    OriginalIndices.NONE,
+                    queryResult.getContextId(),
+                    shardSearchRequest,
+                    List.of(topDoc),
+                    null,
+                    rescoreDocIds,
+                    null
+                );
+                PlainActionFuture<FetchSearchResult> fetchFuture = new PlainActionFuture<>();
+                service.executeFetchPhase(fetchRequest, task, fetchFuture);
+                SearchHit hit = fetchFuture.get().hits().getAt(0);
+                if (explain.equals("top level")) {
+                    assertEquals(QueryRescoreMode.Total + " of:", hit.getExplanation().getDescription());
+                } else {
+                    assertNull(explain, hit.getExplanation());
+                }
+            } finally {
+                service.freeReaderContext(queryResult.getContextId());
+            }
+        }
     }
 
     public void testCreateSearchContext() throws IOException {

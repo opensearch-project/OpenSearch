@@ -32,6 +32,7 @@
 
 package org.opensearch.search.rescore;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.opensearch.OpenSearchException;
@@ -39,6 +40,10 @@ import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * RescoreProcessor of a search request, used to run potentially expensive scoring models against the top matching documents.
@@ -52,24 +57,60 @@ public class RescoreProcessor {
         if (topDocs.scoreDocs.length == 0) {
             return;
         }
+        assert context.sort() == null : "rescore requires the sort by score";
         try {
-            for (RescoreContext ctx : context.rescore()) {
-                topDocs = ctx.rescorer().rescore(topDocs, context.searcher(), ctx);
-                // It is the responsibility of the rescorer to sort the resulted top docs,
-                // here we only assert that this condition is met.
-                assert context.sort() == null && topDocsSortedByScore(topDocs) : "topdocs should be sorted after rescore";
-            }
-            context.queryResult()
-                .topDocs(new TopDocsAndMaxScore(topDocs, topDocs.scoreDocs[0].score), context.queryResult().sortValueFormats());
+            // The collector kept the full rescore window, but the coordinator uses only the top from + size hits of each shard.
+            TopDocsAndMaxScore rescored = rescore(topDocs, context.searcher(), context.rescore(), context.from() + context.size());
+            context.queryResult().topDocs(rescored, context.queryResult().sortValueFormats());
         } catch (IOException e) {
             throw new OpenSearchException("Rescore Phase Failed", e);
         }
     }
 
     /**
+     * Runs each rescorer on all of the given docs, then keeps only the top {@code numDocs} and their rescored doc ids.
+     */
+    public static TopDocsAndMaxScore rescore(TopDocs topDocs, IndexSearcher searcher, List<RescoreContext> rescore, int numDocs)
+        throws IOException {
+        for (RescoreContext ctx : rescore) {
+            topDocs = ctx.rescorer().rescore(topDocs, searcher, ctx);
+            // It is the responsibility of the rescorer to sort the resulted top docs,
+            // here we only assert that this condition is met.
+            assert topDocsSortedByScore(topDocs) : "topdocs should be sorted after rescore";
+        }
+        // Before the cut, because the cut can remove all docs.
+        float maxScore = topDocs.scoreDocs.length > 0 ? topDocs.scoreDocs[0].score : Float.NaN;
+        TopDocs top = topN(topDocs, numDocs);
+        // The rescored doc ids go to the coordinator and back, and the fetch phase loads only the top docs.
+        for (RescoreContext ctx : rescore) {
+            Set<Integer> rescoredDocs = ctx.getRescoredDocs();
+            if (rescoredDocs != null) {
+                Set<Integer> topRescoredDocs = new HashSet<>();
+                for (ScoreDoc doc : top.scoreDocs) {
+                    if (rescoredDocs.contains(doc.doc)) {
+                        topRescoredDocs.add(doc.doc);
+                    }
+                }
+                ctx.setRescoredDocs(topRescoredDocs);
+            }
+        }
+        return new TopDocsAndMaxScore(top, maxScore);
+    }
+
+    /**
+     * Returns a new {@link TopDocs} with the top {@code n} docs of {@code in}, or {@code in} if it has {@code n} docs or fewer.
+     */
+    static TopDocs topN(TopDocs in, int n) {
+        if (in.scoreDocs.length <= n) {
+            return in;
+        }
+        return new TopDocs(in.totalHits, Arrays.copyOf(in.scoreDocs, n));
+    }
+
+    /**
      * Returns true if the provided docs are sorted by score.
      */
-    private boolean topDocsSortedByScore(TopDocs topDocs) {
+    private static boolean topDocsSortedByScore(TopDocs topDocs) {
         if (topDocs == null || topDocs.scoreDocs == null || topDocs.scoreDocs.length < 2) {
             return true;
         }

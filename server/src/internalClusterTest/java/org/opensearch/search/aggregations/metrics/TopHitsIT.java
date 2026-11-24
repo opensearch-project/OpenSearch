@@ -46,6 +46,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptEngine;
@@ -78,6 +79,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -140,9 +142,11 @@ public class TopHitsIT extends ParameterizedStaticSettingsOpenSearchIntegTestCas
 
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
-            return Collections.singletonMap("Math.random()", script -> TopHitsIT.randomDouble());
+            return Map.of("Math.random()", script -> TopHitsIT.randomDouble(), "count_fetch", script -> FETCH_COUNT.incrementAndGet());
         }
     }
+
+    private static final AtomicInteger FETCH_COUNT = new AtomicInteger();
 
     public static String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(ExecutionMode.values()).toString();
@@ -1430,6 +1434,51 @@ public class TopHitsIT extends ParameterizedStaticSettingsOpenSearchIntegTestCas
                     assertThat(hit.getScore(), equalTo(Float.NaN));
                 }
             }
+        }
+    }
+
+    public void testWithRescoreAndFrom() throws Exception {
+        // One shard, so the shard alone must supply the from + size hits.
+        try {
+            assertAcked(
+                prepareCreate("rescore_from_idx").setMapping("n", "type=long")
+                    .setSettings(Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0))
+            );
+            List<IndexRequestBuilder> builders = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                builders.add(client().prepareIndex("rescore_from_idx").setId(Integer.toString(i)).setSource("n", i + 1));
+            }
+            indexRandom(true, false, builders);
+            // Concurrent search makes one aggregator per slice, and each slice fetches its own from + size hits.
+            assertNoFailures(client().admin().indices().prepareForceMerge("rescore_from_idx").setMaxNumSegments(1).get());
+            refresh("rescore_from_idx");
+            FETCH_COUNT.set(0);
+
+            // The rescore window holds all docs, and only the rescore score gives the order.
+            SearchResponse response = client().prepareSearch("rescore_from_idx")
+                .setSize(0)
+                .addRescorer(
+                    new QueryRescorerBuilder(QueryBuilders.functionScoreQuery(ScoreFunctionBuilders.fieldValueFactorFunction("n")))
+                        .setQueryWeight(0f)
+                        .windowSize(10)
+                )
+                .addAggregation(
+                    topHits("hits").from(2)
+                        .size(3)
+                        .scriptField(
+                            "count_fetch",
+                            new Script(ScriptType.INLINE, MockScriptEngine.NAME, "count_fetch", Collections.emptyMap())
+                        )
+                )
+                .get();
+            assertSearchResponse(response);
+            TopHits topHits = response.getAggregations().get("hits");
+            SearchHit[] hits = topHits.getHits().getHits();
+            assertThat(Arrays.stream(hits).map(SearchHit::getId).toArray(String[]::new), arrayContaining("7", "6", "5"));
+            // The reduce also cuts to from + size, thus only the fetch count shows the cut on the shard.
+            assertEquals(5, FETCH_COUNT.get());
+        } finally {
+            assertAcked(client().admin().indices().prepareDelete("rescore_from_idx"));
         }
     }
 }
