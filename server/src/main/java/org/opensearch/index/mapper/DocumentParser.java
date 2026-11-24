@@ -2442,14 +2442,14 @@ final class DocumentParser {
         }
     }
 
-    private static MapperParsingException mappingConflict(ParseContext context, String field, MapperParsingException cause) {
+    private static RuntimeException mappingConflict(ParseContext context, String field, MapperParsingException cause) {
         return IGNORE_MAPPING_CONFLICTS_SETTING.get(context.indexSettings().getSettings())
             ? new MappingConflictException(field, cause)
             : cause;
     }
 
     /** Internal control flow only; never persisted or returned as a successful indexing response. */
-    private static final class MappingConflictException extends MapperParsingException {
+    private static final class MappingConflictException extends RuntimeException {
         private final String field;
 
         private MappingConflictException(String field, Throwable cause) {
