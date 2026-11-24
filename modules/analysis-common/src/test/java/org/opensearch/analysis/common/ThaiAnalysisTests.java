@@ -100,12 +100,17 @@ public class ThaiAnalysisTests extends OpenSearchTokenStreamTestCase {
      * after a space is split by the old tokenizer, which indices created before 3.11.0 must keep doing.
      */
     public void testBufferCut() throws IOException {
-        String text = "ก".repeat(1021) + " แมว";
-        String[] legacy = new String[513];
-        Arrays.fill(legacy, 0, 510, "กก");
-        legacy[510] = "ก";
-        legacy[511] = "แม";
-        legacy[512] = "ว";
+        // 1023 characters before หนังสือ, so the 1024 character buffer fills right after its first letter
+        String text = "ปลา ".repeat(255) + "นก หนังสือ";
+        String[] tokens = new String[257];
+        Arrays.fill(tokens, 0, 255, "ปลา");
+        tokens[255] = "นก";
+        tokens[256] = "หนังสือ";
+        // the old tokenizer cuts at the buffer end, inside the word
+        String[] legacy = new String[258];
+        System.arraycopy(tokens, 0, legacy, 0, 256);
+        legacy[256] = "ห";
+        legacy[257] = "นังสือ";
 
         for (Version version : List.of(Version.V_3_9_0, Version.V_3_10_0, Version.V_3_11_0)) {
             OpenSearchTestCase.TestAnalysis analysis = analysis(
@@ -117,14 +122,7 @@ public class ThaiAnalysisTests extends OpenSearchTokenStreamTestCase {
             );
             for (String name : List.of("thai_only", "thai_preconfigured")) {
                 Analyzer analyzer = analysis.indexAnalyzers.get(name).analyzer();
-                if (version.before(Version.V_3_11_0)) {
-                    assertAnalyzesTo(analyzer, text, legacy);
-                } else {
-                    String[] tokens = new String[legacy.length - 1];
-                    System.arraycopy(legacy, 0, tokens, 0, 511);
-                    tokens[511] = "แมว";
-                    assertAnalyzesTo(analyzer, text, tokens);
-                }
+                assertAnalyzesTo(analyzer, text, version.before(Version.V_3_11_0) ? legacy : tokens);
             }
         }
     }
@@ -140,8 +138,9 @@ public class ThaiAnalysisTests extends OpenSearchTokenStreamTestCase {
                     .put("index.analysis.analyzer.thai_stops.tokenizer", "thai")
                     .put("index.analysis.analyzer.thai_stops.filter", "thai_stops")
             ).indexAnalyzers.get("thai_stops").analyzer();
-            assertAnalyzesTo(analyzer, "ไป", new String[] {});
-            assertAnalyzesTo(analyzer, "ที่ผ่านมา", new String[] {});
+            // both were dropped from Lucene's default list in 10.6
+            assertAnalyzesTo(analyzer, "เริ่ม", new String[] {});
+            assertAnalyzesTo(analyzer, "ส่ง", new String[] {});
         }
     }
 
