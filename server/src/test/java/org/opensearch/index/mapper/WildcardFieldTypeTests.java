@@ -127,6 +127,13 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         assertEquals(expectedQuery("field", builder.build(), "*apple*"), ft.wildcardQuery("*apple*", null, null));
     }
 
+    public void testNormalizedWildcardQuery() {
+        MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
+        for (String pattern : new String[] { "*apple*", "app?e", "*ple" }) {
+            assertEquals(ft.wildcardQuery(pattern, null, null), ft.normalizedWildcardQuery(pattern, null, null));
+        }
+    }
+
     public void testEscapedWildcardQuery() {
         MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
         Set<String> expectedTerms = new HashSet<>();
