@@ -356,6 +356,11 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         }
 
         @Override
+        boolean isMappingConflictIgnored(String field) {
+            return in.isMappingConflictIgnored(field);
+        }
+
+        @Override
         public void incrementFieldCurrentDepth() {
             in.incrementFieldCurrentDepth();
         }
@@ -433,6 +438,18 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         private boolean docsReversed = false;
 
         private final Set<String> ignoredFields = new HashSet<>();
+
+        private Set<String> ignoredMappingConflicts = Collections.emptySet();
+
+        void ignoreMappingConflicts(Set<String> fields) {
+            ignoredMappingConflicts = Set.copyOf(fields);
+            ignoredFields.addAll(fields);
+        }
+
+        @Override
+        boolean isMappingConflictIgnored(String field) {
+            return ignoredMappingConflicts.contains(field);
+        }
 
         private DocumentInput documentInput;
 
@@ -709,6 +726,10 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
      * Return the collection of fields that have been ignored so far.
      */
     public abstract Collection<String> getIgnoredFields();
+
+    boolean isMappingConflictIgnored(String field) {
+        return false;
+    }
 
     public abstract DocumentMapperParser docMapperParser();
 
