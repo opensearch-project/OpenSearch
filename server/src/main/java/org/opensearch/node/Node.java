@@ -1513,7 +1513,7 @@ public class Node implements Closeable {
             // Admits searches against WLM resource limits and throttles, and scroll pages against throttles; the search actions
             // depend only on the core interface.
             final SearchExecutionGate searchExecutionGate = new SearchExecutionGate(
-                new WorkloadGroupSearchAdmission(workloadGroupService, clusterService, transportService.getTaskManager())
+                new WorkloadGroupSearchAdmission(workloadGroupService, transportService.getTaskManager())
             );
 
             TopNSearchTasksLogger taskConsumer = new TopNSearchTasksLogger(settings, settingsModule.getClusterSettings());

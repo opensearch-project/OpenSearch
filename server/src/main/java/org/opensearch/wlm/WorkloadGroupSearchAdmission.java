@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.SearchAdmission;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.core.action.ActionListener;
@@ -37,12 +36,9 @@ public final class WorkloadGroupSearchAdmission implements SearchAdmission {
 
     private final List<WorkloadGroupAdmissionPolicy> policies;
 
-    public WorkloadGroupSearchAdmission(WorkloadGroupService workloadGroupService, ClusterService clusterService, TaskManager taskManager) {
+    public WorkloadGroupSearchAdmission(WorkloadGroupService workloadGroupService, TaskManager taskManager) {
         this(
-            List.of(
-                new ResourceLimitAdmissionPolicy(workloadGroupService),
-                new ThrottleAdmissionPolicy(workloadGroupService, clusterService, taskManager)
-            )
+            List.of(new ResourceLimitAdmissionPolicy(workloadGroupService), new ThrottleAdmissionPolicy(workloadGroupService, taskManager))
         );
     }
 

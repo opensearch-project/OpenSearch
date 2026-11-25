@@ -634,25 +634,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * The task that issued {@code searchRequest}, if it runs on this node.
-     * <p>
-     * {@code taskManager} only knows the tasks of this node, by a numeric id that is unique per node, not
-     * across the cluster. A parent task on another node is therefore not looked up at all: its number
-     * could belong to an unrelated task here.
+     * The task that issued {@code searchRequest}, if it runs on this node: see
+     * {@link org.opensearch.tasks.TaskManager#getLocalTask(TaskId)}.
      *
      * @return the parent task, or {@code null} if the request has none, its parent runs on another node,
      *         or the parent is no longer registered
      */
     // Package-private for testing.
     Task extractParentTask(final SearchRequest searchRequest) {
-        final TaskId taskId = searchRequest.getParentTask();
-        if (taskId == null || taskId.isSet() == false) {
-            return null;
-        }
-        if (taskId.getNodeId().equals(clusterService.localNode().getId()) == false) {
-            return null;
-        }
-        return taskManager.getTask(taskId.getId());
+        return taskManager.getLocalTask(searchRequest.getParentTask());
     }
 
     private ActionListener<SearchSourceBuilder> buildRewriteListener(

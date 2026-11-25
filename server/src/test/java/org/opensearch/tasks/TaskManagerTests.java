@@ -32,7 +32,13 @@
 
 package org.opensearch.tasks;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.tasks.TransportTasksActionTests;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.Settings;
@@ -221,5 +227,56 @@ public class TaskManagerTests extends OpenSearchTestCase {
             }
             super.addCloseListener(listener);
         }
+    }
+
+    public void testGetLocalTaskFindsATaskOnThisNode() {
+        final TaskManager taskManager = taskManagerOnNode("local");
+        final Task task = taskManager.register("transport", "test", new CancellableRequest("1"));
+
+        assertSame(task, taskManager.getLocalTask(new TaskId("local", task.getId())));
+    }
+
+    // Task numbers are only unique per node: a task on another node with a number that this node also uses
+    // must not be matched to the unrelated local task.
+    public void testGetLocalTaskDoesNotMatchATaskOfAnotherNodeWithTheSameNumber() {
+        final TaskManager taskManager = taskManagerOnNode("local");
+        final Task localTask = taskManager.register("transport", "test", new CancellableRequest("1"));
+
+        assertNull(taskManager.getLocalTask(new TaskId("another-node", localTask.getId())));
+    }
+
+    public void testGetLocalTaskOfATaskNoLongerRegistered() {
+        final TaskManager taskManager = taskManagerOnNode("local");
+        final Task task = taskManager.register("transport", "test", new CancellableRequest("1"));
+        taskManager.unregister(task);
+
+        assertNull(taskManager.getLocalTask(new TaskId("local", task.getId())));
+    }
+
+    public void testGetLocalTaskWithoutATaskId() {
+        final TaskManager taskManager = taskManagerOnNode("local");
+
+        assertNull(taskManager.getLocalTask(null));
+        assertNull(taskManager.getLocalTask(TaskId.EMPTY_TASK_ID));
+    }
+
+    // Before the node has applied a cluster state it does not know its own id, so no task id can be
+    // confirmed as local.
+    public void testGetLocalTaskBeforeTheNodeJoinedTheCluster() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        final Task task = taskManager.register("transport", "test", new CancellableRequest("1"));
+
+        assertNull(taskManager.getLocalTask(new TaskId("local", task.getId())));
+    }
+
+    /** A task manager on a node with id {@code nodeId}, as it is once the node has applied a cluster state. */
+    private TaskManager taskManagerOnNode(String nodeId) {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        final DiscoveryNode node = new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), Version.CURRENT);
+        final ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .nodes(DiscoveryNodes.builder().add(node).localNodeId(nodeId))
+            .build();
+        taskManager.applyClusterState(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
+        return taskManager;
     }
 }
