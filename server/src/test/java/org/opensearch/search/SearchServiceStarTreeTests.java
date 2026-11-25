@@ -191,6 +191,22 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
             .postFilter(new MatchAllQueryBuilder());
         assertStarTreeContext(request, sourceBuilder, null, -1);
 
+        // Case 4b: MatchAllQuery and metric aggregations present, but the request goes through a filtered alias,
+        // should not use star tree because the precomputed values do not apply the alias filter
+        ShardSearchRequest aliasRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(true),
+            indexShard.shardId(),
+            1,
+            new AliasFilter(new TermQueryBuilder("sndv", 1), "filtered"),
+            1.0f,
+            -1,
+            null,
+            null
+        );
+        sourceBuilder = new SearchSourceBuilder().size(0).query(new MatchAllQueryBuilder()).aggregation(max("test").field("field"));
+        assertStarTreeContext(aliasRequest, sourceBuilder, null, -1);
+
         // Case 5: TermQuery and single aggregation, should use star tree, but not initialize query cache
         baseQuery = new TermQueryBuilder("sndv", 1);
         sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(AggregationBuilders.max("test").field("field"));
