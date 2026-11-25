@@ -4,14 +4,39 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - buildSrc/version.properties
+      - gradle/libs.versions.toml
 
 jobs:
   trigger-manifest-workflow:
     if: github.repository == 'opensearch-project/OpenSearch'
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        if: github.event_name == 'push'
+      - name: Check whether the OpenSearch version changed
+        id: version
+        if: github.event_name == 'push'
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [[ "$BEFORE" == "0000000000000000000000000000000000000000" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git fetch --no-tags origin "$BEFORE"
+          if ! git cat-file -e "$BEFORE:gradle/libs.versions.toml" 2>/dev/null; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          previous=$(git show "$BEFORE:gradle/libs.versions.toml" | python3 -c 'import sys, tomllib; print(tomllib.loads(sys.stdin.read())["versions"]["opensearch"])')
+          current=$(python3 -c 'import tomllib; print(tomllib.load(open("gradle/libs.versions.toml", "rb"))["versions"]["opensearch"])')
+          if [[ "$previous" != "$current" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Trigger manifest-update workflow
+        if: github.event_name == 'workflow_dispatch' || steps.version.outputs.changed == 'true'
         run: |
             echo "Triggering manifest-update workflow at https://jenkins.opensearch.org/job/manifest-update/"
             curl -f -X POST https://jenkins.opensearch.org/job/manifest-update/build --user ${{ secrets.JENKINS_GITHUB_USER_LF }}:${{ secrets.JENKINS_GITHUB_USER_TOKEN_LF }}

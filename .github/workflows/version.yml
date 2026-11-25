@@ -60,6 +60,37 @@ jobs:
           new-version: ${{ env.NEXT_VERSION }}
           update-current: true
 
+      - name: Increment Gradle version on Major.Minor branch
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import re
+          import tomllib
+
+          previous = os.environ["CURRENT_VERSION"]
+          next_version = os.environ["NEXT_VERSION"]
+          catalog_path = Path("gradle/libs.versions.toml")
+          catalog = catalog_path.read_text()
+          if tomllib.loads(catalog)["versions"]["opensearch"] != previous:
+              raise ValueError(f"Version catalog does not contain expected OpenSearch version {previous}")
+          catalog, catalog_count = re.subn(
+              r'(?m)^([ \t]*opensearch[ \t]*=[ \t]*)["\']\d+\.\d+\.\d+["\']([ \t]*(?:#.*)?)$',
+              lambda match: f'{match.group(1)}"{next_version}"{match.group(2)}',
+              catalog,
+          )
+          legacy_path = Path("buildSrc/version.properties")
+          legacy, legacy_count = re.subn(
+              r'(?m)^([ \t]*opensearch[ \t]*=[ \t]*)[^\s#]+([ \t]*(?:#.*)?)$',
+              lambda match: f'{match.group(1)}{next_version}{match.group(2)}',
+              legacy_path.read_text(),
+          )
+          if catalog_count != 1 or legacy_count != 1:
+              raise ValueError("Expected exactly one OpenSearch version in each version file")
+          catalog_path.write_text(catalog)
+          legacy_path.write_text(legacy)
+          PY
+
       - name: Create PR for BASE
         id: base_pr
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8
