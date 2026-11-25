@@ -2162,6 +2162,52 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         });
     }
 
+    public void testIndexAwareProcessorIsToldWhenTheSearchBelongsToAByQueryJob() {
+        withIndexAwareFixture(fixture -> {
+            AtomicReference<IndexAwareContext> seen = new AtomicReference<>();
+            fixture.register(capturingContext(seen));
+
+            fixture.apply(new SearchRequest("my-index").source(new SearchSourceBuilder()), null, reindexTask()).assertCompleted();
+
+            assertTrue(seen.get().isByQuerySearch());
+        });
+    }
+
+    // A parent task that is not a by-query job's: the parent action is reported, but it is not a by-query search.
+    public void testIndexAwareProcessorIsToldWhenTheSearchDoesNotBelongToAByQueryJob() {
+        withIndexAwareFixture(fixture -> {
+            AtomicReference<IndexAwareContext> seen = new AtomicReference<>();
+            fixture.register(capturingContext(seen));
+            Task ordinaryParent = new Task(1, "transport", MultiSearchAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of());
+
+            fixture.apply(new SearchRequest("my-index").source(new SearchSourceBuilder()), null, ordinaryParent).assertCompleted();
+
+            assertEquals(MultiSearchAction.NAME, seen.get().getParentAction());
+            assertFalse(seen.get().isByQuerySearch());
+        });
+    }
+
+    // Processors now run for these searches, so a processor's failure fails them as it fails any other.
+    public void testIndexAwareProcessorThatThrowsFailsAByQuerySearch() {
+        withIndexAwareFixture(fixture -> {
+            fixture.register((source, context, listener) -> { throw new RuntimeException("processor boom"); });
+
+            HookOutcome outcome = fixture.apply(new SearchRequest("my-index").source(new SearchSourceBuilder()), null, reindexTask());
+
+            assertEquals("processor boom", outcome.assertFailed().getMessage());
+        });
+    }
+
+    public void testIndexAwareProcessorThatThrowsFailsASystemIndexSearch() {
+        withIndexAwareFixture(fixture -> {
+            fixture.register((source, context, listener) -> { throw new RuntimeException("processor boom"); });
+
+            HookOutcome outcome = fixture.apply(new SearchRequest(".system-index").source(new SearchSourceBuilder()));
+
+            assertEquals("processor boom", outcome.assertFailed().getMessage());
+        });
+    }
+
     public void testIndexAwareProcessorIsGivenNoParentActionWhenTheSearchHasNoParentTask() {
         withIndexAwareFixture(fixture -> {
             AtomicReference<IndexAwareContext> seen = new AtomicReference<>();

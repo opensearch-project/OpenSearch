@@ -38,8 +38,22 @@ import org.opensearch.search.builder.SearchSourceBuilder;
  * as it does not for a system-generated search processor. A processor runs for the search behind a
  * {@code _delete_by_query}, {@code _update_by_query} or {@code _reindex} job and for a search of a system
  * index like for any other, and decides for itself, as a system-generated processor's factory does, from
- * {@link IndexAwareContext#getParentAction()} (the factory's {@code parent_action}) and the metadata of
- * each target index.
+ * the context: {@link IndexAwareContext#isByQuerySearch()}, {@link IndexAwareContext#getParentAction()}
+ * (the factory's {@code parent_action}) and the metadata of each target index.
+ * <p>
+ * <b>By-query and reindex jobs.</b> The documents the search of such a job matches are the documents the
+ * job deletes, updates or copies. A processor whose rewrite changes which documents a query matches, and
+ * not only how they are scored, must decide what it does for those searches: leave them alone when
+ * {@link IndexAwareContext#isByQuerySearch()} is {@code true}, so that a job acts only on the documents the
+ * caller's own query matches, or document that a job acts on the documents its rewrite matches, as
+ * {@code _search} does. A rewrite that matches by similarity (for example into a vector query) would
+ * otherwise make {@code _delete_by_query} delete documents the caller never selected.
+ * <p>
+ * <b>Turning a processor on and off.</b> {@code search.index_aware_search_request_processors.enabled} turns
+ * all registered processors on or off together. A plugin that registers a processor should offer its own
+ * setting to turn that processor off, so that an operator can disable one processor without the others.
+ * (System-generated search processor factories are enabled one by one, with
+ * {@code cluster.search.enabled_system_generated_factories}.)
  * <p>
  * <b>Searches a processor does not run for.</b>
  * <ul>
@@ -75,6 +89,12 @@ import org.opensearch.search.builder.SearchSourceBuilder;
  * processor issues run in the caller's thread context, with the caller's identity, unless the processor
  * replaces that context. {@link IndexAwareContext#getFieldFilter} tells a processor which fields the
  * caller may see.
+ * <p>
+ * A processor also runs for searches of system indices. Core and plugins often issue those from a stashed
+ * thread context with system privileges, so requests a processor issues while handling one run with those
+ * privileges, and a failure of the processor fails that read. A processor with nothing to do for a system
+ * index should leave the search alone when any target index is a system index
+ * ({@link org.opensearch.cluster.metadata.IndexMetadata#isSystem()}).
  * <p>
  * <b>No blocking.</b> {@link #process} reports its result through a listener, so a processor that has to
  * wait for something (a sub-search, a call to another service) does so without holding a thread. It must

@@ -50,15 +50,18 @@ public final class IndexAwareContext {
     private final TaskId searchTaskId;
     private final boolean allowPartialSearchResults;
     private final String parentAction;
+    private final boolean byQuerySearch;
 
-    private IndexAwareContext(Builder builder) {
-        this.targetIndices = Collections.unmodifiableMap(builder.targetIndices);
-        this.fieldMappingsLookup = builder.fieldMappingsLookup;
+    private IndexAwareContext(Builder builder, Function<IndexMetadata, Map<String, Object>> fieldMappingsLookup) {
+        // A copy: the context is immutable, whatever its builder's caller does with the map later.
+        this.targetIndices = Map.copyOf(builder.targetIndices);
+        this.fieldMappingsLookup = fieldMappingsLookup;
         this.fieldFilter = builder.fieldFilter;
         this.minNodeVersion = builder.minNodeVersion;
         this.searchTaskId = builder.searchTaskId;
         this.allowPartialSearchResults = builder.allowPartialSearchResults;
         this.parentAction = builder.parentAction;
+        this.byQuerySearch = builder.byQuerySearch;
     }
 
     /**
@@ -94,9 +97,11 @@ public final class IndexAwareContext {
      * {@code dynamic_templates} and so on) is not included; {@link #getTargetIndices()} has the complete
      * mapping in each index's {@link IndexMetadata}.
      * <p>
-     * The map comes from the node-level {@link IndexMappingSourceCache}, so it is usually parsed once per
-     * mapping version rather than once per request, and it is shared with every other request on the node:
-     * it is unmodifiable at every level.
+     * The map comes from the context's field-mappings lookup. During a search, core uses the node-level
+     * {@link IndexMappingSourceCache}, so the map is usually parsed once per mapping version rather than once
+     * per request, and it is shared with every other request on the node: it is unmodifiable at every
+     * level. A context built for a test without a lookup parses through a cache of its own, with the same
+     * guarantees.
      * <p>
      * These are all of the index's fields. They are not reduced by {@link #getFieldFilter(String)}.
      *
@@ -109,7 +114,8 @@ public final class IndexAwareContext {
         if (metadata == null) {
             return Collections.emptyMap();
         }
-        return fieldMappingsLookup.apply(metadata);
+        final Map<String, Object> fieldMappings = fieldMappingsLookup.apply(metadata);
+        return fieldMappings == null ? Collections.emptyMap() : fieldMappings;
     }
 
     /**
@@ -185,12 +191,25 @@ public final class IndexAwareContext {
      * acts only on the documents the caller's own query matches. Similarly, a processor that should not act
      * on system indices can check {@link IndexMetadata#isSystem()} in {@link #getTargetIndices()}.
      *
-     * @return the parent task's action, or {@code null} if the search has no parent task or its parent runs
-     *         on another node
+     * @return the parent task's action, or {@code null} if the search has no parent task, its parent runs
+     *         on another node, or its parent is no longer registered
      */
     @Nullable
     public String getParentAction() {
         return parentAction;
+    }
+
+    /**
+     * Whether this is the search behind a {@code _delete_by_query}, {@code _update_by_query} or
+     * {@code _reindex} job, or behind one slice of a sliced job: its parent task is the job's
+     * {@link org.opensearch.index.reindex.BulkByScrollTask}. The documents this search matches are the
+     * documents the job deletes, updates or copies; see the by-query section of
+     * {@link IndexAwareSearchRequestProcessor}.
+     *
+     * @return {@code true} if the search belongs to a by-query or reindex job
+     */
+    public boolean isByQuerySearch() {
+        return byQuerySearch;
     }
 
     /**
@@ -207,6 +226,7 @@ public final class IndexAwareContext {
         private TaskId searchTaskId = TaskId.EMPTY_TASK_ID;
         private boolean allowPartialSearchResults = true;
         private String parentAction;
+        private boolean byQuerySearch;
 
         private Builder(Map<String, IndexMetadata> targetIndices) {
             this.targetIndices = Objects.requireNonNull(targetIndices, "targetIndices");
@@ -275,12 +295,22 @@ public final class IndexAwareContext {
             return this;
         }
 
-        /** @return the context */
+        /**
+         * @param byQuerySearch whether the search belongs to a by-query or reindex job; defaults to
+         *                      {@code false}
+         * @return this builder
+         */
+        public Builder byQuerySearch(boolean byQuerySearch) {
+            this.byQuerySearch = byQuerySearch;
+            return this;
+        }
+
+        /** @return the context; each call returns a new context, with a cache of its own if no lookup was set */
         public IndexAwareContext build() {
-            if (fieldMappingsLookup == null) {
-                fieldMappingsLookup = new IndexMappingSourceCache()::getFieldMappings;
-            }
-            return new IndexAwareContext(this);
+            return new IndexAwareContext(
+                this,
+                fieldMappingsLookup != null ? fieldMappingsLookup : new IndexMappingSourceCache()::getFieldMappings
+            );
         }
     }
 }

@@ -24,7 +24,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -36,7 +35,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
  * The documents that search matches are the documents the job copies, deletes or updates. By default a
  * processor runs for it, as an index's default search pipeline and system-generated search processors
  * do, so a job acts on the documents a {@code _search} with the same query returns. A processor can leave
- * such a search alone by checking {@link IndexAwareContext#getParentAction()}, as a system-generated
+ * such a search alone by checking {@link IndexAwareContext#isByQuerySearch()}, as a system-generated
  * processor's factory checks {@code parent_action}, and the job then acts on the documents the caller's own
  * query matches.
  * <p>
@@ -111,10 +110,24 @@ public class IndexAwareSearchRequestProcessorReindexIT extends OpenSearchIntegTe
         withProcessorsEnabled(() -> assertHitCount(client().prepareSearch(SOURCE_INDEX).setQuery(parentActionTriggerQuery()).get(), 3));
     }
 
-    // A processor that checks the parent action leaves the job's query alone. The trigger query matches no
+    // Each slice of a sliced job runs its own search under a slice task. The processors run for those
+    // searches too: every slice's search is rewritten.
+    public void testReindexWithSlicesCopiesTheDocumentsASearchWithTheSameQueryReturns() throws Exception {
+        withProcessorsEnabled(() -> {
+            BulkByScrollResponse response = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source(SOURCE_INDEX)
+                .destination(DEST_INDEX)
+                .filter(shoesQuery())
+                .setSlices(2)
+                .refresh(true)
+                .get();
+            assertEquals(3, response.getCreated());
+        });
+    }
+
+    // A processor that checks isByQuerySearch() leaves the job's query alone. The trigger query matches no
     // document literally, so the job touches nothing. One test per job, because each reports its own
-    // action as the parent action.
-    public void testProcessorThatChecksTheParentActionLeavesTheQueryOfAReindexJobAlone() throws Exception {
+    // action as the parent action and runs under its own BulkByScrollTask.
+    public void testProcessorThatChecksForByQuerySearchesLeavesTheQueryOfAReindexJobAlone() throws Exception {
         withProcessorsEnabled(() -> {
             BulkByScrollResponse response = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source(SOURCE_INDEX)
                 .destination(DEST_INDEX)
@@ -125,7 +138,7 @@ public class IndexAwareSearchRequestProcessorReindexIT extends OpenSearchIntegTe
         });
     }
 
-    public void testProcessorThatChecksTheParentActionLeavesTheQueryOfADeleteByQueryJobAlone() throws Exception {
+    public void testProcessorThatChecksForByQuerySearchesLeavesTheQueryOfADeleteByQueryJobAlone() throws Exception {
         withProcessorsEnabled(() -> {
             BulkByScrollResponse response = new DeleteByQueryRequestBuilder(client(), DeleteByQueryAction.INSTANCE).source(SOURCE_INDEX)
                 .filter(parentActionTriggerQuery())
@@ -136,7 +149,7 @@ public class IndexAwareSearchRequestProcessorReindexIT extends OpenSearchIntegTe
         assertHitCount(client().prepareSearch(SOURCE_INDEX).setQuery(QueryBuilders.matchAllQuery()).get(), 3);
     }
 
-    public void testProcessorThatChecksTheParentActionLeavesTheQueryOfAnUpdateByQueryJobAlone() throws Exception {
+    public void testProcessorThatChecksForByQuerySearchesLeavesTheQueryOfAnUpdateByQueryJobAlone() throws Exception {
         withProcessorsEnabled(() -> {
             BulkByScrollResponse response = new UpdateByQueryRequestBuilder(client(), UpdateByQueryAction.INSTANCE).source(SOURCE_INDEX)
                 .filter(parentActionTriggerQuery())
@@ -148,7 +161,7 @@ public class IndexAwareSearchRequestProcessorReindexIT extends OpenSearchIntegTe
 
     // A sliced job runs one search per slice, each under a slice task of its own. Those searches report the
     // job's action too.
-    public void testProcessorThatChecksTheParentActionLeavesTheQueriesOfASlicedReindexJobAlone() throws Exception {
+    public void testProcessorThatChecksForByQuerySearchesLeavesTheQueriesOfASlicedReindexJobAlone() throws Exception {
         withProcessorsEnabled(() -> {
             BulkByScrollResponse response = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source(SOURCE_INDEX)
                 .destination(DEST_INDEX)
@@ -185,14 +198,12 @@ public class IndexAwareSearchRequestProcessorReindexIT extends OpenSearchIntegTe
      *   <li>one for any value except {@link #PARENT_ACTION_TRIGGER}, with the default: it runs for by-query
      *       searches;</li>
      *   <li>one for the value {@link #PARENT_ACTION_TRIGGER} only, which leaves them alone: it checks
-     *       {@link IndexAwareContext#getParentAction()}.</li>
+     *       {@link IndexAwareContext#isByQuerySearch()}.</li>
      * </ul>
      */
     public static class RewriteToMatchAllPlugin extends Plugin implements SearchPlugin {
 
         static final String PARENT_ACTION_TRIGGER = "parent_action_trigger";
-
-        private static final Set<String> BY_QUERY_ACTIONS = Set.of(ReindexAction.NAME, DeleteByQueryAction.NAME, UpdateByQueryAction.NAME);
 
         @Override
         public List<IndexAwareSearchRequestProcessor> getIndexAwareSearchRequestProcessors() {
@@ -206,7 +217,7 @@ public class IndexAwareSearchRequestProcessorReindexIT extends OpenSearchIntegTe
             IndexAwareSearchRequestProcessor checksParentAction = new IndexAwareSearchRequestProcessor() {
                 @Override
                 public void process(SearchSourceBuilder source, IndexAwareContext context, ActionListener<SearchSourceBuilder> listener) {
-                    if (isByQuerySearch(context) == false
+                    if (context.isByQuerySearch() == false
                         && isMatchOnTitle(source)
                         && PARENT_ACTION_TRIGGER.equals(((MatchQueryBuilder) source.query()).value())) {
                         listener.onResponse(source.query(QueryBuilders.matchAllQuery()));
@@ -216,11 +227,6 @@ public class IndexAwareSearchRequestProcessorReindexIT extends OpenSearchIntegTe
                 }
             };
             return asList(byDefault, checksParentAction);
-        }
-
-        // getParentAction() is null for a search without a parent task, and Set.of(...) rejects null.
-        private static boolean isByQuerySearch(IndexAwareContext context) {
-            return context.getParentAction() != null && BY_QUERY_ACTIONS.contains(context.getParentAction());
         }
 
         private static boolean isMatchOnTitle(SearchSourceBuilder source) {

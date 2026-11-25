@@ -17,6 +17,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -160,10 +161,6 @@ public class IndexAwareContextTests extends OpenSearchTestCase {
         assertEquals("indices:data/write/delete/byquery", context.getParentAction());
     }
 
-    public void testGetParentActionWithoutAParentTask() {
-        assertNull(contextFor(Collections.emptyMap(), new IndexMappingSourceCache()).getParentAction());
-    }
-
     // The defaults a plugin's test gets for the values it does not set.
     public void testBuilderDefaults() {
         IndexAwareContext context = IndexAwareContext.builder(Collections.emptyMap()).build();
@@ -173,6 +170,40 @@ public class IndexAwareContextTests extends OpenSearchTestCase {
         assertEquals(TaskId.EMPTY_TASK_ID, context.getSearchTaskId());
         assertTrue(context.allowPartialSearchResults());
         assertNull(context.getParentAction());
+        assertFalse(context.isByQuerySearch());
+    }
+
+    public void testIsByQuerySearch() {
+        assertTrue(IndexAwareContext.builder(Collections.emptyMap()).byQuerySearch(true).build().isByQuerySearch());
+    }
+
+    // The context copies the target indices: a later change to the caller's map does not reach it.
+    public void testTargetIndicesAreCopied() {
+        IndexMetadata metadata = indexWithMapping("my-index", Map.of("properties", Map.of()));
+        Map<String, IndexMetadata> targetIndices = new HashMap<>(Map.of("my-index", metadata));
+        IndexAwareContext context = IndexAwareContext.builder(targetIndices).build();
+
+        targetIndices.put("other-index", metadata);
+
+        assertEquals(Set.of("my-index"), context.getTargetIndices().keySet());
+    }
+
+    // Each build() makes a context with a cache of its own when no lookup is set: building twice from one
+    // builder does not share a cache between the two contexts.
+    public void testContextsBuiltFromOneBuilderDoNotShareTheDefaultCache() {
+        IndexAwareContext.Builder builder = IndexAwareContext.builder(
+            Map.of("my-index", indexWithMapping("my-index", Map.of("properties", Map.of("title", Map.of("type", "text")))))
+        );
+
+        assertNotSame(builder.build().getFieldMappings("my-index"), builder.build().getFieldMappings("my-index"));
+    }
+
+    // A lookup a plugin supplies may return null; getFieldMappings still returns a map.
+    public void testLookupReturningNullGivesAnEmptyMap() {
+        IndexMetadata metadata = indexWithMapping("my-index", Map.of("properties", Map.of()));
+        IndexAwareContext context = IndexAwareContext.builder(Map.of("my-index", metadata)).fieldMappingsLookup(m -> null).build();
+
+        assertEquals(Collections.emptyMap(), context.getFieldMappings("my-index"));
     }
 
     public void testBuilderRequiresTargetIndices() {

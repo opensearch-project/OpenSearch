@@ -83,6 +83,7 @@ import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.index.fielddomain.ClusterStateFieldDomainProvider;
 import org.opensearch.index.query.Rewriteable;
+import org.opensearch.index.reindex.BulkByScrollTask;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchService;
@@ -887,6 +888,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             )
             // The same value system-generated search processor factories receive as parent_action.
             .parentAction(parentTask == null ? null : parentTask.getAction())
+            .byQuerySearch(parentTask instanceof BulkByScrollTask)
             .build();
         // Processors work on a shallow copy of the source. The request shares its source object with the
         // SearchRequest the caller passed in, so setting a part of the source directly would change the

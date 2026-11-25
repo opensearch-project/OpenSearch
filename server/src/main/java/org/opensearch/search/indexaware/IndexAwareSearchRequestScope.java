@@ -13,8 +13,8 @@ import org.opensearch.action.OriginalIndices;
 import java.util.Map;
 
 /**
- * Classifies the searches an {@link IndexAwareSearchRequestProcessor} never runs for: cross-cluster
- * searches ({@link #hasRemoteIndices}).
+ * Identifies cross-cluster searches ({@link #hasRemoteIndices}), which processors never run for. The other
+ * searches processors do not run for are listed on {@link IndexAwareSearchRequestProcessor}.
  *
  * @opensearch.internal
  */

@@ -342,7 +342,8 @@ public class IndexAwareSearchRequestProcessorIT extends OpenSearchIntegTestCase 
         withProcessorsEnabled(() -> {
             int before = cachedMappings();
             // The test processor reads the index's mapping through the context, which parses and caches
-            // it on the node that coordinates the search.
+            // it on the node that coordinates the search. This also checks that core gives the context the
+            // node's cache, not a cache of its own.
             assertHitCount(searchForShoes(index), REWRITTEN);
             assertEquals(before + 1, cachedMappings());
 
