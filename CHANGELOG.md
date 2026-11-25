@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove identity-shiro from plugins folder ([#20305](https://github.com/opensearch-project/OpenSearch/pull/20305))
 
 ### Fixed
+- Fix `addEmptyBuckets` from creating too many buckets when given big extended bounds ([#17718](https://github.com/opensearch-project/OpenSearch/pull/17718))
 - Fix handling of unsupported HTTP content encodings ([#23324](https://github.com/opensearch-project/OpenSearch/pull/23324))
 - Fix deadlock between engineMutex and writeLock during index close and engine reset ([#11869](https://github.com/opensearch-project/OpenSearch/issues/11869))
 - Harden the circuit breaker and failure handle logic in query result consumer ([#19396](https://github.com/opensearch-project/OpenSearch/pull/19396))
