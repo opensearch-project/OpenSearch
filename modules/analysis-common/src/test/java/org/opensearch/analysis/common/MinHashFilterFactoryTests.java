@@ -127,13 +127,19 @@ public class MinHashFilterFactoryTests extends OpenSearchTokenStreamTestCase {
             () -> getTestAnalysisFromSettings(minHashSettings(16, 512, 3))
         );
         assertEquals(
-            "[min_hash] hash_count * bucket_count * hash_set_size must be less than or equal to: [16384] but was [24576]",
+            "[min_hash] hash_count * bucket_count * hash_set_size must be less than or equal to: [16384] but was [16 * 512 * 3]",
             e.getMessage()
         );
 
         e = expectThrows(IllegalArgumentException.class, () -> getTestAnalysisFromSettings(minHashSettings(4000, 4000, 1)));
         assertEquals(
-            "[min_hash] hash_count * bucket_count * hash_set_size must be less than or equal to: [16384] but was [16000000]",
+            "[min_hash] hash_count * bucket_count * hash_set_size must be less than or equal to: [16384] but was [4000 * 4000 * 1]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> getTestAnalysisFromSettings(minHashSettings(1 << 21, 1 << 21, 1 << 21)));
+        assertEquals(
+            "[min_hash] hash_count * bucket_count * hash_set_size must be less than or equal to: [16384] but was [2097152 * 2097152 * 2097152]",
             e.getMessage()
         );
     }
