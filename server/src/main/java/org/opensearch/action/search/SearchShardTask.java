@@ -54,6 +54,10 @@ public class SearchShardTask extends WorkloadGroupTask implements SearchBackpres
     // generating metadata in a lazy way since source can be quite big
     private final MemoizedSupplier<String> metadataSupplier;
 
+    // Volatile because the slow log and profile consumers are not guaranteed to run on the worker thread that
+    // wrote the value.
+    private volatile long queueWaitNanos = -1;
+
     public SearchShardTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         this(id, type, action, description, parentTaskId, headers, () -> "");
     }
@@ -73,6 +77,18 @@ public class SearchShardTask extends WorkloadGroupTask implements SearchBackpres
 
     public String getTaskMetadata() {
         return metadataSupplier.get();
+    }
+
+    /**
+     * Time spent waiting in the search thread pool queue, or -1 if the task was never dispatched through a
+     * queueing executor (for example when it runs inline on the calling thread).
+     */
+    public long getQueueWaitNanos() {
+        return queueWaitNanos;
+    }
+
+    public void setQueueWaitNanos(long queueWaitNanos) {
+        this.queueWaitNanos = queueWaitNanos;
     }
 
     @Override

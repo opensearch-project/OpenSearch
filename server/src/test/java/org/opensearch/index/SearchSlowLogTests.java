@@ -62,6 +62,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -267,6 +268,23 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
         assertThat(p.getValueFor("search_type"), Matchers.nullValue());
         assertThat(p.getValueFor("total_shards"), equalTo("1"));
         assertThat(p.getValueFor("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
+        // no dispatch through a queueing executor in this test, so queue wait is reported as unknown
+        assertThat(p.getValueFor("queue_wait"), equalTo("-1"));
+        assertThat(p.getValueFor("queue_wait_millis"), equalTo("-1"));
+    }
+
+    public void testSlowLogReportsQueueWait() throws IOException {
+        IndexService index = createIndex("foo");
+        SearchContext searchContext = searchContextWithSourceAndTask(index);
+        searchContext.getTask().setQueueWaitNanos(TimeUnit.MILLISECONDS.toNanos(250));
+
+        SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
+
+        assertThat(p.getValueFor("queue_wait"), equalTo("250ms"));
+        assertThat(p.getValueFor("queue_wait_millis"), equalTo("250"));
+        // queue wait is independent of took, which only covers execution after the task was dequeued
+        assertThat(p.getValueFor("took_millis"), equalTo("0"));
+        assertThat(p.getFormattedMessage(), containsString("queue_wait_millis[250]"));
     }
 
     public void testSlowLogsWithStats() throws IOException {

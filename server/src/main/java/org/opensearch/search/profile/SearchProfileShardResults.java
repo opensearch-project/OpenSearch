@@ -69,6 +69,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
     public static final String PROFILE_FIELD = "profile";
     public static final String INBOUND_NETWORK_FIELD = "inbound_network_time_in_millis";
     public static final String OUTBOUND_NETWORK_FIELD = "outbound_network_time_in_millis";
+    public static final String QUEUE_WAIT_FIELD = "queue_wait_time_in_nanos";
 
     private Map<String, ProfileShardResult> shardResults;
 
@@ -112,6 +113,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
             builder.field(ID_FIELD, key);
             builder.field(INBOUND_NETWORK_FIELD, shardResults.get(key).getNetworkTime().getInboundNetworkTime());
             builder.field(OUTBOUND_NETWORK_FIELD, shardResults.get(key).getNetworkTime().getOutboundNetworkTime());
+            builder.field(QUEUE_WAIT_FIELD, shardResults.get(key).getQueueWaitNanos());
             builder.startArray(SEARCHES_FIELD);
             ProfileShardResult profileShardResult = shardResults.get(key);
             for (QueryProfileShardResult result : profileShardResult.getQueryProfileResults()) {
@@ -157,6 +159,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
         String currentFieldName = null;
         long inboundNetworkTime = 0;
         long outboundNetworkTime = 0;
+        long queueWaitNanos = -1;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -167,6 +170,8 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
                     inboundNetworkTime = parser.longValue();
                 } else if (OUTBOUND_NETWORK_FIELD.equals(currentFieldName)) {
                     outboundNetworkTime = parser.longValue();
+                } else if (QUEUE_WAIT_FIELD.equals(currentFieldName)) {
+                    queueWaitNanos = parser.longValue();
                 } else {
                     parser.skipChildren();
                 }
@@ -192,7 +197,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
         }
         searchProfileResults.put(
             id,
-            new ProfileShardResult(queryProfileResults, aggProfileShardResult, fetchProfileShardResult, networkTime)
+            new ProfileShardResult(queryProfileResults, aggProfileShardResult, fetchProfileShardResult, networkTime, queueWaitNanos)
         );
     }
 
@@ -202,10 +207,12 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
      *
      * @param profilers
      *            The {@link Profilers} to convert into results
+     * @param queueWaitNanos
+     *            Time the shard task spent queued on the search thread pool, or -1 if unknown
      * @return A {@link ProfileShardResult} representing the results for this
      *         shard
      */
-    public static ProfileShardResult buildShardResults(Profilers profilers, ShardSearchRequest request) {
+    public static ProfileShardResult buildShardResults(Profilers profilers, ShardSearchRequest request, long queueWaitNanos) {
         List<QueryProfiler> queryProfilers = profilers.getQueryProfilers();
         AggregationProfiler aggProfiler = profilers.getAggregationProfiler();
         FetchProfiler fetchProfiler = profilers.getFetchProfiler();
@@ -226,7 +233,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
             networkTime.setInboundNetworkTime(request.getInboundNetworkTime());
             networkTime.setOutboundNetworkTime(request.getOutboundNetworkTime());
         }
-        return new ProfileShardResult(queryResults, aggResults, fetchResult, networkTime);
+        return new ProfileShardResult(queryResults, aggResults, fetchResult, networkTime, queueWaitNanos);
     }
 
     /**
@@ -235,9 +242,10 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
      *
      * @param profilers The {@link Profilers} to extract fetch data from
      * @param request The shard search request
+     * @param queueWaitNanos Time the shard task spent queued on the search thread pool, or -1 if unknown
      * @return A {@link ProfileShardResult} containing only fetch profile data
      */
-    public static ProfileShardResult buildFetchOnlyShardResults(Profilers profilers, ShardSearchRequest request) {
+    public static ProfileShardResult buildFetchOnlyShardResults(Profilers profilers, ShardSearchRequest request, long queueWaitNanos) {
         FetchProfiler fetchProfiler = profilers.getFetchProfiler();
         List<ProfileResult> fetchTree = fetchProfiler.getTree();
         FetchProfileShardResult fetchResult = new FetchProfileShardResult(fetchTree);
@@ -251,7 +259,8 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
             Collections.emptyList(), // No query results in fetch-only phase
             new AggregationProfileShardResult(Collections.emptyList()), // No aggregation results
             fetchResult,
-            networkTime
+            networkTime,
+            queueWaitNanos
         );
     }
 }
