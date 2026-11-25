@@ -729,6 +729,8 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         final InetSocketAddress address = httpServer.getAddress();
         final String primaryAuthority = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
         final String secondaryAuthority = "http://localhost:" + address.getPort();
+        final String primaryBlobName = "primary-reloaded";
+        final String secondaryBlobName = "secondary-reloaded";
         activeClientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         service = createStorageService(
             buildClientSettings(activeClientName, 1, primaryAuthority + "/old-primary", secondaryAuthority + "/old-secondary")
@@ -739,15 +741,15 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         final AtomicInteger oldSecondaryRequests = new AtomicInteger();
         final AtomicInteger newPrimaryRequests = new AtomicInteger();
         final AtomicInteger newSecondaryRequests = new AtomicInteger();
-        registerBlobDownloadHandler("/old-primary/container/reloaded", oldPrimaryRequests);
-        registerBlobDownloadHandler("/old-secondary/container/reloaded", oldSecondaryRequests);
-        registerBlobDownloadHandler("/new-primary/container/reloaded", newPrimaryRequests);
-        registerBlobDownloadHandler("/new-secondary/container/reloaded", newSecondaryRequests);
+        registerBlobDownloadHandler("/old-primary/container/" + primaryBlobName, oldPrimaryRequests);
+        registerBlobDownloadHandler("/old-secondary/container/" + secondaryBlobName, oldSecondaryRequests);
+        registerBlobDownloadHandler("/new-primary/container/" + primaryBlobName, newPrimaryRequests);
+        registerBlobDownloadHandler("/new-secondary/container/" + secondaryBlobName, newSecondaryRequests);
 
-        try (InputStream input = primaryStore.getInputStream("reloaded", 0L, 1L)) {
+        try (InputStream input = primaryStore.getInputStream(primaryBlobName, 0L, 1L)) {
             assertEquals(1, Streams.readFully(input).length());
         }
-        try (InputStream input = secondaryStore.getInputStream("reloaded", 0L, 1L)) {
+        try (InputStream input = secondaryStore.getInputStream(secondaryBlobName, 0L, 1L)) {
             assertEquals(1, Streams.readFully(input).length());
         }
         final BlobServiceClient oldPrimaryClient = service.client(activeClientName, LocationMode.PRIMARY_ONLY, null).v1();
@@ -767,10 +769,10 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
         );
         assertEquals(0, service.locationClientCount());
 
-        try (InputStream input = primaryStore.getInputStream("reloaded", 0L, 1L)) {
+        try (InputStream input = primaryStore.getInputStream(primaryBlobName, 0L, 1L)) {
             assertEquals(1, Streams.readFully(input).length());
         }
-        try (InputStream input = secondaryStore.getInputStream("reloaded", 0L, 1L)) {
+        try (InputStream input = secondaryStore.getInputStream(secondaryBlobName, 0L, 1L)) {
             assertEquals(1, Streams.readFully(input).length());
         }
         assertNotSame(oldPrimaryClient, service.client(activeClientName, LocationMode.PRIMARY_ONLY, null).v1());
