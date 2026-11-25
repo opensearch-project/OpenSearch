@@ -818,8 +818,43 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
     }
 
     public void testGetBlobMetadataForMissingBlob() {
+        httpServer.createContext("/container/missing_blob", exchange -> {
+            assertEquals("HEAD", exchange.getRequestMethod());
+            sendAzureError(exchange, RestStatus.NOT_FOUND.getStatus(), "BlobNotFound");
+        });
+
         final BlobContainer blobContainer = createBlobContainer(between(1, 5));
         expectThrows(NoSuchFileException.class, () -> blobContainer.getBlobMetadata("missing_blob"));
+    }
+
+    public void testGetBlobMetadataForMissingContainer() {
+        httpServer.createContext("/container/missing_container", exchange -> {
+            assertEquals("HEAD", exchange.getRequestMethod());
+            sendAzureError(exchange, RestStatus.NOT_FOUND.getStatus(), "ContainerNotFound");
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(1);
+        final IOException exception = expectThrows(IOException.class, () -> blobContainer.getBlobMetadata("missing_container"));
+        assertFalse(exception instanceof NoSuchFileException);
+        assertThat(exception.getCause(), instanceOf(BlobStorageException.class));
+        assertEquals("ContainerNotFound", ((BlobStorageException) exception.getCause()).getErrorCode().toString());
+    }
+
+    public void testGetBlobMetadataForUnclassifiedNotFound() {
+        httpServer.createContext("/container/unclassified_not_found", exchange -> {
+            try {
+                assertEquals("HEAD", exchange.getRequestMethod());
+                exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(1);
+        final IOException exception = expectThrows(IOException.class, () -> blobContainer.getBlobMetadata("unclassified_not_found"));
+        assertFalse(exception instanceof NoSuchFileException);
+        assertThat(exception.getCause(), instanceOf(BlobStorageException.class));
+        assertEquals(RestStatus.NOT_FOUND.getStatus(), ((BlobStorageException) exception.getCause()).getStatusCode());
     }
 
     public void testGetBlobMetadataWithRetries() throws Exception {
