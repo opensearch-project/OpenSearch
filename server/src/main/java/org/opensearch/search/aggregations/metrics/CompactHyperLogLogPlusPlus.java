@@ -267,6 +267,8 @@ final class CompactHyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
                 return 1;
             }
             int[] table = bucketOrd < tables.size() ? tables.get(bucketOrd) : null;
+            // the empty slot where encoded goes if the table keeps its size
+            int slot = -1;
             if (table == null) {
                 assert size == 1;
                 if (firstHashes.get(bucketOrd) == encoded) {
@@ -280,6 +282,7 @@ final class CompactHyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
                         return -1;
                     }
                     if (v == 0) {
+                        slot = i;
                         break;
                     }
                 }
@@ -292,11 +295,14 @@ final class CompactHyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             if (table == null) {
                 table = newTable(bucketOrd, Math.min(MIN_TABLE_SIZE, maxTableSize));
                 insert(table, firstHashes.get(bucketOrd));
+                insert(table, encoded);
             } else if (newSize > (table.length >>> 2) * 3) {
                 assert table.length < maxTableSize;
                 table = grow(bucketOrd, table);
+                insert(table, encoded);
+            } else {
+                table[slot] = encoded;
             }
-            insert(table, encoded);
             states.set(bucketOrd, newSize);
             return newSize;
         }
