@@ -52,7 +52,8 @@ public interface IndexFieldDataCache {
         throws Exception;
 
     /**
-     * Whether the global field data of {@code indexReader} is in this cache, without loading it.
+     * Whether the global field data of {@code indexReader} is in this cache, without loading it or waiting for a load in
+     * progress, which counts as not cached.
      */
     default boolean isCached(DirectoryReader indexReader) {
         return false;

@@ -382,8 +382,8 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             }
             final ShardId shardId = ShardUtils.extractShardId(indexReader);
             final int shardIdentity = shardId == null ? Key.NO_SHARD_IDENTITY : shardIdentityResolver.applyAsInt(shardId);
-            // The same key as load(DirectoryReader, IFD). get() waits for a load in progress and returns null if it failed.
-            return nodeLevelCache.getCache().get(new Key(this, cacheHelper.getKey(), shardId, shardIdentity)) != null;
+            // The same key as load(DirectoryReader, IFD). A load in progress, maybe by another request, counts as not cached.
+            return nodeLevelCache.getCache().isLoaded(new Key(this, cacheHelper.getKey(), shardId, shardIdentity));
         }
 
         private void notifyOnCache(ShardId shardId, Accountable accountable) {
