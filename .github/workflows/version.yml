@@ -16,22 +16,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Test version increment workflow
+        run: python3 .github/tests/test_version_workflow.py
       - name: Fetch Tag and Version Information
         run: |
           TAG=$(echo "${GITHUB_REF#refs/*/}")
-          CURRENT_VERSION_ARRAY=($(echo "$TAG" | tr . '\n'))
+          if [[ ! "$TAG" =~ ^(0|[1-9][0-9]?)\.(0|[1-9][0-9]?)\.(0|[1-9][0-9]?)$ ]]; then
+            echo "Invalid release tag: $TAG" >&2
+            exit 1
+          fi
+          CURRENT_VERSION_ARRAY=("${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}")
           BASE=$(IFS=. ; echo "${CURRENT_VERSION_ARRAY[*]:0:2}")
           BASE_X=$(IFS=. ; echo "${CURRENT_VERSION_ARRAY[*]:0:1}.x")
           CURRENT_VERSION=$(IFS=. ; echo "${CURRENT_VERSION_ARRAY[*]:0:3}")
           CURRENT_VERSION_UNDERSCORE=$(IFS=_ ; echo "V_${CURRENT_VERSION_ARRAY[*]:0:3}")
           CURRENT_VERSION_ARRAY[2]=$((CURRENT_VERSION_ARRAY[2]+1))
+          if (( CURRENT_VERSION_ARRAY[2] > 99 )); then
+            echo "Version components exceed the supported version ID range: $TAG" >&2
+            exit 1
+          fi
           NEXT_VERSION=$(IFS=. ; echo "${CURRENT_VERSION_ARRAY[*]:0:3}")
           NEXT_VERSION_UNDERSCORE=$(IFS=_ ; echo "V_${CURRENT_VERSION_ARRAY[*]:0:3}")
-          if [[ ${#CURRENT_VERSION_ARRAY[2]} -gt 1 ]]; then
-            NEXT_VERSION_ID="${CURRENT_VERSION_ARRAY[0]:0:3}0${CURRENT_VERSION_ARRAY[1]:0:3}${CURRENT_VERSION_ARRAY[2]:0:3}99"
-          else
-            NEXT_VERSION_ID=$(IFS=0 ; echo "${CURRENT_VERSION_ARRAY[*]:0:3}99")
-          fi
+          NEXT_VERSION_ID=$((CURRENT_VERSION_ARRAY[0] * 1000000 + CURRENT_VERSION_ARRAY[1] * 10000 + CURRENT_VERSION_ARRAY[2] * 100 + 99))
           echo "TAG=$TAG" >> $GITHUB_ENV
           echo "BASE=$BASE" >> $GITHUB_ENV
           echo "BASE_X=$BASE_X" >> $GITHUB_ENV
@@ -46,14 +52,36 @@ jobs:
 
       - name: Increment Patch Version
         run: |
+          if ! grep -Fxq "opensearch        = \"$CURRENT_VERSION\"" gradle/libs.versions.toml; then
+            echo "Version catalog does not contain expected OpenSearch version $CURRENT_VERSION" >&2
+            exit 1
+          fi
+          if ! grep -Fxq "opensearch        = $CURRENT_VERSION" buildSrc/version.properties; then
+            echo "Version properties do not contain expected OpenSearch version $CURRENT_VERSION" >&2
+            exit 1
+          fi
+          VERSION_FILE=libs/core/src/main/java/org/opensearch/Version.java
+          if ! grep -Fq "public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(" "$VERSION_FILE" ||
+             ! grep -Fq "public static final Version CURRENT = $CURRENT_VERSION_UNDERSCORE;" "$VERSION_FILE"; then
+            echo "Version.java does not declare the expected current version $CURRENT_VERSION" >&2
+            exit 1
+          fi
+          if grep -Fq "public static final Version $NEXT_VERSION_UNDERSCORE = new Version(" "$VERSION_FILE" ||
+             grep -Fxq "  - \"$CURRENT_VERSION\"" .ci/bwcVersions; then
+            echo "Version metadata already contains $NEXT_VERSION or BWC version $CURRENT_VERSION" >&2
+            exit 1
+          fi
           echo Incrementing $CURRENT_VERSION to $NEXT_VERSION
           echo "  - \"$CURRENT_VERSION\"" >> .ci/bwcVersions
-          sed -i "s/opensearch        = $CURRENT_VERSION/opensearch        = $NEXT_VERSION/g" buildSrc/version.properties
+          CURRENT_VERSION_PATTERN="${CURRENT_VERSION//./\\.}"
+          sed -i "s/^opensearch        = $CURRENT_VERSION_PATTERN$/opensearch        = $NEXT_VERSION/" buildSrc/version.properties
+          sed -i "s/^opensearch        = \"$CURRENT_VERSION_PATTERN\"$/opensearch        = \"$NEXT_VERSION\"/" gradle/libs.versions.toml
           echo Adding $NEXT_VERSION_UNDERSCORE after $CURRENT_VERSION_UNDERSCORE
           sed -i "s/public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(\([[:digit:]]\+\)\(.*\));/\0\n    public static final Version $NEXT_VERSION_UNDERSCORE = new Version($NEXT_VERSION_ID\2);/g" libs/core/src/main/java/org/opensearch/Version.java
           sed -i "s/CURRENT = $CURRENT_VERSION_UNDERSCORE;/CURRENT = $NEXT_VERSION_UNDERSCORE;/g" libs/core/src/main/java/org/opensearch/Version.java
 
       - name: Create Pull Request
+        id: base_pr
         uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
         with:
           token: ${{ secrets.OPENSEARCH_CI_BOT_TOKEN }}
@@ -83,6 +111,7 @@ jobs:
           sed -i "s/public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(\([[:digit:]]\+\)\(.*\));/\0\n    public static final Version $NEXT_VERSION_UNDERSCORE = new Version($NEXT_VERSION_ID\2);/g" libs/core/src/main/java/org/opensearch/Version.java
 
       - name: Create Pull Request
+        id: base_x_pr
         uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
         with:
           token: ${{ secrets.OPENSEARCH_CI_BOT_TOKEN }}
@@ -113,6 +142,7 @@ jobs:
           sed -i "s/public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(\([[:digit:]]\+\)\(.*\));/\0\n    public static final Version $NEXT_VERSION_UNDERSCORE = new Version($NEXT_VERSION_ID\2);/g" libs/core/src/main/java/org/opensearch/Version.java
 
       - name: Create Pull Request
+        id: main_pr
         uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
         with:
           token: ${{ secrets.OPENSEARCH_CI_BOT_TOKEN }}
