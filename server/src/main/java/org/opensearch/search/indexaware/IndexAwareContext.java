@@ -17,6 +17,7 @@ import org.opensearch.plugins.MapperPlugin;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -43,43 +44,33 @@ import java.util.function.Predicate;
 public final class IndexAwareContext {
 
     private final Map<String, IndexMetadata> targetIndices;
-    private final IndexMappingSourceCache mappingSourceCache;
+    private final Function<IndexMetadata, Map<String, Object>> fieldMappingsLookup;
     private final Function<String, Predicate<String>> fieldFilter;
     private final Version minNodeVersion;
     private final TaskId searchTaskId;
     private final boolean allowPartialSearchResults;
     private final String parentAction;
 
+    private IndexAwareContext(Builder builder) {
+        this.targetIndices = Collections.unmodifiableMap(builder.targetIndices);
+        this.fieldMappingsLookup = builder.fieldMappingsLookup;
+        this.fieldFilter = builder.fieldFilter;
+        this.minNodeVersion = builder.minNodeVersion;
+        this.searchTaskId = builder.searchTaskId;
+        this.allowPartialSearchResults = builder.allowPartialSearchResults;
+        this.parentAction = builder.parentAction;
+    }
+
     /**
-     * Creates the context for one request. Core builds it when it runs the processors; a plugin only
-     * needs this constructor to test a processor.
+     * Starts building the context for one request. Core builds it when it runs the processors, and sets
+     * every value; a plugin only needs this to test a processor, and sets only the values that test is
+     * about.
      *
-     * @param targetIndices             the concrete local indices the request targets, keyed by index name
-     * @param mappingSourceCache        the node's cache of parsed mappings
-     * @param fieldFilter               the node's field filter, as {@code IndicesService#getFieldFilter()}
-     *                                  returns it
-     * @param minNodeVersion            the oldest node version in the cluster
-     * @param searchTaskId              the search's task id, or {@link TaskId#EMPTY_TASK_ID}
-     * @param allowPartialSearchResults whether the request accepts partial results, with the cluster
-     *                                  default already applied
-     * @param parentAction              the action of the task that issued the search, or {@code null}
+     * @param targetIndices the concrete local indices the request targets, keyed by index name
+     * @return a builder whose other values have the defaults documented on its setters
      */
-    public IndexAwareContext(
-        Map<String, IndexMetadata> targetIndices,
-        IndexMappingSourceCache mappingSourceCache,
-        Function<String, Predicate<String>> fieldFilter,
-        Version minNodeVersion,
-        TaskId searchTaskId,
-        boolean allowPartialSearchResults,
-        @Nullable String parentAction
-    ) {
-        this.targetIndices = Collections.unmodifiableMap(targetIndices);
-        this.mappingSourceCache = mappingSourceCache;
-        this.fieldFilter = fieldFilter;
-        this.minNodeVersion = minNodeVersion;
-        this.searchTaskId = searchTaskId;
-        this.allowPartialSearchResults = allowPartialSearchResults;
-        this.parentAction = parentAction;
+    public static Builder builder(Map<String, IndexMetadata> targetIndices) {
+        return new Builder(targetIndices);
     }
 
     /**
@@ -118,7 +109,7 @@ public final class IndexAwareContext {
         if (metadata == null) {
             return Collections.emptyMap();
         }
-        return mappingSourceCache.getFieldMappings(metadata);
+        return fieldMappingsLookup.apply(metadata);
     }
 
     /**
@@ -200,5 +191,96 @@ public final class IndexAwareContext {
     @Nullable
     public String getParentAction() {
         return parentAction;
+    }
+
+    /**
+     * Builds an {@link IndexAwareContext}. Obtain one with {@link IndexAwareContext#builder}.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public static final class Builder {
+        private final Map<String, IndexMetadata> targetIndices;
+        private Function<IndexMetadata, Map<String, Object>> fieldMappingsLookup;
+        private Function<String, Predicate<String>> fieldFilter = MapperPlugin.NOOP_FIELD_FILTER;
+        private Version minNodeVersion = Version.CURRENT;
+        private TaskId searchTaskId = TaskId.EMPTY_TASK_ID;
+        private boolean allowPartialSearchResults = true;
+        private String parentAction;
+
+        private Builder(Map<String, IndexMetadata> targetIndices) {
+            this.targetIndices = Objects.requireNonNull(targetIndices, "targetIndices");
+        }
+
+        /**
+         * @param fieldMappingsLookup returns the field mappings of an index, as
+         *                            {@link IndexAwareContext#getFieldMappings(String)} documents them. Core
+         *                            passes the lookup of the node's {@link IndexMappingSourceCache}, which
+         *                            parses each mapping version once for every request. Defaults to the
+         *                            lookup of a cache of this context's own, so a test gets the same parsing
+         *                            without sharing it with other contexts.
+         * @return this builder
+         */
+        public Builder fieldMappingsLookup(Function<IndexMetadata, Map<String, Object>> fieldMappingsLookup) {
+            this.fieldMappingsLookup = Objects.requireNonNull(fieldMappingsLookup, "fieldMappingsLookup");
+            return this;
+        }
+
+        /**
+         * @param fieldFilter the node's field filter, as {@code IndicesService#getFieldFilter()} returns it;
+         *                    defaults to {@link MapperPlugin#NOOP_FIELD_FILTER}, which hides no field
+         * @return this builder
+         */
+        public Builder fieldFilter(Function<String, Predicate<String>> fieldFilter) {
+            this.fieldFilter = Objects.requireNonNull(fieldFilter, "fieldFilter");
+            return this;
+        }
+
+        /**
+         * @param minNodeVersion the oldest node version in the cluster; defaults to {@link Version#CURRENT}
+         * @return this builder
+         */
+        public Builder minNodeVersion(Version minNodeVersion) {
+            this.minNodeVersion = Objects.requireNonNull(minNodeVersion, "minNodeVersion");
+            return this;
+        }
+
+        /**
+         * @param searchTaskId the search's task id; defaults to {@link TaskId#EMPTY_TASK_ID}
+         * @return this builder
+         */
+        public Builder searchTaskId(TaskId searchTaskId) {
+            this.searchTaskId = Objects.requireNonNull(searchTaskId, "searchTaskId");
+            return this;
+        }
+
+        /**
+         * @param allowPartialSearchResults whether the request accepts partial results, with the cluster
+         *                                  default already applied; defaults to {@code true}, the default of
+         *                                  {@code search.default_allow_partial_results}
+         * @return this builder
+         */
+        public Builder allowPartialSearchResults(boolean allowPartialSearchResults) {
+            this.allowPartialSearchResults = allowPartialSearchResults;
+            return this;
+        }
+
+        /**
+         * @param parentAction the action of the task that issued the search; defaults to {@code null}, a
+         *                     search without a parent task
+         * @return this builder
+         */
+        public Builder parentAction(@Nullable String parentAction) {
+            this.parentAction = parentAction;
+            return this;
+        }
+
+        /** @return the context */
+        public IndexAwareContext build() {
+            if (fieldMappingsLookup == null) {
+                fieldMappingsLookup = new IndexMappingSourceCache()::getFieldMappings;
+            }
+            return new IndexAwareContext(this);
+        }
     }
 }

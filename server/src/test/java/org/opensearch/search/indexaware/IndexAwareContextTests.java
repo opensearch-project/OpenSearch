@@ -12,7 +12,6 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.core.tasks.TaskId;
-import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
@@ -112,15 +111,9 @@ public class IndexAwareContextTests extends OpenSearchTestCase {
         Function<String, Predicate<String>> hideSecretInRestrictedIndex = index -> "restricted-index".equals(index)
             ? field -> "secret".equals(field) == false
             : field -> true;
-        IndexAwareContext context = new IndexAwareContext(
-            Map.of("restricted-index", metadata, "open-index", metadata),
-            new IndexMappingSourceCache(),
-            hideSecretInRestrictedIndex,
-            Version.CURRENT,
-            TaskId.EMPTY_TASK_ID,
-            true,
-            null
-        );
+        IndexAwareContext context = IndexAwareContext.builder(Map.of("restricted-index", metadata, "open-index", metadata))
+            .fieldFilter(hideSecretInRestrictedIndex)
+            .build();
 
         assertFalse(context.getFieldFilter("restricted-index").test("secret"));
         assertTrue(context.getFieldFilter("restricted-index").test("title"));
@@ -131,15 +124,9 @@ public class IndexAwareContextTests extends OpenSearchTestCase {
     // fields from the caller is the processor's job, through getFieldFilter.
     public void testGetFieldMappingsIsNotReducedByTheFieldFilter() {
         Map<String, Object> fields = Map.of("secret", Map.of("type", "text"));
-        IndexAwareContext context = new IndexAwareContext(
-            Map.of("my-index", indexWithMapping("my-index", Map.of("properties", fields))),
-            new IndexMappingSourceCache(),
-            index -> field -> false,
-            Version.CURRENT,
-            TaskId.EMPTY_TASK_ID,
-            true,
-            null
-        );
+        IndexAwareContext context = IndexAwareContext.builder(
+            Map.of("my-index", indexWithMapping("my-index", Map.of("properties", fields)))
+        ).fieldFilter(index -> field -> false).build();
 
         assertEquals(fields, context.getFieldMappings("my-index"));
     }
@@ -153,44 +140,22 @@ public class IndexAwareContextTests extends OpenSearchTestCase {
     }
 
     public void testGetMinNodeVersion() {
-        IndexAwareContext context = new IndexAwareContext(
-            Collections.emptyMap(),
-            new IndexMappingSourceCache(),
-            MapperPlugin.NOOP_FIELD_FILTER,
-            Version.V_3_0_0,
-            TaskId.EMPTY_TASK_ID,
-            true,
-            null
-        );
+        IndexAwareContext context = IndexAwareContext.builder(Collections.emptyMap()).minNodeVersion(Version.V_3_0_0).build();
 
         assertEquals(Version.V_3_0_0, context.getMinNodeVersion());
     }
 
     public void testGetSearchTaskId() {
         TaskId searchTaskId = new TaskId("node", 7);
-        IndexAwareContext context = new IndexAwareContext(
-            Collections.emptyMap(),
-            new IndexMappingSourceCache(),
-            MapperPlugin.NOOP_FIELD_FILTER,
-            Version.CURRENT,
-            searchTaskId,
-            true,
-            null
-        );
+        IndexAwareContext context = IndexAwareContext.builder(Collections.emptyMap()).searchTaskId(searchTaskId).build();
 
         assertEquals(searchTaskId, context.getSearchTaskId());
     }
 
     public void testGetParentAction() {
-        IndexAwareContext context = new IndexAwareContext(
-            Collections.emptyMap(),
-            new IndexMappingSourceCache(),
-            MapperPlugin.NOOP_FIELD_FILTER,
-            Version.CURRENT,
-            TaskId.EMPTY_TASK_ID,
-            true,
-            "indices:data/write/delete/byquery"
-        );
+        IndexAwareContext context = IndexAwareContext.builder(Collections.emptyMap())
+            .parentAction("indices:data/write/delete/byquery")
+            .build();
 
         assertEquals("indices:data/write/delete/byquery", context.getParentAction());
     }
@@ -199,28 +164,37 @@ public class IndexAwareContextTests extends OpenSearchTestCase {
         assertNull(contextFor(Collections.emptyMap(), new IndexMappingSourceCache()).getParentAction());
     }
 
+    // The defaults a plugin's test gets for the values it does not set.
+    public void testBuilderDefaults() {
+        IndexAwareContext context = IndexAwareContext.builder(Collections.emptyMap()).build();
+
+        assertTrue(context.getFieldFilter("any-index").test("any-field"));
+        assertEquals(Version.CURRENT, context.getMinNodeVersion());
+        assertEquals(TaskId.EMPTY_TASK_ID, context.getSearchTaskId());
+        assertTrue(context.allowPartialSearchResults());
+        assertNull(context.getParentAction());
+    }
+
+    public void testBuilderRequiresTargetIndices() {
+        expectThrows(NullPointerException.class, () -> IndexAwareContext.builder(null));
+    }
+
+    // Without a lookup, a context parses mappings itself, through a cache of its own.
+    public void testBuilderDefaultParsesFieldMappings() {
+        Map<String, Object> fields = Map.of("title", Map.of("type", "text"));
+        IndexAwareContext context = IndexAwareContext.builder(
+            Map.of("my-index", indexWithMapping("my-index", Map.of("properties", fields)))
+        ).build();
+
+        assertEquals(fields, context.getFieldMappings("my-index"));
+    }
+
     private static IndexAwareContext contextFor(Map<String, IndexMetadata> targetIndices, IndexMappingSourceCache cache) {
-        return new IndexAwareContext(
-            targetIndices,
-            cache,
-            MapperPlugin.NOOP_FIELD_FILTER,
-            Version.CURRENT,
-            TaskId.EMPTY_TASK_ID,
-            true,
-            null
-        );
+        return IndexAwareContext.builder(targetIndices).fieldMappingsLookup(cache::getFieldMappings).build();
     }
 
     private static IndexAwareContext contextAllowingPartialResults(boolean allowPartialSearchResults) {
-        return new IndexAwareContext(
-            Collections.emptyMap(),
-            new IndexMappingSourceCache(),
-            MapperPlugin.NOOP_FIELD_FILTER,
-            Version.CURRENT,
-            TaskId.EMPTY_TASK_ID,
-            allowPartialSearchResults,
-            null
-        );
+        return IndexAwareContext.builder(Collections.emptyMap()).allowPartialSearchResults(allowPartialSearchResults).build();
     }
 
     private static IndexMetadata indexWithMapping(String name, Map<String, Object> mapping) {

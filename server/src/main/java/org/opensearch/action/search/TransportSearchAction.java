@@ -873,20 +873,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
 
-        final IndexAwareContext context = new IndexAwareContext(
-            targetIndices,
-            searchService.getIndexMappingSourceCache(),
-            indicesService.getFieldFilter(),
-            clusterState.nodes().getMinNodeVersion(),
-            task == null ? TaskId.EMPTY_TASK_ID : localTaskId(task),
+        final IndexAwareContext context = IndexAwareContext.builder(targetIndices)
+            .fieldMappingsLookup(searchService.getIndexMappingSourceCache()::getFieldMappings)
+            .fieldFilter(indicesService.getFieldFilter())
+            .minNodeVersion(clusterState.nodes().getMinNodeVersion())
+            .searchTaskId(task == null ? TaskId.EMPTY_TASK_ID : localTaskId(task))
             // The search applies the cluster default later, when it executes. Processors need the
             // effective value now.
-            searchRequest.allowPartialSearchResults() != null
-                ? searchRequest.allowPartialSearchResults()
-                : searchService.defaultAllowPartialSearchResults(),
+            .allowPartialSearchResults(
+                searchRequest.allowPartialSearchResults() != null
+                    ? searchRequest.allowPartialSearchResults()
+                    : searchService.defaultAllowPartialSearchResults()
+            )
             // The same value system-generated search processor factories receive as parent_action.
-            parentTask == null ? null : parentTask.getAction()
-        );
+            .parentAction(parentTask == null ? null : parentTask.getAction())
+            .build();
         // Processors work on a shallow copy of the source. The request shares its source object with the
         // SearchRequest the caller passed in, so setting a part of the source directly would change the
         // caller's request too. The copy still refers to the caller's builder instances: code that
