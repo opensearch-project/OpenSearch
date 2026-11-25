@@ -184,6 +184,16 @@ public class AzureRepository extends MeteredBlobStoreRepository {
 
     @Override
     protected AzureBlobStore createBlobStore() {
+        if (readonly == false) {
+            final String clientName = Repository.CLIENT_NAME.get(metadata.settings());
+            AzureStorageService.validateUploadSize(
+                chunkSize.getBytes(),
+                storageService.getBlobRequestOptionsForWriteBlob(clientName),
+                "setting [" + Repository.CHUNK_SIZE_SETTING.getKey() + "]",
+                AzureStorageSettings.WRITE_BLOCK_SIZE_SETTING.getConcreteSettingForNamespace(clientName).getKey()
+            );
+        }
+
         final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService, threadPool);
 
         logger.debug(

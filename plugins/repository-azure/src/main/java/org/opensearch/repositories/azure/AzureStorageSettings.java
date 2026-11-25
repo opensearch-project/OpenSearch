@@ -71,6 +71,7 @@ final class AzureStorageSettings {
     // prefix for azure client settings
     private static final String AZURE_CLIENT_PREFIX_KEY = "azure.client.";
     private static final ByteSizeValue UNSET_TRANSFER_SIZE = new ByteSizeValue(-1, ByteSizeUnit.BYTES);
+    private static final ByteSizeValue DEFAULT_READ_BLOCK_SIZE = new ByteSizeValue(8, ByteSizeUnit.MB);
     private static final ByteSizeValue MAX_READ_BLOCK_SIZE = new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES);
     private static final ByteSizeValue MAX_SINGLE_UPLOAD_SIZE = new ByteSizeValue(
         BlockBlobAsyncClient.MAX_UPLOAD_BLOB_BYTES_LONG,
@@ -173,11 +174,11 @@ final class AzureStorageSettings {
         () -> KEY_SETTING
     );
 
-    /** Read block size. The Azure SDK default is used when unset. */
+    /** Read block size. Defaults to 8 MiB, matching the default file-cache block size; -1 selects the Azure SDK default. */
     public static final AffixSetting<ByteSizeValue> READ_BLOCK_SIZE_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
         "read.block_size",
-        key -> optionalTransferSizeSetting(key, MAX_READ_BLOCK_SIZE),
+        key -> transferSizeSetting(key, DEFAULT_READ_BLOCK_SIZE, MAX_READ_BLOCK_SIZE),
         () -> ACCOUNT_SETTING
     );
 
@@ -185,7 +186,7 @@ final class AzureStorageSettings {
     public static final AffixSetting<ByteSizeValue> WRITE_BLOCK_SIZE_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
         "write.block_size",
-        key -> optionalTransferSizeSetting(key, AzureStorageService.MAX_CHUNK_SIZE),
+        key -> transferSizeSetting(key, UNSET_TRANSFER_SIZE, AzureStorageService.MAX_CHUNK_SIZE),
         () -> ACCOUNT_SETTING
     );
 
@@ -193,7 +194,7 @@ final class AzureStorageSettings {
     public static final AffixSetting<ByteSizeValue> MAX_SINGLE_UPLOAD_SIZE_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
         "write.max_single_upload_size",
-        key -> optionalTransferSizeSetting(key, MAX_SINGLE_UPLOAD_SIZE),
+        key -> transferSizeSetting(key, UNSET_TRANSFER_SIZE, MAX_SINGLE_UPLOAD_SIZE),
         () -> ACCOUNT_SETTING
     );
 
@@ -488,10 +489,10 @@ final class AzureStorageSettings {
         return sb.toString();
     }
 
-    private static Setting<ByteSizeValue> optionalTransferSizeSetting(String key, ByteSizeValue maxValue) {
+    private static Setting<ByteSizeValue> transferSizeSetting(String key, ByteSizeValue defaultValue, ByteSizeValue maxValue) {
         return new Setting<>(
             key,
-            UNSET_TRANSFER_SIZE.getStringRep(),
+            defaultValue.getStringRep(),
             new Setting.ByteSizeValueParser(UNSET_TRANSFER_SIZE, maxValue, key),
             value -> {
                 if (value.getBytes() == 0L) {
