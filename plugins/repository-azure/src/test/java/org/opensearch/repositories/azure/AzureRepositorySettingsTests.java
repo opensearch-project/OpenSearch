@@ -43,6 +43,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.test.OpenSearchTestCase;
@@ -54,6 +55,7 @@ import reactor.core.scheduler.Schedulers;
 import reactor.netty.http.HttpResources;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -89,6 +91,24 @@ public class AzureRepositorySettingsTests extends OpenSearchTestCase {
         );
         assertThat(azureRepository.getBlobStore(), is(nullValue()));
         return azureRepository;
+    }
+
+    private void initializeBlobStore(AzureRepository repository) {
+        repository.start();
+        try {
+            assertNotNull(repository.blobStore());
+        } finally {
+            repository.close();
+        }
+    }
+
+    private RepositoryException expectBlobStoreInitializationFailure(AzureRepository repository) {
+        repository.start();
+        try {
+            return expectThrows(RepositoryException.class, () -> repository.blobStore());
+        } finally {
+            repository.close();
+        }
     }
 
     public void testReadonlyDefault() {
@@ -199,17 +219,16 @@ public class AzureRepositorySettingsTests extends OpenSearchTestCase {
 
     public void testAzureBlockCountLimit() {
         final ParallelTransferOptions options = new ParallelTransferOptions().setBlockSizeLong(1L).setMaxSingleUploadSizeLong(1L);
-        azureRepository(Settings.builder().put("chunk_size", "50000b").build(), options);
+        initializeBlobStore(azureRepository(Settings.builder().put("chunk_size", "50000b").build(), options));
 
-        final IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> azureRepository(Settings.builder().put("chunk_size", "50001b").build(), options)
+        final RepositoryException exception = expectBlobStoreInitializationFailure(
+            azureRepository(Settings.builder().put("chunk_size", "50001b").build(), options)
         );
         assertEquals(
             "setting [azure.client.default.write.block_size] is [1b], but setting [chunk_size] [50001b] would require [50001] "
                 + "blocks; Azure Block Blob supports at most [50000] blocks. Minimum block size for this upload is [2b]; "
                 + "maximum upload size with the current block size is [50000b]",
-            exception.getMessage()
+            exception.getCause().getMessage()
         );
     }
 
@@ -219,6 +238,7 @@ public class AzureRepositorySettingsTests extends OpenSearchTestCase {
             new ParallelTransferOptions().setBlockSizeLong(1L).setMaxSingleUploadSizeLong(1L)
         );
         assertTrue(repository.isReadOnly());
+        initializeBlobStore(repository);
     }
 
     public void testSecondaryOnlySkipsBlockCountLimit() {
@@ -230,12 +250,12 @@ public class AzureRepositorySettingsTests extends OpenSearchTestCase {
             new ParallelTransferOptions().setBlockSizeLong(1L).setMaxSingleUploadSizeLong(1L)
         );
         assertTrue(repository.isReadOnly());
+        initializeBlobStore(repository);
     }
 
     public void testSecondaryOnlyWithReadonlyOffValidatesBlockCountLimit() {
-        final IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> azureRepository(
+        final RepositoryException exception = expectBlobStoreInitializationFailure(
+            azureRepository(
                 Settings.builder()
                     .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.SECONDARY_ONLY.name())
                     .put("readonly", false)
@@ -244,41 +264,46 @@ public class AzureRepositorySettingsTests extends OpenSearchTestCase {
                 new ParallelTransferOptions().setBlockSizeLong(1L).setMaxSingleUploadSizeLong(1L)
             )
         );
-        assertThat(exception.getMessage(), containsString("would require [50001] blocks"));
+        assertThat(exception.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(exception.getCause().getMessage(), containsString("would require [50001] blocks"));
     }
 
     public void testMaximumChunkSizeBlockCountLimit() {
         final long maximumChunkSize = AzureStorageService.MAX_CHUNK_SIZE.getBytes();
         final long minimumBlockSize = 1L + (maximumChunkSize - 1L) / 50_000L;
-        azureRepository(Settings.EMPTY, new ParallelTransferOptions().setBlockSizeLong(minimumBlockSize).setMaxSingleUploadSizeLong(1L));
+        initializeBlobStore(
+            azureRepository(Settings.EMPTY, new ParallelTransferOptions().setBlockSizeLong(minimumBlockSize).setMaxSingleUploadSizeLong(1L))
+        );
 
-        final IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> azureRepository(
+        final RepositoryException exception = expectBlobStoreInitializationFailure(
+            azureRepository(
                 Settings.EMPTY,
                 new ParallelTransferOptions().setBlockSizeLong(minimumBlockSize - 1L).setMaxSingleUploadSizeLong(1L)
             )
         );
-        assertThat(exception.getMessage(), containsString("setting [chunk_size] [" + maximumChunkSize + "b]"));
-        assertThat(exception.getMessage(), containsString("Minimum block size for this upload is [" + minimumBlockSize + "b]"));
+        assertThat(exception.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(exception.getCause().getMessage(), containsString("setting [chunk_size] [" + maximumChunkSize + "b]"));
+        assertThat(exception.getCause().getMessage(), containsString("Minimum block size for this upload is [" + minimumBlockSize + "b]"));
     }
 
     public void testSingleUploadDoesNotUseBlockCountLimit() {
-        azureRepository(
-            Settings.builder().put("chunk_size", "50001b").build(),
-            new ParallelTransferOptions().setBlockSizeLong(1L).setMaxSingleUploadSizeLong(50001L)
+        initializeBlobStore(
+            azureRepository(
+                Settings.builder().put("chunk_size", "50001b").build(),
+                new ParallelTransferOptions().setBlockSizeLong(1L).setMaxSingleUploadSizeLong(50001L)
+            )
         );
     }
 
     public void testBlockCountErrorNamesSelectedClient() {
-        final IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> azureRepository(
+        final RepositoryException exception = expectBlobStoreInitializationFailure(
+            azureRepository(
                 Settings.builder().put("client", "custom").put("chunk_size", "50001b").build(),
                 new ParallelTransferOptions().setBlockSizeLong(1L).setMaxSingleUploadSizeLong(1L)
             )
         );
-        assertThat(exception.getMessage(), containsString("azure.client.custom.write.block_size"));
+        assertThat(exception.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(exception.getCause().getMessage(), containsString("azure.client.custom.write.block_size"));
     }
 
     public void testSystemRepositoryDefault() {

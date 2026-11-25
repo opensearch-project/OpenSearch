@@ -157,16 +157,6 @@ public class AzureRepository extends MeteredBlobStoreRepository {
             this.readonly = locationMode == LocationMode.SECONDARY_ONLY;
         }
 
-        if (readonly == false) {
-            final String clientName = Repository.CLIENT_NAME.get(metadata.settings());
-            AzureStorageService.validateUploadSize(
-                chunkSize.getBytes(),
-                storageService.getBlobRequestOptionsForWriteBlob(clientName),
-                "setting [" + Repository.CHUNK_SIZE_SETTING.getKey() + "]",
-                AzureStorageSettings.WRITE_BLOCK_SIZE_SETTING.getConcreteSettingForNamespace(clientName).getKey()
-            );
-        }
-
         // Initialize native store if provider is available (sandbox warm nodes only)
         if (nativeStoreProvider != null) {
             final NativeStoreRepository store = nativeStoreProvider.createNativeStore(metadata, clusterService.getSettings());
@@ -194,6 +184,16 @@ public class AzureRepository extends MeteredBlobStoreRepository {
 
     @Override
     protected AzureBlobStore createBlobStore() {
+        if (readonly == false) {
+            final String clientName = Repository.CLIENT_NAME.get(metadata.settings());
+            AzureStorageService.validateUploadSize(
+                chunkSize.getBytes(),
+                storageService.getBlobRequestOptionsForWriteBlob(clientName),
+                "setting [" + Repository.CHUNK_SIZE_SETTING.getKey() + "]",
+                AzureStorageSettings.WRITE_BLOCK_SIZE_SETTING.getConcreteSettingForNamespace(clientName).getKey()
+            );
+        }
+
         final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService, threadPool);
 
         logger.debug(
