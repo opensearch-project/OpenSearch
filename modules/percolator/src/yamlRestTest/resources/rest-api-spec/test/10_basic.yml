@@ -132,8 +132,8 @@
 ---
 "Percolate a query_string wildcard query on a wildcard field":
   - skip:
-      version: " - 3.9.99"
-      reason: "query_string did not use the wildcard field query before 3.10"
+      version: " - 3.10.99"
+      reason: "query_string did not use the wildcard field query before 3.11"
   - do:
       indices.create:
         index: wildcard_queries
