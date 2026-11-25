@@ -83,7 +83,6 @@ import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.index.fielddomain.ClusterStateFieldDomainProvider;
 import org.opensearch.index.query.Rewriteable;
-import org.opensearch.index.reindex.BulkByScrollTask;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchService;
@@ -718,8 +717,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * @param searchRequest the request whose source the processors act on
      * @param task          the search's own task, or {@code null}; processors parent their own requests
      *                      to it, and its cancellation stops the chain
-     * @param parentTask    the task that issued the search, or {@code null}; it decides whether the search
-     *                      is internal
+     * @param parentTask    the task that issued the search, or {@code null}; processors are told its
+     *                      action
      * @param timeProvider  the search's time provider, so that a date-math index name resolves here as it
      *                      does when the search executes
      * @param stage         which processors to run: those whose
@@ -802,11 +801,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      *   <li>the request has no source, is a sub-search a processor issued (see {@link SubSearchMarker}), or
      *       is one the coordinating node excluded itself: a search derived from a request that was already
      *       processed, or a single-phase action such as creating a point in time;</li>
-     *   <li>the request is the search of a by-query or reindex job and no processor opted into those, or
-     *       it was forwarded to this node by the coordinating node of another cluster;</li>
+     *   <li>the request was forwarded to this node by the coordinating node of another cluster;</li>
      *   <li>no processor's {@link IndexAwareSearchRequestProcessor#mayApplyTo} accepts the source;</li>
-     *   <li>only then are the target indices resolved: the request targets a remote index, or a system
-     *       index that none of the remaining processors opted into.</li>
+     *   <li>only then are the target indices resolved: the request targets a remote index.</li>
      * </ol>
      * The source is copied last, once it is certain that a processor runs.
      *
@@ -822,12 +819,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     ) {
         final SearchSourceBuilder source = searchRequest.source();
         if (source == null || searchRequest.indexAwareProcessorsSkipped() || SubSearchMarker.isMarked(threadPool.getThreadContext())) {
-            return null;
-        }
-        // The by-query half of IndexAwareSearchRequestScope#isInternalByDefault is known without resolving
-        // any index, so check it early. The system-index half has to wait for the resolution below.
-        if (parentTask instanceof BulkByScrollTask
-            && registered.stream().noneMatch(IndexAwareSearchRequestProcessor::appliesToInternalSearches)) {
             return null;
         }
         // A cluster alias means the coordinating node of another cluster sent this request here as its
@@ -882,13 +873,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
 
-        if (IndexAwareSearchRequestScope.isInternalByDefault(parentTask, targetIndices.values())) {
-            processors.removeIf(processor -> processor.appliesToInternalSearches() == false);
-            if (processors.isEmpty()) {
-                return null;
-            }
-        }
-
         final IndexAwareContext context = new IndexAwareContext(
             targetIndices,
             searchService.getIndexMappingSourceCache(),
@@ -899,7 +883,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             // effective value now.
             searchRequest.allowPartialSearchResults() != null
                 ? searchRequest.allowPartialSearchResults()
-                : searchService.defaultAllowPartialSearchResults()
+                : searchService.defaultAllowPartialSearchResults(),
+            // The same value system-generated search processor factories receive as parent_action.
+            parentTask == null ? null : parentTask.getAction()
         );
         // Processors work on a shallow copy of the source. The request shares its source object with the
         // SearchRequest the caller passed in, so setting a part of the source directly would change the

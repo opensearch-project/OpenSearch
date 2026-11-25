@@ -118,7 +118,8 @@ public class IndexAwareContextTests extends OpenSearchTestCase {
             hideSecretInRestrictedIndex,
             Version.CURRENT,
             TaskId.EMPTY_TASK_ID,
-            true
+            true,
+            null
         );
 
         assertFalse(context.getFieldFilter("restricted-index").test("secret"));
@@ -136,7 +137,8 @@ public class IndexAwareContextTests extends OpenSearchTestCase {
             index -> field -> false,
             Version.CURRENT,
             TaskId.EMPTY_TASK_ID,
-            true
+            true,
+            null
         );
 
         assertEquals(fields, context.getFieldMappings("my-index"));
@@ -157,7 +159,8 @@ public class IndexAwareContextTests extends OpenSearchTestCase {
             MapperPlugin.NOOP_FIELD_FILTER,
             Version.V_3_0_0,
             TaskId.EMPTY_TASK_ID,
-            true
+            true,
+            null
         );
 
         assertEquals(Version.V_3_0_0, context.getMinNodeVersion());
@@ -171,14 +174,41 @@ public class IndexAwareContextTests extends OpenSearchTestCase {
             MapperPlugin.NOOP_FIELD_FILTER,
             Version.CURRENT,
             searchTaskId,
-            true
+            true,
+            null
         );
 
         assertEquals(searchTaskId, context.getSearchTaskId());
     }
 
+    public void testGetParentAction() {
+        IndexAwareContext context = new IndexAwareContext(
+            Collections.emptyMap(),
+            new IndexMappingSourceCache(),
+            MapperPlugin.NOOP_FIELD_FILTER,
+            Version.CURRENT,
+            TaskId.EMPTY_TASK_ID,
+            true,
+            "indices:data/write/delete/byquery"
+        );
+
+        assertEquals("indices:data/write/delete/byquery", context.getParentAction());
+    }
+
+    public void testGetParentActionWithoutAParentTask() {
+        assertNull(contextFor(Collections.emptyMap(), new IndexMappingSourceCache()).getParentAction());
+    }
+
     private static IndexAwareContext contextFor(Map<String, IndexMetadata> targetIndices, IndexMappingSourceCache cache) {
-        return new IndexAwareContext(targetIndices, cache, MapperPlugin.NOOP_FIELD_FILTER, Version.CURRENT, TaskId.EMPTY_TASK_ID, true);
+        return new IndexAwareContext(
+            targetIndices,
+            cache,
+            MapperPlugin.NOOP_FIELD_FILTER,
+            Version.CURRENT,
+            TaskId.EMPTY_TASK_ID,
+            true,
+            null
+        );
     }
 
     private static IndexAwareContext contextAllowingPartialResults(boolean allowPartialSearchResults) {
@@ -188,7 +218,8 @@ public class IndexAwareContextTests extends OpenSearchTestCase {
             MapperPlugin.NOOP_FIELD_FILTER,
             Version.CURRENT,
             TaskId.EMPTY_TASK_ID,
-            allowPartialSearchResults
+            allowPartialSearchResults,
+            null
         );
     }
 

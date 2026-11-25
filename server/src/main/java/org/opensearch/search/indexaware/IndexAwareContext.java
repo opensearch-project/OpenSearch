@@ -10,6 +10,7 @@ package org.opensearch.search.indexaware;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.plugins.MapperPlugin;
@@ -47,6 +48,7 @@ public final class IndexAwareContext {
     private final Version minNodeVersion;
     private final TaskId searchTaskId;
     private final boolean allowPartialSearchResults;
+    private final String parentAction;
 
     /**
      * Creates the context for one request. Core builds it when it runs the processors; a plugin only
@@ -60,6 +62,7 @@ public final class IndexAwareContext {
      * @param searchTaskId              the search's task id, or {@link TaskId#EMPTY_TASK_ID}
      * @param allowPartialSearchResults whether the request accepts partial results, with the cluster
      *                                  default already applied
+     * @param parentAction              the action of the task that issued the search, or {@code null}
      */
     public IndexAwareContext(
         Map<String, IndexMetadata> targetIndices,
@@ -67,7 +70,8 @@ public final class IndexAwareContext {
         Function<String, Predicate<String>> fieldFilter,
         Version minNodeVersion,
         TaskId searchTaskId,
-        boolean allowPartialSearchResults
+        boolean allowPartialSearchResults,
+        @Nullable String parentAction
     ) {
         this.targetIndices = Collections.unmodifiableMap(targetIndices);
         this.mappingSourceCache = mappingSourceCache;
@@ -75,6 +79,7 @@ public final class IndexAwareContext {
         this.minNodeVersion = minNodeVersion;
         this.searchTaskId = searchTaskId;
         this.allowPartialSearchResults = allowPartialSearchResults;
+        this.parentAction = parentAction;
     }
 
     /**
@@ -173,5 +178,27 @@ public final class IndexAwareContext {
      */
     public TaskId getSearchTaskId() {
         return searchTaskId;
+    }
+
+    /**
+     * The action of the task that issued this search, if any: the same value a system-generated search
+     * processor factory receives as {@code ProcessorGenerationContext#parentAction()}. For example, the
+     * search behind a {@code _delete_by_query}, {@code _update_by_query} or {@code _reindex} job has the
+     * job's action ({@link org.opensearch.index.reindex.DeleteByQueryAction#NAME},
+     * {@link org.opensearch.index.reindex.UpdateByQueryAction#NAME} or
+     * {@link org.opensearch.index.reindex.ReindexAction#NAME}), also for each slice of a sliced job.
+     * <p>
+     * Processors run for those searches like for any other, as search pipelines do, so the job acts on the
+     * documents a {@code _search} with the same query returns. A processor whose rewrite matches by
+     * similarity rather than by an exact condition may prefer to leave such a search alone, so that the job
+     * acts only on the documents the caller's own query matches. Similarly, a processor that should not act
+     * on system indices can check {@link IndexMetadata#isSystem()} in {@link #getTargetIndices()}.
+     *
+     * @return the parent task's action, or {@code null} if the search has no parent task or its parent runs
+     *         on another node
+     */
+    @Nullable
+    public String getParentAction() {
+        return parentAction;
     }
 }

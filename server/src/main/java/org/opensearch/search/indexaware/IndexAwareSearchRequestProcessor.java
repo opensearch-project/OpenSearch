@@ -34,15 +34,19 @@ import org.opensearch.search.builder.SearchSourceBuilder;
  * A processor may change any part of the source (the query, {@code size}, aggregations), not only the
  * query.
  * <p>
+ * <b>Like a search pipeline.</b> Core does not decide for a processor which kinds of search it acts on,
+ * as it does not for a system-generated search processor. A processor runs for the search behind a
+ * {@code _delete_by_query}, {@code _update_by_query} or {@code _reindex} job and for a search of a system
+ * index like for any other, and decides for itself, as a system-generated processor's factory does, from
+ * {@link IndexAwareContext#getParentAction()} (the factory's {@code parent_action}) and the metadata of
+ * each target index.
+ * <p>
  * <b>Searches a processor does not run for.</b>
  * <ul>
  *   <li>A search marked as a sub-search with {@link SubSearchMarker}, so that a search a processor issues
  *       itself is not processed again.</li>
  *   <li>A cross-cluster search: one that targets a remote index, and one a remote coordinating node
  *       forwarded to this cluster. See {@link IndexAwareSearchRequestScope#hasRemoteIndices}.</li>
- *   <li>An internal search (the search behind a by-query or reindex job, or a search of a system index),
- *       unless the processor opts in with {@link #appliesToInternalSearches()}. See
- *       {@link IndexAwareSearchRequestScope#isInternalByDefault}.</li>
  *   <li>A search the coordinating node issues as part of a search that has already been processed, such
  *       as the search per group of a collapse with inner hits.</li>
  *   <li>A request without a source, and the creation of a point in time, which runs no query.</li>
@@ -143,19 +147,6 @@ public interface IndexAwareSearchRequestProcessor {
      *         only if results without this processor are still correct, just less good.
      */
     default boolean ignoreFailure() {
-        return false;
-    }
-
-    /**
-     * Whether this processor also runs for an internal search, as classified by
-     * {@link IndexAwareSearchRequestScope#isInternalByDefault}: the search behind a by-query or reindex
-     * job, or a search of a system index. The answer covers both kinds; a processor cannot opt into one
-     * without the other.
-     *
-     * @return {@code false} by default. Return {@code true} only if what this processor does is safe for
-     *         a job that deletes, updates or copies exactly the documents its search matches.
-     */
-    default boolean appliesToInternalSearches() {
         return false;
     }
 

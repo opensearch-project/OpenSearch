@@ -24,21 +24,25 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 /**
- * Checks, with real {@code _reindex}, {@code _delete_by_query} and {@code _update_by_query} jobs, that
- * {@link IndexAwareSearchRequestProcessor}s do not run for the search such a job issues unless they opt
- * in.
+ * Checks, with real {@code _reindex}, {@code _delete_by_query} and {@code _update_by_query} jobs, which
+ * {@link IndexAwareSearchRequestProcessor}s run for the search such a job issues.
  * <p>
- * The documents that search matches are the documents the job copies, deletes or updates. A processor that
- * changes what the query matches would make the job touch documents the caller's query never selected.
+ * The documents that search matches are the documents the job copies, deletes or updates. By default a
+ * processor runs for it, as an index's default search pipeline and system-generated search processors
+ * do, so a job acts on the documents a {@code _search} with the same query returns. A processor can leave
+ * such a search alone by checking {@link IndexAwareContext#getParentAction()}, as a system-generated
+ * processor's factory checks {@code parent_action}, and the job then acts on the documents the caller's own
+ * query matches.
  * <p>
  * The source index holds three documents, one of which matches "shoes". The test processors turn a
- * {@code match} on {@code title} into {@code match_all}, so a job touches 1 document when its search was
- * left alone and 3 when it was rewritten.
+ * {@code match} on {@code title} into {@code match_all}, so a job touches 3 documents when its search was
+ * rewritten and fewer when it was left alone.
  * <p>
  * This test is in the reindex module because the jobs need {@link ReindexModulePlugin} on the node.
  */
@@ -68,50 +72,96 @@ public class IndexAwareSearchRequestProcessorReindexIT extends OpenSearchIntegTe
         withProcessorsEnabled(() -> assertHitCount(client().prepareSearch(SOURCE_INDEX).setQuery(shoesQuery()).get(), 3));
     }
 
-    public void testReindexCopiesOnlyTheDocumentsTheCallersQueryMatches() throws Exception {
+    public void testReindexCopiesTheDocumentsASearchWithTheSameQueryReturns() throws Exception {
         withProcessorsEnabled(() -> {
             BulkByScrollResponse response = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source(SOURCE_INDEX)
                 .destination(DEST_INDEX)
                 .filter(shoesQuery())
                 .refresh(true)
                 .get();
-            assertEquals(1, response.getCreated());
+            assertEquals(3, response.getCreated());
         });
-        assertHitCount(client().prepareSearch(DEST_INDEX).setQuery(QueryBuilders.matchAllQuery()).get(), 1);
+        assertHitCount(client().prepareSearch(DEST_INDEX).setQuery(QueryBuilders.matchAllQuery()).get(), 3);
     }
 
-    public void testDeleteByQueryDeletesOnlyTheDocumentsTheCallersQueryMatches() throws Exception {
+    public void testDeleteByQueryDeletesTheDocumentsASearchWithTheSameQueryReturns() throws Exception {
         withProcessorsEnabled(() -> {
             BulkByScrollResponse response = new DeleteByQueryRequestBuilder(client(), DeleteByQueryAction.INSTANCE).source(SOURCE_INDEX)
                 .filter(shoesQuery())
                 .refresh(true)
                 .get();
-            assertEquals(1, response.getDeleted());
+            assertEquals(3, response.getDeleted());
         });
-        assertHitCount(client().prepareSearch(SOURCE_INDEX).setQuery(QueryBuilders.matchAllQuery()).get(), 2);
+        assertHitCount(client().prepareSearch(SOURCE_INDEX).setQuery(QueryBuilders.matchAllQuery()).get(), 0);
     }
 
-    public void testUpdateByQueryUpdatesOnlyTheDocumentsTheCallersQueryMatches() throws Exception {
+    public void testUpdateByQueryUpdatesTheDocumentsASearchWithTheSameQueryReturns() throws Exception {
         withProcessorsEnabled(() -> {
             BulkByScrollResponse response = new UpdateByQueryRequestBuilder(client(), UpdateByQueryAction.INSTANCE).source(SOURCE_INDEX)
                 .filter(shoesQuery())
                 .refresh(true)
                 .get();
-            assertEquals(1, response.getUpdated());
+            assertEquals(3, response.getUpdated());
         });
     }
 
-    // A processor that opts into internal searches does run for the job's search. The trigger query
-    // matches no document literally, so every copied document is one the processor's match_all selected.
-    public void testProcessorThatOptsInRunsForTheSearchOfAReindexJob() throws Exception {
+    // The control for the next test: the processor that leaves by-query searches alone still rewrites an
+    // ordinary search.
+    public void testProcessorThatLeavesJobsAloneStillRewritesAnOrdinarySearch() throws Exception {
+        withProcessorsEnabled(() -> assertHitCount(client().prepareSearch(SOURCE_INDEX).setQuery(parentActionTriggerQuery()).get(), 3));
+    }
+
+    // A processor that checks the parent action leaves the job's query alone. The trigger query matches no
+    // document literally, so the job touches nothing. One test per job, because each reports its own
+    // action as the parent action.
+    public void testProcessorThatChecksTheParentActionLeavesTheQueryOfAReindexJobAlone() throws Exception {
         withProcessorsEnabled(() -> {
             BulkByScrollResponse response = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source(SOURCE_INDEX)
                 .destination(DEST_INDEX)
-                .filter(QueryBuilders.matchQuery("title", RewriteToMatchAllPlugin.OPTED_IN_TRIGGER))
+                .filter(parentActionTriggerQuery())
                 .refresh(true)
                 .get();
-            assertEquals(3, response.getCreated());
+            assertEquals(0, response.getCreated());
         });
+    }
+
+    public void testProcessorThatChecksTheParentActionLeavesTheQueryOfADeleteByQueryJobAlone() throws Exception {
+        withProcessorsEnabled(() -> {
+            BulkByScrollResponse response = new DeleteByQueryRequestBuilder(client(), DeleteByQueryAction.INSTANCE).source(SOURCE_INDEX)
+                .filter(parentActionTriggerQuery())
+                .refresh(true)
+                .get();
+            assertEquals(0, response.getDeleted());
+        });
+        assertHitCount(client().prepareSearch(SOURCE_INDEX).setQuery(QueryBuilders.matchAllQuery()).get(), 3);
+    }
+
+    public void testProcessorThatChecksTheParentActionLeavesTheQueryOfAnUpdateByQueryJobAlone() throws Exception {
+        withProcessorsEnabled(() -> {
+            BulkByScrollResponse response = new UpdateByQueryRequestBuilder(client(), UpdateByQueryAction.INSTANCE).source(SOURCE_INDEX)
+                .filter(parentActionTriggerQuery())
+                .refresh(true)
+                .get();
+            assertEquals(0, response.getUpdated());
+        });
+    }
+
+    // A sliced job runs one search per slice, each under a slice task of its own. Those searches report the
+    // job's action too.
+    public void testProcessorThatChecksTheParentActionLeavesTheQueriesOfASlicedReindexJobAlone() throws Exception {
+        withProcessorsEnabled(() -> {
+            BulkByScrollResponse response = new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source(SOURCE_INDEX)
+                .destination(DEST_INDEX)
+                .filter(parentActionTriggerQuery())
+                .setSlices(2)
+                .refresh(true)
+                .get();
+            assertEquals(0, response.getCreated());
+        });
+    }
+
+    private static QueryBuilder parentActionTriggerQuery() {
+        return QueryBuilders.matchQuery("title", RewriteToMatchAllPlugin.PARENT_ACTION_TRIGGER);
     }
 
     private static QueryBuilder shoesQuery() {
@@ -132,39 +182,45 @@ public class IndexAwareSearchRequestProcessorReindexIT extends OpenSearchIntegTe
     /**
      * Registers two processors that turn a {@code match} on {@code title} into {@code match_all}:
      * <ul>
-     *   <li>one for any value except {@link #OPTED_IN_TRIGGER}, which does not opt into internal searches;</li>
-     *   <li>one for the value {@link #OPTED_IN_TRIGGER} only, which does.</li>
+     *   <li>one for any value except {@link #PARENT_ACTION_TRIGGER}, with the default: it runs for by-query
+     *       searches;</li>
+     *   <li>one for the value {@link #PARENT_ACTION_TRIGGER} only, which leaves them alone: it checks
+     *       {@link IndexAwareContext#getParentAction()}.</li>
      * </ul>
      */
     public static class RewriteToMatchAllPlugin extends Plugin implements SearchPlugin {
 
-        static final String OPTED_IN_TRIGGER = "opted_in_trigger";
+        static final String PARENT_ACTION_TRIGGER = "parent_action_trigger";
+
+        private static final Set<String> BY_QUERY_ACTIONS = Set.of(ReindexAction.NAME, DeleteByQueryAction.NAME, UpdateByQueryAction.NAME);
 
         @Override
         public List<IndexAwareSearchRequestProcessor> getIndexAwareSearchRequestProcessors() {
             IndexAwareSearchRequestProcessor byDefault = (source, context, listener) -> {
-                if (isMatchOnTitle(source) && OPTED_IN_TRIGGER.equals(((MatchQueryBuilder) source.query()).value()) == false) {
+                if (isMatchOnTitle(source) && PARENT_ACTION_TRIGGER.equals(((MatchQueryBuilder) source.query()).value()) == false) {
                     listener.onResponse(source.query(QueryBuilders.matchAllQuery()));
                 } else {
                     listener.onResponse(source);
                 }
             };
-            IndexAwareSearchRequestProcessor optedIn = new IndexAwareSearchRequestProcessor() {
+            IndexAwareSearchRequestProcessor checksParentAction = new IndexAwareSearchRequestProcessor() {
                 @Override
                 public void process(SearchSourceBuilder source, IndexAwareContext context, ActionListener<SearchSourceBuilder> listener) {
-                    if (isMatchOnTitle(source) && OPTED_IN_TRIGGER.equals(((MatchQueryBuilder) source.query()).value())) {
+                    if (isByQuerySearch(context) == false
+                        && isMatchOnTitle(source)
+                        && PARENT_ACTION_TRIGGER.equals(((MatchQueryBuilder) source.query()).value())) {
                         listener.onResponse(source.query(QueryBuilders.matchAllQuery()));
                     } else {
                         listener.onResponse(source);
                     }
                 }
-
-                @Override
-                public boolean appliesToInternalSearches() {
-                    return true;
-                }
             };
-            return asList(byDefault, optedIn);
+            return asList(byDefault, checksParentAction);
+        }
+
+        // getParentAction() is null for a search without a parent task, and Set.of(...) rejects null.
+        private static boolean isByQuerySearch(IndexAwareContext context) {
+            return context.getParentAction() != null && BY_QUERY_ACTIONS.contains(context.getParentAction());
         }
 
         private static boolean isMatchOnTitle(SearchSourceBuilder source) {

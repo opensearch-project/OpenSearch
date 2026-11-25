@@ -2120,26 +2120,12 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         });
     }
 
-    // The search behind a by-query or reindex job: skipped unless a processor opts in.
-    public void testIndexAwareProcessorsSkipAByQuerySearchByDefault() {
+    // The search behind a by-query or reindex job is processed like any other search, as an index's default
+    // search pipeline and system-generated search processors are.
+    public void testIndexAwareProcessorsRunForAByQuerySearch() {
         withIndexAwareFixture(fixture -> {
             AtomicInteger invocations = new AtomicInteger();
             fixture.register(counting(invocations));
-            SearchSourceBuilder original = new SearchSourceBuilder();
-            SearchRequest searchRequest = new SearchRequest("my-index").source(original);
-
-            HookOutcome outcome = fixture.apply(searchRequest, null, reindexTask());
-
-            outcome.assertCompleted();
-            assertSame(original, searchRequest.source());
-            assertEquals(0, invocations.get());
-        });
-    }
-
-    public void testIndexAwareProcessorRunsForAByQuerySearchWhenItOptsIn() {
-        withIndexAwareFixture(fixture -> {
-            AtomicInteger invocations = new AtomicInteger();
-            fixture.register(optedIntoInternalSearches(counting(invocations)));
             SearchRequest searchRequest = new SearchRequest("my-index").source(new SearchSourceBuilder());
 
             HookOutcome outcome = fixture.apply(searchRequest, null, reindexTask());
@@ -2149,48 +2135,54 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
         });
     }
 
-    public void testIndexAwareProcessorsSkipASystemIndexSearchByDefault() {
+    // So is a search of a system index.
+    public void testIndexAwareProcessorsRunForASystemIndexSearch() {
         withIndexAwareFixture(fixture -> {
             AtomicInteger invocations = new AtomicInteger();
             fixture.register(counting(invocations));
-            SearchSourceBuilder original = new SearchSourceBuilder();
-            SearchRequest searchRequest = new SearchRequest(".system-index").source(original);
-
-            HookOutcome outcome = fixture.apply(searchRequest);
-
-            outcome.assertCompleted();
-            assertSame(original, searchRequest.source());
-            assertEquals(0, invocations.get());
-        });
-    }
-
-    // One system index among the targets makes the whole request internal, not just that index.
-    public void testIndexAwareProcessorsSkipARequestThatMixesASystemIndexWithOthers() {
-        withIndexAwareFixture(fixture -> {
-            AtomicInteger invocations = new AtomicInteger();
-            fixture.register(counting(invocations));
-            SearchRequest searchRequest = new SearchRequest("my-index", ".system-index").source(new SearchSourceBuilder());
-
-            HookOutcome outcome = fixture.apply(searchRequest);
-
-            outcome.assertCompleted();
-            assertEquals(0, invocations.get());
-        });
-    }
-
-    // Of two processors, only the one that opted into internal searches runs for a system index.
-    public void testOnlyOptedInIndexAwareProcessorsRunForASystemIndexSearch() {
-        withIndexAwareFixture(fixture -> {
-            AtomicInteger optedInInvocations = new AtomicInteger();
-            AtomicInteger defaultInvocations = new AtomicInteger();
-            fixture.register(counting(defaultInvocations), optedIntoInternalSearches(counting(optedInInvocations)));
             SearchRequest searchRequest = new SearchRequest(".system-index").source(new SearchSourceBuilder());
 
             HookOutcome outcome = fixture.apply(searchRequest);
 
             outcome.assertCompleted();
-            assertEquals(1, optedInInvocations.get());
-            assertEquals(0, defaultInvocations.get());
+            assertEquals(1, invocations.get());
+        });
+    }
+
+    // A processor decides about such searches itself, from the parent task's action: the value a
+    // system-generated search processor factory receives as parent_action.
+    public void testIndexAwareProcessorIsGivenTheParentTasksAction() {
+        withIndexAwareFixture(fixture -> {
+            AtomicReference<IndexAwareContext> seen = new AtomicReference<>();
+            fixture.register(capturingContext(seen));
+
+            fixture.apply(new SearchRequest("my-index").source(new SearchSourceBuilder()), null, reindexTask()).assertCompleted();
+
+            assertEquals(ReindexAction.NAME, seen.get().getParentAction());
+        });
+    }
+
+    public void testIndexAwareProcessorIsGivenNoParentActionWhenTheSearchHasNoParentTask() {
+        withIndexAwareFixture(fixture -> {
+            AtomicReference<IndexAwareContext> seen = new AtomicReference<>();
+            fixture.register(capturingContext(seen));
+
+            fixture.apply(new SearchRequest("my-index").source(new SearchSourceBuilder())).assertCompleted();
+
+            assertNull(seen.get().getParentAction());
+        });
+    }
+
+    // And from each target index's metadata, for a system index.
+    public void testIndexAwareProcessorIsToldWhichTargetIndexIsASystemIndex() {
+        withIndexAwareFixture(fixture -> {
+            AtomicReference<IndexAwareContext> seen = new AtomicReference<>();
+            fixture.register(capturingContext(seen));
+
+            fixture.apply(new SearchRequest("my-index", ".system-index").source(new SearchSourceBuilder())).assertCompleted();
+
+            assertTrue(seen.get().getTargetIndices().get(".system-index").isSystem());
+            assertFalse(seen.get().getTargetIndices().get("my-index").isSystem());
         });
     }
 
@@ -3195,21 +3187,6 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 listener.onResponse(source);
             }
         });
-    }
-
-    /** {@code delegate}, opted into internal searches. */
-    private static IndexAwareSearchRequestProcessor optedIntoInternalSearches(IndexAwareSearchRequestProcessor delegate) {
-        return new IndexAwareSearchRequestProcessor() {
-            @Override
-            public void process(SearchSourceBuilder source, IndexAwareContext context, ActionListener<SearchSourceBuilder> listener) {
-                delegate.process(source, context, listener);
-            }
-
-            @Override
-            public boolean appliesToInternalSearches() {
-                return true;
-            }
-        };
     }
 
     /** {@code delegate}, with failures ignored. */
