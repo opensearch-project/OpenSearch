@@ -81,6 +81,13 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParametrizedFieldMapper.class);
 
+    // The base mapper only needs the same immutable default, independent of each field's configured type.
+    private static final FieldType DEFAULT_FIELD_TYPE = new FieldType();
+
+    static {
+        DEFAULT_FIELD_TYPE.freeze();
+    }
+
     /**
      * True when the index uses a pluggable data format. Remembered here so {@link #getMergeBuilder()} can
      * rebuild a settings-less builder that still knows this, keeping parameter defaults correct (e.g.
@@ -105,7 +112,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         CopyTo copyTo,
         boolean pluggableDataFormat
     ) {
-        super(simpleName, new FieldType(), mappedFieldType, multiFields, copyTo);
+        super(simpleName, DEFAULT_FIELD_TYPE, mappedFieldType, multiFields, copyTo);
         this.pluggableDataFormat = pluggableDataFormat;
     }
 

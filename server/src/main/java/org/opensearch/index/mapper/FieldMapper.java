@@ -757,8 +757,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     @PublicApi(since = "1.0.0")
     public static class MultiFields implements Iterable<Mapper> {
 
+        private static final MultiFields EMPTY = new MultiFields(Map.of());
+
         public static MultiFields empty() {
-            return new MultiFields(Map.of());
+            return EMPTY;
         }
 
         /**
@@ -848,6 +850,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         public MultiFields merge(MultiFields mergeWith) {
+            if (mappers.isEmpty() && mergeWith.mappers.isEmpty()) {
+                return empty();
+            }
             final Map<String, FieldMapper> newMappersBuilder = new HashMap<>(mappers);
 
             for (final FieldMapper mergeWithMapper : mergeWith.mappers.values()) {
