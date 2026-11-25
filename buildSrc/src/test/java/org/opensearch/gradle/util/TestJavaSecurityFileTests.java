@@ -9,12 +9,20 @@
 package org.opensearch.gradle.util;
 
 import org.opensearch.gradle.test.GradleUnitTestCase;
+import org.junit.Rule;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Properties;
 
 public class TestJavaSecurityFileTests extends GradleUnitTestCase {
+
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     public void testFipsReplacesJdkProvidersAndKeepsOtherDefaults() {
         final Properties fips = new Properties();
@@ -41,6 +49,19 @@ public class TestJavaSecurityFileTests extends GradleUnitTestCase {
         assertEquals(TestJavaSecurityFile.BC_FIPS_PROVIDER_ENTRY, result.getProperty("security.provider.1"));
         assertTrue(result.getProperty("security.provider.2").startsWith("org.bouncycastle.jsse.provider.BouncyCastleJsseProvider"));
         assertEquals("SSLv3, TLSv1", result.getProperty("jdk.tls.disabledAlgorithms"));
+    }
+
+    public void testFipsTrustStoreIsTheBundledResource() throws IOException {
+        final Path target = temporaryFolder.getRoot().toPath().resolve("java-security").resolve("test-truststore.bcfks");
+
+        TestJavaSecurityFile.writeFipsTrustStore(target);
+
+        final byte[] bundled;
+        try (InputStream in = getClass().getClassLoader().getResourceAsStream(TestJavaSecurityFile.BUNDLED_FIPS_TRUST_STORE_RESOURCE)) {
+            bundled = in.readAllBytes();
+        }
+        assertTrue(bundled.length > 0);
+        assertArrayEquals(bundled, Files.readAllBytes(target));
     }
 
     public void testFipsFileWithoutProvidersIsRejected() {

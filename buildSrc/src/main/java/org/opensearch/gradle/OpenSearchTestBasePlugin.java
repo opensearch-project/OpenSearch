@@ -170,6 +170,17 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                 test.getInputs().property("fipsJavaSecurity", fipsJavaSecurity);
                 test.doFirst(t -> TestJavaSecurityFile.writeFips(testJavaHome((Test) t), fipsJavaSecurity, javaSecurityFile.toPath()));
                 test.systemProperty("org.bouncycastle.fips.approved_only", "true");
+                // FIPS mode has no JKS or PKCS12 trust store, so test JVMs get the BCFKS trust store from the build tools jar too.
+                final File fipsTrustStore = project.getLayout()
+                    .getBuildDirectory()
+                    .file("java-security/" + test.getName() + "-truststore.bcfks")
+                    .get()
+                    .getAsFile();
+                test.doFirst(t -> TestJavaSecurityFile.writeFipsTrustStore(fipsTrustStore.toPath()));
+                nonInputProperties.systemProperty("javax.net.ssl.trustStore", fipsTrustStore);
+                test.systemProperty("javax.net.ssl.trustStoreType", TestJavaSecurityFile.FIPS_TRUST_STORE_TYPE);
+                test.systemProperty("javax.net.ssl.trustStoreProvider", TestJavaSecurityFile.FIPS_TRUST_STORE_PROVIDER);
+                test.systemProperty("javax.net.ssl.trustStorePassword", TestJavaSecurityFile.FIPS_TRUST_STORE_PASSWORD);
             } else {
                 test.doFirst(t -> TestJavaSecurityFile.writeDefault(testJavaHome((Test) t), javaSecurityFile.toPath()));
             }

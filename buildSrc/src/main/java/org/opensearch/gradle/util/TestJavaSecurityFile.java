@@ -16,6 +16,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Properties;
 
 /**
@@ -37,6 +38,12 @@ public final class TestJavaSecurityFile {
     static final String PROVIDER_KEY_PREFIX = "security.provider.";
     static final String BC_FIPS_PROVIDER_ENTRY = "org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider C:HYBRID;ENABLE{All};";
     static final String BUNDLED_FIPS_RESOURCE = "fips_java.security";
+    static final String BUNDLED_FIPS_TRUST_STORE_RESOURCE = "opensearch-fips-truststore.bcfks";
+
+    /** Type, provider and password of the trust store that {@link #writeFipsTrustStore(Path)} writes. */
+    public static final String FIPS_TRUST_STORE_TYPE = "BCFKS";
+    public static final String FIPS_TRUST_STORE_PROVIDER = "BCFIPS";
+    public static final String FIPS_TRUST_STORE_PASSWORD = "changeit";
 
     private TestJavaSecurityFile() {}
 
@@ -62,6 +69,29 @@ public final class TestJavaSecurityFile {
             );
         } catch (IOException e) {
             throw new UncheckedIOException("cannot generate the FIPS java.security file [" + target + "]", e);
+        }
+    }
+
+    /**
+     * Writes the BCFKS trust store that the build-tools jar carries to {@code target}. {@code javax.net.ssl.trustStore} needs a
+     * file, so the resource cannot be used from the jar directly. The file is written to a temporary file first and then moved,
+     * so a test JVM never reads a partly written store.
+     */
+    public static void writeFipsTrustStore(Path target) {
+        try (InputStream in = TestJavaSecurityFile.class.getClassLoader().getResourceAsStream(BUNDLED_FIPS_TRUST_STORE_RESOURCE)) {
+            if (in == null) {
+                throw new IllegalStateException("The build-tools jar does not contain [" + BUNDLED_FIPS_TRUST_STORE_RESOURCE + "].");
+            }
+            Files.createDirectories(target.getParent());
+            final Path temporary = Files.createTempFile(target.getParent(), target.getFileName().toString(), ".tmp");
+            try {
+                Files.copy(in, temporary, StandardCopyOption.REPLACE_EXISTING);
+                Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } finally {
+                Files.deleteIfExists(temporary);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Cannot write the FIPS trust store [" + target + "].", e);
         }
     }
 

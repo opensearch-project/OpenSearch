@@ -105,10 +105,7 @@ plugins.withId('opensearch.testclusters') {
 
     tasks.withType(Test).configureEach { testTask ->
       if (FipsBuildParams.isFipsModeEnabled()) {
-        testTask.systemProperty 'javax.net.ssl.trustStore', "${project.rootDir}/buildSrc/src/main/resources/opensearch-fips-truststore.bcfks"
-        testTask.systemProperty 'javax.net.ssl.trustStoreType', 'BCFKS'
-        testTask.systemProperty 'javax.net.ssl.trustStoreProvider', 'BCFIPS'
-        testTask.systemProperty 'javax.net.ssl.trustStorePassword', 'changeit'
+        // The trust store comes from OpenSearchTestBasePlugin, like the java.security of the test JVMs.
 
         // Exclude base test classes that have corresponding FipsTests or FipsIT
         // Check if a FipsTests or FipsIT variant exists in the same directory
