@@ -145,6 +145,13 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         TermsAggregationBuilder termsAggregationBuilder = terms("terms_agg").field(CLIENTIP);
         testCase(indexSearcher, query, queryBuilder, termsAggregationBuilder, starTree, supportedDimensions);
 
+        // Numeric-terms query with keyword terms aggregation and no sub-aggregation
+        for (long queryValue = 0; queryValue < 10; queryValue++) {
+            query = SortedNumericDocValuesField.newSlowExactQuery(STATUS, queryValue);
+            queryBuilder = new TermQueryBuilder(STATUS, queryValue);
+            testCase(indexSearcher, query, queryBuilder, termsAggregationBuilder, starTree, supportedDimensions);
+        }
+
         ValuesSourceAggregationBuilder[] aggBuilders = {
             sum("_sum").field(SIZE),
             max("_max").field(SIZE),
