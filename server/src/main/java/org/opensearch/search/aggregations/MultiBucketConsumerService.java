@@ -35,6 +35,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.WorkloadGroup;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -222,6 +223,34 @@ public class MultiBucketConsumerService {
                 }
             }
             callCount.increment();
+            throwIfTripped();
+            // check parent circuit breaker every 1024 to (1024 + available processors) calls
+            long sum = callCount.sum();
+            if ((sum >= 1024) && (sum & 0x3FF) <= availProcessors) {
+                checkParentBreaker();
+            }
+        }
+
+        /**
+         * Counts as {@code count} calls of {@code accept(0)}, with one update of the shared call count. It checks the parent
+         * circuit breaker at most once: when this call takes the call count across a multiple of 1024, or into the range
+         * after one where {@link #accept(int)} checks. Callers that pass at most 1024 at a time get a check at least once
+         * every 1024 calls. Like {@code accept(0)}, it doesn't count toward {@code search.max_buckets}.
+         */
+        @ExperimentalApi
+        public void acceptZeros(int count) {
+            assert count > 0 : "count must be positive but was " + count;
+            final long before = callCount.sum();
+            callCount.add(count);
+            throwIfTripped();
+            // Read before and after the add: whatever other threads add meanwhile, this range holds this call's own calls.
+            final long after = callCount.sum();
+            if ((after >= 1024) && ((after & 0x3FF) <= availProcessors || (before >>> 10) != (after >>> 10))) {
+                checkParentBreaker();
+            }
+        }
+
+        private void throwIfTripped() {
             // tripping the circuit breaker for other threads in case of concurrent search
             // if the circuit breaker has tripped for one of the threads already, more info
             // can be found on: https://github.com/opensearch-project/OpenSearch/issues/7785
@@ -233,15 +262,14 @@ public class MultiBucketConsumerService {
                     breaker.getDurability()
                 );
             }
-            // check parent circuit breaker every 1024 to (1024 + available processors) calls
-            long sum = callCount.sum();
-            if ((sum >= 1024) && (sum & 0x3FF) <= availProcessors) {
-                try {
-                    breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
-                } catch (CircuitBreakingException e) {
-                    circuitBreakerTripped = true;
-                    throw e;
-                }
+        }
+
+        private void checkParentBreaker() {
+            try {
+                breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
+            } catch (CircuitBreakingException e) {
+                circuitBreakerTripped = true;
+                throw e;
             }
         }
 
