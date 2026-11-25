@@ -535,7 +535,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             SearchRequestContext searchRequestContext = new SearchRequestContext(
                 requestOperationsListeners,
                 originalSearchRequest,
-                taskResourceTrackingService::getTaskResourceUsageFromThreadContext
+                taskResourceTrackingService::getTaskResourceUsageFromThreadContext,
+                task instanceof SearchTask searchTask ? searchTask : null
             );
 
             // At this point either the QUERY_GROUP_ID header will be present in ThreadContext either via ActionFilter
@@ -583,9 +584,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             try {
                 final Task parentTask = extractParentTask(originalSearchRequest);
                 searchRequest = searchPipelineService.resolvePipeline(originalSearchRequest, parentTask, indexNameExpressionResolver);
-                listener = searchRequest.transformResponseListener(updatedListener);
+                // Wraps the response processors, so the request ends before they run.
+                listener = endRequestOnCompletion(searchRequest.transformResponseListener(updatedListener), searchRequestContext);
             } catch (Exception e) {
-                updatedListener.onFailure(e);
+                endRequestOnCompletion(updatedListener, searchRequestContext).onFailure(e);
                 return;
             }
 
@@ -621,6 +623,30 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 listener.onFailure(e);
             }
         }
+    }
+
+    /**
+     * Ends the request once it completes, before notifying {@code listener}, so that every request that started ends exactly
+     * once. That includes a request that fails before its search starts and a cross-cluster search that runs no search on this
+     * node.
+     */
+    static ActionListener<SearchResponse> endRequestOnCompletion(
+        final ActionListener<SearchResponse> listener,
+        final SearchRequestContext searchRequestContext
+    ) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse response) {
+                searchRequestContext.endRequest();
+                listener.onResponse(response);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                searchRequestContext.failRequest();
+                listener.onFailure(e);
+            }
+        };
     }
 
     /** Whether {@code task}'s work is accounted for against a throttle bucket, so a nested search can inherit it. */

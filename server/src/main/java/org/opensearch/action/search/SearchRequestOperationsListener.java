@@ -47,10 +47,52 @@ public abstract class SearchRequestOperationsListener {
 
     protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {};
 
+    /**
+     * Invoked once the request is admitted. Exactly one of {@link #onRequestEnd(SearchRequestContext)} or
+     * {@link #onRequestFailure(SearchRequestContext)} follows once the request completes.
+     */
     protected void onRequestStart(SearchRequestContext searchRequestContext) {}
 
+    /**
+     * Invoked once the request succeeds. The response processors of its search pipeline run after this call, so a failure in
+     * them does not turn the request into a failure. By default, calls
+     * {@link #onRequestEnd(SearchPhaseContext, SearchRequestContext)} if a search started on this node, see
+     * {@link SearchRequestContext#getPhaseContext()}.
+     */
+    protected void onRequestEnd(SearchRequestContext searchRequestContext) {
+        final SearchPhaseContext phaseContext = searchRequestContext.getPhaseContext();
+        if (phaseContext != null) {
+            onRequestEnd(phaseContext, searchRequestContext);
+        }
+    }
+
+    /**
+     * Invoked once the request fails. By default, calls {@link #onRequestFailure(SearchPhaseContext, SearchRequestContext)}
+     * if a search started on this node, see {@link SearchRequestContext#getPhaseContext()}.
+     */
+    protected void onRequestFailure(SearchRequestContext searchRequestContext) {
+        final SearchPhaseContext phaseContext = searchRequestContext.getPhaseContext();
+        if (phaseContext != null) {
+            onRequestFailure(phaseContext, searchRequestContext);
+        }
+    }
+
+    /**
+     * Invoked once a request whose search started on this node succeeds, with that search as {@code context}.
+     *
+     * @deprecated Override {@link #onRequestEnd(SearchRequestContext)} instead, which is also invoked for a request that
+     * succeeds without a search on this node. {@link SearchRequestContext#getTask()} gives its task either way.
+     */
+    @Deprecated
     protected void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
+    /**
+     * Invoked once a request whose search started on this node fails, with that search as {@code context}.
+     *
+     * @deprecated Override {@link #onRequestFailure(SearchRequestContext)} instead, which is also invoked for a request that
+     * fails without a search on this node. {@link SearchRequestContext#getTask()} gives its task either way.
+     */
+    @Deprecated
     protected void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
     protected boolean isEnabled(SearchRequest searchRequest) {
@@ -125,10 +167,10 @@ public abstract class SearchRequestOperationsListener {
         }
 
         @Override
-        public void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+        public void onRequestEnd(SearchRequestContext searchRequestContext) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
-                    listener.onRequestEnd(context, searchRequestContext);
+                    listener.onRequestEnd(searchRequestContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onRequestEnd listener [{}] failed", listener), e);
                 }
@@ -136,10 +178,10 @@ public abstract class SearchRequestOperationsListener {
         }
 
         @Override
-        public void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+        public void onRequestFailure(SearchRequestContext searchRequestContext) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
-                    listener.onRequestFailure(context, searchRequestContext);
+                    listener.onRequestFailure(searchRequestContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onRequestFailure listener [{}] failed", listener), e);
                 }

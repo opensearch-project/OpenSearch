@@ -84,6 +84,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -153,6 +154,36 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         final TaskResourceUsage resourceUsage,
         final SearchShardIterator... shards
     ) {
+        return createAction(
+            request,
+            results,
+            listener,
+            controlled,
+            failExecutePhaseOnShard,
+            catchExceptionWhenExecutePhaseOnShard,
+            expected,
+            resourceUsage,
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
+                request,
+                () -> null
+            ),
+            shards
+        );
+    }
+
+    private AbstractSearchAsyncAction<SearchPhaseResult> createAction(
+        SearchRequest request,
+        ArraySearchPhaseResults<SearchPhaseResult> results,
+        ActionListener<SearchResponse> listener,
+        final boolean controlled,
+        final boolean failExecutePhaseOnShard,
+        final boolean catchExceptionWhenExecutePhaseOnShard,
+        final AtomicLong expected,
+        final TaskResourceUsage resourceUsage,
+        final SearchRequestContext searchRequestContext,
+        final SearchShardIterator... shards
+    ) {
 
         final Runnable runnable;
         final TransportSearchAction.SearchTimeProvider timeProvider;
@@ -198,11 +229,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             results,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            new SearchRequestContext(
-                new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
-                request,
-                () -> null
-            ),
+            searchRequestContext,
             NoopTracer.INSTANCE
         ) {
             @Override
@@ -390,6 +417,194 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         }
         assertEquals(nodeLookups, resolvedNodes);
         assertEquals(requestIds, releasedContexts);
+    }
+
+    public void testZeroShardSearchEndsRequestWithItsPhaseContext() {
+        SearchRequest searchRequest = new SearchRequest();
+        RequestEndRecorder recorder = new RequestEndRecorder();
+        SearchRequestContext searchRequestContext = new SearchRequestContext(
+            new SearchRequestOperationsListener.CompositeListener(List.of(recorder), logger),
+            searchRequest,
+            () -> null
+        );
+        AtomicInteger endsBeforeResponse = new AtomicInteger(-1);
+        ActionListener<SearchResponse> listener = ActionListener.wrap(
+            response -> endsBeforeResponse.set(recorder.ends.get()),
+            e -> fail("onFailure should not be called")
+        );
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+            searchRequest,
+            new ArraySearchPhaseResults<>(0),
+            TransportSearchAction.endRequestOnCompletion(listener, searchRequestContext),
+            false,
+            false,
+            false,
+            new AtomicLong(),
+            new TaskResourceUsage(randomLong(), randomLong()),
+            searchRequestContext
+        );
+
+        action.start();
+
+        assertEquals(1, endsBeforeResponse.get());
+        assertEquals(1, recorder.ends.get());
+        assertSame(action, recorder.endContext.get());
+        assertEquals(0, recorder.failures.get());
+    }
+
+    public void testResponseListenerFailureEndsPhaseAndRequestOnce() {
+        SearchRequestStats searchRequestStats = new SearchRequestStats(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        RequestEndRecorder recorder = new RequestEndRecorder();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse response) {
+                throw new IllegalStateException("response listener failed");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failure.set(e);
+            }
+        };
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createStartedAction(listener, searchRequestStats, recorder);
+
+        // The expand phase sends the response, and the exception thrown out of it fails the phase that already ended.
+        action.executeNextPhase(action, new ExpandSearchPhase(action, InternalSearchResponse.empty(), null));
+
+        assertThat(failure.get(), instanceOf(SearchPhaseExecutionException.class));
+        assertEquals(0, searchRequestStats.getPhaseCurrent(SearchPhaseName.EXPAND));
+        assertEquals(1, searchRequestStats.getPhaseTotal(SearchPhaseName.EXPAND));
+        assertEquals(0, searchRequestStats.getTookCurrent());
+        assertEquals(1, searchRequestStats.getTookTotal());
+        assertEquals(1, recorder.ends.get());
+        assertSame(action, recorder.endContext.get());
+        assertEquals(0, recorder.failures.get());
+    }
+
+    public void testFailureReportedThroughTheContextEndsPhaseAndRequest() {
+        SearchRequestStats searchRequestStats = new SearchRequestStats(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        RequestEndRecorder recorder = new RequestEndRecorder();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createStartedAction(
+            ActionListener.wrap(response -> fail("onResponse should not be called"), failure::set),
+            searchRequestStats,
+            recorder
+        );
+        // Stands in for ExpandSearchPhase, which is still running when its multi search fails.
+        action.executeNextPhase(action, new SearchPhase(SearchPhaseName.EXPAND.getName()) {
+            @Override
+            public void run() {}
+        });
+        assertEquals(1, searchRequestStats.getPhaseCurrent(SearchPhaseName.EXPAND));
+        Exception exception = new IllegalStateException("expand failed");
+
+        action.onFailure(exception);
+
+        assertSame(exception, failure.get());
+        assertEquals(0, searchRequestStats.getPhaseCurrent(SearchPhaseName.EXPAND));
+        assertEquals(0, searchRequestStats.getPhaseTotal(SearchPhaseName.EXPAND));
+        assertEquals(0, searchRequestStats.getTookCurrent());
+        assertEquals(0, searchRequestStats.getTookTotal());
+        assertEquals(1, recorder.failures.get());
+        assertSame(action, recorder.failureContext.get());
+    }
+
+    public void testDisallowedPartialResultsFailPhaseAndRequestOnce() {
+        SearchRequestStats searchRequestStats = new SearchRequestStats(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        RequestEndRecorder recorder = new RequestEndRecorder();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createStartedAction(
+            new SearchRequest().allowPartialSearchResults(false),
+            ActionListener.wrap(response -> fail("onResponse should not be called"), failure::set),
+            searchRequestStats,
+            recorder
+        );
+        ShardId shardId = new ShardId("index", "index-uuid", 0);
+        action.onShardFailure(
+            0,
+            new SearchShardTarget(randomAlphaOfLengthBetween(5, 10), shardId, null, OriginalIndices.NONE),
+            new IllegalArgumentException()
+        );
+
+        // sendSearchResponse finds the shard failure and fails the request without failing the expand phase first.
+        action.executeNextPhase(action, new ExpandSearchPhase(action, InternalSearchResponse.empty(), null));
+
+        assertThat(failure.get(), instanceOf(SearchPhaseExecutionException.class));
+        assertEquals(0, searchRequestStats.getPhaseCurrent(SearchPhaseName.EXPAND));
+        assertEquals(0, searchRequestStats.getPhaseTotal(SearchPhaseName.EXPAND));
+        assertEquals(0, searchRequestStats.getTookCurrent());
+        assertEquals(0, searchRequestStats.getTookTotal());
+        assertEquals(1, recorder.failures.get());
+        assertSame(action, recorder.failureContext.get());
+    }
+
+    /**
+     * Creates an action over one skipped shard whose request has started, so its next phase can run. Its listener ends the
+     * request as TransportSearchAction does.
+     */
+    private AbstractSearchAsyncAction<SearchPhaseResult> createStartedAction(
+        ActionListener<SearchResponse> listener,
+        SearchRequestOperationsListener... requestListeners
+    ) {
+        return createStartedAction(new SearchRequest().allowPartialSearchResults(true), listener, requestListeners);
+    }
+
+    private AbstractSearchAsyncAction<SearchPhaseResult> createStartedAction(
+        SearchRequest searchRequest,
+        ActionListener<SearchResponse> listener,
+        SearchRequestOperationsListener... requestListeners
+    ) {
+        SearchRequestContext searchRequestContext = new SearchRequestContext(
+            new SearchRequestOperationsListener.CompositeListener(List.of(requestListeners), logger),
+            searchRequest,
+            () -> null
+        );
+        searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
+        ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomInt());
+        SearchShardIterator shard = new SearchShardIterator(null, shardId, Collections.emptyList(), OriginalIndices.NONE);
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+            searchRequest,
+            new ArraySearchPhaseResults<>(1),
+            TransportSearchAction.endRequestOnCompletion(listener, searchRequestContext),
+            false,
+            false,
+            false,
+            new AtomicLong(),
+            new TaskResourceUsage(randomLong(), randomLong()),
+            searchRequestContext,
+            shard
+        );
+        // As start() does, which would run the query phase.
+        searchRequestContext.setPhaseContext(action);
+        shard.resetAndSkip();
+        action.skipShard(shard);
+        return action;
+    }
+
+    private static final class RequestEndRecorder extends SearchRequestOperationsListener {
+        private final AtomicInteger ends = new AtomicInteger();
+        private final AtomicInteger failures = new AtomicInteger();
+        private final AtomicReference<SearchPhaseContext> endContext = new AtomicReference<>();
+        private final AtomicReference<SearchPhaseContext> failureContext = new AtomicReference<>();
+
+        @Override
+        protected void onRequestEnd(SearchRequestContext searchRequestContext) {
+            ends.incrementAndGet();
+            endContext.set(searchRequestContext.getPhaseContext());
+        }
+
+        @Override
+        protected void onRequestFailure(SearchRequestContext searchRequestContext) {
+            failures.incrementAndGet();
+            failureContext.set(searchRequestContext.getPhaseContext());
+        }
     }
 
     public void testOnPhaseFailureAndVerifyListeners() {

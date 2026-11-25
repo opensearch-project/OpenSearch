@@ -146,7 +146,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
             threads.add(new Thread(() -> {
                 try (ThreadContext.StoredContext currentContext = testThreadPool.getThreadContext().stashContext()) {
                     testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, testWorkloadGroupId);
-                    sut.onRequestFailure(null, null);
+                    sut.onRequestFailure(mock(SearchRequestContext.class));
                 }
             }));
         }
@@ -266,7 +266,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
                 Collections.emptySet()
             );
             sut = new WorkloadGroupRequestOperationListener(workloadGroupService, testThreadPool);
-            sut.onRequestFailure(null, null);
+            sut.onRequestFailure(mock(SearchRequestContext.class));
 
             HashSet<String> set = new HashSet<>();
             set.add("_all");

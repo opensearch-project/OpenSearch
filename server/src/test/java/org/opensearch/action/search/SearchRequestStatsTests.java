@@ -29,12 +29,11 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
     public void testSearchRequestStats_OnRequestFailure() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
-        SearchPhaseContext mockSearchPhaseContext = mock(SearchPhaseContext.class);
         SearchRequestContext mockSearchRequestContext = mock(SearchRequestContext.class);
 
         testRequestStats.onRequestStart(mockSearchRequestContext);
         assertEquals(1, testRequestStats.getTookCurrent());
-        testRequestStats.onRequestFailure(mockSearchPhaseContext, mockSearchRequestContext);
+        testRequestStats.onRequestFailure(mockSearchRequestContext);
         assertEquals(0, testRequestStats.getTookCurrent());
         assertEquals(0, testRequestStats.getTookTotal());
     }
@@ -42,7 +41,6 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
     public void testSearchRequestStats_OnRequestEnd() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
-        SearchPhaseContext mockSearchPhaseContext = mock(SearchPhaseContext.class);
         SearchRequestContext mockSearchRequestContext = mock(SearchRequestContext.class);
 
         // Start request
@@ -55,7 +53,7 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
         when(mockSearchRequestContext.getAbsoluteStartNanos()).thenReturn(startTimeInNanos);
 
         // End request
-        testRequestStats.onRequestEnd(mockSearchPhaseContext, mockSearchRequestContext);
+        testRequestStats.onRequestEnd(mockSearchRequestContext);
         assertEquals(0, testRequestStats.getTookCurrent());
         assertEquals(1, testRequestStats.getTookTotal());
         assertThat(testRequestStats.getTookMetric(), greaterThanOrEqualTo(tookTimeInMillis));

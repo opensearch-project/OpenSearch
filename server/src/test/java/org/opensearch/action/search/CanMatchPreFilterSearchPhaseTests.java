@@ -802,6 +802,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
         };
 
         AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
+        AtomicReference<AbstractSearchAsyncAction<? extends SearchPhaseResult>> queryAction = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter(
             "idx",
@@ -872,6 +873,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                     SearchResponse.Clusters.EMPTY,
                     searchRequestContext
                 );
+                queryAction.set(action);
                 return new WrappingSearchAsyncActionPhase(action) {
                     @Override
                     public void run() {
@@ -889,6 +891,8 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
         latch.await();
 
         assertThat(result.get(), is(nullValue()));
+        // The search that queries the shards replaces the one that pre-filtered them as the request's search.
+        assertSame(queryAction.get(), searchRequestContext.getPhaseContext());
     }
 
     private static final class SearchDfsQueryAsyncAction extends AbstractSearchAsyncAction<DfsSearchResult> {

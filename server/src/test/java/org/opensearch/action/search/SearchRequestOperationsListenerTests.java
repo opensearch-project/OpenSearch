@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -66,5 +67,69 @@ public class SearchRequestOperationsListenerTests extends OpenSearchTestCase {
             compositeListener.onPhaseStart(ctx);
             assertEquals(totalListeners, searchPhaseMap.get(searchPhaseName).current.count());
         }
+    }
+
+    public void testRequestEndReachesEveryListener() {
+        AtomicInteger ends = new AtomicInteger();
+        AtomicInteger failures = new AtomicInteger();
+        SearchRequestOperationsListener countingListener = new SearchRequestOperationsListener() {
+            @Override
+            protected void onRequestEnd(SearchRequestContext searchRequestContext) {
+                ends.incrementAndGet();
+            }
+
+            @Override
+            protected void onRequestFailure(SearchRequestContext searchRequestContext) {
+                failures.incrementAndGet();
+            }
+        };
+        SearchRequestOperationsListener failingListener = new SearchRequestOperationsListener() {
+            @Override
+            protected void onRequestEnd(SearchRequestContext searchRequestContext) {
+                throw new IllegalStateException("end");
+            }
+
+            @Override
+            protected void onRequestFailure(SearchRequestContext searchRequestContext) {
+                throw new IllegalStateException("failure");
+            }
+        };
+        List<SearchPhaseContext> legacyEnds = new ArrayList<>();
+        List<SearchPhaseContext> legacyFailures = new ArrayList<>();
+        SearchRequestOperationsListener legacyListener = new SearchRequestOperationsListener() {
+            @Override
+            protected void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+                legacyEnds.add(context);
+            }
+
+            @Override
+            protected void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+                legacyFailures.add(context);
+            }
+        };
+        SearchRequestOperationsListener compositeListener = new SearchRequestOperationsListener.CompositeListener(
+            List.of(failingListener, countingListener, legacyListener),
+            logger
+        );
+        SearchRequestContext searchRequestContext = new SearchRequestContext(compositeListener, new SearchRequest(), () -> null);
+
+        // Without a search phase on this node, only listeners of the single-argument methods hear about it.
+        compositeListener.onRequestEnd(searchRequestContext);
+        compositeListener.onRequestFailure(searchRequestContext);
+        assertEquals(1, ends.get());
+        assertEquals(1, failures.get());
+        assertTrue(legacyEnds.isEmpty());
+        assertTrue(legacyFailures.isEmpty());
+
+        // With one, listeners of the two-argument methods hear about it too, with its context.
+        SearchPhaseContext phaseContext = mock(SearchPhaseContext.class);
+        searchRequestContext.setPhaseContext(phaseContext);
+        compositeListener.onRequestEnd(searchRequestContext);
+        compositeListener.onRequestFailure(searchRequestContext);
+        // A listener that throws must not stop the listeners after it.
+        assertEquals(2, ends.get());
+        assertEquals(2, failures.get());
+        assertEquals(List.of(phaseContext), legacyEnds);
+        assertEquals(List.of(phaseContext), legacyFailures);
     }
 }

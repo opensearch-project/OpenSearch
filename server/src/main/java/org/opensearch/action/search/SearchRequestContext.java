@@ -11,6 +11,7 @@ package org.opensearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
@@ -23,6 +24,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**
@@ -44,12 +46,25 @@ public class SearchRequestContext {
     private final LinkedBlockingQueue<TaskResourceInfo> phaseResourceUsage;
     private final Supplier<TaskResourceInfo> taskResourceUsageSupplier;
     private boolean streamingRequest;
+    private final AtomicBoolean requestEnded = new AtomicBoolean();
+    private volatile SearchPhaseContext phaseContext;
+    private final SearchTask task;
 
     SearchRequestContext(
         final SearchRequestOperationsListener searchRequestOperationsListener,
         final SearchRequest searchRequest,
         final Supplier<TaskResourceInfo> taskResourceUsageSupplier
     ) {
+        this(searchRequestOperationsListener, searchRequest, taskResourceUsageSupplier, null);
+    }
+
+    SearchRequestContext(
+        final SearchRequestOperationsListener searchRequestOperationsListener,
+        final SearchRequest searchRequest,
+        final Supplier<TaskResourceInfo> taskResourceUsageSupplier,
+        @Nullable final SearchTask task
+    ) {
+        this.task = task;
         this.searchRequestOperationsListener = searchRequestOperationsListener;
         this.absoluteStartNanos = System.nanoTime();
         this.phaseTookMap = new HashMap<>();
@@ -61,6 +76,53 @@ public class SearchRequestContext {
 
     SearchRequestOperationsListener getSearchRequestOperationsListener() {
         return searchRequestOperationsListener;
+    }
+
+    /**
+     * Records the search that runs the request on this node, once it starts. A later search replaces an earlier one, as when
+     * the search that pre-filters shards hands off to the search that queries them.
+     */
+    void setPhaseContext(SearchPhaseContext phaseContext) {
+        this.phaseContext = phaseContext;
+    }
+
+    /**
+     * Returns the search that ran the request on this node, or {@code null} if none started. None starts when the request fails
+     * before its search does, for instance on a missing index or search pipeline, or for a cross-cluster search that minimizes
+     * roundtrips and targets only remote clusters. A search that finds no shards to query still counts as started. When a
+     * cross-cluster search that minimizes roundtrips also targets local indices, this is the search of the local indices. It
+     * then describes only that part of the request, although the request ends once every cluster responds.
+     */
+    @Nullable
+    public SearchPhaseContext getPhaseContext() {
+        return phaseContext;
+    }
+
+    /**
+     * Returns the task of the request on this node, or {@code null} if it has none. Unlike the task of
+     * {@link #getPhaseContext()}, it is available whether or not a search started on this node.
+     */
+    @Nullable
+    public SearchTask getTask() {
+        return task;
+    }
+
+    /**
+     * Reports that the request succeeded, unless its end was already reported, so listeners see exactly one end per request.
+     */
+    void endRequest() {
+        if (requestEnded.compareAndSet(false, true)) {
+            searchRequestOperationsListener.onRequestEnd(this);
+        }
+    }
+
+    /**
+     * Reports that the request failed, unless its end was already reported, so listeners see exactly one end per request.
+     */
+    void failRequest() {
+        if (requestEnded.compareAndSet(false, true)) {
+            searchRequestOperationsListener.onRequestFailure(this);
+        }
     }
 
     void updatePhaseTookMap(String phaseName, Long tookTime) {
