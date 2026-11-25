@@ -152,13 +152,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     static final int COMPACT_SKETCHES_MIN_PRECISION = 10;
 
     /**
-     * Under a parent with many buckets the BitArray stage of the hybrid collector gets this fraction of the memory threshold:
-     * a BitArray costs {@code maxOrd / 8} bytes per bucket however few values the bucket holds, while the next stage only
-     * pays for the values. A few dense buckets still fit.
-     */
-    static final int MANY_BUCKETS_BIT_ARRAY_SHARE = 8;
-
-    /**
      * Setting to keep the sketches of cardinality under a parent with many buckets in {@link CompactHyperLogLogPlusPlus}, so
      * that each bucket only pays for the values it holds. Disabling it goes back to {@link HyperLogLogPlusPlus}, which reserves
      * {@code 2^precision} bytes for every bucket.
@@ -194,6 +187,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     String deferredOrdinals = "not_started";
     int deferredSegments;
     int deferredBucketsBuilt;
+    /** Buckets that {@link #prepareBuildAggregations} hashed out of {@link #deferred}, sorted. */
+    private long[] deferredBucketsHashed = new long[0];
+    /** Whether deferred ordinals moved from bits to bitmaps, once collection stopped deferring. */
+    private boolean deferredUsedBitmaps;
 
     int emptyCollectorsUsed;
     int numericCollectorsUsed;
@@ -341,8 +338,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             // then plain hashing. Each stage hashes what it collected into counts before handing over.
             hybridCollectorsUsed++;
             final long memoryThreshold = cardinalityContext.getMemoryThreshold();
-            final long bitArrayThreshold = compactSketches ? memoryThreshold / MANY_BUCKETS_BIT_ARRAY_SHARE : memoryThreshold;
-            return new HybridCollector(new OrdinalsCollector(counts, ordinalValues, context.bigArrays(), bitArrayThreshold, true), () -> {
+            return new HybridCollector(new OrdinalsCollector(counts, ordinalValues, context.bigArrays(), memoryThreshold, true), () -> {
                 roaringOrdinalsCollectorsUsed++;
                 // Open the doc values before allocating the bitmaps so that a failure can't leak them
                 SortedSetDocValues values = source.ordinalsValues(ctx);
@@ -403,7 +399,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             deferredOrdinals = "global_ordinals_not_loaded";
             return null;
         }
-        if (source.globalOrdinalsValues(ctx).getValueCount() > Integer.MAX_VALUE) {
+        final long maxOrd = source.globalOrdinalsValues(ctx).getValueCount();
+        if (maxOrd > Integer.MAX_VALUE) {
             deferredOrdinals = "too_many_ordinals";
             return null;
         }
@@ -411,7 +408,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         final DeferredOrdinals deferred = new DeferredOrdinals(
             source,
             ctx,
-            new BucketOrdinalBitmaps(context.bigArrays(), this::addRequestCircuitBreakerBytes),
+            maxOrd,
+            context.bigArrays(),
+            this::addRequestCircuitBreakerBytes,
             memoryThreshold
         );
         deferredOrdinals = "used";
@@ -430,6 +429,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         final DeferredOrdinals stopped = deferred;
         deferred = null;
         deferredOrdinals = "stopped_over_memory_threshold";
+        deferredUsedBitmaps = stopped.usesBitmaps();
         try {
             stopped.hashAllInto(counts);
         } finally {
@@ -596,14 +596,35 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         return counts == null ? 0 : counts.cardinality(owningBucketOrd);
     }
 
+    /**
+     * Hashes the values of the deferred buckets about to be built all at once, so that values they share are looked up and
+     * hashed once.
+     */
+    @Override
+    protected void prepareBuildAggregations(long[] owningBucketOrds) throws IOException {
+        if (deferred == null) {
+            return;
+        }
+        final long[] buckets = Arrays.stream(owningBucketOrds)
+            .filter(bucket -> deferred.cardinality(bucket) > 0)
+            .sorted()
+            .distinct()
+            .toArray();
+        deferred.hashBucketsInto(counts, buckets);
+        deferredBucketsBuilt += buckets.length;
+        deferredBucketsHashed = buckets;
+    }
+
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         if (deferred != null) {
             if (deferred.cardinality(owningBucketOrdinal) == 0) {
                 return buildEmptyAggregation();
             }
-            deferredBucketsBuilt++;
-            deferred.hashBucketInto(counts, owningBucketOrdinal);
+            if (Arrays.binarySearch(deferredBucketsHashed, owningBucketOrdinal) < 0) {
+                deferredBucketsBuilt++;
+                deferred.hashBucketsInto(counts, new long[] { owningBucketOrdinal });
+            }
         }
         if (counts == null || owningBucketOrdinal >= counts.maxOrd() || counts.cardinality(owningBucketOrdinal) == 0) {
             return buildEmptyAggregation();
@@ -638,6 +659,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         add.accept("hybrid_collectors_switched_to_direct", hybridCollectorsSwitchedToDirect);
         add.accept("compact_sketches", compactSketches);
         add.accept("deferred_ordinals", deferredOrdinals);
+        add.accept("deferred_bitmaps", deferred != null ? deferred.usesBitmaps() : deferredUsedBitmaps);
         add.accept("deferred_segments", deferredSegments);
         add.accept("deferred_buckets_built", deferredBucketsBuilt);
         if (counts instanceof CompactHyperLogLogPlusPlus compact) {
@@ -861,15 +883,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             return RamUsageEstimator.NUM_BYTES_OBJECT_REF + SHALLOW_FIXEDBITSET_SIZE + (maxOrd + 7) / 8; // 1 bit per ord
         }
 
-        private final BigArrays bigArrays;
         private final SortedSetDocValues values;
-        private final int maxOrd;
         private final AbstractHyperLogLogPlusPlus counts;
-        private ObjectArray<BitArray> visitedOrds;
-        private long currentMemoryUsage = 0;
-
-        private final long memoryThreshold;
-        private final boolean memoryMonitoringEnabled;
+        private final BucketOrdinalBits visitedOrds;
 
         OrdinalsCollector(AbstractHyperLogLogPlusPlus counts, SortedSetDocValues values, BigArrays bigArrays) {
             this(counts, values, bigArrays, Long.MAX_VALUE, false);
@@ -882,16 +898,14 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             long memoryThreshold,
             boolean memoryMonitoringEnabled
         ) {
-            if (values.getValueCount() > Integer.MAX_VALUE) {
-                throw new IllegalArgumentException();
-            }
-            maxOrd = (int) values.getValueCount();
-            this.bigArrays = bigArrays;
             this.counts = counts;
             this.values = values;
-            this.memoryThreshold = memoryThreshold;
-            this.memoryMonitoringEnabled = memoryMonitoringEnabled;
-            visitedOrds = bigArrays.newObjectArray(1);
+            this.visitedOrds = new BucketOrdinalBits(
+                bigArrays,
+                values.getValueCount(),
+                memoryMonitoringEnabled ? memoryThreshold : Long.MAX_VALUE,
+                false
+            );
         }
 
         @Override
@@ -914,20 +928,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         private BitArray getBitArray(long bucket) {
-            visitedOrds = bigArrays.grow(visitedOrds, bucket + 1);
-            BitArray bits = visitedOrds.get(bucket);
+            final BitArray bits = visitedOrds.bucket(bucket);
             if (bits == null) {
-                bits = new BitArray(maxOrd, bigArrays);
-                visitedOrds.set(bucket, bits);
-
-                // Check memory threshold only when monitoring is enabled (hybrid collector)
-                if (memoryMonitoringEnabled) {
-                    currentMemoryUsage += memoryOverhead(maxOrd);
-                    if (currentMemoryUsage > memoryThreshold) {
-                        // Throw singleton exception for efficient control flow to HybridCollector
-                        throw MemoryLimitExceededException.INSTANCE;
-                    }
-                }
+                // Throw singleton exception for efficient control flow to HybridCollector
+                throw MemoryLimitExceededException.INSTANCE;
             }
             return bits;
         }
@@ -944,30 +948,156 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         @Override
         public void postCollect() throws IOException {
+            visitedOrds.collectInto(counts, values);
+        }
+
+        public long getCurrentMemoryUsage() {
+            return visitedOrds.memoryUsed();
+        }
+
+        @Override
+        public void close() {
+            visitedOrds.close();
+        }
+    }
+
+    /**
+     * A {@link BitArray} of ordinals per bucket. Adding an ordinal only sets a bit, but every bucket costs {@code maxOrd / 8}
+     * bytes however few ordinals it holds, so a bucket only gets its bits while they all fit under a memory threshold.
+     * {@link OrdinalsCollector} keeps the segment ordinals of each bucket here, and {@link DeferredOrdinals} the global
+     * ordinals of each bucket of a shard, with their number when asked to count them.
+     * <p>
+     * When counting, the bits also stop growing past {@code 1 / }{@value #SPARSE_SHARE} of the threshold while fewer than one
+     * bit in {@value #SPARSE_DENSITY} is set: below that density {@link RoaringBitmap} keeps ordinals in sorted arrays of 16 bits
+     * each, which take less memory than the bits. Dense buckets keep their bits up to the threshold, as roaring bitmaps would
+     * be about as big and slower to add to. The density is the one seen so far, so buckets that only get dense later may stop
+     * early, which costs speed but not correctness.
+     *
+     * @opensearch.internal
+     */
+    static final class BucketOrdinalBits implements Releasable {
+        /** Ordinals hashed at a time when hashing some of the buckets. */
+        static final int HASH_CHUNK = 8192;
+        static final int SPARSE_SHARE = 8;
+        static final int SPARSE_DENSITY = 16;
+
+        private final BigArrays bigArrays;
+        private final int maxOrd;
+        private final long memoryThreshold;
+        private ObjectArray<BitArray> bits;
+        /** Number of ordinals of each bucket, {@code null} when not counting them. */
+        @Nullable
+        private IntArray ordinalCounts;
+        /** Total of {@link #ordinalCounts}. */
+        private long ordinals;
+        private long bucketsWithBits;
+        private long memoryUsed;
+
+        BucketOrdinalBits(BigArrays bigArrays, long maxOrd, long memoryThreshold, boolean countOrdinals) {
+            if (maxOrd > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException();
+            }
+            this.bigArrays = bigArrays;
+            this.maxOrd = (int) maxOrd;
+            this.memoryThreshold = memoryThreshold;
+            boolean success = false;
+            try {
+                bits = bigArrays.newObjectArray(1);
+                if (countOrdinals) {
+                    ordinalCounts = bigArrays.newIntArray(1, true);
+                }
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
+        }
+
+        /**
+         * The bits of {@code bucket}, or {@code null} if the bucket has none and giving it some would take the memory used over
+         * the threshold, or over its sparse share when counting sparse ordinals.
+         */
+        @Nullable
+        BitArray bucket(long bucket) {
+            if (bucket >= bits.size()) {
+                bits = bigArrays.grow(bits, bucket + 1);
+            }
+            BitArray bucketBits = bits.get(bucket);
+            if (bucketBits == null) {
+                final long overhead = OrdinalsCollector.memoryOverhead(maxOrd);
+                if (memoryUsed + overhead > memoryThreshold) {
+                    return null;
+                }
+                if (ordinalCounts != null) {
+                    if (memoryUsed + overhead > memoryThreshold / SPARSE_SHARE && ordinals * SPARSE_DENSITY < bucketsWithBits * maxOrd) {
+                        return null;
+                    }
+                    ordinalCounts = bigArrays.grow(ordinalCounts, bucket + 1);
+                }
+                bucketBits = new BitArray(maxOrd, bigArrays);
+                bits.set(bucket, bucketBits);
+                bucketsWithBits++;
+                memoryUsed += overhead;
+            }
+            return bucketBits;
+        }
+
+        /**
+         * Adds {@code ord} to {@code bucketBits}, the bits of {@code bucket}, counting it if it is new. Only when counting.
+         */
+        void addCounted(long bucket, BitArray bucketBits, long ord) {
+            if (bucketBits.get(ord) == false) {
+                bucketBits.set(ord);
+                ordinalCounts.increment(bucket, 1);
+                ordinals++;
+            }
+        }
+
+        /**
+         * Number of distinct ordinals of {@code bucket}. Only when counting.
+         */
+        long cardinality(long bucket) {
+            return bucket < ordinalCounts.size() ? ordinalCounts.get(bucket) : 0;
+        }
+
+        /**
+         * Memory used by the bits, to compare with the threshold. {@link BigArrays} charges them to the circuit breaker.
+         */
+        long memoryUsed() {
+            return memoryUsed;
+        }
+
+        private long nextOrd(BitArray bucketBits, long ord) {
+            return ord + 1 < maxOrd ? bucketBits.nextSetBit(ord + 1) : Long.MAX_VALUE;
+        }
+
+        /**
+         * Hashes every distinct ordinal once, then adds the hashes of each bucket's ordinals to that bucket of {@code counts}.
+         *
+         * @param values resolves the ordinals to their values
+         */
+        void collectInto(AbstractHyperLogLogPlusPlus counts, SortedSetDocValues values) throws IOException {
             try (BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {
-                for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
-                    final BitArray bits = visitedOrds.get(bucket);
-                    if (bits != null) {
-                        allVisitedOrds.or(bits);
+                for (long bucket = bits.size() - 1; bucket >= 0; --bucket) {
+                    final BitArray bucketBits = bits.get(bucket);
+                    if (bucketBits != null) {
+                        allVisitedOrds.or(bucketBits);
                     }
                 }
 
                 try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
                     final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
-                    for (long ord = allVisitedOrds.nextSetBit(0); ord < Long.MAX_VALUE; ord = ord + 1 < maxOrd
-                        ? allVisitedOrds.nextSetBit(ord + 1)
-                        : Long.MAX_VALUE) {
+                    for (long ord = allVisitedOrds.nextSetBit(0); ord < Long.MAX_VALUE; ord = nextOrd(allVisitedOrds, ord)) {
                         final BytesRef value = values.lookupOrd(ord);
                         MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
                         hashes.set(ord, hash.h1);
                     }
 
-                    for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
-                        final BitArray bits = visitedOrds.get(bucket);
-                        if (bits != null) {
-                            for (long ord = bits.nextSetBit(0); ord < Long.MAX_VALUE; ord = ord + 1 < maxOrd
-                                ? bits.nextSetBit(ord + 1)
-                                : Long.MAX_VALUE) {
+                    for (long bucket = bits.size() - 1; bucket >= 0; --bucket) {
+                        final BitArray bucketBits = bits.get(bucket);
+                        if (bucketBits != null) {
+                            for (long ord = bucketBits.nextSetBit(0); ord < Long.MAX_VALUE; ord = nextOrd(bucketBits, ord)) {
                                 counts.collect(bucket, hashes.get(ord));
                             }
                         }
@@ -976,16 +1106,91 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             }
         }
 
-        public long getCurrentMemoryUsage() {
-            return currentMemoryUsage;
+        /**
+         * Hashes the ordinals of {@code buckets} into the same buckets of {@code counts}. Every distinct ordinal is looked up once
+         * and in ascending order, which is the cheapest way to read a terms dictionary, {@value #HASH_CHUNK} ordinals at a time
+         * so that only the hashes of one chunk are held.
+         *
+         * @param values resolves the ordinals to their values
+         * @param buckets distinct buckets
+         */
+        void collectInto(AbstractHyperLogLogPlusPlus counts, SortedSetDocValues values, long[] buckets) throws IOException {
+            final BitArray[] selected = new BitArray[buckets.length];
+            final long[] selectedBuckets = new long[buckets.length];
+            // the next ordinal of each selected bucket to hash
+            final long[] next = new long[buckets.length];
+            int n = 0;
+            for (long bucket : buckets) {
+                final BitArray bucketBits = bucket < bits.size() ? bits.get(bucket) : null;
+                final long first = bucketBits == null ? Long.MAX_VALUE : bucketBits.nextSetBit(0);
+                if (first < maxOrd) {
+                    selected[n] = bucketBits;
+                    selectedBuckets[n] = bucket;
+                    next[n] = first;
+                    n++;
+                }
+            }
+            final long[] chunk = new long[HASH_CHUNK / Long.SIZE];
+            final long[] hashes = new long[HASH_CHUNK];
+            final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
+            while (true) {
+                long min = Long.MAX_VALUE;
+                for (int i = 0; i < n; i++) {
+                    min = Math.min(min, next[i]);
+                }
+                if (min == Long.MAX_VALUE) {
+                    return;
+                }
+                final long start = min - min % HASH_CHUNK;
+                final long end = start + HASH_CHUNK;
+                Arrays.fill(chunk, 0L);
+                for (int i = 0; i < n; i++) {
+                    for (long ord = next[i]; ord < end; ord = nextOrd(selected[i], ord)) {
+                        final int offset = (int) (ord - start);
+                        chunk[offset >>> 6] |= 1L << offset;
+                    }
+                }
+                for (int w = 0; w < chunk.length; w++) {
+                    for (long word = chunk[w]; word != 0; word &= word - 1) {
+                        final int offset = (w << 6) | Long.numberOfTrailingZeros(word);
+                        final BytesRef value = values.lookupOrd(start + offset);
+                        MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
+                        hashes[offset] = hash.h1;
+                    }
+                }
+                for (int i = 0; i < n; i++) {
+                    long ord = next[i];
+                    for (; ord < end; ord = nextOrd(selected[i], ord)) {
+                        counts.collect(selectedBuckets[i], hashes[(int) (ord - start)]);
+                    }
+                    next[i] = ord;
+                }
+            }
+        }
+
+        /**
+         * Adds the ordinals of every bucket to the same bucket of {@code bitmaps}.
+         */
+        void copyTo(BucketOrdinalBitmaps bitmaps) {
+            for (long bucket = 0; bucket < bits.size(); bucket++) {
+                final BitArray bucketBits = bits.get(bucket);
+                if (bucketBits != null) {
+                    for (long ord = bucketBits.nextSetBit(0); ord < Long.MAX_VALUE; ord = nextOrd(bucketBits, ord)) {
+                        bitmaps.add(bucket, (int) ord);
+                    }
+                }
+            }
+            bitmaps.flushBreaker();
         }
 
         @Override
         public void close() {
-            for (int i = 0; i < visitedOrds.size(); i++) {
-                Releasables.close(visitedOrds.get(i));
+            if (bits != null) {
+                for (long i = 0; i < bits.size(); i++) {
+                    Releasables.close(bits.get(i));
+                }
             }
-            Releasables.close(visitedOrds);
+            Releasables.close(bits, ordinalCounts);
         }
     }
 
@@ -1177,21 +1382,33 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
          * @param values resolves the ordinals held by the bitmaps to their values
          */
         void collectInto(AbstractHyperLogLogPlusPlus counts, SortedSetDocValues values) throws IOException {
-            if (maxBucket < 0) {
+            collectInto(counts, values, null);
+        }
+
+        /**
+         * Like {@link #collectInto(AbstractHyperLogLogPlusPlus, SortedSetDocValues)} for {@code buckets} only, or every bucket
+         * if {@code null}.
+         *
+         * @param buckets distinct buckets
+         */
+        void collectInto(AbstractHyperLogLogPlusPlus counts, SortedSetDocValues values, @Nullable long[] buckets) throws IOException {
+            final long bucketCount = buckets == null ? maxBucket + 1 : buckets.length;
+            if (bucketCount <= 0) {
                 return;
             }
             final FastRankRoaringBitmap visited = new FastRankRoaringBitmap();
             long singles = 0;
-            for (long bucket = 0; bucket <= maxBucket; bucket++) {
+            for (long i = 0; i < bucketCount; i++) {
+                final long bucket = buckets == null ? i : buckets[(int) i];
                 final RoaringBitmap bitmap = get(bucket);
                 if (bitmap != null) {
                     visited.or(bitmap);
-                } else if (firstOrds.get(bucket) != 0) {
+                } else if (singleOrd(bucket) >= 0) {
                     singles++;
                 }
             }
             if (singles > 0) {
-                addSingles(visited, Math.toIntExact(singles));
+                addSingles(visited, Math.toIntExact(singles), buckets, bucketCount);
             }
             final int visitedCount = visited.getCardinality();
             if (visitedCount == 0) {
@@ -1211,13 +1428,14 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     hashes.set(byOrdinal ? ord : i, hash.h1);
                 }
                 final BucketHasher hasher = new BucketHasher(counts, hashes, byOrdinal ? null : visited);
-                for (long bucket = 0; bucket <= maxBucket; bucket++) {
+                for (long i = 0; i < bucketCount; i++) {
+                    final long bucket = buckets == null ? i : buckets[(int) i];
                     final RoaringBitmap bitmap = get(bucket);
                     hasher.bucket = bucket;
                     if (bitmap == null) {
-                        final int first = firstOrds.get(bucket);
-                        if (first != 0) {
-                            hasher.accept(first - 1);
+                        final int single = singleOrd(bucket);
+                        if (single >= 0) {
+                            hasher.accept(single);
                         }
                     } else if (byOrdinal || bitmap.getCardinality() <= RANK_LOOKUP_MAX_VALUES) {
                         bitmap.forEach(hasher);
@@ -1239,19 +1457,20 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         /**
          * Adds the inline ordinals to {@code visited} in one sorted batch, which is much cheaper than adding them one by one.
          */
-        private void addSingles(FastRankRoaringBitmap visited, int singles) {
+        private void addSingles(FastRankRoaringBitmap visited, int singles, @Nullable long[] buckets, long bucketCount) {
             final long bytes = RamUsageEstimator.sizeOf(new int[0]) + (long) Integer.BYTES * singles;
             breaker.accept(bytes);
             try {
                 final int[] ords = new int[singles];
                 int n = 0;
-                for (long bucket = 0; bucket <= maxBucket; bucket++) {
-                    if (bucket < bitmaps.size() && bitmaps.get(bucket) != null) {
+                for (long i = 0; i < bucketCount; i++) {
+                    final long bucket = buckets == null ? i : buckets[(int) i];
+                    if (get(bucket) != null) {
                         continue;
                     }
-                    final int first = firstOrds.get(bucket);
-                    if (first != 0) {
-                        ords[n++] = first - 1;
+                    final int single = singleOrd(bucket);
+                    if (single >= 0) {
+                        ords[n++] = single;
                     }
                 }
                 Arrays.sort(ords);
@@ -1299,11 +1518,14 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     /**
-     * The global ordinals of each bucket for a whole shard, in {@link BucketOrdinalBitmaps}. Global ordinals are the same in
-     * every segment, so the bitmaps keep growing across segments and give the exact number of distinct values of each
-     * bucket, and a bucket's values only need hashing once the parent picked it.
+     * The global ordinals of each bucket for a whole shard. Global ordinals are the same in every segment, so the sets keep
+     * growing across segments and give the exact number of distinct values of each bucket, and a bucket's values only need
+     * hashing once the parent picked it.
      * <p>
-     * Its segment collectors throw {@link MemoryLimitExceededException} once the bitmaps exceed {@code memoryThreshold}.
+     * The ordinals go through the same stages as the hybrid collector, but they are kept rather than hashed when moving on: a
+     * {@link BucketOrdinalBits} while it fits in {@code memoryThreshold}, or a share of it for sparse ordinals, then
+     * {@link BucketOrdinalBitmaps}. Its segment collectors throw {@link MemoryLimitExceededException} once the bitmaps exceed
+     * {@code memoryThreshold} too.
      *
      * @opensearch.internal
      */
@@ -1311,20 +1533,31 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         private final ValuesSource.Bytes.WithOrdinals source;
         /** Any segment of the shard, to look the global ordinals up from. */
         private final LeafReaderContext lookupLeaf;
-        private final BucketOrdinalBitmaps bitmaps;
+        private final BigArrays bigArrays;
+        private final LongConsumer breaker;
         private final long memoryThreshold;
+        /** The ordinals until they no longer fit in bits, then {@code null}. */
+        @Nullable
+        private BucketOrdinalBits bits;
+        /** The ordinals once they no longer fit in bits, {@code null} until then. */
+        @Nullable
+        private BucketOrdinalBitmaps bitmaps;
         private SortedSetDocValues lookup;
 
         DeferredOrdinals(
             ValuesSource.Bytes.WithOrdinals source,
             LeafReaderContext lookupLeaf,
-            BucketOrdinalBitmaps bitmaps,
+            long maxOrd,
+            BigArrays bigArrays,
+            LongConsumer breaker,
             long memoryThreshold
         ) {
             this.source = source;
             this.lookupLeaf = lookupLeaf;
-            this.bitmaps = bitmaps;
+            this.bigArrays = bigArrays;
+            this.breaker = breaker;
             this.memoryThreshold = memoryThreshold;
+            this.bits = new BucketOrdinalBits(bigArrays, maxOrd, memoryThreshold, true);
         }
 
         Collector leafCollector(LeafReaderContext ctx) throws IOException {
@@ -1337,6 +1570,16 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     }
                     int count = globalOrds.docValueCount();
                     long ord;
+                    if (bits != null) {
+                        final BitArray bucketBits = bits.bucket(bucketOrd);
+                        if (bucketBits != null) {
+                            while ((count-- > 0) && (ord = globalOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
+                                bits.addCounted(bucketOrd, bucketBits, ord);
+                            }
+                            return;
+                        }
+                        switchToBitmaps();
+                    }
                     while ((count-- > 0) && (ord = globalOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
                         bitmaps.add(bucketOrd, (int) ord);
                     }
@@ -1347,21 +1590,47 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
                 @Override
                 public void postCollect() {
-                    bitmaps.flushBreaker();
+                    if (bitmaps != null) {
+                        bitmaps.flushBreaker();
+                    }
                 }
 
                 @Override
                 public void close() {
-                    // the bitmaps live for the whole shard
+                    // the ordinals live for the whole shard
                 }
             };
+        }
+
+        private void switchToBitmaps() {
+            final BucketOrdinalBitmaps created = new BucketOrdinalBitmaps(bigArrays, breaker);
+            boolean success = false;
+            try {
+                bits.copyTo(created);
+                success = true;
+            } finally {
+                if (success == false) {
+                    created.close();
+                }
+            }
+            bitmaps = created;
+            final BucketOrdinalBits copied = bits;
+            bits = null;
+            copied.close();
+        }
+
+        /**
+         * Whether the ordinals moved from bits to bitmaps.
+         */
+        boolean usesBitmaps() {
+            return bitmaps != null;
         }
 
         /**
          * Exact number of distinct values collected into {@code bucketOrd}.
          */
         long cardinality(long bucketOrd) {
-            return bitmaps.cardinality(bucketOrd);
+            return bits != null ? bits.cardinality(bucketOrd) : bitmaps.cardinality(bucketOrd);
         }
 
         private SortedSetDocValues lookup() throws IOException {
@@ -1372,41 +1641,32 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         /**
-         * Hashes the values of {@code bucketOrd} into the same bucket of {@code counts}.
+         * Hashes the values of {@code buckets} into the same buckets of {@code counts}, each distinct value once.
+         *
+         * @param buckets distinct buckets
          */
-        void hashBucketInto(AbstractHyperLogLogPlusPlus counts, long bucketOrd) throws IOException {
-            final RoaringBitmap bitmap = bitmaps.get(bucketOrd);
-            final int single = bitmaps.singleOrd(bucketOrd);
-            if (bitmap == null && single < 0) {
-                return;
+        void hashBucketsInto(AbstractHyperLogLogPlusPlus counts, long[] buckets) throws IOException {
+            if (bits != null) {
+                bits.collectInto(counts, lookup(), buckets);
+            } else {
+                bitmaps.collectInto(counts, lookup(), buckets);
             }
-            final SortedSetDocValues values = lookup();
-            final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
-            if (bitmap == null) {
-                hashInto(counts, bucketOrd, values.lookupOrd(single), hash);
-                return;
-            }
-            final PeekableIntIterator ords = bitmap.getIntIterator();
-            while (ords.hasNext()) {
-                hashInto(counts, bucketOrd, values.lookupOrd(ords.next()), hash);
-            }
-        }
-
-        private static void hashInto(AbstractHyperLogLogPlusPlus counts, long bucketOrd, BytesRef value, MurmurHash3.Hash128 hash) {
-            MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
-            counts.collect(bucketOrd, hash.h1);
         }
 
         /**
          * Hashes the values of every bucket into {@code counts}, each distinct value once.
          */
         void hashAllInto(AbstractHyperLogLogPlusPlus counts) throws IOException {
-            bitmaps.collectInto(counts, lookup());
+            if (bits != null) {
+                bits.collectInto(counts, lookup());
+            } else {
+                bitmaps.collectInto(counts, lookup());
+            }
         }
 
         @Override
         public void close() {
-            bitmaps.close();
+            Releasables.close(bits, bitmaps);
         }
     }
 

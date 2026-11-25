@@ -62,8 +62,15 @@ public abstract class MetricsAggregator extends AggregatorBase {
      */
     public abstract InternalAggregation buildAggregation(long owningBucketOrd) throws IOException;
 
+    /**
+     * Called by {@link #buildAggregations} with all the buckets it is about to build, before building any of them, so that
+     * work the buckets share can be done once for all of them.
+     */
+    protected void prepareBuildAggregations(long[] owningBucketOrds) throws IOException {}
+
     @Override
     public final InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        prepareBuildAggregations(owningBucketOrds);
         InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
             results[ordIdx] = buildAggregation(owningBucketOrds[ordIdx]);

@@ -438,8 +438,9 @@ public class CompactSketchesAggregatorTests extends AggregatorTestCase {
 
     /**
      * With {@code execution_hint: deferred_ordinals} buckets are ranked by their exact number of distinct values and only the
-     * buckets the parent keeps are hashed, with the same sketches as collecting segment ordinals. Under a small memory
-     * threshold collection stops deferring, sometimes on the first document, and returns the same sketches.
+     * buckets the parent keeps are hashed, with the same sketches as collecting segment ordinals. The ordinals stay in bits while
+     * they fit in the memory threshold, or a share of it for sparse ordinals, then move to bitmaps. Under a small memory threshold collection stops
+     * deferring, sometimes on the first document, and returns the same sketches.
      */
     public void testDeferredOrdinalsMatchPerBucketSketches() throws IOException {
         final long precisionThreshold = randomFrom(1000L, 3000L, 5000L);
@@ -451,7 +452,10 @@ public class CompactSketchesAggregatorTests extends AggregatorTestCase {
                 final IndexSearcher searcher = newIndexSearcher(reader);
                 final Map<String, Long> expected = expectedCardinalities(groups, precision, true);
                 final Map<String, Long> exact = exactCardinalities(groups);
-                for (long memoryThreshold : new long[] { Long.MAX_VALUE, 1L << 16, 1L }) {
+                final long maxOrd = groups.values().stream().flatMap(List::stream).distinct().count();
+                final long bucketsWithValues = groups.values().stream().filter(values -> values.isEmpty() == false).count();
+                final long bits = bucketsWithValues * CardinalityAggregator.OrdinalsCollector.memoryOverhead(maxOrd);
+                for (long memoryThreshold : new long[] { Long.MAX_VALUE, 1L << 22, 1L << 16, 1L }) {
                     final boolean asc = randomBoolean();
                     final int size = randomIntBetween(1, Math.min(200, groups.size()));
                     final Map<String, Object> debug = new HashMap<>();
@@ -471,7 +475,12 @@ public class CompactSketchesAggregatorTests extends AggregatorTestCase {
                     );
                     final String context = "threshold=" + memoryThreshold + " asc=" + asc + " size=" + size + " debug=" + debug;
                     final boolean stopped = "stopped_over_memory_threshold".equals(debug.get("deferred_ordinals"));
-                    if (memoryThreshold == Long.MAX_VALUE) {
+                    if (bits <= memoryThreshold / CardinalityAggregator.BucketOrdinalBits.SPARSE_SHARE) {
+                        assertEquals(context, false, debug.get("deferred_bitmaps"));
+                    } else if (bits > memoryThreshold) {
+                        assertEquals(context, true, debug.get("deferred_bitmaps"));
+                    }
+                    if (memoryThreshold == Long.MAX_VALUE || memoryThreshold == 1L << 22) {
                         assertEquals(context, "used", debug.get("deferred_ordinals"));
                         // Buckets without values are returned empty without hashing anything
                         final long nonEmpty = terms.getBuckets()
