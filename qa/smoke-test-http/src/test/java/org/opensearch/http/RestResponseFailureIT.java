@@ -9,13 +9,12 @@
 package org.opensearch.http;
 
 import org.apache.hc.core5.http.io.entity.EntityUtils;
-import org.opensearch.action.admin.cluster.node.stats.NodeStats;
-import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
@@ -24,7 +23,6 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import java.util.ArrayList;
 import java.util.Collection;
 
-import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.BREAKER;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -75,25 +73,24 @@ public class RestResponseFailureIT extends HttpSmokeTestCase {
      * subtracted twice.
      */
     public void testInFlightRequestsBreakerIsReleasedWhenResponseBodyCannotBeSerialized() throws Exception {
-        final long baseline = inFlightRequestsEstimatedBytes();
-
         expectThrows(ResponseException.class, () -> getRestClient().performRequest(responseFailureRequest()));
 
-        assertBusy(() -> assertThat(inFlightRequestsEstimatedBytes(), equalTo(baseline)));
+        assertBusy(() -> assertThat(inFlightRequestsUsedBytes(), equalTo(0L)));
     }
 
     /**
-     * The in-flight-requests breaker is shared with the transport layer, which reserves bytes for the very node stats
-     * request used to read it, so the absolute value is never zero. Comparing two readings taken the same way isolates
-     * what the HTTP request under test reserved and released.
+     * Reads the in-flight-requests breaker directly from every node's {@link CircuitBreakerService}. The breaker is
+     * shared with the transport layer, so reading it through a nodes stats request would count that request's own
+     * messages, including a node's stats response that may still be in flight on the coordinating node. The result
+     * would then depend on timing. Read directly, an idle cluster reports zero, so any leaked or doubly released
+     * bytes from the HTTP request under test show up as a non-zero total.
      */
-    private long inFlightRequestsEstimatedBytes() {
-        final NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().addMetric(BREAKER.metricName()).get();
-        long estimated = 0L;
-        for (final NodeStats nodeStats : stats.getNodes()) {
-            estimated += nodeStats.getBreaker().getStats(CircuitBreaker.IN_FLIGHT_REQUESTS).getEstimated();
+    private long inFlightRequestsUsedBytes() {
+        long used = 0L;
+        for (final CircuitBreakerService breakerService : internalCluster().getInstances(CircuitBreakerService.class)) {
+            used += breakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS).getUsed();
         }
-        return estimated;
+        return used;
     }
 
     /**
