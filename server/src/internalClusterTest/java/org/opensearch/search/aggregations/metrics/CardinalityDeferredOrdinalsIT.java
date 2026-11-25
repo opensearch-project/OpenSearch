@@ -120,12 +120,19 @@ public class CardinalityDeferredOrdinalsIT extends ParameterizedStaticSettingsOp
      * The {@code deferred_ordinals} debug value of every shard and slice of the cardinality aggregation.
      */
     private static Set<Object> deferredOrdinals(SearchResponse response) {
+        return debugValues(response, "deferred_ordinals");
+    }
+
+    /**
+     * The debug value under {@code key} of every shard and slice of the cardinality aggregation.
+     */
+    private static Set<Object> debugValues(SearchResponse response, String key) {
         Set<Object> values = new HashSet<>();
         for (ProfileShardResult shard : response.getProfileResults().values()) {
             for (ProfileResult terms : shard.getAggregationProfileResults().getProfileResults()) {
                 for (ProfileResult card : terms.getProfiledChildren()) {
                     if (card.getLuceneDescription().equals("card")) {
-                        values.add(card.getDebugInfo().get("deferred_ordinals"));
+                        values.add(card.getDebugInfo().get(key));
                     }
                 }
             }
@@ -156,6 +163,21 @@ public class CardinalityDeferredOrdinalsIT extends ParameterizedStaticSettingsOp
         client().prepareIndex("idx").setSource("group", "other", "value", "x", "eager_value", "x").get();
         refresh("idx");
         assertEquals(Set.of("global_ordinals_not_loaded"), deferredOrdinals(topGroupsByCardinality("value", size)));
+        assertEquals(Set.of("used"), deferredOrdinals(topGroupsByCardinality("eager_value", size)));
+
+        // Disabling compact sketches turns deferral off too, until the setting is reset
+        final String compactSketches = CardinalityAggregator.CARDINALITY_AGGREGATION_COMPACT_SKETCHES_ENABLED.getKey();
+        assertAcked(
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(compactSketches, false))
+        );
+        try {
+            assertEquals(Set.of("no_compact_sketches"), deferredOrdinals(topGroupsByCardinality("eager_value", size)));
+            assertEquals(Set.of(false), debugValues(topGroupsByCardinality("eager_value", size), "compact_sketches"));
+        } finally {
+            assertAcked(
+                client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull(compactSketches))
+            );
+        }
         assertEquals(Set.of("used"), deferredOrdinals(topGroupsByCardinality("eager_value", size)));
     }
 }

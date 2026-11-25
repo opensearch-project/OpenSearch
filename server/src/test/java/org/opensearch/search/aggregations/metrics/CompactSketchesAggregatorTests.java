@@ -33,6 +33,7 @@ import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
@@ -73,8 +74,10 @@ public class CompactSketchesAggregatorTests extends AggregatorTestCase {
     private static final String GROUP = "group";
     private static final String KEYWORD = "value";
     private static final String NUMBER = "number";
+    private static final String OUTER = "outer";
 
     private static final MappedFieldType[] FIELD_TYPES = new MappedFieldType[] {
+        new KeywordFieldMapper.KeywordFieldType(OUTER),
         new KeywordFieldMapper.KeywordFieldType(GROUP),
         new KeywordFieldMapper.KeywordFieldType(KEYWORD),
         new NumberFieldMapper.NumberFieldType(NUMBER, NumberFieldMapper.NumberType.LONG) };
@@ -609,6 +612,99 @@ public class CompactSketchesAggregatorTests extends AggregatorTestCase {
     }
 
     /**
+     * Under a {@code terms} parent collected breadth first, which replays the documents of the buckets it keeps with new bucket
+     * ordinals, and under one collected depth first, deferred ordinals give the same buckets and values as hashing values as
+     * they are collected, including when deferral stops part way.
+     */
+    public void testDeferredOrdinalsUnderBreadthFirstParent() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
+                final int outers = randomIntBetween(3, 6);
+                final int groups = randomIntBetween(50, 300);
+                int docs = 0;
+                for (int o = 0; o < outers; o++) {
+                    for (int g = randomIntBetween(0, groups / 2); g < groups; g++) {
+                        final int first = randomIntBetween(0, 500);
+                        final int distinct = randomIntBetween(0, 40);
+                        for (int v = first; v <= first + distinct; v++) {
+                            final Document doc = new Document();
+                            doc.add(new SortedSetDocValuesField(OUTER, new BytesRef("o" + o)));
+                            doc.add(new SortedSetDocValuesField(GROUP, new BytesRef(String.format(Locale.ROOT, "g%04d", g))));
+                            if (v < first + distinct) {
+                                doc.add(new SortedSetDocValuesField(KEYWORD, new BytesRef(keyword(v))));
+                            }
+                            w.addDocument(doc);
+                            if (++docs % 1500 == 0 && randomBoolean()) {
+                                w.commit();
+                            }
+                        }
+                    }
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final IndexSearcher searcher = newIndexSearcher(reader);
+                final int outerSize = randomIntBetween(1, 3);
+                final int innerSize = randomIntBetween(1, 20);
+                for (long memoryThreshold : new long[] { Long.MAX_VALUE, 1L << 12, 1L }) {
+                    final CardinalityAggregationContext context = new CardinalityAggregationContext(true, memoryThreshold);
+                    final List<String> expected = flattenNested(
+                        collect(
+                            searcher,
+                            nested("direct", SubAggCollectionMode.DEPTH_FIRST, outerSize, innerSize),
+                            context,
+                            new NoneCircuitBreakerService(),
+                            new HashMap<>()
+                        )
+                    );
+                    for (SubAggCollectionMode mode : SubAggCollectionMode.values()) {
+                        final Map<String, Object> debug = new HashMap<>();
+                        final List<String> actual = flattenNested(
+                            collect(
+                                searcher,
+                                nested("deferred_ordinals", mode, outerSize, innerSize),
+                                context,
+                                new NoneCircuitBreakerService(),
+                                debug
+                            )
+                        );
+                        assertEquals("threshold=" + memoryThreshold + " mode=" + mode + " debug=" + debug, expected, actual);
+                    }
+                }
+            }
+        }
+    }
+
+    private static TermsAggregationBuilder nested(String hint, SubAggCollectionMode outerMode, int outerSize, int innerSize) {
+        return new TermsAggregationBuilder("outer").field(OUTER)
+            .size(outerSize)
+            .shardSize(outerSize)
+            .collectMode(outerMode)
+            .order(BucketOrder.key(true))
+            .subAggregation(
+                new TermsAggregationBuilder("groups").field(GROUP)
+                    .size(innerSize)
+                    .shardSize(innerSize)
+                    .order(BucketOrder.aggregation("card", false))
+                    .subAggregation(new CardinalityAggregationBuilder("card").field(KEYWORD).executionHint(hint))
+            );
+    }
+
+    /**
+     * Each outer and inner bucket with its cardinality, in bucket order.
+     */
+    private static List<String> flattenNested(Terms outer) {
+        final List<String> flat = new ArrayList<>();
+        for (Terms.Bucket outerBucket : outer.getBuckets()) {
+            final Terms inner = outerBucket.getAggregations().get("groups");
+            for (Terms.Bucket bucket : inner.getBuckets()) {
+                final Cardinality card = bucket.getAggregations().get("card");
+                flat.add(outerBucket.getKeyAsString() + "/" + bucket.getKeyAsString() + "=" + card.getValue());
+            }
+        }
+        return flat;
+    }
+
+    /**
      * Deferred bitmaps are charged to the request circuit breaker and released, whether the aggregation succeeds or trips.
      */
     public void testDeferredOrdinalsReleaseBreaker() throws IOException {
@@ -709,7 +805,9 @@ public class CompactSketchesAggregatorTests extends AggregatorTestCase {
         try {
             final Aggregator aggregator = createAggregator(builder, searchContext);
             // Look the cardinality aggregator up before collection starts, when it isn't wrapped by a breadth-first parent yet
-            final Aggregator card = aggregator.subAggregator("card");
+            final Aggregator card = aggregator.subAggregator("card") != null
+                ? aggregator.subAggregator("card")
+                : aggregator.subAggregator("groups").subAggregator("card");
             aggregator.preCollection();
             searcher.search(new MatchAllDocsQuery(), aggregator);
             aggregator.postCollection();

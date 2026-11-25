@@ -90,9 +90,9 @@ import java.util.function.BiConsumer;
 import java.util.function.LongConsumer;
 
 import org.roaringbitmap.ArrayContainer;
-import org.roaringbitmap.FastRankRoaringBitmap;
+import org.roaringbitmap.ContainerPointer;
+import org.roaringbitmap.PeekableCharIterator;
 import org.roaringbitmap.PeekableIntIterator;
-import org.roaringbitmap.PeekableIntRankIterator;
 import org.roaringbitmap.RoaringArray;
 import org.roaringbitmap.RoaringBitmap;
 
@@ -1224,8 +1224,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         // A new container holding one value adds 8 bytes to RoaringBitmap#getSizeInBytes: its key, header and the value
         static final long NEW_CONTAINER_BYTES = CONTAINER_OVERHEAD_BYTES + 8;
         static final int MAX_VALUES_BETWEEN_MEASUREMENTS = 4096;
-        /** Buckets with up to this many ordinals look each of them up by rank rather than with a rank iterator. */
-        static final int RANK_LOOKUP_MAX_VALUES = 64;
+        /** Buckets with up to this many values are added to the visited ordinals in one sorted batch. */
+        static final int SMALL_BUCKET_VALUES = 64;
         private static final long BREAKER_FLUSH_BYTES = 64 * 1024;
 
         private final BigArrays bigArrays;
@@ -1311,9 +1311,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
          * Number of distinct ordinals in {@code bucket}.
          */
         long cardinality(long bucket) {
-            final RoaringBitmap bitmap = get(bucket);
+            final CountedBitmap bitmap = bucket < bitmaps.size() ? bitmaps.get(bucket) : null;
             if (bitmap != null) {
-                return bitmap.getLongCardinality();
+                // the number of values added, which is cheaper than counting the bitmap's containers
+                return bitmap.values;
             }
             return bucket < firstOrds.size() && firstOrds.get(bucket) != 0 ? 1 : 0;
         }
@@ -1375,9 +1376,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
          * Hashes every distinct ordinal once, then adds the hashes of each bucket's ordinals to that bucket of {@code counts}.
          * <p>
          * The hash of an ordinal is found by the ordinal itself when the buckets hold at least half of the ordinals, and by its
-         * rank among the ordinals they hold otherwise. Ranks come from a rank iterator for buckets with many ordinals, which only
-         * moves forward, and from {@link FastRankRoaringBitmap#rank} for the others, so that millions of tiny buckets don't
-         * create an iterator each.
+         * rank among the ordinals they hold otherwise, from {@link VisitedRanks}. Either way finding a hash costs about the same
+         * for every bucket, whatever its size, and creates no object per bucket.
          *
          * @param values resolves the ordinals held by the bitmaps to their values
          */
@@ -1396,19 +1396,24 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             if (bucketCount <= 0) {
                 return;
             }
-            final FastRankRoaringBitmap visited = new FastRankRoaringBitmap();
-            long singles = 0;
+            final RoaringBitmap visited = new RoaringBitmap();
+            long smallValues = 0;
             for (long i = 0; i < bucketCount; i++) {
                 final long bucket = buckets == null ? i : buckets[(int) i];
-                final RoaringBitmap bitmap = get(bucket);
-                if (bitmap != null) {
+                final CountedBitmap bitmap = bucket < bitmaps.size() ? bitmaps.get(bucket) : null;
+                if (bitmap == null) {
+                    if (singleOrd(bucket) >= 0) {
+                        smallValues++;
+                    }
+                } else if (bitmap.values <= SMALL_BUCKET_VALUES) {
+                    smallValues += bitmap.values;
+                } else {
+                    // merging into visited walks its containers, so only big buckets are merged one by one
                     visited.or(bitmap);
-                } else if (singleOrd(bucket) >= 0) {
-                    singles++;
                 }
             }
-            if (singles > 0) {
-                addSingles(visited, Math.toIntExact(singles), buckets, bucketCount);
+            if (smallValues > 0) {
+                addSmallBuckets(visited, Math.toIntExact(smallValues), buckets, bucketCount);
             }
             final int visitedCount = visited.getCardinality();
             if (visitedCount == 0) {
@@ -1416,7 +1421,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             }
             final long maxOrd = values.getValueCount();
             final boolean byOrdinal = maxOrd <= 2L * visitedCount;
-            final long visitedBytes = ramBytesUsed(visited);
+            final long visitedBytes = ramBytesUsed(visited) + (byOrdinal ? 0 : VisitedRanks.ramBytesUsed(visited));
             breaker.accept(visitedBytes);
             try (LongArray hashes = bigArrays.newLongArray(byOrdinal ? maxOrd : visitedCount, false)) {
                 final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
@@ -1427,25 +1432,17 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
                     hashes.set(byOrdinal ? ord : i, hash.h1);
                 }
-                final BucketHasher hasher = new BucketHasher(counts, hashes, byOrdinal ? null : visited);
+                final BucketHasher hasher = new BucketHasher(counts, hashes, byOrdinal ? null : new VisitedRanks(visited));
                 for (long i = 0; i < bucketCount; i++) {
                     final long bucket = buckets == null ? i : buckets[(int) i];
                     final RoaringBitmap bitmap = get(bucket);
                     hasher.bucket = bucket;
-                    if (bitmap == null) {
+                    if (bitmap != null) {
+                        bitmap.forEach(hasher);
+                    } else {
                         final int single = singleOrd(bucket);
                         if (single >= 0) {
                             hasher.accept(single);
-                        }
-                    } else if (byOrdinal || bitmap.getCardinality() <= RANK_LOOKUP_MAX_VALUES) {
-                        bitmap.forEach(hasher);
-                    } else {
-                        // A bucket's ordinals are a sorted subset of the visited ones, so the rank iterator only moves forward
-                        final PeekableIntRankIterator ranks = visited.getIntRankIterator();
-                        final PeekableIntIterator bucketOrds = bitmap.getIntIterator();
-                        while (bucketOrds.hasNext()) {
-                            ranks.advanceIfNeeded(bucketOrds.next());
-                            counts.collect(bucket, hashes.get(ranks.peekNextRank() - 1));
                         }
                     }
                 }
@@ -1455,28 +1452,52 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         /**
-         * Adds the inline ordinals to {@code visited} in one sorted batch, which is much cheaper than adding them one by one.
+         * Adds the ordinals of the buckets with at most {@value #SMALL_BUCKET_VALUES} values to {@code visited}: sorted into a
+         * bitmap of their own, which only appends, and merged in once. Merging each bucket into {@code visited} would walk its
+         * containers once per bucket, and adding the values one by one would insert them in the middle of its containers.
          */
-        private void addSingles(FastRankRoaringBitmap visited, int singles, @Nullable long[] buckets, long bucketCount) {
-            final long bytes = RamUsageEstimator.sizeOf(new int[0]) + (long) Integer.BYTES * singles;
+        private void addSmallBuckets(RoaringBitmap visited, int values, @Nullable long[] buckets, long bucketCount) {
+            final long bytes = RamUsageEstimator.sizeOf(new int[0]) + (long) Integer.BYTES * values;
             breaker.accept(bytes);
             try {
-                final int[] ords = new int[singles];
-                int n = 0;
+                final int[] ords = new int[values];
+                final OrdinalsFiller filler = new OrdinalsFiller(ords);
                 for (long i = 0; i < bucketCount; i++) {
                     final long bucket = buckets == null ? i : buckets[(int) i];
-                    if (get(bucket) != null) {
-                        continue;
-                    }
-                    final int single = singleOrd(bucket);
-                    if (single >= 0) {
-                        ords[n++] = single;
+                    final CountedBitmap bitmap = bucket < bitmaps.size() ? bitmaps.get(bucket) : null;
+                    if (bitmap == null) {
+                        final int single = singleOrd(bucket);
+                        if (single >= 0) {
+                            ords[filler.size++] = single;
+                        }
+                    } else if (bitmap.values <= SMALL_BUCKET_VALUES) {
+                        bitmap.forEach(filler);
                     }
                 }
+                assert filler.size == values;
                 Arrays.sort(ords);
-                visited.addN(ords, 0, n);
+                final RoaringBitmap sorted = new RoaringBitmap();
+                sorted.addN(ords, 0, values);
+                visited.or(sorted);
             } finally {
                 breaker.accept(-bytes);
+            }
+        }
+
+        /**
+         * Appends the values it is given to an array.
+         */
+        private static final class OrdinalsFiller implements org.roaringbitmap.IntConsumer {
+            private final int[] ords;
+            private int size;
+
+            OrdinalsFiller(int[] ords) {
+                this.ords = ords;
+            }
+
+            @Override
+            public void accept(int ord) {
+                ords[size++] = ord;
             }
         }
 
@@ -1495,25 +1516,144 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     /**
-     * Adds the hash of each ordinal it is given to one bucket of the sketches, looking hashes up by ordinal, or by rank among
-     * {@code visited} when it is set. Reused for every bucket so that no object is created per bucket.
+     * Adds the hash of each ordinal it is given to one bucket of the sketches, looking hashes up by ordinal, or by rank when
+     * {@code ranks} is set. Reused for every bucket so that no object is created per bucket.
      */
     private static final class BucketHasher implements org.roaringbitmap.IntConsumer {
         private final AbstractHyperLogLogPlusPlus counts;
         private final LongArray hashes;
         @Nullable
-        private final FastRankRoaringBitmap visited;
+        private final VisitedRanks ranks;
         private long bucket;
 
-        BucketHasher(AbstractHyperLogLogPlusPlus counts, LongArray hashes, @Nullable FastRankRoaringBitmap visited) {
+        BucketHasher(AbstractHyperLogLogPlusPlus counts, LongArray hashes, @Nullable VisitedRanks ranks) {
             this.counts = counts;
             this.hashes = hashes;
-            this.visited = visited;
+            this.ranks = ranks;
         }
 
         @Override
         public void accept(int ord) {
-            counts.collect(bucket, hashes.get(visited == null ? ord : visited.rank(ord) - 1));
+            counts.collect(bucket, hashes.get(ranks == null ? ord : ranks.rank(ord)));
+        }
+    }
+
+    /**
+     * The rank of each value of a set of ordinals, its position among them in ascending order, so that the hashes of the values
+     * can be kept in an array as long as the set rather than as long as the ordinal space. Like a {@link RoaringBitmap} it
+     * splits the ordinals into blocks of 65536: a block holding more than {@value #DENSE_VALUES} values keeps them as bits with
+     * the rank of each 64-bit word, so its ranks take constant time, and the others keep their sorted values, searched in at
+     * most 12 steps. That costs at most about 3 bytes per value. Ranks are fastest when asked in ascending order, as the block
+     * of the previous ordinal is tried first.
+     *
+     * @opensearch.internal
+     */
+    static final class VisitedRanks {
+        /** Blocks with more values than this keep bits, as roaring bitmaps do. */
+        static final int DENSE_VALUES = 4096;
+        private static final int WORDS_PER_BLOCK = 1024;
+
+        private final char[] keys;
+        /** Rank of the first value of each block. */
+        private final int[] blockRanks;
+        /** Offset of a dense block in {@link #words}, or {@code -1 - offset} of a sparse one in {@link #lows}. */
+        private final int[] offsets;
+        private final long[] words;
+        /** Rank of the first bit of each word within its block. */
+        private final int[] wordRanks;
+        private final char[] lows;
+        private final int[] lowEnds;
+        private int lastKey = -1;
+        private int lastBlock;
+
+        VisitedRanks(RoaringBitmap set) {
+            final int blocks = set.getContainerCount();
+            keys = new char[blocks];
+            blockRanks = new int[blocks];
+            offsets = new int[blocks];
+            lowEnds = new int[blocks];
+            int dense = 0;
+            int sparseValues = 0;
+            ContainerPointer pointer = set.getContainerPointer();
+            for (; pointer.getContainer() != null; pointer.advance()) {
+                if (pointer.getCardinality() > DENSE_VALUES) {
+                    dense++;
+                } else {
+                    sparseValues += pointer.getCardinality();
+                }
+            }
+            words = new long[dense * WORDS_PER_BLOCK];
+            wordRanks = new int[dense * WORDS_PER_BLOCK];
+            lows = new char[sparseValues];
+            int rank = 0;
+            int denseOffset = 0;
+            int lowOffset = 0;
+            pointer = set.getContainerPointer();
+            for (int b = 0; pointer.getContainer() != null; pointer.advance(), b++) {
+                keys[b] = pointer.key();
+                blockRanks[b] = rank;
+                final PeekableCharIterator values = pointer.getContainer().getCharIterator();
+                if (pointer.getCardinality() > DENSE_VALUES) {
+                    offsets[b] = denseOffset;
+                    while (values.hasNext()) {
+                        final char low = values.next();
+                        words[denseOffset + (low >>> 6)] |= 1L << low;
+                    }
+                    int wordRank = 0;
+                    for (int w = 0; w < WORDS_PER_BLOCK; w++) {
+                        wordRanks[denseOffset + w] = wordRank;
+                        wordRank += Long.bitCount(words[denseOffset + w]);
+                    }
+                    denseOffset += WORDS_PER_BLOCK;
+                } else {
+                    offsets[b] = -1 - lowOffset;
+                    while (values.hasNext()) {
+                        lows[lowOffset++] = values.next();
+                    }
+                }
+                lowEnds[b] = lowOffset;
+                rank += pointer.getCardinality();
+            }
+        }
+
+        /**
+         * Estimated heap used by the ranks of {@code set}.
+         */
+        static long ramBytesUsed(RoaringBitmap set) {
+            long bytes = RamUsageEstimator.shallowSizeOfInstance(VisitedRanks.class) + 7L * RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+            final ContainerPointer pointer = set.getContainerPointer();
+            for (; pointer.getContainer() != null; pointer.advance()) {
+                bytes += Character.BYTES + 3L * Integer.BYTES;
+                if (pointer.getCardinality() > DENSE_VALUES) {
+                    bytes += (long) WORDS_PER_BLOCK * (Long.BYTES + Integer.BYTES);
+                } else {
+                    bytes += (long) Character.BYTES * pointer.getCardinality();
+                }
+            }
+            return bytes;
+        }
+
+        /**
+         * The rank of {@code ord}, which must be in the set.
+         */
+        int rank(int ord) {
+            final int key = ord >>> 16;
+            if (key != lastKey) {
+                lastBlock = Arrays.binarySearch(keys, (char) key);
+                lastKey = key;
+            }
+            final int block = lastBlock;
+            assert block >= 0 : "ordinal " + ord + " isn't in the set";
+            final char low = (char) ord;
+            final int offset = offsets[block];
+            if (offset >= 0) {
+                final int word = offset + (low >>> 6);
+                return blockRanks[block] + wordRanks[word] + Long.bitCount(words[word] & ((1L << low) - 1));
+            }
+            final int start = -1 - offset;
+            final int index = Arrays.binarySearch(lows, start, lowEnds[block], low);
+            assert index >= 0 : "ordinal " + ord + " isn't in the set";
+            return blockRanks[block] + index - start;
         }
     }
 
