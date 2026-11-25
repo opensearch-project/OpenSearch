@@ -168,7 +168,15 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink, Can
     protected final void drainOutputIntoDownstream(StreamHandle outStream) {
         BufferAllocator alloc = ctx.allocator();
         try (CDataDictionaryProvider dictProvider = new CDataDictionaryProvider()) {
-            DatafusionResultStream.BatchIterator it = new DatafusionResultStream.BatchIterator(outStream, alloc, dictProvider);
+            // Imports go onto the caller-owned, node-scoped staging allocator — never a child minted here:
+            // downstream may hand the batch to the Flight transport, which keeps charging that allocator
+            // long after this drain returns.
+            DatafusionResultStream.BatchIterator it = new DatafusionResultStream.BatchIterator(
+                outStream,
+                alloc,
+                ctx.importStagingAllocator(),
+                dictProvider
+            );
             while (it.hasNext()) {
                 // next() transfers ownership of the imported VSR to us. feed() takes ownership only
                 // on success; if it throws (e.g. the downstream sink was torn down on a concurrent

@@ -81,6 +81,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
@@ -97,6 +98,8 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.search.SearchModule;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
@@ -1163,6 +1166,35 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         AliasMetadata alias = resolvedAliases.get(0);
         assertThat(alias.getSearchRouting(), equalTo("3"));
         assertThat(alias.writeIndex(), is(true));
+    }
+
+    public void testCreateIndexAliasKeepsTheScoringModeMode() {
+        List<AliasMetadata> resolved = resolveAndValidateAliases(
+            "test",
+            Collections.singleton(new Alias("scoped").filter("{\"match_all\":{}}").scoringMode("no_stats")),
+            Collections.emptyList(),
+            Metadata.builder().build(),
+            aliasValidator,
+            new NamedXContentRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents()),
+            queryShardContext
+        );
+        assertEquals("no_stats", resolved.get(0).scoringMode());
+    }
+
+    public void testCreateIndexAliasRejectsScoringModeWithoutAFilter() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> resolveAndValidateAliases(
+                "test",
+                Collections.singleton(new Alias("scoped").scoringMode("no_stats")),
+                Collections.emptyList(),
+                Metadata.builder().build(),
+                aliasValidator,
+                xContentRegistry(),
+                queryShardContext
+            )
+        );
+        assertThat(e.getMessage(), containsString("[scoring_mode] requires a [filter]"));
     }
 
     public void testAggregateIndexSettingsIgnoresTemplatesOnCreateFromSourceIndex() throws Exception {
@@ -3504,6 +3536,143 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertEquals("false", finalCustomData.get(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY));
     }
 
+    /**
+     * Node attributes for {@code node.attr.remote_store.mode: segments_only}: a segment repository and neither a
+     * translog nor a cluster state repository.
+     */
+    private static Map<String, String> getSegmentsOnlyNodeAttributes() {
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
+        return attributes;
+    }
+
+    private static ClusterState clusterStateWithSegmentsOnlyNode() {
+        DiscoveryNode segmentsOnlyNode = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            getSegmentsOnlyNodeAttributes(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        return ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder().add(segmentsOnlyNode).build()).build();
+    }
+
+    /**
+     * An index created on segments-only nodes must be remote-backed for segments and must carry no translog
+     * repository. updateRemoteStoreSettings selects the node to copy repository names from with
+     * DiscoveryNode::isRemoteSegmentStoreNode, so a segments-only node qualifies as a donor even though it has no
+     * cluster state repository.
+     */
+    public void testUpdateRemoteStoreSettingsForSegmentsOnlyNode() {
+        Settings nodeSettings = Settings.builder().put("node.attr.remote_store.segment.repository", "my-segment-repo-1").build();
+        ClusterSettings strictClusterSettings = new ClusterSettings(
+            Settings.builder()
+                .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
+                .build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+
+        Settings.Builder settingsBuilder = Settings.builder();
+        MetadataCreateIndexService.updateRemoteStoreSettings(
+            settingsBuilder,
+            clusterStateWithSegmentsOnlyNode(),
+            strictClusterSettings,
+            nodeSettings,
+            "test-index"
+        );
+
+        Settings indexSettings = settingsBuilder.build();
+        assertNull("no remote translog repository should be applied", indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
+        assertEquals("my-segment-repo-1", indexSettings.get(SETTING_REMOTE_SEGMENT_STORE_REPOSITORY));
+        assertTrue("index should be remote-backed for segments", indexSettings.getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false));
+    }
+
+    /**
+     * {@code updateRemoteStoreSettings} also runs from snapshot restore's override-settings step, so a snapshot
+     * taken of a fencing-enabled index can reach it. Restoring one into a segments_only cluster is refused for the
+     * same reason creating such an index is: there is no translog repository for the fence to live in. The restore
+     * is recoverable from, which the message has to say, because unlike index creation the operator did not choose
+     * these settings and can only drop them through the restore request.
+     */
+    public void testRestoringAFencedSnapshotIntoASegmentsOnlyClusterIsRefused() {
+        Settings nodeSettings = Settings.builder().put("node.attr.remote_store.segment.repository", "my-segment-repo-1").build();
+        ClusterSettings strictClusterSettings = new ClusterSettings(
+            Settings.builder()
+                .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
+                .build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+        Settings.Builder restored = Settings.builder()
+            .put(SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true);
+
+        IndexCreationException e = expectThrows(
+            IndexCreationException.class,
+            () -> MetadataCreateIndexService.updateRemoteStoreSettings(
+                restored,
+                clusterStateWithSegmentsOnlyNode(),
+                strictClusterSettings,
+                nodeSettings,
+                "restored-index"
+            )
+        );
+        assertThat(e.getCause().getMessage(), containsString("requires a remote translog repository"));
+        assertThat(e.getCause().getMessage(), containsString("ignore_index_settings"));
+    }
+
+    /**
+     * A segments-only index should use the cluster's configured remote store path type rather than falling back to
+     * FIXED paths, even though there is no translog repository.
+     */
+    public void testRemoteStorePathTypeForSegmentsOnlyNode() {
+        Settings settings = Settings.builder().put("node.attr.remote_store.segment.repository", "my-segment-repo-1").build();
+
+        BlobStoreRepository repositoryMock = mock(BlobStoreRepository.class);
+        BlobStore blobStoreMock = mock(BlobStore.class);
+        when(repositoryMock.blobStore()).thenReturn(blobStoreMock);
+        when(blobStoreMock.isBlobMetadataEnabled()).thenReturn(randomBoolean());
+        when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);
+        when(repositoriesService.repository(Mockito.any())).thenReturn(repositoryMock);
+
+        ClusterState clusterState = clusterStateWithSegmentsOnlyNode();
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+            settings,
+            clusterService,
+            indicesServices,
+            null,
+            null,
+            createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+            null,
+            null,
+            null,
+            null,
+            new SystemIndices(Collections.emptyMap()),
+            false,
+            new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+            DefaultRemoteStoreSettings.INSTANCE,
+            repositoriesServiceSupplier
+        );
+
+        Settings indexSettings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+
+        IndexMetadata.Builder imdBuilder = IndexMetadata.builder("test").settings(indexSettings);
+        checkerService.addRemoteStoreCustomMetadata(imdBuilder, true, clusterState);
+
+        assertEquals(
+            "segments-only indices should use the cluster's configured path type",
+            PathType.HASHED_PREFIX,
+            RemoteStoreUtils.determineRemoteStorePathStrategy(imdBuilder.build()).getType()
+        );
+    }
+
     private static Map<String, String> getNodeAttributes() {
         String segmentRepositoryName = "my-segment-repo-1";
         Map<String, String> attributes = new HashMap<>();
@@ -4502,6 +4671,75 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     // ---- source_partition_strategy validation tests ----
 
+    public void testValidateIngestionWriteParams() {
+        // a write-only param is accepted
+        MetadataCreateIndexService.validateIngestionWriteParams(
+            Settings.builder()
+                .put("index.ingestion_source.param.topic", "orders")
+                .put("index.ingestion_source.write.param.linger.ms", "5")
+                .build()
+        );
+
+        // a write param that repeats a param is rejected
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataCreateIndexService.validateIngestionWriteParams(
+                Settings.builder()
+                    .put("index.ingestion_source.param.topic", "orders")
+                    .put("index.ingestion_source.write.param.topic", "other")
+                    .build()
+            )
+        );
+        assertTrue(e.getMessage().contains("[index.ingestion_source.write.param.topic] is already set"));
+    }
+
+    public void testValidateIngestionWriteSettingsRejectedOnMixedCluster() {
+        // write.enabled and write.param.* were introduced in V_3_11_0; older nodes would receive index metadata
+        // with unknown setting keys and fail to create the index
+        ClusterState state = mixedClusterState(Version.V_3_10_0);
+
+        for (Settings settings : List.of(
+            Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_WRITE_ENABLED, true).build(),
+            Settings.builder().put("index.ingestion_source.write.param.linger.ms", "5").build()
+        )) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> MetadataCreateIndexService.validateIngestionSourceSettings(settings, state)
+            );
+            assertTrue(e.getMessage().contains("index.ingestion_source.write.* settings require all nodes"));
+            assertTrue(e.getMessage().contains(Version.V_3_11_0.toString()));
+            assertTrue(e.getMessage().contains(Version.V_3_10_0.toString()));
+        }
+    }
+
+    public void testValidateIngestionWriteSettingsOnCurrentVersion() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_WRITE_ENABLED, true)
+            .put("index.ingestion_source.write.param.linger.ms", "5")
+            .build();
+
+        // should not throw
+        MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
+    }
+
+    public void testIngestionSettingsWithoutWriteSettingsAreAcceptedOnMixedCluster() {
+        Settings settings = Settings.builder().put("index.ingestion_source.param.topic", "orders").build();
+
+        // should not throw
+        MetadataCreateIndexService.validateIngestionSourceSettings(settings, mixedClusterState(Version.V_3_10_0));
+    }
+
+    private ClusterState mixedClusterState(Version oldVersion) {
+        final Set<DiscoveryNodeRole> roles = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        );
+        DiscoveryNode oldNode = new DiscoveryNode("old_node", buildNewFakeTransportAddress(), emptyMap(), roles, oldVersion);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(oldNode).build();
+        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+    }
+
     public void testValidateIngestionSourceSettingsPartitionStrategyOnCurrentVersion() {
         // source_partition_strategy explicitly set on a current-version cluster — should pass
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).build();
@@ -4741,4 +4979,188 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Stamping the fencing default must not validate the settings it is handed. {@code index.remote_store.enabled}
+     * carries a validator cross-checking {@code index.replication.type}, and this code also runs from snapshot
+     * restore's override-settings step, where restoring a remote-store snapshot onto a document-replication index is a
+     * combination the restore path itself has to reject with a {@code SnapshotRestoreException}. Reading the setting
+     * through {@code Setting#get} pre-empted that with an {@code IllegalArgumentException}, breaking
+     * {@code SearchReplicaRestoreIT}. The stamp only ever needed a boolean, so it reads the raw value.
+     */
+    public void testFencingDefaultStampDoesNotValidateReplicationTypeCompatibility() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED.getKey(), true).build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+        // The invalid pairing on purpose: remote store on, document replication.
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
+        // The translog repository is only here to get past the segments_only guard; the point of the test is that
+        // the incompatible replication type below is not validated by the stamp.
+
+        MetadataCreateIndexService.updateRemoteStoreSettings(
+            settingsBuilder,
+            ClusterState.builder(ClusterName.DEFAULT).build(),
+            clusterSettings,
+            Settings.EMPTY,
+            "test-index"
+        );
+
+        // No exception, and the cluster default is still baked in - rejecting the pairing belongs to the caller.
+        assertTrue(
+            "fencing default should still be stamped for a remote-store index",
+            settingsBuilder.build().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, false)
+        );
+    }
+
+    /**
+     * In {@code segments_only} mode the segments are remote backed and the translog is not. The fence lives in the
+     * translog repository and is written by the translog upload, so there is nothing there to fence with and the
+     * cluster default must not be stamped. Were it stamped, index creation would fail on the setting's own
+     * validator, and before that validator existed it would have left a flag that nothing reads while still
+     * satisfying the auto-restore precondition.
+     */
+    public void testFencingDefaultIsNotStampedWithoutARemoteTranslogRepository() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED.getKey(), true).build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "segment-repo")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+
+        MetadataCreateIndexService.updateRemoteStoreSettings(
+            settingsBuilder,
+            ClusterState.builder(ClusterName.DEFAULT).build(),
+            clusterSettings,
+            Settings.EMPTY,
+            "test-index"
+        );
+
+        assertFalse(
+            "fencing must not be stamped on an index whose translog is local",
+            settingsBuilder.build().hasValue(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED)
+        );
+    }
+
+    /** An empty repository name is no repository at all, and has to be read the same way as an absent one. */
+    public void testFencingDefaultIsNotStampedForAnEmptyRemoteTranslogRepository() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_FENCING_ENABLED.getKey(), true).build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "segment-repo")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+
+        MetadataCreateIndexService.updateRemoteStoreSettings(
+            settingsBuilder,
+            ClusterState.builder(ClusterName.DEFAULT).build(),
+            clusterSettings,
+            Settings.EMPTY,
+            "test-index"
+        );
+
+        assertFalse(
+            "fencing must not be stamped against a repository that is named by an empty string",
+            settingsBuilder.build().hasValue(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED)
+        );
+    }
+
+    /**
+     * Asking for fencing explicitly is refused for the same reason the default is not stamped, and refused rather
+     * than ignored. This is what keeps auto-restore out of reach of a {@code segments_only} index: its validator
+     * only asks whether fencing is enabled, so an operator who set both would otherwise get an auto-restore whose
+     * entire safety argument rests on a fence that was never written.
+     */
+    public void testFencingCannotBeEnabledWithoutARemoteTranslogRepository() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "segment-repo")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true);
+
+        IndexCreationException e = expectThrows(
+            IndexCreationException.class,
+            () -> MetadataCreateIndexService.updateRemoteStoreSettings(
+                settingsBuilder,
+                ClusterState.builder(ClusterName.DEFAULT).build(),
+                clusterSettings,
+                Settings.EMPTY,
+                "test-index"
+            )
+        );
+        assertThat(e.getCause().getMessage(), containsString("requires a remote translog repository"));
+    }
+
+    /**
+     * The same request is fine once the translog is remote backed too, which is the ordinary fully remote index.
+     */
+    public void testFencingIsAcceptedWithARemoteTranslogRepository() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "segment-repo")
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true);
+
+        MetadataCreateIndexService.updateRemoteStoreSettings(
+            settingsBuilder,
+            ClusterState.builder(ClusterName.DEFAULT).build(),
+            clusterSettings,
+            Settings.EMPTY,
+            "test-index"
+        );
+
+        assertTrue(settingsBuilder.build().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, false));
+    }
+
+    public void testCreateIndexAliasRejectsTheScoringModeWhileANodePredatesIt() throws Exception {
+        withTemporaryClusterService(((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesServices,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                new Environment(Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                threadPool,
+                null,
+                new SystemIndices(Collections.emptyMap()),
+                false,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                DefaultRemoteStoreSettings.INSTANCE,
+                repositoriesServiceSupplier
+            );
+            ClusterState mixed = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(
+                    DiscoveryNodes.builder()
+                        .add(new DiscoveryNode("new", buildNewFakeTransportAddress(), Version.CURRENT))
+                        .add(
+                            new DiscoveryNode(
+                                "old",
+                                buildNewFakeTransportAddress(),
+                                VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION)
+                            )
+                        )
+                )
+                .build();
+            CreateIndexClusterStateUpdateRequest request = new CreateIndexClusterStateUpdateRequest("test", "scoped_idx", "scoped_idx")
+                .aliases(Collections.singleton(new Alias("scoped").filter("{\"match_all\":{}}").scoringMode("no_stats")));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> checkerService.applyCreateIndexRequest(mixed, request, false)
+            );
+            assertThat(e.getMessage(), containsString("[scoring_mode] on alias [scoped]"));
+        }));
+    }
 }

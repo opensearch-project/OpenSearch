@@ -6,9 +6,11 @@
 package org.opensearch.index;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.bulk.BulkItemRequest;
+import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.bulk.BulkShardRequest;
@@ -25,6 +27,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
@@ -41,6 +44,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Stream;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -328,19 +332,19 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
                 assertEquals(0, coordinatingShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
             });
 
-            expectThrows(OpenSearchRejectedExecutionException.class, () -> {
-                if (randomBoolean()) {
-                    client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
-                } else if (randomBoolean()) {
-                    client(primaryName).bulk(bulkRequest).actionGet();
-                } else {
-                    client(replicaName).bulk(bulkRequest).actionGet();
-                }
-            });
+            final BulkResponse rejectedResponse;
+            if (randomBoolean()) {
+                rejectedResponse = client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
+            } else if (randomBoolean()) {
+                rejectedResponse = client(primaryName).bulk(bulkRequest).actionGet();
+            } else {
+                rejectedResponse = client(replicaName).bulk(bulkRequest).actionGet();
+            }
+            assertRejectedBulkResponse(bulkRequest, rejectedResponse);
 
             replicaRelease.close();
 
-            successFuture.actionGet();
+            assertNoFailures(successFuture.actionGet());
 
             assertEquals(0, primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(0, primaryShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
@@ -444,13 +448,10 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
             });
 
             // Large request on a shard with already large occupancy is rejected
-            expectThrows(
-                OpenSearchRejectedExecutionException.class,
-                () -> { client(coordinatingOnlyNode).bulk(largeBulkRequest).actionGet(); }
-            );
+            assertRejectedBulkResponse(largeBulkRequest, client(coordinatingOnlyNode).bulk(largeBulkRequest).actionGet());
 
             replicaRelease.close();
-            successFuture.actionGet();
+            assertNoFailures(successFuture.actionGet());
             assertEquals(0, primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(0, primaryShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
             assertEquals(0, replicaShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
@@ -503,7 +504,7 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
                 });
 
                 replicaReleaseSmallRequest.close();
-                successFutureSmallRequest.actionGet();
+                assertNoFailures(successFutureSmallRequest.actionGet());
                 assertEquals(0, primaryShardTrackerSmall.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertEquals(0, primaryShardTrackerSmall.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
                 assertEquals(0, replicaShardTrackerSmall.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
@@ -578,11 +579,10 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
             });
 
             BulkResponse responses = client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
-            assertTrue(responses.hasFailures());
-            assertThat(responses.getItems()[0].getFailure().getCause().getCause(), instanceOf(OpenSearchRejectedExecutionException.class));
+            assertRejectedBulkResponse(bulkRequest, responses);
 
             replicaRelease.close();
-            successFuture.actionGet();
+            assertNoFailures(successFuture.actionGet());
 
             assertEquals(0, primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(0, primaryShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
@@ -685,11 +685,10 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
             });
 
             BulkResponse responses = client(coordinatingOnlyNode).bulk(largeBulkRequest).actionGet();
-            assertTrue(responses.hasFailures());
-            assertThat(responses.getItems()[0].getFailure().getCause().getCause(), instanceOf(OpenSearchRejectedExecutionException.class));
+            assertRejectedBulkResponse(largeBulkRequest, responses);
 
             replicaRelease.close();
-            successFuture.actionGet();
+            assertNoFailures(successFuture.actionGet());
             assertEquals(0, primaryShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(0, primaryShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
             assertEquals(0, replicaShardTracker.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
@@ -743,7 +742,7 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
                 });
 
                 replicaReleaseSmallRequest.close();
-                successFutureSmallRequest.actionGet();
+                assertNoFailures(successFutureSmallRequest.actionGet());
                 assertEquals(0, primaryShardTrackerSmall.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertEquals(0, primaryShardTrackerSmall.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
                 assertEquals(0, replicaShardTrackerSmall.getCommonOperationTracker().getCurrentCombinedCoordinatingAndPrimaryBytes());
@@ -809,6 +808,22 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
                 blockReplication.countDown();
             }
         };
+    }
+
+    private static void assertRejectedBulkResponse(BulkRequest request, BulkResponse response) {
+        assertEquals(RestStatus.OK, response.status());
+        assertTrue(response.hasFailures());
+        assertEquals(request.numberOfActions(), response.getItems().length);
+        for (int i = 0; i < response.getItems().length; i++) {
+            BulkItemResponse item = response.getItems()[i];
+            assertEquals(i, item.getItemId());
+            assertEquals(request.requests().get(i).index(), item.getIndex());
+            assertEquals(request.requests().get(i).id(), item.getId());
+            assertEquals(request.requests().get(i).opType(), item.getOpType());
+            assertTrue(item.isFailed());
+            assertEquals(RestStatus.TOO_MANY_REQUESTS, item.status());
+            assertThat(ExceptionsHelper.unwrapCause(item.getFailure().getCause()), instanceOf(OpenSearchRejectedExecutionException.class));
+        }
     }
 
     private void restartCluster(Settings settings) throws Exception {

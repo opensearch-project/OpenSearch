@@ -32,6 +32,7 @@
 
 package org.opensearch.repositories.s3;
 
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.exception.SdkException;
@@ -53,6 +54,8 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.ObjectAttributes;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
@@ -73,8 +76,10 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
+import org.opensearch.common.blobstore.BlobVersionConflictException;
 import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.InputStreamWithMetadata;
+import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
@@ -98,9 +103,11 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -231,6 +238,122 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         // Delegate to crypto-aware version with null CryptoMetadata
         writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata, null);
     }
+
+    /**
+     * S3 evaluates {@code If-Match} and {@code If-None-Match} server-side and serializes conditional writes per key, so
+     * the precondition holds against writers in any process and on any host - which is what makes this container usable
+     * for remote store primary fencing.
+     */
+    @Override
+    public boolean isConditionalWriteSupported() {
+        return true;
+    }
+
+    @Override
+    public VersionedBlob readBlobWithVersion(String blobName) throws IOException {
+        // Versioned reads materialize the object in memory and are meant for small control blobs only. The ranged GET
+        // bounds the transfer to the same limit the write side enforces (a ranged GET still returns the object's
+        // ETag); an object at this key that exceeds the bound - misuse or corruption - is refused below instead of
+        // being buffered whole.
+        final long sizeBound = blobStore.bufferSizeInBytes();
+        final GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+            .bucket(blobStore.bucket())
+            .key(buildKey(blobName))
+            .range("bytes=0-" + sizeBound)
+            .expectedBucketOwner(blobStore.expectedBucketOwner())
+            .build();
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            final ResponseBytes<GetObjectResponse> responseBytes = AccessController.doPrivileged(
+                () -> clientReference.get().getObjectAsBytes(getObjectRequest)
+            );
+            final byte[] content = responseBytes.asByteArray();
+            if (content.length > sizeBound) {
+                throw new IOException("[" + blobName + "] blob of size > [" + sizeBound + "] is too large for a versioned read");
+            }
+            return new VersionedBlob(content, responseBytes.response().eTag());
+        } catch (NoSuchKeyException e) {
+            throw new NoSuchFileException("[" + blobName + "] blob not found");
+        } catch (SdkException e) {
+            throw new IOException("Unable to read object [" + blobName + "] with version", e);
+        }
+    }
+
+    @Override
+    public String writeBlobConditionally(String blobName, InputStream inputStream, long blobSize, @Nullable String expectedVersionToken)
+        throws IOException {
+        if (blobSize > blobStore.bufferSizeInBytes()) {
+            throw new IllegalArgumentException("Conditional write request size [" + blobSize + "] can't be larger than buffer size");
+        }
+        PutObjectRequest.Builder putObjectRequestBuilder = PutObjectRequest.builder()
+            .bucket(blobStore.bucket())
+            .key(buildKey(blobName))
+            .contentLength(blobSize)
+            .storageClass(blobStore.getStorageClass())
+            .acl(blobStore.getCannedACL())
+            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().putObjectMetricPublisher))
+            .expectedBucketOwner(blobStore.expectedBucketOwner());
+        if (expectedVersionToken == null) {
+            // create-if-absent
+            putObjectRequestBuilder.ifNoneMatch("*");
+        } else {
+            // compare-and-swap on the version token (ETag) observed at read time
+            putObjectRequestBuilder.ifMatch(expectedVersionToken);
+        }
+        configureEncryptionSettings(putObjectRequestBuilder, blobStore, null);
+        final PutObjectRequest putObjectRequest = putObjectRequestBuilder.build();
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            final PutObjectResponse response = AccessController.doPrivileged(
+                () -> clientReference.get().putObject(putObjectRequest, RequestBody.fromInputStream(inputStream, blobSize))
+            );
+            return response.eTag();
+        } catch (S3Exception e) {
+            if (isConditionFailure(e, expectedVersionToken != null)) {
+                throw new BlobVersionConflictException(
+                    "conditional write conflict for blob [" + blobName + "]: expected [" + expectedVersionToken + "]",
+                    e
+                );
+            }
+            throw new IOException("Unable to conditionally upload object [" + blobName + "]", e);
+        } catch (SdkException e) {
+            throw new IOException("Unable to conditionally upload object [" + blobName + "]", e);
+        }
+    }
+
+    /**
+     * Distinguishes a genuinely lost compare-and-swap from a transient conflict. Losing the CAS is fatal for a fenced
+     * writer, so only errors that prove the precondition was evaluated and NOT MET are classified as a lost CAS:
+     * a 412, with or without an error code, a 409 carrying {@code PreconditionFailed}, or - for an {@code If-Match}
+     * write only - a 404 carrying {@code NoSuchKey}. S3 fails an {@code If-Match} write with 404 rather than 412 when
+     * the key has no current version at all (deleted, or a delete marker): the version the caller presented provably
+     * no longer exists, so the precondition can never be met and retrying cannot change the answer. That is exactly
+     * what a swept acknowledgement path looks like to a superseded writer, and it matches
+     * {@code FsBlobContainer#writeBlobConditionally}, which also reports a conflict for a missing blob. A 404 without
+     * {@code NoSuchKey} (e.g. {@code NoSuchBucket}) stays an ordinary {@link IOException}, and a create-if-absent
+     * ({@code If-None-Match: *}) never 404s on the object itself. Every other 409 - including
+     * {@code ConditionalRequestConflict}, which S3 returns when a concurrent conditional write on the same key is
+     * still in flight and the outcome of this request's precondition is therefore UNKNOWN - must surface as an
+     * ordinary {@link IOException} and be retried: the retry resolves it definitively (a 412 if the CAS was genuinely
+     * lost, success if it was not), whereas classifying it as lost would fence a healthy writer whose rival lost.
+     */
+    private static boolean isConditionFailure(S3Exception e, boolean isCompareAndSwap) {
+        // 412 Precondition Failed is unambiguous: the If-Match/If-None-Match condition was not met.
+        if (e.statusCode() == 412) {
+            return true;
+        }
+        final String errorCode = e.awsErrorDetails() == null ? null : e.awsErrorDetails().errorCode();
+        if (isCompareAndSwap && e.statusCode() == 404) {
+            // If-Match against a key with no current version. NoSuchKey is required: a 404 without it (NoSuchBucket,
+            // or an unlabelled response) is not evidence about the precondition and stays retryable.
+            return "NoSuchKey".equals(errorCode);
+        }
+        if (e.statusCode() != 409) {
+            return false;
+        }
+        // Neither an unlabelled 409 nor a retryable conflict code is evidence that the precondition failed.
+        return errorCode != null && CONDITIONAL_WRITE_CONFLICT_ERROR_CODES.contains(errorCode);
+    }
+
+    private static final Set<String> CONDITIONAL_WRITE_CONFLICT_ERROR_CODES = Set.of("PreconditionFailed");
 
     @Override
     public void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException {

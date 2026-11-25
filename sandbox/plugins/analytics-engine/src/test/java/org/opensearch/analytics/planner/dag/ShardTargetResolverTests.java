@@ -19,8 +19,8 @@ import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexAbstraction;
@@ -141,7 +141,7 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
         when(iterB.nextOrNull()).thenReturn(routingB);
 
         ClusterService clusterService = mock(ClusterService.class);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY));
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         OperationRouting routing = mock(OperationRouting.class);
         when(clusterService.operationRouting()).thenReturn(routing);
@@ -232,8 +232,8 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
         ).thenReturn(new String[] { "idx_a", "idx_b" });
 
         ClusterService clusterService = mock(ClusterService.class);
-        Settings settings = Settings.builder().put(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.getKey(), limit).build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY));
+        Settings settings = Settings.builder().put(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), limit).build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         OperationRouting opRouting = mock(OperationRouting.class);
         when(clusterService.operationRouting()).thenReturn(opRouting);
@@ -243,20 +243,21 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
 
         RelNode fragment = stubScanForAlias("my_alias");
         ShardTargetResolver resolverUnderTest = new ShardTargetResolver(fragment, clusterService, resolver);
-        resolverUnderTest.setMaxShardsPerQuery(limit);
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> resolverUnderTest.resolve(clusterState, null));
         assertTrue(ex.getMessage().contains("alias [my_alias]"));
         assertTrue(ex.getMessage().contains("[" + shardCount + "] shards"));
         assertTrue(ex.getMessage().contains("[" + limit + "]"));
-        assertTrue(ex.getMessage().contains("analytics.query.max_shards_per_query"));
+        assertTrue(ex.getMessage().contains("action.search.shard_count.limit"));
     }
 
     /**
-     * A single concrete index with many shards must NOT be rejected even if shard count
-     * exceeds the limit — the limit only applies to multi-index queries.
+     * The ceiling counts shards, not indices: one oversharded concrete index is exactly as expensive
+     * for the coordinator as the same shards spread across an alias, so it is rejected too. Vanilla's
+     * {@code failIfOverShardCountLimit} draws no distinction either, and it can afford not to because
+     * the limit is unlimited by default — see {@link #testResolveIsUnlimitedByDefault}.
      */
-    public void testResolveAllowsSingleIndexExceedingLimit() {
+    public void testResolveRejectsSingleIndexExceedingLimit() {
         int shardCount = 5;
         int limit = 3;
 
@@ -294,8 +295,8 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
         ).thenReturn(new String[] { "big_index" });
 
         ClusterService clusterService = mock(ClusterService.class);
-        Settings settings = Settings.builder().put(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.getKey(), limit).build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY));
+        Settings settings = Settings.builder().put(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), limit).build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         OperationRouting opRouting = mock(OperationRouting.class);
         when(clusterService.operationRouting()).thenReturn(opRouting);
@@ -305,10 +306,69 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
 
         RelNode fragment = stubScanForAlias("big_index");
         ShardTargetResolver resolverUnderTest = new ShardTargetResolver(fragment, clusterService, resolver);
-        resolverUnderTest.setMaxShardsPerQuery(limit);
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> resolverUnderTest.resolve(clusterState, null));
+        assertTrue(ex.getMessage(), ex.getMessage().contains("big_index"));
+        assertTrue(ex.getMessage(), ex.getMessage().contains("[" + shardCount + "] shards"));
+        assertTrue(ex.getMessage(), ex.getMessage().contains("action.search.shard_count.limit"));
+    }
+
+    /**
+     * Nothing is rejected until an operator opts in. {@code action.search.shard_count.limit} defaults
+     * to {@code Long.MAX_VALUE}, so an unconfigured cluster fans out freely and the can-match
+     * pre-filter plus the per-node dispatch throttle are what bound the work.
+     */
+    public void testResolveIsUnlimitedByDefault() {
+        int shardCount = 5;
+
+        ClusterState clusterState = mock(ClusterState.class);
+        Metadata metadata = mock(Metadata.class);
+        when(clusterState.metadata()).thenReturn(metadata);
+        when(metadata.getIndicesLookup()).thenReturn(new TreeMap<>());
+        IndexMetadata imd = mock(IndexMetadata.class);
+        when(imd.getIndex()).thenReturn(new Index("big_index", "uuid-big"));
+        when(metadata.index("big_index")).thenReturn(imd);
+        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        when(clusterState.nodes()).thenReturn(nodes);
+
+        List<ShardIterator> iterators = new ArrayList<>();
+        for (int i = 0; i < shardCount; i++) {
+            DiscoveryNode node = mock(DiscoveryNode.class);
+            when(node.getId()).thenReturn("node-" + i);
+            when(nodes.get("node-" + i)).thenReturn(node);
+            ShardRouting routing = mock(ShardRouting.class);
+            when(routing.currentNodeId()).thenReturn("node-" + i);
+            when(routing.shardId()).thenReturn(new ShardId(new Index("big_index", "uuid-big"), i));
+            ShardIterator iter = mock(ShardIterator.class);
+            when(iter.nextOrNull()).thenReturn(routing);
+            iterators.add(iter);
+        }
+
+        IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
+        when(
+            resolver.concreteIndexNames(
+                eq(clusterState),
+                any(IndicesOptions.class),
+                org.mockito.ArgumentMatchers.anyBoolean(),
+                any(String[].class)
+            )
+        ).thenReturn(new String[] { "big_index" });
+
+        ClusterService clusterService = mock(ClusterService.class);
+        // Settings.EMPTY — the setting is registered but never set, so its default applies.
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        OperationRouting opRouting = mock(OperationRouting.class);
+        when(clusterService.operationRouting()).thenReturn(opRouting);
+        when(opRouting.searchShards(eq(clusterState), eq(new String[] { "big_index" }), any(), any())).thenReturn(
+            new GroupShardsIterator<>(iterators)
+        );
+
+        RelNode fragment = stubScanForAlias("big_index");
+        ShardTargetResolver resolverUnderTest = new ShardTargetResolver(fragment, clusterService, resolver);
 
         List<ExecutionTarget> targets = resolverUnderTest.resolve(clusterState, null);
-        assertEquals(shardCount, targets.size());
+        assertEquals("an unconfigured limit rejects nothing", shardCount, targets.size());
     }
 
     /**
@@ -372,8 +432,8 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
         ).thenReturn(new String[] { "idx_a", "idx_b" });
 
         ClusterService clusterService = mock(ClusterService.class);
-        Settings settings = Settings.builder().put(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY.getKey(), limit).build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY));
+        Settings settings = Settings.builder().put(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), limit).build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         OperationRouting opRouting = mock(OperationRouting.class);
         when(clusterService.operationRouting()).thenReturn(opRouting);
@@ -383,7 +443,6 @@ public class ShardTargetResolverTests extends OpenSearchTestCase {
 
         RelNode fragment = stubScanForAlias("my_alias");
         ShardTargetResolver resolverUnderTest = new ShardTargetResolver(fragment, clusterService, resolver);
-        resolverUnderTest.setMaxShardsPerQuery(limit);
 
         List<ExecutionTarget> targets = resolverUnderTest.resolve(clusterState, null);
         assertEquals(limit, targets.size());

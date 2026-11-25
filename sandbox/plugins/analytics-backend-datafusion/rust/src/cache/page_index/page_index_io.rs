@@ -51,6 +51,8 @@ pub async fn load_scoped_page_index_cols(
     predicate_cols: &[usize],
     projection_cols: &[usize],
 ) -> Option<Arc<ParquetMetaData>> {
+    #[cfg(test)]
+    crate::test_process_globals::assert_held("the scoped page-index caches");
     attach_scoped_page_index_to_metadata(
         store,
         location,
@@ -667,7 +669,7 @@ mod tests {
     use super::super::{
         clear_scoped_cache_for_test, column_index_cache_stats, offset_index_cache_stats,
         scoped_cache_stats, set_column_index_cache_limit_for_test, set_whole_region_fetch_enabled,
-        ScopedCacheStats, SCOPED_CACHE_TEST_GUARD,
+        ScopedCacheStats,
     };
     use super::*;
     use crate::indexed_table::page_pruner::{build_pruning_predicate, PagePruner};
@@ -687,7 +689,7 @@ mod tests {
     use object_store::{ObjectStoreExt, PutPayload};
     use parquet::arrow::parquet_to_arrow_schema;
 
-    use super::super::SCOPED_CACHE_TEST_GUARD as CACHE_TEST_GUARD;
+    use crate::test_process_globals::lock as lock_process_globals;
 
     // ── fixtures + expr helpers ──────────────────────────────────────────
 
@@ -881,7 +883,7 @@ mod tests {
 
     #[tokio::test]
     async fn empty_column_set_returns_none() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, _schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
@@ -895,7 +897,7 @@ mod tests {
 
     #[tokio::test]
     async fn scoped_index_is_predicate_scoped_for_column_index() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
@@ -945,6 +947,82 @@ mod tests {
         assert_eq!(pair_b, vec![0, 1]);
     }
 
+    /// A projected nested Arrow field must resolve to every Parquet leaf under
+    /// that root. `StatisticsConverter::parquet_column_index()` deliberately
+    /// returns `None` for nested types, so the resolver needs its own root-to-leaf
+    /// fallback. Without it, `tags` receives a placeholder OffsetIndex even though
+    /// the scan reads it, and the page reader treats a whole chunk as one page.
+    #[tokio::test]
+    async fn list_projection_resolves_to_its_parquet_leaf() {
+        let _g = lock_process_globals();
+        clear_scoped_cache_for_test();
+        let list_field = Arc::new(Field::new("element", DataType::Utf8, true));
+        let tags = arrow::array::ListArray::new(
+            Arc::clone(&list_field),
+            arrow::buffer::OffsetBuffer::new(vec![0_i32, 2, 3, 5].into()),
+            Arc::new(arrow::array::StringArray::from(vec![
+                "a", "b", "c", "d", "e",
+            ])),
+            None,
+        );
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("id", DataType::Int32, false),
+            Field::new("tags", DataType::List(list_field), true),
+        ]));
+        let batch = RecordBatch::try_new(
+            Arc::clone(&schema),
+            vec![Arc::new(Int32Array::from(vec![1, 2, 3])), Arc::new(tags)],
+        )
+        .unwrap();
+        let props = WriterProperties::builder()
+            .set_data_page_row_count_limit(1)
+            .set_write_batch_size(1)
+            .set_statistics_enabled(EnabledStatistics::Page)
+            .build();
+        let mut buf = Vec::new();
+        let mut writer = ArrowWriter::try_new(&mut buf, Arc::clone(&schema), Some(props)).unwrap();
+        writer.write(&batch).unwrap();
+        writer.close().unwrap();
+        let bytes = Bytes::from(buf);
+        let footer = footer_only(&bytes);
+        let file_schema = Arc::new(
+            parquet_to_arrow_schema(
+                footer.file_metadata().schema_descr(),
+                footer.file_metadata().key_value_metadata(),
+            )
+            .unwrap(),
+        );
+
+        let mut resolved = resolve_predicate_parquet_columns(
+            &schema,
+            &footer,
+            &["id".to_string(), "tags".to_string()],
+            &file_schema,
+        );
+        resolved.sort_unstable();
+        assert_eq!(
+            resolved,
+            vec![0, 1],
+            "both id and tags.list.element must receive real OffsetIndexes"
+        );
+
+        let full = full_index(&bytes);
+        let full_list_pages = full.offset_index().unwrap()[0][1].page_locations().len();
+        assert!(
+            full_list_pages > 1,
+            "fixture must contain multiple LIST pages"
+        );
+        let (store, location) = stage(bytes).await;
+        let scoped = load_scoped_page_index_cols(&store, &location, &footer, &[], &resolved)
+            .await
+            .unwrap();
+        assert_eq!(
+            scoped.offset_index().unwrap()[0][1].page_locations().len(),
+            full_list_pages,
+            "projected LIST leaf must use its real OffsetIndex, not a one-page placeholder"
+        );
+    }
+
     /// Regression: a match()-only query has NO residual predicate columns
     /// (`parquet_cols` empty) but DOES project columns (`offset_cols` non-empty).
     /// The scoped load must still build the OffsetIndex for the projected column
@@ -953,7 +1031,7 @@ mod tests {
     /// OffsetIndex → reader over-read ~2.5× the bytes on `... | stats ... by URL`.)
     #[tokio::test]
     async fn projection_only_builds_offset_index_without_predicate() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, _schema) = two_col_parquet(); // price=col0, qty=col1
         let (store, loc) = stage(bytes.clone()).await;
@@ -987,7 +1065,7 @@ mod tests {
 
     #[tokio::test]
     async fn scoped_pruning_matches_full_index() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
@@ -1045,7 +1123,7 @@ mod tests {
     /// leaf, and the residual mis-pruned → over-count.
     #[tokio::test]
     async fn scoped_resolution_is_per_file_under_schema_evolution() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let bytes = evolved_extra_price_parquet();
         let (store, loc) = stage(bytes.clone()).await;
@@ -1121,7 +1199,7 @@ mod tests {
     /// never prunes on `qty`, so the scoped result stays a conservative superset.
     #[tokio::test]
     async fn scoped_pruning_is_safe_superset_with_placeholdered_residual_col() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         // price 0..32 (pages 0..8,8..16,16..24,24..32); qty 100..132 (pages
         // 100..108,108..116,116..124,124..132). 1 RG, 4 pages each.
@@ -1171,7 +1249,7 @@ mod tests {
 
     #[tokio::test]
     async fn scoped_index_reads_non_predicate_projected_column() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
@@ -1196,7 +1274,7 @@ mod tests {
     /// (the default) → 2 OI cells (one per column).
     #[tokio::test]
     async fn second_load_is_cache_hit() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
@@ -1239,7 +1317,7 @@ mod tests {
     /// the whole point of cell-keying: a column's index is stored once per file.
     #[tokio::test]
     async fn distinct_predicates_share_offset_index() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
@@ -1276,7 +1354,7 @@ mod tests {
     /// full miss that re-decoded `price`.)
     #[tokio::test]
     async fn adding_predicate_column_reuses_existing_cell() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
@@ -1316,7 +1394,7 @@ mod tests {
     /// *value* never multiplies cache entries. (`status>=400` vs `status>=100`.)
     #[tokio::test]
     async fn different_literals_same_column_share_cell() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
@@ -1343,7 +1421,7 @@ mod tests {
     /// CI hit/miss accounting across two predicate-column sets.
     #[tokio::test]
     async fn stats_count_hits_and_misses() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
@@ -1380,7 +1458,7 @@ mod tests {
     /// nothing"; the most-recently-used cell survives.
     #[tokio::test]
     async fn lru_evicts_over_byte_budget() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
@@ -1430,7 +1508,7 @@ mod tests {
     /// 4-RG file caches 4 cells (one per RG); a repeat query hits all 4.
     #[tokio::test]
     async fn rg_scoped_key_includes_surviving_rgs() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = four_rg_parquet();
         let (store, loc) = stage(bytes.clone()).await;
@@ -1464,7 +1542,7 @@ mod tests {
     /// cell-level hit/miss deltas.
     #[tokio::test]
     async fn new_column_combination_caches_only_new_column_cells() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = wide4_parquet(); // n0,n1,s0,s1 — 1 RG
         let (store, loc) = stage(bytes.clone()).await;
@@ -1515,7 +1593,7 @@ mod tests {
     /// column is decoded.
     #[tokio::test]
     async fn different_projections_cache_only_new_offset_columns() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = wide4_parquet(); // n0=0,n1=1,s0=2,s1=3 — 1 RG
         let (store, loc) = stage(bytes.clone()).await;
@@ -1549,7 +1627,7 @@ mod tests {
 
     #[tokio::test]
     async fn col_scoped_offset_index_only_for_requested_columns() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = wide4_parquet();
         let (store, loc) = stage(bytes.clone()).await;
@@ -1593,7 +1671,7 @@ mod tests {
     /// derived from it is a valid full-chunk read.
     #[tokio::test]
     async fn placeholder_offset_index_spans_real_chunk_byte_range() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = wide4_parquet(); // n0,n1,s0,s1 — 1 RG, multi-page columns
         let (store, loc) = stage(bytes.clone()).await;
@@ -1646,7 +1724,7 @@ mod tests {
 
     #[tokio::test]
     async fn col_scoped_reads_projected_non_predicate_column() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
@@ -1667,7 +1745,7 @@ mod tests {
 
     #[tokio::test]
     async fn col_scoping_reduces_offset_index_bytes() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = wide4_parquet();
         let (store, loc) = stage(bytes.clone()).await;
@@ -1698,7 +1776,7 @@ mod tests {
     /// sentinel" needed (the prior set-keyed design's mechanism).
     #[tokio::test]
     async fn col_scoping_full_coverage_collapses_to_all_columns_entry() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
@@ -1726,7 +1804,7 @@ mod tests {
     /// CI (all RGs) + OI column-scoped: both axes populated in one call.
     #[tokio::test]
     async fn fully_scoped_load_combines_both_axes() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = four_rg_parquet();
         let (store, loc) = stage(bytes.clone()).await;
@@ -1755,7 +1833,7 @@ mod tests {
     /// a subsequent load for the same path is a miss, not a stale hit.
     #[tokio::test]
     async fn evict_file_clears_all_cells_for_that_path() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = two_col_parquet();
         let (store, loc) = stage(bytes.clone()).await;
@@ -1796,7 +1874,7 @@ mod tests {
     /// Evicting file A does not remove cells for file B. Cross-file isolation.
     #[tokio::test]
     async fn evict_file_does_not_affect_other_files() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         let (bytes, schema) = two_col_parquet();
         let cols = resolve_predicate_parquet_columns(
@@ -1858,7 +1936,7 @@ mod tests {
     /// shared buffer must contain every scoped column's absolute offsets.
     #[tokio::test]
     async fn whole_region_fetch_matches_full_index_and_stays_scoped() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         set_whole_region_fetch_enabled(true);
 
@@ -1916,7 +1994,7 @@ mod tests {
     /// buffer resolves every scoped column's absolute offsets.
     #[tokio::test]
     async fn whole_region_fetch_offset_index_reads_match_full() {
-        let _g = CACHE_TEST_GUARD.lock().unwrap();
+        let _g = lock_process_globals();
         clear_scoped_cache_for_test();
         set_whole_region_fetch_enabled(true);
 

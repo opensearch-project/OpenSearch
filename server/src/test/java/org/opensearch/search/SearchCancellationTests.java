@@ -265,7 +265,7 @@ public class SearchCancellationTests extends OpenSearchTestCase {
         assertNotEquals(DocIdSetIterator.NO_MORE_DOCS, postingsEnum.nextDoc());
 
         // Cancel and get a fresh PostingsEnum — first nextDoc() should throw
-        // because ExitablePostingsEnum checks on calls == 0 (first call)
+        // because ExitablePostingsEnum checks before its first operation
         cancelled.set(true);
         PostingsEnum postingsEnum2 = termsEnum.postings(null, PostingsEnum.NONE);
         expectThrows(TaskCancelledException.class, postingsEnum2::nextDoc);

@@ -243,6 +243,25 @@ public class ArrowValuesTests extends OpenSearchTestCase {
         }
     }
 
+    public void testToSourceValueListPreservesOrderDuplicatesAndNulls() {
+        Field child = new Field("element", FieldType.nullable(ArrowType.Utf8.INSTANCE), null);
+        Field list = new Field("tags", FieldType.nullable(ArrowType.List.INSTANCE), List.of(child));
+        try (ListVector vector = (ListVector) list.createVector(allocator)) {
+            vector.allocateNew();
+            int start = vector.startNewValue(0);
+            VarCharVector data = (VarCharVector) vector.getDataVector();
+            data.setSafe(start, "prod".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            data.setNull(start + 1);
+            data.setSafe(start + 2, "prod".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            data.setSafe(start + 3, "error".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            data.setValueCount(4);
+            vector.endValue(0, 4);
+            vector.setValueCount(1);
+
+            assertEquals(java.util.Arrays.asList("prod", null, "prod", "error"), ArrowValues.toSourceValue(vector, 0));
+        }
+    }
+
     public void testToSourceValueUtf8AsString() {
         try (VarCharVector v = new VarCharVector("s", allocator)) {
             v.allocateNew();

@@ -60,6 +60,8 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.logging.LoggerMessageFormat;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
@@ -146,7 +148,9 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
             return new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false);
         }
         ShardId shardId = request.shardId();
-        MapperService mapperService = indicesService.indexServiceSafe(shardId.getIndex()).mapperService();
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        MapperService mapperService = indexService.mapperService();
+        IndexSettings indexSettings = indexService.getIndexSettings();
         Set<String> fieldNames = new HashSet<>();
         for (String field : request.fields()) {
             fieldNames.addAll(mapperService.simpleMatchToFullName(field));
@@ -157,10 +161,18 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
             MappedFieldType ft = mapperService.fieldType(field);
             if (ft != null) {
                 if (indicesService.isMetadataField(field) || fieldPredicate.test(ft.name())) {
+                    // On a pluggable data format index, doc-values-backed fields can be searched, so
+                    // report searchability accordingly; otherwise use the plain indexed flag.
+                    boolean searchable;
+                    if (indexSettings.isPluggableDataFormatEnabled()) {
+                        searchable = ft.isSearchableViaDocValues(indexSettings);
+                    } else {
+                        searchable = ft.isSearchable();
+                    }
                     IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                         field,
                         ft.familyTypeName(),
-                        ft.isSearchable(),
+                        searchable,
                         ft.isAggregatable(),
                         ft.meta()
                     );

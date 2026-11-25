@@ -56,6 +56,124 @@ public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {
         assertEquals("Single-input reduce uses the synthetic id 'input-0'", "input-0", DatafusionMemtableReduceSink.INPUT_ID);
     }
 
+    /**
+     * The buffered reduce holds every input batch off-heap until {@code reduce()}. When the
+     * accumulated buffer size would exceed the per-query Arrow budget (the allocator's limit,
+     * set by {@code analytics.coordinator.buffer_limit}), the sink must FAIL FAST with
+     * {@link ReduceSizeExceededException} <em>before</em> attempting the allocation — never let
+     * a raw Arrow {@code OutOfMemoryException} fire (which leaks the in-flight buffers and gets
+     * masked as a TaskCancelledException). Uses a deliberately tiny-limit allocator so the
+     * second batch trips the guard, and asserts the allocator is fully released afterward.
+     */
+    public void testFeedFailsFastWhenBufferBudgetExceeded() throws Exception {
+        NativeBridge.initTokioRuntimeManager(2);
+        Path spillDir = createTempDir("datafusion-spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
+        assertTrue("runtime ptr non-zero", runtimePtr != 0);
+        NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
+
+        try (RootAllocator root = new RootAllocator(Long.MAX_VALUE)) {
+            Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
+            byte[] substrait = buildSumSubstraitBytes(DatafusionMemtableReduceSink.INPUT_ID);
+
+            // 1 MiB budget: an early batch fits and is retained; a later batch that would push the
+            // allocator's live usage past the budget (accounting for the FFI export margin) is
+            // refused. Exercises the real headroom check (getAllocatedMemory vs getLimit), not just
+            // the per-batch margin.
+            try (BufferAllocator budgeted = root.newChildAllocator("query-budget", 0, 1024 * 1024)) {
+                CapturingSink downstream = new CapturingSink();
+                ExchangeSinkContext ctx = new ExchangeSinkContext(
+                    "q-budget",
+                    0,
+                    0L,
+                    substrait,
+                    budgeted,
+                    List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionMemtableReduceSink.INPUT_ID))),
+                    downstream
+                );
+
+                DatafusionMemtableReduceSink sink = new DatafusionMemtableReduceSink(ctx, runtimeHandle);
+                try {
+                    // Batches arrive from the UNBOUNDED root (the network), not the budgeted query
+                    // allocator. The first ~64 KiB batch is retained; feeding ~256 KiB batches must
+                    // eventually trip the guard BEFORE the budgeted allocator hits its hard limit.
+                    long[] small = new long[8 * 1024]; // ~64 KiB of int64 data
+                    for (int i = 0; i < small.length; i++) {
+                        small[i] = i;
+                    }
+                    sink.feed(makeBatch(root, inputSchema, small)); // fits
+                    assertTrue("first batch retained", budgeted.getAllocatedMemory() > 0);
+
+                    long[] big = new long[64 * 1024]; // ~512 KiB each
+                    for (int i = 0; i < big.length; i++) {
+                        big[i] = i;
+                    }
+                    ReduceSizeExceededException ex = expectThrows(ReduceSizeExceededException.class, () -> {
+                        // Feed until the accumulated retained buffers exhaust the 1 MiB budget. The
+                        // guard must trip (clean exception) rather than the allocator's hard limit (OOM).
+                        for (int n = 0; n < 16; n++) {
+                            sink.feed(makeBatch(root, inputSchema, big));
+                        }
+                    });
+                    // expectThrows already proves a ReduceSizeExceededException (the proactive guard)
+                    // was thrown rather than a raw Arrow OutOfMemoryException. Just check the message.
+                    assertTrue(
+                        "message must be actionable, got: " + ex.getMessage(),
+                        ex.getMessage().contains("analytics.coordinator.buffer_limit")
+                    );
+                } finally {
+                    sink.close();
+                }
+                assertEquals("retained buffers released on close", 0, budgeted.getAllocatedMemory());
+            }
+        } finally {
+            runtimeHandle.close();
+        }
+    }
+
+    /**
+     * With an unbounded query allocator ({@code Long.MAX_VALUE} limit — the operator opted out
+     * of {@code analytics.coordinator.buffer_limit}), the size guard is inert: feeding still
+     * works and the reduce produces the correct result. Guards against the guard mis-firing on
+     * the disabled-limit path.
+     */
+    public void testUnboundedAllocatorDisablesGuard() throws Exception {
+        NativeBridge.initTokioRuntimeManager(2);
+        Path spillDir = createTempDir("datafusion-spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
+        assertTrue("runtime ptr non-zero", runtimePtr != 0);
+        NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
+
+        try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
+            Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
+            byte[] substrait = buildSumSubstraitBytes(DatafusionMemtableReduceSink.INPUT_ID);
+
+            CapturingSink downstream = new CapturingSink();
+            ExchangeSinkContext ctx = new ExchangeSinkContext(
+                "q-unbounded",
+                0,
+                0L,
+                substrait,
+                alloc,
+                List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionMemtableReduceSink.INPUT_ID))),
+                downstream
+            );
+
+            DatafusionMemtableReduceSink sink = new DatafusionMemtableReduceSink(ctx, runtimeHandle);
+            try {
+                sink.feed(makeBatch(alloc, inputSchema, new long[] { 10L, 20L, 30L }));
+                PlainActionFuture<Void> reduceDone = PlainActionFuture.newFuture();
+                sink.reduce(reduceDone);
+                reduceDone.actionGet(10, TimeUnit.SECONDS);
+            } finally {
+                sink.close();
+            }
+            assertEquals("SUM(10,20,30) = 60", 60L, downstream.total);
+        } finally {
+            runtimeHandle.close();
+        }
+    }
+
     public void testFeedDrainsSumToDownstream() throws Exception {
         NativeBridge.initTokioRuntimeManager(2);
         Path spillDir = createTempDir("datafusion-spill");
@@ -99,6 +217,63 @@ public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Two-input coordinator join, the minimal shape of TPC-H q15's deadlock
+     * ({@code supplier ⋈ revenue0}): a buffered multi-input reduce running
+     * {@code Join(input-0, input-2) ON input-0.x = input-2.x}. Feeds both inputs via
+     * {@link DatafusionMemtableReduceSink#sinkForChild(int)}, closes each, runs {@code reduce},
+     * and asserts the join produced the matching rows. Exercises the multi-input MemTable path
+     * end-to-end against a live native runtime — the streaming sink deadlocks on this shape
+     * (build-side back-pressure), which is why join-reduces route to the buffered sink.
+     */
+    public void testTwoInputJoinDrainsToDownstream() throws Exception {
+        NativeBridge.initTokioRuntimeManager(2);
+        Path spillDir = createTempDir("datafusion-spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
+        assertTrue("runtime ptr non-zero", runtimePtr != 0);
+        NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
+
+        try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
+            Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
+            byte[] joinSubstrait = buildJoinSubstraitBytes("input-0", "input-2");
+
+            CountingSink downstream = new CountingSink();
+            ExchangeSinkContext ctx = new ExchangeSinkContext(
+                "q-join",
+                0,
+                0L,
+                joinSubstrait,
+                alloc,
+                List.of(
+                    new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes("input-0")),
+                    new ExchangeSinkContext.ChildInput(2, buildPassthroughSubstraitBytes("input-2"))
+                ),
+                downstream
+            );
+
+            DatafusionMemtableReduceSink sink = new DatafusionMemtableReduceSink(ctx, runtimeHandle);
+            try {
+                // Build side (input-0): {1,2,3}. Probe side (input-2): {2,3,4}. Inner join on x → {2,3}.
+                ExchangeSink left = sink.sinkForChild(0);
+                ExchangeSink right = sink.sinkForChild(2);
+                left.feed(makeBatch(alloc, inputSchema, new long[] { 1L, 2L, 3L }));
+                right.feed(makeBatch(alloc, inputSchema, new long[] { 2L, 3L, 4L }));
+                left.close();
+                right.close();
+                PlainActionFuture<Void> reduceDone = PlainActionFuture.newFuture();
+                sink.reduce(reduceDone);
+                reduceDone.actionGet(10, TimeUnit.SECONDS);
+            } finally {
+                sink.close();
+            }
+
+            assertFalse("downstream must NOT be closed by the reduce sink", downstream.closed);
+            assertEquals("inner join {1,2,3} ⋈ {2,3,4} on x should yield 2 rows", 2, downstream.totalRows);
+        } finally {
+            runtimeHandle.close();
+        }
+    }
+
     private static byte[] buildSumSubstraitBytes(String inputId) {
         RelDataTypeFactory typeFactory = new JavaTypeFactoryImpl();
         RexBuilder rexBuilder = new RexBuilder(typeFactory);
@@ -136,6 +311,40 @@ public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {
         return new DataFusionFragmentConvertor(loadExtensions()).convertFragment(scan);
     }
 
+    /**
+     * Builds {@code Join(StageInputScan(leftId), StageInputScan(rightId)) ON left.x = right.x}
+     * substrait — the minimal two-input coordinator-join shape.
+     */
+    private static byte[] buildJoinSubstraitBytes(String leftId, String rightId) {
+        RelDataTypeFactory typeFactory = new JavaTypeFactoryImpl();
+        RexBuilder rexBuilder = new RexBuilder(typeFactory);
+        HepPlanner hepPlanner = new HepPlanner(new HepProgramBuilder().build());
+        RelOptCluster cluster = RelOptCluster.create(hepPlanner, rexBuilder);
+
+        RelDataType bigintNullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true);
+        RelDataType rowType = typeFactory.builder().add("x", bigintNullable).build();
+
+        RelNode left = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), leftId, rowType);
+        RelNode right = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), rightId, rowType);
+
+        // Equi-join condition: left.x ($0) == right.x ($1 in the joined row).
+        org.apache.calcite.rex.RexNode cond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(bigintNullable, 0),
+            rexBuilder.makeInputRef(bigintNullable, 1)
+        );
+        RelNode join = org.apache.calcite.rel.logical.LogicalJoin.create(
+            left,
+            right,
+            List.of(),
+            cond,
+            java.util.Set.of(),
+            org.apache.calcite.rel.core.JoinRelType.INNER
+        );
+
+        return new DataFusionFragmentConvertor(loadExtensions()).convertFragment(join);
+    }
+
     private static SimpleExtension.ExtensionCollection loadExtensions() {
         Thread t = Thread.currentThread();
         ClassLoader prev = t.getContextClassLoader();
@@ -157,6 +366,26 @@ public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {
         col.setValueCount(values.length);
         root.setRowCount(values.length);
         return root;
+    }
+
+    /** Counts rows across fed batches (join output has multiple columns; we only assert cardinality). */
+    private static final class CountingSink implements ExchangeSink {
+        int totalRows;
+        boolean closed;
+
+        @Override
+        public synchronized void feed(VectorSchemaRoot batch) {
+            try {
+                totalRows += batch.getRowCount();
+            } finally {
+                batch.close();
+            }
+        }
+
+        @Override
+        public synchronized void close() {
+            closed = true;
+        }
     }
 
     private static final class CapturingSink implements ExchangeSink {

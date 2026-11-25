@@ -184,15 +184,16 @@ pub fn evict_file_from_scoped_cache(file_path: &str) {
     OFFSET_INDEX_CACHE.evict_by_prefix(file_path);
 }
 
-/// Crate-wide guard so every test that touches the process-global caches mutually
-/// excludes (distinct fixtures alone aren't enough — the `InMemory` path is always
-/// "data.parquet"). Shared (not per-module) so all cache users serialize.
-#[cfg(test)]
-pub(crate) static SCOPED_CACHE_TEST_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+// Every test that touches the caches above must hold `crate::test_process_globals::lock` for its
+// whole body — distinct fixtures alone aren't enough, since the `InMemory` path is always
+// "data.parquet" and the hit/miss counters are process-wide whatever the key is. That lock is not
+// specific to these caches on purpose: a doc-values cursor open inserts here *and* reads the
+// runtime manager and the global `RuntimeEnv` registration, so one lock covers all of it.
 
 /// Clear both caches AND restore the default limit on each.
 #[cfg(test)]
 pub(crate) fn clear_scoped_cache_for_test() {
+    crate::test_process_globals::assert_held("the scoped page-index caches");
     COLUMN_INDEX_CACHE.clear_keep_limit();
     COLUMN_INDEX_CACHE.set_limit(DEFAULT_SCOPED_CACHE_LIMIT);
     OFFSET_INDEX_CACHE.clear_keep_limit();

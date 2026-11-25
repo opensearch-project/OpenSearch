@@ -32,9 +32,36 @@ public class SystemTemplatesService implements LocalNodeClusterManagerListener {
     public static final Setting<Boolean> SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED = Setting.boolSetting(
         "cluster.application_templates.enabled",
         false,
+        new ApplicationTemplatesEnabledValidator(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    /**
+     * Validates that the application-based configuration templates feature can only be enabled when its experimental
+     * feature flag is set. Enforcing this at settings-update validation time rejects the update up front instead of
+     * throwing while the committed cluster state is applied (which would destabilize the cluster-manager).
+     * <p>
+     * The check only fires when the incoming value is {@code true}. A {@code false} (or default) value must always pass:
+     * settings-update validation runs every registered setting's validator against its current/default value on every
+     * {@code _cluster/settings} update, so throwing on {@code false} would reject unrelated updates cluster-wide.
+     */
+    static final class ApplicationTemplatesEnabledValidator implements Setting.Validator<Boolean> {
+        @Override
+        public void validate(Boolean value) {
+            ensureFeatureFlagEnabledForApplicationTemplates(value);
+        }
+    }
+
+    private static void ensureFeatureFlagEnabledForApplicationTemplates(boolean enabled) {
+        if (enabled && !FeatureFlags.isEnabled(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING)) {
+            throw new IllegalArgumentException(
+                "Application Based Configuration Templates is under an experimental feature and can be activated only by enabling "
+                    + FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING.getKey()
+                    + " feature flag."
+            );
+        }
+    }
 
     private final List<SystemTemplatesPlugin> systemTemplatesPluginList;
     private final ThreadPool threadPool;
@@ -143,13 +170,9 @@ public class SystemTemplatesService implements LocalNodeClusterManagerListener {
     }
 
     private void setEnabledTemplates(boolean enabled) {
-        if (!FeatureFlags.isEnabled(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING)) {
-            throw new IllegalArgumentException(
-                "Application Based Configuration Templates is under an experimental feature and can be activated only by enabling "
-                    + FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING.getKey()
-                    + " feature flag."
-            );
-        }
+        // Runs as the settings-update consumer at apply time and only assigns; the feature-flag gate is enforced up
+        // front by ApplicationTemplatesEnabledValidator at settings-validation time (and on the setting's default at
+        // startup). Throwing here would instead fail while cluster state is applied, destabilizing the cluster-manager.
         enabledTemplates = enabled;
     }
 

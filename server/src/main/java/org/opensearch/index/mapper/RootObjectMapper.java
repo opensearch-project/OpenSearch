@@ -32,6 +32,9 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -56,12 +59,15 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.opensearch.index.mapper.TypeParsers.parseDateTimeFormatter;
@@ -74,6 +80,8 @@ import static org.opensearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 @PublicApi(since = "1.0.0")
 public class RootObjectMapper extends ObjectMapper {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RootObjectMapper.class);
+    private static final Logger logger = LogManager.getLogger(RootObjectMapper.class);
+    private static final String DYNAMIC_TEMPLATE_NAME_PREFIX = "__dynamic__";
 
     /**
      * Default parameters for root object
@@ -287,11 +295,17 @@ public class RootObjectMapper extends ObjectMapper {
                     Map.Entry<String, Object> entry = tmpl.entrySet().iterator().next();
                     String templateName = entry.getKey();
                     Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
-                    DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
-                    if (template != null) {
+                    DynamicTemplate template = DynamicTemplate.parse(
+                        templateName,
+                        templateParams,
+                        parserContext.mapperService().getDynamicTemplateTypes()
+                    );
+                    if (template.getPluginMatchType() == null) {
                         validateDynamicTemplate(parserContext, template);
-                        templates.add(template);
+                    } else {
+                        validatePluginDynamicTemplate(parserContext, template);
                     }
+                    templates.add(template);
                 }
                 builder.dynamicTemplates(templates);
                 return true;
@@ -450,13 +464,21 @@ public class RootObjectMapper extends ObjectMapper {
         if (typeParser == null) {
             throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + name + "]");
         }
-        return typeParser.parse(name, dynamicTemplate.mappingForName(name, dynamicType), parserContext);
+        Map<String, Object> mappingConfig = dynamicTemplate.mappingForName(name, dynamicType);
+        Mapper.Builder builder = typeParser.parse(name, mappingConfig, parserContext);
+        // A parser removes each key it consumes, so a leftover multi_value means the type ignored it. This also
+        // covers templates that could not be checked when they were created, such as those using {name}.
+        if (mappingConfig.containsKey(ParametrizedFieldMapper.MULTI_VALUE_PARAMETER)
+            && Mapper.isPluggableDataFormatEnabled(parserContext.getSettings())) {
+            throw multiValueNotSupported(dynamicTemplate.getName(), Set.of(mappingType));
+        }
+        return builder;
     }
 
     public DynamicTemplate findTemplate(ContentPath path, String name, XContentFieldType matchType) {
         final String pathAsString = path.pathAsText(name);
         for (DynamicTemplate dynamicTemplate : dynamicTemplates.value()) {
-            if (dynamicTemplate.match(pathAsString, name, matchType)) {
+            if (dynamicTemplate.getPluginMatchType() == null && dynamicTemplate.match(pathAsString, name, matchType)) {
                 return dynamicTemplate;
             }
         }
@@ -671,6 +693,12 @@ public class RootObjectMapper extends ObjectMapper {
 
         Exception lastError = null;
         boolean dynamicTemplateInvalid = true;
+        // On a pluggable data format index, multi_value on a type that does not support it is an error, as in a
+        // static mapping. On other indices multi_value is just an unknown key and keeps the deprecation warning.
+        boolean checkMultiValue = dynamicTemplate.getMapping().containsKey(ParametrizedFieldMapper.MULTI_VALUE_PARAMETER)
+            && Mapper.isPluggableDataFormatEnabled(parserContext.getSettings());
+        boolean multiValueAccepted = false;
+        Set<String> multiValueRejectingTypes = new TreeSet<>();
 
         for (XContentFieldType contentFieldType : types) {
             String defaultDynamicType = contentFieldType.defaultMappingType();
@@ -681,8 +709,15 @@ public class RootObjectMapper extends ObjectMapper {
                 continue;
             }
 
-            String templateName = "__dynamic__" + dynamicTemplate.name();
+            String templateName = DYNAMIC_TEMPLATE_NAME_PREFIX + dynamicTemplate.name();
             Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName(templateName, defaultDynamicType);
+            if (checkMultiValue) {
+                if (typeAcceptsMultiValue(typeParser, templateName, fieldTypeConfig, parserContext)) {
+                    multiValueAccepted = true;
+                } else {
+                    multiValueRejectingTypes.add(mappingType);
+                }
+            }
             try {
                 Mapper.Builder<?> dummyBuilder = typeParser.parse(templateName, fieldTypeConfig, parserContext);
                 fieldTypeConfig.remove("type");
@@ -698,6 +733,10 @@ public class RootObjectMapper extends ObjectMapper {
             } catch (Exception e) {
                 lastError = e;
             }
+        }
+
+        if (checkMultiValue && multiValueAccepted == false && multiValueRejectingTypes.isEmpty() == false) {
+            throw multiValueNotSupported(dynamicTemplate.getName(), multiValueRejectingTypes);
         }
 
         if (dynamicTemplateInvalid) {
@@ -716,6 +755,104 @@ public class RootObjectMapper extends ObjectMapper {
             }
             DEPRECATION_LOGGER.deprecate("invalid_dynamic_template_" + dynamicTemplate.getName(), deprecationMessage);
         }
+    }
+
+    /**
+     * Validates a dynamic template whose {@code match_mapping_type} is a plugin-registered type
+     * at index-creation time.
+     *
+     * <p>Plugin templates are allowed to be intentionally incomplete: a parameter may be derived from
+     * the first indexed document rather than declared in the
+     * template. Such templates cannot be validated up front, so we only validate eagerly when the
+     * plugin reports — via {@link DynamicTemplateTypeHandler#isConfigComplete} — that the config is
+     * fully specified. In that case we hand the config to the plugin's {@link Mapper.TypeParser}, and
+     * the type parser (not core) reports any invalid content, exactly as it would for an explicit
+     * field mapping of the same type. Otherwise validation is deferred to document-parse time.
+     */
+    private static void validatePluginDynamicTemplate(Mapper.TypeParser.ParserContext parserContext, DynamicTemplate dynamicTemplate) {
+        // {name} placeholders can't be resolved until a concrete field name is known — skip, as the
+        // builtin path does.
+        if (containsSnippet(dynamicTemplate.getMapping(), "{name}")) {
+            return;
+        }
+
+        String pluginType = dynamicTemplate.getPluginMatchType();
+        // The plugin type was validated against the registry at parse time, so a handler is always present.
+        DynamicTemplateTypeHandler handler = parserContext.mapperService().getDynamicTemplateTypes().get(pluginType);
+
+        String mappingType = dynamicTemplate.mappingType(pluginType);
+        Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
+        if (typeParser == null) {
+            // No parser to validate against — defer to document-parse time, which reports the error.
+            return;
+        }
+
+        String templateName = DYNAMIC_TEMPLATE_NAME_PREFIX + dynamicTemplate.getName();
+        Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName(templateName, pluginType);
+        if (handler.isConfigComplete(fieldTypeConfig) == false) {
+            // Config relies on data-derived parameters; it can only be validated once a document is seen.
+            return;
+        }
+
+        // Config is fully specified. Let the handler normalize it (e.g. inject its own type when the
+        // template omitted it) — a complete config never reads the field value, so the supplier is
+        // never invoked at index-creation time. Then hand it to the type parser, which validates the
+        // content and reports any invalid config.
+        try {
+            // No document is available at index creation, so the supplier's get() throws. A complete
+            // config never reads the field value, so this is a no-op normalization (e.g. type injection).
+            handler.adjustMappingConfig(fieldTypeConfig, FieldValueParserSupplier.withoutValue());
+        } catch (IllegalStateException | IOException e) {
+            // A complete config performs no I/O and must not read the field value. If a handler
+            // violates that contract, treat it as non-fatal and defer validation to document-parse time
+            // rather than failing index creation — but log it so the contract violation is visible.
+            logger.warn(
+                () -> new ParameterizedMessage(
+                    "Deferring index-creation validation of dynamic template [{}]: its handler threw while "
+                        + "normalizing a config it reported as complete",
+                    dynamicTemplate.getName()
+                ),
+                e
+            );
+            return;
+        }
+        typeParser.parse(templateName, fieldTypeConfig, parserContext);
+    }
+
+    private static MapperParsingException multiValueNotSupported(String templateName, Set<String> types) {
+        return new MapperParsingException(
+            "dynamic template ["
+                + templateName
+                + "] maps to type "
+                + new TreeSet<>(types)
+                + ", which does not support ["
+                + ParametrizedFieldMapper.MULTI_VALUE_PARAMETER
+                + "]"
+        );
+    }
+
+    /**
+     * Parses only {@code type} and {@code multi_value} with the type's own parser. A parser removes each key it
+     * consumes, so the key is left behind when the type does not support it, whether the parser ignores it or
+     * throws on it. Probing alone keeps an unrelated invalid parameter from being reported as a multi_value error.
+     */
+    private static boolean typeAcceptsMultiValue(
+        Mapper.TypeParser typeParser,
+        String templateName,
+        Map<String, Object> fieldTypeConfig,
+        Mapper.TypeParser.ParserContext parserContext
+    ) {
+        Map<String, Object> probe = new HashMap<>();
+        if (fieldTypeConfig.containsKey("type")) {
+            probe.put("type", fieldTypeConfig.get("type"));
+        }
+        probe.put(ParametrizedFieldMapper.MULTI_VALUE_PARAMETER, fieldTypeConfig.get(ParametrizedFieldMapper.MULTI_VALUE_PARAMETER));
+        try {
+            typeParser.parse(templateName, probe, parserContext);
+        } catch (Exception e) {
+            // Only the leftover key decides; e.g. scaled_float consumes multi_value, then fails on its missing scaling_factor.
+        }
+        return probe.containsKey(ParametrizedFieldMapper.MULTI_VALUE_PARAMETER) == false;
     }
 
     private static boolean containsSnippet(Map<?, ?> map, String snippet) {

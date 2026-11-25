@@ -94,7 +94,7 @@ public class FieldStorageResolverTests extends OpenSearchTestCase {
         // cleanly — aliases legitimately span such indices next to populated ones — and resolving
         // any field against it alone fails with the standard "not found" error.
         FieldStorageResolver resolver = newMappinglessResolver();
-        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> resolver.resolve(List.of("name")));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> resolver.resolve(List.of("name")));
         assertTrue("expected 'not found' error, got: " + ex.getMessage(), ex.getMessage().contains("not found in field storage"));
     }
 

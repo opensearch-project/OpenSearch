@@ -77,13 +77,19 @@ final class LuceneSearchExecEngine implements SearchExecEngine<ShardScanExecutio
             state.outputColumnNames()
         );
         BufferAllocator allocator = context.getAllocator();
+        // Node-scoped and unbounded — the batch is imported onto it and the Flight transport keeps charging it
+        // after this stream closes, so it must be supplied rather than minted per stream.
+        BufferAllocator stagingAllocator = context.getImportStagingAllocator();
+        if (stagingAllocator == null) {
+            throw new IllegalStateException("ExecutionContext.importStagingAllocator must be set by the caller before execute()");
+        }
         Schema schema = buildSchema(state.outputColumnNames());
         ArrowArray array = ArrowArray.allocateNew(allocator);
         ArrowSchema arrowSchema = ArrowSchema.allocateNew(allocator);
         boolean transferred = false;
         try {
             populateBatchToCData(allocator, schema, state.outputColumnNames(), count, array, arrowSchema);
-            LuceneResultStream stream = new LuceneResultStream(array, arrowSchema, allocator);
+            LuceneResultStream stream = new LuceneResultStream(array, arrowSchema, allocator, stagingAllocator);
             transferred = true;
             return stream;
         } finally {

@@ -31,16 +31,21 @@ import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.stream.StreamErrorCode;
 import org.opensearch.transport.stream.StreamException;
 
+import javax.net.ssl.SSLSession;
+
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 
 import static org.opensearch.arrow.flight.transport.FlightErrorMapper.mapFromCallStatus;
 
@@ -87,6 +92,8 @@ import static org.opensearch.arrow.flight.transport.FlightErrorMapper.mapFromCal
  */
 class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
     private static final String PROFILE_NAME = "flight";
+    /** Name under which the caller's {@link SSLSession} is exposed via {@link #get(String, Class)}. */
+    static final String SSL_SESSION = "ssl_session";
 
     private final Logger logger = LogManager.getLogger(FlightServerChannel.class);
     private final ServerStreamListener serverStreamListener;
@@ -102,6 +109,7 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
     private final AtomicInteger batchNumber = new AtomicInteger(0);
     private final CompositeBackpressureStrategy bp;
     private final long readyTimeoutMillis;
+    private final SSLSession sslSession;
 
     /**
      * The reused stream root (native or byte-serialized). Confined to the flight-executor thread:
@@ -115,6 +123,7 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
     /** Leaf mutex guarding {@link #closeListeners} and {@link #closeListenersFired}; its critical section only mutates them. */
     private final Object closeListenerMutex = new Object();
     private final List<ActionListener<Void>> closeListeners = new ArrayList<>();
+    private final List<BiConsumer<Void, ? super Exception>> removableCloseListeners = new ArrayList<>();
     private boolean closeListenersFired = false;
 
     public FlightServerChannel(
@@ -124,6 +133,23 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
         FlightCallTracker callTracker,
         ExecutorService executor,
         long readyTimeoutMillis
+    ) {
+        this(serverStreamListener, allocator, middleware, callTracker, executor, readyTimeoutMillis, null, null);
+    }
+
+    /**
+     * @param sslSession    TLS session negotiated with the caller, or {@code null} when TLS is disabled
+     * @param remoteAddress address of the caller, or {@code null} if unknown
+     */
+    public FlightServerChannel(
+        ServerStreamListener serverStreamListener,
+        BufferAllocator allocator,
+        ServerHeaderMiddleware middleware,
+        FlightCallTracker callTracker,
+        ExecutorService executor,
+        long readyTimeoutMillis,
+        SSLSession sslSession,
+        SocketAddress remoteAddress
     ) {
         this.correlationId = Long.parseLong(middleware.getCorrelationId());
         logger.debug("Creating FlightServerChannel for correlation ID: {}", correlationId);
@@ -135,7 +161,10 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
         this.executor = executor;
         this.readyTimeoutMillis = readyTimeoutMillis;
         this.localAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
-        this.remoteAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
+        this.remoteAddress = remoteAddress instanceof InetSocketAddress inetRemoteAddress
+            ? inetRemoteAddress
+            : new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
+        this.sslSession = sslSession;
         // CompositeBackpressureStrategy.register installs both setOnReadyHandler and
         // setOnCancelHandler; the cancel callback runs onChannelCancelled before
         // notifying parked threads so the cancelled state is visible on wake.
@@ -469,6 +498,18 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
         return remoteAddress;
     }
 
+    /**
+     * Exposes the caller's TLS session under {@link #SSL_SESSION} so transport interceptors can
+     * verify the peer certificate presented during the mTLS handshake.
+     */
+    @Override
+    public <T> Optional<T> get(String name, Class<T> clazz) {
+        if (SSL_SESSION.equals(name) && clazz.isInstance(sslSession)) {
+            return Optional.of(clazz.cast(sslSession));
+        }
+        return Optional.empty();
+    }
+
     @Override
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
         listener.onFailure(new UnsupportedOperationException("FlightServerChannel does not support BytesReference based sendMessage()"));
@@ -541,6 +582,28 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
     }
 
     @Override
+    public void addCloseListener(BiConsumer<Void, ? super Exception> listener) {
+        // Registered against notifyCloseListeners exactly like addCloseListener(ActionListener), see there.
+        boolean alreadyFired;
+        synchronized (closeListenerMutex) {
+            alreadyFired = closeListenersFired;
+            if (alreadyFired == false) {
+                removableCloseListeners.add(listener);
+            }
+        }
+        if (alreadyFired) {
+            listener.accept(null, null);
+        }
+    }
+
+    @Override
+    public void removeCloseListener(BiConsumer<Void, ? super Exception> listener) {
+        synchronized (closeListenerMutex) {
+            removableCloseListeners.remove(listener);
+        }
+    }
+
+    @Override
     public boolean isOpen() {
         return open.get();
     }
@@ -551,14 +614,24 @@ class FlightServerChannel implements TcpChannel, ArrowFlightChannel {
         // it. Isolate each listener so one failure cannot strand the rest (e.g. the TaskManager untrack
         // listener).
         final List<ActionListener<Void>> toFire;
+        final List<BiConsumer<Void, ? super Exception>> removableToFire;
         synchronized (closeListenerMutex) {
             toFire = new ArrayList<>(closeListeners);
             closeListeners.clear();
+            removableToFire = new ArrayList<>(removableCloseListeners);
+            removableCloseListeners.clear();
             closeListenersFired = true;
         }
         for (ActionListener<Void> listener : toFire) {
             try {
                 listener.onResponse(null);
+            } catch (Exception e) {
+                logger.warn(new ParameterizedMessage("close listener failed for correlation ID: {}", correlationId), e);
+            }
+        }
+        for (BiConsumer<Void, ? super Exception> listener : removableToFire) {
+            try {
+                listener.accept(null, null);
             } catch (Exception e) {
                 logger.warn(new ParameterizedMessage("close listener failed for correlation ID: {}", correlationId), e);
             }

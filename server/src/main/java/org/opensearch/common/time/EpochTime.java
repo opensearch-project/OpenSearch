@@ -315,6 +315,14 @@ class EpochTime {
         .appendLiteral('.')
         .toFormatter(Locale.ROOT);
 
+    // The absolute value of Long.MIN_VALUE cannot be parsed as a positive long.
+    private static final DateTimeFormatter MILLISECONDS_MIN_FORMATTER = new DateTimeFormatterBuilder().appendLiteral(
+        Long.toString(Long.MIN_VALUE)
+    )
+        .parseDefaulting(SECONDS, Math.floorDiv(Long.MIN_VALUE, 1_000L))
+        .parseDefaulting(ChronoField.NANO_OF_SECOND, Math.floorMod(Long.MIN_VALUE, 1_000L) * 1_000_000L)
+        .toFormatter(Locale.ROOT);
+
     // this supports microseconds
     private static final DateTimeFormatter MICROSECONDS_FORMATTER1 = new DateTimeFormatterBuilder().optionalStart()
         .appendText(SIGN, SIGN_FORMATTER_LOOKUP) // field is only created in the presence of a '-' char.
@@ -338,13 +346,14 @@ class EpochTime {
         SECONDS_FORMATTER2
     );
 
-    static final DateFormatter MILLIS_FORMATTER = new JavaDateFormatter(
-        "epoch_millis",
-        MILLISECONDS_FORMATTER1,
-        (builder, parser) -> builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L),
-        MILLISECONDS_FORMATTER1,
-        MILLISECONDS_FORMATTER2
-    );
+    static final DateFormatter MILLIS_FORMATTER = new JavaDateFormatter("epoch_millis", MILLISECONDS_FORMATTER1, (builder, parser) -> {
+        if (parser == MILLISECONDS_MIN_FORMATTER) {
+            // SECONDS.resolve uses this field to override the default nanos, preserving negative epoch rounding.
+            builder.parseDefaulting(NANOS_OF_SECOND, Math.floorMod(Long.MIN_VALUE, 1_000L) * 1_000_000L - 999_999L);
+        } else {
+            builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L);
+        }
+    }, MILLISECONDS_FORMATTER1, MILLISECONDS_FORMATTER2, MILLISECONDS_MIN_FORMATTER);
 
     static final DateFormatter MICROS_FORMATTER = new JavaDateFormatter(
         "epoch_micros",

@@ -110,6 +110,14 @@ public abstract class CancellableTask extends Task {
     }
 
     /**
+     * Whether {@link #getCancellationTimeout()} is the request's own {@code cancel_after_time_interval}, which the action may resolve
+     * further (for a search, by its workload group), rather than a timeout the task's creator chose itself.
+     */
+    public boolean isCancellationTimeoutFromRequest() {
+        return false;
+    }
+
+    /**
      * Called after the task is cancelled so that it can take any actions that it has to take.
      */
     protected void onCancelled() {}

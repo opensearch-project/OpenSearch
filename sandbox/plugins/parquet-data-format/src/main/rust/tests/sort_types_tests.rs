@@ -135,7 +135,9 @@ fn test_merge_sort_by_int64() {
         &["val".into()],
         &[false],
         &[false],
+        &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -189,7 +191,9 @@ fn test_merge_sort_by_int64_with_nulls() {
         &["val".into()],
         &[false],
         &[false],
+        &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -240,7 +244,9 @@ fn test_merge_sort_by_int32() {
         &["val".into()],
         &[false],
         &[false],
+        &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -296,7 +302,9 @@ fn test_merge_sort_by_float64() {
         &["val".into()],
         &[false],
         &[false],
+        &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -360,7 +368,9 @@ fn test_merge_sort_by_float64_with_nulls() {
         &["val".into()],
         &[false],
         &[true],
+        &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -418,7 +428,9 @@ fn test_merge_sort_by_float32() {
         &["val".into()],
         &[false],
         &[false],
+        &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -478,7 +490,9 @@ fn test_merge_sort_by_float32_with_nulls() {
         &["val".into()],
         &[false],
         &[false],
+        &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -532,7 +546,9 @@ fn test_merge_sort_by_string() {
         &["val".into()],
         &[false],
         &[false],
+        &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -595,7 +611,9 @@ fn test_merge_sort_by_string_with_nulls() {
         &["val".into()],
         &[false],
         &[true],
+        &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -662,7 +680,9 @@ fn test_merge_sort_descending() {
         &["val".into()],
         &[true],
         &[false],
+        &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -726,7 +746,9 @@ fn test_merge_sort_multi_column_string_and_int() {
         &["category".into(), "priority".into()],
         &[false, false],
         &[false, false],
+        &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -787,7 +809,9 @@ fn test_merge_sort_with_nulls_first() {
         &["val".into()],
         &[false],
         &[true],
+        &[],
         0,
+        &[],
     )
     .unwrap();
 
@@ -837,7 +861,9 @@ fn test_merge_sort_with_nulls_last() {
         &["val".into()],
         &[false],
         &[false],
+        &[],
         0,
+        &[],
     )
     .unwrap();
 

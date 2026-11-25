@@ -56,7 +56,7 @@ public class DerivedSourceStoredFieldsReader extends StoredFieldsReader {
     }
 
     @Override
-    public StoredFieldsReader getMergeInstance() {
+    public StoredFieldsReader getMergeInstance() throws IOException {
         return delegate.getMergeInstance();
     }
 

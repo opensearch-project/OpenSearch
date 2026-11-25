@@ -59,6 +59,15 @@ public interface BackendCapabilityProvider {
     }
 
     /**
+     * Shuffle producer / consumer capabilities for hash-partitioned data transfer. Empty means the
+     * backend cannot participate in hash-shuffle joins. For a backend to be picked as a shuffle
+     * worker it must declare both a PRODUCER and a CONSUMER sharing a format string.
+     */
+    default Set<DataTransferCapability> dataTransferCapabilities() {
+        return Set.of();
+    }
+
+    /**
      * Window-function capabilities this backend can execute. Each {@link WindowCapability}
      * declares a set of {@link WindowFunction}s (ROW_NUMBER, RANK, SUM/AVG/COUNT over a
      * frame, etc.) and the storage formats those windows apply to. The planner narrows

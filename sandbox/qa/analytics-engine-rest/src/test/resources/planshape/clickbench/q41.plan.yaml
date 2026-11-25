@@ -10,7 +10,7 @@ plans:
         OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], offset=[2], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(PageViews=[$2], URLHash=[$0], EventDate=[$1], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0, 1}], PageViews=[SUM($2)], mode=[FINAL], viableBackends=[[datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchSort(sort0=[$2], sort1=[$0], sort2=[$1], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], fetch=[36], viableBackends=[[datafusion]])
                   OpenSearchAggregate(group=[{0, 1}], PageViews=[COUNT()], mode=[PARTIAL], viableBackends=[[datafusion]])
                     OpenSearchProject(URLHash=[$87], EventDate=[$15], viableBackends=[[datafusion]])
@@ -28,7 +28,7 @@ plans:
         OpenSearchSort(sort0=[$0], sort1=[$1], sort2=[$2], dir0=[DESC-nulls-last], dir1=[ASC-nulls-first], dir2=[ASC-nulls-first], offset=[2], fetch=[10], viableBackends=[[datafusion]])
           OpenSearchProject(PageViews=[$2], URLHash=[$0], EventDate=[$1], viableBackends=[[datafusion]])
             OpenSearchAggregate(group=[{0, 1}], PageViews=[SUM($2)], mode=[FINAL], viableBackends=[[datafusion]])
-              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+              OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
                 OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
     shard_physical_1seg: |
       ProjectionExec: expr=[URLHash@0 as URLHash, EventDate@1 as EventDate, count(Int64(1))[count]@2 as PageViews]

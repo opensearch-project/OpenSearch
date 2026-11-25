@@ -1,0 +1,76 @@
+{
+  "testName": "range_numeric_exclusive",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "range": {
+        "price": {
+          "gt": 50,
+          "lt": 1000
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalSort(fetch=[10])",
+    "  LogicalFilter(condition=[AND(>($1, CAST(50):INTEGER), <($1, CAST(1000):INTEGER))])",
+    "    LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": [
+    "name",
+    "price",
+    "brand",
+    "rating"
+  ],
+  "mockResultRows": [
+    [
+      "laptop",
+      999,
+      "BrandA",
+      4.5
+    ],
+    [
+      "phone",
+      699,
+      "BrandB",
+      4.2
+    ]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 2,
+        "relation": "eq"
+      },
+      "max_score": null,
+      "hits": [
+        {
+          "_score": null,
+          "_source": {
+            "name": "laptop",
+            "price": 999,
+            "brand": "BrandA",
+            "rating": 4.5
+          }
+        },
+        {
+          "_score": null,
+          "_source": {
+            "name": "phone",
+            "price": 699,
+            "brand": "BrandB",
+            "rating": 4.2
+          }
+        }
+      ]
+    }
+  }
+}

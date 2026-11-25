@@ -25,6 +25,8 @@ dependencies {
   api "com.google.http-client:google-http-client:${versions.google_http_client}"
   api "com.google.http-client:google-http-client-gson:${versions.google_http_client}"
   api "com.google.http-client:google-http-client-jackson2:${versions.google_http_client}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   api 'com.google.code.findbugs:jsr305:3.0.2'
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -49,6 +51,7 @@ restResources {
 tasks.named("dependencyLicenses").configure {
   mapping from: /google-.*/, to: 'google'
   mapping from: /opencensus.*/, to: 'opencensus'
+  mapping from: /jackson-.*/, to: 'jackson'
 }
 
 check {
@@ -65,19 +68,11 @@ test {
 thirdPartyAudit {
   ignoreViolations(
     // uses internal java api: sun.misc.Unsafe
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
-    'com.google.common.hash.Striped64',
-    'com.google.common.hash.Striped64$1',
-    'com.google.common.hash.Striped64$Cell',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
   )
 
   ignoreMissingClasses(

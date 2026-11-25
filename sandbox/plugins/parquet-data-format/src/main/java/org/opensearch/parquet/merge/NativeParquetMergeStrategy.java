@@ -80,24 +80,62 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
         assert filePaths.stream().allMatch(p -> java.nio.file.Files.exists(p)) : "all input files must exist on disk before merge: "
             + filePaths.stream().filter(p -> java.nio.file.Files.exists(p) == false).toList();
 
+        // Build per-input live-docs bitsets from MergeInput. A null entry means all rows alive.
+        long[][] liveBitsPerInput = new long[files.size()][];
+        boolean anyLiveDocs = false;
+        for (int i = 0; i < files.size(); i++) {
+            long[] bits = mergeInput.getLiveDocsForSegment(files.get(i).writerGeneration());
+            if (bits != null && bits.length > 0) {
+                liveBitsPerInput[i] = bits;
+                anyLiveDocs = true;
+            }
+        }
+        long[][] liveBitsArg = anyLiveDocs ? liveBitsPerInput : null;
+
         Path mergedFilePath = ParquetIndexingEngine.buildParquetFilePath(shardPath, writerGeneration, "merged");
         String mergedFileName = mergedFilePath.getFileName().toString();
 
         long startNanos = System.nanoTime();
         try {
             // Merge files in Rust
-            MergeFilesResult merged = RustBridge.mergeParquetFilesInRust(filePaths, mergedFilePath.toString(), indexName, writerGeneration);
+            MergeFilesResult merged = RustBridge.mergeParquetFilesInRust(
+                filePaths,
+                liveBitsArg,
+                mergedFilePath.toString(),
+                indexName,
+                writerGeneration
+            );
             ParquetFileMetadata mergeMetadata = merged.metadata();
             RowIdMapping rowIdMapping = merged.rowIdMapping();
 
-            assert mergeMetadata.numRows() > 0 : "Merged file should contain at least one row";
+            // A fully-deleted merge legitimately produces a zero-row (footer-only) output file.
+            assert anyLiveDocs || mergeMetadata.numRows() > 0 : "Merged file must contain rows when no live-docs filtering is applied";
+            if (mergeMetadata.numRows() == 0) {
+                logger.info(
+                    "Merge at generation [{}] produced empty file [{}] — every input row was deleted",
+                    writerGeneration,
+                    mergedFileName
+                );
+            }
 
-            long expectedRows = files.stream().mapToLong(MonoFileWriterSet::numRows).sum();
+            // Exact expected output row count: for inputs with a live-docs bitmap, the number of
+            // set bits (bounded to that input's row count — the Java side sizes the FixedBitSet to
+            // maxDoc, so padding bits past numRows are already zero, but bound anyway); for inputs
+            // without a bitmap, every row. A merger that silently drops or duplicates a live row
+            // fails this check whether or not deletes were in play.
+            long expectedRows = 0L;
+            for (int i = 0; i < files.size(); i++) {
+                long numRows = files.get(i).numRows();
+                long[] bits = liveBitsPerInput[i];
+                expectedRows += bits == null ? numRows : countLiveRows(bits, numRows);
+            }
             assert mergeMetadata.numRows() == expectedRows : "Merged row count ["
                 + mergeMetadata.numRows()
-                + "] must equal sum of input row counts ["
+                + "] must equal the number of live input rows ["
                 + expectedRows
-                + "]";
+                + "] (live-docs filtering "
+                + (anyLiveDocs ? "applied" : "not applied")
+                + ")";
 
             MonoFileWriterSet mergedWriterFileSet = MonoFileWriterSet.of(
                 mergedFilePath.getParent().toAbsolutePath(),
@@ -140,6 +178,26 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
             throw exception;
         }
 
+    }
+
+    /**
+     * Counts set bits in a Lucene-layout packed bitset, considering only the first {@code numRows}
+     * bits. Full words are counted with {@link Long#bitCount}; a trailing partial word is masked so
+     * any padding bits past {@code numRows} cannot inflate the count.
+     */
+    static long countLiveRows(long[] bits, long numRows) {
+        long fullWords = numRows / 64;
+        long count = 0L;
+        int limit = (int) Math.min(fullWords, bits.length);
+        for (int w = 0; w < limit; w++) {
+            count += Long.bitCount(bits[w]);
+        }
+        int remainder = (int) (numRows % 64);
+        if (remainder > 0 && fullWords < bits.length) {
+            long mask = (1L << remainder) - 1;
+            count += Long.bitCount(bits[(int) fullWords] & mask);
+        }
+        return count;
     }
 
     private String getMergedFileName(long generation) {

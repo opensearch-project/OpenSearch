@@ -42,6 +42,7 @@ import org.opensearch.transport.TransportException;
 
 import java.net.InetSocketAddress;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -129,6 +130,16 @@ public class Netty4TcpChannel implements TcpChannel {
     @Override
     public void addCloseListener(ActionListener<Void> listener) {
         closeContext.addListener(ActionListener.toBiConsumer(listener));
+    }
+
+    @Override
+    public void addCloseListener(BiConsumer<Void, ? super Exception> listener) {
+        closeContext.addRemovableListener(listener);
+    }
+
+    @Override
+    public void removeCloseListener(BiConsumer<Void, ? super Exception> listener) {
+        closeContext.removeRemovableListener(listener);
     }
 
     @Override

@@ -47,10 +47,12 @@ import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.mapper.ParametrizedFieldMapper.Parameter;
+import org.opensearch.index.mapper.ParametrizedFieldMapper.SideEffectParameter;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -593,6 +595,127 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         TestMapper merged = (TestMapper) mapper1.merge(mapper2);
         assertEquals("root.a.b.c", merged.name());
         assertEquals("a.b.c", merged.simpleName());
+    }
+
+    // setParameterValue only accepts a value type-compatible with the target parameter; a mismatch throws.
+    public void testSetParameterValueRejectsTypeMismatch() {
+        Builder builder = new Builder("field");
+
+        builder.setParameterValue("index", false);
+        assertFalse(builder.index.getValue());
+
+        // Unknown parameter name is a no-op.
+        builder.setParameterValue("no_such_parameter", true);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> builder.setParameterValue("index", "not-a-boolean")
+        );
+        assertThat(e.getMessage(), containsString("Cannot set parameter [index]"));
+    }
+
+    // A SideEffectParameter that resolves to true disables indexing at build time via its side effect.
+    public void testSideEffectParameterDisablesIndexingWhenEnabled() {
+        SideEffectBuilder builder = new SideEffectBuilder("field");
+        builder.lowCard.setValue(true);
+        SideEffectMapper mapper = (SideEffectMapper) builder.build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0)));
+        assertFalse("side effect must disable indexing", mapper.index);
+    }
+
+    // When the SideEffectParameter resolves to false, no side effect is applied and indexing stays enabled.
+    public void testSideEffectParameterLeavesIndexingWhenDisabled() {
+        SideEffectBuilder builder = new SideEffectBuilder("field");
+        SideEffectMapper mapper = (SideEffectMapper) builder.build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0)));
+        assertTrue("indexing must stay enabled when the parameter is false", mapper.index);
+    }
+
+    // The parameter reads its resolved value back from mappingPluginParameterValues() when a mapper is re-initialised.
+    public void testSideEffectParameterReadsResolvedValue() {
+        SideEffectBuilder builder = new SideEffectBuilder("field");
+        builder.lowCard.setValue(true);
+        SideEffectMapper mapper = (SideEffectMapper) builder.build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0)));
+
+        SideEffectBuilder reinit = new SideEffectBuilder("field");
+        reinit.init(mapper);
+        assertTrue("value must be read back from the mapping", reinit.lowCard.getValue());
+    }
+
+    // A stored value whose type does not match the parameter fails loudly instead of a silent wrong value / CCE.
+    public void testSideEffectParameterReadBackRejectsTypeMismatch() {
+        SideEffectMapper wrongTyped = new SideEffectMapper("field", "field", new SideEffectBuilder("field")) {
+            @Override
+            public Map<String, Object> mappingPluginParameterValues() {
+                return Map.of("low_card", 123);
+            }
+        };
+
+        SideEffectBuilder reinit = new SideEffectBuilder("field");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> reinit.init(wrongTyped));
+        assertThat(e.getMessage(), containsString("resolved to a value of type"));
+    }
+
+    /** Minimal mapper used to exercise {@link SideEffectParameter} end to end. */
+    public static class SideEffectMapper extends ParametrizedFieldMapper {
+
+        private final boolean index;
+        private final Map<String, Object> pluginValues;
+
+        SideEffectMapper(String simpleName, String fullName, SideEffectBuilder builder) {
+            super(simpleName, new KeywordFieldMapper.KeywordFieldType(fullName), MultiFields.empty(), CopyTo.empty());
+            this.index = builder.index.getValue();
+            this.pluginValues = builder.pluginMappingParameterValues();
+        }
+
+        @Override
+        public Map<String, Object> mappingPluginParameterValues() {
+            return pluginValues;
+        }
+
+        @Override
+        public ParametrizedFieldMapper.Builder getMergeBuilder() {
+            return new SideEffectBuilder(simpleName()).init(this);
+        }
+
+        @Override
+        protected void parseCreateField(ParseContext context) {}
+
+        @Override
+        protected void parseCreateFieldForPluggableFormat(ParseContext context) {}
+
+        @Override
+        protected String contentType() {
+            return "side_effect_mapper";
+        }
+    }
+
+    /** Builder that contributes a {@code low_card} {@link SideEffectParameter} which disables indexing when true. */
+    public static class SideEffectBuilder extends ParametrizedFieldMapper.Builder {
+
+        final Parameter<Boolean> index = Parameter.boolParam("index", false, m -> ((SideEffectMapper) m).index, true);
+        final SideEffectParameter<Boolean> lowCard = SideEffectParameter.boolParam("low_card", false, false, (b, enabled) -> {
+            if (Boolean.TRUE.equals(enabled)) {
+                b.setParameterValue("index", false);
+            }
+        });
+
+        SideEffectBuilder(String name) {
+            super(name);
+            setPluginMappingParameters(List.of(lowCard));
+        }
+
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            List<Parameter<?>> parameters = new ArrayList<>();
+            parameters.add(index);
+            parameters.addAll(pluginMappingParameters());
+            return parameters;
+        }
+
+        @Override
+        public ParametrizedFieldMapper build(Mapper.BuilderContext context) {
+            applyPluginParameterEffects();
+            return new SideEffectMapper(name(), buildFullName(context), this);
+        }
     }
 
 }

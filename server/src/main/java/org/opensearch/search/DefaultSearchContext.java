@@ -39,9 +39,11 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
@@ -94,6 +96,7 @@ import org.opensearch.search.fetch.subphase.FetchFieldsContext;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.fetch.subphase.ScriptFieldsContext;
 import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.PitReaderContext;
 import org.opensearch.search.internal.ReaderContext;
@@ -472,7 +475,16 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (aliasFilter != null) {
-            filters.add(aliasFilter);
+            if (request.getAliasFilter().getScoringMode() == AliasFilter.ScoringMode.NO_STATS) {
+                // Filter before scoring and score every hit the same, so no corpus statistics are read and documents
+                // outside the alias cannot affect a score.
+                query = new ConstantScoreQuery(new BooleanQuery.Builder().add(query, Occur.MUST).add(aliasFilter, Occur.FILTER).build());
+                // Rescoring, inner hits and the inner query of function_score or script_score score separately through
+                // this searcher, so give it a similarity that reads no corpus statistics as well.
+                searcher.setSimilarity(new BooleanSimilarity());
+            } else {
+                filters.add(aliasFilter);
+            }
         }
 
         if (sliceBuilder != null) {
@@ -492,7 +504,18 @@ final class DefaultSearchContext extends SearchContext {
             for (Query filter : filters) {
                 builder.add(filter, Occur.FILTER);
             }
-            return builder.build();
+            BooleanQuery filtered = builder.build();
+            // If the main query is already a ConstantScoreQuery, the caller has explicitly opted out of
+            // scoring. Adding the filters above nests that ConstantScoreQuery inside a scoring BooleanQuery,
+            // which defeats Lucene's COMPLETE_NO_SCORES fast path (the MUST clause's scorer is still set up
+            // over the whole postings list). Wrapping the filtered result back in a ConstantScoreQuery keeps
+            // the outermost query non-scoring, so the fast path is preserved end-to-end. This matters for
+            // access-control filters (e.g. document-level security composed with a filtered alias), where the
+            // combined query would otherwise be scored despite the caller having requested constant scoring.
+            if (query instanceof ConstantScoreQuery) {
+                return new ConstantScoreQuery(filtered);
+            }
+            return filtered;
         }
     }
 

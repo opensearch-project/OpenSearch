@@ -12,6 +12,7 @@ import org.apache.arrow.vector.BigIntVector;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
+import org.opensearch.analytics.spi.ExchangeSink;
 
 /**
  * Holds the per-fragment resources (reader context, engine, result stream) kept alive for
@@ -32,6 +33,8 @@ public final class FragmentResources implements AutoCloseable {
     private final SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine;
     private final EngineResultStream stream;
     private final Runnable onClose;
+    private final ExchangeSink partitionedSink;
+    private final ShardScanExecutionContext executionContext;
     /**
      * Off-heap rowId buffer kept alive across the fetch stream's lifetime. Non-null only
      * for the QTF fetch path, where the native side reads rowIds directly via the
@@ -53,7 +56,7 @@ public final class FragmentResources implements AutoCloseable {
         Runnable onClose,
         boolean requiresTopDocs
     ) {
-        this(readerContextStore, readerContext, engine, stream, onClose, null, requiresTopDocs);
+        this(readerContextStore, readerContext, engine, stream, onClose, null, requiresTopDocs, null, null);
     }
 
     public FragmentResources(
@@ -65,6 +68,50 @@ public final class FragmentResources implements AutoCloseable {
         BigIntVector rowIdVector,
         boolean requiresTopDocs
     ) {
+        this(readerContextStore, readerContext, engine, stream, onClose, rowIdVector, requiresTopDocs, null, null);
+    }
+
+    /**
+     * Convenience overload for the hash-shuffle producer path: no top-docs fetch (producers stream
+     * their output into the partitioned sink, never reuse the reader for a fetch phase).
+     *
+     * @param partitionedSink  non-null when the fragment's instruction chain produced a
+     *                         {@code ShuffleProducerOutputState}: the engine's output is to be
+     *                         drained into this sink instead of through the streaming response.
+     *                         The caller owns the sink's lifecycle (close after draining).
+     * @param executionContext the {@link ShardScanExecutionContext} the engine is running on.
+     *                         Captured here so the caller can pass it back into the partitioned
+     *                         sink's flow if needed (allocator etc.).
+     */
+    public FragmentResources(
+        ReaderContextStore readerContextStore,
+        ReaderContext readerContext,
+        SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine,
+        EngineResultStream stream,
+        Runnable onClose,
+        BigIntVector rowIdVector,
+        ExchangeSink partitionedSink,
+        ShardScanExecutionContext executionContext
+    ) {
+        this(readerContextStore, readerContext, engine, stream, onClose, rowIdVector, false, partitionedSink, executionContext);
+    }
+
+    /**
+     * Full constructor. Upstream's {@code requiresTopDocs} is kept ahead of our MPP-shuffle params
+     * ({@code partitionedSink}, {@code executionContext}) per the "our params to the END of
+     * upstream-owned signatures" convention.
+     */
+    public FragmentResources(
+        ReaderContextStore readerContextStore,
+        ReaderContext readerContext,
+        SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine,
+        EngineResultStream stream,
+        Runnable onClose,
+        BigIntVector rowIdVector,
+        boolean requiresTopDocs,
+        ExchangeSink partitionedSink,
+        ShardScanExecutionContext executionContext
+    ) {
         assert assertCtorInvariants(readerContextStore, readerContext);
         this.readerContextStore = readerContextStore;
         this.readerContext = readerContext;
@@ -73,6 +120,8 @@ public final class FragmentResources implements AutoCloseable {
         this.onClose = onClose;
         this.rowIdVector = rowIdVector;
         this.requiresTopDocs = requiresTopDocs;
+        this.partitionedSink = partitionedSink;
+        this.executionContext = executionContext;
     }
 
     private static boolean assertCtorInvariants(ReaderContextStore store, ReaderContext ctx) {
@@ -83,6 +132,16 @@ public final class FragmentResources implements AutoCloseable {
 
     public EngineResultStream stream() {
         return stream;
+    }
+
+    /** Non-null iff this fragment is a hash-shuffle producer; the stream's batches must be fed
+     *  into the sink instead of being returned to the originating coordinator. */
+    public ExchangeSink partitionedSink() {
+        return partitionedSink;
+    }
+
+    public ShardScanExecutionContext executionContext() {
+        return executionContext;
     }
 
     /**
@@ -120,10 +179,15 @@ public final class FragmentResources implements AutoCloseable {
                 else first.addSuppressed(e);
             }
         }
-        // If this query requested top-N docs, a fetch phase will reuse this reader, so only release
-        // this phase's use-reference; it stays alive for the fetch and the reaper closes after
-        // keepAlive. Otherwise release and free it now so the reader is closed immediately instead
-        // of being pinned until the reaper sweeps it.
+        // partitionedSink is closed by the routing flow in AnalyticsSearchService BEFORE this
+        // close() runs, so the sink's isLast markers are guaranteed to ship before the engine /
+        // reader are torn down. We don't double-close here — close() is idempotent on the sink
+        // but we keep ownership clear: routing closes when draining is done.
+        //
+        // Reader context: if this query requested top-N docs, a fetch phase will reuse this reader,
+        // so only release this phase's use-reference (releaseContext) — it stays alive for the fetch
+        // and the store's reaper closes it after keepAlive. Otherwise releaseAndFree now so the reader
+        // is closed immediately instead of being pinned until the reaper sweeps it.
         if (readerContext != null) {
             try {
                 if (requiresTopDocs) {

@@ -32,16 +32,30 @@
 
 package org.opensearch.snapshots;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.RestoreInProgress;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.ComponentTemplate;
+import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.Template;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -53,6 +67,7 @@ import static org.opensearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.opensearch.cluster.DataStreamTestHelper.generateMapping;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -297,5 +312,101 @@ public class RestoreServiceTests extends OpenSearchTestCase {
             .build();
         String[] ignoreSettings = RestoreService.getIgnoreSettingsInternal(nodeSettings);
         assertEquals(0, ignoreSettings.length);
+    }
+
+    public void testCleanupReportsEachRemovedRestoreOnce() {
+        final List<RestoreInProgress.Entry> reported = new ArrayList<>();
+        final RestoreService.CleanRestoreStateTaskExecutor executor = new RestoreService.CleanRestoreStateTaskExecutor(reported::add);
+        final RestoreInProgress.Entry finished = restoreEntry("finished", RestoreInProgress.State.SUCCESS);
+        final RestoreInProgress.Entry running = restoreEntry("running", RestoreInProgress.State.STARTED);
+        final ClusterState before = stateWithRestores(finished, running);
+
+        // Two tasks for one restore, as when several cluster state updates see it finished before the cleanup runs.
+        final ClusterState after = executor.execute(
+            before,
+            List.of(
+                new RestoreService.CleanRestoreStateTaskExecutor.Task("finished"),
+                new RestoreService.CleanRestoreStateTaskExecutor.Task("finished")
+            )
+        ).resultingState;
+        executor.clusterStatePublished(new ClusterChangedEvent("test", after, before));
+
+        assertNull(RestoreService.restoreInProgress(after, "finished"));
+        assertNotNull(RestoreService.restoreInProgress(after, "running"));
+        assertEquals(List.of(finished), reported);
+    }
+
+    public void testCleanupReportsNothingWhenNoRestoreWasRemoved() {
+        final List<RestoreInProgress.Entry> reported = new ArrayList<>();
+        final RestoreService.CleanRestoreStateTaskExecutor executor = new RestoreService.CleanRestoreStateTaskExecutor(reported::add);
+        final ClusterState before = stateWithRestores(
+            restoreEntry("finished", RestoreInProgress.State.SUCCESS),
+            restoreEntry("running", RestoreInProgress.State.STARTED)
+        );
+        final ClusterState after = ClusterState.builder(before).incrementVersion().build();
+
+        executor.clusterStatePublished(new ClusterChangedEvent("test", after, before));
+
+        assertTrue(reported.isEmpty());
+    }
+
+    public void testCleanupDoesNotReportAnUnfinishedRestore() {
+        final List<RestoreInProgress.Entry> reported = new ArrayList<>();
+        final RestoreService.CleanRestoreStateTaskExecutor executor = new RestoreService.CleanRestoreStateTaskExecutor(reported::add);
+        final ClusterState before = stateWithRestores(restoreEntry("running", RestoreInProgress.State.STARTED));
+        final ClusterState after = stateWithRestores();
+
+        executor.clusterStatePublished(new ClusterChangedEvent("test", after, before));
+
+        assertTrue(reported.isEmpty());
+    }
+
+    private static RestoreInProgress.Entry restoreEntry(String uuid, RestoreInProgress.State state) {
+        final ShardId shardId = new ShardId(new Index("index-" + uuid, uuid + "-index-uuid"), 0);
+        return new RestoreInProgress.Entry(
+            uuid,
+            new Snapshot("repo", new SnapshotId("snapshot", "snapshot-uuid")),
+            state,
+            List.of(shardId.getIndexName()),
+            Map.of(shardId, new RestoreInProgress.ShardRestoreStatus("node", state.completed() ? state : RestoreInProgress.State.INIT))
+        );
+    }
+
+    private static ClusterState stateWithRestores(RestoreInProgress.Entry... entries) {
+        final RestoreInProgress.Builder restores = new RestoreInProgress.Builder();
+        for (RestoreInProgress.Entry entry : entries) {
+            restores.add(entry);
+        }
+        return ClusterState.builder(ClusterName.DEFAULT).putCustom(RestoreInProgress.TYPE, restores.build()).build();
+    }
+
+    public void testRestoredTemplatesNeedEveryNodeToReadTheirScoringMode() throws Exception {
+        final Version older = VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION);
+        AliasMetadata scoped = AliasMetadata.builder("scoped").filter("{\"match_all\":{}}").scoringMode("no_stats").build();
+        AliasMetadata plain = AliasMetadata.builder("plain").filter("{\"match_all\":{}}").build();
+        Template withMode = new Template(Settings.EMPTY, null, Collections.singletonMap("scoped", scoped));
+        Template withoutMode = new Template(Settings.EMPTY, null, Collections.singletonMap("plain", plain));
+
+        Metadata legacy = Metadata.builder()
+            .put(IndexTemplateMetadata.builder("legacy").patterns(Collections.singletonList("l-*")).putAlias(scoped).build())
+            .build();
+        Metadata component = Metadata.builder().put("component", new ComponentTemplate(withMode, null, null)).build();
+        Metadata composable = Metadata.builder()
+            .put("composable", new ComposableIndexTemplate(Collections.singletonList("c-*"), withMode, null, null, null, null, null))
+            .build();
+        for (Metadata metadata : List.of(legacy, component, composable)) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> RestoreService.ensureTemplateScoringModesSupported(metadata, () -> older)
+            );
+            assertThat(e.getMessage(), containsString("[scoring_mode] on alias [scoped]"));
+            RestoreService.ensureTemplateScoringModesSupported(metadata, () -> AliasFilter.SCORING_MODE_VERSION);
+        }
+        Metadata noModes = Metadata.builder()
+            .put(IndexTemplateMetadata.builder("legacy").patterns(Collections.singletonList("l-*")).putAlias(plain).build())
+            .put("component", new ComponentTemplate(withoutMode, null, null))
+            .put("composable", new ComposableIndexTemplate(Collections.singletonList("c-*"), withoutMode, null, null, null, null, null))
+            .build();
+        RestoreService.ensureTemplateScoringModesSupported(noModes, () -> older);
     }
 }

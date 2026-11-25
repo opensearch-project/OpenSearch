@@ -39,6 +39,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -107,6 +108,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -448,7 +450,7 @@ public class StoreTests extends OpenSearchTestCase {
         IndexInput indexInput = dir.openInput("foo.bar", IOContext.DEFAULT);
         long checksum = CodecUtil.retrieveChecksum(indexInput);
         indexInput.seek(0);
-        IndexInput verifyingIndexInput = new Store.VerifyingIndexInput(dir.openInput("foo.bar", IOContext.DEFAULT));
+        IndexInput verifyingIndexInput = new Store.LuceneVerifyingIndexInput(dir.openInput("foo.bar", IOContext.DEFAULT));
         readIndexInputFullyWithRandomSeeks(verifyingIndexInput);
         Store.verify(verifyingIndexInput);
         assertThat(checksum, equalTo(((ChecksumIndexInput) verifyingIndexInput).getChecksum()));
@@ -456,7 +458,7 @@ public class StoreTests extends OpenSearchTestCase {
 
         // Corrupt file and check again
         corruptFile(dir, "foo.bar", "foo1.bar");
-        verifyingIndexInput = new Store.VerifyingIndexInput(dir.openInput("foo1.bar", IOContext.DEFAULT));
+        verifyingIndexInput = new Store.LuceneVerifyingIndexInput(dir.openInput("foo1.bar", IOContext.DEFAULT));
         readIndexInputFullyWithRandomSeeks(verifyingIndexInput);
         try {
             Store.verify(verifyingIndexInput);
@@ -1048,6 +1050,66 @@ public class StoreTests extends OpenSearchTestCase {
         }
         assertTrue(store.isMarkedCorrupted());
         // we have to remove the index since it's corrupted and might fail the MocKDirWrapper checkindex call
+        Lucene.cleanLuceneIndex(store.directory());
+        store.close();
+    }
+
+    /**
+     * {@link Store#toCatalogSnapshot(IndexCommit)} is how a caller holding only an {@link IndexCommit} reaches the
+     * catalog-based APIs. It must describe exactly the same commit as {@link Store#getMetadata(IndexCommit)}.
+     */
+    public void testToCatalogSnapshotMatchesTheCommit() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+        try (IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig())) {
+            Document doc = new Document();
+            doc.add(new StringField("id", "1", Field.Store.YES));
+            writer.addDocument(doc);
+            writer.commit();
+        }
+
+        final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+        final IndexCommit commit = Lucene.getIndexCommit(segmentInfos, store.directory());
+
+        final CatalogSnapshot fromCommit = store.toCatalogSnapshot(commit);
+        assertEquals(segmentInfos.getGeneration(), fromCommit.getGeneration());
+        assertEquals(new HashSet<>(commit.getFileNames()), new HashSet<>(fromCommit.getFiles(true)));
+        assertEquals(commit.getUserData(), fromCommit.getUserData());
+
+        // The catalog view must yield the same metadata as reading the commit directly.
+        assertEquals(store.getMetadata(commit).asMap().keySet(), store.getMetadata(fromCommit).asMap().keySet());
+
+        // A null commit means "the latest commit", matching getMetadata(null, false).
+        assertEquals(segmentInfos.getGeneration(), store.toCatalogSnapshot(null).getGeneration());
+
+        store.close();
+    }
+
+    /**
+     * Reading through {@link Store#readSegmentsInfo} rather than Lucene directly is what makes a truncated commit
+     * surface as a {@link CorruptIndexException} and mark the store corrupt. Losing that classification is the bug
+     * this overload exists to avoid.
+     */
+    public void testToCatalogSnapshotMarksStoreCorruptedOnTruncatedSegmentsFile() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+        try (IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig())) {
+            Document doc = new Document();
+            doc.add(new StringField("id", "1", Field.Store.YES));
+            writer.addDocument(doc);
+            writer.commit();
+        }
+
+        final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+        store.directory().deleteFile(segmentInfos.getSegmentsFileName());
+        try (IndexOutput out = store.directory().createOutput(segmentInfos.getSegmentsFileName(), IOContext.DEFAULT)) {
+            // truncate the commit to an empty file
+        }
+
+        expectThrows(CorruptIndexException.class, () -> store.toCatalogSnapshot(null));
+        assertTrue("a truncated segments_N must mark the store corrupted", store.isMarkedCorrupted());
+
+        // we have to remove the index since it's corrupted and might fail the MockDirWrapper checkindex call
         Lucene.cleanLuceneIndex(store.directory());
         store.close();
     }

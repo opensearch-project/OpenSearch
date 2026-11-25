@@ -31,24 +31,38 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
     int maxRewriteFilters;
 
     protected boolean canOptimize(ValuesSourceConfig config, Rounding rounding) {
-        /**
-         * The filter rewrite optimized path does not support bucket intervals which are not fixed.
-         * For this reason we exclude non UTC timezones.
-         */
+        // Runtime path: FilterRewriteOptimizationContext#canOptimize already gates on parent == null before
+        // reaching here, so parent is passed as null.
+        if (filterRewriteFastPathApplies(null, config, rounding)) {
+            this.fieldType = config.fieldType();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Whether the date-histogram filter-rewrite fast path applies for this aggregation. The single source of
+     * truth for the fast-path preconditions — top-level only ({@code parent == null}), UTC rounding (non-UTC
+     * has variable-width buckets), no script/missing, and a searchable date field. Used both at runtime
+     * ({@link #canOptimize}) and by aggregator factories to decide intra-segment eligibility: intra-segment
+     * search is used only when this returns false (the fast path is unavailable and the doc-by-doc fallback,
+     * which parallelizes, runs).
+     */
+    public static boolean filterRewriteFastPathApplies(Object parent, ValuesSourceConfig config, Rounding rounding) {
+        // The fast path (BKD point-tree precompute) only runs for a top-level agg; nested aggs collect
+        // doc-by-doc under their parent's buckets.
+        if (parent != null) {
+            return false;
+        }
+        // The filter rewrite optimized path does not support non-fixed bucket intervals, so exclude non-UTC.
         if (rounding.isUTC() == false) {
             return false;
         }
-
-        if (config.script() == null && config.missing() == null) {
-            MappedFieldType fieldType = config.fieldType();
-            if (fieldType != null && fieldType.unwrap() instanceof DateFieldMapper.DateFieldType) {
-                if (fieldType.isSearchable()) {
-                    this.fieldType = fieldType;
-                    return true;
-                }
-            }
+        if (config.script() != null || config.missing() != null) {
+            return false;
         }
-        return false;
+        MappedFieldType fieldType = config.fieldType();
+        return fieldType != null && fieldType.unwrap() instanceof DateFieldMapper.DateFieldType && fieldType.isSearchable();
     }
 
     protected void buildRanges(SearchContext context) throws IOException {

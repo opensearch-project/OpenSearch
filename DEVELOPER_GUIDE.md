@@ -181,6 +181,18 @@ Run OpenSearch using `gradlew run`.
 ./gradlew run
 ```
 
+A cluster of several nodes may be run by passing `-PnumNodes`. Every node stops when any of them does, so to be able
+to stop some nodes and keep the rest, start them from a second terminal, numbered from `-PstartNode`. Its nodes join
+the running cluster, and each build stops only its own:
+
+```bash
+./gradlew run -PnumNodes=2                # runTask-0 and runTask-1, on ports 9200/9300 and 9201/9301
+./gradlew run -PnumNodes=2 -PstartNode=2  # in another terminal: runTask-2 and runTask-3, on 9202/9302 and 9203/9303
+```
+
+Stopping nodes that are eligible to be cluster manager can leave the rest without a quorum. To be able to stop the second
+build's nodes without that, make them data-only: `-Dtests.opensearch.node.roles=data`.
+
 [Plugins](plugins/) may be installed by passing a `-PinstalledPlugins` property:
 
 ```bash
@@ -614,9 +626,9 @@ annotation. The presence of this annotation signals that API may change at any t
 
 #### User API
 
-The User API consists of integration specifications (e.g., [Query Domain Specific Language](https://opensearch.org/docs/latest/opensearch/query-dsl/index/),
-[field mappings](https://opensearch.org/docs/latest/opensearch/mappings/)) and endpoints (e.g., [`_search`](https://opensearch.org/docs/latest/api-reference/search/),
-[`_cat`](https://opensearch.org/docs/latest/api-reference/cat/index/)) users rely on to integrate and use OpenSearch. Backwards compatibility is critical to the
+The User API consists of integration specifications (e.g., [Query Domain Specific Language](https://docs.opensearch.org/latest/query-dsl/),
+[field mappings](https://docs.opensearch.org/latest/mappings/)) and endpoints (e.g., [`_search`](https://docs.opensearch.org/latest/api-reference/search-apis/search/),
+[`_cat`](https://docs.opensearch.org/latest/api-reference/cat/index/)) users rely on to integrate and use OpenSearch. Backwards compatibility is critical to the
 User API, therefore OpenSearch commits to using [semantic versioning](https://opensearch.org/blog/what-is-semver/) for all User facing APIs. To support this
 developers must leverage `Version` checks for any user facing endpoints or API specifications that change across minor versions. Developers must also inform
 users of any changes by adding the `>breaking` label on Pull Requests and a log message to the OpenSearch deprecation log files using the `DeprecationLogger`.
@@ -674,7 +686,7 @@ Note that these snapshots do not follow the Maven [naming convention](https://ma
 
 If you encounter a test failure locally or in CI that is seemingly unrelated to the change in your pull request, it may be a known flaky test or a new test failure. OpenSearch has a very large test suite with long running, often failing (flaky), integration tests. Such individual tests are labelled as [Flaky Random Test Failure](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22). Your help is wanted fixing these!
 
-The automation [gradle-check-flaky-test-detector](https://build.ci.opensearch.org/job/gradle-check-flaky-test-detector/), which runs in OpenSearch public Jenkins, identifies failing flaky issues that are part of post-merge actions. Once a flaky test is identified, the automation creates an issue with detailed report that includes links to all relevant commits, the Gradle check build log, the test report, and pull requests that are impacted with the flaky test failures. This automation leverages data from the [OpenSearch Metrics Project](https://github.com/opensearch-project/opensearch-metrics) to establish a baseline for creating the issue and updating the flaky test report. For all flaky test issues created by automation, visit this [link](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aissue+is%3Aopen+label%3A%3Etest-failure+author%3Aopensearch-ci-bot).
+The automation [gradle-check-flaky-test-detector](https://jenkins.opensearch.org/job/gradle-check-flaky-test-detector/), which runs in OpenSearch public Jenkins, identifies failing flaky issues that are part of post-merge actions. Once a flaky test is identified, the automation creates an issue with detailed report that includes links to all relevant commits, the Gradle check build log, the test report, and pull requests that are impacted with the flaky test failures. This automation leverages data from the [OpenSearch Metrics Project](https://github.com/opensearch-project/opensearch-metrics) to establish a baseline for creating the issue and updating the flaky test report. For all flaky test issues created by automation, visit this [link](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aissue+is%3Aopen+label%3A%3Etest-failure+author%3Aopensearch-ci-bot).
 
 If you still see a failing test that is not part of the post merge actions, please do:
 

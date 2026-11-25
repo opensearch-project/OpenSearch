@@ -335,12 +335,36 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         MultiBucketConsumer bucketConsumer,
         MappedFieldType... fieldTypes
     ) throws IOException {
+        return createStreamAggregator(
+            query,
+            aggregationBuilder,
+            indexSearcher,
+            indexSettings,
+            bucketConsumer,
+            CardinalityUpperBound.ONE,
+            fieldTypes
+        );
+    }
+
+    protected <A extends Aggregator> A createStreamAggregator(
+        Query query,
+        AggregationBuilder aggregationBuilder,
+        IndexSearcher indexSearcher,
+        IndexSettings indexSettings,
+        MultiBucketConsumer bucketConsumer,
+        CardinalityUpperBound cardinality,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
         SearchContext searchContext = createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, fieldTypes);
         when(searchContext.isStreamSearch()).thenReturn(true);
         // Force streaming aggregator creation by setting flushMode to PER_SEGMENT
         // This bypasses the cost estimation decision logic in the factory
         when(searchContext.getFlushMode()).thenReturn(FlushMode.PER_SEGMENT);
-        return createAggregator(aggregationBuilder, searchContext);
+        @SuppressWarnings("unchecked")
+        A aggregator = (A) aggregationBuilder.rewrite(searchContext.getQueryShardContext())
+            .build(searchContext.getQueryShardContext(), null)
+            .create(searchContext, null, cardinality);
+        return aggregator;
     }
 
     protected <A extends Aggregator> A createAggregatorWithCustomizableSearchContext(
@@ -508,7 +532,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(searchContext.fetchPhase()).thenReturn(new FetchPhase(Arrays.asList(new FetchSourcePhase(), new FetchDocValuesPhase())));
         if (aggTestThreadPool == null) {
             aggTestThreadPool = new TestThreadPool("agg_test");
-            aggTestIndicesBitsetFilterCache = new IndicesBitsetFilterCache(Settings.EMPTY, aggTestThreadPool);
+            aggTestIndicesBitsetFilterCache = new IndicesBitsetFilterCache(Settings.EMPTY);
         }
         when(searchContext.bitsetFilterCache()).thenReturn(
             new BitsetFilterCache(indexSettings, aggTestIndicesBitsetFilterCache, mock(BitsetFilterCache.Listener.class))

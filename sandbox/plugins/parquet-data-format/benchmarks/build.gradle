@@ -37,6 +37,10 @@ dependencies {
   // compileOnly (not exported), so the benchmark must declare it directly.
   compileOnly project(':plugins:arrow-base')
 
+  // plugin-stats-spi is compileOnly in parquet-data-format (provided by the stats plugin at
+  // runtime); ParquetDataFormatPlugin references it, so the benchmark JVM needs it on its classpath.
+  runtimeOnly project(':sandbox:libs:plugin-stats-spi')
+
   // JMH dependencies
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"

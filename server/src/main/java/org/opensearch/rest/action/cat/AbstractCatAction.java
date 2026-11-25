@@ -86,12 +86,14 @@ public abstract class AbstractCatAction extends BaseRestHandler {
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOutput.bytes()));
             };
         } else {
+            // Reject an invalid limit before doing any work, rather than after the response table is built
+            RestTable.parseLimit(request);
             return doCatRequest(request, client);
         }
     }
 
     static Set<String> RESPONSE_PARAMS = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList("format", "h", "v", "ts", "pri", "bytes", "size", "time", "s", "timeout"))
+        new HashSet<>(Arrays.asList("format", "h", "v", "ts", "pri", "bytes", "size", "time", "s", "timeout", "limit"))
     );
 
     @Override

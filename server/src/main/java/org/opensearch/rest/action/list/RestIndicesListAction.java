@@ -14,9 +14,12 @@ import org.opensearch.action.pagination.PageParams;
 import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.indices.SystemIndices;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.cat.RestIndicesAction;
+import org.opensearch.transport.client.node.NodeClient;
 
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -36,8 +39,8 @@ public class RestIndicesListAction extends RestIndicesAction {
     private static final int MAX_SUPPORTED_LIST_INDICES_PAGE_SIZE = 5000;
     private static final int DEFAULT_LIST_INDICES_PAGE_SIZE = 500;
 
-    public RestIndicesListAction(final ResponseLimitSettings responseLimitSettings) {
-        super(responseLimitSettings);
+    public RestIndicesListAction(final ResponseLimitSettings responseLimitSettings, final SystemIndices systemIndices) {
+        super(responseLimitSettings, systemIndices);
     }
 
     @Override
@@ -48,6 +51,14 @@ public class RestIndicesListAction extends RestIndicesAction {
     @Override
     public String getName() {
         return "list_indices_action";
+    }
+
+    @Override
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.hasParam("system")) {
+            throw new IllegalArgumentException("parameter [system] is not supported by the [_list/indices] API");
+        }
+        return super.prepareRequest(request, client);
     }
 
     protected void documentation(StringBuilder sb) {

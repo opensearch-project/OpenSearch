@@ -205,6 +205,19 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         checkPlugin(project);
     }
 
+    public void testADistributionCreatedAfterTheProjectIsEvaluatedIsStillWired() {
+        // Test clusters create their nodes, and with them their distributions, at the end of configuration. Wired only in
+        // afterEvaluate, a distribution created after that depended on nothing, and its cluster started without one.
+        Project project = createProject(null, false);
+        ((org.gradle.api.internal.project.ProjectInternal) project).evaluate();
+
+        OpenSearchDistribution late = createDistro(project, "late", "1.0.0", Type.ARCHIVE, Platform.LINUX, JavaPackageType.JDK);
+        late.setArchitecture(Architecture.current());
+
+        assertEquals(1, late.getExtracted().getIncoming().getDependencies().size());
+        assertEquals("and once", 1, late.getExtracted().getIncoming().getDependencies().size());
+    }
+
     public void testLocalCurrentVersionArchives() {
         for (Platform platform : Platform.values()) {
             for (JavaPackageType bundledJdk : JavaPackageType.values()) {

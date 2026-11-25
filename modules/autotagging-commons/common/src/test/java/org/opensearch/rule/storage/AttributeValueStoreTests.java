@@ -111,6 +111,14 @@ public class AttributeValueStoreTests extends OpenSearchTestCase {
         assertEquals(Set.of("prefix"), extractFeatureValues(subjectUnderTest.getMatches("foxtail")));
     }
 
+    public void testRemoveOnlyAffectsTheGivenValue() {
+        subjectUnderTest.put("foo", "bar");
+        subjectUnderTest.put("foo", "baz");
+        subjectUnderTest.remove("foo", "never_put");
+        subjectUnderTest.remove("foo", "baz");
+        assertEquals(Set.of("bar"), extractFeatureValues(subjectUnderTest.getMatches("foo")));
+    }
+
     public void testEmptyKeyValueMatchesEveryRequestAsNoConstraint() {
         // Values stored under the empty key represent "no constraint" and must match any request key at score 0.
         // This pins the explicit empty-key lookup in getMatches; without it, unconstrained-attribute rules stop matching.

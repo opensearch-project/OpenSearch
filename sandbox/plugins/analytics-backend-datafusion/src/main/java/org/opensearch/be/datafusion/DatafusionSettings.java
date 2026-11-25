@@ -186,9 +186,91 @@ public final class DatafusionSettings {
         return Long.toString(Math.max(0L, nativeLimit.getBytes() * percent / 100));
     }
 
-    // ── All settings registered by the plugin ──
+    // ── Parquet doc-values read path ──
 
-    public static final List<Setting<?>> ALL_SETTINGS = List.of(
+    /** Default starting size of a doc-values decode window, in rows. */
+    public static final int DEFAULT_DOCVALUES_INITIAL_BATCH_SIZE = 32;
+
+    /**
+     * Largest doc-values decode window the Parquet doc-values codec supports, in rows. Serves as
+     * both the default ceiling and the upper bound accepted for either batch-size setting, so the
+     * ceiling can only be lowered.
+     * <p>
+     * 8192 matches the batch size the DataFusion engine uses elsewhere in this plugin
+     * ({@code datafusion_query_config.rs}). Mirrored by {@code BATCH_SIZE_HARD_LIMIT} in
+     * {@code doc_values_cursor.rs}, which re-checks the value arriving over FFM.
+     */
+    public static final int DEFAULT_DOCVALUES_MAX_BATCH_SIZE = 8_192;
+
+    /**
+     * Starting size of the decode window a doc-values cursor asks Parquet for, in rows
+     * (default {@value #DEFAULT_DOCVALUES_INITIAL_BATCH_SIZE}).
+     * <p>
+     * The window then adapts: a dense forward scan doubles it up to
+     * {@link #DOCVALUES_MAX_BATCH_SIZE}, and a jump beyond the current window halves it back
+     * towards this value. Start small so sparse access does not decode rows nobody reads.
+     * <p>
+     * Index-scoped because the useful range follows the file's page layout, which is itself
+     * index-scoped ({@code index.parquet.page_row_limit}). Dynamic updates apply to cursors opened
+     * after the change; a cursor keeps the value it opened with for its lifetime.
+     */
+    public static final Setting<Integer> DOCVALUES_INITIAL_BATCH_SIZE = Setting.intSetting(
+        "index.parquet.docvalues.initial_batch_size",
+        DEFAULT_DOCVALUES_INITIAL_BATCH_SIZE,
+        1,
+        DEFAULT_DOCVALUES_MAX_BATCH_SIZE,
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Ceiling the adaptive doc-values decode window grows to, in rows
+     * (default {@value #DEFAULT_DOCVALUES_MAX_BATCH_SIZE}).
+     * <p>
+     * Larger windows amortise the cost of crossing into the native reader over more rows, which
+     * helps a dense scan, but hold more decoded memory per open cursor and waste more decode work
+     * when access is sparse. Values above {@link #DEFAULT_DOCVALUES_MAX_BATCH_SIZE} are rejected.
+     * <p>
+     * Same scope and dynamic-update semantics as {@link #DOCVALUES_INITIAL_BATCH_SIZE}.
+     */
+    public static final Setting<Integer> DOCVALUES_MAX_BATCH_SIZE = Setting.intSetting(
+        "index.parquet.docvalues.max_batch_size",
+        DEFAULT_DOCVALUES_MAX_BATCH_SIZE,
+        1,
+        DEFAULT_DOCVALUES_MAX_BATCH_SIZE,
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Ceiling for a doc-values decode window, in rows.
+     *
+     * @param settings index settings, or {@link Settings#EMPTY} to take the defaults
+     */
+    public static int docValuesMaxBatchSize(Settings settings) {
+        return DOCVALUES_MAX_BATCH_SIZE.get(settings);
+    }
+
+    /**
+     * Starting size of a doc-values decode window, in rows, never above
+     * {@link #docValuesMaxBatchSize}. The two settings are independent, so a configuration that
+     * asks to start above the ceiling is resolved down rather than rejected.
+     *
+     * @param settings index settings, or {@link Settings#EMPTY} to take the defaults
+     */
+    public static int docValuesInitialBatchSize(Settings settings) {
+        return Math.min(DOCVALUES_INITIAL_BATCH_SIZE.get(settings), docValuesMaxBatchSize(settings));
+    }
+
+    /**
+     * Index-scoped settings the plugin registers. Kept separate from {@link #NODE_SCOPED_SETTINGS} because
+     * that list is fed to {@link ClusterSettings}, which accepts only {@code NodeScope} settings.
+     */
+    public static final List<Setting<?>> INDEX_SCOPED_SETTINGS = List.of(DOCVALUES_INITIAL_BATCH_SIZE, DOCVALUES_MAX_BATCH_SIZE);
+
+    // ── Node-scoped settings registered by the plugin ──
+
+    public static final List<Setting<?>> NODE_SCOPED_SETTINGS = List.of(
 
         // Runtime settings — memory pool, spill, reduce input mode, and budget tuning
         DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT,

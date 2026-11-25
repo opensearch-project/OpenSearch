@@ -391,7 +391,14 @@ public class ClusterStateChanges {
         remoteStoreNodeService = new RemoteStoreNodeService(new SetOnce<>(repositoriesService)::get, threadPool);
 
         nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
-        joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, (s, p, r) -> {}, remoteStoreNodeService);
+        joinTaskExecutor = new JoinTaskExecutor(
+            Settings.EMPTY,
+            allocationService,
+            logger,
+            (s, p, r) -> {},
+            remoteStoreNodeService,
+            node -> true
+        );
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {

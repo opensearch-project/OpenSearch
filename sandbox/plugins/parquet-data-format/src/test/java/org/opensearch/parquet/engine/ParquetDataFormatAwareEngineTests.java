@@ -20,10 +20,13 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.AbstractDataFormatAwareEngineTestCase;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
+import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.stub.MockDeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
+import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.BinaryFieldMapper.BinaryFieldType;
 import org.opensearch.index.mapper.BooleanFieldMapper.BooleanFieldType;
 import org.opensearch.index.mapper.DateFieldMapper;
@@ -44,6 +47,7 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.index.store.Store;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
+import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 import org.opensearch.parquet.fields.ParquetField;
@@ -173,11 +177,17 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
                     engineConfig.store().shardPath(),
                     () -> schema,
                     () -> 1L,
+                    () -> ParquetSettings.getLowCardinalityEnabledFields(engineConfig.mapperService()),
                     engineConfig.indexSettings(),
                     threadPool,
                     new PrecomputedChecksumStrategy(),
                     nativeAllocator
                 );
+            }
+
+            @Override
+            public DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
+                return new MockDeleteExecutionEngine(dataFormat);
             }
         };
     }

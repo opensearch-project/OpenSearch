@@ -41,12 +41,14 @@ import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.FieldScope;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MetadataFieldMapper;
+import org.opensearch.index.mapper.ParametrizedFieldMapper;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
@@ -398,9 +400,24 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
      * Assigns capabilities by delegating to primary format first, then secondaries in order.
      * Each sub-format plugin claims the capabilities it supports; unclaimed capabilities are
      * passed to the next format.
+     *
+     * <p>Overrides the scope-aware variant because {@link DataFormatRegistry} dispatches through
+     * it; the parameterless-scope overload inherits the interface default, which delegates here
+     * with {@link FieldScope#ROOT}. Fields inside a nested scope are rejected until the composite
+     * formats implement nested storage.
      */
     @Override
-    public void assignCapabilities(MappedFieldType fieldType, IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+    public void assignCapabilities(
+        MappedFieldType fieldType,
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry,
+        FieldScope fieldScope
+    ) {
+        if (fieldScope == FieldScope.NESTED) {
+            throw new MapperParsingException(
+                "Field [" + fieldType.name() + "] is inside a nested object, which is not supported by the [composite] data format"
+            );
+        }
         Set<FieldTypeCapabilities.Capability> requested = fieldType.requestedCapabilities();
         if (requested.isEmpty()) {
             fieldType.setCapabilityMap(Map.of());
@@ -480,6 +497,59 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
             }
         }
         return Map.copyOf(strategies);
+    }
+
+    /**
+     * Aggregates the mapping parameters contributed by every participating sub-format plugin
+     * (primary + secondary), for the given content type. Mirrors {@link #getStoreStrategies}:
+     * each participating format is resolved through the registry, which delegates to the
+     * sub-plugin without re-entering this composite.
+     *
+     * @throws IllegalArgumentException if two participating formats contribute a parameter with the same name
+     */
+    @Override
+    public List<ParametrizedFieldMapper.Parameter<?>> getPluginMappingParameters(
+        String contentType,
+        IndexSettings indexSettings,
+        DataFormatRegistry dataFormatRegistry
+    ) {
+        Settings settings = indexSettings.getSettings();
+        String primaryFormatName = PRIMARY_DATA_FORMAT.get(settings);
+        List<String> secondaryFormatNames = SECONDARY_DATA_FORMATS.get(settings);
+
+        List<ParametrizedFieldMapper.Parameter<?>> result = new ArrayList<>();
+        Set<String> seenNames = new HashSet<>();
+        if (primaryFormatName != null && primaryFormatName.isEmpty() == false) {
+            collectParameters(result, seenNames, dataFormatRegistry, contentType, indexSettings, primaryFormatName);
+        }
+        for (String secondaryName : secondaryFormatNames) {
+            if (secondaryName != null && secondaryName.isEmpty() == false) {
+                collectParameters(result, seenNames, dataFormatRegistry, contentType, indexSettings, secondaryName);
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private static void collectParameters(
+        List<ParametrizedFieldMapper.Parameter<?>> result,
+        Set<String> seenNames,
+        DataFormatRegistry dataFormatRegistry,
+        String contentType,
+        IndexSettings indexSettings,
+        String formatName
+    ) {
+        for (ParametrizedFieldMapper.Parameter<?> param : dataFormatRegistry.getPluginMappingParameters(
+            contentType,
+            indexSettings,
+            dataFormatRegistry.format(formatName)
+        )) {
+            if (seenNames.add(param.name) == false) {
+                throw new IllegalArgumentException(
+                    "Duplicate plugin mapping parameter [" + param.name + "] for content type [" + contentType + "]"
+                );
+            }
+            result.add(param);
+        }
     }
 
     @Override

@@ -10,12 +10,15 @@
 
 use std::sync::Arc;
 
-use datafusion::physical_expr::PhysicalExpr;
+use datafusion::physical_expr::{Partitioning, PhysicalExpr};
 use datafusion::physical_optimizer::combine_partial_final_agg::CombinePartialFinalAggregate;
 use datafusion::physical_optimizer::optimizer::{PhysicalOptimizer, PhysicalOptimizerRule};
 use datafusion::physical_plan::aggregates::{AggregateExec, AggregateMode};
+use datafusion::physical_plan::coalesce_partitions::CoalescePartitionsExec;
 use datafusion::physical_plan::expressions::Column;
 use datafusion::physical_plan::projection::ProjectionExec;
+use datafusion::physical_plan::repartition::RepartitionExec;
+use datafusion::physical_plan::streaming::StreamingTableExec;
 use datafusion::physical_plan::{ExecutionPlan, ExecutionPlanProperties};
 use datafusion_common::Result;
 
@@ -48,7 +51,10 @@ pub(crate) fn apply_aggregate_mode(
     match mode {
         Mode::Default => Ok(plan),
         Mode::Partial => force_aggregate_mode(plan, AggregateMode::Partial, has_topk),
-        Mode::Final => force_aggregate_mode(plan, AggregateMode::Final, false),
+        Mode::Final => {
+            let stripped = force_aggregate_mode(plan, AggregateMode::Final, false)?;
+            strip_redundant_shuffle_repartition(stripped)
+        }
     }
 }
 
@@ -61,18 +67,23 @@ pub(crate) fn partial_aggregate_schema(
 }
 
 /// Walks the plan tree and strips the half that doesn't match `target`.
+///
+/// `AggregateMode::Final` matches both `Final` (single-partition merge) and
+/// `FinalPartitioned` (per-partition merge over hash-distributed input). This matters for
+/// the M3 worker-side path: when `EnforceDistribution` sees a multi-partition input feeding
+/// a hash-distributable aggregate, it picks `FinalPartitioned` rather than `Final`. Treating
+/// the two as the same logical "final" half keeps the strip correct in both shapes.
 fn force_aggregate_mode(
     plan: Arc<dyn ExecutionPlan>,
     target: AggregateMode,
     has_topk: bool,
 ) -> Result<Arc<dyn ExecutionPlan>> {
     if let Some(agg) = plan.downcast_ref::<AggregateExec>() {
-        // Treat `FinalPartitioned` as `Final`: DataFusion picks `FinalPartitioned` for
-        // grouped aggregates that consume hash-partitioned input and `Final` for scalar /
-        // un-partitioned ones. Both are the FINAL half of the Partial/Final pair we strip.
-        let agg_is_target = *agg.mode() == target
-            || (target == AggregateMode::Final && *agg.mode() == AggregateMode::FinalPartitioned);
-        if agg_is_target {
+        // Treat `FinalPartitioned` as `Final` (see mode_matches_target): DataFusion picks
+        // `FinalPartitioned` for grouped aggregates that consume hash-partitioned input and
+        // `Final` for scalar / un-partitioned ones. Both are the FINAL half of the Partial/Final
+        // pair we strip.
+        if mode_matches_target(*agg.mode(), target) {
             // Keep this node, recurse into children
             let new_children: Vec<Arc<dyn ExecutionPlan>> = agg
                 .children()
@@ -138,6 +149,52 @@ fn force_aggregate_mode(
         // Leaf or multi-input node — return as-is
         Ok(plan)
     }
+}
+
+/// Whether `mode` is the same logical half as `target`. `Final` matches both `Final` and
+/// `FinalPartitioned` (same merge half, different child distribution). All other pairings
+/// require an exact mode match.
+fn mode_matches_target(mode: AggregateMode, target: AggregateMode) -> bool {
+    if mode == target {
+        return true;
+    }
+    matches!(
+        (target, mode),
+        (AggregateMode::Final, AggregateMode::FinalPartitioned)
+    )
+}
+
+/// Removes a `RepartitionExec(Hash)` that sits directly above a `StreamingTableExec`.
+///
+/// `EnforceDistribution` inserts that repartition because `StreamingTableExec` declares
+/// `Partitioning::UnknownPartitioning(N)` — it has no way to advertise that our M3 shuffle
+/// already hash-partitioned the rows by the same keys with the same partition count. The
+/// repartition is therefore a no-op (rows are already in the right partition) but costs one
+/// hash + one buffer per batch on the worker. Stripping it is correctness-preserving.
+///
+/// The strip is intentionally narrow: we only remove a `RepartitionExec` whose partitioning
+/// is `Hash(...)` AND whose immediate child is a `StreamingTableExec`. Other RepartitionExec
+/// shapes (round-robin coalescing, hash for a non-shuffle child) are left alone.
+fn strip_redundant_shuffle_repartition(
+    plan: Arc<dyn ExecutionPlan>,
+) -> Result<Arc<dyn ExecutionPlan>> {
+    if let Some(repart) = plan.downcast_ref::<RepartitionExec>() {
+        let is_hash = matches!(repart.partitioning(), Partitioning::Hash(_, _));
+        let child = repart.children()[0];
+        let child_is_streaming = child.downcast_ref::<StreamingTableExec>().is_some();
+        if is_hash && child_is_streaming {
+            return Ok(Arc::clone(child));
+        }
+    }
+    let new_children: Vec<Arc<dyn ExecutionPlan>> = plan
+        .children()
+        .into_iter()
+        .map(|c| strip_redundant_shuffle_repartition(Arc::clone(c)))
+        .collect::<Result<_>>()?;
+    if new_children.is_empty() {
+        return Ok(plan);
+    }
+    plan.with_new_children(new_children)
 }
 
 /// Walks down through any single-input wrapper (RelabelExec / RepartitionExec /
@@ -349,6 +406,103 @@ mod tests {
             "CombinePartialFinalAggregate should be filtered out"
         );
         assert!(!rules.is_empty(), "Should have other optimizer rules");
+    }
+
+    /// Builds a 1-partition StreamingTableExec over a closed channel for use as a
+    /// drop-in plan leaf. The channel is closed immediately so the stream is empty
+    /// — fine for plan-shape assertions that don't actually execute.
+    fn streaming_table_leaf() -> Arc<dyn ExecutionPlan> {
+        let schema = Arc::new(arrow::datatypes::Schema::new(vec![
+            arrow::datatypes::Field::new("x", arrow::datatypes::DataType::Int64, false),
+        ]));
+        let (_tx, rx) = crate::partition_stream::channel(Arc::clone(&schema));
+        let partition: Arc<dyn datafusion::physical_plan::streaming::PartitionStream> =
+            Arc::new(crate::partition_stream::SingleReceiverPartition::new(rx));
+        Arc::new(
+            StreamingTableExec::try_new(schema, vec![partition], None, None, false, None).unwrap(),
+        )
+    }
+
+    #[test]
+    fn test_strip_redundant_hash_repartition_over_streaming_table() {
+        // Hash-RepartitionExec sitting directly on a StreamingTableExec — exactly the shape
+        // EnforceDistribution synthesizes when the FINAL aggregate demands hash partitioning
+        // but StreamingTableExec advertises UnknownPartitioning. The strip must remove the
+        // repartition; data is already hash-partitioned by our M3 shuffle.
+        let leaf = streaming_table_leaf();
+        let hash_repart = Arc::new(
+            RepartitionExec::try_new(
+                Arc::clone(&leaf),
+                datafusion::physical_expr::Partitioning::Hash(
+                    vec![Arc::new(
+                        datafusion::physical_expr::expressions::Column::new("x", 0),
+                    )],
+                    4,
+                ),
+            )
+            .unwrap(),
+        ) as Arc<dyn ExecutionPlan>;
+
+        let stripped = strip_redundant_shuffle_repartition(Arc::clone(&hash_repart)).unwrap();
+        assert!(
+            stripped.downcast_ref::<StreamingTableExec>().is_some(),
+            "RepartitionExec(Hash) over StreamingTableExec must be stripped to the leaf, got: {}",
+            plan_string(&stripped)
+        );
+    }
+
+    #[test]
+    fn test_preserve_hash_repartition_over_non_streaming_input() {
+        // RepartitionExec(Hash) over an EmptyExec (or any non-streaming leaf) should NOT be
+        // stripped — the rows aren't already hash-partitioned by an upstream shuffle.
+        let leaf: Arc<dyn ExecutionPlan> =
+            Arc::new(datafusion::physical_plan::empty::EmptyExec::new(Arc::new(
+                arrow::datatypes::Schema::new(vec![arrow::datatypes::Field::new(
+                    "x",
+                    arrow::datatypes::DataType::Int64,
+                    false,
+                )]),
+            )));
+        let hash_repart = Arc::new(
+            RepartitionExec::try_new(
+                Arc::clone(&leaf),
+                datafusion::physical_expr::Partitioning::Hash(
+                    vec![Arc::new(
+                        datafusion::physical_expr::expressions::Column::new("x", 0),
+                    )],
+                    4,
+                ),
+            )
+            .unwrap(),
+        ) as Arc<dyn ExecutionPlan>;
+
+        let stripped = strip_redundant_shuffle_repartition(Arc::clone(&hash_repart)).unwrap();
+        assert!(
+            stripped.downcast_ref::<RepartitionExec>().is_some(),
+            "Hash-Repartition over non-streaming input must be preserved, got: {}",
+            plan_string(&stripped)
+        );
+    }
+
+    #[test]
+    fn test_preserve_round_robin_repartition_over_streaming_table() {
+        // Round-robin Repartition over a StreamingTableExec is a different shape (e.g. for
+        // load balancing pre-Final) — the strip must NOT touch it.
+        let leaf = streaming_table_leaf();
+        let rr_repart = Arc::new(
+            RepartitionExec::try_new(
+                Arc::clone(&leaf),
+                datafusion::physical_expr::Partitioning::RoundRobinBatch(4),
+            )
+            .unwrap(),
+        ) as Arc<dyn ExecutionPlan>;
+
+        let stripped = strip_redundant_shuffle_repartition(Arc::clone(&rr_repart)).unwrap();
+        assert!(
+            stripped.downcast_ref::<RepartitionExec>().is_some(),
+            "Round-robin Repartition over StreamingTable must be preserved, got: {}",
+            plan_string(&stripped)
+        );
     }
 
     /// Verifies apply_aggregate_mode(Partial) strips the Final aggregate and keeps

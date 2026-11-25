@@ -32,7 +32,9 @@
 
 package org.opensearch.common.concurrent;
 
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 
 /**
@@ -47,6 +49,11 @@ import java.util.function.BiConsumer;
 public class CompletableContext<T> {
 
     private final CompletableFuture<T> completableFuture = new CompletableFuture<>();
+    private final Set<BiConsumer<T, ? super Exception>> removableListeners = ConcurrentHashMap.newKeySet();
+
+    public CompletableContext() {
+        completableFuture.whenComplete((v, t) -> notifyRemovableListeners());
+    }
 
     public void addListener(BiConsumer<T, ? super Exception> listener) {
         BiConsumer<T, Throwable> castThrowable = (v, t) -> {
@@ -74,5 +81,66 @@ public class CompletableContext<T> {
 
     public boolean complete(T value) {
         return completableFuture.complete(value);
+    }
+
+    /**
+     * Adds a listener that can be removed again with {@link #removeRemovableListener(BiConsumer)} while this context
+     * is not completed yet. Unlike {@link #addListener(BiConsumer)}, the listener is held as it is given instead of
+     * being attached to the underlying {@link CompletableFuture}, whose callbacks cannot be detached. A listener
+     * added after this context has completed is notified by the calling thread, as {@link #addListener(BiConsumer)}
+     * does. The listeners are held in a set, so adding the same listener instance more than once holds it once.
+     *
+     * @param listener listener to add
+     */
+    public void addRemovableListener(BiConsumer<T, ? super Exception> listener) {
+        // added before the check on purpose: a listener that lands after the completion sweep has passed is
+        // picked up here, one that lands before it is picked up by the sweep, and remove() decides which of the
+        // two notifies it. Checking first and adding only if not done would strand a listener added in between,
+        // because the sweep runs once and does not see it.
+        removableListeners.add(listener);
+        if (completableFuture.isDone()) {
+            notifyRemovableListener(listener);
+        }
+    }
+
+    /**
+     * Removes a listener added with {@link #addRemovableListener(BiConsumer)} that has not been notified yet.
+     * Removing a listener that was never added, or that has already been notified, does nothing.
+     *
+     * @param listener listener to remove
+     */
+    public void removeRemovableListener(BiConsumer<T, ? super Exception> listener) {
+        removableListeners.remove(listener);
+    }
+
+    /**
+     * Number of removable listeners that are waiting to be notified. Only meant for tests.
+     *
+     * @return number of listeners
+     */
+    int removableListenersSize() {
+        return removableListeners.size();
+    }
+
+    private void notifyRemovableListeners() {
+        for (BiConsumer<T, ? super Exception> listener : removableListeners) {
+            notifyRemovableListener(listener);
+        }
+    }
+
+    private void notifyRemovableListener(BiConsumer<T, ? super Exception> listener) {
+        // whoever takes the listener out of the set owns notifying it, so a listener that is added or removed
+        // while this context is completing is notified exactly once, or not at all once it has been removed
+        if (removableListeners.remove(listener) == false) {
+            return;
+        }
+        // only reached once the future is done, so resultNow / exceptionNow do not throw
+        if (completableFuture.isCompletedExceptionally()) {
+            final Throwable t = completableFuture.exceptionNow();
+            assert !(t instanceof Error) : "Cannot be error";
+            listener.accept(null, (Exception) t);
+        } else {
+            listener.accept(completableFuture.resultNow(), null);
+        }
     }
 }

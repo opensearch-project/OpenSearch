@@ -42,6 +42,7 @@ import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -52,7 +53,14 @@ public class RoutingFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(MockDataFormatPlugin.class, MockCommitterEnginePlugin.class);
+        // EngineConfigFactory permits exactly one committer factory per node; when the sandbox stack is
+        // installed, its LucenePlugin supplies the real committer, so the in-memory mock committer is only
+        // registered in the plugin-free run.
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(List.of(MockDataFormatPlugin.class));
+        if (shouldInstallSandboxStack() == false) {
+            plugins.add(MockCommitterEnginePlugin.class);
+        }
+        return plugins;
     }
 
     public void testRoutingMapper() throws Exception {

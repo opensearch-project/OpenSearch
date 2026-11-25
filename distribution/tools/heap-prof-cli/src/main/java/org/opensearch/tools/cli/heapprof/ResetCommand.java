@@ -6,6 +6,7 @@ package org.opensearch.tools.cli.heapprof;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.opensearch.cli.Terminal;
+import org.opensearch.cli.UserException;
 
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
@@ -26,7 +27,11 @@ class ResetCommand extends HeapProfCommand {
         var args = lgSampleArg.values(options);
         int lgSample = 17; // default
         if (!args.isEmpty()) {
-            lgSample = Integer.parseInt(args.get(0));
+            try {
+                lgSample = Integer.parseInt(args.get(0));
+            } catch (NumberFormatException e) {
+                throw new UserException(1, "lg_prof_sample must be an integer, got: " + args.get(0));
+            }
         }
         mbs.invoke(mbean, "reset", new Object[] { lgSample }, new String[] { "int" });
         terminal.println("Profiling reset with lg_prof_sample=" + lgSample + " (sample every ~" + ((1L << lgSample) / 1024) + "KB)");

@@ -76,6 +76,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexTemplateException;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -264,6 +265,7 @@ public class MetadataIndexTemplateService {
         if (create && existing != null) {
             throw new IllegalArgumentException("component template [" + name + "] already exists");
         }
+        AliasFilter.ensureScoringModesSupported(template.template(), () -> currentState.nodes().getMinNodeVersion());
 
         CompressedXContent mappings = template.template().mappings();
         String stringMappings = mappings == null ? null : mappings.string();
@@ -334,7 +336,14 @@ public class MetadataIndexTemplateService {
             return currentState;
         }
 
-        validateTemplate(finalSettings, stringMappings, indicesService, xContentRegistry);
+        validateTemplate(
+            finalSettings,
+            stringMappings,
+            indicesService,
+            xContentRegistry,
+            clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING),
+            clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)
+        );
         validate(name, finalComponentTemplate);
 
         // Validate all composable index templates that use this component template
@@ -352,7 +361,9 @@ public class MetadataIndexTemplateService {
                         composableTemplateName,
                         composableTemplate,
                         indicesService,
-                        xContentRegistry
+                        xContentRegistry,
+                        clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING),
+                        clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)
                     );
                 } catch (Exception e) {
                     if (validationFailure == null) {
@@ -620,6 +631,7 @@ public class MetadataIndexTemplateService {
         if (create && existing != null) {
             throw new IllegalArgumentException("index template [" + name + "] already exists");
         }
+        AliasFilter.ensureScoringModesSupported(template.template(), () -> currentState.nodes().getMinNodeVersion());
 
         Map<String, List<String>> overlaps = findConflictingV2Templates(
             currentState,
@@ -711,7 +723,15 @@ public class MetadataIndexTemplateService {
         // Finally, right before adding the template, we need to ensure that the composite settings,
         // mappings, and aliases are valid after it's been composed with the component templates
         try {
-            validateCompositeTemplate(currentState, name, finalIndexTemplate, indicesService, xContentRegistry);
+            validateCompositeTemplate(
+                currentState,
+                name,
+                finalIndexTemplate,
+                indicesService,
+                xContentRegistry,
+                clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING),
+                clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)
+            );
         } catch (Exception e) {
             throw new IllegalArgumentException(
                 "composable template ["
@@ -1035,7 +1055,14 @@ public class MetadataIndexTemplateService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    validateTemplate(request.settings, request.mappings, indicesService, xContentRegistry);
+                    validateTemplate(
+                        request.settings,
+                        request.mappings,
+                        indicesService,
+                        xContentRegistry,
+                        clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING),
+                        clusterService.getClusterSettings().get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)
+                    );
                     return innerPutTemplate(currentState, request, templateBuilder);
                 }
 
@@ -1095,10 +1122,12 @@ public class MetadataIndexTemplateService {
                 .filter(alias.filter())
                 .indexRouting(alias.indexRouting())
                 .searchRouting(alias.searchRouting())
+                .scoringMode(alias.scoringMode())
                 .build();
             templateBuilder.putAlias(aliasMetadata);
         }
         IndexTemplateMetadata template = templateBuilder.build();
+        AliasFilter.ensureScoringModesSupported(template.aliases(), () -> currentState.nodes().getMinNodeVersion());
         IndexTemplateMetadata existingTemplate = currentState.metadata().templates().get(request.name);
         if (template.equals(existingTemplate)) {
             // The template is unchanged, therefore there is no need for a cluster state update
@@ -1422,7 +1451,9 @@ public class MetadataIndexTemplateService {
         final String templateName,
         final ComposableIndexTemplate template,
         final IndicesService indicesService,
-        final NamedXContentRegistry xContentRegistry
+        final NamedXContentRegistry xContentRegistry,
+        final boolean clusterPluggableDataFormatEnabled,
+        final String clusterPluggableDataFormatValue
     ) throws Exception {
         final ClusterState stateWithTemplate = ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata()).put(templateName, template))
@@ -1440,13 +1471,29 @@ public class MetadataIndexTemplateService {
         int shardReplicas = resolvedSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
 
         // Create the final aggregate settings, which will be used to create the temporary index metadata to validate everything
-        Settings finalResolvedSettings = Settings.builder()
+        Settings.Builder finalResolvedSettingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(resolvedSettings)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .build();
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+        // When a pluggable data format is the cluster-wide default, validate the composed mapping as a
+        // pluggable index would see it — unless the template opts out explicitly — so that a field
+        // setting index:true is rejected here rather than failing every index the template creates.
+        if (clusterPluggableDataFormatEnabled && IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(resolvedSettings) == false) {
+            finalResolvedSettingsBuilder.put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true);
+        }
+
+        // Also carry the cluster's default data format name (mirroring MetadataCreateIndexService) so the
+        // dummy index resolves a format and the capability path can reject index:true. When no name is
+        // configured there is no format to validate against; such an index cannot start its shards at
+        // creation anyway (no data format), so there is nothing to reject here.
+        if (clusterPluggableDataFormatEnabled
+            && clusterPluggableDataFormatValue.isEmpty() == false
+            && IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.exists(resolvedSettings) == false) {
+            finalResolvedSettingsBuilder.put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), clusterPluggableDataFormatValue);
+        }
+        Settings finalResolvedSettings = finalResolvedSettingsBuilder.build();
 
         // Validate index metadata (settings)
         final ClusterState stateWithIndex = ClusterState.builder(stateWithTemplate)
@@ -1496,13 +1543,17 @@ public class MetadataIndexTemplateService {
         Settings validateSettings,
         String mappings,
         IndicesService indicesService,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        boolean clusterPluggableDataFormatEnabled,
+        String clusterPluggableDataFormatValue
     ) throws Exception {
         validateTemplate(
             validateSettings,
             Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, mappings),
             indicesService,
-            xContentRegistry
+            xContentRegistry,
+            clusterPluggableDataFormatEnabled,
+            clusterPluggableDataFormatValue
         );
     }
 
@@ -1510,7 +1561,9 @@ public class MetadataIndexTemplateService {
         Settings validateSettings,
         Map<String, String> mappings,
         IndicesService indicesService,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        boolean clusterPluggableDataFormatEnabled,
+        String clusterPluggableDataFormatValue
     ) throws Exception {
         // First check to see if mappings are valid XContent
         Map<String, Map<String, Object>> mappingsForValidation = new HashMap<>();
@@ -1545,13 +1598,28 @@ public class MetadataIndexTemplateService {
             int shardReplicas = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
 
             // create index service for parsing and validating "mappings"
-            Settings dummySettings = Settings.builder()
+            Settings.Builder dummySettingsBuilder = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(settings)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
-                .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                .build();
+                .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+            // When a pluggable data format is the cluster-wide default, validate the mapping as a
+            // pluggable index would see it — unless the template opts out explicitly — so that a field
+            // setting index:true is rejected here rather than failing every index the template creates.
+            if (clusterPluggableDataFormatEnabled && IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(settings) == false) {
+                dummySettingsBuilder.put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true);
+            }
+            // Also carry the cluster's default data format name (mirroring MetadataCreateIndexService) so the
+            // dummy index resolves a format and the capability path can reject index:true. When no name is
+            // configured there is no format to validate against; such an index cannot start its shards at
+            // creation anyway (no data format), so there is nothing to reject here.
+            if (clusterPluggableDataFormatEnabled
+                && clusterPluggableDataFormatValue.isEmpty() == false
+                && IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.exists(settings) == false) {
+                dummySettingsBuilder.put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), clusterPluggableDataFormatValue);
+            }
+            Settings dummySettings = dummySettingsBuilder.build();
 
             final IndexMetadata tmpIndexMetadata = IndexMetadata.builder(temporaryIndexName).settings(dummySettings).build();
             IndexService dummyIndexService = indicesService.createIndex(tmpIndexMetadata, Collections.emptyList(), false);

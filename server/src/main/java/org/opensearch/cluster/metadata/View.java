@@ -10,7 +10,7 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.DeprecatedApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -26,10 +26,17 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
-/** View of data in OpenSearch indices */
-@ExperimentalApi
+/**
+ * Wire and XContent representation of a view persisted by the removed experimental Views feature.
+ * <p>
+ * The Views APIs were removed in 3.10.0. This class only exists so that a {@code view} metadata custom written by an
+ * earlier 3.x node can still be read during a rolling upgrade; see {@link ViewMetadata}. It will be deleted in 4.0.
+ *
+ * @opensearch.api
+ */
+@DeprecatedApi(since = "3.10.0", forRemoval = "4.0.0")
+@Deprecated(forRemoval = true)
 public class View extends AbstractDiffable<View> implements ToXContentObject {
 
     private final String name;
@@ -50,26 +57,6 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
         this(in.readString(), in.readOptionalString(), in.readZLong(), in.readZLong(), new TreeSet<>(in.readList(Target::new)));
     }
 
-    public String getName() {
-        return name;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public long getCreatedAt() {
-        return createdAt;
-    }
-
-    public long getModifiedAt() {
-        return modifiedAt;
-    }
-
-    public SortedSet<Target> getTargets() {
-        return new TreeSet<>(targets);
-    }
-
     public static Diff<View> readDiffFrom(final StreamInput in) throws IOException {
         return readDiffFrom(View::new, in);
     }
@@ -80,7 +67,7 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
         View that = (View) o;
         return name.equals(that.name)
-            && description.equals(that.description)
+            && Objects.equals(description, that.description)
             && createdAt == that.createdAt
             && modifiedAt == that.modifiedAt
             && targets.equals(that.targets);
@@ -92,7 +79,8 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
     }
 
     /** The source of data used to project the view */
-    @ExperimentalApi
+    @DeprecatedApi(since = "3.10.0", forRemoval = "4.0.0")
+    @Deprecated(forRemoval = true)
     public static class Target implements Writeable, ToXContentObject, Comparable<Target> {
 
         private final String indexPattern;
@@ -103,10 +91,6 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
 
         public Target(final StreamInput in) throws IOException {
             this(in.readString());
-        }
-
-        public String getIndexPattern() {
-            return indexPattern;
         }
 
         @Override
@@ -152,9 +136,7 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
         @Override
         public int compareTo(final Target o) {
             if (this == o) return 0;
-
-            final Target other = (Target) o;
-            return this.indexPattern.compareTo(other.indexPattern);
+            return this.indexPattern.compareTo(o.indexPattern);
         }
     }
 
@@ -172,7 +154,7 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION_FIELD);
+        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION_FIELD);
         PARSER.declareLongOrNull(ConstructingObjectParser.optionalConstructorArg(), -1L, CREATED_AT_FIELD);
         PARSER.declareLongOrNull(ConstructingObjectParser.optionalConstructorArg(), -1L, MODIFIED_AT_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Target.fromXContent(p), TARGETS_FIELD);
@@ -200,6 +182,6 @@ public class View extends AbstractDiffable<View> implements ToXContentObject {
         out.writeOptionalString(description);
         out.writeZLong(createdAt);
         out.writeZLong(modifiedAt);
-        out.writeList(targets.stream().collect(Collectors.toList()));
+        out.writeList(List.copyOf(targets));
     }
 }

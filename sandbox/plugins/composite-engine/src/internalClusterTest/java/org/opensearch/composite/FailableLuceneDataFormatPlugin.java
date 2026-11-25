@@ -80,6 +80,7 @@ public class FailableLuceneDataFormatPlugin extends LucenePlugin {
                 (LuceneDataFormat) getDataFormat(),
                 luceneCommitter,
                 indexingEngineConfig.mapperService(),
+                indexingEngineConfig.indexSettings(),
                 indexingEngineConfig.store()
             );
         }
@@ -99,9 +100,10 @@ public class FailableLuceneDataFormatPlugin extends LucenePlugin {
             LuceneDataFormat dataFormat,
             LuceneCommitter luceneCommitter,
             org.opensearch.index.mapper.MapperService mapperService,
+            org.opensearch.index.IndexSettings indexSettings,
             org.opensearch.index.store.Store store
         ) {
-            super(dataFormat, luceneCommitter, mapperService, store);
+            super(dataFormat, luceneCommitter, mapperService, indexSettings, store);
         }
 
         @Override

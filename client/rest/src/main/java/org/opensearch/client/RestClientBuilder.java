@@ -43,14 +43,11 @@ import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.ssl.ClientTlsStrategyBuilder;
-import org.apache.hc.core5.function.Factory;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
-import org.apache.hc.core5.reactor.ssl.TlsDetails;
 import org.apache.hc.core5.util.Timeout;
 
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
 
 import java.security.AccessController;
 import java.security.NoSuchAlgorithmException;
@@ -64,8 +61,8 @@ import java.util.Optional;
  * creating the underlying {@link HttpAsyncClient}. Also allows to provide an externally created
  * {@link HttpAsyncClient} in case additional customization is needed.
  *
- * @deprecated the {@code RestClient} is deprecated is going to be removed in future releases, please consider using official
- * OpenSearch Java Client or {@code RestHighLevelClient}
+ * @deprecated the {@code RestClient} is deprecated and is going to be removed in future releases, please consider using the
+ * official <a href="https://github.com/opensearch-project/opensearch-java">OpenSearch Java client</a>
  */
 @Deprecated
 public final class RestClientBuilder {
@@ -318,16 +315,7 @@ public final class RestClientBuilder {
         }
 
         try {
-            final TlsStrategy tlsStrategy = ClientTlsStrategyBuilder.create()
-                .setSslContext(SSLContext.getDefault())
-                // See https://issues.apache.org/jira/browse/HTTPCLIENT-2219
-                .setTlsDetailsFactory(new Factory<SSLEngine, TlsDetails>() {
-                    @Override
-                    public TlsDetails create(final SSLEngine sslEngine) {
-                        return new TlsDetails(sslEngine.getSession(), sslEngine.getApplicationProtocol());
-                    }
-                })
-                .build();
+            final TlsStrategy tlsStrategy = ClientTlsStrategyBuilder.create().setSslContext(SSLContext.getDefault()).buildAsync();
 
             final PoolingAsyncClientConnectionManager connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
                 .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE)

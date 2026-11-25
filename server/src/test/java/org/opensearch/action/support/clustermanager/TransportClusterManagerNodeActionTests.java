@@ -1010,7 +1010,8 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             allocationService,
             new ActionFilters(Collections.emptySet()),
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            clusterService.getClusterSettings()
+            clusterService.getClusterSettings(),
+            Settings.EMPTY
         );
 
         final SettingsException exception = expectThrows(
@@ -1115,7 +1116,8 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             allocationService,
             new ActionFilters(Collections.emptySet()),
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            clusterService.getClusterSettings()
+            clusterService.getClusterSettings(),
+            Settings.EMPTY
         );
 
         // changing compatibility mode when all nodes are not of the same version

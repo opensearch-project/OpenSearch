@@ -37,10 +37,10 @@ import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.Optionality;
+import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchLateMaterialization;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
-import org.opensearch.analytics.settings.AnalyticsQuerySettings;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
@@ -159,7 +159,9 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
 
         Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = idx -> new FieldStorageResolver(fieldStorage);
 
-        return new PlannerContext(new CapabilityRegistry(backends, fieldStorageFactory), clusterState);
+        // Default test settings: MPP off (see buildContextPerIndex for rationale).
+        Settings testSettings = Settings.builder().put("analytics.mpp.enabled", false).build();
+        return new PlannerContext(new CapabilityRegistry(backends, fieldStorageFactory), clusterState, testSettings);
     }
 
     protected PlannerContext buildContext(String primaryFormat, int shardCount, Map<String, Map<String, Object>> fieldMappings) {
@@ -220,7 +222,12 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         }
 
         Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = FieldStorageResolver::new;
-        return new PlannerContext(new CapabilityRegistry(backends, fieldStorageFactory), clusterState);
+        // Default test settings: MPP off. Most planner-rule tests pin the COORDINATOR_CENTRIC
+        // plan shape — that's the M0 contract they were written for, and it's what
+        // OpenSearchJoinSplitRule produces. Tests that exercise MPP (broadcast / hash) build
+        // their own context with mpp.enabled=true.
+        Settings testSettings = Settings.builder().put("analytics.mpp.enabled", false).build();
+        return new PlannerContext(new CapabilityRegistry(backends, fieldStorageFactory), clusterState, testSettings);
     }
 
     // ---- Table builders ----
@@ -356,7 +363,7 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.operationRouting()).thenReturn(routing);
         when(routing.searchShards(any(), any(), any(), any())).thenReturn(new GroupShardsIterator<ShardIterator>(List.of()));
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(AnalyticsQuerySettings.MAX_SHARDS_PER_QUERY));
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return clusterService;
     }

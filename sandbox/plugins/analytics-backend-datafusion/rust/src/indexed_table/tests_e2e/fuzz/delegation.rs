@@ -49,6 +49,7 @@ use crate::indexed_table::eval::single_collector::{
 };
 use crate::indexed_table::eval::RowGroupBitsetSource;
 use crate::indexed_table::ffm_callbacks::ProviderHandle;
+use crate::indexed_table::index::CollectDocsResult;
 use crate::indexed_table::index::RowGroupDocsCollector;
 use crate::indexed_table::page_pruner::PagePruner;
 use crate::indexed_table::table_provider::{
@@ -212,7 +213,11 @@ struct StaticBitsetCollector {
 }
 
 impl RowGroupDocsCollector for StaticBitsetCollector {
-    fn collect_packed_u64_bitset(&self, min_doc: i32, max_doc: i32) -> Result<Vec<u64>, String> {
+    fn collect_packed_u64_bitset(
+        &self,
+        min_doc: i32,
+        max_doc: i32,
+    ) -> Result<CollectDocsResult, String> {
         let span = (max_doc - min_doc) as usize;
         let mut out = vec![0u64; span.div_ceil(64)];
         for &doc in &self.matching {
@@ -221,7 +226,7 @@ impl RowGroupDocsCollector for StaticBitsetCollector {
                 out[rel / 64] |= 1u64 << (rel % 64);
             }
         }
-        Ok(out)
+        Ok(out.into())
     }
 }
 

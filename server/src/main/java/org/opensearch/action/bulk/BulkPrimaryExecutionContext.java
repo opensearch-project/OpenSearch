@@ -37,13 +37,14 @@ import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.replication.ReplicationResponse;
-import org.opensearch.action.support.replication.TransportWriteAction;
+import org.opensearch.common.Nullable;
 import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.translog.Translog;
 
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * This is a utility class that holds the per request state needed to perform bulk operations on the primary.
@@ -85,6 +86,8 @@ class BulkPrimaryExecutionContext {
     private final BulkShardRequest request;
     private final IndexShard primary;
     private Translog.Location locationToSync = null;
+    @Nullable
+    private Engine.TranslogBatch translogBatch = null;
     private int currentIndex = -1;
 
     private ItemProcessingState currentItemState;
@@ -183,6 +186,48 @@ class BulkPrimaryExecutionContext {
         // we always get to the end of the list by using advance, which in turn sets the state to INITIAL
         assert assertInvariants(ItemProcessingState.INITIAL);
         return locationToSync;
+    }
+
+    /**
+     * Folds a translog {@link Translog.Location} into {@code locationToSync}, keeping the greatest one seen so far.
+     * <p>
+     * Locations are no longer guaranteed to arrive in increasing order once index operations are batched: a deferred
+     * index result carries a null location when {@link #markOperationAsExecuted} runs (it is folded in when its chunk
+     * is appended), and {@link org.opensearch.index.engine.Engine.TranslogBatch#finish()} reports the greatest location
+     * the batch appended, which is older than an update, delete or no-op the engine wrote inline after the last chunk
+     * flush. Taking the maximum keeps every operation of the request, batched or inline, covered by the final sync.
+     */
+    public void mergeLocationToSync(@Nullable Translog.Location location) {
+        if (location == null) {
+            return;
+        }
+        if (locationToSync == null || location.compareTo(locationToSync) > 0) {
+            locationToSync = location;
+        }
+    }
+
+    /**
+     * Registers the translog batch scope opened for the current execution of this request on the current thread. A
+     * scope is owned by exactly one execution; a mapping-update yield finishes it before the request is re-executed.
+     */
+    public void setTranslogBatch(Engine.TranslogBatch translogBatch) {
+        assert this.translogBatch == null : "a translog batch is already registered for this execution";
+        this.translogBatch = Objects.requireNonNull(translogBatch);
+    }
+
+    /**
+     * Finishes the registered translog batch, if any, folding the greatest location it appended into the location to
+     * sync, and unregisters it. Idempotent: the second and later calls do nothing, so the caller's finally block is
+     * safe after a mapping-update yield has already finished the scope. If {@code finish()} throws, the scope is still
+     * unregistered (it has failed and completed every pending reader exceptionally) and the exception propagates.
+     */
+    public void finishTranslogBatch() {
+        final Engine.TranslogBatch batch = translogBatch;
+        if (batch == null) {
+            return;
+        }
+        translogBatch = null;
+        mergeLocationToSync(batch.finish());
     }
 
     private BulkItemRequest getCurrentItem() {
@@ -288,7 +333,8 @@ class BulkPrimaryExecutionContext {
                 executionResult = new BulkItemResponse(current.id(), current.request().opType(), response);
                 // set a blank ShardInfo so we can safely send it to the replicas. We won't use it in the real response though.
                 executionResult.getResponse().setShardInfo(new ReplicationResponse.ShardInfo());
-                locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
+                // A batched index result has no location yet; its chunk's location is folded in on flush/finish.
+                mergeLocationToSync(result.getTranslogLocation());
                 break;
             case FAILURE:
                 if (result.getFailure() instanceof AppendOnlyIndexOperationRetryException) {

@@ -28,6 +28,30 @@ import static org.apache.lucene.document.LongPoint.pack;
 
 public class ApproximateScoreQueryTests extends OpenSearchTestCase {
 
+    public void testEqualsAndHashCode() {
+        Query original = LongPoint.newRangeQuery("ts", 0L, 10L);
+        ApproximateQuery approximation = approximateRange("ts", 0L, 10L);
+        ApproximateScoreQuery query = new ApproximateScoreQuery(original, approximation);
+
+        ApproximateScoreQuery same = new ApproximateScoreQuery(LongPoint.newRangeQuery("ts", 0L, 10L), approximateRange("ts", 0L, 10L));
+        assertEquals(query, same);
+        assertEquals(query.hashCode(), same.hashCode());
+
+        // resolvedQuery is mutable rewrite state and must not change identity
+        same.resolvedQuery = approximation;
+        assertEquals(query, same);
+        assertEquals(query.hashCode(), same.hashCode());
+
+        ApproximateScoreQuery differentOriginal = new ApproximateScoreQuery(LongPoint.newRangeQuery("ts", 0L, 20L), approximation);
+        assertFalse(query.equals(differentOriginal));
+
+        ApproximateScoreQuery differentApproximation = new ApproximateScoreQuery(original, approximateRange("ts", 0L, 20L));
+        assertFalse(query.equals(differentApproximation));
+
+        assertFalse(query.equals(null));
+        assertFalse(query.equals(original));
+    }
+
     public void testApproximationScoreSupplier() throws IOException {
         long l = Long.MIN_VALUE;
         long u = Long.MAX_VALUE;
@@ -76,5 +100,15 @@ public class ApproximateScoreQueryTests extends OpenSearchTestCase {
                 }
             }
         }
+    }
+
+    private static ApproximateQuery approximateRange(String field, long lower, long upper) {
+        return new ApproximatePointRangeQuery(
+            field,
+            pack(new long[] { lower }).bytes,
+            pack(new long[] { upper }).bytes,
+            1,
+            ApproximatePointRangeQuery.LONG_FORMAT
+        );
     }
 }

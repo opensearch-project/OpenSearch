@@ -9,7 +9,7 @@ plans:
       OpenSearchProject(sum(AdvEngineID)=[$0], count()=[$1], avg(ResolutionWidth)=[ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=4, backends=[datafusion], CAST($2):DOUBLE), $3))], viableBackends=[[datafusion]])
         OpenSearchProject(sum(AdvEngineID)=[$0], count()=[CAST($1):BIGINT NOT NULL], $f2=[$2], $f3=[CAST($3):BIGINT NOT NULL], viableBackends=[[datafusion]])
           OpenSearchAggregate(group=[{}], sum(AdvEngineID)=[SUM($0)], count()=[SUM($1)], $f2=[SUM($2)], $f3=[SUM($3)], mode=[FINAL], viableBackends=[[datafusion]])
-            OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+            OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
               OpenSearchAggregate(group=[{}], sum(AdvEngineID)=[SUM($0)], count()=[COUNT()], agg#2=[SUM($1)], agg#3=[COUNT($1)], mode=[PARTIAL], viableBackends=[[datafusion]])
                 OpenSearchProject(AdvEngineID=[$0], ResolutionWidth=[$69], viableBackends=[[lucene, datafusion]])
                   OpenSearchTableScan(table=[[<scrubbed>]], viableBackends=[[lucene, datafusion]])
@@ -22,7 +22,7 @@ plans:
       OpenSearchProject(sum(AdvEngineID)=[$0], count()=[$1], avg(ResolutionWidth)=[ANNOTATED_PROJECT_EXPR(id=5, backends=[datafusion], /(ANNOTATED_PROJECT_EXPR(id=4, backends=[datafusion], CAST($2):DOUBLE), $3))], viableBackends=[[datafusion]])
         OpenSearchProject(sum(AdvEngineID)=[$0], count()=[CAST($1):BIGINT NOT NULL], $f2=[$2], $f3=[CAST($3):BIGINT NOT NULL], viableBackends=[[datafusion]])
           OpenSearchAggregate(group=[{}], sum(AdvEngineID)=[SUM($0)], count()=[SUM($1)], $f2=[SUM($2)], $f3=[SUM($3)], mode=[FINAL], viableBackends=[[datafusion]])
-            OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+            OpenSearchExchangeReducer(viableBackends=[[datafusion]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[], partitionCount=0]])
               OpenSearchStageInputScan(childStageId=[0], viableBackends=[[datafusion]])
     shard_physical: |
       AggregateExec: mode=Partial, gby=[], aggr=[sum(<scrubbed>.AdvEngineID) as sum(AdvEngineID), count(1) as count(), sum(<scrubbed>.ResolutionWidth) as $f2, count(<scrubbed>.ResolutionWidth) as $f3]

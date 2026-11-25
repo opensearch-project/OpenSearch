@@ -90,6 +90,7 @@ public class ReduceTargetPartitionsIT extends OpenSearchIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             .put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true)
             .put(FeatureFlags.STREAM_TRANSPORT, true)
+            .put("arrow.memory.debug.allocator", true)
             .build();
     }
 

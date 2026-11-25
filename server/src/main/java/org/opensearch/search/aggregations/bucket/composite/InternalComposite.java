@@ -33,6 +33,7 @@
 package org.opensearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -75,7 +76,27 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
     private final boolean earlyTerminated;
 
-    InternalComposite(
+    /**
+     * Constructs an instance directly from already-computed buckets and
+     * result metadata, for producers that build composite aggregation
+     * results outside the shard-level aggregation path.
+     *
+     * <p>The reduce phase merges the bucket lists of all shards, which requires
+     * {@code buckets} sorted in the composite key order that
+     * {@code reverseMuls} and {@code missingOrders} define (the order
+     * {@link InternalBucket#compareKey(InternalBucket)} uses), and each bucket
+     * built with the same {@code sourceNames}, {@code formats},
+     * {@code reverseMuls} and {@code missingOrders} as this instance.
+     *
+     * <p>{@code buckets} must also be this producer's first {@code size} buckets
+     * after the request's {@code after} key, with none skipped: the reduce merges
+     * the shard lists and stops at {@code size}, and the next page starts after
+     * the last key returned, so a skipped bucket is never returned on any page.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public InternalComposite(
         String name,
         int size,
         List<String> sourceNames,
@@ -346,7 +367,25 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         private final transient List<String> sourceNames;
         private final transient List<DocValueFormat> formats;
 
-        InternalBucket(
+        /**
+         * Constructs a bucket directly from its key, count and
+         * sub-aggregations.
+         *
+         * <p>Each value in {@code key} must be of the type the matching
+         * shard-level source produces, such as {@link BytesRef} rather than
+         * {@link String} for a terms source on a keyword field, since the reduce
+         * phase compares keys from different shards directly.
+         *
+         * <p>A {@link BytesRef} value must own its bytes, such as a copy made with
+         * {@link BytesRef#deepCopyOf(BytesRef)}, rather than point into a buffer that is
+         * reused, such as the one a terms dictionary or doc values lookup returns. The
+         * bucket keeps the reference and is read after the search context that produced
+         * it is closed, which is why the shard-level sources copy the values they look up.
+         *
+         * @opensearch.experimental
+         */
+        @ExperimentalApi
+        public InternalBucket(
             List<String> sourceNames,
             List<DocValueFormat> formats,
             CompositeKey key,

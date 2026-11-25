@@ -10,6 +10,7 @@ package org.opensearch.dsl.converter;
 
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
+import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
@@ -29,6 +30,7 @@ public class ConversionContext {
     private final RelOptCluster cluster;
     private final RelOptTable table;
     private final AggregationMetadata aggregationMetadata;
+    private final RelNode parentPlan;
 
     /**
      * Creates a conversion context.
@@ -38,19 +40,21 @@ public class ConversionContext {
      * @param table the resolved Calcite table for the target index
      */
     public ConversionContext(SearchSourceBuilder searchSource, RelOptCluster cluster, RelOptTable table) {
-        this(searchSource, cluster, table, null);
+        this(searchSource, cluster, table, null, null);
     }
 
     private ConversionContext(
         SearchSourceBuilder searchSource,
         RelOptCluster cluster,
         RelOptTable table,
-        AggregationMetadata aggregationMetadata
+        AggregationMetadata aggregationMetadata,
+        RelNode parentPlan
     ) {
         this.searchSource = Objects.requireNonNull(searchSource, "searchSource must not be null");
         this.cluster = Objects.requireNonNull(cluster, "cluster must not be null");
         this.table = Objects.requireNonNull(table, "table must not be null");
         this.aggregationMetadata = aggregationMetadata;
+        this.parentPlan = parentPlan;
     }
 
     /** Returns the original DSL query. */
@@ -89,7 +93,24 @@ public class ConversionContext {
      * @param metadata the aggregation metadata to attach
      */
     public ConversionContext withAggregationMetadata(AggregationMetadata metadata) {
-        return new ConversionContext(searchSource, cluster, table, metadata);
+        return new ConversionContext(searchSource, cluster, table, metadata, parentPlan);
+    }
+
+    /**
+     * Returns the parent level's built plan for a nested aggregation level — the semi-join
+     * input restricting a child plan to the parent's top-N groups — or null at root levels.
+     */
+    public RelNode getParentPlan() {
+        return parentPlan;
+    }
+
+    /**
+     * Returns a new context with the given parent plan attached.
+     *
+     * @param parent the parent level's built plan
+     */
+    public ConversionContext withParentPlan(RelNode parent) {
+        return new ConversionContext(searchSource, cluster, table, aggregationMetadata, parent);
     }
 
     /**
@@ -100,10 +121,7 @@ public class ConversionContext {
      * @throws ConversionException if the field is not found in the schema
      */
     public RexNode makeFieldRef(String fieldName) throws ConversionException {
-        RelDataTypeField field = getRowType().getField(fieldName, false, false);
-        if (field == null) {
-            throw new ConversionException("Field '" + fieldName + "' not found in schema");
-        }
+        RelDataTypeField field = getField(fieldName);
         return getRexBuilder().makeInputRef(field.getType(), field.getIndex());
     }
 

@@ -329,6 +329,7 @@ public class QuerySchedulerTests extends OpenSearchTestCase {
         final AtomicInteger terminalCalls = new AtomicInteger();
         final AtomicReference<Exception> lastTerminalCause = new AtomicReference<>();
         final List<Optional<StageTask>> retryQueue = new ArrayList<>();
+        final List<StageStateListener> stateListeners = new ArrayList<>();
         State state = State.CREATED;
         State startTarget = State.RUNNING;  // override to simulate empty-target → SUCCEEDED, etc.
 
@@ -352,12 +353,19 @@ public class QuerySchedulerTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void start() {
+        public void start(ActionListener<Void> onStarted) {
+            State from = state;
             state = startTarget;
+            for (StageStateListener l : stateListeners) {
+                l.onStateChange(from, startTarget);
+            }
+            onStarted.onResponse(null);
         }
 
         @Override
-        public void addStateListener(StageStateListener listener) {}
+        public void addStateListener(StageStateListener listener) {
+            stateListeners.add(listener);
+        }
 
         @Override
         public Exception getFailure() {

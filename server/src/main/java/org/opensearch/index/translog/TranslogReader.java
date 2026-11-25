@@ -62,8 +62,20 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     private final Checkpoint checkpoint;
     protected final AtomicBoolean closed = new AtomicBoolean(false);
 
+    /**
+     * Checksum of the whole file (header + operations + footer). This is what the remote store verifies on
+     * upload. Only known for readers produced by {@link TranslogWriter#closeIntoReader()}; {@code null} for
+     * readers re-opened from disk.
+     */
     @Nullable
     private final Long translogChecksum;
+    /**
+     * Checksum of the translog content (header + operations), i.e. the value carried in the
+     * {@link TranslogFooter}. Recorded in the remote translog metadata so that a node holding this
+     * generation locally can skip re-downloading it. {@code null} when the generation has no footer.
+     */
+    @Nullable
+    private final Long translogContentChecksum;
     @Nullable
     private final Long checkpointChecksum;
 
@@ -74,19 +86,24 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
      * @param channel    the translog file channel to open a translog reader against
      * @param path       the path to the translog
      * @param header     the header of the translog file
+     * @param translogChecksum the checksum of the whole file, or {@code null} if unknown
+     * @param translogContentChecksum the checksum of header + operations as stored in the footer, or {@code null}
+     *                                if the generation has no footer
      */
     TranslogReader(
         final Checkpoint checkpoint,
         final FileChannel channel,
         final Path path,
         final TranslogHeader header,
-        final Long translogChecksum
+        final Long translogChecksum,
+        final Long translogContentChecksum
     ) throws IOException {
         super(checkpoint.generation, channel, path, header);
         this.length = checkpoint.offset;
         this.totalOperations = checkpoint.numOps;
         this.checkpoint = checkpoint;
         this.translogChecksum = translogChecksum;
+        this.translogContentChecksum = translogContentChecksum;
         this.checkpointChecksum = (translogChecksum != null) ? calculateCheckpointChecksum(checkpoint, path) : null;
     }
 
@@ -99,6 +116,14 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
 
     public Long getTranslogChecksum() {
         return translogChecksum;
+    }
+
+    /**
+     * Returns the checksum of the translog content (header + operations) as recorded in the {@link TranslogFooter},
+     * or {@code null} if this generation carries no footer.
+     */
+    public Long getTranslogContentChecksum() {
+        return translogContentChecksum;
     }
 
     public Long getCheckpointChecksum() {
@@ -118,7 +143,11 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     public static TranslogReader open(final FileChannel channel, final Path path, final Checkpoint checkpoint, final String translogUUID)
         throws IOException {
         final TranslogHeader header = TranslogHeader.read(translogUUID, path, channel);
-        return new TranslogReader(checkpoint, channel, path, header, null);
+        // The whole-file checksum is only known to the writer that produced this generation. The content checksum
+        // however is persisted in the footer, so re-read it here: it is what lets the remote translog metadata keep
+        // advertising this generation's checksum after a restart or failover.
+        final Long translogContentChecksum = TranslogFooter.readChecksum(channel, checkpoint.offset);
+        return new TranslogReader(checkpoint, channel, path, header, null, translogContentChecksum);
     }
 
     /**
@@ -146,9 +175,9 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
 
                     IOUtils.fsync(checkpointFile.getParent(), true);
 
-                    newReader = new TranslogReader(newCheckpoint, channel, path, header, translogChecksum);
+                    newReader = new TranslogReader(newCheckpoint, channel, path, header, translogChecksum, translogContentChecksum);
                 } else {
-                    newReader = new TranslogReader(checkpoint, channel, path, header, translogChecksum);
+                    newReader = new TranslogReader(checkpoint, channel, path, header, translogChecksum, translogContentChecksum);
                 }
                 toCloseOnFailure = null;
                 return newReader;
@@ -179,6 +208,13 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     protected void readBytes(ByteBuffer buffer, long position) throws IOException {
         if (position >= length) {
             throw new EOFException("read requested past EOF. pos [" + position + "] end: [" + length + "]");
+        }
+        if (position + buffer.remaining() > length) {
+            // The file may carry a footer past the checkpoint offset; a read must never spill into it. Without a
+            // footer the channel read below would hit EOF here, so this keeps the reader's behaviour identical.
+            throw new EOFException(
+                "read requested past EOF. pos [" + position + "] length [" + buffer.remaining() + "] end: [" + length + "]"
+            );
         }
         if (position < getFirstOperationOffset()) {
             throw new IOException(

@@ -124,7 +124,7 @@ public class OperationListenerCoverageTests extends OpenSearchTestCase {
     /**
      * Direct {@code CREATED → terminal} (e.g. empty target resolution skipping RUNNING)
      * still surfaces an {@code onStageStart} synthetically — observers never see a
-     * terminal event for a stage they didn't see start. Pins the B1 fix.
+     * terminal event for a stage they didn't see start.
      */
     public void testListenerSynthesisesStageStartForDirectCreatedToTerminal() {
         RecordingListener recording = new RecordingListener();

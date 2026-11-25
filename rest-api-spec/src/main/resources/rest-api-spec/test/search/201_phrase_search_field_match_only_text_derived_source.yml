@@ -1,0 +1,88 @@
+---
+"phrase queries on match_only_text with derived source":
+  - skip:
+      version: " - 3.9.99"
+      reason: "match_only_text values were not stored under derived source before 3.10"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index.derived_source.enabled: true
+          mappings:
+            properties:
+              text:
+                type: match_only_text
+
+  - do:
+      index:
+          index:  test
+          id:     1
+          body:   { text: "peter piper picked a peck of pickled peppers" }
+
+  - do:
+      index:
+          index:  test
+          id:     2
+          body:   { text: "piper peter" }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+  # The value must be part of the derived _source
+  - do:
+      get:
+        index: test
+        id:    1
+
+  - match: { _source.text: "peter piper picked a peck of pickled peppers" }
+
+  # Phrase queries verify positions against the derived _source
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              text: "peter piper"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._source.text: "peter piper picked a peck of pickled peppers" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              text: "piper peter"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        q: '"peter picked"~1'
+        df: text
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              text: "peter pi"
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "1" }

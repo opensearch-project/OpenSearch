@@ -14,6 +14,7 @@ import org.apache.arrow.flight.Ticket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.arrow.flight.stats.FlightCallTracker;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -43,6 +44,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 /**
  * TcpChannel implementation for Flight client with async response handling.
@@ -50,8 +53,12 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 class FlightClientChannel implements TcpChannel {
     private static final Logger logger = LogManager.getLogger(FlightClientChannel.class);
-    private static final AtomicLong GLOBAL_CHANNEL_COUNTER = new AtomicLong();
-    private final AtomicLong correlationIdGenerator = new AtomicLong();
+    /**
+     * One sequence for every channel of this node, so no two streams share a correlation id, even when several
+     * channels go to the same node. Response headers are matched to their stream by it, and both nodes log it.
+     * Seeded from the clock so ids differ across restarts.
+     */
+    private static final AtomicLong CORRELATION_ID_GENERATOR = new AtomicLong(System.currentTimeMillis() << 20);
     private final FlightClient client;
     private final DiscoveryNode node;
     private final BoundTransportAddress boundAddress;
@@ -61,6 +68,7 @@ class FlightClientChannel implements TcpChannel {
     private final CompletableFuture<Void> closeFuture;
     private final List<ActionListener<Void>> connectListeners;
     private final List<ActionListener<Void>> closeListeners;
+    private final List<BiConsumer<Void, ? super Exception>> removableCloseListeners;
     private final ChannelStats stats;
     private final Transport.ResponseHandlers responseHandlers;
     private final ThreadPool threadPool;
@@ -81,6 +89,8 @@ class FlightClientChannel implements TcpChannel {
     private final Set<FlightTransportResponse<?>> activeStreams = ConcurrentHashMap.newKeySet();
     /** Signalled whenever a stream leaves {@link #activeStreams}, to wake {@link #close()}. */
     private final Object activeStreamsMonitor = new Object();
+    /** The channels of the same node connection, closed together; see {@link #setGroup}. Null when used alone. */
+    private volatile Group group;
 
     /**
      * Constructs a new FlightClientChannel for handling Arrow Flight streams.
@@ -127,13 +137,9 @@ class FlightClientChannel implements TcpChannel {
         this.closeFuture = new CompletableFuture<>();
         this.connectListeners = new CopyOnWriteArrayList<>();
         this.closeListeners = new CopyOnWriteArrayList<>();
+        this.removableCloseListeners = new CopyOnWriteArrayList<>();
         this.stats = new ChannelStats();
         this.isClosed = false;
-        // Initialize with timestamp + global counter to ensure uniqueness with multiple channels
-        // Upper bits: timestamp, lower 20 bits: channel ID
-        long channelId = GLOBAL_CHANNEL_COUNTER.incrementAndGet() & 0xFFFFF; // 20 bits for channel ID
-        long initialValue = (System.currentTimeMillis() << 20) | channelId;
-        this.correlationIdGenerator.set(initialValue);
         if (statsCollector != null) {
             statsCollector.incrementClientChannelsActive();
         }
@@ -168,7 +174,37 @@ class FlightClientChannel implements TcpChannel {
         // The FlightClient's allocator close treats any outstanding buffer as a leak, and live
         // streams legitimately hold buffers (current batch root, retained heartbeat metadata)
         // until their consumer closes them. So: cancel every active stream — FlightStream.cancel
-        // is safe from this thread and unblocks consumers parked in nextResponse()
+        // is safe from this thread and unblocks consumers parked in nextResponse().
+        // A node connection closes its channels one at a time and each close waits for its own
+        // streams. In a group, the first close cancels the streams of every channel and sets one
+        // deadline that all of them wait against, so the whole connection closes in about one
+        // timeout instead of one per channel. The other channels can still take new streams until
+        // their own close, so every close also cancels its own streams.
+        final long timeoutNanos = config.getStreamCloseTimeout().nanos();
+        final Group group = this.group;
+        cancelActiveStreams();
+        final long deadlineNanos = group == null ? System.nanoTime() + timeoutNanos : group.startClose(timeoutNanos);
+        awaitActiveStreamsClosed(deadlineNanos);
+
+        closeFuture.complete(null);
+        notifyListeners(closeListeners, closeFuture);
+        for (BiConsumer<Void, ? super Exception> listener : removableCloseListeners) {
+            notifyRemovableListener(listener);
+        }
+        try {
+            client.close();
+        } catch (Exception e) {
+            logger.warn("Failed to close FlightClient for node [" + node.getId() + "]", e);
+        }
+    }
+
+    /** Makes this channel part of {@code group}. Called once, when the node connection is opened. */
+    void setGroup(Group group) {
+        this.group = group;
+    }
+
+    /** Cancels every stream currently open on this channel. Safe to call from any thread, and more than once. */
+    void cancelActiveStreams() {
         for (FlightTransportResponse<?> streamResponse : activeStreams) {
             try {
                 streamResponse.cancelStreamOnly("channel to node [" + node.getId() + "] closed");
@@ -179,19 +215,11 @@ class FlightClientChannel implements TcpChannel {
                 );
             }
         }
-        awaitActiveStreamsClosed();
-
-        closeFuture.complete(null);
-        notifyListeners(closeListeners, closeFuture);
-        try {
-            client.close();
-        } catch (Exception e) {
-            logger.warn("Failed to close FlightClient for node [" + node.getId() + "]", e);
-        }
     }
 
     /**
-     * Waits up to {@link FlightTransportConfig#getStreamCloseTimeout()} for active streams to be
+     * Waits until {@code deadlineNanos} (by default {@link FlightTransportConfig#getStreamCloseTimeout()}
+     * from now) for active streams to be
      * released by their consumers (each removes itself from {@link #activeStreams} once its buffers
      * are released). On timeout, proceeds anyway — the subsequent {@link FlightClient#close()} may
      * then report the stragglers' buffers as leaked, which is logged, not thrown.
@@ -200,9 +228,8 @@ class FlightClientChannel implements TcpChannel {
      * their release cannot happen until the callback returns, which cannot happen until this close
      * returns, so waiting for them would burn the whole timeout to no effect.
      */
-    private void awaitActiveStreamsClosed() {
-        final long timeoutMillis = config.getStreamCloseTimeout().millis();
-        final long deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
+    private void awaitActiveStreamsClosed(long deadlineNanos) {
+        final long startNanos = System.nanoTime();
         synchronized (activeStreamsMonitor) {
             long remainingNanos;
             while (hasStreamsToAwait() && (remainingNanos = deadlineNanos - System.nanoTime()) > 0) {
@@ -223,7 +250,7 @@ class FlightClientChannel implements TcpChannel {
             logger.warn(
                 "Gave up after [{}ms] waiting for [{}] active stream(s) to be released while closing channel to node [{}]; "
                     + "their buffers may be reported as leaked",
-                timeoutMillis,
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos),
                 straggling,
                 node.getId()
             );
@@ -240,7 +267,7 @@ class FlightClientChannel implements TcpChannel {
 
     /**
      * Whether any active stream can still be released while this close is waiting — that is, any
-     * stream not owned by the calling thread. See {@link #awaitActiveStreamsClosed()}.
+     * stream not owned by the calling thread. See {@link #awaitActiveStreamsClosed(long)}.
      */
     private boolean hasStreamsToAwait() {
         Thread current = Thread.currentThread();
@@ -268,6 +295,21 @@ class FlightClientChannel implements TcpChannel {
         if (closeFuture.isDone()) {
             notifyListener(listener, closeFuture);
         }
+    }
+
+    @Override
+    public void addCloseListener(BiConsumer<Void, ? super Exception> listener) {
+        // added before the check on purpose: close() walks the list once, so a listener added after that walk is
+        // notified here, one added before it is notified by close(), and remove() decides which of the two does it
+        removableCloseListeners.add(listener);
+        if (closeFuture.isDone()) {
+            notifyRemovableListener(listener);
+        }
+    }
+
+    @Override
+    public void removeCloseListener(BiConsumer<Void, ? super Exception> listener) {
+        removableCloseListeners.remove(listener);
     }
 
     @Override
@@ -319,7 +361,7 @@ class FlightClientChannel implements TcpChannel {
             // ticket will contain the serialized headers
             Ticket ticket = serializeToTicket(reference);
             TransportResponseHandler<?> handler = responseHandlers.onResponseReceived(requestId, messageListener);
-            long correlationId = correlationIdGenerator.incrementAndGet();
+            long correlationId = CORRELATION_ID_GENERATOR.incrementAndGet();
 
             if (callTracker != null) {
                 handler = new MetricsTrackingResponseHandler<>(handler, callTracker);
@@ -397,7 +439,12 @@ class FlightClientChannel implements TcpChannel {
                 try (var dispatchMark = streamResponse.markDispatchThread()) {
                     try (var ignored = threadContext.stashContext()) {
                         if (header == null) {
+                            // Must return: handleStreamException does not throw, so falling through here
+                            // would NPE on getHeaders() below and mask the real failure. A null header is
+                            // reachable whenever the middleware never stored one (HeaderContext.getHeader
+                            // is a plain map remove), e.g. a call closed before its headers arrived.
                             handleStreamException(streamResponse, new StreamException(StreamErrorCode.INTERNAL, "Header is null"));
+                            return;
                         }
                         threadContext.setHeaders(header.getHeaders());
                         handler.handleStreamResponse(streamResponse);
@@ -420,12 +467,12 @@ class FlightClientChannel implements TcpChannel {
         try {
             streamResponse.close();
         } catch (IOException e) {
-            logger.error("Failed to close stream response", e);
+            logFailure("Failed to close stream response", e);
         }
     }
 
     private void handleStreamException(FlightTransportResponse<?> streamResponse, Exception exception) {
-        logger.error("Exception while handling stream response", exception);
+        logFailure("Exception while handling stream response for correlationId [" + streamResponse.getCorrelationId() + "]", exception);
         try {
             cancelStream(streamResponse, exception);
             TransportResponseHandler<?> handler = streamResponse.getHandler();
@@ -439,7 +486,41 @@ class FlightClientChannel implements TcpChannel {
         try {
             streamResponse.cancel("Client-side exception: " + cause.getMessage(), cause);
         } catch (Exception cancelEx) {
-            logger.warn("Failed to cancel stream after exception", cancelEx);
+            logFailure("Failed to cancel stream after exception", cancelEx);
+        }
+    }
+
+    /**
+     * Logs a per-stream failure as a one-line summary at ERROR, with the full stack trace available
+     * only at TRACE.
+     *
+     * <p><b>Never hand a throwable to log4j from these paths.</b> They run on the per-stream prefetch
+     * virtual thread started by {@link FlightTransportResponse#openAndPrefetchAsync}, and letting log4j
+     * render a stack trace there can wedge the whole node:
+     *
+     * <ol>
+     *   <li>OpenSearch's JSON layout always appends {@code %exceptionAsJson}, so a logged throwable reaches
+     *       log4j's <em>extended</em> stack-trace renderer, which annotates every frame with its source JAR.</li>
+     *   <li>To do that it resolves each frame's declaring class via {@code Class.forName}. The resulting
+     *       {@code forName0} <em>native</em> frame sits on the stack while the classloader monitor is
+     *       contended, and a continuation carrying a native frame cannot be unmounted. So the virtual thread
+     *       pins its carrier instead of yielding it, even on JDK 25 where JEP 491 lets {@code synchronized}
+     *       blocking unmount.</li>
+     *   <li>The scheduler's carrier count defaults to {@code availableProcessors}. A mass stream failure
+     *       (for example every stream reconnecting at once after a network partition heals) can therefore pin
+     *       every carrier, while the thread holding the classloader lock is itself unmounted and can never be
+     *       rescheduled to release it. That circular wait does not resolve: the node keeps reporting healthy
+     *       while making no progress.</li>
+     * </ol>
+     *
+     * <p>The TRACE line is safe for the same reason: it passes a pre-rendered string, so log4j never sees a
+     * throwable and the extended renderer never runs. {@link ExceptionsHelper#stackTrace} only formats frames
+     * that were captured when the throwable was constructed, resolving no classes and taking no lock.
+     */
+    private void logFailure(String message, Throwable cause) {
+        logger.error("{}: {}", message, FlightUtils.causeSummary(cause));
+        if (logger.isTraceEnabled()) {
+            logger.trace("{}: {}", message, ExceptionsHelper.stackTrace(cause));
         }
     }
 
@@ -464,13 +545,28 @@ class FlightClientChannel implements TcpChannel {
         try {
             handler.handleException(exception);
         } catch (Exception handlerEx) {
-            logger.error("Handler failed to process exception", handlerEx);
+            // Runs on the prefetch virtual thread when the handler declares the SAME executor.
+            logFailure("Handler failed to process exception", handlerEx);
         }
     }
 
     private void notifyListeners(List<ActionListener<Void>> listeners, CompletableFuture<Void> future) {
         for (ActionListener<Void> listener : listeners) {
             notifyListener(listener, future);
+        }
+    }
+
+    private void notifyRemovableListener(BiConsumer<Void, ? super Exception> listener) {
+        // taking the listener out of the list claims it, so a listener that is removed while the channel is
+        // closing is notified exactly once, or not at all once removeCloseListener has taken it
+        if (removableCloseListeners.remove(listener) == false) {
+            return;
+        }
+        if (closeFuture.isCompletedExceptionally()) {
+            final Throwable ex = closeFuture.exceptionNow();
+            listener.accept(null, ex instanceof Exception exception ? exception : new Exception(ex));
+        } else {
+            listener.accept(closeFuture.resultNow(), null);
         }
     }
 
@@ -492,5 +588,30 @@ class FlightClientChannel implements TcpChannel {
     @Override
     public String toString() {
         return "FlightClientChannel{node=" + node.getId() + ", remoteAddress=" + getRemoteAddress() + ", profile=" + profile + '}';
+    }
+
+    /**
+     * The channels of one node connection. They close together: the first channel to close cancels the
+     * streams of all of them and fixes one deadline that every channel's close waits against.
+     */
+    static final class Group {
+        private final List<FlightClientChannel> channels;
+        private final AtomicReference<Long> closeDeadlineNanos = new AtomicReference<>();
+
+        Group(List<FlightClientChannel> channels) {
+            this.channels = List.copyOf(channels);
+        }
+
+        /** Cancels the streams of every channel, once, and returns the deadline shared by all closes. */
+        long startClose(long timeoutNanos) {
+            final long deadlineNanos = System.nanoTime() + timeoutNanos;
+            if (closeDeadlineNanos.compareAndSet(null, deadlineNanos)) {
+                for (FlightClientChannel channel : channels) {
+                    channel.cancelActiveStreams();
+                }
+                return deadlineNanos;
+            }
+            return closeDeadlineNanos.get();
+        }
     }
 }

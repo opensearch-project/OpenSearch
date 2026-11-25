@@ -10,6 +10,7 @@ package org.opensearch.index.translog;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.DataOutput;
@@ -23,9 +24,11 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.bytes.ReleasableBytesReference;
+import org.opensearch.common.io.Channels;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.ClusterSettings;
@@ -44,11 +47,16 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.MissingHistoryOperationsException;
+import org.opensearch.index.remote.RemoteStoreEnums;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.LocalCheckpointTrackerTests;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
+import org.opensearch.index.translog.transfer.FileTransferTracker;
+import org.opensearch.index.translog.transfer.RemoteStoreFence;
+import org.opensearch.index.translog.transfer.TranslogFencedException;
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
@@ -78,6 +86,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -97,21 +106,29 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
+import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
+
+import org.mockito.Mockito;
 
 import static org.opensearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.opensearch.index.IndexSettings.INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
 import static org.opensearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
@@ -237,6 +254,10 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     }
 
     private TranslogConfig getTranslogConfig(final Path path, final Settings settings) {
+        return getTranslogConfig(path, settings, "");
+    }
+
+    private TranslogConfig getTranslogConfig(final Path path, final Settings settings, final String nodeId) {
         final ByteSizeValue bufferSize = randomFrom(
             TranslogConfig.DEFAULT_BUFFER_SIZE,
             new ByteSizeValue(8, ByteSizeUnit.KB),
@@ -245,7 +266,12 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         // To simulate that the node is remote backed
         Settings nodeSettings = Settings.builder().put("node.attr.remote_store.translog.repository", "my-repo-1").build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings, nodeSettings);
-        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize, "", false);
+        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize, nodeId, allocationIdOf(nodeId), false);
+    }
+
+    /** Allocation ids in these tests are derived from the node id so both identities stay legible in assertions. */
+    private static String allocationIdOf(String nodeId) {
+        return nodeId.isEmpty() ? "" : nodeId + "-alloc";
     }
 
     private BlobStoreRepository createRepository() {
@@ -285,6 +311,22 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 .put(Environment.PATH_REPO_SETTING.getKey(), home.resolve("repo").toAbsolutePath())
                 .build()
         );
+    }
+
+    public void testBatchedAddAndRemoteSync() throws IOException {
+        List<Translog.Operation> operations = List.of(
+            new Translog.Index("1", 0L, primaryTerm.get(), new byte[] { 1 }),
+            new Translog.Index("2", 1L, primaryTerm.get(), new byte[] { 2 }),
+            new Translog.Index("3", 2L, primaryTerm.get(), new byte[] { 3 })
+        );
+
+        Translog.Location[] locations = translog.add(operations);
+
+        assertThat(locations.length, equalTo(operations.size()));
+        assertTrue(locations[0].compareTo(locations[1]) < 0);
+        assertTrue(locations[1].compareTo(locations[2]) < 0);
+        assertThat(translog.totalOperations(), equalTo(operations.size()));
+        assertTrue(translog.ensureSynced(locations[locations.length - 1]));
     }
 
     private Translog.Location addToTranslogAndList(Translog translog, List<Translog.Operation> list, Translog.Operation op)
@@ -1670,12 +1712,29 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), randomNonNegativeLong());
             }
             writer.sync();
-            final Checkpoint writerCheckpoint = writer.getCheckpoint();
+            final Long expectedContentChecksum;
+            {
+                // The footer carries the checksum of header + operations, i.e. of everything the writer has
+                // synced so far; capture it before closeIntoReader folds the footer bytes into the writer's checksum.
+                final Checkpoint syncedCheckpoint = writer.getCheckpoint();
+                expectedContentChecksum = Long.valueOf(checksumOf(writer.path(), syncedCheckpoint.offset));
+            }
             TranslogReader reader = writer.closeIntoReader();
+            final Checkpoint writerCheckpoint = writer.getCheckpoint();
             try {
+                // The footer must live past the checkpoint offset so that pre-footer readers never see it.
+                assertEquals(writerCheckpoint.offset + TranslogFooter.footerLength(), Files.size(reader.path()));
+                assertEquals(writerCheckpoint.offset, reader.sizeInBytes());
+                assertEquals(expectedContentChecksum, reader.getTranslogContentChecksum());
+                assertEquals(Long.valueOf(checksumOf(writer.path(), Files.size(writer.path()))), reader.getTranslogChecksum());
+
                 if (randomBoolean()) {
                     reader.close();
                     reader = translog.openReader(reader.path(), writerCheckpoint);
+                    // A re-opened reader recovers the content checksum from the footer but cannot know the
+                    // whole-file checksum.
+                    assertEquals(expectedContentChecksum, reader.getTranslogContentChecksum());
+                    assertNull(reader.getTranslogChecksum());
                 }
                 for (int i = 0; i < numOps; i++) {
                     final ByteBuffer buffer = ByteBuffer.allocate(4);
@@ -1684,6 +1743,27 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                     final int value = buffer.getInt();
                     assertEquals(i, value);
                 }
+
+                // Reading at or past the checkpoint offset is EOF: the footer is not addressable through the reader.
+                final TranslogReader finalReader = reader;
+                assertThrows(
+                    EOFException.class,
+                    () -> finalReader.readBytes(ByteBuffer.allocate(4), finalReader.getFirstOperationOffset() + numOps * 4)
+                );
+                assertThrows(
+                    EOFException.class,
+                    () -> finalReader.readBytes(ByteBuffer.allocate(8), finalReader.getFirstOperationOffset() + numOps * 4 - 4)
+                );
+
+                // Validate the raw footer bytes.
+                ByteBuffer footerBuffer = ByteBuffer.allocate(TranslogFooter.footerLength());
+                Channels.readFromFileChannelWithEofException(reader.channel, writerCheckpoint.offset, footerBuffer);
+                footerBuffer.flip();
+                assertEquals(CodecUtil.FOOTER_MAGIC, footerBuffer.getInt());
+                assertEquals(TranslogFooter.CHECKSUM_ALGORITHM_CRC32, footerBuffer.getInt());
+                assertEquals(expectedContentChecksum.longValue(), footerBuffer.getLong());
+                assertEquals(expectedContentChecksum, TranslogFooter.readChecksum(reader.path(), writerCheckpoint.offset));
+
                 final Checkpoint readerCheckpoint = reader.getCheckpoint();
                 assertThat(readerCheckpoint, equalTo(writerCheckpoint));
             } finally {
@@ -1692,13 +1772,23 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         }
     }
 
+    /** CRC32 of the first {@code length} bytes of {@code path}, the algorithm used by {@link TranslogCheckedContainer}. */
+    private static long checksumOf(Path path, long length) throws IOException {
+        byte[] bytes = Files.readAllBytes(path);
+        CRC32 crc = new CRC32();
+        crc.update(bytes, 0, Math.toIntExact(length));
+        return crc.getValue();
+    }
+
     public void testDownloadWithRetries() throws IOException {
         long generation = 1, primaryTerm = 1;
         Path location = createTempDir();
         TranslogTransferMetadata translogTransferMetadata = new TranslogTransferMetadata(primaryTerm, generation, generation, 1);
         Map<String, String> generationToPrimaryTermMapper = new HashMap<>();
+        Map<String, String> generationToChecksumMapper = new HashMap<>();
         generationToPrimaryTermMapper.put(String.valueOf(generation), String.valueOf(primaryTerm));
         translogTransferMetadata.setGenerationToPrimaryTermMapper(generationToPrimaryTermMapper);
+        translogTransferMetadata.setGenerationToChecksumMapper(generationToChecksumMapper);
 
         TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = mock(RemoteTranslogTransferTracker.class);
@@ -1706,7 +1796,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
 
         // Always File not found
-        when(mockTransfer.downloadTranslog(any(), any(), any())).thenThrow(new NoSuchFileException("File not found"));
+        when(mockTransfer.downloadTranslogIfChanged(any(), any(), any(), any())).thenThrow(new NoSuchFileException("File not found"));
         TranslogTransferManager finalMockTransfer = mockTransfer;
         assertThrows(NoSuchFileException.class, () -> RemoteFsTranslog.download(finalMockTransfer, location, logger, false, 0));
 
@@ -1716,7 +1806,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
         String msg = "File not found";
         Exception toThrow = randomBoolean() ? new NoSuchFileException(msg) : new FileNotFoundException(msg);
-        when(mockTransfer.downloadTranslog(any(), any(), any())).thenThrow(toThrow).thenReturn(true);
+        when(mockTransfer.downloadTranslogIfChanged(any(), any(), any(), any())).thenThrow(toThrow).thenReturn(true);
 
         AtomicLong downloadCounter = new AtomicLong();
         doAnswer(invocation -> {
@@ -1726,7 +1816,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 Files.createFile(location.resolve(Translog.getCommitCheckpointFileName(generation)));
             }
             return true;
-        }).when(mockTransfer).downloadTranslog(any(), any(), any());
+        }).when(mockTransfer).downloadTranslogIfChanged(any(), any(), any(), any());
 
         // no exception thrown
         RemoteFsTranslog.download(mockTransfer, location, logger, false, 0);
@@ -1808,6 +1898,224 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         assertArrayEquals(filesPostFirstDownload, filesPostSecondDownload);
     }
 
+    /**
+     * Writes a closed translog generation (header + a few operation bytes + footer) and its checkpoint file at
+     * {@code location}, exactly as {@link TranslogWriter#closeIntoReader()} would leave them. Returns the
+     * content checksum that ended up in the footer.
+     */
+    private long createTranslogGeneration(Path location, long generation) throws IOException {
+        return TestTranslog.createTranslogGeneration(random(), location, generation, true);
+    }
+
+    private TranslogTransferManager mockTransferManagerFor(TranslogTransferMetadata metadata) throws IOException {
+        TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
+        when(mockTransfer.readMetadata(0)).thenReturn(metadata);
+        when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(mock(RemoteTranslogTransferTracker.class));
+        return mockTransfer;
+    }
+
+    private static TranslogTransferMetadata metadataFor(long minGeneration, long maxGeneration, Map<Long, Long> checksums) {
+        TranslogTransferMetadata metadata = new TranslogTransferMetadata(
+            1,
+            maxGeneration,
+            minGeneration,
+            Math.toIntExact(maxGeneration - minGeneration + 1)
+        );
+        Map<String, String> generationToPrimaryTermMapper = new HashMap<>();
+        for (long g = minGeneration; g <= maxGeneration; g++) {
+            generationToPrimaryTermMapper.put(String.valueOf(g), "1");
+        }
+        Map<String, String> generationToChecksumMapper = new HashMap<>();
+        checksums.forEach((g, c) -> generationToChecksumMapper.put(String.valueOf(g), String.valueOf(c)));
+        metadata.setGenerationToPrimaryTermMapper(generationToPrimaryTermMapper);
+        metadata.setGenerationToChecksumMapper(generationToChecksumMapper);
+        return metadata;
+    }
+
+    /**
+     * The advertised checksum for each generation is handed to the transfer manager, which owns the decision to
+     * reuse the local copy; a generation it reports as reused is not downloaded and counts as skipped.
+     */
+    public void testIncrementalDownloadSkipsMatchingGeneration() throws IOException {
+        Path location = createTempDir();
+        long checksum = createTranslogGeneration(location, 1);
+        TranslogTransferManager mockTransfer = mockTransferManagerFor(metadataFor(1, 1, Map.of(1L, checksum)));
+        when(mockTransfer.downloadTranslogIfChanged("1", "1", location, String.valueOf(checksum))).thenReturn(false);
+
+        RemoteFsTranslog.download(mockTransfer, location, logger, false, 0);
+
+        verify(mockTransfer).downloadTranslogIfChanged("1", "1", location, String.valueOf(checksum));
+        verify(mockTransfer, times(0)).downloadTranslog(any(), any(), any());
+        // translog.ckp is re-derived from the latest generation's checkpoint.
+        assertTrue(Files.exists(location.resolve(Translog.CHECKPOINT_FILE_NAME)));
+    }
+
+    /**
+     * Only the generations the manager reports as downloaded are counted as such; the one already present is kept.
+     */
+    public void testIncrementalDownloadFetchesOnlyMissingGenerations() throws IOException {
+        Path location = createTempDir();
+        long checksum1 = createTranslogGeneration(location, 1);
+        TranslogTransferManager mockTransfer = mockTransferManagerFor(metadataFor(1, 2, Map.of(1L, checksum1, 2L, 5678L)));
+        when(mockTransfer.downloadTranslogIfChanged("1", "1", location, String.valueOf(checksum1))).thenReturn(false);
+        AtomicLong downloadCounter = new AtomicLong();
+        doAnswer(invocation -> {
+            downloadCounter.incrementAndGet();
+            createTranslogGeneration(location, 2);
+            return true;
+        }).when(mockTransfer).downloadTranslogIfChanged("1", "2", location, "5678");
+
+        RemoteFsTranslog.download(mockTransfer, location, logger, false, 0);
+
+        assertEquals(1, downloadCounter.get());
+        verify(mockTransfer).downloadTranslogIfChanged("1", "1", location, String.valueOf(checksum1));
+        verify(mockTransfer).downloadTranslogIfChanged("1", "2", location, "5678");
+        // A generation the remote does not advertise a checksum for is passed through with null.
+        TranslogTransferManager noChecksum = mockTransferManagerFor(metadataFor(1, 1, Map.of()));
+        RemoteFsTranslog.download(noChecksum, location, logger, false, 0);
+        verify(noChecksum).downloadTranslogIfChanged("1", "1", location, null);
+    }
+
+    /**
+     * Metadata whose minimum generation exceeds its maximum would make the reconciliation loop a no-op and the final
+     * translog.ckp copy fail with an opaque NoSuchFileException after all retries; it is rejected up front instead.
+     */
+    public void testDownloadRejectsInvertedGenerationRange() throws IOException {
+        Path location = createTempDir();
+        TranslogTransferMetadata inverted = new TranslogTransferMetadata(1, 3, 5, 0);
+        inverted.setGenerationToPrimaryTermMapper(Map.of());
+        inverted.setGenerationToChecksumMapper(Map.of());
+        TranslogTransferManager mockTransfer = mockTransferManagerFor(inverted);
+
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> RemoteFsTranslog.download(mockTransfer, location, logger, false, 0)
+        );
+        assertThat(e.getMessage(), containsString("min generation [5] greater than max generation [3]"));
+        verify(mockTransfer, times(1)).readMetadata(0);
+        verify(mockTransfer, times(0)).downloadTranslogIfChanged(any(), any(), any(), any());
+    }
+
+    /**
+     * A stale top-level translog.ckp is removed with the other out-of-range files before the download starts, so a
+     * download that fails leaves the directory without one rather than with a checkpoint naming a generation from a
+     * previous remote state; a successful download recreates it from the latest generation's checkpoint.
+     */
+    public void testStaleTopLevelCheckpointIsRemovedUpFrontAndRecreated() throws IOException {
+        Path location = createTempDir();
+        createTranslogGeneration(location, 1);
+        long checksum2 = createTranslogGeneration(location, 2);
+        Files.write(location.resolve(Translog.CHECKPOINT_FILE_NAME), randomByteArrayOfLength(randomIntBetween(8, 32)));
+
+        // A failing download has already removed the stale checkpoint.
+        TranslogTransferManager failing = mockTransferManagerFor(metadataFor(2, 2, Map.of(2L, checksum2)));
+        when(failing.downloadTranslogIfChanged("1", "2", location, String.valueOf(checksum2))).thenThrow(new IOException("boom"));
+        expectThrows(IOException.class, () -> RemoteFsTranslog.download(failing, location, logger, false, 0));
+        assertFalse(Files.exists(location.resolve(Translog.CHECKPOINT_FILE_NAME)));
+
+        // A successful one recreates it from the latest generation's checkpoint.
+        TranslogTransferManager succeeding = mockTransferManagerFor(metadataFor(2, 2, Map.of(2L, checksum2)));
+        when(succeeding.downloadTranslogIfChanged("1", "2", location, String.valueOf(checksum2))).thenReturn(false);
+        RemoteFsTranslog.download(succeeding, location, logger, false, 0);
+        assertArrayEquals(
+            Files.readAllBytes(location.resolve(Translog.getCommitCheckpointFileName(2))),
+            Files.readAllBytes(location.resolve(Translog.CHECKPOINT_FILE_NAME))
+        );
+    }
+
+    /**
+     * Files outside the remote generation range, and files that are not translog files at all, are removed before
+     * the download reconciles the remaining generations.
+     */
+    public void testIncrementalDownloadRemovesGenerationsOutsideRemoteRange() throws IOException {
+        Path location = createTempDir();
+        createTranslogGeneration(location, 1);
+        long checksum2 = createTranslogGeneration(location, 2);
+        createTranslogGeneration(location, 3);
+        Files.createFile(location.resolve("unrelated.tmp"));
+        Files.createFile(location.resolve(Translog.CHECKPOINT_FILE_NAME));
+        TranslogTransferManager mockTransfer = mockTransferManagerFor(metadataFor(2, 2, Map.of(2L, checksum2)));
+        when(mockTransfer.downloadTranslogIfChanged("1", "2", location, String.valueOf(checksum2))).thenReturn(false);
+
+        RemoteFsTranslog.download(mockTransfer, location, logger, false, 0);
+
+        verify(mockTransfer).downloadTranslogIfChanged("1", "2", location, String.valueOf(checksum2));
+        verify(mockTransfer, times(0)).downloadTranslog(any(), any(), any());
+        Set<String> remaining = Arrays.stream(FileSystemUtils.files(location))
+            .map(p -> p.getFileName().toString())
+            .collect(Collectors.toSet());
+        assertEquals(Set.of(Translog.getFilename(2), Translog.getCommitCheckpointFileName(2), Translog.CHECKPOINT_FILE_NAME), remaining);
+    }
+
+    /**
+     * End to end against the real (filesystem backed) transfer manager: generations uploaded by this translog are
+     * downloaded once into a fresh directory, and a second download of the same remote state fetches nothing but
+     * the metadata. Corrupting one local generation makes exactly that generation download again.
+     */
+    public void testRepeatedDownloadReusesLocalGenerations() throws IOException {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        int numOps = randomIntBetween(2, 6);
+        for (int i = 0; i < numOps; i++) {
+            addToTranslogAndListAndUpload(
+                translog,
+                ops,
+                new Translog.Index(String.valueOf(i), i, primaryTerm.get(), new byte[] { (byte) i })
+            );
+        }
+        TranslogTransferManager manager = Mockito.spy(translog.translogTransferManager);
+        TranslogTransferMetadata remoteMetadata = manager.readMetadata();
+        long minGeneration = remoteMetadata.getMinTranslogGeneration();
+        long maxGeneration = remoteMetadata.getGeneration();
+        int remoteGenerations = Math.toIntExact(maxGeneration - minGeneration + 1);
+        // Every generation closed by a writer carries a footer and therefore advertises a checksum. The only
+        // exception is the initial empty generation laid down by Translog.createEmptyTranslog, which is written
+        // without a writer and is re-downloaded every time (it is header-only, a few dozen bytes).
+        Set<String> withChecksum = remoteMetadata.getGenerationToChecksumMapper().keySet();
+        Set<String> withoutChecksum = new HashSet<>();
+        for (long g = minGeneration; g <= maxGeneration; g++) {
+            if (withChecksum.contains(String.valueOf(g)) == false) {
+                withoutChecksum.add(String.valueOf(g));
+            }
+        }
+        assertThat(withoutChecksum, anyOf(empty(), contains(String.valueOf(minGeneration))));
+        assertFalse(withChecksum.isEmpty());
+
+        Path location = createTempDir();
+        RemoteFsTranslog.download(manager, location, logger, false, 0);
+        verify(manager, times(remoteGenerations)).downloadTranslog(any(), any(), any());
+        Map<String, byte[]> contentAfterFirst = new HashMap<>();
+        for (Path file : FileSystemUtils.files(location)) {
+            contentAfterFirst.put(file.getFileName().toString(), Files.readAllBytes(file));
+        }
+
+        // Same remote state, same local directory: only footer-less generations are fetched again, files are untouched.
+        Mockito.clearInvocations(manager);
+        RemoteFsTranslog.download(manager, location, logger, false, 0);
+        verify(manager, times(withoutChecksum.size())).downloadTranslog(any(), any(), any());
+        for (String generation : withChecksum) {
+            verify(manager, times(0)).downloadTranslog(any(), Mockito.eq(generation), any());
+        }
+        for (Path file : FileSystemUtils.files(location)) {
+            assertArrayEquals(
+                file.getFileName().toString(),
+                contentAfterFirst.get(file.getFileName().toString()),
+                Files.readAllBytes(file)
+            );
+        }
+
+        // Damage one local generation's footer checksum: that generation is re-downloaded, and it comes back intact.
+        String damaged = randomFrom(new ArrayList<>(withChecksum));
+        Path damagedPath = location.resolve(Translog.getFilename(Long.parseLong(damaged)));
+        byte[] damagedBytes = Files.readAllBytes(damagedPath);
+        damagedBytes[damagedBytes.length - 1] ^= 0x1;
+        Files.write(damagedPath, damagedBytes);
+        Mockito.clearInvocations(manager);
+        RemoteFsTranslog.download(manager, location, logger, false, 0);
+        verify(manager, times(withoutChecksum.size() + 1)).downloadTranslog(any(), any(), any());
+        verify(manager).downloadTranslog(any(), Mockito.eq(damaged), any());
+        assertArrayEquals(contentAfterFirst.get(damagedPath.getFileName().toString()), Files.readAllBytes(damagedPath));
+    }
+
     public void testSyncWithGlobalCheckpointUpdate() throws IOException {
         ArrayList<Translog.Operation> ops = new ArrayList<>();
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
@@ -1885,6 +2193,288 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         assertEquals(newGlobalCheckpoint, ((RemoteFsTranslog) translog).getLastSyncedCheckpoint().globalCheckpoint);
     }
 
+    /**
+     * Creates a repository that is isolated from the one backing {@link #translog}, so that a second translog
+     * instance for the same shard id does not collide with it on remote paths.
+     */
+    private BlobStoreRepository createIsolatedRepository() {
+        // createRepository() rebinds the shared fail/slowDown switches; keep the ones the setUp translog observes.
+        final TestTranslog.FailSwitch currentFail = fail;
+        final TestTranslog.SlowDownWriteSwitch currentSlowDown = slowDown;
+        try {
+            return createRepository();
+        } finally {
+            fail = currentFail;
+            slowDown = currentSlowDown;
+        }
+    }
+
+    /**
+     * Creates a second translog instance for the same shard, on its own repository, with remote store fencing
+     * enabled. The caller owns closing it.
+     */
+    private RemoteFsTranslog createFencedTranslog(String nodeId, BlobStoreRepository fencedRepository) throws IOException {
+        Path path = createTempDir();
+        String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_FENCING_ENABLED, true)
+            .build();
+        TranslogConfig config = getTranslogConfig(path, settings, nodeId);
+        return new RemoteFsTranslog(
+            config,
+            translogUUID,
+            createTranslogDeletionPolicy(config.getIndexSettings()),
+            () -> globalCheckpoint.get(),
+            primaryTerm::get,
+            getPersistedSeqNoConsumer(),
+            fencedRepository,
+            threadPool,
+            primaryMode::get,
+            new RemoteTranslogTransferTracker(shardId, 10),
+            DefaultRemoteStoreSettings.INSTANCE,
+            TranslogOperationHelper.DEFAULT,
+            null,
+            false
+        );
+    }
+
+    private BlobPath fenceDirectory(BlobStoreRepository fencedRepository) {
+        return fencedRepository.basePath()
+            .add(shardId.getIndex().getUUID())
+            .add(String.valueOf(shardId.id()))
+            .add(TRANSLOG.getName())
+            .add(METADATA_DIR);
+    }
+
+    public void testFencingEnabledTranslogUploadCreatesAndAdvancesFence() throws Exception {
+        BlobStoreRepository fencedRepository = createIsolatedRepository();
+        BlobPath fenceDirectory = fenceDirectory(fencedRepository);
+        try (RemoteFsTranslog fenced = createFencedTranslog("node-1", fencedRepository)) {
+            fenced.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+            fenced.sync();
+
+            BlobContainer fenceContainer = fencedRepository.blobStore().blobContainer(fenceDirectory);
+            assertTrue(fenceContainer.listBlobs().containsKey(RemoteStoreFence.fenceBlobName(primaryTerm.get())));
+            VersionedBlob afterFirst = fenceContainer.readBlobWithVersion(RemoteStoreFence.fenceBlobName(primaryTerm.get()));
+            String afterFirstContent = new String(afterFirst.content(), StandardCharsets.UTF_8);
+            assertTrue(
+                afterFirstContent,
+                afterFirstContent.contains("|" + primaryTerm.get() + "|" + allocationIdOf("node-1") + "|node-1|")
+            );
+
+            fenced.add(new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 1 }));
+            fenced.sync();
+            VersionedBlob afterSecond = fenceContainer.readBlobWithVersion(RemoteStoreFence.fenceBlobName(primaryTerm.get()));
+            // The CAS chain advanced: a new version token over new content
+            assertNotEquals(afterFirst.versionToken(), afterSecond.versionToken());
+            assertNotEquals(afterFirstContent, new String(afterSecond.content(), StandardCharsets.UTF_8));
+        }
+    }
+
+    public void testFencingEnabledUploadIsFencedByASecondWriter() throws Exception {
+        BlobStoreRepository fencedRepository = createIsolatedRepository();
+        RemoteFsTranslog fenced = createFencedTranslog("node-old", fencedRepository);
+        try {
+            fenced.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+            fenced.sync();
+
+            // A new primary at a higher term seals the fence out of band
+            BlobContainer fenceContainer = fencedRepository.blobStore().blobContainer(fenceDirectory(fencedRepository));
+            new RemoteStoreFence(fenceContainer, allocationIdOf("node-new"), "node-new", shardId).validateAndAdvance(primaryTerm.get() + 1);
+
+            fenced.add(new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 1 }));
+            expectThrows(TranslogFencedException.class, fenced::sync);
+            // Fencing is fatal for the shard copy: the translog is marked with a tragic event
+            assertTrue(fenced.getTragicException() instanceof TranslogFencedException);
+        } finally {
+            try {
+                fenced.close();
+            } catch (Exception e) {
+                // closing a tragically-failed translog is expected to rethrow
+            }
+        }
+    }
+
+    /**
+     * A superseded copy must not delete remote generations: the trim's remote phase is gated fail-closed on fence
+     * ownership (see FenceSegmentFlow.tla). The call itself stays safe - it skips, it does not throw.
+     */
+    public void testTrimUnreferencedReadersSkipsRemoteDeletionWhenSuperseded() throws Exception {
+        BlobStoreRepository fencedRepository = createIsolatedRepository();
+        try (RemoteFsTranslog fenced = createFencedTranslog("node-old", fencedRepository)) {
+            fenced.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+            fenced.sync();
+
+            // A higher term takes the fence out of band.
+            BlobContainer fenceContainer = fencedRepository.blobStore().blobContainer(fenceDirectory(fencedRepository));
+            new RemoteStoreFence(fenceContainer, allocationIdOf("node-new"), "node-new", shardId).validateAndAdvance(primaryTerm.get() + 1);
+
+            assertTrue(fenced.isRemoteStoreFenceSuperseded());
+            fenced.trimUnreferencedReaders(); // gated: skips the remote deletion, does not throw
+        }
+    }
+
+    /**
+     * A copy that begins a fresh lineage - a resize (shrink/split/clone) target, or a snapshot restore into a new
+     * index UUID - seals against a repository holding no fence for its shard. The seal is then simply the fresh
+     * chain's create-if-absent bootstrap: nothing beyond the shard's own identity and the repository is required.
+     */
+    public void testSealFenceOnAFreshShardCreatesTheChain() throws Exception {
+        BlobStoreRepository freshRepository = createIsolatedRepository();
+        RemoteFsTranslog.sealFence(
+            freshRepository,
+            shardId,
+            new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED),
+            DefaultRemoteStoreSettings.INSTANCE,
+            false,
+            allocationIdOf("node-new"),
+            "node-new",
+            1
+        );
+        BlobContainer fenceContainer = freshRepository.blobStore().blobContainer(fenceDirectory(freshRepository));
+        String created = new String(
+            fenceContainer.readBlobWithVersion(RemoteStoreFence.fenceBlobName(1)).content(),
+            StandardCharsets.UTF_8
+        );
+        assertTrue(created, created.contains("|1|" + allocationIdOf("node-new") + "|node-new|"));
+    }
+
+    /**
+     * The recovery seal: a copy taking over claims the chain before it reads its restore point, which invalidates the
+     * incumbent's token immediately - without the new copy having uploaded anything. This is what stops a previous
+     * primary that is still alive from acknowledging writes landing after the new copy's restore point.
+     */
+    public void testSealFenceClaimsChainAndFencesTheIncumbent() throws Exception {
+        BlobStoreRepository fencedRepository = createIsolatedRepository();
+        RemoteFsTranslog incumbent = createFencedTranslog("node-old", fencedRepository);
+        try {
+            incumbent.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+            incumbent.sync();
+
+            // A copy recovering at a higher term seals before reading its restore point
+            RemoteFsTranslog.sealFence(
+                fencedRepository,
+                shardId,
+                new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED),
+                DefaultRemoteStoreSettings.INSTANCE,
+                false,
+                allocationIdOf("node-new"),
+                "node-new",
+                primaryTerm.get() + 1
+            );
+
+            BlobContainer fenceContainer = fencedRepository.blobStore().blobContainer(fenceDirectory(fencedRepository));
+            String sealed = new String(
+                fenceContainer.readBlobWithVersion(RemoteStoreFence.fenceBlobName(primaryTerm.get() + 1)).content(),
+                StandardCharsets.UTF_8
+            );
+            assertTrue(sealed, sealed.contains("|" + (primaryTerm.get() + 1) + "|" + allocationIdOf("node-new") + "|node-new|"));
+
+            // The incumbent now holds a stale token and cannot acknowledge another write
+            incumbent.add(new Translog.Index("2", 1, primaryTerm.get(), new byte[] { 1 }));
+            expectThrows(TranslogFencedException.class, incumbent::sync);
+        } finally {
+            try {
+                incumbent.close();
+            } catch (Exception e) {
+                // closing a tragically-failed translog is expected to rethrow
+            }
+        }
+    }
+
+    /** Sealing at a term below the fence's must be refused: that copy has already been superseded. */
+    public void testSealFenceIsRefusedForAStaleTerm() throws Exception {
+        BlobStoreRepository fencedRepository = createIsolatedRepository();
+        try (RemoteFsTranslog incumbent = createFencedTranslog("node-current", fencedRepository)) {
+            incumbent.add(new Translog.Index("1", 0, primaryTerm.get(), new byte[] { 1 }));
+            incumbent.sync();
+
+            expectThrows(
+                TranslogFencedException.class,
+                () -> RemoteFsTranslog.sealFence(
+                    fencedRepository,
+                    shardId,
+                    new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED),
+                    DefaultRemoteStoreSettings.INSTANCE,
+                    false,
+                    allocationIdOf("node-stale"),
+                    "node-stale",
+                    primaryTerm.get() - 1
+                )
+            );
+        }
+    }
+
+    public void testBuildTranslogTransferManagerRejectsRepositoryWithoutConditionalWrites() {
+        BlobContainer container = mock(BlobContainer.class);
+        assertFalse(container.isConditionalWriteSupported());
+        BlobStore blobStore = mock(BlobStore.class);
+        when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(container);
+        BlobStoreRepository unsupportedRepository = mock(BlobStoreRepository.class);
+        when(unsupportedRepository.basePath()).thenReturn(BlobPath.cleanPath());
+        when(unsupportedRepository.blobStore(anyBoolean())).thenReturn(blobStore);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> RemoteFsTranslog.buildTranslogTransferManager(
+                unsupportedRepository,
+                threadPool,
+                shardId,
+                new FileTransferTracker(shardId, new RemoteTranslogTransferTracker(shardId, 10)),
+                new RemoteTranslogTransferTracker(shardId, 10),
+                new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED),
+                DefaultRemoteStoreSettings.INSTANCE,
+                false,
+                false,
+                true,
+                allocationIdOf("node-1"),
+                "node-1"
+            )
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("does not support store-enforced conditional writes"));
+    }
+
+    /**
+     * The local-filesystem container <em>implements</em> conditional writes, but only emulates the precondition within a
+     * single JVM, so it must be refused: two nodes sharing a filesystem would both believe they held the fence, which is
+     * worse than running unfenced because each shard would report itself protected. Uses a real {@link FsBlobStore}
+     * rather than a mock, so the test fails if that container ever starts advertising support again.
+     */
+    public void testBuildTranslogTransferManagerRejectsEmulatedConditionalWrites() throws IOException {
+        try (FsBlobStore fsBlobStore = new FsBlobStore(1024, createTempDir(), false)) {
+            BlobContainer fsContainer = fsBlobStore.blobContainer(BlobPath.cleanPath());
+            assertFalse("emulated conditional writes must not be advertised as supported", fsContainer.isConditionalWriteSupported());
+
+            BlobStore blobStore = mock(BlobStore.class);
+            when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(fsContainer);
+            BlobStoreRepository emulatedRepository = mock(BlobStoreRepository.class);
+            when(emulatedRepository.basePath()).thenReturn(BlobPath.cleanPath());
+            when(emulatedRepository.blobStore(anyBoolean())).thenReturn(blobStore);
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> RemoteFsTranslog.buildTranslogTransferManager(
+                    emulatedRepository,
+                    threadPool,
+                    shardId,
+                    new FileTransferTracker(shardId, new RemoteTranslogTransferTracker(shardId, 10)),
+                    new RemoteTranslogTransferTracker(shardId, 10),
+                    new RemoteStorePathStrategy(RemoteStoreEnums.PathType.FIXED),
+                    DefaultRemoteStoreSettings.INSTANCE,
+                    false,
+                    false,
+                    true,
+                    allocationIdOf("node-1"),
+                    "node-1"
+                )
+            );
+            assertTrue(e.getMessage(), e.getMessage().contains("does not support store-enforced conditional writes"));
+        }
+    }
+
     public class ThrowingBlobRepository extends FsRepository {
 
         private final Environment environment;
@@ -1956,6 +2546,19 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             super(blobStore, blobPath, path);
             this.fail = fail;
             this.slowDown = slowDown;
+        }
+
+        /**
+         * Test support only. {@link FsBlobContainer} reports {@code false} because its conditional write is emulated per
+         * JVM, which is no fencing primitive between hosts, and remote store fencing correctly refuses it. These tests
+         * run entirely in one JVM and so share that emulation, making the precondition genuinely exclusive here.
+         * Overriding lets the fence be exercised without weakening the production guard - see
+         * {@link #testBuildTranslogTransferManagerRejectsEmulatedConditionalWrites}, which asserts an unmodified
+         * {@code FsBlobContainer} is still rejected.
+         */
+        @Override
+        public boolean isConditionalWriteSupported() {
+            return true;
         }
 
         @Override

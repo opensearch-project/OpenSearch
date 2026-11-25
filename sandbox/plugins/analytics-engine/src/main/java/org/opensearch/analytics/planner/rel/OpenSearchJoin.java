@@ -14,6 +14,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.CorrelationId;
 import org.apache.calcite.rel.core.Join;
+import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.apache.calcite.rex.RexNode;
@@ -29,9 +30,17 @@ import java.util.Set;
  * coordinator (enforced by {@link #computeSelfCost}). {@code right} is always the
  * build side (matches substrait {@code JoinRel.right}).
  *
+ * <p>Implements {@link DistributionAware}: under the post-CBO distribution-enforcement pass
+ * ({@code DistributionEnforcementPass}), an INNER/LEFT/RIGHT/FULL/SEMI/ANTI equi-join can co-partition
+ * on its equi keys — it requires {@code WORKER+HASH(leftKeys,N)} on the left input and
+ * {@code WORKER+HASH(rightKeys,N)} on the right, and outputs {@code WORKER+HASH(leftKeys,N)}. That lets a
+ * parent join/aggregate keyed on the same column consume the output with no further exchange, so the
+ * multi-tier cascade emerges for any chain depth. A pure-theta join (no equi key) imposes no requirement
+ * (stays coordinator-gathered).
+ *
  * @opensearch.internal
  */
-public class OpenSearchJoin extends Join implements OpenSearchRelNode {
+public class OpenSearchJoin extends Join implements OpenSearchRelNode, DistributionAware {
 
     private final List<String> viableBackends;
 
@@ -56,12 +65,19 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
     /**
      * Output field storage is the concatenation of left and right input storage —
      * matches Calcite's join row type ordering (left fields first, then right).
+     *
+     * <p>SEMI / ANTI joins project only the left side — Calcite's {@code Join#getRowType}
+     * exposes left fields only in those cases, so our storage metadata must mirror that or
+     * downstream walkers (e.g. {@code OpenSearchJoinRule.collectStorageFormats} on a wrapping
+     * outer join) index past the row and pick up phantom formats from the right.
      */
     @Override
     public List<FieldStorageInfo> getOutputFieldStorage() {
         List<FieldStorageInfo> result = new ArrayList<>();
         appendChildStorage(getLeft(), result);
-        appendChildStorage(getRight(), result);
+        if (getJoinType().projectsRight()) {
+            appendChildStorage(getRight(), result);
+        }
         return result;
     }
 
@@ -87,7 +103,21 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
      *   <li>If the join is at {@code SHARD+SINGLETON} (co-location fast path), every input
      *       must also be {@code SHARD+SINGLETON} with the same {@code tableId} and
      *       {@code shardCount=1}. Anything else is infinite cost.</li>
+     *   <li>If the join is at {@code WORKER+HASH(keys, N)} (post-shuffle hash join), every
+     *       input must also be {@code WORKER+HASH(keys, N)} with the same key set and the
+     *       same partition count. {@code OpenSearchHashJoinSplitRule} drives this by
+     *       demanding the appropriate per-side HASH on each input; Volcano materializes
+     *       an {@link OpenSearchShuffleExchange} on any input not already so distributed.</li>
      * </ul>
+     *
+     * <p>TODO(trait-propagation): exchange PLACEMENT is already a trait algebra — see
+     * {@link DistributionAware#requiredInputDistribution}/{@link DistributionAware#deriveOutputDistribution}
+     * on this class, which the post-CBO {@code DistributionEnforcementPass} consults (the
+     * {@code passThroughTraits}/{@code deriveTraits} logic expressed as plain methods). Join-ALGORITHM
+     * selection (broadcast/shuffle/coord) still rides this cost gate because Volcano runs bottom-up. A
+     * future migration to top-down mode ({@code setTopDownOpt} + Calcite {@code PhysicalNode} hooks)
+     * would fold this derivation into the trait machinery and let this override shrink; deferred as a
+     * separate refactor, not a correctness blocker.
      */
     @Override
     public org.apache.calcite.plan.RelOptCost computeSelfCost(
@@ -95,29 +125,78 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
         org.apache.calcite.rel.metadata.RelMetadataQuery mq
     ) {
         OpenSearchDistribution selfDist = distributionOf(this);
-        if (selfDist == null || selfDist.getType() != org.apache.calcite.rel.RelDistribution.Type.SINGLETON) {
+        if (selfDist == null) {
             return planner.getCostFactory().makeInfiniteCost();
         }
+        org.apache.calcite.rel.RelDistribution.Type selfType = selfDist.getType();
+        OpenSearchDistribution.Locality selfLocality = selfDist.getLocality();
+        // Three legal join shapes:
+        // 1. SINGLETON: COORDINATOR+SINGLETON (coord-centric) or SHARD+SINGLETON (1-shard
+        // co-location). Inputs match self exactly.
+        // 2. HASH+WORKER: hash-shuffle. Inputs are both HASH+WORKER with the same N.
+        // 3. RANDOM+SHARD: broadcast. Inputs are one BROADCAST+REPLICATED (build) and one
+        // SHARD-localized (probe); the join runs alongside the probe scan.
+        boolean isSingleton = selfType == org.apache.calcite.rel.RelDistribution.Type.SINGLETON;
+        boolean isHashWorker = selfType == org.apache.calcite.rel.RelDistribution.Type.HASH_DISTRIBUTED
+            && selfLocality == OpenSearchDistribution.Locality.WORKER;
+        boolean isBroadcastShape = selfType == org.apache.calcite.rel.RelDistribution.Type.RANDOM_DISTRIBUTED
+            && selfLocality == OpenSearchDistribution.Locality.SHARD;
+        if (!isSingleton && !isHashWorker && !isBroadcastShape) {
+            return planner.getCostFactory().makeInfiniteCost();
+        }
+        // For broadcast shape, exactly one input must be BROADCAST+REPLICATED (the build) and
+        // the other must be SHARD-localized matching the join's own SHARD+tableId.
+        int broadcastBuildSeen = 0;
+        int probeShardSeen = 0;
         for (RelNode input : getInputs()) {
             OpenSearchDistribution inputDist = distributionOf(input);
             if (inputDist == null) continue;
             if (inputDist.getType() == org.apache.calcite.rel.RelDistribution.Type.ANY) continue;
-            if (inputDist.getType() != org.apache.calcite.rel.RelDistribution.Type.SINGLETON) {
+
+            if (isBroadcastShape) {
+                if (inputDist.getType() == org.apache.calcite.rel.RelDistribution.Type.BROADCAST_DISTRIBUTED
+                    && inputDist.getLocality() == OpenSearchDistribution.Locality.REPLICATED) {
+                    broadcastBuildSeen++;
+                    continue;
+                }
+                if (inputDist.getType() == org.apache.calcite.rel.RelDistribution.Type.RANDOM_DISTRIBUTED
+                    && inputDist.getLocality() == OpenSearchDistribution.Locality.SHARD
+                    && selfDist.getTableId() != null
+                    && selfDist.getTableId().equals(inputDist.getTableId())) {
+                    probeShardSeen++;
+                    continue;
+                }
                 return planner.getCostFactory().makeInfiniteCost();
             }
-            // Locality must match the join's own locality.
+
+            // Non-broadcast shapes: inputs must match join's distribution type.
+            if (inputDist.getType() != selfType) {
+                return planner.getCostFactory().makeInfiniteCost();
+            }
             if (selfDist.getLocality() != inputDist.getLocality()) {
                 return planner.getCostFactory().makeInfiniteCost();
             }
-            // SHARD case additionally requires the input to share the join's tableId and shardCount=1.
-            if (selfDist.getLocality() == OpenSearchDistribution.Locality.SHARD) {
-                if (selfDist.getTableId() == null || !selfDist.getTableId().equals(inputDist.getTableId())) {
-                    return planner.getCostFactory().makeInfiniteCost();
+            if (isSingleton) {
+                if (selfDist.getLocality() == OpenSearchDistribution.Locality.SHARD) {
+                    if (selfDist.getTableId() == null || !selfDist.getTableId().equals(inputDist.getTableId())) {
+                        return planner.getCostFactory().makeInfiniteCost();
+                    }
+                    if (!Integer.valueOf(1).equals(inputDist.getShardCount())) {
+                        return planner.getCostFactory().makeInfiniteCost();
+                    }
                 }
-                if (!Integer.valueOf(1).equals(inputDist.getShardCount())) {
+            } else {
+                // HASH+WORKER: partitionCount must agree on each input. Per-input keys may
+                // differ (left.k1 = right.k2), so we don't compare keys here — that's the
+                // exchange's job at trait conversion.
+                if (!Integer.valueOf(selfDist.getPartitionCount() == null ? -1 : selfDist.getPartitionCount())
+                    .equals(inputDist.getPartitionCount())) {
                     return planner.getCostFactory().makeInfiniteCost();
                 }
             }
+        }
+        if (isBroadcastShape && (broadcastBuildSeen != 1 || probeShardSeen != 1)) {
+            return planner.getCostFactory().makeInfiniteCost();
         }
         return planner.getCostFactory().makeTinyCost();
     }
@@ -128,6 +207,68 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
             if (trait instanceof OpenSearchDistribution dist) return dist;
         }
         return null;
+    }
+
+    // ---- DistributionAware (Option B post-CBO enforcement pass) ----
+
+    /**
+     * An equi-join co-partitions on its equi keys: input 0 (left) must deliver
+     * {@code WORKER+HASH(leftKeys, N)}, input 1 (right) {@code WORKER+HASH(rightKeys, N)}. A pure-theta
+     * join (empty {@code leftKeys}) returns {@code null} — no key to hash-partition on, so it stays
+     * coordinator-gathered. Co-partitioning is sound for all of INNER/LEFT/RIGHT/FULL/SEMI/ANTI: a
+     * hash-partitioned outer/semi/anti join's null-fill / existence test is partition-local because rows
+     * with the same key land in the same partition (standard Spark/Presto). The per-row null semantics
+     * live in the worker join operator, not the distribution.
+     */
+    @Override
+    public OpenSearchDistribution requiredInputDistribution(int inputIndex, int partitionCount, OpenSearchDistributionTraitDef traitDef) {
+        JoinInfo info = analyzeCondition();
+        if (info.leftKeys.isEmpty()) {
+            return null;
+        }
+        if (inputIndex == 0) {
+            return traitDef.hash(info.leftKeys, partitionCount);
+        }
+        if (inputIndex == 1) {
+            return traitDef.hash(info.rightKeys, partitionCount);
+        }
+        return null;
+    }
+
+    /**
+     * When the left input is hash-partitioned on this join's left equi keys, the join output is
+     * {@code WORKER+HASH(leftKeys, N)} — left key columns keep their output positions (left fields come
+     * first in the join row type), so a parent keyed on the same column consumes it without a re-shuffle.
+     * Anchored on the LEFT side only (the engine convention used by {@code OpenSearchHashJoinSplitRule} and
+     * the cost gate). Returns {@code null} (output not co-partitionable) when the left input is not
+     * hash-partitioned on exactly the left equi keys, or for a pure-theta join.
+     */
+    @Override
+    public OpenSearchDistribution deriveOutputDistribution(
+        List<OpenSearchDistribution> childDistributions,
+        OpenSearchDistributionTraitDef traitDef
+    ) {
+        if (childDistributions.size() != 2) {
+            return null;
+        }
+        OpenSearchDistribution leftDist = childDistributions.get(0);
+        if (leftDist == null || leftDist.getType() != org.apache.calcite.rel.RelDistribution.Type.HASH_DISTRIBUTED) {
+            return null;
+        }
+        JoinInfo info = analyzeCondition();
+        if (info.leftKeys.isEmpty()) {
+            return null;
+        }
+        // Left input must be hash-partitioned on exactly this join's left equi keys (order-sensitive)
+        // for the output-is-left-keys derivation to be sound.
+        if (!leftDist.getKeys().equals(info.leftKeys)) {
+            return null;
+        }
+        Integer n = leftDist.getPartitionCount();
+        if (n == null) {
+            return null;
+        }
+        return traitDef.hash(info.leftKeys, n);
     }
 
     @Override

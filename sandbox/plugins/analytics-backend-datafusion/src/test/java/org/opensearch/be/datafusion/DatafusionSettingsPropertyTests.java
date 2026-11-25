@@ -22,7 +22,7 @@ public class DatafusionSettingsPropertyTests extends OpenSearchTestCase {
     private static final int ITERATIONS = 200;
 
     private ClusterSettings createClusterSettings() {
-        Set<Setting<?>> settingsSet = new HashSet<>(DatafusionSettings.ALL_SETTINGS);
+        Set<Setting<?>> settingsSet = new HashSet<>(DatafusionSettings.NODE_SCOPED_SETTINGS);
         settingsSet.add(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING);
         settingsSet.add(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE);
         return new ClusterSettings(Settings.EMPTY, settingsSet);

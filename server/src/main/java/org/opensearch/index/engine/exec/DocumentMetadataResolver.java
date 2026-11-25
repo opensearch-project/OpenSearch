@@ -34,14 +34,28 @@ public interface DocumentMetadataResolver {
     };
 
     /**
-     * Physical row location for a document. Version metadata lives in the primary store, not here.
+     * Physical row location for a document, plus its version metadata. When it does not, the version fields are {@link #UNSET} and the caller must read
+     * them from the primary store.
      *
      * @param id the document id
      * @param rowId the row offset within the data file
      * @param writerGeneration the writer generation identifying the data file
+     * @param version the document version, or {@link #UNSET}
+     * @param seqNo the sequence number, or {@link #UNSET}
+     * @param primaryTerm the primary term, or {@link #UNSET}
      */
     @ExperimentalApi
-    record DocumentMetadata(String id, long rowId, long writerGeneration) {
+    record DocumentMetadata(String id, long rowId, long writerGeneration, long version, long seqNo, long primaryTerm) {
+
+        /** Row location only; version metadata reports {@link #UNSET}. */
+        public DocumentMetadata(String id, long rowId, long writerGeneration) {
+            this(id, rowId, writerGeneration, UNSET, UNSET, UNSET);
+        }
+
+        /** Whether version metadata was resolved and can be used without reading the primary store. */
+        public boolean hasVersionMetadata() {
+            return version != UNSET && seqNo != UNSET && primaryTerm != UNSET;
+        }
     }
 
     /**

@@ -44,6 +44,27 @@ public class StreamTransportService extends TransportService {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Number of stream transport connections opened to each node, including nodes of remote clusters reached
+     * through the stream transport.
+     * <p>
+     * Each connection has its own flow-control windows, and stream requests to a node take that node's
+     * connections in turn. One connection carries at most about one window of data per round trip, so on
+     * high-latency links the throughput between two nodes grows with the number of busy connections. A single
+     * stream always uses one connection.
+     * <p>
+     * Each extra connection costs a socket on both nodes, and the receiver can buffer up to one flow-control
+     * window of unread data per connection. Connections open on first use. The cap of 16 bounds that cost; past
+     * a few connections per node pair, nodes rarely have enough concurrent streams to keep them busy.
+     */
+    public static final Setting<Integer> STREAM_TRANSPORT_CONNECTIONS_PER_NODE_SETTING = Setting.intSetting(
+        "transport.stream.connections_per_node",
+        1,
+        1,
+        16,
+        Setting.Property.NodeScope
+    );
+
     private volatile TimeValue streamTransportReqTimeout;
 
     public StreamTransportService(
@@ -63,10 +84,11 @@ public class StreamTransportService extends TransportService {
             threadPool,
             transportInterceptor,
             localNodeFactory,
-            // it's a single channel profile and let underlying client handle parallelism by creating multiple channels as needed
+            // STREAM-only profile; the stream transport opens one channel (connection) per configured connection
             new ClusterConnectionManager(
-                ConnectionProfile.buildSingleChannelProfile(
+                ConnectionProfile.buildSingleTypeProfile(
                     TransportRequestOptions.Type.STREAM,
+                    STREAM_TRANSPORT_CONNECTIONS_PER_NODE_SETTING.get(settings),
                     PROBE_CONNECT_TIMEOUT_SETTING.get(settings),
                     PROBE_HANDSHAKE_TIMEOUT_SETTING.get(settings),
                     TimeValue.MINUS_ONE,
@@ -109,7 +131,14 @@ public class StreamTransportService extends TransportService {
             listener.onResponse(null);
             return;
         }
-        // TODO: add logic for validation
+        // A node without a stream address (predates the stream transport, or has it disabled) cannot serve
+        // a Flight connection. Skip it rather than attempting a connect that would fail; this avoids the
+        // retry/log-noise seen against older nodes during a mixed-version rolling upgrade.
+        if (node.getStreamAddress() == null) {
+            logger.debug("skipping stream connection to [{}]: node publishes no stream address", node);
+            listener.onResponse(null);
+            return;
+        }
         final ActionListener<Void> wrappedListener = ActionListener.wrap(response -> { listener.onResponse(response); }, exception -> {
             logger.warn("Failed to connect to streaming node [{}]: {}", node, exception.getMessage());
             listener.onFailure(new ConnectTransportException(node, "Failed to connect for streaming", exception));

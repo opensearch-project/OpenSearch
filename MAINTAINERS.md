@@ -21,21 +21,24 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Jay Deng          | [jed326](https://github.com/jed326)                     | Amazon      |
 | Jialiang          | [guojialiang92](https://github.com/guojialiang92)       | ByteDance   |
 | Karen Xu          | [karenyrx](https://github.com/karenyrx)                 | Uber        |
+| Kaushal Kumar     | [kaushalmahi12](https://github.com/kaushalmahi12)       | Amazon      |
 | Ke Wei            | [kkewwei](https://github.com/kkewwei)                   | ByteDance   |
 | Kunal Kotwani     | [kotwanikunal](https://github.com/kotwanikunal)         | Amazon      |
 | Marc Handalian    | [mch2](https://github.com/mch2)                         | Amazon      |
 | Michael Froh      | [msfroh](https://github.com/msfroh)                     | Apple       |
 | Mohit Godwani     | [mgodwan](https://github.com/mgodwan)                   | Amazon      |
 | Navneet Verma     | [navneet1v](https://github.com/navneet1v)               | Amazon      |
-| Owais Kazi        | [owaiskazi19](https://github.com/owaiskazi19)           | Amazon      |
+| Owais Kazi        | [owaiskazi19](https://github.com/owaiskazi19)           | Apple       |
 | Pan Guixin        | [bugmakerrrrrr](https://github.com/bugmakerrrrrr)       | ByteDance   |
-| Peter Nied        | [peternied](https://github.com/peternied)               | Amazon      |
+| Peter Nied        | [peternied](https://github.com/peternied)               | Airbnb      |
 | Prudhvi Godithi   | [prudhvigodithi](https://github.com/prudhvigodithi)     | Amazon      |
 | Rishabh Maurya    | [rishabhmaurya](https://github.com/rishabhmaurya)       | Amazon      |
 | Rishav Sagar      | [RS146BIJAY](https://github.com/RS146BIJAY)             | Apple       |
 | Sachin Kale       | [sachinpkale](https://github.com/sachinpkale)           | Amazon      |
 | Sandesh Kumar     | [sandeshkr419](https://github.com/sandeshkr419)         | Amazon      |
+| Sagar Upadhyaya   | [sgup432](https://github.com/sgup432)                   | Amazon      |
 | Sarat Vemulapalli | [saratvemulapalli](https://github.com/saratvemulapalli) | Amazon      |
+| Shreyansh Ray     | [rayshrey](https://github.com/rayshrey)                 | Amazon      |
 | Shweta Thareja    | [shwetathareja](https://github.com/shwetathareja)       | Amazon      |
 | Sorabh Hamirwasia | [sohami](https://github.com/sohami)                     | Amazon      |
 | Varun Bansal      | [linuxpi](https://github.com/linuxpi)                   | Amazon      |

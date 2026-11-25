@@ -32,6 +32,7 @@
 package org.opensearch.benchmark.routing.allocation;
 
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.EmptyClusterInfoService;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -54,6 +55,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class Allocators {
@@ -89,11 +91,19 @@ public final class Allocators {
     }
 
     public static AllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings) {
+        return createAllocationService(defaultAllocationDeciders(settings, clusterSettings), EmptyClusterInfoService.INSTANCE, settings);
+    }
+
+    public static AllocationService createAllocationService(
+        AllocationDeciders deciders,
+        ClusterInfoService clusterInfoService,
+        Settings settings
+    ) {
         return new AllocationService(
-            defaultAllocationDeciders(settings, clusterSettings),
+            deciders,
             NoopGatewayAllocator.INSTANCE,
             new BalancedShardsAllocator(settings),
-            EmptyClusterInfoService.INSTANCE,
+            clusterInfoService,
             EmptySnapshotsInfoService.INSTANCE
         );
     }
@@ -106,12 +116,16 @@ public final class Allocators {
     private static final AtomicInteger portGenerator = new AtomicInteger();
 
     public static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
+        return newNode(nodeId, attributes, Sets.newHashSet(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE));
+    }
+
+    public static DiscoveryNode newNode(String nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
         return new DiscoveryNode(
             "",
             nodeId,
             new TransportAddress(TransportAddress.META_ADDRESS, portGenerator.incrementAndGet()),
             attributes,
-            Sets.newHashSet(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE),
+            roles,
             Version.CURRENT
         );
     }

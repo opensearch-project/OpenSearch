@@ -29,6 +29,7 @@ import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.parquet.ParquetBaseTests;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
+import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 import org.opensearch.parquet.fields.ParquetField;
@@ -208,6 +209,7 @@ public class ParquetIndexingEngineTests extends ParquetBaseTests {
                 shardPath,
                 () -> schema,
                 () -> mapperService.getIndexSettings().getIndexMetadata().getMappingVersion(),
+                () -> ParquetSettings.getLowCardinalityEnabledFields(mapperService),
                 indexSettings,
                 threadPool,
                 nativeAllocator

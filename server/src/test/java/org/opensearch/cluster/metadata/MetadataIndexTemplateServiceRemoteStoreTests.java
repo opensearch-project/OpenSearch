@@ -75,6 +75,28 @@ public class MetadataIndexTemplateServiceRemoteStoreTests extends OpenSearchTest
         assertThat(throwables, empty());
     }
 
+    public void testTotalPrimaryShardsTemplateValidatesOnSegmentsOnlyCluster() {
+        // segments_only nodes have a segment repository but no cluster state repository. Balancing primaries only
+        // needs the segments to be remote backed, so the template must validate here too.
+        PutRequest request = new PutRequest("test", "test_index_primary_shard_constraint_segments_only");
+        request.patterns(singletonList("test_shards_wait*"));
+        request.settings(
+            builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+                .put(INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey(), 2)
+                .put(INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT.toString())
+                .build()
+        );
+
+        DiscoveryNodes segmentsOnlyNodes = DiscoveryNodes.builder()
+            .add(IndexShardTestUtils.getFakeSegmentsOnlyNode("node1"))
+            .add(IndexShardTestUtils.getFakeSegmentsOnlyNode("node2"))
+            .build();
+
+        List<Throwable> throwables = putTemplate(xContentRegistry(), request, segmentsOnlyNodes);
+        assertThat(throwables, empty());
+    }
+
     public void testTotalPrimaryShardsTemplateRejectedOnEmptyNodeCluster() {
         // No nodes → not a remote-store cluster (allMatch is vacuously true on an empty set, so the
         // !nodes.isEmpty() guard must reject). Covers the empty-node branch of the hardened check.
