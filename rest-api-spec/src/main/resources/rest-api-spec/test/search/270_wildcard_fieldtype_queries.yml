@@ -203,6 +203,31 @@ setup:
   - match: { hits.total.value: 0 }
 
 ---
+"query_string wildcard query matches":
+  - skip:
+      version: " - 3.9.99"
+      reason: "query_string did not use the wildcard field query before 3.10"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            query_string:
+              query: "my_field:*Node*Exception*"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            query_string:
+              query: "my_field.lower:*NODE*EXCEPTION*"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
 "prefix query matches":
   - do:
       search:
