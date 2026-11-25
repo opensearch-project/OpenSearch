@@ -1382,7 +1382,10 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
                 () -> blobContainer.writeBlob("write_blob_exceeding_block_count", inputStream, 50001L, false)
             );
             assertThat(exception.getMessage(), containsString("would require [50001] blocks"));
-            assertThat(exception.getMessage(), containsString("azure.client.default.write.block_size"));
+            assertThat(
+                exception.getMessage(),
+                containsString(WRITE_BLOCK_SIZE_SETTING.getConcreteSettingForNamespace(activeClientName).getKey())
+            );
         }
         assertThat(requestCount.get(), equalTo(0));
     }
