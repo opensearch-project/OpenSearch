@@ -70,4 +70,13 @@ public class MultiBucketConsumerTests extends OpenSearchTestCase {
         multiBucketConsumer.accept(0);
         Mockito.verify(breaker, Mockito.times(0)).addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
     }
+
+    public void testAcceptDoesNotOverflow() {
+        MultiBucketConsumerService.MultiBucketConsumer multiBucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
+            DEFAULT_MAX_BUCKETS,
+            Mockito.mock(CircuitBreaker.class)
+        );
+        multiBucketConsumer.accept(10);
+        expectThrows(MultiBucketConsumerService.TooManyBucketsException.class, () -> multiBucketConsumer.accept(Integer.MAX_VALUE));
+    }
 }

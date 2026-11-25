@@ -32,6 +32,7 @@
 
 package org.opensearch.repositories.azure;
 
+import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.specialized.BlobInputStream;
 import com.azure.storage.common.implementation.Constants;
@@ -98,7 +99,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         try {
             return new PlainBlobMetadata(blobName, blobStore.getBlobLength(buildKey(blobName)));
         } catch (BlobStorageException e) {
-            if (e.getStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
+            if (e.getStatusCode() == HttpURLConnection.HTTP_NOT_FOUND && BlobErrorCode.BLOB_NOT_FOUND.equals(e.getErrorCode())) {
                 throw new NoSuchFileException(blobName);
             }
             throw new IOException("Can not read metadata for blob " + blobName, e);
