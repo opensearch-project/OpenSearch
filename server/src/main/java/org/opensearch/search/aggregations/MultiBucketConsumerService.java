@@ -164,7 +164,7 @@ public class MultiBucketConsumerService {
         @Override
         public void accept(int value) {
             if (value != 0) {
-                count += value;
+                count = (int) Math.min(Integer.MAX_VALUE, (long) count + value);
                 if (count > limit) {
                     throw new TooManyBucketsException(
                         "Trying to create too many buckets. Must be less than or equal to: ["
