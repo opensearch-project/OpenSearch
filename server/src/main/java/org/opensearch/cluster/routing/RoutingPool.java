@@ -10,6 +10,7 @@ package org.opensearch.cluster.routing;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.util.FeatureFlags;
 
@@ -41,6 +42,14 @@ public enum RoutingPool {
             return REMOTE_CAPABLE;
         }
         return LOCAL_ONLY;
+    }
+
+    /**
+     * Returns whether the node can hold {@link #LOCAL_ONLY} shards: a node outside the warm pool, or a warm node that
+     * also has the data role.
+     */
+    public static boolean canHoldLocalOnlyShards(DiscoveryNode node) {
+        return getNodePool(node) == LOCAL_ONLY || node.getRoles().contains(DiscoveryNodeRole.DATA_ROLE);
     }
 
     /**
