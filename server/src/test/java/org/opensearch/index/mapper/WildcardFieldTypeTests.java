@@ -134,6 +134,15 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         }
     }
 
+    public void testRangeQueryIsRejected() {
+        MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ft.rangeQuery("a", "b", true, true, null, null, null, null)
+        );
+        assertThat(e.getMessage(), containsString("Can only use range queries on keyword and text fields"));
+    }
+
     public void testEscapedWildcardQuery() {
         MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
         Set<String> expectedTerms = new HashSet<>();
