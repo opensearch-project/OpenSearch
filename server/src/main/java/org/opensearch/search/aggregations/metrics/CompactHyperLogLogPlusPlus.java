@@ -24,9 +24,9 @@ import java.util.function.LongConsumer;
  * {@link HyperLogLogPlusPlus} reserves {@code 2^precision} bytes for every bucket up to the highest one collected, and keeps
  * the linear counting hash set of a bucket inside those bytes. Under a parent aggregation with many buckets that is
  * {@code buckets * 2^precision} bytes, 16KB per bucket at the default precision, even when most buckets hold a handful of
- * values. Here a bucket in linear counting mode keeps its hashes in its own hash table that starts with
- * {@value #MIN_TABLE_SIZE} slots and doubles at 75% load, and it only gets {@code 2^precision} bytes of registers once it
- * holds more hashes than linear counting allows.
+ * values. Here a bucket in linear counting mode keeps a single hash inline, then its hashes in its own hash table that
+ * starts with {@value #MIN_TABLE_SIZE} slots and doubles at 75% load, and it only gets {@code 2^precision} bytes of registers
+ * once it holds more hashes than linear counting allows.
  * <p>
  * The encoding of the hashes, the linear counting threshold and the switch to HyperLogLog are the same as in
  * {@link HyperLogLogPlusPlus}, so for the same values both produce the same sketches and the same cardinalities. A bucket
@@ -55,10 +55,18 @@ final class CompactHyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     private final LinearCounting lc;
     private final HyperLogLog hll;
 
-    /** Hash table of each bucket in linear counting mode, {@code null} for empty buckets and buckets in HyperLogLog mode. */
+    /**
+     * Hash table of each bucket in linear counting mode with at least two hashes, {@code null} for the other buckets. Only
+     * grown to the highest such bucket.
+     */
     private ObjectArray<int[]> tables;
     /** Number of hashes of a bucket in linear counting mode, or {@code -(slot + 1)} for a bucket whose registers are in {@code slot}. */
     private IntArray states;
+    /**
+     * The only hash of a bucket holding one, kept inline as most buckets under a parent with many buckets hold a single value
+     * and a table would cost several times more. Meaningless for buckets with any other number of hashes.
+     */
+    private IntArray firstHashes;
     /** {@code 2^precision} registers for each bucket in HyperLogLog mode, indexed by slot. */
     private ByteArray registers;
     /** Cached HyperLogLog estimate of each slot. */
@@ -83,6 +91,7 @@ final class CompactHyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         try {
             tables = bigArrays.newObjectArray(1);
             states = bigArrays.newIntArray(1, true);
+            firstHashes = bigArrays.newIntArray(1, false);
             registers = bigArrays.newByteArray(0, true);
             cardinalities = bigArrays.newLongArray(0, false);
             cardinalityVersions = bigArrays.newLongArray(0, true);
@@ -174,7 +183,8 @@ final class CompactHyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     }
 
     /**
-     * Gives {@code bucketOrd} registers, hashes its linear counting values into them, then adds {@code encoded}.
+     * Gives {@code bucketOrd} registers, hashes its linear counting values into them, then adds {@code encoded}. Its values
+     * are in {@code table}, or inline in {@link #firstHashes} if {@code table} is {@code null}.
      * The registers are allocated before anything changes, so a tripped circuit breaker leaves the bucket as it was.
      */
     private void upgradeToHll(long bucketOrd, int[] table, int encoded) {
@@ -191,6 +201,8 @@ final class CompactHyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
                     hll.collectEncoded(slot, value);
                 }
             }
+        } else if (states.get(bucketOrd) == 1) {
+            hll.collectEncoded(slot, firstHashes.get(bucketOrd));
         }
         hll.collectEncoded(slot, encoded);
         states.set(bucketOrd, Math.toIntExact(-1L - slot));
@@ -218,7 +230,7 @@ final class CompactHyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         } finally {
             breakerBytes = 0;
             tableBytes = 0;
-            Releasables.close(tables, states, registers, cardinalities, cardinalityVersions);
+            Releasables.close(tables, states, firstHashes, registers, cardinalities, cardinalityVersions);
         }
     }
 
@@ -239,22 +251,28 @@ final class CompactHyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
         /**
          * Adds {@code encoded} to the bucket and returns its new number of hashes, or {@code -1} if it was already there.
-         * A bucket that would go over the threshold switches to HyperLogLog instead.
+         * A bucket keeps its first hash inline and gets a table for its second one. A bucket that would go over the
+         * threshold switches to HyperLogLog instead.
          */
         @Override
         protected int addEncoded(long bucketOrd, int encoded) {
             assert encoded != 0;
-            int[] table;
-            int size;
-            if (bucketOrd < states.size()) {
-                size = states.get(bucketOrd);
-                assert size >= 0 : "bucket is in HyperLogLog mode";
-                table = tables.get(bucketOrd);
-            } else {
-                size = 0;
-                table = null;
+            final int size = bucketOrd < states.size() ? states.get(bucketOrd) : 0;
+            assert size >= 0 : "bucket is in HyperLogLog mode";
+            if (size == 0) {
+                states = bigArrays.grow(states, bucketOrd + 1);
+                firstHashes = bigArrays.grow(firstHashes, bucketOrd + 1);
+                firstHashes.set(bucketOrd, encoded);
+                states.set(bucketOrd, 1);
+                return 1;
             }
-            if (table != null) {
+            int[] table = bucketOrd < tables.size() ? tables.get(bucketOrd) : null;
+            if (table == null) {
+                assert size == 1;
+                if (firstHashes.get(bucketOrd) == encoded) {
+                    return -1;
+                }
+            } else {
                 final int mask = table.length - 1;
                 for (int i = indexOf(encoded, table.length);; i = (i + 1) & mask) {
                     final int v = table[i];
@@ -273,6 +291,7 @@ final class CompactHyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             }
             if (table == null) {
                 table = newTable(bucketOrd, Math.min(MIN_TABLE_SIZE, maxTableSize));
+                insert(table, firstHashes.get(bucketOrd));
             } else if (newSize > (table.length >>> 2) * 3) {
                 assert table.length < maxTableSize;
                 table = grow(bucketOrd, table);
@@ -284,7 +303,6 @@ final class CompactHyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
         private int[] newTable(long bucketOrd, int size) {
             tables = bigArrays.grow(tables, bucketOrd + 1);
-            states = bigArrays.grow(states, bucketOrd + 1);
             final int[] table = new int[size];
             tables.set(bucketOrd, table);
             accountTable(tableBytes(size));
@@ -322,24 +340,37 @@ final class CompactHyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         @Override
         protected HashesIterator values(long bucketOrd) {
             final int size = size(bucketOrd);
-            iterator.reset(size == 0 ? null : tables.get(bucketOrd), size);
+            if (size == 1) {
+                iterator.resetSingle(firstHashes.get(bucketOrd));
+            } else {
+                iterator.reset(size == 0 ? null : tables.get(bucketOrd), size);
+            }
             return iterator;
         }
     }
 
     /**
-     * Iterates over the hashes of one bucket's hash table.
+     * Iterates over the hashes of one bucket: its hash table, or its single inline hash.
      */
     private static class LinearCountingIterator implements AbstractLinearCounting.HashesIterator {
         private int[] table;
         private int size;
         private int pos;
         private int value;
+        private int single;
 
         void reset(int[] table, int size) {
             this.table = table;
             this.size = size;
             this.pos = 0;
+            this.single = 0;
+        }
+
+        void resetSingle(int hash) {
+            this.table = null;
+            this.size = 1;
+            this.pos = 0;
+            this.single = hash;
         }
 
         @Override
@@ -350,6 +381,11 @@ final class CompactHyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         @Override
         public boolean next() {
             if (table == null) {
+                if (single != 0 && pos == 0) {
+                    pos = 1;
+                    value = single;
+                    return true;
+                }
                 return false;
             }
             while (pos < table.length) {
