@@ -6,6 +6,7 @@ jobs:
     if: github.repository == 'opensearch-project/OpenSearch'
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         java: [ 11, 17, 21, 23 ]
         os: [ubuntu-latest, windows-latest, macos-15, macos-15-intel, ubuntu-24.04-arm]
