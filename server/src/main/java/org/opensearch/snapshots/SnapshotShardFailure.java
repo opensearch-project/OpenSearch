@@ -197,7 +197,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("index", shardId.getIndexName());
-        builder.field("index_uuid", shardId.getIndexName());
+        builder.field("index_uuid", shardId.getIndex().getUUID());
         builder.field("shard_id", shardId.id());
         builder.field("reason", reason);
         if (nodeId != null) {
@@ -215,7 +215,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
         SnapshotShardFailure that = (SnapshotShardFailure) o;
         // customized to account for discrepancies in shardId/Index toXContent/fromXContent related to uuid
         return shardId.id() == that.shardId.id()
-            && shardId.getIndexName().equals(shardId.getIndexName())
+            && shardId.getIndexName().equals(that.shardId.getIndexName())
             && Objects.equals(reason, that.reason)
             && Objects.equals(nodeId, that.nodeId)
             && status.getStatus() == that.status.getStatus();
