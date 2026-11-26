@@ -480,8 +480,6 @@ public class CompactSketchesAggregatorTests extends AggregatorTestCase {
                     final boolean stopped = "stopped_over_memory_threshold".equals(debug.get("deferred_ordinals"));
                     if (bits <= memoryThreshold / CardinalityAggregator.BucketOrdinalBits.SPARSE_SHARE) {
                         assertEquals(context, false, debug.get("deferred_bitmaps"));
-                    } else if (bits > memoryThreshold) {
-                        assertEquals(context, true, debug.get("deferred_bitmaps"));
                     }
                     if (memoryThreshold == Long.MAX_VALUE || memoryThreshold == 1L << 22) {
                         assertEquals(context, "used", debug.get("deferred_ordinals"));
@@ -497,6 +495,48 @@ public class CompactSketchesAggregatorTests extends AggregatorTestCase {
                     // Deferred collection ranks by exact counts, collection that stopped deferring by the sketches
                     assertTopBuckets(context, stopped ? expected : exact, expected, asc, size, terms, false);
                 }
+            }
+        }
+    }
+
+    /**
+     * Dense ordinals that fill the memory threshold as bits stop deferral rather than move to bitmaps, which would be about as
+     * big, and give the same sketches.
+     */
+    public void testDenseDeferredOrdinalsStopWithoutBitmaps() throws IOException {
+        final Map<String, List<Long>> groups = new TreeMap<>();
+        final int values = randomIntBetween(500, 3000);
+        final int count = randomIntBetween(4, 10);
+        for (int g = 0; g < count; g++) {
+            final List<Long> all = new ArrayList<>();
+            for (long v = 0; v < values; v++) {
+                all.add(v);
+            }
+            groups.put(String.format(Locale.ROOT, "g%05d", g), all);
+        }
+        try (Directory dir = newDirectory()) {
+            index(dir, groups);
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final IndexSearcher searcher = newIndexSearcher(reader);
+                // bits for two buckets fit, not for a third
+                final long memoryThreshold = 2 * CardinalityAggregator.OrdinalsCollector.memoryOverhead(values) + 1;
+                final Map<String, Object> debug = new HashMap<>();
+                final Terms terms = collect(
+                    searcher,
+                    termsByCardinality(
+                        new CardinalityAggregationBuilder("card").field(KEYWORD).executionHint("deferred_ordinals"),
+                        false,
+                        count,
+                        count
+                    ),
+                    new CardinalityAggregationContext(true, memoryThreshold),
+                    new NoneCircuitBreakerService(),
+                    debug
+                );
+                assertEquals(debug.toString(), "stopped_over_memory_threshold", debug.get("deferred_ordinals"));
+                assertEquals(debug.toString(), false, debug.get("deferred_bitmaps"));
+                final Map<String, Long> expected = expectedCardinalities(groups, HyperLogLogPlusPlus.DEFAULT_PRECISION, true);
+                assertTopBuckets(debug.toString(), expected, expected, false, count, terms, false);
             }
         }
     }

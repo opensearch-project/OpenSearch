@@ -936,7 +936,30 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
          * @param values resolves the ordinals to their values
          */
         void collectInto(AbstractHyperLogLogPlusPlus counts, SortedSetDocValues values) throws IOException {
-            collectInto(counts, values, null);
+            collectAllInto(counts, values);
+        }
+
+        /**
+         * Whether a bucket without bits can't get any because they would take the memory used over the threshold.
+         */
+        boolean isFull() {
+            return memoryUsed + OrdinalsCollector.memoryOverhead(maxOrd) > memoryThreshold;
+        }
+
+        /**
+         * Number of buckets that have bits.
+         */
+        long bucketsWithBits() {
+            return bucketsWithBits;
+        }
+
+        /**
+         * Estimated heap used by {@link #collectInto(AbstractHyperLogLogPlusPlus, SortedSetDocValues, long[])} for {@code buckets}
+         * buckets, which it doesn't charge to the circuit breaker itself.
+         */
+        static long collectIntoBytes(long buckets) {
+            return buckets * (RamUsageEstimator.NUM_BYTES_OBJECT_REF + 2L * Long.BYTES) + (HASH_CHUNK + HASH_CHUNK / Long.SIZE)
+                * (long) Long.BYTES;
         }
 
         /**
@@ -974,15 +997,20 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         /**
          * {@inheritDoc}
          * <p>
-         * For some of the buckets every distinct ordinal is looked up once and in ascending order, which is the cheapest way to
-         * read a terms dictionary, {@value #HASH_CHUNK} ordinals at a time so that only the hashes of one chunk are held.
+         * Every distinct ordinal is looked up once and in ascending order, which is the cheapest way to read a terms dictionary,
+         * {@value #HASH_CHUNK} ordinals at a time so that only the hashes of one chunk are held, whatever the number of ordinals.
          */
         @Override
         public void collectInto(AbstractHyperLogLogPlusPlus counts, SortedSetDocValues values, @Nullable long[] buckets)
             throws IOException {
             if (buckets == null) {
-                collectAllInto(counts, values);
-                return;
+                buckets = new long[Math.toIntExact(bucketsWithBits)];
+                int n = 0;
+                for (long bucket = 0; bucket < bits.size(); bucket++) {
+                    if (bits.get(bucket) != null) {
+                        buckets[n++] = bucket;
+                    }
+                }
             }
             final BitArray[] selected = new BitArray[buckets.length];
             final long[] selectedBuckets = new long[buckets.length];
@@ -1646,6 +1674,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     }
                     return true;
                 }
+                if (bits.isFull()) {
+                    // Dense ordinals would be about as big as bitmaps, so copying them would only double the memory for a while
+                    return false;
+                }
                 switchToBitmaps(bits);
             }
             final BucketOrdinalBitmaps bitmaps = (BucketOrdinalBitmaps) ordinals;
@@ -1681,9 +1713,12 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             ordinals = null;
             state = State.STOPPED;
             usedBitmaps = stopped instanceof BucketOrdinalBitmaps;
+            final long bytes = stopped instanceof BucketOrdinalBits bits ? BucketOrdinalBits.collectIntoBytes(bits.bucketsWithBits()) : 0;
+            addRequestCircuitBreakerBytes(bytes);
             try {
                 stopped.collectInto(counts, lookup(), null);
             } finally {
+                addRequestCircuitBreakerBytes(-bytes);
                 stopped.close();
             }
             logger.debug("Cardinality aggregation [{}] stopped deferring collection: global ordinals exceed the threshold", name);
@@ -1703,10 +1738,36 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             if (isDeferring() == false) {
                 return;
             }
-            final long[] buckets = Arrays.stream(owningBucketOrds).filter(bucket -> cardinality(bucket) > 0).sorted().distinct().toArray();
-            ordinals.collectInto(counts, lookup(), buckets);
+            // The buckets with values, sorted and distinct, kept until the aggregator is closed
+            addRequestCircuitBreakerBytes(RamUsageEstimator.sizeOf(owningBucketOrds));
+            long[] buckets = new long[owningBucketOrds.length];
+            int n = 0;
+            for (long bucket : owningBucketOrds) {
+                if (cardinality(bucket) > 0) {
+                    buckets[n++] = bucket;
+                }
+            }
+            Arrays.sort(buckets, 0, n);
+            int distinct = 0;
+            for (int i = 0; i < n; i++) {
+                if (distinct == 0 || buckets[i] != buckets[distinct - 1]) {
+                    buckets[distinct++] = buckets[i];
+                }
+            }
+            buckets = Arrays.copyOf(buckets, distinct);
+            hashInto(buckets);
             bucketsBuilt += buckets.length;
             hashedBuckets = buckets;
+        }
+
+        private void hashInto(long[] buckets) throws IOException {
+            final long bytes = ordinals instanceof BucketOrdinalBits ? BucketOrdinalBits.collectIntoBytes(buckets.length) : 0;
+            addRequestCircuitBreakerBytes(bytes);
+            try {
+                ordinals.collectInto(counts, lookup(), buckets);
+            } finally {
+                addRequestCircuitBreakerBytes(-bytes);
+            }
         }
 
         /**
@@ -1718,7 +1779,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             }
             if (Arrays.binarySearch(hashedBuckets, bucketOrd) < 0) {
                 bucketsBuilt++;
-                ordinals.collectInto(counts, lookup(), new long[] { bucketOrd });
+                hashInto(new long[] { bucketOrd });
             }
             return true;
         }
