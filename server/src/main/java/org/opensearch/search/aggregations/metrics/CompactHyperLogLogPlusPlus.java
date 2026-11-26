@@ -71,9 +71,9 @@ final class CompactHyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     private ByteArray registers;
     /** Cached HyperLogLog estimate of each slot. */
     private LongArray cardinalities;
-    /** {@link #registerChanges} + 1 when the estimate of a slot was cached, which makes it stale once any register changes. */
+    /** {@link #registerChanges} + 1 when the estimate of a slot was cached, which makes it stale once a register is updated. */
     private LongArray cardinalityVersions;
-    /** Number of times a register changed, counted instead of invalidating the cache of a slot to keep collection cheap. */
+    /** Number of register updates, counted instead of invalidating the cache of a slot to keep collection cheap. */
     private long registerChanges;
     private long slots;
     private long tableBytes;
@@ -424,10 +424,9 @@ final class CompactHyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         @Override
         protected void addRunLen(long slot, int register, int runLen) {
             final long index = (slot << p) + register;
-            if (runLen > registers.get(index)) {
-                registers.set(index, (byte) runLen);
-                registerChanges++;
-            }
+            // Unconditional, like HyperLogLogPlusPlus: whether a register grows is too unpredictable to branch on
+            registers.set(index, (byte) Math.max(runLen, registers.get(index)));
+            registerChanges++;
         }
 
         @Override
