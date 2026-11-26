@@ -1,8 +1,9 @@
 # EXAMPLE security properties for FIPS mode (OPENSEARCH_FIPS_MODE=true).
 #
 # This is a reference configuration, not a FIPS 140 validated setup. Only the BouncyCastle providers (slots 1 and 2,
-# running in approved-only mode) are FIPS 140 validated. The JDK providers below (SunPKCS11, SUN, SunJGSS, JdkLDAP) are
-# NOT validated: they only cover services BouncyCastle FIPS does not implement, so that OpenSearch works out of the box.
+# running in approved-only mode) are FIPS 140 validated. The JDK providers below (SunPKCS11, SUN, SunJGSS, JdkLDAP,
+# SunJSSE) are NOT validated: they only cover services BouncyCastle FIPS does not implement, so that OpenSearch works out
+# of the box.
 # A deployment that must be FIPS compliant replaces them with the validated providers of a FIPS-compliant JDK or of the
 # platform, and adapts this file to that environment.
 #
@@ -28,6 +29,9 @@ security.provider.4=SUN
 security.provider.5=SunJGSS
 # LDAP CertStore, for CRL distribution points with ldap:// URLs
 security.provider.6=JdkLDAP
+# TLS with a private key on a PKCS#11 token: BouncyCastle JSSE cannot sign with a key that does not leave the token,
+# SunJSSE lets the token sign the handshake. Its key derivation for TLS 1.2 needs SunJCE, so only TLS 1.3 works here.
+security.provider.7=SunJSSE
 
 # KeyStore.getDefaultType()
 keystore.type=BCFKS
