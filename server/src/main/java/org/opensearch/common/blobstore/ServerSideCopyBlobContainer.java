@@ -66,17 +66,12 @@ public interface ServerSideCopyBlobContainer extends BlobContainer {
     void copyBlobFrom(ServerSideCopySource source, String sourceBlobName, String destinationBlobName) throws IOException;
 
     /**
-     * Largest blob, in bytes, this implementation can copy in a single request. Larger blobs are copied using whatever
-     * chunked mechanism the provider offers.
-     */
-    long maxSingleRequestCopySizeInBytes();
-
-    /**
      * Whether this container is configured to pull server-side copies. An implementation may be present but
      * unconfigured - lacking the endpoint it needs to reach a foreign source - in which case callers should treat the
      * capability as absent rather than invoking it and handling the failure.
+     *
+     * <p>Deliberately has no default. An implementation that forgot to answer would otherwise report itself ready and
+     * fail at the first copy.
      */
-    default boolean isServerSideCopyConfigured() {
-        return true;
-    }
+    boolean isServerSideCopyConfigured();
 }

@@ -22,14 +22,20 @@ import java.util.Objects;
  * the destination side, because the single principal signing it must hold write on the destination - and for a
  * destination owned by another account, only that account can grant it.
  *
- * <p>The container may be a plain container name or a provider-specific alternative endpoint over it, such as an S3
- * access point. Which one appears here decides whether an access point policy governs the read, so the source
- * container chooses it rather than the caller.
+ * <p>Names the container the data sits in. It does not decide how a reader reaches it: an implementation may be
+ * granted on an alternative endpoint over that container - an S3 access point, say - and if so that endpoint is a
+ * property of the reader's grant rather than of this source, so the destination supplies it and may address it in
+ * place of {@link #container()}. What a destination always takes from here is {@link #keyPrefix()} and
+ * {@link #expectedContainerOwner()}.
+ *
+ * <p>Carries no provider identity, so nothing here prevents a destination being handed a source produced by a
+ * different provider's container. Implementations of {@link ServerSideCopyBlobContainer#copyBlobFrom} are expected
+ * to reject a source they cannot address.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class ServerSideCopySource {
+public final class ServerSideCopySource {
 
     private final String container;
     private final String keyPrefix;

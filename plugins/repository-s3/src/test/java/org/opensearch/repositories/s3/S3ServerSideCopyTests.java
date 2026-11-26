@@ -8,6 +8,17 @@
 
 package org.opensearch.repositories.s3;
 
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
+import software.amazon.awssdk.services.s3.model.CopyObjectResponse;
+import software.amazon.awssdk.services.s3.model.MetadataDirective;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
+import software.amazon.awssdk.services.s3.model.StorageClass;
+import software.amazon.awssdk.services.s3.model.TaggingDirective;
+
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.ServerSideCopySource;
@@ -16,15 +27,24 @@ import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
+import java.nio.file.NoSuchFileException;
+
+import org.mockito.ArgumentCaptor;
+
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class S3ServerSideCopyTests extends OpenSearchTestCase {
 
-    private static final String AP_ARN = "arn:aws:s3:eu-west-1:798157642085:accesspoint/aos-7k2m9p4x";
+    private static final String KMS_KEY_ARN = "arn:aws:kms:eu-west-1:123456789012:key/11111111-2222-3333-4444-555555555555";
 
-    /** Realistic source path taken from an encryption-enabled domain's automated snapshot repository. */
-    private static final String SOURCE_BASE_PATH = "SHdXDU0CaN87zue6ezON2A/798157642085/cs/swift-eu-west-1-staging/mustang-40-tb-2/1/enc";
+    private static final String AP_ARN = "arn:aws:s3:eu-west-1:123456789012:accesspoint/source-ap";
+
+    /** Shape of a real source path: several path segments, as a repository base path tends to have. */
+    private static final String SOURCE_BASE_PATH = "base/path/with/several/segments";
 
     public void testBucketCopySourceUsesBucketKeyForm() {
         assertEquals("my-bucket/base/snap-1.dat", S3ServerSideCopy.encodeCopySource("my-bucket", "base/snap-1.dat"));
@@ -39,10 +59,32 @@ public class S3ServerSideCopyTests extends OpenSearchTestCase {
     }
 
     /**
+     * An Outposts access point carries the access point inside the resource portion as
+     * {@code outpost/<id>/accesspoint/<name>}, so a substring search for {@code ":accesspoint"} misses it and the ARN
+     * would be addressed as though it were a bucket name.
+     */
+    public void testOutpostsAccessPointArnUsesObjectForm() {
+        final String outpostArn = "arn:aws:s3-outposts:us-west-2:123456789012:outpost/op-01234567890123456/accesspoint/source-ap";
+
+        assertTrue(S3ServerSideCopy.isAccessPointArn(outpostArn));
+        assertEquals(outpostArn + "/object/base/snap-1.dat", S3ServerSideCopy.encodeCopySource(outpostArn, "base/snap-1.dat"));
+    }
+
+    public void testNonAccessPointArnsAreNotTreatedAsAccessPoints() {
+        // A bucket ARN, an Outposts bucket ARN, another service, and a malformed ARN.
+        assertFalse(S3ServerSideCopy.isAccessPointArn("arn:aws:s3:::my-bucket"));
+        assertFalse(S3ServerSideCopy.isAccessPointArn("arn:aws:s3-outposts:us-west-2:123456789012:outpost/op-0123/bucket/my-bucket"));
+        assertFalse(S3ServerSideCopy.isAccessPointArn("arn:aws:sqs:us-west-2:123456789012:accesspoint/not-s3"));
+        assertFalse(S3ServerSideCopy.isAccessPointArn("arn:aws:s3:us-west-2"));
+        assertFalse(S3ServerSideCopy.isAccessPointArn("my-bucket"));
+        assertFalse(S3ServerSideCopy.isAccessPointArn(null));
+    }
+
+    /**
      * An alias is usable wherever a bucket name is, so it must NOT be rewritten into the ARN object form.
      */
     public void testAccessPointAliasIsTreatedAsBucket() {
-        final String alias = "aos-7k2m9p4x-abcdefghijklmnopqrstuvwxyz012345-s3alias";
+        final String alias = "source-ap-abcdefghijklmnopqrstuvwxyz012345-s3alias";
         assertEquals(alias + "/base/snap-1.dat", S3ServerSideCopy.encodeCopySource(alias, "base/snap-1.dat"));
     }
 
@@ -125,10 +167,10 @@ public class S3ServerSideCopyTests extends OpenSearchTestCase {
      * Source addressing comes entirely from the existing repository: its access point and its {@code base_path}.
      */
     public void testSourceResolvesKeyUnderExistingRepositoryBasePath() {
-        final ServerSideCopySource source = new ServerSideCopySource(AP_ARN, SOURCE_BASE_PATH + "/", "798157642085");
+        final ServerSideCopySource source = new ServerSideCopySource(AP_ARN, SOURCE_BASE_PATH + "/", "123456789012");
 
         assertEquals(AP_ARN, source.container());
-        assertEquals("798157642085", source.expectedContainerOwner());
+        assertEquals("123456789012", source.expectedContainerOwner());
         assertEquals(SOURCE_BASE_PATH + "/indices/abc/0/snap-1.dat", source.resolveKey("indices/abc/0/snap-1.dat"));
     }
 
@@ -155,11 +197,11 @@ public class S3ServerSideCopyTests extends OpenSearchTestCase {
      * A source repository describes its bucket and base path, and nothing about how a reader should reach it.
      */
     public void testSourceRepositoryDescribesBucketAndBasePath() {
-        final S3BlobContainer container = container("", "svc-indexes", "798157642085");
+        final S3BlobContainer container = container("", "source-bucket", "123456789012");
         final ServerSideCopySource source = container.asCopySource();
 
-        assertEquals("svc-indexes", source.container());
-        assertEquals("798157642085", source.expectedContainerOwner());
+        assertEquals("source-bucket", source.container());
+        assertEquals("123456789012", source.expectedContainerOwner());
         assertEquals("base/snap-1.dat", source.resolveKey("snap-1.dat"));
     }
 
@@ -169,10 +211,10 @@ public class S3ServerSideCopyTests extends OpenSearchTestCase {
      * somewhere the operator did not intend.
      */
     public void testSourceRepositoryCarryingAccessPointIsRejected() {
-        final S3BlobContainer container = container(AP_ARN, "svc-indexes", "798157642085");
+        final S3BlobContainer container = container(AP_ARN, "source-bucket", "123456789012");
 
         final IllegalStateException e = expectThrows(IllegalStateException.class, container::asCopySource);
-        assertTrue("must name the offending repository", e.getMessage().contains("cs-automated-enc"));
+        assertTrue("must name the offending repository", e.getMessage().contains("source-repo"));
         assertTrue("must name the offending setting", e.getMessage().contains("source_access_point"));
         assertTrue("must say where the setting belongs", e.getMessage().contains("destination"));
     }
@@ -182,16 +224,164 @@ public class S3ServerSideCopyTests extends OpenSearchTestCase {
      * foreign source bucket, so the capability is reported absent.
      */
     public void testDestinationWithoutAccessPointIsNotConfiguredForCopy() {
-        assertFalse(container("", "customer-bucket", "").isServerSideCopyConfigured());
-        assertTrue(container(AP_ARN, "customer-bucket", "").isServerSideCopyConfigured());
+        assertFalse(container("", "destination-bucket", "").isServerSideCopyConfigured());
+        assertTrue(container(AP_ARN, "destination-bucket", "").isServerSideCopyConfigured());
     }
 
     private static S3BlobContainer container(final String accessPoint, final String bucket, final String expectedOwner) {
+        return new S3BlobContainer(BlobPath.cleanPath().add("base"), blobStore(accessPoint, bucket, expectedOwner, ""));
+    }
+
+    /**
+     * A destination blob store carrying the settings a copied object must honour.
+     *
+     * @param sseType {@code ""} for no server-side encryption, else an {@link ServerSideEncryption} value
+     */
+    private static S3BlobStore blobStore(final String accessPoint, final String bucket, final String expectedOwner, final String sseType) {
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.sourceAccessPoint()).thenReturn(accessPoint);
         when(blobStore.bucket()).thenReturn(bucket);
         when(blobStore.expectedBucketOwner()).thenReturn(expectedOwner);
-        when(blobStore.repositoryMetadata()).thenReturn(new RepositoryMetadata("cs-automated-enc", "s3", Settings.EMPTY));
-        return new S3BlobContainer(BlobPath.cleanPath().add("base"), blobStore);
+        when(blobStore.repositoryMetadata()).thenReturn(new RepositoryMetadata("source-repo", "s3", Settings.EMPTY));
+        when(blobStore.getStorageClass()).thenReturn(StorageClass.INTELLIGENT_TIERING);
+        when(blobStore.getCannedACL()).thenReturn(ObjectCannedACL.BUCKET_OWNER_FULL_CONTROL);
+        when(blobStore.getStatsMetricPublisher()).thenReturn(new StatsMetricPublisher());
+        when(blobStore.bufferSizeInBytes()).thenReturn(new ByteSizeValue(16, ByteSizeUnit.MB).getBytes());
+        when(blobStore.serverSideEncryptionType()).thenReturn(sseType);
+        when(blobStore.serverSideEncryptionKmsKey()).thenReturn(KMS_KEY_ARN);
+        when(blobStore.serverSideEncryptionBucketKey()).thenReturn(true);
+        when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(null);
+        return blobStore;
+    }
+
+    private static CopyObjectRequest captureSingleCopy(final S3BlobStore blobStore, final String sourceETag) throws IOException {
+        final S3Client client = mock(S3Client.class);
+        when(client.copyObject(any(CopyObjectRequest.class))).thenReturn(CopyObjectResponse.builder().build());
+
+        S3ServerSideCopy.copy(client, blobStore, AP_ARN, "src/base/_0.cfs__u1", 1024L, sourceETag, "123456789012", "base/__dst", null);
+
+        final ArgumentCaptor<CopyObjectRequest> captor = ArgumentCaptor.forClass(CopyObjectRequest.class);
+        verify(client).copyObject(captor.capture());
+        return captor.getValue();
+    }
+
+    /**
+     * A copied object must be stored the way an uploaded one would be. Without this the destination repository's
+     * storage class and ACL are silently dropped and the object lands under the bucket defaults.
+     */
+    public void testCopyAppliesDestinationStorageClassAndAcl() throws IOException {
+        final CopyObjectRequest request = captureSingleCopy(blobStore(AP_ARN, "destination-bucket", "210987654321", ""), "\"etag-1\"");
+
+        assertEquals("destination-bucket", request.destinationBucket());
+        assertEquals("base/__dst", request.destinationKey());
+        assertEquals(StorageClass.INTELLIGENT_TIERING, request.storageClass());
+        assertEquals(ObjectCannedACL.BUCKET_OWNER_FULL_CONTROL, request.acl());
+    }
+
+    /**
+     * A repository configured for SSE-KMS would otherwise get copied objects under the bucket default key while its
+     * uploads used the configured one.
+     */
+    public void testCopyAppliesServerSideEncryptionSettings() throws IOException {
+        final S3BlobStore blobStore = blobStore(AP_ARN, "destination-bucket", "", ServerSideEncryption.AWS_KMS.toString());
+        final CopyObjectRequest request = captureSingleCopy(blobStore, "\"etag-1\"");
+
+        assertEquals(ServerSideEncryption.AWS_KMS, request.serverSideEncryption());
+        assertEquals(KMS_KEY_ARN, request.ssekmsKeyId());
+        assertEquals(Boolean.TRUE, request.bucketKeyEnabled());
+    }
+
+    public void testCopyAppliesAes256WhenConfigured() throws IOException {
+        final S3BlobStore blobStore = blobStore(AP_ARN, "destination-bucket", "", ServerSideEncryption.AES256.toString());
+
+        assertEquals(ServerSideEncryption.AES256, captureSingleCopy(blobStore, "\"etag-1\"").serverSideEncryption());
+    }
+
+    /**
+     * {@code CopyObject} copies user metadata and tags by default while the multipart path cannot, so both are set
+     * explicitly to keep the two paths agreeing. Copying tags would also need {@code s3:GetObjectTagging}.
+     */
+    public void testCopyDoesNotCarryOverSourceMetadataOrTags() throws IOException {
+        final CopyObjectRequest request = captureSingleCopy(blobStore(AP_ARN, "destination-bucket", "", ""), "\"etag-1\"");
+
+        assertEquals(MetadataDirective.REPLACE, request.metadataDirective());
+        assertEquals(TaggingDirective.REPLACE, request.taggingDirective());
+    }
+
+    /**
+     * The size used to choose single versus multipart comes from a separate HEAD, so the copy is pinned to the
+     * version that HEAD saw.
+     */
+    public void testCopyPinsTheSourceVersionItSized() throws IOException {
+        assertEquals("\"etag-1\"", captureSingleCopy(blobStore(AP_ARN, "destination-bucket", "", ""), "\"etag-1\"").copySourceIfMatch());
+    }
+
+    public void testCopyOmitsPreconditionWhenSourceETagIsUnknown() throws IOException {
+        assertNull(captureSingleCopy(blobStore(AP_ARN, "destination-bucket", "", ""), null).copySourceIfMatch());
+    }
+
+    public void testCopyCarriesBothOwnershipGuards() throws IOException {
+        final CopyObjectRequest request = captureSingleCopy(blobStore(AP_ARN, "destination-bucket", "210987654321", ""), "\"etag-1\"");
+
+        assertEquals("123456789012", request.expectedSourceBucketOwner());
+        assertEquals("210987654321", request.expectedBucketOwner());
+    }
+
+    /**
+     * Without a metric publisher a copy is invisible in repository stats, so the bytes appear to move for free.
+     */
+    public void testCopyReportsToRepositoryStats() throws IOException {
+        final CopyObjectRequest request = captureSingleCopy(blobStore(AP_ARN, "destination-bucket", "", ""), "\"etag-1\"");
+
+        assertFalse("copy must publish metrics", request.overrideConfiguration().orElseThrow().metricPublishers().isEmpty());
+    }
+
+    /**
+     * A source that disappeared must read as a missing file rather than a generic copy failure, so callers can treat
+     * it as "nothing to copy".
+     */
+    public void testMissingSourceSurfacesAsNoSuchFile() {
+        final S3Client client = mock(S3Client.class);
+        when(client.copyObject(any(CopyObjectRequest.class))).thenThrow(NoSuchKeyException.builder().message("gone").build());
+
+        expectThrows(
+            NoSuchFileException.class,
+            () -> S3ServerSideCopy.copy(
+                client,
+                blobStore(AP_ARN, "destination-bucket", "", ""),
+                AP_ARN,
+                "src/base/_0.cfs__u1",
+                1024L,
+                "\"etag-1\"",
+                "123456789012",
+                "base/__dst",
+                null
+            )
+        );
+    }
+
+    /**
+     * Any other provider failure is wrapped, and must name both ends so the operator can tell which grant is wrong.
+     */
+    public void testOtherCopyFailuresAreWrappedWithBothEnds() {
+        final S3Client client = mock(S3Client.class);
+        when(client.copyObject(any(CopyObjectRequest.class))).thenThrow(S3Exception.builder().message("Access Denied").build());
+
+        final IOException e = expectThrows(
+            IOException.class,
+            () -> S3ServerSideCopy.copy(
+                client,
+                blobStore(AP_ARN, "destination-bucket", "", ""),
+                AP_ARN,
+                "src/base/_0.cfs__u1",
+                1024L,
+                "\"etag-1\"",
+                "123456789012",
+                "base/__dst",
+                null
+            )
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains(AP_ARN));
+        assertTrue(e.getMessage(), e.getMessage().contains("destination-bucket/base/__dst"));
     }
 }

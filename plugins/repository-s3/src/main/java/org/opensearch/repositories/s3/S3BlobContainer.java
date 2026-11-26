@@ -50,6 +50,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectAttributesResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
@@ -689,11 +690,6 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     }
 
     @Override
-    public long maxSingleRequestCopySizeInBytes() {
-        return S3ServerSideCopy.MAX_SINGLE_COPY_SIZE.getBytes();
-    }
-
-    @Override
     public boolean isServerSideCopyConfigured() {
         // Gated on the destination side: without a granted access point there is no endpoint through which this
         // repository's identity can read a foreign source bucket.
@@ -703,10 +699,9 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     /**
      * Describes this container as a server-side copy <em>source</em>.
      *
-     * <p>Called on an existing service-owned repository - the automated snapshot repository or one of the remote store
-     * repositories. Everything returned already exists on that repository: its bucket, its {@code base_path} as the
-     * key prefix, and its {@code expected_bucket_owner} as the ownership guard. No source path is taken from the
-     * caller.
+     * <p>Called on the repository that already holds the data. Everything returned already exists on that
+     * repository: its bucket, its {@code base_path} as the key prefix, and its {@code expected_bucket_owner} as the
+     * ownership guard. No source path is taken from the caller.
      *
      * <p>Deliberately returns the <em>bucket</em>, not an access point. Which access point a given reader may use is a
      * property of that reader's grant, not of this bucket, so it is supplied by the destination.
@@ -740,7 +735,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
      *
      * <p>Each input comes from exactly one place:
      * <ul>
-     *   <li><b>Source</b> path and ownership guard come from {@code source}, which an existing service-owned
+     *   <li><b>Source</b> path and ownership guard come from {@code source}, which the holding
      *       repository produced via {@link #asCopySource()}.</li>
      *   <li><b>Source endpoint</b> is this repository's configured access point, which substitutes for the source
      *       bucket. It lives here because it is a property of this repository's grant rather than of the source
@@ -771,24 +766,32 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             // Size decides single-request versus multipart. Read through the same endpoint the copy will use, so an
             // access point policy that forbids the object fails here rather than part-way through a multipart copy.
-            final long sourceSize = sourceObjectSize(clientReference.get(), sourceEndpoint, sourceKey, source.expectedContainerOwner());
-
-            S3ServerSideCopy.copy(
+            // The ETag comes from the same response, and is applied as a precondition on the copy so that a source
+            // mutated between this HEAD and the copy fails instead of yielding an object of mixed versions.
+            final HeadObjectResponse sourceHead = headSourceObject(
                 clientReference.get(),
                 sourceEndpoint,
                 sourceKey,
-                sourceSize,
+                source.expectedContainerOwner()
+            );
+
+            S3ServerSideCopy.copy(
+                clientReference.get(),
+                blobStore,
+                sourceEndpoint,
+                sourceKey,
+                sourceHead.contentLength(),
+                sourceHead.eTag(),
                 source.expectedContainerOwner(),
-                blobStore.bucket(),
                 destinationKey,
-                blobStore.expectedBucketOwner(),
-                blobStore.bufferSizeInBytes()
+                null
             );
         }
     }
 
     /**
-     * Size of the source object, read through {@code sourceEndpoint} rather than through the source's own container.
+     * Reads the source object's metadata through {@code sourceEndpoint} rather than through the source's own
+     * container, returning the whole response so the caller gets both its size and its ETag from one request.
      *
      * <p>The substitution is the point, not an oversight. An access point stands in wherever a bucket name would go,
      * and addressing the bucket directly would bypass the access point policy that confines the read to a prefix.
@@ -796,18 +799,21 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
      * taken from the source is its key prefix and its expected owner. The AWS SDK accepts an access point ARN in
      * place of a bucket name without extra client configuration.
      */
-    private long sourceObjectSize(
+    private HeadObjectResponse headSourceObject(
         final S3Client client,
         final String sourceEndpoint,
         final String sourceKey,
         @Nullable final String sourceExpectedOwner
     ) throws IOException {
-        final HeadObjectRequest.Builder request = HeadObjectRequest.builder().bucket(sourceEndpoint).key(sourceKey);
+        final HeadObjectRequest.Builder request = HeadObjectRequest.builder()
+            .bucket(sourceEndpoint)
+            .key(sourceKey)
+            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().getObjectMetricPublisher));
         if (Strings.hasText(sourceExpectedOwner)) {
             request.expectedBucketOwner(sourceExpectedOwner);
         }
         try {
-            return AccessController.doPrivileged(() -> client.headObject(request.build())).contentLength();
+            return AccessController.doPrivileged(() -> client.headObject(request.build()));
         } catch (final NoSuchKeyException e) {
             final NoSuchFileException nsfe = new NoSuchFileException(sourceKey);
             nsfe.initCause(e);

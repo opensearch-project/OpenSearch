@@ -178,24 +178,22 @@ class S3Repository extends MeteredBlobStoreRepository {
     });
 
     /**
-     * Access point this repository reads through when pulling a server-side copy from a service-owned repository.
+     * Access point this repository reads through when pulling a server-side copy from another repository's bucket.
      * Accepts a full access point ARN or an access point alias; either is usable in place of a bucket name for object
      * operations.
      *
-     * <p>Supplied by the customer at registration, using the value the control plane returned when their role was
-     * registered against the access point. It belongs here rather than on the service-owned source repository
-     * because the access point is a property of the <em>(domain, role)</em> grant, not of the bucket: once a domain
-     * exceeds the per-access-point role limit, additional access points are created with a {@code -1}, {@code -2}
-     * suffix, and two roles reading the same bucket can legitimately be on different ones. A single value on the
-     * shared source repository could not express that.
+     * <p>Set on the repository that <em>receives</em> the copy, not on the one holding the source. Which access
+     * point a given identity may read through is a property of the grant made to that identity rather than of the
+     * source bucket, so two repositories reading the same bucket can legitimately be granted on different access
+     * points. A single value on the shared source repository could not express that.
      *
-     * <p>Accepting it from the customer discloses nothing and grants nothing. The access point policy names the roles
-     * it admits and confines them to a prefix, so naming an access point the caller holds no grant on is denied.
+     * <p>Naming an access point here grants nothing by itself: the access point's own policy decides which
+     * principals it admits and which prefix they are confined to, so a caller holding no grant on it is denied.
      *
      * <p>This is the only setting server-side copy adds. Every other input already exists:
      *
      * <ul>
-     *   <li><b>Source</b> bucket, path and ownership guard come from the existing service-owned repository's
+     *   <li><b>Source</b> bucket, path and ownership guard come from the source repository's
      *       {@link #BUCKET_SETTING}, {@link #BASE_PATH_SETTING} and {@link #EXPECTED_BUCKET_OWNER_SETTING}.</li>
      *   <li><b>Destination</b> bucket, path and ownership guard come from this repository's own
      *       {@link #BUCKET_SETTING}, {@link #BASE_PATH_SETTING} and {@link #EXPECTED_BUCKET_OWNER_SETTING}, and this

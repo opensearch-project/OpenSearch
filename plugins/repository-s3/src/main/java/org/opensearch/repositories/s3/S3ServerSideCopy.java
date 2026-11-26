@@ -16,12 +16,15 @@ import software.amazon.awssdk.services.s3.model.CompletedPart;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse;
+import software.amazon.awssdk.services.s3.model.MetadataDirective;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.TaggingDirective;
 import software.amazon.awssdk.services.s3.model.UploadPartCopyRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartCopyResponse;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -34,6 +37,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.opensearch.repositories.s3.utils.SseKmsUtil.configureEncryptionSettings;
 
 /**
  * Performs server-side object copies between two S3 locations that may be in different accounts.
@@ -63,48 +68,48 @@ final class S3ServerSideCopy {
     /** Hard S3 minimum for every part of a multipart upload except the last. */
     static final ByteSizeValue MIN_PART_SIZE = new ByteSizeValue(5, ByteSizeUnit.MB);
 
+    private static final String ARN_PREFIX = "arn:";
+    private static final String S3_SERVICE = "s3";
+    private static final String S3_OUTPOSTS_SERVICE = "s3-outposts";
+    private static final String ACCESS_POINT_RESOURCE_TYPE = "accesspoint";
+
     private S3ServerSideCopy() {}
 
     /**
      * Copies one object from a source location to a destination location.
      *
-     * @param client                   client whose identity holds read on the source and write on the destination
-     * @param sourceContainer          source bucket, access point alias, or access point ARN - from the existing repository
-     * @param sourceKey                full source key, already including the source repository's base path
-     * @param sourceSize               size of the source object in bytes
-     * @param sourceExpectedOwner      account expected to own the source, or {@code null} to skip the precondition
-     * @param destinationBucket        destination bucket - from the repository registration
-     * @param destinationKey           full destination key, already including the registered repository's base path
-     * @param destinationExpectedOwner account expected to own the destination, or {@code null} to skip the precondition
-     * @param configuredPartSize       requested multipart part size; raised if needed to respect the part limit
+     * @param client              client whose identity holds read on the source and write on the destination
+     * @param blobStore           destination repository; supplies the bucket, ownership guard, encryption settings,
+     *                            storage class, canned ACL, part size and metric publishers, so that a copied object
+     *                            is stored exactly as an uploaded one would be
+     * @param sourceContainer     source bucket, access point alias, or access point ARN
+     * @param sourceKey           full source key, already including the source repository's base path
+     * @param sourceSize          size of the source object in bytes
+     * @param sourceETag          ETag the source had when its size was read, applied as a precondition so a source
+     *                            mutated mid-copy fails rather than producing a mixed object; {@code null} to skip
+     * @param sourceExpectedOwner account expected to own the source, or {@code null} to skip the precondition
+     * @param destinationKey      full destination key, already including the destination repository's base path
+     * @param cryptoMetadata      index-level encryption override, or {@code null} to use the repository's own
      */
     static void copy(
         final S3Client client,
+        final S3BlobStore blobStore,
         final String sourceContainer,
         final String sourceKey,
         final long sourceSize,
+        @Nullable final String sourceETag,
         @Nullable final String sourceExpectedOwner,
-        final String destinationBucket,
         final String destinationKey,
-        @Nullable final String destinationExpectedOwner,
-        final long configuredPartSize
+        @Nullable final CryptoMetadata cryptoMetadata
     ) throws IOException {
         final String copySource = encodeCopySource(sourceContainer, sourceKey);
+        final String destinationBucket = blobStore.bucket();
 
         try {
             if (sourceSize <= MAX_SINGLE_COPY_SIZE.getBytes()) {
-                singleCopy(client, copySource, sourceExpectedOwner, destinationBucket, destinationKey, destinationExpectedOwner);
+                singleCopy(client, blobStore, copySource, sourceETag, sourceExpectedOwner, destinationKey, cryptoMetadata);
             } else {
-                multipartCopy(
-                    client,
-                    copySource,
-                    sourceSize,
-                    sourceExpectedOwner,
-                    destinationBucket,
-                    destinationKey,
-                    destinationExpectedOwner,
-                    configuredPartSize
-                );
+                multipartCopy(client, blobStore, copySource, sourceSize, sourceETag, sourceExpectedOwner, destinationKey, cryptoMetadata);
             }
         } catch (final NoSuchKeyException e) {
             final NoSuchFileException nsfe = new NoSuchFileException(sourceKey);
@@ -128,45 +133,64 @@ final class S3ServerSideCopy {
 
     private static void singleCopy(
         final S3Client client,
+        final S3BlobStore blobStore,
         final String copySource,
+        @Nullable final String sourceETag,
         @Nullable final String sourceExpectedOwner,
-        final String destinationBucket,
         final String destinationKey,
-        @Nullable final String destinationExpectedOwner
+        @Nullable final CryptoMetadata cryptoMetadata
     ) {
         final CopyObjectRequest.Builder request = CopyObjectRequest.builder()
             .copySource(copySource)
-            .destinationBucket(destinationBucket)
-            .destinationKey(destinationKey);
+            .destinationBucket(blobStore.bucket())
+            .destinationKey(destinationKey)
+            .storageClass(blobStore.getStorageClass())
+            .acl(blobStore.getCannedACL())
+            // The destination is a fresh repository blob, so it takes none of the source's user metadata or tags.
+            // Stated explicitly because CopyObject would otherwise copy both, which the multipart path cannot, and
+            // copying tags would additionally require s3:GetObjectTagging on the source.
+            .metadataDirective(MetadataDirective.REPLACE)
+            .taggingDirective(TaggingDirective.REPLACE)
+            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().putObjectMetricPublisher));
+        if (Strings.hasText(sourceETag)) {
+            request.copySourceIfMatch(sourceETag);
+        }
         if (Strings.hasText(sourceExpectedOwner)) {
             request.expectedSourceBucketOwner(sourceExpectedOwner);
         }
-        if (Strings.hasText(destinationExpectedOwner)) {
-            request.expectedBucketOwner(destinationExpectedOwner);
+        if (Strings.hasText(blobStore.expectedBucketOwner())) {
+            request.expectedBucketOwner(blobStore.expectedBucketOwner());
         }
+        configureEncryptionSettings(request, blobStore, cryptoMetadata);
         AccessController.doPrivileged(() -> client.copyObject(request.build()));
-        logger.debug("copied [{}] to [{}/{}] in a single request", copySource, destinationBucket, destinationKey);
+        logger.debug("copied [{}] to [{}/{}] in a single request", copySource, blobStore.bucket(), destinationKey);
     }
 
     private static void multipartCopy(
         final S3Client client,
+        final S3BlobStore blobStore,
         final String copySource,
         final long sourceSize,
+        @Nullable final String sourceETag,
         @Nullable final String sourceExpectedOwner,
-        final String destinationBucket,
         final String destinationKey,
-        @Nullable final String destinationExpectedOwner,
-        final long configuredPartSize
+        @Nullable final CryptoMetadata cryptoMetadata
     ) throws IOException {
-        final long partSize = resolvePartSize(configuredPartSize, sourceSize);
+        final String destinationBucket = blobStore.bucket();
+        final String destinationExpectedOwner = blobStore.expectedBucketOwner();
+        final long partSize = resolvePartSize(blobStore.bufferSizeInBytes(), sourceSize);
         final int partCount = Math.toIntExact((sourceSize + partSize - 1) / partSize);
 
         final CreateMultipartUploadRequest.Builder create = CreateMultipartUploadRequest.builder()
             .bucket(destinationBucket)
-            .key(destinationKey);
+            .key(destinationKey)
+            .storageClass(blobStore.getStorageClass())
+            .acl(blobStore.getCannedACL())
+            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector));
         if (Strings.hasText(destinationExpectedOwner)) {
             create.expectedBucketOwner(destinationExpectedOwner);
         }
+        configureEncryptionSettings(create, blobStore, cryptoMetadata);
 
         final CreateMultipartUploadResponse created = AccessController.doPrivileged(() -> client.createMultipartUpload(create.build()));
         final String uploadId = created.uploadId();
@@ -184,7 +208,13 @@ final class S3ServerSideCopy {
                     .destinationKey(destinationKey)
                     .uploadId(uploadId)
                     .partNumber(partNumber)
-                    .copySourceRange("bytes=" + firstByte + "-" + lastByte);
+                    .copySourceRange("bytes=" + firstByte + "-" + lastByte)
+                    .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector));
+                // Size came from a separate HEAD and the parts are copied one at a time, so without this a source
+                // mutated mid-copy would be stitched together from two different versions.
+                if (Strings.hasText(sourceETag)) {
+                    part.copySourceIfMatch(sourceETag);
+                }
                 if (Strings.hasText(sourceExpectedOwner)) {
                     part.expectedSourceBucketOwner(sourceExpectedOwner);
                 }
@@ -201,7 +231,8 @@ final class S3ServerSideCopy {
                 .bucket(destinationBucket)
                 .key(destinationKey)
                 .uploadId(uploadId)
-                .multipartUpload(CompletedMultipartUpload.builder().parts(parts).build());
+                .multipartUpload(CompletedMultipartUpload.builder().parts(parts).build())
+                .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector));
             if (Strings.hasText(destinationExpectedOwner)) {
                 complete.expectedBucketOwner(destinationExpectedOwner);
             }
@@ -286,10 +317,34 @@ final class S3ServerSideCopy {
     }
 
     /**
-     * Access point <em>aliases</em> are deliberately not treated as ARNs: an alias is usable wherever a bucket name
-     * is, so it takes the {@code bucket/key} form.
+     * Whether the container is an access point ARN, for either {@code s3} or {@code s3-outposts}, and so needs the
+     * {@code /object/} copy source form.
+     *
+     * <p>Parses the ARN's six fields rather than searching the whole string, because the resource portion carries
+     * the access point differently per service: {@code accesspoint/<name>} for {@code s3}, and
+     * {@code outpost/<id>/accesspoint/<name>} for {@code s3-outposts}. A substring search for
+     * {@code ":accesspoint"} matches the first and misses the second.
+     *
+     * <p>Access point <em>aliases</em> are deliberately not ARNs: an alias is usable wherever a bucket name is, so it
+     * takes the {@code bucket/key} form.
      */
-    private static boolean isAccessPointArn(@Nullable final String sourceContainer) {
-        return sourceContainer != null && sourceContainer.startsWith("arn:") && sourceContainer.contains(":accesspoint");
+    static boolean isAccessPointArn(@Nullable final String sourceContainer) {
+        if (sourceContainer == null || sourceContainer.startsWith(ARN_PREFIX) == false) {
+            return false;
+        }
+        // arn:<partition>:<service>:<region>:<account>:<resource>, where the resource itself may contain colons.
+        final String[] fields = sourceContainer.split(":", 6);
+        if (fields.length < 6) {
+            return false;
+        }
+        final String service = fields[2];
+        final String resource = fields[5];
+        if (S3_SERVICE.equals(service)) {
+            return resource.startsWith(ACCESS_POINT_RESOURCE_TYPE + "/") || resource.startsWith(ACCESS_POINT_RESOURCE_TYPE + ":");
+        }
+        if (S3_OUTPOSTS_SERVICE.equals(service)) {
+            return resource.contains("/" + ACCESS_POINT_RESOURCE_TYPE + "/") || resource.contains(":" + ACCESS_POINT_RESOURCE_TYPE + ":");
+        }
+        return false;
     }
 }
