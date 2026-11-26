@@ -1025,6 +1025,51 @@ setup:
         body: { "size" : 0, "aggs" : { "no_field_terms" : { "terms" : { "size": 1 } } } }
 
 ---
+"profiled terms use segment frequencies only when all documents match":
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "red", "number": 1 }
+          { "index": {} }
+          { "str": "red", "number": 2 }
+          { "index": {} }
+          { "str": "blue", "number": 1 }
+  - do:
+      indices.forcemerge:
+        index: test_1
+        max_num_segments: 1
+
+  - do:
+      search:
+        index: test_1
+        request_cache: false
+        body:
+          size: 0
+          profile: true
+          aggs:
+            colors:
+              terms: { field: str, execution_hint: global_ordinals }
+  - match: { aggregations.colors.buckets: [ { key: red, doc_count: 2 }, { key: blue, doc_count: 1 } ] }
+  - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 0 }
+
+  - do:
+      search:
+        index: test_1
+        request_cache: false
+        body:
+          size: 0
+          profile: true
+          query: { term: { number: 1 } }
+          aggs:
+            colors:
+              terms: { field: str, execution_hint: global_ordinals }
+  - match: { aggregations.colors.buckets: [ { key: blue, doc_count: 1 }, { key: red, doc_count: 1 } ] }
+  - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 2 }
+
+---
 "string profiler via global ordinals":
 
   - do:
