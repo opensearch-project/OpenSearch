@@ -57,7 +57,7 @@ public class FileLockInfo implements LockInfo {
             throw new IllegalArgumentException("Acquirer ID should be provided");
         }
         List<String> locksForAcquirer = Arrays.stream(lockFiles)
-            .filter(lockFile -> acquirerId.equals(LockFileUtils.getAcquirerIdFromLock(lockFile)))
+            .filter(lockFile -> acquirerId.equals(LockFileUtils.tryGetAcquirerIdFromLock(lockFile)))
             .collect(Collectors.toList());
 
         if (locksForAcquirer.isEmpty()) {
@@ -117,6 +117,20 @@ public class FileLockInfo implements LockInfo {
                 );
             }
             return lockName.substring(indexOfSeparator + lockSeparator.length(), indexOfExt);
+        }
+
+        /**
+         * Returns the acquirer id parsed from a lock file name, or {@code null} when the file name does not
+         * follow the lock-file naming format. The lock directory can contain foreign files (e.g. leftovers
+         * from an interrupted upload or test filesystem injections) that are not lock files; skipping them
+         * keeps release robust instead of failing the lookup.
+         */
+        public static String tryGetAcquirerIdFromLock(String lockName) {
+            try {
+                return getAcquirerIdFromLock(lockName);
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
         }
     }
 
