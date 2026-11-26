@@ -43,6 +43,7 @@ import org.opensearch.index.store.RemoteDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -55,8 +56,10 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -421,6 +424,45 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             remoteSegmentStoreDirectory.init();
 
             verifyUploadedSegments(remoteSegmentStoreDirectory);
+        }
+    }
+
+    public void testCommitPinnedMetadataSelectedWhenRefreshesRaceCommit() throws IOException {
+        setup(true, 3);
+        assertDocs(indexShard, "1", "2", "3");
+        flushShard(indexShard);
+
+        // Refreshes after the commit upload reader-based metadata files for the same commit term and
+        // generation, referencing segments that are not part of the commit.
+        indexDocs(4, 4);
+        indexShard.refresh("test");
+        indexDocs(8, 4);
+        indexShard.refresh("test");
+
+        try (Store remoteStore = indexShard.remoteStore()) {
+            RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
+                (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
+
+            SegmentInfos commitInfos = indexShard.store().readLastCommittedSegmentsInfo();
+            long primaryTerm = indexShard.getOperationPrimaryTerm();
+            long commitGeneration = commitInfos.getGeneration();
+            Set<String> commitFiles = new HashSet<>(commitInfos.files(true));
+            commitFiles.removeAll(RemoteStoreRefreshListener.EXCLUDE_FILES);
+
+            String acquirerId = "test-acquirer";
+            remoteSegmentStoreDirectory.acquireLock(primaryTerm, commitGeneration, acquirerId);
+            try {
+                RemoteSegmentMetadata metadata = remoteSegmentStoreDirectory.initializeToSpecificCommit(
+                    primaryTerm,
+                    commitGeneration,
+                    acquirerId
+                );
+                // The metadata resolved for the commit must reference exactly the commit's files, not the
+                // segment set of a later racing refresh.
+                assertEquals(commitFiles, metadata.getMetadata().keySet());
+            } finally {
+                remoteSegmentStoreDirectory.releaseLock(primaryTerm, commitGeneration, acquirerId);
+            }
         }
     }
 
