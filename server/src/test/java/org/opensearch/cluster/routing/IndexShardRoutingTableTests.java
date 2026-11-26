@@ -320,6 +320,18 @@ public class IndexShardRoutingTableTests extends OpenSearchTestCase {
                 )
             );
         }
+        // an unassigned search replica is neither active nor initializing and must not be returned
+        shards.add(
+            TestShardRouting.newShardRouting(
+                shardId,
+                null,
+                null,
+                false,
+                true,
+                ShardRoutingState.UNASSIGNED,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+            )
+        );
         Collections.shuffle(shards, random());
         IndexShardRoutingTable table = new IndexShardRoutingTable(shardId, shards);
 
