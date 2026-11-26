@@ -74,21 +74,11 @@ public class CardinalityDeferredOrdinalsIT extends ParameterizedStaticSettingsOp
         }
     }
 
-    private int segments() {
-        return client().admin()
-            .indices()
-            .prepareSegments("idx")
-            .get()
-            .getIndices()
-            .get("idx")
-            .getShards()
-            .values()
-            .stream()
-            .mapToInt(shard -> shard.getShards()[0].getSegments().size())
-            .sum();
+    private SearchResponse topGroupsByCardinality(String field, int size) {
+        return topGroupsByCardinality(field, size, null);
     }
 
-    private SearchResponse topGroupsByCardinality(String field, int size) {
+    private SearchResponse topGroupsByCardinality(String field, int size, String hint) {
         SearchResponse response = client().prepareSearch("idx")
             .setSize(0)
             .setProfile(true)
@@ -101,7 +91,7 @@ public class CardinalityDeferredOrdinalsIT extends ParameterizedStaticSettingsOp
                     // the profiler wraps aggregators, which breaks ordering by a sub-aggregation under breadth_first
                     .collectMode(Aggregator.SubAggCollectionMode.DEPTH_FIRST)
                     .order(BucketOrder.aggregation("card", false))
-                    .subAggregation(cardinality("card").field(field))
+                    .subAggregation(cardinality("card").field(field).executionHint(hint))
             )
             .get();
         assertSearchResponse(response);
@@ -141,29 +131,24 @@ public class CardinalityDeferredOrdinalsIT extends ParameterizedStaticSettingsOp
         return values;
     }
 
-    public void testDefersOnceGlobalOrdinalsAreLoaded() throws Exception {
+    public void testDefersOnlyWithTheHint() throws Exception {
         assertAcked(
             prepareCreate("idx").setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .setMapping("group", "type=keyword", "eager_value", "type=keyword,eager_global_ordinals=true", "value", "type=keyword")
         );
         indexGroups();
-        // A single segment has global ordinals without an ordinal map, which always counts as loaded
-        assumeTrue("needs several segments", segments() > 1);
         final int size = randomIntBetween(1, 20);
 
-        // Eager global ordinals are loaded on refresh
-        assertEquals(Set.of("used"), deferredOrdinals(topGroupsByCardinality("eager_value", size)));
+        // Without the hint nothing defers, even with eager global ordinals
+        assertEquals(Set.of("not_requested"), deferredOrdinals(topGroupsByCardinality("eager_value", size)));
+        assertEquals(Set.of("not_requested"), deferredOrdinals(topGroupsByCardinality("value", size)));
 
-        // Lazy ones aren't, until something loads them
-        assertEquals(Set.of("global_ordinals_not_loaded"), deferredOrdinals(topGroupsByCardinality("value", size)));
-        assertSearchResponse(client().prepareSearch("idx").setSize(0).addAggregation(terms("load").field("value")).get());
-        assertEquals(Set.of("used"), deferredOrdinals(topGroupsByCardinality("value", size)));
-
-        // New documents need new global ordinals
+        // With it everything does, building global ordinals when needed, also after new documents
+        assertEquals(Set.of("used"), deferredOrdinals(topGroupsByCardinality("eager_value", size, "deferred_ordinals")));
+        assertEquals(Set.of("used"), deferredOrdinals(topGroupsByCardinality("value", size, "deferred_ordinals")));
         client().prepareIndex("idx").setSource("group", "other", "value", "x", "eager_value", "x").get();
         refresh("idx");
-        assertEquals(Set.of("global_ordinals_not_loaded"), deferredOrdinals(topGroupsByCardinality("value", size)));
-        assertEquals(Set.of("used"), deferredOrdinals(topGroupsByCardinality("eager_value", size)));
+        assertEquals(Set.of("used"), deferredOrdinals(topGroupsByCardinality("value", size, "deferred_ordinals")));
 
         // Disabling compact sketches turns deferral off too, until the setting is reset
         final String compactSketches = CardinalityAggregator.CARDINALITY_AGGREGATION_COMPACT_SKETCHES_ENABLED.getKey();
@@ -171,13 +156,14 @@ public class CardinalityDeferredOrdinalsIT extends ParameterizedStaticSettingsOp
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(compactSketches, false))
         );
         try {
-            assertEquals(Set.of("no_compact_sketches"), deferredOrdinals(topGroupsByCardinality("eager_value", size)));
-            assertEquals(Set.of(false), debugValues(topGroupsByCardinality("eager_value", size), "compact_sketches"));
+            final SearchResponse response = topGroupsByCardinality("value", size, "deferred_ordinals");
+            assertEquals(Set.of("no_compact_sketches"), deferredOrdinals(response));
+            assertEquals(Set.of(false), debugValues(response, "compact_sketches"));
         } finally {
             assertAcked(
                 client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull(compactSketches))
             );
         }
-        assertEquals(Set.of("used"), deferredOrdinals(topGroupsByCardinality("eager_value", size)));
+        assertEquals(Set.of("used"), deferredOrdinals(topGroupsByCardinality("value", size, "deferred_ordinals")));
     }
 }

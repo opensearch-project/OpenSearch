@@ -535,10 +535,9 @@ public class CompactSketchesAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * Without the execution hint collection is only deferred when the parent orders by the cardinality and global ordinals
-     * are loaded, here because the index has a single segment.
+     * Collection is only deferred with {@code execution_hint: deferred_ordinals}, and the profile says why it isn't otherwise.
      */
-    public void testAutomaticDeferral() throws IOException {
+    public void testDeferralNeedsTheHint() throws IOException {
         final Map<String, List<Long>> groups = randomGroups(3072);
         final Map<String, Long> expected = expectedCardinalities(groups, HyperLogLogPlusPlus.DEFAULT_PRECISION, true);
         final Map<String, Long> exact = exactCardinalities(groups);
@@ -547,9 +546,10 @@ public class CompactSketchesAggregatorTests extends AggregatorTestCase {
                 index(dir, groups, singleSegment);
                 try (DirectoryReader reader = DirectoryReader.open(dir)) {
                     final IndexSearcher searcher = newIndexSearcher(reader);
-                    final boolean multipleSegments = reader.leaves().size() > 1;
                     final CardinalityAggregationContext cardinalityContext = new CardinalityAggregationContext(true, 1L << 20);
+                    final String segments = "segments=" + reader.leaves().size();
 
+                    // Without the hint, even ordered by the cardinality on one segment, buckets are ranked by their sketches
                     Map<String, Object> debug = new HashMap<>();
                     Terms terms = collect(
                         searcher,
@@ -558,39 +558,35 @@ public class CompactSketchesAggregatorTests extends AggregatorTestCase {
                         new NoneCircuitBreakerService(),
                         debug
                     );
-                    // The test field data cache never caches global ordinals
-                    final String context = "segments=" + reader.leaves().size() + " debug=" + debug;
-                    assertEquals(context, multipleSegments ? "global_ordinals_not_loaded" : "used", debug.get("deferred_ordinals"));
-                    assertTopBuckets(context, multipleSegments ? expected : exact, expected, false, 20, terms, false);
+                    assertEquals(segments + " " + debug, "not_requested", debug.get("deferred_ordinals"));
+                    assertTopBuckets(segments, expected, expected, false, 20, terms, false);
 
-                    // Ordered by count, or with another hint, or as a top-level aggregation: never deferred
+                    // With it, by their exact counts
                     debug = new HashMap<>();
-                    collect(
+                    terms = collect(
                         searcher,
-                        new TermsAggregationBuilder("groups").field(GROUP)
-                            .size(20)
-                            .order(BucketOrder.count(false))
-                            .subAggregation(new CardinalityAggregationBuilder("card").field(KEYWORD)),
+                        termsByCardinality(
+                            new CardinalityAggregationBuilder("card").field(KEYWORD).executionHint("deferred_ordinals"),
+                            false,
+                            20,
+                            20
+                        ),
                         cardinalityContext,
                         new NoneCircuitBreakerService(),
                         debug
                     );
-                    assertEquals("not_ordered_by_parent", debug.get("deferred_ordinals"));
+                    assertEquals(segments + " " + debug, "used", debug.get("deferred_ordinals"));
+                    assertTopBuckets(segments, exact, expected, false, 20, terms, false);
 
                     debug = new HashMap<>();
                     collect(
                         searcher,
-                        termsByCardinality(new CardinalityAggregationBuilder("card").field(KEYWORD).executionHint("direct"), false, 20, 20),
-                        cardinalityContext,
-                        new NoneCircuitBreakerService(),
-                        debug
-                    );
-                    assertEquals("execution_hint", debug.get("deferred_ordinals"));
-
-                    debug = new HashMap<>();
-                    collect(
-                        searcher,
-                        termsByCardinality(new CardinalityAggregationBuilder("card").field(KEYWORD).missing("none"), false, 20, 20),
+                        termsByCardinality(
+                            new CardinalityAggregationBuilder("card").field(KEYWORD).executionHint("deferred_ordinals").missing("none"),
+                            false,
+                            20,
+                            20
+                        ),
                         cardinalityContext,
                         new NoneCircuitBreakerService(),
                         debug
@@ -600,7 +596,12 @@ public class CompactSketchesAggregatorTests extends AggregatorTestCase {
                     debug = new HashMap<>();
                     collect(
                         searcher,
-                        termsByCardinality(new CardinalityAggregationBuilder("card").field(KEYWORD), false, 20, 20),
+                        termsByCardinality(
+                            new CardinalityAggregationBuilder("card").field(KEYWORD).executionHint("deferred_ordinals"),
+                            false,
+                            20,
+                            20
+                        ),
                         new CardinalityAggregationContext(true, 1L << 20, false),
                         new NoneCircuitBreakerService(),
                         debug

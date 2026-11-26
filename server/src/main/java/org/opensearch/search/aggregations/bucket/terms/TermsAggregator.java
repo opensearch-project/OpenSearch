@@ -288,18 +288,6 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         return false;
     }
 
-    /**
-     * Whether this aggregator orders its buckets by its sub-aggregation named {@code name}.
-     */
-    public boolean isOrderedBySubAggregation(String name) {
-        for (Aggregator aggregator : aggsUsedForSorting) {
-            if (aggregator.name().equals(name)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
         return context.getQueryShardContext().getStarTreeQueryContext() == null

@@ -57,14 +57,6 @@ public interface IndexOrdinalsFieldData extends IndexFieldData.Global<LeafOrdina
     IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception;
 
     /**
-     * Whether {@link #loadGlobal(DirectoryReader)} would return global ordinals without building them: they are cached, or
-     * the reader has a single segment whose ordinals are already global.
-     */
-    default boolean isGlobalOrdinalsLoaded(DirectoryReader indexReader) {
-        return indexReader.leaves().size() <= 1;
-    }
-
-    /**
      * Returns the underlying {@link OrdinalMap} for this fielddata
      * or null if global ordinals are not needed (constant value or single segment).
      */

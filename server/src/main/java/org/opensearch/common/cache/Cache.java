@@ -284,21 +284,6 @@ public class Cache<K, V> {
         }
 
         /**
-         * Whether the segment maps {@code key} to a value that is loaded and not expired, without waiting for a load in
-         * progress, recording a hit or a miss, or updating the entry's access time.
-         */
-        boolean isLoaded(K key, Predicate<Entry<K, V>> isExpired) {
-            CompletableFuture<Entry<K, V>> future;
-            try (ReleasableLock ignored = readLock.acquire()) {
-                future = map.get(key);
-            }
-            if (future == null || future.isDone() == false || future.isCompletedExceptionally()) {
-                return false;
-            }
-            return isExpired.test(future.join()) == false;
-        }
-
-        /**
          * put an entry into the segment
          *
          * @param key   the key of the entry to add to the cache
@@ -423,18 +408,6 @@ public class Cache<K, V> {
      */
     public V get(K key) {
         return get(key, now(), e -> {});
-    }
-
-    /**
-     * Whether {@code key} maps to a value that is loaded and not expired. Unlike {@link #get(Object)} it doesn't wait for a load
-     * in progress, which counts as not loaded, doesn't record a hit or a miss and doesn't change the eviction order.
-     *
-     * @param key the key to look up
-     * @return whether a loaded value is mapped to the key
-     */
-    public boolean isLoaded(K key) {
-        final long now = now();
-        return getCacheSegment(key).isLoaded(key, e -> isExpired(e, now));
     }
 
     private V get(K key, long now, Consumer<Entry<K, V>> onExpiration) {

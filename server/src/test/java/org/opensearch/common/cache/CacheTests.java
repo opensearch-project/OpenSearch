@@ -243,57 +243,6 @@ public class CacheTests extends OpenSearchTestCase {
         assertEquals(count, cache.count());
     }
 
-    // isLoaded only reports loaded, unexpired values: it doesn't wait for a load in progress, and touches neither the stats
-    // nor the access time
-    public void testIsLoaded() throws Exception {
-        AtomicLong now = new AtomicLong();
-        Cache<Integer, String> cache = new Cache<Integer, String>(randomFrom(1, 2, 4, 8, 16, 64, 128, 256)) {
-            @Override
-            protected long now() {
-                return now.get();
-            }
-        };
-        cache.setExpireAfterAccessNanos(10);
-        assertFalse(cache.isLoaded(1));
-        cache.put(1, "1");
-        assertTrue(cache.isLoaded(1));
-
-        // a load in progress counts as not loaded, without waiting for it
-        CountDownLatch loading = new CountDownLatch(1);
-        CountDownLatch release = new CountDownLatch(1);
-        Thread loader = new Thread(() -> {
-            try {
-                cache.computeIfAbsent(2, k -> {
-                    loading.countDown();
-                    release.await();
-                    return "2";
-                });
-            } catch (ExecutionException e) {
-                throw new AssertionError(e);
-            }
-        });
-        loader.start();
-        loading.await();
-        assertFalse(cache.isLoaded(2));
-        release.countDown();
-        loader.join();
-        assertTrue(cache.isLoaded(2));
-
-        // a failed load counts as not loaded
-        expectThrows(ExecutionException.class, () -> cache.computeIfAbsent(3, k -> { throw new IllegalStateException("fails"); }));
-        assertFalse(cache.isLoaded(3));
-
-        // no hit, miss or access is recorded, so an entry checked again and again still expires
-        Cache.CacheStats before = cache.stats();
-        now.set(5);
-        assertTrue(cache.isLoaded(1));
-        now.set(11);
-        assertFalse(cache.isLoaded(1));
-        Cache.CacheStats after = cache.stats();
-        assertEquals(before.getHits(), after.getHits());
-        assertEquals(before.getMisses(), after.getMisses());
-    }
-
     // cache some entries, step the clock forward, cache some more entries, step the clock forward and then check that
     // the first batch of cached entries expired and were removed
     public void testExpirationAfterAccess() {

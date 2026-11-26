@@ -34,8 +34,6 @@ package org.opensearch.search.aggregations.metrics;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -69,15 +67,12 @@ import org.opensearch.common.util.LongArray;
 import org.opensearch.common.util.ObjectArray;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.rest.RestStatus;
-import org.opensearch.index.fielddata.IndexFieldData;
-import org.opensearch.index.fielddata.IndexOrdinalsFieldData;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
-import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -176,21 +171,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     Collector collector;
 
-    /**
-     * Global ordinals of each bucket while collection is deferred, see {@link #startDeferral}. {@code null} when collection
-     * isn't deferred or stopped deferring.
-     */
-    @Nullable
-    DeferredOrdinals deferred;
-    private boolean deferralDecided;
-    /** Whether collection was deferred, or why not, for the profile. */
-    String deferredOrdinals = "not_started";
-    int deferredSegments;
-    int deferredBucketsBuilt;
-    /** Buckets that {@link #prepareBuildAggregations} hashed out of {@link #deferred}, sorted. */
-    private long[] deferredBucketsHashed = new long[0];
-    /** Whether deferred ordinals moved from bits to bitmaps, once collection stopped deferring. */
-    private boolean deferredUsedBitmaps;
+    /** Collects global ordinals and hashes only the buckets the parent keeps, when worth it, see {@link DeferredOrdinals}. */
+    private final DeferredOrdinals deferred = new DeferredOrdinals();
 
     int emptyCollectorsUsed;
     int numericCollectorsUsed;
@@ -281,13 +263,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 emptyCollectorsUsed++;
                 return new EmptyCollector();
             }
-            if (deferralDecided == false) {
-                deferralDecided = true;
-                deferred = startDeferral(source, ctx);
-            }
-            if (deferred != null) {
-                deferredSegments++;
-                return new DeferringCollector(source, ctx, deferred.leafCollector(ctx));
+            final Collector deferring = deferred.leafCollector(source, ctx);
+            if (deferring != null) {
+                return deferring;
             }
             collector = ordinalsCollector(source, ordinalValues, ctx);
         } else {
@@ -358,125 +336,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         ordinalsCollectorsOverheadTooHigh++;
         stringHashingCollectorsUsed++;
         return new DirectCollector(counts, MurmurHash3Values.hash(source.bytesValues(ctx)));
-    }
-
-    /**
-     * Starts collecting the global ordinals of each bucket for the whole shard instead of hashing segment ordinals into
-     * {@link #counts}, so that the parent ranks its buckets by their exact number of distinct values and only the buckets it
-     * keeps are hashed, in {@link #buildAggregation}. That needs compact sketches, a field with ordinals and global ordinals
-     * that fit in an {@code int}. Without {@code execution_hint: deferred_ordinals} it is only worth it when a {@code terms}
-     * parent orders its buckets by this aggregation and global ordinals are already loaded, as building them can cost more
-     * than it saves. Returns {@code null}, recording why in {@link #deferredOrdinals}, when collection isn't deferred.
-     */
-    private DeferredOrdinals startDeferral(ValuesSource.Bytes.WithOrdinals source, LeafReaderContext ctx) throws IOException {
-        final boolean forced = executionMode == CardinalityAggregatorFactory.ExecutionMode.DEFERRED_ORDINALS;
-        if (executionMode == CardinalityAggregatorFactory.ExecutionMode.DIRECT
-            || executionMode == CardinalityAggregatorFactory.ExecutionMode.ORDINALS) {
-            deferredOrdinals = "execution_hint";
-            return null;
-        }
-        if (compactSketches == false) {
-            deferredOrdinals = "no_compact_sketches";
-            return null;
-        }
-        if (valuesSourceConfig.fieldContext() == null
-            || valuesSourceConfig.script() != null
-            || valuesSourceConfig.missing() != null
-            || source.supportsGlobalOrdinalsMapping() == false) {
-            deferredOrdinals = "unsupported_values_source";
-            return null;
-        }
-        if (forced == false && (parent instanceof TermsAggregator terms && terms.isOrderedBySubAggregation(name)) == false) {
-            deferredOrdinals = "not_ordered_by_parent";
-            return null;
-        }
-        final IndexReader reader = ctx.parent.reader();
-        if (reader instanceof DirectoryReader == false) {
-            deferredOrdinals = "unsupported_reader";
-            return null;
-        }
-        if (forced == false && globalOrdinalsLoaded((DirectoryReader) reader) == false) {
-            deferredOrdinals = "global_ordinals_not_loaded";
-            return null;
-        }
-        final long maxOrd = source.globalOrdinalsValues(ctx).getValueCount();
-        if (maxOrd > Integer.MAX_VALUE) {
-            deferredOrdinals = "too_many_ordinals";
-            return null;
-        }
-        final long memoryThreshold = context.cardinalityAggregationContext().getMemoryThreshold();
-        final DeferredOrdinals deferred = new DeferredOrdinals(
-            source,
-            ctx,
-            maxOrd,
-            context.bigArrays(),
-            this::addRequestCircuitBreakerBytes,
-            memoryThreshold
-        );
-        deferredOrdinals = "used";
-        return deferred;
-    }
-
-    private boolean globalOrdinalsLoaded(DirectoryReader reader) {
-        final IndexFieldData<?> fieldData = context.getQueryShardContext().getForField(valuesSourceConfig.fieldContext().fieldType());
-        return fieldData instanceof IndexOrdinalsFieldData ordinals && ordinals.isGlobalOrdinalsLoaded(reader);
-    }
-
-    /**
-     * Hashes the global ordinals collected so far into {@link #counts} and goes back to collecting segment ordinals.
-     */
-    private void stopDeferring() throws IOException {
-        final DeferredOrdinals stopped = deferred;
-        deferred = null;
-        deferredOrdinals = "stopped_over_memory_threshold";
-        deferredUsedBitmaps = stopped.usesBitmaps();
-        try {
-            stopped.hashAllInto(counts);
-        } finally {
-            stopped.close();
-        }
-    }
-
-    /**
-     * Collects a segment into {@link #deferred} until its bitmaps exceed the memory threshold, then hands everything they
-     * hold to {@link #counts} and finishes the segment, and the following ones, with the collector that would have been used
-     * without deferring. The document that went over the threshold is collected again, which doesn't change the sketches.
-     */
-    private class DeferringCollector extends Collector {
-        private final ValuesSource.Bytes.WithOrdinals source;
-        private final LeafReaderContext ctx;
-        private Collector active;
-
-        DeferringCollector(ValuesSource.Bytes.WithOrdinals source, LeafReaderContext ctx, Collector deferredCollector) {
-            this.source = source;
-            this.ctx = ctx;
-            this.active = deferredCollector;
-        }
-
-        @Override
-        public void collect(int doc, long owningBucketOrd) throws IOException {
-            try {
-                active.collect(doc, owningBucketOrd);
-            } catch (MemoryLimitExceededException e) {
-                final Collector previous = active;
-                active = null;
-                previous.close();
-                stopDeferring();
-                active = ordinalsCollector(source, source.ordinalsValues(ctx), ctx);
-                logger.debug("Cardinality aggregation [{}] stopped deferring collection: global ordinals exceed the threshold", name);
-                active.collect(doc, owningBucketOrd);
-            }
-        }
-
-        @Override
-        public void postCollect() throws IOException {
-            active.postCollect();
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(active);
-        }
     }
 
     private boolean canPrune(Aggregator parent, Aggregator[] subAggregators, ValuesSourceConfig valuesSourceConfig) {
@@ -590,41 +449,21 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     @Override
     public double metric(long owningBucketOrd) {
-        if (deferred != null) {
+        if (deferred.isDeferring()) {
             return deferred.cardinality(owningBucketOrd);
         }
         return counts == null ? 0 : counts.cardinality(owningBucketOrd);
     }
 
-    /**
-     * Hashes the values of the deferred buckets about to be built all at once, so that values they share are looked up and
-     * hashed once.
-     */
     @Override
     protected void prepareBuildAggregations(long[] owningBucketOrds) throws IOException {
-        if (deferred == null) {
-            return;
-        }
-        final long[] buckets = Arrays.stream(owningBucketOrds)
-            .filter(bucket -> deferred.cardinality(bucket) > 0)
-            .sorted()
-            .distinct()
-            .toArray();
-        deferred.hashBucketsInto(counts, buckets);
-        deferredBucketsBuilt += buckets.length;
-        deferredBucketsHashed = buckets;
+        deferred.prepareBuild(owningBucketOrds);
     }
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        if (deferred != null) {
-            if (deferred.cardinality(owningBucketOrdinal) == 0) {
-                return buildEmptyAggregation();
-            }
-            if (Arrays.binarySearch(deferredBucketsHashed, owningBucketOrdinal) < 0) {
-                deferredBucketsBuilt++;
-                deferred.hashBucketsInto(counts, new long[] { owningBucketOrdinal });
-            }
+        if (deferred.isDeferring() && deferred.build(owningBucketOrdinal) == false) {
+            return buildEmptyAggregation();
         }
         if (counts == null || owningBucketOrdinal >= counts.maxOrd() || counts.cardinality(owningBucketOrdinal) == 0) {
             return buildEmptyAggregation();
@@ -658,10 +497,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         add.accept("roaring_ordinals_collectors_used", roaringOrdinalsCollectorsUsed);
         add.accept("hybrid_collectors_switched_to_direct", hybridCollectorsSwitchedToDirect);
         add.accept("compact_sketches", compactSketches);
-        add.accept("deferred_ordinals", deferredOrdinals);
-        add.accept("deferred_bitmaps", deferred != null ? deferred.usesBitmaps() : deferredUsedBitmaps);
-        add.accept("deferred_segments", deferredSegments);
-        add.accept("deferred_buckets_built", deferredBucketsBuilt);
+        deferred.collectDebugInfo(add);
         if (counts instanceof CompactHyperLogLogPlusPlus compact) {
             add.accept("hyperloglog_buckets", compact.hyperLogLogBuckets());
             add.accept("linear_counting_bytes", compact.linearCountingBytes());
@@ -975,7 +811,28 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
      *
      * @opensearch.internal
      */
-    static final class BucketOrdinalBits implements Releasable {
+    /**
+     * The distinct ordinals of each bucket, as bits or as bitmaps.
+     *
+     * @opensearch.internal
+     */
+    interface BucketOrdinalSet extends Releasable {
+        /**
+         * Number of distinct ordinals of {@code bucket}.
+         */
+        long cardinality(long bucket);
+
+        /**
+         * Hashes the ordinals of {@code buckets}, or of every bucket if {@code null}, into the same buckets of {@code counts},
+         * looking each distinct ordinal up once.
+         *
+         * @param values resolves the ordinals to their values
+         * @param buckets distinct buckets
+         */
+        void collectInto(AbstractHyperLogLogPlusPlus counts, SortedSetDocValues values, @Nullable long[] buckets) throws IOException;
+    }
+
+    static final class BucketOrdinalBits implements BucketOrdinalSet {
         /** Ordinals hashed at a time when hashing some of the buckets. */
         static final int HASH_CHUNK = 8192;
         static final int SPARSE_SHARE = 8;
@@ -1057,7 +914,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         /**
          * Number of distinct ordinals of {@code bucket}. Only when counting.
          */
-        long cardinality(long bucket) {
+        @Override
+        public long cardinality(long bucket) {
             return bucket < ordinalCounts.size() ? ordinalCounts.get(bucket) : 0;
         }
 
@@ -1078,6 +936,13 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
          * @param values resolves the ordinals to their values
          */
         void collectInto(AbstractHyperLogLogPlusPlus counts, SortedSetDocValues values) throws IOException {
+            collectInto(counts, values, null);
+        }
+
+        /**
+         * Every bucket: like {@link OrdinalsCollector} has always done, each visited ordinal's hash is kept by ordinal.
+         */
+        private void collectAllInto(AbstractHyperLogLogPlusPlus counts, SortedSetDocValues values) throws IOException {
             try (BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {
                 for (long bucket = bits.size() - 1; bucket >= 0; --bucket) {
                     final BitArray bucketBits = bits.get(bucket);
@@ -1107,14 +972,18 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         /**
-         * Hashes the ordinals of {@code buckets} into the same buckets of {@code counts}. Every distinct ordinal is looked up once
-         * and in ascending order, which is the cheapest way to read a terms dictionary, {@value #HASH_CHUNK} ordinals at a time
-         * so that only the hashes of one chunk are held.
-         *
-         * @param values resolves the ordinals to their values
-         * @param buckets distinct buckets
+         * {@inheritDoc}
+         * <p>
+         * For some of the buckets every distinct ordinal is looked up once and in ascending order, which is the cheapest way to
+         * read a terms dictionary, {@value #HASH_CHUNK} ordinals at a time so that only the hashes of one chunk are held.
          */
-        void collectInto(AbstractHyperLogLogPlusPlus counts, SortedSetDocValues values, long[] buckets) throws IOException {
+        @Override
+        public void collectInto(AbstractHyperLogLogPlusPlus counts, SortedSetDocValues values, @Nullable long[] buckets)
+            throws IOException {
+            if (buckets == null) {
+                collectAllInto(counts, values);
+                return;
+            }
             final BitArray[] selected = new BitArray[buckets.length];
             final long[] selectedBuckets = new long[buckets.length];
             // the next ordinal of each selected bucket to hash
@@ -1208,7 +1077,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
      *
      * @opensearch.internal
      */
-    static final class BucketOrdinalBitmaps implements Releasable {
+    static final class BucketOrdinalBitmaps implements BucketOrdinalSet {
         /**
          * A bitmap that also keeps the number of values added to it and the bytes charged for it.
          */
@@ -1310,7 +1179,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         /**
          * Number of distinct ordinals in {@code bucket}.
          */
-        long cardinality(long bucket) {
+        @Override
+        public long cardinality(long bucket) {
             final CountedBitmap bitmap = bucket < bitmaps.size() ? bitmaps.get(bucket) : null;
             if (bitmap != null) {
                 // the number of values added, which is cheaper than counting the bitmap's containers
@@ -1385,13 +1255,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             collectInto(counts, values, null);
         }
 
-        /**
-         * Like {@link #collectInto(AbstractHyperLogLogPlusPlus, SortedSetDocValues)} for {@code buckets} only, or every bucket
-         * if {@code null}.
-         *
-         * @param buckets distinct buckets
-         */
-        void collectInto(AbstractHyperLogLogPlusPlus counts, SortedSetDocValues values, @Nullable long[] buckets) throws IOException {
+        @Override
+        public void collectInto(AbstractHyperLogLogPlusPlus counts, SortedSetDocValues values, @Nullable long[] buckets)
+            throws IOException {
             final long bucketCount = buckets == null ? maxBucket + 1 : buckets.length;
             if (bucketCount <= 0) {
                 return;
@@ -1658,119 +1524,101 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     /**
-     * The global ordinals of each bucket for a whole shard. Global ordinals are the same in every segment, so the sets keep
-     * growing across segments and give the exact number of distinct values of each bucket, and a bucket's values only need
-     * hashing once the parent picked it.
+     * Collects the global ordinals of each bucket for the whole shard instead of hashing segment ordinals into {@link #counts}, so
+     * that the parent ranks its buckets by their exact number of distinct values and only the buckets it keeps are hashed.
+     * Global ordinals are the same in every segment, so each bucket's set keeps growing across segments.
+     * <p>
+     * Only with {@code execution_hint: deferred_ordinals}, as it only pays off when the parent orders its buckets by this
+     * aggregation and has many more buckets than it keeps, which can't be told in advance: otherwise collecting global ordinals,
+     * and building them if they aren't loaded, costs more than it saves. It also needs compact sketches, a field with ordinals
+     * and global ordinals that fit in an {@code int}. It is decided on the first segment with values.
      * <p>
      * The ordinals go through the same stages as the hybrid collector, but they are kept rather than hashed when moving on: a
-     * {@link BucketOrdinalBits} while it fits in {@code memoryThreshold}, or a share of it for sparse ordinals, then
-     * {@link BucketOrdinalBitmaps}. Its segment collectors throw {@link MemoryLimitExceededException} once the bitmaps exceed
-     * {@code memoryThreshold} too.
-     *
-     * @opensearch.internal
+     * {@link BucketOrdinalBits} while it fits in the memory threshold, or a share of it for sparse ordinals, then
+     * {@link BucketOrdinalBitmaps}. Once the bitmaps exceed the memory threshold, everything they hold is hashed into
+     * {@link #counts} and collection carries on, in that segment and the following ones, as it would have without deferring.
      */
-    static final class DeferredOrdinals implements Releasable {
-        private final ValuesSource.Bytes.WithOrdinals source;
+    private final class DeferredOrdinals implements Releasable {
+        private enum State {
+            NOT_STARTED,
+            NOT_DEFERRED,
+            DEFERRING,
+            STOPPED
+        }
+
+        private State state = State.NOT_STARTED;
+        /** Why collection isn't deferred, for the profile. */
+        private String reason;
+        private ValuesSource.Bytes.WithOrdinals source;
         /** Any segment of the shard, to look the global ordinals up from. */
-        private final LeafReaderContext lookupLeaf;
-        private final BigArrays bigArrays;
-        private final LongConsumer breaker;
-        private final long memoryThreshold;
-        /** The ordinals until they no longer fit in bits, then {@code null}. */
-        @Nullable
-        private BucketOrdinalBits bits;
-        /** The ordinals once they no longer fit in bits, {@code null} until then. */
-        @Nullable
-        private BucketOrdinalBitmaps bitmaps;
+        private LeafReaderContext lookupLeaf;
         private SortedSetDocValues lookup;
+        private long memoryThreshold;
+        /** The ordinals while deferring, {@code null} otherwise: bits until they don't fit, then bitmaps. */
+        @Nullable
+        private BucketOrdinalSet ordinals;
+        private boolean usedBitmaps;
+        /** Buckets that {@link #prepareBuild} hashed, sorted. */
+        private long[] hashedBuckets = new long[0];
+        private int segments;
+        private int bucketsBuilt;
 
-        DeferredOrdinals(
-            ValuesSource.Bytes.WithOrdinals source,
-            LeafReaderContext lookupLeaf,
-            long maxOrd,
-            BigArrays bigArrays,
-            LongConsumer breaker,
-            long memoryThreshold
-        ) {
-            this.source = source;
-            this.lookupLeaf = lookupLeaf;
-            this.bigArrays = bigArrays;
-            this.breaker = breaker;
-            this.memoryThreshold = memoryThreshold;
-            this.bits = new BucketOrdinalBits(bigArrays, maxOrd, memoryThreshold, true);
+        boolean isDeferring() {
+            assert (state == State.DEFERRING) == (ordinals != null);
+            return state == State.DEFERRING;
         }
 
-        Collector leafCollector(LeafReaderContext ctx) throws IOException {
-            final SortedSetDocValues globalOrds = source.globalOrdinalsValues(ctx);
-            return new Collector() {
-                @Override
-                public void collect(int doc, long bucketOrd) throws IOException {
-                    if (globalOrds.advanceExact(doc) == false) {
-                        return;
-                    }
-                    int count = globalOrds.docValueCount();
-                    long ord;
-                    if (bits != null) {
-                        final BitArray bucketBits = bits.bucket(bucketOrd);
-                        if (bucketBits != null) {
-                            while ((count-- > 0) && (ord = globalOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
-                                bits.addCounted(bucketOrd, bucketBits, ord);
-                            }
-                            return;
-                        }
-                        switchToBitmaps();
-                    }
-                    while ((count-- > 0) && (ord = globalOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
-                        bitmaps.add(bucketOrd, (int) ord);
-                    }
-                    if (bitmaps.memoryUsed() > memoryThreshold) {
-                        throw MemoryLimitExceededException.INSTANCE;
-                    }
-                }
-
-                @Override
-                public void postCollect() {
-                    if (bitmaps != null) {
-                        bitmaps.flushBreaker();
-                    }
-                }
-
-                @Override
-                public void close() {
-                    // the ordinals live for the whole shard
-                }
-            };
-        }
-
-        private void switchToBitmaps() {
-            final BucketOrdinalBitmaps created = new BucketOrdinalBitmaps(bigArrays, breaker);
-            boolean success = false;
-            try {
-                bits.copyTo(created);
-                success = true;
-            } finally {
-                if (success == false) {
-                    created.close();
-                }
+        /**
+         * The collector of a segment while collection is deferred, {@code null} otherwise.
+         */
+        @Nullable
+        Collector leafCollector(ValuesSource.Bytes.WithOrdinals source, LeafReaderContext ctx) throws IOException {
+            if (state == State.NOT_STARTED) {
+                start(source, ctx);
             }
-            bitmaps = created;
-            final BucketOrdinalBits copied = bits;
-            bits = null;
-            copied.close();
+            if (state != State.DEFERRING) {
+                return null;
+            }
+            segments++;
+            return new SegmentCollector(ctx);
         }
 
-        /**
-         * Whether the ordinals moved from bits to bitmaps.
-         */
-        boolean usesBitmaps() {
-            return bitmaps != null;
+        private void start(ValuesSource.Bytes.WithOrdinals source, LeafReaderContext ctx) throws IOException {
+            reason = whyNotDeferred(source, ctx);
+            if (reason != null) {
+                state = State.NOT_DEFERRED;
+                return;
+            }
+            this.source = source;
+            this.lookupLeaf = ctx;
+            this.memoryThreshold = context.cardinalityAggregationContext().getMemoryThreshold();
+            this.ordinals = new BucketOrdinalBits(
+                context.bigArrays(),
+                source.globalOrdinalsValues(ctx).getValueCount(),
+                memoryThreshold,
+                true
+            );
+            state = State.DEFERRING;
         }
 
-        /**
-         * Exact number of distinct values collected into {@code bucketOrd}.
-         */
-        long cardinality(long bucketOrd) {
-            return bits != null ? bits.cardinality(bucketOrd) : bitmaps.cardinality(bucketOrd);
+        @Nullable
+        private String whyNotDeferred(ValuesSource.Bytes.WithOrdinals source, LeafReaderContext ctx) throws IOException {
+            if (executionMode != CardinalityAggregatorFactory.ExecutionMode.DEFERRED_ORDINALS) {
+                return "not_requested";
+            }
+            if (compactSketches == false) {
+                return "no_compact_sketches";
+            }
+            if (valuesSourceConfig.fieldContext() == null
+                || valuesSourceConfig.script() != null
+                || valuesSourceConfig.missing() != null
+                || source.supportsGlobalOrdinalsMapping() == false) {
+                return "unsupported_values_source";
+            }
+            if (source.globalOrdinalsValues(ctx).getValueCount() > Integer.MAX_VALUE) {
+                return "too_many_ordinals";
+            }
+            return null;
         }
 
         private SortedSetDocValues lookup() throws IOException {
@@ -1781,32 +1629,157 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         /**
-         * Hashes the values of {@code buckets} into the same buckets of {@code counts}, each distinct value once.
-         *
-         * @param buckets distinct buckets
+         * Adds the global ordinals of {@code doc} to {@code bucketOrd}, and returns whether they still fit in the memory
+         * threshold.
          */
-        void hashBucketsInto(AbstractHyperLogLogPlusPlus counts, long[] buckets) throws IOException {
-            if (bits != null) {
-                bits.collectInto(counts, lookup(), buckets);
-            } else {
-                bitmaps.collectInto(counts, lookup(), buckets);
+        private boolean add(SortedSetDocValues globalOrds, int doc, long bucketOrd) throws IOException {
+            if (globalOrds.advanceExact(doc) == false) {
+                return true;
             }
+            int count = globalOrds.docValueCount();
+            long ord;
+            if (ordinals instanceof BucketOrdinalBits bits) {
+                final BitArray bucketBits = bits.bucket(bucketOrd);
+                if (bucketBits != null) {
+                    while ((count-- > 0) && (ord = globalOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
+                        bits.addCounted(bucketOrd, bucketBits, ord);
+                    }
+                    return true;
+                }
+                switchToBitmaps(bits);
+            }
+            final BucketOrdinalBitmaps bitmaps = (BucketOrdinalBitmaps) ordinals;
+            while ((count-- > 0) && (ord = globalOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
+                bitmaps.add(bucketOrd, (int) ord);
+            }
+            return bitmaps.memoryUsed() <= memoryThreshold;
+        }
+
+        private void switchToBitmaps(BucketOrdinalBits bits) {
+            final BucketOrdinalBitmaps bitmaps = new BucketOrdinalBitmaps(
+                context.bigArrays(),
+                CardinalityAggregator.this::addRequestCircuitBreakerBytes
+            );
+            boolean success = false;
+            try {
+                bits.copyTo(bitmaps);
+                success = true;
+            } finally {
+                if (success == false) {
+                    bitmaps.close();
+                }
+            }
+            ordinals = bitmaps;
+            bits.close();
         }
 
         /**
-         * Hashes the values of every bucket into {@code counts}, each distinct value once.
+         * Hashes the ordinals collected so far into {@link #counts} and goes back to collecting segment ordinals.
          */
-        void hashAllInto(AbstractHyperLogLogPlusPlus counts) throws IOException {
-            if (bits != null) {
-                bits.collectInto(counts, lookup());
-            } else {
-                bitmaps.collectInto(counts, lookup());
+        private void stop() throws IOException {
+            final BucketOrdinalSet stopped = ordinals;
+            ordinals = null;
+            state = State.STOPPED;
+            usedBitmaps = stopped instanceof BucketOrdinalBitmaps;
+            try {
+                stopped.collectInto(counts, lookup(), null);
+            } finally {
+                stopped.close();
             }
+            logger.debug("Cardinality aggregation [{}] stopped deferring collection: global ordinals exceed the threshold", name);
+        }
+
+        /**
+         * Exact number of distinct values collected into {@code bucketOrd}.
+         */
+        long cardinality(long bucketOrd) {
+            return ordinals.cardinality(bucketOrd);
+        }
+
+        /**
+         * Hashes the buckets about to be built all at once, so that values they share are looked up and hashed once.
+         */
+        void prepareBuild(long[] owningBucketOrds) throws IOException {
+            if (isDeferring() == false) {
+                return;
+            }
+            final long[] buckets = Arrays.stream(owningBucketOrds).filter(bucket -> cardinality(bucket) > 0).sorted().distinct().toArray();
+            ordinals.collectInto(counts, lookup(), buckets);
+            bucketsBuilt += buckets.length;
+            hashedBuckets = buckets;
+        }
+
+        /**
+         * Hashes {@code bucketOrd} into {@link #counts} unless {@link #prepareBuild} did, and returns whether it holds values.
+         */
+        boolean build(long bucketOrd) throws IOException {
+            if (cardinality(bucketOrd) == 0) {
+                return false;
+            }
+            if (Arrays.binarySearch(hashedBuckets, bucketOrd) < 0) {
+                bucketsBuilt++;
+                ordinals.collectInto(counts, lookup(), new long[] { bucketOrd });
+            }
+            return true;
+        }
+
+        void collectDebugInfo(BiConsumer<String, Object> add) {
+            add.accept("deferred_ordinals", switch (state) {
+                case NOT_STARTED -> "not_started";
+                case NOT_DEFERRED -> reason;
+                case DEFERRING -> "used";
+                case STOPPED -> "stopped_over_memory_threshold";
+            });
+            add.accept("deferred_bitmaps", ordinals instanceof BucketOrdinalBitmaps || usedBitmaps);
+            add.accept("deferred_segments", segments);
+            add.accept("deferred_buckets_built", bucketsBuilt);
         }
 
         @Override
         public void close() {
-            Releasables.close(bits, bitmaps);
+            Releasables.close(ordinals);
+        }
+
+        /**
+         * Collects a segment's global ordinals until they exceed the memory threshold, then the rest of the segment with the
+         * collector that would have been used without deferring. The document that went over the threshold is collected again,
+         * which doesn't change the sketches.
+         */
+        private final class SegmentCollector extends Collector {
+            private final LeafReaderContext ctx;
+            private final SortedSetDocValues globalOrds;
+            @Nullable
+            private Collector fallback;
+
+            SegmentCollector(LeafReaderContext ctx) throws IOException {
+                this.ctx = ctx;
+                this.globalOrds = source.globalOrdinalsValues(ctx);
+            }
+
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                if (fallback != null) {
+                    fallback.collect(doc, owningBucketOrd);
+                } else if (add(globalOrds, doc, owningBucketOrd) == false) {
+                    stop();
+                    fallback = ordinalsCollector(source, source.ordinalsValues(ctx), ctx);
+                    fallback.collect(doc, owningBucketOrd);
+                }
+            }
+
+            @Override
+            public void postCollect() throws IOException {
+                if (fallback != null) {
+                    fallback.postCollect();
+                } else if (ordinals instanceof BucketOrdinalBitmaps bitmaps) {
+                    bitmaps.flushBreaker();
+                }
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(fallback);
+            }
         }
     }
 

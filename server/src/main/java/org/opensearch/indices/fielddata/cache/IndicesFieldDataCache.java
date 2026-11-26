@@ -374,18 +374,6 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             return (IFD) accountable;
         }
 
-        @Override
-        public boolean isCached(DirectoryReader indexReader) {
-            final IndexReader.CacheHelper cacheHelper = indexReader.getReaderCacheHelper();
-            if (cacheHelper == null) {
-                return false;
-            }
-            final ShardId shardId = ShardUtils.extractShardId(indexReader);
-            final int shardIdentity = shardId == null ? Key.NO_SHARD_IDENTITY : shardIdentityResolver.applyAsInt(shardId);
-            // The same key as load(DirectoryReader, IFD). A load in progress, maybe by another request, counts as not cached.
-            return nodeLevelCache.getCache().isLoaded(new Key(this, cacheHelper.getKey(), shardId, shardIdentity));
-        }
-
         private void notifyOnCache(ShardId shardId, Accountable accountable) {
             try {
                 nodeListener.onCache(shardId, fieldName, accountable);
