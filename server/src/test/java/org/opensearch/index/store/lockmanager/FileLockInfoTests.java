@@ -84,4 +84,15 @@ public class FileLockInfoTests extends OpenSearchTestCase {
         assertEquals(fileLockInfo.getLockForAcquirer(locks), newLock);
     }
 
+    public void testGetLocksForAcquirerSkipsForeignFiles() throws NoSuchFileException {
+
+        // foreign files in the lock directory (leftovers, test filesystem injections) are not lock files
+        String[] locks = new String[] {
+            "extra0",
+            "some-foreign-file.tmp",
+            FileLockInfo.LockFileUtils.generateLockName(testMetadata, testAcquirerId) };
+        FileLockInfo fileLockInfo = FileLockInfo.getLockInfoBuilder().withAcquirerId(testAcquirerId).build();
+        assertEquals(fileLockInfo.getLockForAcquirer(locks), FileLockInfo.LockFileUtils.generateLockName(testMetadata, testAcquirerId));
+    }
+
 }
