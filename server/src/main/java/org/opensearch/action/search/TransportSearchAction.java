@@ -633,12 +633,26 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return new TaskId(clusterService.localNode().getId(), task.getId());
     }
 
-    private Task extractParentTask(final SearchRequest searchRequest) {
-        TaskId taskId = searchRequest.getParentTask();
-        if (taskId != null && taskId != TaskId.EMPTY_TASK_ID) {
-            return taskManager.getTask(taskId.getId());
+    /**
+     * The task that issued {@code searchRequest}, if it runs on this node.
+     * <p>
+     * {@code taskManager} only knows the tasks of this node, by a numeric id that is unique per node, not
+     * across the cluster. A parent task on another node is therefore not looked up at all: its number
+     * could belong to an unrelated task here.
+     *
+     * @return the parent task, or {@code null} if the request has none, its parent runs on another node,
+     *         or the parent is no longer registered
+     */
+    // Package-private for testing.
+    Task extractParentTask(final SearchRequest searchRequest) {
+        final TaskId taskId = searchRequest.getParentTask();
+        if (taskId == null || taskId.isSet() == false) {
+            return null;
         }
-        return null;
+        if (taskId.getNodeId().equals(clusterService.localNode().getId()) == false) {
+            return null;
+        }
+        return taskManager.getTask(taskId.getId());
     }
 
     private ActionListener<SearchSourceBuilder> buildRewriteListener(
