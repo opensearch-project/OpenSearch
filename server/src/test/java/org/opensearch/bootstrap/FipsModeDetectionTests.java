@@ -43,6 +43,16 @@ public class FipsModeDetectionTests extends OpenSearchTestCase {
         assertTrue(e.getMessage().contains("does not run in approved-only mode"));
     }
 
+    public void testHttp3IsRejectedInFipsMode() {
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Bootstrap.rejectHttp3InFipsMode(true));
+
+        assertEquals(
+            "http.protocol.http3.enabled is true, but FIPS mode does not offer HTTP/3: QUIC encrypts with the BoringSSL library of the "
+                + "native codec instead of BouncyCastle FIPS. Set http.protocol.http3.enabled to false.",
+            e.getMessage()
+        );
+    }
+
     public void testJavaSecurityFileReplacesTheJdkFile() {
         // "-Djava.security.properties==<file>" arrives as the value "=<file>": the JVM loaded only that file, not the JDK's
         assertTrue(System.getProperty("java.security.properties").startsWith("="));

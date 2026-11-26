@@ -60,6 +60,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.env.Environment;
+import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.monitor.process.ProcessProbe;
@@ -212,6 +213,7 @@ final class Bootstrap {
         if (isFipsModeRequested(System.getenv("OPENSEARCH_FIPS_MODE"), FipsApprovedOnlyMode.isActive())) {
             LogManager.getLogger(Bootstrap.class).info("running in FIPS-140-3 mode");
             FipsTrustStoreValidator.validate();
+            rejectHttp3InFipsMode(HttpTransportSettings.SETTING_HTTP_HTTP3_ENABLED.get(settings));
         }
 
         // initialize probes before the security manager is installed
@@ -509,6 +511,27 @@ final class Bootstrap {
             );
         }
         return requested;
+    }
+
+    /**
+     * FIPS mode offers no HTTP/3: QUIC encrypts with the BoringSSL library that the native codec bundles, not with BouncyCastle FIPS,
+     * so {@code Http3Utils.isHttp3Available()} returns false in approved-only mode. An explicit request for HTTP/3 fails the start
+     * instead of falling back to HTTP/1.1 and HTTP/2 without notice.
+     *
+     * @param http3Enabled the value of {@code http.protocol.http3.enabled}
+     * @throws IllegalStateException if HTTP/3 is enabled
+     */
+    static void rejectHttp3InFipsMode(boolean http3Enabled) {
+        if (http3Enabled) {
+            final String key = HttpTransportSettings.SETTING_HTTP_HTTP3_ENABLED.getKey();
+            throw new IllegalStateException(
+                key
+                    + " is true, but FIPS mode does not offer HTTP/3: QUIC encrypts with the BoringSSL library of the native codec "
+                    + "instead of BouncyCastle FIPS. Set "
+                    + key
+                    + " to false."
+            );
+        }
     }
 
     private static void checkLucene() {
