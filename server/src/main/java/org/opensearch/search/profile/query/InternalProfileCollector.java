@@ -36,6 +36,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -145,6 +146,11 @@ public class InternalProfileCollector implements Collector, InternalProfileCompo
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
         return collector.getLeafCollector(context);
+    }
+
+    @Override
+    public void setWeight(Weight weight) {
+        collector.setWeight(weight);
     }
 
     @Override
