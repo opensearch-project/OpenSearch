@@ -32,9 +32,14 @@
 
 package org.opensearch.index;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.status.StatusConsoleListener;
+import org.apache.logging.log4j.status.StatusData;
+import org.apache.logging.log4j.status.StatusListener;
+import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.opensearch.Version;
@@ -42,6 +47,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.logging.MockAppender;
+import org.opensearch.common.logging.OpenSearchLogMessage;
 import org.opensearch.common.logging.SlowLogLevel;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -64,10 +70,14 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
@@ -246,6 +256,25 @@ public class IndexingSlowLogTests extends OpenSearchTestCase {
         // Turning on document logging logs the whole thing
         p = new IndexingSlowLogMessage(index, pd, 10, true, Integer.MAX_VALUE);
         assertThat(p.getValueFor("source"), containsString("{\\\"foo\\\":\\\"bar\\\"}"));
+    }
+
+    public void testSourceWithPlaceholdersIsNotParsedAsLogPattern() throws IOException {
+        BytesReference source = BytesReference.bytes(
+            JsonXContent.contentBuilder().startObject().field("foo", "a{}b{}c").startObject("empty").endObject().endObject()
+        );
+        ParsedDocument pd = new ParsedDocument(
+            new NumericDocValuesField("version", 1),
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
+            "id",
+            null,
+            null,
+            source,
+            MediaTypeRegistry.JSON,
+            null
+        );
+        IndexingSlowLogMessage p = new IndexingSlowLogMessage(new Index("foo", "123"), pd, 10, true, Integer.MAX_VALUE);
+
+        assertThat(formatWithoutStatusWarnings(p), containsString("a{}b{}c"));
     }
 
     public void testSlowLogParsedDocumentPrinterSourceToLog() throws IOException {
@@ -569,5 +598,23 @@ public class IndexingSlowLogTests extends OpenSearchTestCase {
             .build();
         IndexMetadata metadata = IndexMetadata.builder(name).settings(build).build();
         return metadata;
+    }
+
+    private static String formatWithoutStatusWarnings(OpenSearchLogMessage message) {
+        List<StatusData> statusData = new CopyOnWriteArrayList<>();
+        StatusListener listener = new StatusConsoleListener(Level.WARN) {
+            @Override
+            public void log(StatusData data) {
+                statusData.add(data);
+            }
+        };
+        StatusLogger.getLogger().registerListener(listener);
+        try {
+            String formatted = message.getFormattedMessage();
+            assertThat(statusData.stream().map(StatusData::getFormattedStatus).collect(Collectors.toList()), empty());
+            return formatted;
+        } finally {
+            StatusLogger.getLogger().removeListener(listener);
+        }
     }
 }

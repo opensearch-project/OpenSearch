@@ -8,7 +8,13 @@
 
 package org.opensearch.tasks.consumer;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.status.StatusConsoleListener;
+import org.apache.logging.log4j.status.StatusData;
+import org.apache.logging.log4j.status.StatusListener;
+import org.apache.logging.log4j.status.StatusLogger;
 import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.common.logging.OpenSearchLogMessage;
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
 import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
@@ -16,7 +22,12 @@ import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchShardTaskDetailsLogMessageTests extends OpenSearchSingleNodeTestCase {
@@ -59,6 +70,21 @@ public class SearchShardTaskDetailsLogMessageTests extends OpenSearchSingleNodeT
         );
     }
 
+    public void testMetadataWithPlaceholdersIsNotParsedAsLogPattern() {
+        SearchShardTask task = new SearchShardTask(
+            0,
+            "n/a",
+            "n/a",
+            "test",
+            null,
+            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id"),
+            () -> "{\"query\":{\"term\":{\"field\":\"a{}b{}c\"}}}"
+        );
+        SearchShardTaskDetailsLogMessage p = new SearchShardTaskDetailsLogMessage(task);
+
+        assertThat(formatWithoutStatusWarnings(p), containsString("a{}b{}c"));
+    }
+
     public void testTaskDetailsLogWithJsonMetadata() {
         String jsonMetadata = "{\"query\":{\"match_all\":{}},\"size\":10}";
         SearchShardTask task = new SearchShardTask(
@@ -74,5 +100,23 @@ public class SearchShardTaskDetailsLogMessageTests extends OpenSearchSingleNodeT
 
         // Verify that metadata with JSON content is stored correctly
         assertThat(p.getValueFor("metadata"), equalTo(jsonMetadata));
+    }
+
+    private static String formatWithoutStatusWarnings(OpenSearchLogMessage message) {
+        List<StatusData> statusData = new CopyOnWriteArrayList<>();
+        StatusListener listener = new StatusConsoleListener(Level.WARN) {
+            @Override
+            public void log(StatusData data) {
+                statusData.add(data);
+            }
+        };
+        StatusLogger.getLogger().registerListener(listener);
+        try {
+            String formatted = message.getFormattedMessage();
+            assertThat(statusData.stream().map(StatusData::getFormattedStatus).collect(Collectors.toList()), empty());
+            return formatted;
+        } finally {
+            StatusLogger.getLogger().removeListener(listener);
+        }
     }
 }
